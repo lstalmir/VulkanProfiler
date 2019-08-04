@@ -23,7 +23,7 @@ include_directories (${VULKAN_HEADERS_INCLUDE_DIR})
 add_library (VkLayer_profiler_layer SHARED ${sources} ${headers})
 
 # Link against implementation
-add_dependencies (VkLayer_profiler_layer profiler_layer)
+target_link_libraries (VkLayer_profiler_layer profiler_layer)
 
 target_include_directories (VkLayer_profiler_layer PRIVATE "${CMAKE_CURRENT_LIST_DIR}/profiling_layer")
 

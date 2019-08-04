@@ -1,32 +1,5 @@
 ﻿#include "VkLayer_profiler_layer.h"
-#include <unordered_map>
-#include <mutex>
-
-////////////////////////////////////////////////////////////////////////////////////////
-#define GetNextProcAddr( INSTANCE ) pfnGetInstanceProcAddr( INSTANCE, __FUNCTION__ )
-
-struct InstanceFunctions
-{
-    PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr = nullptr;
-};
-
-struct VkInstanceEqualFunc
-{
-    inline bool operator()( const VkInstance& a, const VkInstance& b ) const
-    {
-        // Compare addresses of dispatch tables
-        return *reinterpret_cast<void**>(a) == *reinterpret_cast<void**>(b);
-    }
-};
-
-using InstanceFunctionMap = std::unordered_map<
-    VkInstance,
-    InstanceFunctions,
-    std::hash<VkInstance>,
-    VkInstanceEqualFunc>;
-
-std::mutex g_InstanceMtx;
-InstanceFunctionMap g_InstanceFunctions;
+#include "profiler_layer/instance_functions.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////
 VK_LAYER_EXPORT VkResult VKAPI_CALL vkCreateInstance(
@@ -56,7 +29,7 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL vkCreateInstance(
         pLayerCreateInfo->u.pLayerInfo->pfnNextGetInstanceProcAddr;
 
     PFN_vkCreateInstance pfnCreateInstance =
-        (PFN_vkCreateInstance)GetNextProcAddr( VK_NULL_HANDLE );
+        (PFN_vkCreateInstance)pfnGetInstanceProcAddr( VK_NULL_HANDLE, "vkCreateInstance" );
 
     // Invoke vkCreateInstance of next layer
     VkResult result = pfnCreateInstance( pCreateInfo, pAllocator, pInstance );
@@ -66,8 +39,8 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL vkCreateInstance(
     {
         std::lock_guard<std::mutex> lk( g_InstanceMtx );
 
-        InstanceFunctions functions;
-        functions.pfnGetInstanceProcAddr = pfnGetInstanceProcAddr;
+        LayerInstanceDispatchTable functions =
+            LayerInstanceDispatchTable( *pInstance, pfnGetInstanceProcAddr );
 
         g_InstanceFunctions.emplace( *pInstance, functions );
     }

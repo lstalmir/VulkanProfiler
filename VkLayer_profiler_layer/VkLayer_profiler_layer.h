@@ -1,9 +1,4 @@
 ﻿#pragma once
-
-// Remove function declarations from vulkan.h
-#define VK_NO_PROTOTYPES
-
-#include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
 
 #undef EXTERNC
