@@ -1,0 +1,8 @@
+# Visual Studio cache files
+.vs/
+
+# CMake output directory
+out/
+
+# User-defined files
+_*
