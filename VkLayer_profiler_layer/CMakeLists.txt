@@ -16,20 +16,19 @@ set (sources
     "VkLayer_profiler_layer.cpp"
     )
 
-# Set include path
-include_directories (${VULKAN_HEADERS_INCLUDE_DIR})
-
 # Add sources to this project's executable.
 add_library (VkLayer_profiler_layer SHARED ${sources} ${headers})
 
 # Link against implementation
 target_link_libraries (VkLayer_profiler_layer profiler_layer)
 
-target_include_directories (VkLayer_profiler_layer PRIVATE "${CMAKE_CURRENT_LIST_DIR}/profiling_layer")
+# Set include path
+target_include_directories (VkLayer_profiler_layer
+    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR})
 
 install (TARGETS VkLayer_profiler_layer
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Export the layer metadata file
 install (FILES "VkLayer_profiler_layer.json"
-    DESTINATION bin ${CMAKE_INSTALL_LIBDIR})
+    DESTINATION ${CMAKE_INSTALL_BINDIR})

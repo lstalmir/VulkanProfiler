@@ -15,8 +15,9 @@ set (sources
     "instance_functions.cpp"
     )
     
-# Set include path
-include_directories (${VULKAN_HEADERS_INCLUDE_DIR})
-
 # Link intermediate static library
 add_library (profiler_layer ${sources} ${headers})
+
+# Set include path
+target_include_directories (profiler_layer
+    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR})
