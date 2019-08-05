@@ -19,14 +19,10 @@
 #   define VK_LAYER_EXPORT EXTERNC
 #endif
 
-////////////////////////////////////////////////////////////////////////////////////////
-// Initialization and deinitialization of the layer
+/***************************************************************************************\
+ Entrypoints to the layer
+\***************************************************************************************/
 
-VK_LAYER_EXPORT VkResult VKAPI_CALL vkCreateInstance(
-    const VkInstanceCreateInfo*         pCreateInfo,
-    const VkAllocationCallbacks*        pAllocator,
-    VkInstance*                         pInstance );
-
-VK_LAYER_EXPORT void VKAPI_CALL vkDestroyInstance(
-    VkInstance                          instance,
-    const VkAllocationCallbacks*        pAllocator );
+VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(
+    VkInstance instance,
+    const char* name );

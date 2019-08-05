@@ -32,3 +32,8 @@ install (TARGETS VkLayer_profiler_layer
 # Export the layer metadata file
 install (FILES "VkLayer_profiler_layer.json"
     DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+add_custom_command (TARGET VkLayer_profiler_layer
+    POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+    "${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer.json"
+    "${CMAKE_CURRENT_BINARY_DIR}/VkLayer_profiler_layer.json")
