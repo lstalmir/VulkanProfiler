@@ -1,0 +1,4 @@
+#pragma once
+#define VK_LAYER_profiler_name      "@PROFILER_LAYER_NAME@"
+#define VK_LAYER_profiler_desc      "@PROFILER_LAYER_FILEDESCRIPTION@"
+#define VK_LAYER_profiler_impl_ver   @PROFILER_LAYER_VER_IMPLEMENTATION@

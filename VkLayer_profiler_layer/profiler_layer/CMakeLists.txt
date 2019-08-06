@@ -7,14 +7,10 @@ project (profiler_layer)
 
 set (headers
     "profiler.h"
-    "VkInstance_dispatch.h"
-    "VkInstance_functions.h"
     )
 
 set (sources
     "profiler.cpp"
-    "VkInstance_dispatch.cpp"
-    "VkInstance_functions.cpp"
     )
     
 # Link intermediate static library

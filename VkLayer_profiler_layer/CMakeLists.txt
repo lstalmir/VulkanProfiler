@@ -3,37 +3,81 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-project (VkLayer_profiler_layer)
+set (PROFILER_LAYER_VER_MAJOR 0)
+set (PROFILER_LAYER_VER_MINOR 1)
+set (PROFILER_LAYER_VER_PATCH 0)
+set (PROFILER_LAYER_VER_IMPLEMENTATION 1)
+set (PROFILER_LAYER_NAME VK_LAYER_profiler)
+set (PROFILER_LAYER_PROJECTNAME VkLayer_profiler_layer)
+set (PROFILER_LAYER_COMPANYNAME )
+set (PROFILER_LAYER_FILEDESCRIPTION )
+set (PROFILER_LAYER_LEGALCOPYRIGHT )
+set (PROFILER_LAYER_PRODUCTNAME "Vulkan(R) Profiling Layer")
+
+project (${PROFILER_LAYER_PROJECTNAME})
 
 # Include implementation of the layer
 add_subdirectory (profiler_layer)
 
+set (resource
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc
+    )
+
+set (generated
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h
+    )
+
 set (headers
     "VkLayer_profiler_layer.h"
+    "VkDispatch.h"
+    "VkDevice_functions.h"
+    "VkInstance_functions.h"
     )
 
 set (sources
     "VkLayer_profiler_layer.cpp"
+    "VkDevice_functions.cpp"
+    "VkInstance_functions.cpp"
     )
+    
+# Configure resources file
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in
+    ${resource}
+    @ONLY)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h.in
+    ${generated}
+    @ONLY)
 
 # Add sources to this project's executable.
-add_library (VkLayer_profiler_layer SHARED ${sources} ${headers})
+add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
+    ${sources}
+    ${headers}
+    ${generated}
+    ${resource})
 
 # Link against implementation
-target_link_libraries (VkLayer_profiler_layer profiler_layer)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_layer)
 
 # Set include path
-target_include_directories (VkLayer_profiler_layer
+target_include_directories (${PROFILER_LAYER_PROJECTNAME}
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR})
 
-install (TARGETS VkLayer_profiler_layer
+target_include_directories (${PROFILER_LAYER_PROJECTNAME}
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+# Install target
+install (TARGETS ${PROFILER_LAYER_PROJECTNAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Export the layer metadata file
-install (FILES "VkLayer_profiler_layer.json"
+install (FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
     DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-add_custom_command (TARGET VkLayer_profiler_layer
+add_custom_command (TARGET ${PROFILER_LAYER_PROJECTNAME}
     POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-    "${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/VkLayer_profiler_layer.json")
+    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json)

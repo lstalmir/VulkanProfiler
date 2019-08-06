@@ -26,3 +26,7 @@
 VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(
     VkInstance instance,
     const char* name );
+
+VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
+    VkDevice device,
+    const char* name );
