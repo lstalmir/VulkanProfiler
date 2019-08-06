@@ -7,10 +7,16 @@ namespace Profiler
 {
     // Helper macro for getting address of function implementation
 #   define GETPROCADDR( NAME )                                                          \
-        if( strcmp( name, "vk" #NAME ) == 0 )                                           \
+        if( strcmp( pName, "vk" #NAME ) == 0 )                                          \
         {                                                                               \
             return reinterpret_cast<PFN_vkVoidFunction>(NAME);                          \
         }
+
+#   define GETDEVICEPROCADDR( DEVICE, NAME )                                            \
+        reinterpret_cast<PFN_##NAME>(pfnGetDeviceProcAddr( DEVICE, #NAME ))
+
+#   define GETINSTANCEPROCADDR( INSTANCE, NAME )                                        \
+        reinterpret_cast<PFN_##NAME>(pfnGetInstanceProcAddr( INSTANCE, #NAME ))
 
     template<typename ReturnType, typename... ArgumentTypes>
     using VkFunctionType = VKAPI_ATTR ReturnType( VKAPI_CALL* )(ArgumentTypes...);
@@ -19,43 +25,6 @@ namespace Profiler
     using VkGetProcAddrFunctionType = VkFunctionType<PFN_vkVoidFunction, DispatchableHandleType, const char*>;
 
     using VkDispatchable = void*;
-    using VkDispatchable_Hasher = std::hash<VkDispatchable>;
-
-    /***********************************************************************************\
-
-    Structure:
-        VkFunction
-
-    Description:
-        Vulkan API-level function wrapper, which automatizes fetching address of the
-        next layer's implementation of the function.
-
-    \***********************************************************************************/
-    template<typename FunctionType>
-    struct VkFunction;
-
-    template<typename ReturnType, typename... ArgumentTypes>
-    struct VkFunction<VkFunctionType<ReturnType, ArgumentTypes...>>
-    {
-    public:
-        using FunctionType = VkFunctionType<ReturnType, ArgumentTypes...>;
-
-        // Create new function wrapper object and prefetch address of the implementation
-        template<typename DispatchableType>
-        VkFunction( DispatchableType handle, VkGetProcAddrFunctionType<DispatchableType> gpa, const char* pName )
-            : m_pfnNextFunction( reinterpret_cast<FunctionType>(gpa( handle, pName )) )
-        {
-        }
-
-        // Invoke next layer's function implementation
-        inline ReturnType operator()( ArgumentTypes... arguments ) const
-        {
-            return m_pfnNextFunction( arguments... );
-        }
-
-    private:
-        FunctionType m_pfnNextFunction;
-    };
 
     /***********************************************************************************\
 
@@ -77,6 +46,127 @@ namespace Profiler
             return *(const void**)(a) == *(const void**)(b);
         }
     };
+
+    /***********************************************************************************\
+
+    Structure:
+        VkDispatchable_HasherFunc
+
+    Description:
+
+    \***********************************************************************************/
+    struct VkDispatchable_HasherFunc
+    {
+        inline size_t operator()( const VkDispatchable& a ) const
+        {
+            return reinterpret_cast<size_t>(*(const void**)a);
+        }
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        GuardedUnorderedMap
+
+    Description:
+        Thread-safe wrapper for stl unordered_map class.
+
+    \***********************************************************************************/
+    template<typename KeyT, typename ValueT,
+        typename HasherT = std::hash<KeyT>,
+        typename EqualFnT = std::equal_to<KeyT>
+    > class GuardedUnorderedMap
+        : public std::unordered_map<KeyT, ValueT, HasherT, EqualFnT>
+    {
+    public:
+        inline GuardedUnorderedMap()
+            : unordered_map()
+        {
+        }
+
+        inline GuardedUnorderedMap( const GuardedUnorderedMap& other )
+            : GuardedUnorderedMap()
+        {
+            // Avoid deadlocks
+            if( &other == this )
+            {
+                return;
+            }
+
+            std::scoped_lock lk( m_MapAccessMutex, other.m_MapAccessMutex );
+
+            // Copy elements to new map
+            for( auto element : other )
+            {
+                try_emplace( element );
+            }
+        }
+
+        inline GuardedUnorderedMap( GuardedUnorderedMap&& other )
+            : GuardedUnorderedMap()
+        {
+            // Avoid deadlocks
+            if( &other == this )
+            {
+                return;
+            }
+
+            std::scoped_lock lk( m_MapAccessMutex, other.m_MapAccessMutex );
+
+            // Swap contents of maps
+            swap( other );
+        }
+
+        template<typename DispatchableType>
+        inline auto at( const DispatchableType& key )
+        {
+            std::scoped_lock lk( m_MapAccessMutex );
+            return unordered_map::at( (KeyT)key );
+        }
+
+        inline auto try_emplace( const KeyT& key, const ValueT& value )
+        {
+            std::scoped_lock lk( m_MapAccessMutex );
+            return unordered_map::try_emplace( key, value );
+        }
+
+        inline void lock()
+        {
+            // Lock access to the map contents
+            m_MapAccessMutex.lock();
+        }
+
+        inline void unlock()
+        {
+            // Unlock access to the map contents
+            m_MapAccessMutex.unlock();
+        }
+
+        inline bool try_lock()
+        {
+            // Try to lock access to the map contents
+            return m_MapAccessMutex.try_lock();
+        }
+
+    private:
+        mutable std::recursive_mutex m_MapAccessMutex;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        VkDispatchableMap
+
+    Description:
+        Map with dispatchable handle keys.
+
+    \***********************************************************************************/
+    template<typename DispatchableType, typename ValueType>
+    using VkDispatchableMap = GuardedUnorderedMap<
+        DispatchableType,
+        ValueType,
+        VkDispatchable_HasherFunc,
+        VkDispatchable_EqualFunc>;
 
     /***********************************************************************************\
 
@@ -105,9 +195,9 @@ namespace Profiler
         \*******************************************************************************/
         inline LayerDispatchTableType& GetDispatchTable( VkDispatchable handle )
         {
-            std::unique_lock<std::mutex> lk( m_DispatchMtx );
+            std::scoped_lock lk( m_Dispatch );
 
-            auto it = m_Dispatch.find( (DispatchableType)handle );
+            auto it = m_Dispatch.find( reinterpret_cast<DispatchableType>(handle) );
             if( it == m_Dispatch.end() )
             {
                 // TODO error
@@ -127,10 +217,10 @@ namespace Profiler
         \*******************************************************************************/
         inline LayerDispatchTableType& CreateDispatchTable( VkDispatchable handle, GetProcAddrType gpa )
         {
-            std::unique_lock<std::mutex> lk( m_DispatchMtx );
+            std::scoped_lock lk( m_Dispatch );
 
-            auto it = m_Dispatch.try_emplace( (DispatchableType)handle,
-                LayerDispatchTableType( (DispatchableType)handle, gpa ) );
+            auto it = m_Dispatch.try_emplace( reinterpret_cast<DispatchableType>(handle),
+                LayerDispatchTableType( reinterpret_cast<DispatchableType>(handle), gpa ) );
 
             if( !it.second )
             {
@@ -151,18 +241,33 @@ namespace Profiler
         \*******************************************************************************/
         inline void DestroyDispatchTable( VkDispatchable handle )
         {
-            std::unique_lock<std::mutex> lk( m_DispatchMtx );
-            m_Dispatch.erase( (DispatchableType)handle );
+            std::scoped_lock lk( m_Dispatch );
+            m_Dispatch.erase( reinterpret_cast<DispatchableType>(handle) );
         }
 
     private:
-        using DispatchMap = std::unordered_map<
-            DispatchableType,
-            LayerDispatchTableType,
-            VkDispatchable_Hasher,
-            VkDispatchable_EqualFunc>;
-
-        std::mutex m_DispatchMtx;
-        DispatchMap m_Dispatch;
+        VkDispatchableMap<DispatchableType, LayerDispatchTableType> m_Dispatch;
     };
+
+
+    template<typename DispatchableT>
+    struct Functions
+    {
+        using DispatchableType = DispatchableT;
+
+        static PFN_vkVoidFunction GetInterceptedProcAddr( const char* ) = delete;
+        static PFN_vkVoidFunction GetProcAddr( DispatchableType, const char* ) = delete;
+    };
+
+    template<typename Functions, typename FunctionType = PFN_vkVoidFunction>
+    inline FunctionType GetInterceptedProcAddr( const char* pName )
+    {
+        return reinterpret_cast<FunctionType>(Functions::GetInterceptedProcAddr( pName ));
+    }
+
+    template<typename Functions, typename FunctionType = PFN_vkVoidFunction>
+    inline FunctionType GetProcAddr( typename Functions::DispatchableType dispatchable, const char* pName )
+    {
+        return reinterpret_cast<FunctionType>(Functions::GetProcAddr( dispatchable, pName ));
+    }
 }

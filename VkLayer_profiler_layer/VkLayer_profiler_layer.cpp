@@ -1,6 +1,19 @@
-﻿#include "VkLayer_profiler_layer.h"
+﻿#define VK_NO_PROTOTYPES
+
 #include "VkInstance_functions.h"
 #include "VkDevice_functions.h"
+#include <vulkan/vk_layer.h>
+
+#undef VK_LAYER_EXPORT
+#if defined( _MSC_VER )
+#   define VK_LAYER_EXPORT extern "C" __declspec(dllexport)
+#elif defined( __GNUC__ ) && __GNUC__ >= 4
+#   define VK_LAYER_EXPORT extern "C" __attribute__((visibility("default")))
+#elif defined(__SUNPRO_C) && (__SUNPRO_C >= 0x590)
+#   define VK_LAYER_EXPORT extern "C" __attribute__((visibility("default")))
+#else
+#   define VK_LAYER_EXPORT extern "C"
+#endif
 
 /***************************************************************************************\
 
@@ -15,7 +28,7 @@ VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(
     VkInstance instance,
     const char* name )
 {
-    return Profiler::VkInstance_Functions::GetInstanceProcAddr( instance, name );
+    return Profiler::GetProcAddr<Profiler::VkInstance_Functions>( instance, name );
 }
 
 /***************************************************************************************\
@@ -31,5 +44,5 @@ VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
     VkDevice device,
     const char* name )
 {
-    return Profiler::VkDevice_Functions::GetDeviceProcAddr( device, name );
+    return Profiler::GetProcAddr<Profiler::VkDevice_Functions>( device, name );
 }

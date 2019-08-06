@@ -28,30 +28,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        DispatchTable
-
-    Description:
-        Constructor
-
-    \***********************************************************************************/
-    VkInstance_Functions::DispatchTable::DispatchTable( VkInstance instance, PFN_vkGetInstanceProcAddr gpa )
-        : pfnGetInstanceProcAddr( instance, gpa, "vkGetInstanceProcAddr" )
-        , pfnDestroyInstance( instance, gpa, "vkDestroyInstance" )
-        , pfnEnumerateDeviceExtensionProperties( instance, gpa, "vkEnumerateDeviceExtensionProperties" )
-        , pfnCreateDevice( instance, gpa, "vkCreateDevice" )
-    {
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
+        GetInterceptedProcAddr
 
     Description:
         Gets address of this layer's function implementation.
 
     \***********************************************************************************/
-    PFN_vkVoidFunction VkInstance_Functions::GetProcAddr( const char* name )
+    PFN_vkVoidFunction VkInstance_Functions::GetInterceptedProcAddr( const char* pName )
     {
         // Intercepted functions
         GETPROCADDR( GetInstanceProcAddr );
@@ -60,8 +43,25 @@ namespace Profiler
         GETPROCADDR( EnumerateInstanceLayerProperties );
         GETPROCADDR( EnumerateInstanceExtensionProperties );
 
+        if( PFN_vkVoidFunction function = VkDevice_Functions::GetInterceptedProcAddr( pName ) )
+            return function;
+
         // Function not overloaded
         return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetProcAddr
+
+    Description:
+        Gets address of function implementation.
+
+    \***********************************************************************************/
+    PFN_vkVoidFunction VkInstance_Functions::GetProcAddr( VkInstance instance, const char* pName )
+    {
+        return GetInstanceProcAddr( instance, pName );
     }
 
     /***********************************************************************************\
@@ -75,19 +75,16 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL VkInstance_Functions::GetInstanceProcAddr(
         VkInstance instance,
-        const char* name )
+        const char* pName )
     {
         // Overloaded functions
-        if( PFN_vkVoidFunction function = VkInstance_Functions::GetProcAddr( name ) )
-            return function;
-
-        if( PFN_vkVoidFunction function = VkDevice_Functions::GetProcAddr( name ) )
+        if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
             return function;
 
         // Get address from the next layer
         auto dispatchTable = Dispatch.GetDispatchTable( instance );
 
-        return dispatchTable.pfnGetInstanceProcAddr( instance, name );
+        return dispatchTable.pfnGetInstanceProcAddr( instance, pName );
     }
 
     /***********************************************************************************\
@@ -112,8 +109,7 @@ namespace Profiler
             && (pLayerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO ||
                 pLayerCreateInfo->function != VK_LAYER_LINK_INFO) )
         {
-            pLayerCreateInfo =
-                reinterpret_cast<const VkLayerInstanceCreateInfo*>(pLayerCreateInfo->pNext);
+            pLayerCreateInfo = reinterpret_cast<const VkLayerInstanceCreateInfo*>(pLayerCreateInfo->pNext);
         }
 
         if( !pLayerCreateInfo )

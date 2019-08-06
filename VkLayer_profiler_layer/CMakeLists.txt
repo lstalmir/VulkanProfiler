@@ -28,16 +28,17 @@ set (generated
     )
 
 set (headers
-    "VkLayer_profiler_layer.h"
-    "VkDispatch.h"
+    "VkCommandBuffer_functions.h"
     "VkDevice_functions.h"
+    "VkDispatch.h"
     "VkInstance_functions.h"
     )
 
 set (sources
-    "VkLayer_profiler_layer.cpp"
+    "VkCommandBuffer_functions.cpp"
     "VkDevice_functions.cpp"
     "VkInstance_functions.cpp"
+    "VkLayer_profiler_layer.cpp"
     )
     
 # Configure resources file

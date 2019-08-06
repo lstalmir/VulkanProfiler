@@ -7,23 +7,32 @@ project (Sample)
 
 add_subdirectory (SDL)
 
+set (headers
+    "Device.h"
+    )
+
 set (sources
+    "Device.cpp"
     "Sample.cpp"
     )
 
-add_executable (Sample ${sources})
+add_executable (Sample
+    ${headers}
+    ${sources})
 
 target_include_directories (Sample
-    PRIVATE "$ENV{VK_SDK_PATH}/Include"
+    PRIVATE $ENV{VK_SDK_PATH}/Include
     PRIVATE "${CMAKE_CURRENT_LIST_DIR}/glm/glm"
     PRIVATE "${CMAKE_CURRENT_LIST_DIR}/SDL/include"
     )
 
 add_dependencies (Sample SDL2main)
 
-target_link_directories (Sample
-    PRIVATE "$ENV{VK_SDK_PATH}/Lib"
-    )
+if (${CMAKE_SIZEOF_VOID_P} EQUAL 8) # 64-bit
+    target_link_directories (Sample PRIVATE $ENV{VK_SDK_PATH}/Lib)
+else ()
+    target_link_directories (Sample PRIVATE $ENV{VK_SDK_PATH}/Lib32)
+endif ()
 
 target_link_libraries (Sample
     PRIVATE vulkan-1

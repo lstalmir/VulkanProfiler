@@ -13,28 +13,34 @@ namespace Profiler
         Set of VkInstance functions which are overloaded in this layer.
 
     \***********************************************************************************/
-    struct VkInstance_Functions
+    struct VkInstance_Functions : Functions<VkInstance>
     {
+        // Pointers to next layer's function implementations
         struct DispatchTable
         {
-            VkFunction< PFN_vkGetInstanceProcAddr                > pfnGetInstanceProcAddr;
-            VkFunction< PFN_vkDestroyInstance                    > pfnDestroyInstance;
-            VkFunction< PFN_vkEnumerateDeviceExtensionProperties > pfnEnumerateDeviceExtensionProperties;
-            VkFunction< PFN_vkCreateDevice                       > pfnCreateDevice;
+            PFN_vkGetInstanceProcAddr                pfnGetInstanceProcAddr;
+            PFN_vkEnumerateDeviceExtensionProperties pfnEnumerateDeviceExtensionProperties;
 
-            DispatchTable( VkInstance instance, PFN_vkGetInstanceProcAddr gpa );
+            DispatchTable( VkInstance instance, PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr )
+                : pfnGetInstanceProcAddr( GETINSTANCEPROCADDR( instance, vkGetInstanceProcAddr ) )
+                , pfnEnumerateDeviceExtensionProperties( GETINSTANCEPROCADDR( instance, vkEnumerateDeviceExtensionProperties ) )
+            {
+            }
         };
 
         static VkDispatch<VkInstance, DispatchTable> Dispatch;
 
         // Get address of this layer's function implementation
-        static PFN_vkVoidFunction GetProcAddr(
-            const char* name );
+        static PFN_vkVoidFunction GetInterceptedProcAddr( const char* pName );
+
+        // Get address of function implementation
+        static PFN_vkVoidFunction GetProcAddr( VkInstance instance, const char* pName );
+
 
         // vkGetInstanceProcAddr
         static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetInstanceProcAddr(
             VkInstance instance,
-            const char* name );
+            const char* pName );
 
         // vkCreateInstance
         static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(

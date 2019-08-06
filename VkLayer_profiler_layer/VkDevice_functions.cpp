@@ -1,5 +1,6 @@
 #include "VkDevice_functions.h"
 #include "VkInstance_functions.h"
+#include "VkCommandBuffer_functions.h"
 #include "VkLayer_profiler_layer.generated.h"
 
 namespace Profiler
@@ -7,20 +8,8 @@ namespace Profiler
     // Define the device dispatcher
     VkDispatch<VkDevice, VkDevice_Functions::DispatchTable> VkDevice_Functions::Dispatch;
 
-    /***********************************************************************************\
-
-    Function:
-        DispatchTable
-
-    Description:
-        Constructor
-
-    \***********************************************************************************/
-    VkDevice_Functions::DispatchTable::DispatchTable( VkDevice device, PFN_vkGetDeviceProcAddr gpa )
-        : pfnGetDeviceProcAddr( device, gpa, "vkGetDeviceProcAddr" )
-        , pfnDestroyDevice( device, gpa, "vkDestroyDevice" )
-    {
-    }
+    // Define the device profilers
+    VkDispatchableMap<VkDevice, Profiler> VkDevice_Functions::DeviceProfilers;
 
     /***********************************************************************************\
 
@@ -31,7 +20,7 @@ namespace Profiler
         Gets address of this layer's function implementation.
 
     \***********************************************************************************/
-    PFN_vkVoidFunction VkDevice_Functions::GetProcAddr( const char* name )
+    PFN_vkVoidFunction VkDevice_Functions::GetInterceptedProcAddr( const char* pName )
     {
         // Intercepted functions
         GETPROCADDR( GetDeviceProcAddr );
@@ -40,9 +29,28 @@ namespace Profiler
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
 
+        // CommandBuffer functions
+        if( PFN_vkVoidFunction function = VkCommandBuffer_Functions::GetInterceptedProcAddr( pName ) )
+            return function;
+
         // Function not overloaded
         return nullptr;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        GetProcAddr
+
+    Description:
+        Gets pointer to the VkDevice function implementation.
+
+    \***********************************************************************************/
+    PFN_vkVoidFunction VkDevice_Functions::GetProcAddr( VkDevice device, const char* pName )
+    {
+        return GetDeviceProcAddr( device, pName );
+    }
+
 
     /***********************************************************************************\
 
@@ -55,16 +63,16 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL VkDevice_Functions::GetDeviceProcAddr(
         VkDevice device,
-        const char* name )
+        const char* pName )
     {
         // Overloaded functions
-        if( PFN_vkVoidFunction function = VkDevice_Functions::GetProcAddr( name ) )
+        if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
             return function;
 
         // Get address from the next layer
         auto dispatchTable = Dispatch.GetDispatchTable( device );
 
-        return dispatchTable.pfnGetDeviceProcAddr( device, name );
+        return dispatchTable.pfnGetDeviceProcAddr( device, pName );
     }
 
     /***********************************************************************************\
@@ -90,8 +98,7 @@ namespace Profiler
             && (pLayerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO ||
                 pLayerCreateInfo->function != VK_LAYER_LINK_INFO) )
         {
-            pLayerCreateInfo =
-                reinterpret_cast<const VkLayerDeviceCreateInfo*>(pLayerCreateInfo->pNext);
+            pLayerCreateInfo = reinterpret_cast<const VkLayerDeviceCreateInfo*>(pLayerCreateInfo->pNext);
         }
 
         if( !pLayerCreateInfo )
@@ -100,22 +107,51 @@ namespace Profiler
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
+        // Get pointers to next layer's vkGetInstanceProcAddr and vkGetDeviceProcAddr
         PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr =
             pLayerCreateInfo->u.pLayerInfo->pfnNextGetInstanceProcAddr;
-
         PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr =
             pLayerCreateInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr;
 
-        PFN_vkCreateDevice pfnCreateDevice =
-            (PFN_vkCreateDevice)pfnGetInstanceProcAddr( VK_NULL_HANDLE, "vkCreateDevice" );
+        PFN_vkCreateDevice pfnCreateDevice = GETINSTANCEPROCADDR( VK_NULL_HANDLE, vkCreateDevice );
 
         // Invoke vkCreateDevice of next layer
         VkResult result = pfnCreateDevice( physicalDevice, pCreateInfo, pAllocator, pDevice );
+
+        // Create profiler instance for the device
+        if( result == VK_SUCCESS )
+        {
+            ProfilerCallbacks deviceProfilerCallbacks( *pDevice, pfnGetDeviceProcAddr );
+
+            Profiler deviceProfiler;
+            result = deviceProfiler.Initialize( *pDevice, deviceProfilerCallbacks );
+
+            if( result != VK_SUCCESS )
+            {
+                PFN_vkDestroyDevice pfnDestroyDevice = GETDEVICEPROCADDR( *pDevice, vkDestroyDevice );
+
+                // Destroy the device
+                pfnDestroyDevice( *pDevice, pAllocator );
+
+                return result;
+            }
+
+            std::scoped_lock lk( DeviceProfilers );
+
+            auto it = DeviceProfilers.try_emplace( *pDevice, deviceProfiler );
+            if( !it.second )
+            {
+                // TODO error, should have created new element
+            }
+        }
 
         // Register callbacks to the next layer
         if( result == VK_SUCCESS )
         {
             Dispatch.CreateDispatchTable( *pDevice, pfnGetDeviceProcAddr );
+
+            // Initialize VkCommandBuffer functions for the device
+            VkCommandBuffer_Functions::OnDeviceCreate( *pDevice, pfnGetDeviceProcAddr );
         }
 
         return result;
@@ -135,6 +171,9 @@ namespace Profiler
         VkAllocationCallbacks pAllocator )
     {
         Dispatch.DestroyDispatchTable( device );
+
+        // Cleanup VkCommandBuffer function callbacks
+        VkCommandBuffer_Functions::OnDeviceDestroy( device );
     }
 
     /***********************************************************************************\
@@ -172,6 +211,9 @@ namespace Profiler
             if( physicalDevice == VK_NULL_HANDLE )
                 return VK_SUCCESS;
 
+            // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
+            // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
+            // vkEnumerateDeviceExtensionProperties implementation.
             auto instanceDispatchTable = VkInstance_Functions::Dispatch.GetDispatchTable( physicalDevice );
 
             return instanceDispatchTable.pfnEnumerateDeviceExtensionProperties(

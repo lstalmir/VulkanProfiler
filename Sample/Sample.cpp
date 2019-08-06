@@ -31,6 +31,8 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 
+#include "Device.h"
+
 // Tell SDL not to mess with main()
 #define SDL_MAIN_HANDLED
 
@@ -120,6 +122,12 @@ int main()
     }
     vk::SurfaceKHR surface( c_surface );
 
+    // Create the Vulkan device
+    Sample::Device device( instance, surface, layers,
+        {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+        } );
+
     // This is where most initializtion for a program should be performed
 
     // Poll for user input.
@@ -155,3 +163,4 @@ int main()
 
     return 0;
 }
+

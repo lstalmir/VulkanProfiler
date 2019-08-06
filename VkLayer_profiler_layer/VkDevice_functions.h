@@ -1,5 +1,6 @@
 #pragma once
 #include "VkDispatch.h"
+#include "profiler_layer/profiler.h"
 #include <vulkan/vk_layer.h>
 
 namespace Profiler
@@ -7,32 +8,39 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
-        VkInstance_Functions
+        VkDevice_Functions
 
     Description:
         Set of VkDevice functions which are overloaded in this layer.
 
     \***********************************************************************************/
-    struct VkDevice_Functions
+    struct VkDevice_Functions : Functions<VkDevice>
     {
+        // Pointers to next layer's function implementations
         struct DispatchTable
         {
-            VkFunction< PFN_vkGetDeviceProcAddr     > pfnGetDeviceProcAddr;
-            VkFunction< PFN_vkDestroyDevice         > pfnDestroyDevice;
+            PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr;
 
-            DispatchTable( VkDevice device, PFN_vkGetDeviceProcAddr gpa );
+            DispatchTable( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr )
+                : pfnGetDeviceProcAddr( GETDEVICEPROCADDR( device, vkGetDeviceProcAddr ) )
+            {
+            }
         };
 
         static VkDispatch<VkDevice, DispatchTable> Dispatch;
+        static VkDispatchableMap<VkDevice, Profiler> DeviceProfilers;
 
         // Get address of this layer's function implementation
-        static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetProcAddr(
-            const char* name );
+        static PFN_vkVoidFunction GetInterceptedProcAddr( const char* pName );
+
+        // Get address of function implementation
+        static PFN_vkVoidFunction GetProcAddr( VkDevice device, const char* pName );
+
 
         // vkGetDeviceProcAddr
         static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetDeviceProcAddr(
-            VkDevice instance,
-            const char* name );
+            VkDevice device,
+            const char* pName );
 
         // vkCreateDevice
         static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(
