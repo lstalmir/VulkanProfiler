@@ -10,7 +10,7 @@ namespace Profiler
     VkDispatch<VkDevice, VkDevice_Functions::DispatchTable> VkDevice_Functions::DeviceFunctions;
 
     // Define VkDevice profilers map
-    VkDispatchableMap<VkDevice, Profiler> VkDevice_Functions::DeviceProfilers;
+    VkDispatchableMap<VkDevice, Profiler*> VkDevice_Functions::DeviceProfilers;
 
     /***********************************************************************************\
 
@@ -134,11 +134,13 @@ namespace Profiler
         {
             ProfilerCallbacks deviceProfilerCallbacks( *pDevice, pfnGetDeviceProcAddr );
 
-            Profiler deviceProfiler;
-            result = deviceProfiler.Initialize( *pDevice, deviceProfilerCallbacks );
+            Profiler* deviceProfiler = new Profiler;
+            result = deviceProfiler->Initialize( *pDevice, deviceProfilerCallbacks );
 
             if( result != VK_SUCCESS )
             {
+                delete deviceProfiler;
+
                 PFN_vkDestroyDevice pfnDestroyDevice = GETDEVICEPROCADDR( *pDevice, vkDestroyDevice );
 
                 // Destroy the device
@@ -154,11 +156,7 @@ namespace Profiler
             {
                 // TODO error, should have created new element
             }
-        }
 
-        // Register callbacks to the next layer
-        if( result == VK_SUCCESS )
-        {
             DeviceFunctions.CreateDispatchTable( *pDevice, pfnGetDeviceProcAddr );
 
             // Initialize VkCommandBuffer functions for the device
@@ -185,7 +183,17 @@ namespace Profiler
         VkAllocationCallbacks pAllocator )
     {
         DeviceFunctions.DestroyDispatchTable( device );
-        DeviceProfilers.erase( device );
+
+        std::scoped_lock lk( DeviceProfilers );
+
+        auto it = DeviceProfilers.find( device );
+        if( it != DeviceProfilers.end() )
+        {
+            // Cleanup the profiler resources
+            it->second->Destroy( device );
+
+            DeviceProfilers.erase( it );
+        }
 
         // Cleanup VkCommandBuffer function callbacks
         VkCommandBuffer_Functions::OnDeviceDestroy( device );

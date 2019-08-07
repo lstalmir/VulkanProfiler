@@ -17,8 +17,8 @@ namespace Profiler
     PFN_vkVoidFunction VkCommandBuffer_Functions::GetInterceptedProcAddr( const char* pName )
     {
         // Intercepted functions
-        GETPROCADDR( BeginCommandBuffer );
-        GETPROCADDR( EndCommandBuffer );
+        //GETPROCADDR( BeginCommandBuffer );
+        //GETPROCADDR( EndCommandBuffer );
         GETPROCADDR( CmdDraw );
         GETPROCADDR( CmdDrawIndexed );
 
@@ -123,15 +123,18 @@ namespace Profiler
         uint32_t firstVertex,
         uint32_t firstInstance )
     {
-        Profiler& deviceProfiler = DeviceProfilers.at( commandBuffer );
+        Profiler* deviceProfiler = DeviceProfilers.at( commandBuffer );
 
-        deviceProfiler.PreDraw( commandBuffer );
+        // Increment drawcall counter
+        deviceProfiler->GetCurrentFrameStats().drawCount++;
+
+        deviceProfiler->PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
         CommandBufferFunctions.GetDispatchTable( commandBuffer ).pfnCmdDraw(
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
-        deviceProfiler.PostDraw( commandBuffer );
+        deviceProfiler->PostDraw( commandBuffer );
     }
 
     /***********************************************************************************\
@@ -150,14 +153,17 @@ namespace Profiler
         int32_t vertexOffset,
         uint32_t firstInstance )
     {
-        Profiler& deviceProfiler = DeviceProfilers.at( commandBuffer );
+        Profiler* deviceProfiler = DeviceProfilers.at( commandBuffer );
 
-        deviceProfiler.PreDraw( commandBuffer );
+        // Increment drawcall counter
+        deviceProfiler->GetCurrentFrameStats().drawCount++;
+
+        deviceProfiler->PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
         CommandBufferFunctions.GetDispatchTable( commandBuffer ).pfnCmdDrawIndexed(
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
-        deviceProfiler.PostDraw( commandBuffer );
+        deviceProfiler->PostDraw( commandBuffer );
     }
 }

@@ -18,6 +18,7 @@ namespace Profiler
     {
         // Intercepted functions
         GETPROCADDR( QueuePresentKHR );
+        GETPROCADDR( QueueSubmit );
 
         // Function not overloaded
         return nullptr;
@@ -88,15 +89,41 @@ namespace Profiler
         VkQueue queue,
         const VkPresentInfoKHR* pPresentInfo )
     {
-        Profiler& deviceProfiler = DeviceProfilers.at( queue );
+        Profiler* deviceProfiler = DeviceProfilers.at( queue );
 
-        deviceProfiler.PrePresent( queue );
+        deviceProfiler->PrePresent( queue );
 
         // Present the image
         VkResult result = QueueFunctions.GetDispatchTable( queue ).pfnQueuePresentKHR(
             queue, pPresentInfo );
 
-        deviceProfiler.PostPresent( queue );
+        deviceProfiler->PostPresent( queue );
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueSubmit
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueSubmit(
+        VkQueue queue,
+        uint32_t submitCount,
+        const VkSubmitInfo* pSubmits,
+        VkFence fence )
+    {
+        Profiler* deviceProfiler = DeviceProfilers.at( queue );
+
+        // Increment submit counter
+        deviceProfiler->GetCurrentFrameStats().submitCount += submitCount;
+
+        // Submit the command buffers
+        VkResult result = QueueFunctions.GetDispatchTable( queue ).pfnQueueSubmit(
+            queue, submitCount, pSubmits, fence );
 
         return result;
     }

@@ -30,7 +30,7 @@ namespace Profiler
         };
 
         static VkDispatch<VkDevice, DispatchTable> DeviceFunctions;
-        static VkDispatchableMap<VkDevice, Profiler> DeviceProfilers;
+        static VkDispatchableMap<VkDevice, Profiler*> DeviceProfilers;
 
         // Get address of this layer's function implementation
         static PFN_vkVoidFunction GetInterceptedProcAddr( const char* pName );

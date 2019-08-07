@@ -45,5 +45,12 @@ namespace Profiler
         static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(
             VkQueue queue,
             const VkPresentInfoKHR* pPresentInfo );
+
+        // vkQueueSubmit
+        static VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(
+            VkQueue queue,
+            uint32_t submitCount,
+            const VkSubmitInfo* pSubmits,
+            VkFence fence );
     };
 }

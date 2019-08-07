@@ -6,10 +6,13 @@ cmake_minimum_required (VERSION 3.8)
 project (profiler_layer)
 
 set (headers
+    "counters.h"
+    "frame_stats.h"
     "profiler.h"
     )
 
 set (sources
+    "counters.cpp"
     "profiler.cpp"
     )
     
