@@ -1,6 +1,4 @@
 #include "profiler.h"
-#include "VkDevice_functions.h"
-#include "VkCommandBuffer_functions.h"
 
 namespace Profiler
 {
@@ -82,4 +80,29 @@ namespace Profiler
             commandBuffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, m_TimestampQueryPool, 1 );
     }
 
+    /***********************************************************************************\
+
+    Function:
+        PrePresent
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PrePresent( VkQueue queue )
+    {
+
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostPresent
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostPresent( VkQueue queue )
+    {
+
+    }
 }

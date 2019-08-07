@@ -1,14 +1,15 @@
 #include "VkDevice_functions.h"
 #include "VkInstance_functions.h"
 #include "VkCommandBuffer_functions.h"
+#include "VkQueue_functions.h"
 #include "VkLayer_profiler_layer.generated.h"
 
 namespace Profiler
 {
-    // Define the device dispatcher
-    VkDispatch<VkDevice, VkDevice_Functions::DispatchTable> VkDevice_Functions::Dispatch;
+    // Define VkDevice dispatch tables map
+    VkDispatch<VkDevice, VkDevice_Functions::DispatchTable> VkDevice_Functions::DeviceFunctions;
 
-    // Define the device profilers
+    // Define VkDevice profilers map
     VkDispatchableMap<VkDevice, Profiler> VkDevice_Functions::DeviceProfilers;
 
     /***********************************************************************************\
@@ -31,7 +32,15 @@ namespace Profiler
 
         // CommandBuffer functions
         if( PFN_vkVoidFunction function = VkCommandBuffer_Functions::GetInterceptedProcAddr( pName ) )
+        {
             return function;
+        }
+
+        // Queue functions
+        if( PFN_vkVoidFunction function = VkQueue_Functions::GetInterceptedProcAddr( pName ) )
+        {
+            return function;
+        }
 
         // Function not overloaded
         return nullptr;
@@ -67,10 +76,12 @@ namespace Profiler
     {
         // Overloaded functions
         if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
+        {
             return function;
+        }
 
         // Get address from the next layer
-        auto dispatchTable = Dispatch.GetDispatchTable( device );
+        auto dispatchTable = DeviceFunctions.GetDispatchTable( device );
 
         return dispatchTable.pfnGetDeviceProcAddr( device, pName );
     }
@@ -148,10 +159,13 @@ namespace Profiler
         // Register callbacks to the next layer
         if( result == VK_SUCCESS )
         {
-            Dispatch.CreateDispatchTable( *pDevice, pfnGetDeviceProcAddr );
+            DeviceFunctions.CreateDispatchTable( *pDevice, pfnGetDeviceProcAddr );
 
             // Initialize VkCommandBuffer functions for the device
             VkCommandBuffer_Functions::OnDeviceCreate( *pDevice, pfnGetDeviceProcAddr );
+
+            // Initialize VkQueue functions for this device
+            VkQueue_Functions::OnDeviceCreate( *pDevice, pfnGetDeviceProcAddr );
         }
 
         return result;
@@ -170,10 +184,14 @@ namespace Profiler
         VkDevice device,
         VkAllocationCallbacks pAllocator )
     {
-        Dispatch.DestroyDispatchTable( device );
+        DeviceFunctions.DestroyDispatchTable( device );
+        DeviceProfilers.erase( device );
 
         // Cleanup VkCommandBuffer function callbacks
         VkCommandBuffer_Functions::OnDeviceDestroy( device );
+
+        // Cleanup VkQueue function callbacks
+        VkQueue_Functions::OnDeviceDestroy( device );
     }
 
     /***********************************************************************************\
@@ -214,7 +232,7 @@ namespace Profiler
             // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
             // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
             // vkEnumerateDeviceExtensionProperties implementation.
-            auto instanceDispatchTable = VkInstance_Functions::Dispatch.GetDispatchTable( physicalDevice );
+            auto instanceDispatchTable = VkInstance_Functions::InstanceFunctions.GetDispatchTable( physicalDevice );
 
             return instanceDispatchTable.pfnEnumerateDeviceExtensionProperties(
                 physicalDevice, pLayerName, pPropertyCount, pProperties );

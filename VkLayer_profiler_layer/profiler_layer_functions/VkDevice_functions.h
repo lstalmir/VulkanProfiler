@@ -20,14 +20,16 @@ namespace Profiler
         struct DispatchTable
         {
             PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr;
+            PFN_vkQueuePresentKHR   pfnQueuePresentKHR;
 
             DispatchTable( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr )
                 : pfnGetDeviceProcAddr( GETDEVICEPROCADDR( device, vkGetDeviceProcAddr ) )
+                , pfnQueuePresentKHR( GETDEVICEPROCADDR( device, vkQueuePresentKHR ) )
             {
             }
         };
 
-        static VkDispatch<VkDevice, DispatchTable> Dispatch;
+        static VkDispatch<VkDevice, DispatchTable> DeviceFunctions;
         static VkDispatchableMap<VkDevice, Profiler> DeviceProfilers;
 
         // Get address of this layer's function implementation

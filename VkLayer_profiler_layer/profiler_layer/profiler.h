@@ -1,5 +1,5 @@
 #pragma once
-#include "VkDispatch.h"
+#include "profiler_layer_functions/VkDispatch.h"
 #include <vulkan/vulkan.h>
 
 namespace Profiler
@@ -31,6 +31,9 @@ namespace Profiler
 
         void PreDraw( VkCommandBuffer );
         void PostDraw( VkCommandBuffer );
+
+        void PrePresent( VkQueue );
+        void PostPresent( VkQueue );
 
     protected:
         VkQueryPool m_TimestampQueryPool;

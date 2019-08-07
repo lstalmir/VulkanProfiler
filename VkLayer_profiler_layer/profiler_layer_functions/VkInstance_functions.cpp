@@ -22,8 +22,8 @@ namespace
 
 namespace Profiler
 {
-    // Define the instance dispatcher
-    VkDispatch<VkInstance, VkInstance_Functions::DispatchTable> VkInstance_Functions::Dispatch;
+    // Define VkInstance dispatch tables map
+    VkDispatch<VkInstance, VkInstance_Functions::DispatchTable> VkInstance_Functions::InstanceFunctions;
 
     /***********************************************************************************\
 
@@ -44,7 +44,9 @@ namespace Profiler
         GETPROCADDR( EnumerateInstanceExtensionProperties );
 
         if( PFN_vkVoidFunction function = VkDevice_Functions::GetInterceptedProcAddr( pName ) )
+        {
             return function;
+        }
 
         // Function not overloaded
         return nullptr;
@@ -82,7 +84,7 @@ namespace Profiler
             return function;
 
         // Get address from the next layer
-        auto dispatchTable = Dispatch.GetDispatchTable( instance );
+        auto dispatchTable = InstanceFunctions.GetDispatchTable( instance );
 
         return dispatchTable.pfnGetInstanceProcAddr( instance, pName );
     }
@@ -130,7 +132,7 @@ namespace Profiler
         // Register callbacks to the next layer
         if( result == VK_SUCCESS )
         {
-            Dispatch.CreateDispatchTable( *pInstance, pfnGetInstanceProcAddr );
+            InstanceFunctions.CreateDispatchTable( *pInstance, pfnGetInstanceProcAddr );
         }
 
         return result;
@@ -149,7 +151,7 @@ namespace Profiler
         VkInstance instance,
         VkAllocationCallbacks pAllocator )
     {
-        Dispatch.DestroyDispatchTable( instance );
+        InstanceFunctions.DestroyDispatchTable( instance );
     }
 
     /***********************************************************************************\

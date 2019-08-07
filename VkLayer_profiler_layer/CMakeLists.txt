@@ -28,16 +28,18 @@ set (generated
     )
 
 set (headers
-    "VkCommandBuffer_functions.h"
-    "VkDevice_functions.h"
-    "VkDispatch.h"
-    "VkInstance_functions.h"
+    "profiler_layer_functions/VkCommandBuffer_functions.h"
+    "profiler_layer_functions/VkDevice_functions.h"
+    "profiler_layer_functions/VkDispatch.h"
+    "profiler_layer_functions/VkInstance_functions.h"
+    "profiler_layer_functions/VkQueue_functions.h"
     )
 
 set (sources
-    "VkCommandBuffer_functions.cpp"
-    "VkDevice_functions.cpp"
-    "VkInstance_functions.cpp"
+    "profiler_layer_functions/VkCommandBuffer_functions.cpp"
+    "profiler_layer_functions/VkDevice_functions.cpp"
+    "profiler_layer_functions/VkInstance_functions.cpp"
+    "profiler_layer_functions/VkQueue_functions.cpp"
     "VkLayer_profiler_layer.cpp"
     )
     
@@ -64,10 +66,9 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_layer)
 
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}
-    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR})
-
-target_include_directories (${PROFILER_LAYER_PROJECTNAME}
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Install target
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}

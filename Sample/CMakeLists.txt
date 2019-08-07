@@ -9,11 +9,15 @@ add_subdirectory (SDL)
 
 set (headers
     "Device.h"
+    "Image.h"
+    "SwapChain.h"
     )
 
 set (sources
     "Device.cpp"
+    "Image.cpp"
     "Sample.cpp"
+    "SwapChain.cpp"
     )
 
 add_executable (Sample

@@ -2,8 +2,8 @@
 
 namespace Profiler
 {
-    // Define the command buffer dispatcher
-    VkDispatch<VkDevice, VkCommandBuffer_Functions::DispatchTable> VkCommandBuffer_Functions::Dispatch;
+    // Define VkCommandBuffer dispatch tables map
+    VkDispatch<VkDevice, VkCommandBuffer_Functions::DispatchTable> VkCommandBuffer_Functions::CommandBufferFunctions;
 
     /***********************************************************************************\
 
@@ -39,10 +39,12 @@ namespace Profiler
     {
         // Overloaded functions
         if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
+        {
             return function;
+        }
 
         // Get address from the next layer
-        auto dispatchTable = VkDevice_Functions::Dispatch.GetDispatchTable( device );
+        auto dispatchTable = DeviceFunctions.GetDispatchTable( device );
 
         return dispatchTable.pfnGetDeviceProcAddr( device, pName );
     }
@@ -59,7 +61,7 @@ namespace Profiler
     void VkCommandBuffer_Functions::OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr gpa )
     {
         // Create dispatch table for overloaded VkCommandBuffer functions
-        Dispatch.CreateDispatchTable( device, gpa );
+        CommandBufferFunctions.CreateDispatchTable( device, gpa );
     }
 
     /***********************************************************************************\
@@ -74,7 +76,7 @@ namespace Profiler
     void VkCommandBuffer_Functions::OnDeviceDestroy( VkDevice device )
     {
         // Remove dispatch table for the destroyed device
-        Dispatch.DestroyDispatchTable( device );
+        CommandBufferFunctions.DestroyDispatchTable( device );
     }
 
     /***********************************************************************************\
@@ -126,7 +128,7 @@ namespace Profiler
         deviceProfiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        Dispatch.GetDispatchTable( commandBuffer ).pfnCmdDraw(
+        CommandBufferFunctions.GetDispatchTable( commandBuffer ).pfnCmdDraw(
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
         deviceProfiler.PostDraw( commandBuffer );
@@ -153,7 +155,7 @@ namespace Profiler
         deviceProfiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        Dispatch.GetDispatchTable( commandBuffer ).pfnCmdDrawIndexed(
+        CommandBufferFunctions.GetDispatchTable( commandBuffer ).pfnCmdDrawIndexed(
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
         deviceProfiler.PostDraw( commandBuffer );

@@ -32,6 +32,7 @@
 #endif
 
 #include "Device.h"
+#include "SwapChain.h"
 
 // Tell SDL not to mess with main()
 #define SDL_MAIN_HANDLED
@@ -128,6 +129,52 @@ int main()
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
         } );
 
+    Sample::SwapChain swapchain( device, surface );
+
+    std::vector<vk::AttachmentDescription> renderPassAttachments = {
+        vk::AttachmentDescription(
+            vk::AttachmentDescriptionFlags(),
+            swapchain.m_Format,
+            vk::SampleCountFlagBits::e1,
+            vk::AttachmentLoadOp::eClear,
+            vk::AttachmentStoreOp::eStore,
+            vk::AttachmentLoadOp::eDontCare,
+            vk::AttachmentStoreOp::eDontCare,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::ImageLayout::eColorAttachmentOptimal ) };
+
+    std::vector<vk::AttachmentReference> renderPassAttachmentReferences = {
+        vk::AttachmentReference( 0, vk::ImageLayout::eColorAttachmentOptimal ) };
+
+    std::vector<vk::SubpassDescription> renderPassSubpasses = {
+        vk::SubpassDescription(
+            vk::SubpassDescriptionFlags(),
+            vk::PipelineBindPoint::eGraphics,
+            static_cast<uint32_t>(0), nullptr,
+            static_cast<uint32_t>(renderPassAttachmentReferences.size()), renderPassAttachmentReferences.data(),
+            nullptr,
+            nullptr,
+            static_cast<uint32_t>(0), nullptr ) };
+
+    vk::RenderPass renderPass = device.m_Device.createRenderPass(
+        vk::RenderPassCreateInfo(
+            vk::RenderPassCreateFlags(),
+            static_cast<uint32_t>(renderPassAttachments.size()), renderPassAttachments.data(),
+            static_cast<uint32_t>(renderPassSubpasses.size()), renderPassSubpasses.data(),
+            static_cast<uint32_t>(0), nullptr ) );
+
+    vk::CommandPool commandPool = device.m_Device.createCommandPool(
+        vk::CommandPoolCreateInfo(
+            vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+            device.m_QueueFamilyIndices.m_GraphicsQueueFamilyIndex ) );
+
+    vk::CommandBuffer commandBuffer = device.m_Device.allocateCommandBuffers(
+        vk::CommandBufferAllocateInfo(
+            commandPool,
+            vk::CommandBufferLevel::ePrimary,
+            1 ) ).front();
+
+
     // This is where most initializtion for a program should be performed
 
     // Poll for user input.
@@ -152,6 +199,16 @@ int main()
             }
         }
 
+        swapchain.acquireNextImage();
+
+        
+
+        device.m_PresentQueue.presentKHR(
+            vk::PresentInfoKHR(
+                static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex],
+                static_cast<uint32_t>(1), &swapchain.m_Swapchain,
+                &swapchain.m_AcquiredImageIndex ) );
+        
         SDL_Delay( 10 );
     }
 

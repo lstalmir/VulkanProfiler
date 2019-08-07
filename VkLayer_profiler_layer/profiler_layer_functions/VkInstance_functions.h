@@ -28,7 +28,7 @@ namespace Profiler
             }
         };
 
-        static VkDispatch<VkInstance, DispatchTable> Dispatch;
+        static VkDispatch<VkInstance, DispatchTable> InstanceFunctions;
 
         // Get address of this layer's function implementation
         static PFN_vkVoidFunction GetInterceptedProcAddr( const char* pName );

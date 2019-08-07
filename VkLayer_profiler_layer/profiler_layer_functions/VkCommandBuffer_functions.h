@@ -1,4 +1,5 @@
 #pragma once
+#include "VkDispatch.h"
 #include "VkDevice_functions.h"
 #include <vulkan/vk_layer.h>
 
@@ -32,7 +33,7 @@ namespace Profiler
             }
         };
 
-        static VkDispatch<VkDevice, DispatchTable> Dispatch;
+        static VkDispatch<VkDevice, DispatchTable> CommandBufferFunctions;
 
         // Get address of this layer's function implementation
         static PFN_vkVoidFunction GetInterceptedProcAddr( const char* name );
