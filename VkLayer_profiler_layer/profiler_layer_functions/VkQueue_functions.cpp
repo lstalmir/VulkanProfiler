@@ -42,9 +42,7 @@ namespace Profiler
         }
 
         // Get address from the next layer
-        auto dispatchTable = DeviceFunctions.GetDispatchTable( device );
-
-        return dispatchTable.pfnGetDeviceProcAddr( device, pName );
+        return DeviceFunctions[device].pfnGetDeviceProcAddr( device, pName );
     }
 
     /***********************************************************************************\
@@ -94,8 +92,7 @@ namespace Profiler
         deviceProfiler->PrePresent( queue );
 
         // Present the image
-        VkResult result = QueueFunctions.GetDispatchTable( queue ).pfnQueuePresentKHR(
-            queue, pPresentInfo );
+        VkResult result = QueueFunctions[queue].pfnQueuePresentKHR( queue, pPresentInfo );
 
         deviceProfiler->PostPresent( queue );
 
@@ -122,8 +119,7 @@ namespace Profiler
         deviceProfiler->GetCurrentFrameStats().submitCount += submitCount;
 
         // Submit the command buffers
-        VkResult result = QueueFunctions.GetDispatchTable( queue ).pfnQueueSubmit(
-            queue, submitCount, pSubmits, fence );
+        VkResult result = QueueFunctions[queue].pfnQueueSubmit( queue, submitCount, pSubmits, fence );
 
         return result;
     }

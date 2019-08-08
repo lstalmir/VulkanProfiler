@@ -1,41 +1,12 @@
 #pragma once
 #include "counters.h"
 #include "frame_stats.h"
-#include "profiler_layer_functions/VkDispatch.h"
-#include <atomic>
+#include "profiler_callbacks.h"
 #include <vulkan/vulkan.h>
 
 namespace Profiler
 {
-    /***********************************************************************************\
-
-    Structure:
-        ProfilerCallbacks
-
-    Description:
-        VkDevice functions used by the Profiler instances.
-
-    \***********************************************************************************/
-    struct ProfilerCallbacks
-    {
-        PFN_vkCreateQueryPool   pfnCreateQueryPool;
-        PFN_vkDestroyQueryPool  pfnDestroyQueryPool;
-        PFN_vkCmdWriteTimestamp pfnCmdWriteTimestamp;
-
-        ProfilerCallbacks()
-            : pfnCreateQueryPool( nullptr )
-            , pfnDestroyQueryPool( nullptr )
-            , pfnCmdWriteTimestamp( nullptr )
-        {
-        }
-
-        ProfilerCallbacks( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr )
-            : pfnCreateQueryPool( GETDEVICEPROCADDR( device, vkCreateQueryPool ) )
-            , pfnDestroyQueryPool( GETDEVICEPROCADDR( device, vkDestroyQueryPool ) )
-            , pfnCmdWriteTimestamp( GETDEVICEPROCADDR( device, vkCmdWriteTimestamp ) )
-        {
-        }
-    };
+    class ProfilerOverlay;
 
     /***********************************************************************************\
 
@@ -60,7 +31,7 @@ namespace Profiler
         void PostPresent( VkQueue );
 
         FrameStats& GetCurrentFrameStats();
-        FrameStats GetPreviousFrameStats() const;
+        const FrameStats& GetPreviousFrameStats() const;
 
     protected:
         VkQueryPool             m_TimestampQueryPool;
@@ -71,8 +42,10 @@ namespace Profiler
 
         uint32_t                m_CurrentFrame;
 
-        FrameStats              m_CurrentFrameStats;
-        FrameStats              m_PreviousFrameStats;
+        FrameStats*             m_pCurrentFrameStats;
+        FrameStats*             m_pPreviousFrameStats;
+
+        ProfilerOverlay*        m_pOverlay;
 
         ProfilerCallbacks       m_Callbacks;
     };

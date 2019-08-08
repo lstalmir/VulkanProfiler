@@ -19,7 +19,7 @@ namespace Sample
         bool                        m_Acquired;
         uint32_t                    m_AcquiredImageIndex;
         
-        SwapChain( Device& device, vk::SurfaceKHR surface );
+        SwapChain( Device& device, vk::SurfaceKHR surface, bool vsync = false );
 
         ~SwapChain();
 

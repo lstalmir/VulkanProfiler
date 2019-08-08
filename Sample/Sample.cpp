@@ -129,7 +129,7 @@ int main()
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
         } );
 
-    Sample::SwapChain swapchain( device, surface );
+    Sample::SwapChain swapchain( device, surface, true );
 
     std::vector<vk::AttachmentDescription> renderPassAttachments = {
         vk::AttachmentDescription(
@@ -208,8 +208,6 @@ int main()
                 static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex],
                 static_cast<uint32_t>(1), &swapchain.m_Swapchain,
                 &swapchain.m_AcquiredImageIndex ) );
-        
-        SDL_Delay( 10 );
     }
 
     // Clean up.

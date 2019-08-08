@@ -2,7 +2,7 @@
 
 namespace Sample
 {
-    SwapChain::SwapChain( Device& device, vk::SurfaceKHR surface )
+    SwapChain::SwapChain( Device& device, vk::SurfaceKHR surface, bool vsync )
     {
         m_Device = device.m_Device;
         m_Surface = surface;
@@ -72,7 +72,7 @@ namespace Sample
         {
             // Mailbox: inserts images until the queue is full, replaces the last image
             //  when it is full.
-            if( mode == vk::PresentModeKHR::eMailbox )
+            if( mode == vk::PresentModeKHR::eMailbox && !vsync )
             {
                 presentMode = mode;
                 break;

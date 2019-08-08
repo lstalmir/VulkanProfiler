@@ -1,4 +1,5 @@
 #include "profiler.h"
+#include "profiler_overlay.h"
 
 namespace Profiler
 {
@@ -24,15 +25,16 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::Initialize( VkDevice device, ProfilerCallbacks profilerCallbacks )
+    VkResult Profiler::Initialize( VkDevice device, ProfilerCallbacks callbacks )
     {
-        m_Callbacks = profilerCallbacks;
+        m_Callbacks = callbacks;
 
         m_CurrentFrame = 0;
 
         m_TimestampQueryPoolSize = 128;
         m_CurrentTimestampQuery = 0;
 
+        // Create the GPU timestamp query pool
         VkQueryPoolCreateInfo queryPoolCreateInfo;
         memset( &queryPoolCreateInfo, 0, sizeof( queryPoolCreateInfo ) );
 
@@ -40,19 +42,41 @@ namespace Profiler
         queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
         queryPoolCreateInfo.queryCount = m_TimestampQueryPoolSize;
 
-        // Create the GPU timestamp query pool
         VkResult result = m_Callbacks.pfnCreateQueryPool(
             device, &queryPoolCreateInfo, nullptr, &m_TimestampQueryPool );
 
         if( result != VK_SUCCESS )
         {
             // Failed to create timestamp query pool
+
+            // Cleanup the profiler
+            Destroy( device );
+
             return result;
         }
 
         // Create the CPU timestamp query pool
         m_pCpuTimestampQueryPool = new CpuTimestampCounter[m_TimestampQueryPoolSize];
         m_CurrentCpuTimestampQuery = 0;
+
+        // Create frame stats counters
+        m_pCurrentFrameStats = new FrameStats;
+        m_pPreviousFrameStats = new FrameStats; // will be swapped every frame
+
+        // Create profiler overlay
+        m_pOverlay = new ProfilerOverlay;
+
+        result = m_pOverlay->Initialize( device, this, m_Callbacks );
+
+        if( result != VK_SUCCESS )
+        {
+            // Creation of the overlay failed
+
+            // Cleanup the profiler
+            Destroy( device );
+
+            return result;
+        }
 
         return VK_SUCCESS;
     }
@@ -63,17 +87,24 @@ namespace Profiler
         Destroy
 
     Description:
-        Destructor
+        Frees resources allocated by the profiler.
 
     \***********************************************************************************/
     void Profiler::Destroy( VkDevice device )
     {
+        delete m_pOverlay;
+
+        delete m_pCurrentFrameStats;
+        delete m_pPreviousFrameStats;
+
         delete m_pCpuTimestampQueryPool;
 
         // Destroy the GPU timestamp query pool
-        if( m_TimestampQueryPool && m_Callbacks.pfnDestroyQueryPool )
+        if( m_TimestampQueryPool )
         {
             m_Callbacks.pfnDestroyQueryPool( device, m_TimestampQueryPool, nullptr );
+
+            m_TimestampQueryPool = VK_NULL_HANDLE;
         }
     }
 
@@ -113,7 +144,7 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::PrePresent( VkQueue queue )
     {
-
+        m_pOverlay->DrawFrameStats( queue );
     }
 
     /***********************************************************************************\
@@ -153,23 +184,25 @@ namespace Profiler
             uint64_t microseconds = m_pCpuTimestampQueryPool[prevCpuQueryIndex].GetValue();
 
             // TMP
-            printf( __FUNCTION__ ": %f us\n", static_cast<float>(microseconds) / 1000.f );
+            printf( __FUNCTION__ ": %f ms\n", static_cast<float>(microseconds) / 1000.f );
 
             if( cpuQueryIndexOverflow )
             {
                 printf( __FUNCTION__ ": FRAME #%u :: Previous frame stats :: drawCount=%llu, submitCount=%llu\n",
                     m_CurrentFrame,
-                    m_PreviousFrameStats.drawCount,
-                    m_PreviousFrameStats.submitCount );
+                    static_cast<uint64_t>(m_pPreviousFrameStats->drawCount),
+                    static_cast<uint64_t>(m_pPreviousFrameStats->submitCount) );
             }
         }
 
         // Send query to begin next frame
         m_pCpuTimestampQueryPool[cpuQueryIndex].Begin();
 
-        // Store and clear the stats
-        std::swap( m_CurrentFrameStats, m_PreviousFrameStats );
-        memset( &m_CurrentFrameStats, 0, sizeof( m_CurrentFrameStats ) );
+        // Store current frame stats
+        std::swap( m_pCurrentFrameStats, m_pPreviousFrameStats );
+
+        // Clear structure for the next frame
+        m_pCurrentFrameStats->Reset();
 
         m_CurrentFrame++;
     }
@@ -184,7 +217,7 @@ namespace Profiler
     \***********************************************************************************/
     FrameStats& Profiler::GetCurrentFrameStats()
     {
-        return m_CurrentFrameStats;
+        return *m_pCurrentFrameStats;
     }
 
     /***********************************************************************************\
@@ -195,8 +228,8 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    FrameStats Profiler::GetPreviousFrameStats() const
+    const FrameStats& Profiler::GetPreviousFrameStats() const
     {
-        return m_PreviousFrameStats;
+        return *m_pPreviousFrameStats;
     }
 }

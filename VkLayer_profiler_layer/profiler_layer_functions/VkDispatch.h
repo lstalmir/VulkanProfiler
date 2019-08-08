@@ -209,6 +209,20 @@ namespace Profiler
         /*******************************************************************************\
 
         Function:
+            operator[]
+
+        Description:
+            Alias for GetDispatchTable, for convenience.
+
+        \*******************************************************************************/
+        inline LayerDispatchTableType& operator[]( VkDispatchable handle )
+        {
+            return GetDispatchTable( handle );
+        }
+
+        /*******************************************************************************\
+
+        Function:
             CreateDispatchTable
 
         Description:

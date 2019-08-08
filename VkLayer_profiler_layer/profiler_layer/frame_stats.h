@@ -1,5 +1,6 @@
 #pragma once
 #include "counters.h"
+#include <atomic>
 
 namespace Profiler
 {
@@ -14,11 +15,22 @@ namespace Profiler
     \***********************************************************************************/
     struct FrameStats
     {
-        uint64_t drawCount;
-        uint64_t indirectDrawCount;
-        uint64_t dispatchCount;
-        uint64_t indirectDispatchCount;
-        uint64_t copyCount;
-        uint64_t submitCount;
+        std::atomic_uint64_t drawCount;
+        std::atomic_uint64_t indirectDrawCount;
+        std::atomic_uint64_t dispatchCount;
+        std::atomic_uint64_t indirectDispatchCount;
+        std::atomic_uint64_t copyCount;
+        std::atomic_uint64_t submitCount;
+
+        // Reset all frame stat counters
+        inline void Reset()
+        {
+            drawCount = 0;
+            indirectDrawCount = 0;
+            dispatchCount = 0;
+            indirectDispatchCount = 0;
+            copyCount = 0;
+            submitCount = 0;
+        }
     };
 }

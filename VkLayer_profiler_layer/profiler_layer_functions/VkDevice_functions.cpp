@@ -81,9 +81,7 @@ namespace Profiler
         }
 
         // Get address from the next layer
-        auto dispatchTable = DeviceFunctions.GetDispatchTable( device );
-
-        return dispatchTable.pfnGetDeviceProcAddr( device, pName );
+        return DeviceFunctions[device].pfnGetDeviceProcAddr( device, pName );
     }
 
     /***********************************************************************************\
@@ -240,7 +238,7 @@ namespace Profiler
             // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
             // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
             // vkEnumerateDeviceExtensionProperties implementation.
-            auto instanceDispatchTable = VkInstance_Functions::InstanceFunctions.GetDispatchTable( physicalDevice );
+            auto instanceDispatchTable = VkInstance_Functions::InstanceFunctions[physicalDevice];
 
             return instanceDispatchTable.pfnEnumerateDeviceExtensionProperties(
                 physicalDevice, pLayerName, pPropertyCount, pProperties );

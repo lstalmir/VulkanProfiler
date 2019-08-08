@@ -9,11 +9,14 @@ set (headers
     "counters.h"
     "frame_stats.h"
     "profiler.h"
+    "profiler_callbacks.h"
+    "profiler_overlay.h"
     )
 
 set (sources
     "counters.cpp"
     "profiler.cpp"
+    "profiler_overlay.cpp"
     )
     
 # Link intermediate static library
