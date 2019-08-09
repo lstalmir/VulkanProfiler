@@ -15,34 +15,16 @@ namespace Profiler
     \***********************************************************************************/
     struct ProfilerCallbacks
     {
-        PFN_vkCreateQueryPool           pfnCreateQueryPool;
-        PFN_vkDestroyQueryPool          pfnDestroyQueryPool;
-        PFN_vkCreateCommandPool         pfnCreateCommandPool;
-        PFN_vkDestroyCommandPool        pfnDestroyCommandPool;
-        PFN_vkAllocateCommandBuffers    pfnAllocateCommandBuffers;
-        PFN_vkFreeCommandBuffers        pfnFreeCommandBuffers;
-        PFN_vkBeginCommandBuffer        pfnBeginCommandBuffer;
-        PFN_vkEndCommandBuffer          pfnEndCommandBuffer;
-        PFN_vkCmdWriteTimestamp         pfnCmdWriteTimestamp;
-        PFN_vkQueueSubmit               pfnQueueSubmit;
-
-        ProfilerCallbacks()
-        {
-            memset( this, 0, sizeof( *this ) );
-        }
-
-        ProfilerCallbacks( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr )
-            : pfnCreateQueryPool( GETDEVICEPROCADDR( device, vkCreateQueryPool ) )
-            , pfnDestroyQueryPool( GETDEVICEPROCADDR( device, vkDestroyQueryPool ) )
-            , pfnCreateCommandPool( GETDEVICEPROCADDR( device, vkCreateCommandPool ) )
-            , pfnDestroyCommandPool( GETDEVICEPROCADDR( device, vkDestroyCommandPool ) )
-            , pfnAllocateCommandBuffers( GETDEVICEPROCADDR( device, vkAllocateCommandBuffers ) )
-            , pfnFreeCommandBuffers( GETDEVICEPROCADDR( device, vkFreeCommandBuffers ) )
-            , pfnBeginCommandBuffer( GETDEVICEPROCADDR( device, vkBeginCommandBuffer ) )
-            , pfnEndCommandBuffer( GETDEVICEPROCADDR( device, vkEndCommandBuffer ) )
-            , pfnCmdWriteTimestamp( GETDEVICEPROCADDR( device, vkCmdWriteTimestamp ) )
-            , pfnQueueSubmit( GETDEVICEPROCADDR( device, vkQueueSubmit ) )
-        {
-        }
+        PFN_vkGetPhysicalDeviceQueueFamilyProperties pfnGetPhysicalDeviceQueueFamilyProperties;
+        PFN_vkCreateQueryPool                        pfnCreateQueryPool;
+        PFN_vkDestroyQueryPool                       pfnDestroyQueryPool;
+        PFN_vkCreateCommandPool                      pfnCreateCommandPool;
+        PFN_vkDestroyCommandPool                     pfnDestroyCommandPool;
+        PFN_vkAllocateCommandBuffers                 pfnAllocateCommandBuffers;
+        PFN_vkFreeCommandBuffers                     pfnFreeCommandBuffers;
+        PFN_vkBeginCommandBuffer                     pfnBeginCommandBuffer;
+        PFN_vkEndCommandBuffer                       pfnEndCommandBuffer;
+        PFN_vkCmdWriteTimestamp                      pfnCmdWriteTimestamp;
+        PFN_vkQueueSubmit                            pfnQueueSubmit;
     };
 }

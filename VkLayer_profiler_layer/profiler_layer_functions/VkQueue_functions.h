@@ -37,7 +37,7 @@ namespace Profiler
         // Get address of function implementation
         static PFN_vkVoidFunction GetProcAddr( VkDevice device, const char* pName );
 
-        static void OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr gpa );
+        static void OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr );
         static void OnDeviceDestroy( VkDevice device );
 
 

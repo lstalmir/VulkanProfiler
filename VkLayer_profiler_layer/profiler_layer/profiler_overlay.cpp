@@ -25,10 +25,42 @@ namespace Profiler
         Initializes profiler overlay resources.
 
     \***********************************************************************************/
-    VkResult ProfilerOverlay::Initialize( VkDevice device, Profiler* pProfiler, ProfilerCallbacks callbacks )
+    VkResult ProfilerOverlay::Initialize( VkDevice_Object* pDevice, Profiler* pProfiler, ProfilerCallbacks callbacks )
     {
         m_pProfiler = pProfiler;
         m_Callbacks = callbacks;
+
+        // Alias for GETDEVICEPROCADDR macro
+        PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr = pDevice->pfnGetDeviceProcAddr;
+
+        // Find the graphics queue
+        uint32_t queueFamilyCount = 0;
+
+        m_Callbacks.pfnGetPhysicalDeviceQueueFamilyProperties(
+            pDevice->PhysicalDevice, &queueFamilyCount, nullptr );
+        
+        std::vector<VkQueueFamilyProperties> queueFamilyProperties( queueFamilyCount );
+
+        m_Callbacks.pfnGetPhysicalDeviceQueueFamilyProperties(
+            pDevice->PhysicalDevice, &queueFamilyCount, queueFamilyProperties.data() );
+
+        // Select queue with highest priority
+        float currentQueuePriority = 0.f;
+
+        for( auto queuePair : pDevice->Queues )
+        {
+            VkQueue_Object queue = queuePair.second;
+
+            // Check if queue is in graphics family
+            VkQueueFamilyProperties familyProperties = queueFamilyProperties[queue.FamilyIndex];
+
+            if( (familyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
+                (queue.Priority > currentQueuePriority) )
+            {
+                m_GraphicsQueue = queue;
+                currentQueuePriority = queue.Priority;
+            }
+        }
 
         // Create the GPU command pool
         VkCommandPoolCreateInfo commandPoolCreateInfo;
@@ -36,17 +68,17 @@ namespace Profiler
 
         commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        commandPoolCreateInfo.queueFamilyIndex = 0; // oh fuck
+        commandPoolCreateInfo.queueFamilyIndex = m_GraphicsQueue.FamilyIndex;
 
         VkResult result = m_Callbacks.pfnCreateCommandPool(
-            device, &commandPoolCreateInfo, nullptr, &m_CommandPool );
+            pDevice->Device, &commandPoolCreateInfo, nullptr, &m_CommandPool );
 
         if( result != VK_SUCCESS )
         {
             // Creation of command pool failed
 
             // Cleanup the overlay
-            Destroy( device );
+            Destroy( pDevice->Device );
 
             return result;
         }
@@ -61,14 +93,14 @@ namespace Profiler
         commandBufferAllocateInfo.commandBufferCount = 1;
 
         result = m_Callbacks.pfnAllocateCommandBuffers(
-            device, &commandBufferAllocateInfo, &m_CommandBuffer );
+            pDevice->Device, &commandBufferAllocateInfo, &m_CommandBuffer );
 
         if( result != VK_SUCCESS )
         {
             // Allocation of command buffer failed
 
             // Cleanup the overlay
-            Destroy( device );
+            Destroy( pDevice->Device );
 
             return result;
         }

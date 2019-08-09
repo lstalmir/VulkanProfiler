@@ -1,4 +1,5 @@
 #include "VkQueue_functions.h"
+#include <mutex>
 
 namespace Profiler
 {
@@ -54,10 +55,10 @@ namespace Profiler
         Initializes VkCommandBuffer function callbacks for new device.
 
     \***********************************************************************************/
-    void VkQueue_Functions::OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr gpa )
+    void VkQueue_Functions::OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr )
     {
         // Create dispatch table for overloaded VkCommandBuffer functions
-        QueueFunctions.CreateDispatchTable( device, gpa );
+        QueueFunctions.CreateDispatchTable( device, pfnGetDeviceProcAddr );
     }
 
     /***********************************************************************************\

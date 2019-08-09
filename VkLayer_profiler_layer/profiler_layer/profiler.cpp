@@ -25,7 +25,7 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::Initialize( VkDevice device, ProfilerCallbacks callbacks )
+    VkResult Profiler::Initialize( VkDevice_Object* pDevice, ProfilerCallbacks callbacks )
     {
         m_Callbacks = callbacks;
 
@@ -43,14 +43,14 @@ namespace Profiler
         queryPoolCreateInfo.queryCount = m_TimestampQueryPoolSize;
 
         VkResult result = m_Callbacks.pfnCreateQueryPool(
-            device, &queryPoolCreateInfo, nullptr, &m_TimestampQueryPool );
+            pDevice->Device, &queryPoolCreateInfo, nullptr, &m_TimestampQueryPool );
 
         if( result != VK_SUCCESS )
         {
             // Failed to create timestamp query pool
 
             // Cleanup the profiler
-            Destroy( device );
+            Destroy( pDevice->Device );
 
             return result;
         }
@@ -66,14 +66,14 @@ namespace Profiler
         // Create profiler overlay
         m_pOverlay = new ProfilerOverlay;
 
-        result = m_pOverlay->Initialize( device, this, m_Callbacks );
+        result = m_pOverlay->Initialize( pDevice, this, m_Callbacks );
 
         if( result != VK_SUCCESS )
         {
             // Creation of the overlay failed
 
             // Cleanup the profiler
-            Destroy( device );
+            Destroy( pDevice->Device );
 
             return result;
         }
@@ -92,6 +92,11 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::Destroy( VkDevice device )
     {
+        if( m_pOverlay )
+        {
+            m_pOverlay->Destroy( device );
+        }
+
         delete m_pOverlay;
 
         delete m_pCurrentFrameStats;

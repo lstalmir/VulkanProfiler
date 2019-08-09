@@ -2,6 +2,7 @@
 #include "counters.h"
 #include "frame_stats.h"
 #include "profiler_callbacks.h"
+#include "profiler_layer_objects/VkDevice_object.h"
 #include <vulkan/vulkan.h>
 
 namespace Profiler
@@ -21,7 +22,7 @@ namespace Profiler
     public:
         Profiler();
 
-        VkResult Initialize( VkDevice device, ProfilerCallbacks callbacks );
+        VkResult Initialize( VkDevice_Object* pDevice, ProfilerCallbacks callbacks );
         void Destroy( VkDevice device );
 
         void PreDraw( VkCommandBuffer );

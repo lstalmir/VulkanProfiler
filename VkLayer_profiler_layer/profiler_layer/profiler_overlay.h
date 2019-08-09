@@ -1,5 +1,7 @@
 #pragma once
 #include "profiler_callbacks.h"
+#include "profiler_layer_objects/VkDevice_object.h"
+#include "profiler_layer_objects/VkQueue_object.h"
 #include <vulkan/vulkan.h>
 
 namespace Profiler
@@ -19,7 +21,7 @@ namespace Profiler
     public:
         ProfilerOverlay();
 
-        VkResult Initialize( VkDevice device, Profiler* pProfiler, ProfilerCallbacks callbacks );
+        VkResult Initialize( VkDevice_Object* pDevice, Profiler* pProfiler, ProfilerCallbacks callbacks );
         void Destroy( VkDevice device );
 
         void DrawFramePerSecStats( VkQueue presentQueue );
@@ -29,6 +31,7 @@ namespace Profiler
         Profiler*           m_pProfiler;
         ProfilerCallbacks   m_Callbacks;
 
+        VkQueue_Object      m_GraphicsQueue;
         VkCommandPool       m_CommandPool;
         VkCommandBuffer     m_CommandBuffer;
     };

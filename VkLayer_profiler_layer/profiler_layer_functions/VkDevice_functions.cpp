@@ -12,6 +12,9 @@ namespace Profiler
     // Define VkDevice profilers map
     VkDispatchableMap<VkDevice, Profiler*> VkDevice_Functions::DeviceProfilers;
 
+    // Define VkDevice_Objects map
+    VkDispatchableMap<VkDevice, VkDevice_Object> VkDevice_Functions::DeviceObjects;
+
     /***********************************************************************************\
 
     Function:
@@ -127,13 +130,63 @@ namespace Profiler
         // Invoke vkCreateDevice of next layer
         VkResult result = pfnCreateDevice( physicalDevice, pCreateInfo, pAllocator, pDevice );
 
-        // Create profiler instance for the device
         if( result == VK_SUCCESS )
         {
-            ProfilerCallbacks deviceProfilerCallbacks( *pDevice, pfnGetDeviceProcAddr );
+            VkDevice_Object deviceObject;
+            deviceObject.Device = *pDevice;
+            deviceObject.PhysicalDevice = physicalDevice;
+            deviceObject.pfnGetDeviceProcAddr = pfnGetDeviceProcAddr;
 
+            // Register queues created with the device
+            PFN_vkGetDeviceQueue pfnGetDeviceQueue = GETDEVICEPROCADDR( *pDevice, vkGetDeviceQueue );
+
+            // Iterate over pCreateInfo for queue infos
+            for( uint32_t i = 0; i < pCreateInfo->queueCreateInfoCount; ++i )
+            {
+                const VkDeviceQueueCreateInfo* pQueueCreateInfo = pCreateInfo->pQueueCreateInfos + i;
+
+                for( uint32_t queueIndex = 0; queueIndex < pQueueCreateInfo->queueCount; ++queueIndex )
+                {
+                    VkQueue_Object queueObject;
+                    queueObject.Device = *pDevice;
+                    queueObject.Index = queueIndex;
+                    queueObject.FamilyIndex = pQueueCreateInfo->queueFamilyIndex;
+                    queueObject.Priority = pQueueCreateInfo->pQueuePriorities[queueIndex];
+
+                    pfnGetDeviceQueue( *pDevice, queueObject.FamilyIndex, queueIndex, &queueObject.Queue );
+
+                    deviceObject.Queues.emplace( queueObject.Queue, queueObject );
+                }
+            }
+
+            std::scoped_lock lk( DeviceObjects, DeviceProfilers );
+
+            auto deviceObjectIt = DeviceObjects.try_emplace( *pDevice, deviceObject );
+            if( !deviceObjectIt.second )
+            {
+                // TODO error, should have created new element
+            }
+
+            // Setup callbacks for the profiler
+            ProfilerCallbacks deviceProfilerCallbacks;
+            memset( &deviceProfilerCallbacks, 0, sizeof( deviceProfilerCallbacks ) );
+
+            deviceProfilerCallbacks.pfnGetPhysicalDeviceQueueFamilyProperties =
+                GETINSTANCEPROCADDR( reinterpret_cast<VkInstance>(physicalDevice), vkGetPhysicalDeviceQueueFamilyProperties );
+            deviceProfilerCallbacks.pfnCreateQueryPool = GETDEVICEPROCADDR( *pDevice, vkCreateQueryPool );
+            deviceProfilerCallbacks.pfnDestroyQueryPool = GETDEVICEPROCADDR( *pDevice, vkDestroyQueryPool );
+            deviceProfilerCallbacks.pfnCreateCommandPool = GETDEVICEPROCADDR( *pDevice, vkCreateCommandPool );
+            deviceProfilerCallbacks.pfnDestroyCommandPool = GETDEVICEPROCADDR( *pDevice, vkDestroyCommandPool );
+            deviceProfilerCallbacks.pfnAllocateCommandBuffers = GETDEVICEPROCADDR( *pDevice, vkAllocateCommandBuffers );
+            deviceProfilerCallbacks.pfnFreeCommandBuffers = GETDEVICEPROCADDR( *pDevice, vkFreeCommandBuffers );
+            deviceProfilerCallbacks.pfnBeginCommandBuffer = GETDEVICEPROCADDR( *pDevice, vkBeginCommandBuffer );
+            deviceProfilerCallbacks.pfnEndCommandBuffer = GETDEVICEPROCADDR( *pDevice, vkEndCommandBuffer );
+            deviceProfilerCallbacks.pfnCmdWriteTimestamp = GETDEVICEPROCADDR( *pDevice, vkCmdWriteTimestamp );
+            deviceProfilerCallbacks.pfnQueueSubmit = GETDEVICEPROCADDR( *pDevice, vkQueueSubmit );
+
+            // Create the profiler object
             Profiler* deviceProfiler = new Profiler;
-            result = deviceProfiler->Initialize( *pDevice, deviceProfilerCallbacks );
+            result = deviceProfiler->Initialize( &deviceObject, deviceProfilerCallbacks );
 
             if( result != VK_SUCCESS )
             {
@@ -147,10 +200,8 @@ namespace Profiler
                 return result;
             }
 
-            std::scoped_lock lk( DeviceProfilers );
-
-            auto it = DeviceProfilers.try_emplace( *pDevice, deviceProfiler );
-            if( !it.second )
+            auto deviceProfilerIt = DeviceProfilers.try_emplace( *pDevice, deviceProfiler );
+            if( !deviceProfilerIt.second )
             {
                 // TODO error, should have created new element
             }
