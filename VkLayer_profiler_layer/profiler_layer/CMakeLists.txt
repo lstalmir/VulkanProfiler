@@ -8,6 +8,7 @@ project (profiler_layer)
 set (headers
     "counters.h"
     "frame_stats.h"
+    "helpers.h"
     "profiler.h"
     "profiler_callbacks.h"
     "profiler_overlay.h"
