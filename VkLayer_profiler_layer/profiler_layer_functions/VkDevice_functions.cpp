@@ -175,6 +175,12 @@ namespace Profiler
                 GETINSTANCEPROCADDR( reinterpret_cast<VkInstance>(physicalDevice), vkGetPhysicalDeviceQueueFamilyProperties );
             deviceProfilerCallbacks.pfnCreateQueryPool = GETDEVICEPROCADDR( *pDevice, vkCreateQueryPool );
             deviceProfilerCallbacks.pfnDestroyQueryPool = GETDEVICEPROCADDR( *pDevice, vkDestroyQueryPool );
+            deviceProfilerCallbacks.pfnCreateRenderPass = GETDEVICEPROCADDR( *pDevice, vkCreateRenderPass );
+            deviceProfilerCallbacks.pfnDestroyRenderPass = GETDEVICEPROCADDR( *pDevice, vkDestroyRenderPass );
+            deviceProfilerCallbacks.pfnCreatePipelineLayout = GETDEVICEPROCADDR( *pDevice, vkCreatePipelineLayout );
+            deviceProfilerCallbacks.pfnDestroyPipelineLayout = GETDEVICEPROCADDR( *pDevice, vkDestroyPipelineLayout );
+            deviceProfilerCallbacks.pfnCreateGraphicsPipelines = GETDEVICEPROCADDR( *pDevice, vkCreateGraphicsPipelines );
+            deviceProfilerCallbacks.pfnDestroyPipeline = GETDEVICEPROCADDR( *pDevice, vkDestroyPipeline );
             deviceProfilerCallbacks.pfnCreateCommandPool = GETDEVICEPROCADDR( *pDevice, vkCreateCommandPool );
             deviceProfilerCallbacks.pfnDestroyCommandPool = GETDEVICEPROCADDR( *pDevice, vkDestroyCommandPool );
             deviceProfilerCallbacks.pfnAllocateCommandBuffers = GETDEVICEPROCADDR( *pDevice, vkAllocateCommandBuffers );

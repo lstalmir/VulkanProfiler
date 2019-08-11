@@ -1,5 +1,6 @@
 #include "profiler.h"
 #include "profiler_overlay.h"
+#include "helpers.h"
 
 namespace Profiler
 {
@@ -13,7 +14,19 @@ namespace Profiler
 
     \***********************************************************************************/
     Profiler::Profiler()
+        : m_TimestampQueryPool( VK_NULL_HANDLE )
+        , m_TimestampQueryPoolSize( 0 )
+        , m_CurrentTimestampQuery( 0 )
+        , m_pCpuTimestampQueryPool( nullptr )
+        , m_CurrentCpuTimestampQuery( 0 )
+        , m_CurrentFrame( 0 )
+        , m_pCurrentFrameStats( nullptr )
+        , m_pPreviousFrameStats( nullptr )
+        , m_pOverlay( nullptr )
+        , m_Callbacks()
     {
+        // Nullify the callback pointers
+        memset( &m_Callbacks, 0, sizeof( m_Callbacks ) );
     }
 
     /***********************************************************************************\
@@ -35,10 +48,8 @@ namespace Profiler
         m_CurrentTimestampQuery = 0;
 
         // Create the GPU timestamp query pool
-        VkQueryPoolCreateInfo queryPoolCreateInfo;
-        memset( &queryPoolCreateInfo, 0, sizeof( queryPoolCreateInfo ) );
+        VkStructure<VkQueryPoolCreateInfo> queryPoolCreateInfo;
 
-        queryPoolCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
         queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
         queryPoolCreateInfo.queryCount = m_TimestampQueryPoolSize;
 

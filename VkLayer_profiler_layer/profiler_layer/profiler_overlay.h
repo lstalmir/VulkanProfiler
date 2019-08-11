@@ -34,5 +34,10 @@ namespace Profiler
         VkQueue_Object      m_GraphicsQueue;
         VkCommandPool       m_CommandPool;
         VkCommandBuffer     m_CommandBuffer;
+
+        VkRenderPass        m_DrawStatsRenderPass;
+        VkShaderModule      m_DrawStatsShaderModule;
+        VkPipelineLayout    m_DrawStatsPipelineLayout;
+        VkPipeline          m_DrawStatsPipeline;
     };
 }

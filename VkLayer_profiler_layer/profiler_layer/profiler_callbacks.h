@@ -18,6 +18,12 @@ namespace Profiler
         PFN_vkGetPhysicalDeviceQueueFamilyProperties pfnGetPhysicalDeviceQueueFamilyProperties;
         PFN_vkCreateQueryPool                        pfnCreateQueryPool;
         PFN_vkDestroyQueryPool                       pfnDestroyQueryPool;
+        PFN_vkCreateRenderPass                       pfnCreateRenderPass;
+        PFN_vkDestroyRenderPass                      pfnDestroyRenderPass;
+        PFN_vkCreatePipelineLayout                   pfnCreatePipelineLayout;
+        PFN_vkDestroyPipelineLayout                  pfnDestroyPipelineLayout;
+        PFN_vkCreateGraphicsPipelines                pfnCreateGraphicsPipelines;
+        PFN_vkDestroyPipeline                        pfnDestroyPipeline;
         PFN_vkCreateCommandPool                      pfnCreateCommandPool;
         PFN_vkDestroyCommandPool                     pfnDestroyCommandPool;
         PFN_vkAllocateCommandBuffers                 pfnAllocateCommandBuffers;

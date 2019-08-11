@@ -16,6 +16,9 @@ set (PROFILER_LAYER_PRODUCTNAME "Vulkan(R) Profiling Layer")
 
 project (${PROFILER_LAYER_PROJECTNAME})
 
+# Generate Vulkan traits
+add_subdirectory (vulkan_traits)
+
 # Include implementation of the layer
 add_subdirectory (profiler_layer)
 
@@ -45,12 +48,12 @@ set (sources
     )
     
 # Configure resources file
-configure_file(
+configure_file (
     ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in
     ${resource}
     @ONLY)
 
-configure_file(
+configure_file (
     ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h.in
     ${generated}
     @ONLY)
@@ -69,6 +72,7 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_layer)
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/vulkan_traits
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Install target
