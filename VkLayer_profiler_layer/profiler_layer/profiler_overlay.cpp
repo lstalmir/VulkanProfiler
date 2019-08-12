@@ -1,6 +1,6 @@
 #include "profiler_overlay.h"
-#include "profiler.h"
-#include "helpers.h"
+#include "profiler_overlay_state_factory.h"
+#include "profiler_helpers.h"
 
 namespace Profiler
 {
@@ -104,107 +104,25 @@ namespace Profiler
         DESTROYANDRETURNONFAIL( m_Callbacks.pfnAllocateCommandBuffers(
             pDevice->Device, &commandBufferAllocateInfo, &m_CommandBuffer ) );
 
-        // Create render pass for drawing frame stats
-        VkStructure<VkAttachmentReference> renderPassColorAttachmentReference;
-        renderPassColorAttachmentReference.attachment = 0;
-        renderPassColorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        // Create temporary pipeline state factory
+        ProfilerOverlayStateFactory stateFactory( pDevice->Device, callbacks );
 
-        VkStructure<VkAttachmentDescription> renderPassAttachmentDescription;
-        renderPassAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        renderPassAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        renderPassAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-        renderPassAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        renderPassAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        renderPassAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        renderPassAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-        renderPassAttachmentDescription.format = VK_FORMAT_UNDEFINED; // TODO format
-
-        VkStructure<VkSubpassDescription> renderPassSubpassDescription;
-        renderPassSubpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        renderPassSubpassDescription.colorAttachmentCount = 1;
-        renderPassSubpassDescription.pColorAttachments = &renderPassColorAttachmentReference;
-
-        VkStructure<VkSubpassDependency> subpassDependencies[2];
-        subpassDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-        subpassDependencies[0].dstSubpass = 0;
-        subpassDependencies[0].srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
-        subpassDependencies[0].dstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        subpassDependencies[1].srcSubpass = 0;
-        subpassDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-        subpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
-        subpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-
-        VkStructure<VkRenderPassCreateInfo> renderPassCreateInfo;
-        renderPassCreateInfo.subpassCount = 1;
-        renderPassCreateInfo.pSubpasses = &renderPassSubpassDescription;
-        renderPassCreateInfo.attachmentCount = 1;
-        renderPassCreateInfo.pAttachments = &renderPassAttachmentDescription;
-        renderPassCreateInfo.dependencyCount = 2;
-        renderPassCreateInfo.pDependencies = subpassDependencies;
-        
-        DESTROYANDRETURNONFAIL( m_Callbacks.pfnCreateRenderPass(
-            pDevice->Device, &renderPassCreateInfo, nullptr, &m_DrawStatsRenderPass ) );
+        // Create render pass
+        DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsRenderPass( &m_DrawStatsRenderPass ) );
 
         // Create pipeline layout
-        VkStructure<VkPipelineLayoutCreateInfo> pipelineLayoutCreateInfo;
+        DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsPipelineLayout( &m_DrawStatsPipelineLayout ) );
 
-        DESTROYANDRETURNONFAIL( m_Callbacks.pfnCreatePipelineLayout(
-            pDevice->Device, &pipelineLayoutCreateInfo, nullptr, &m_DrawStatsPipelineLayout ) );
+        // Create shader module
+        DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsShaderModule( &m_DrawStatsShaderModule ) );
 
-        // TODO create shaders
+        // Create pipeline
+        DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsPipeline(
+            m_DrawStatsRenderPass,
+            m_DrawStatsPipelineLayout,
+            m_DrawStatsShaderModule,
+            &m_DrawStatsPipeline ) );
 
-        // Create pipeline for the render pass
-        VkStructure<VkPipelineShaderStageCreateInfo> shaderStageCreateInfo[2];
-        shaderStageCreateInfo[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-        shaderStageCreateInfo[0].pName = "vsmain";
-        shaderStageCreateInfo[0].module = m_DrawStatsShaderModule;
-        shaderStageCreateInfo[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        shaderStageCreateInfo[1].pName = "csmain";
-        shaderStageCreateInfo[1].module = m_DrawStatsShaderModule;
-
-        VkStructure<VkPipelineVertexInputStateCreateInfo> vertexInputStateCreateInfo;
-        // TODO
-
-        VkStructure<VkPipelineInputAssemblyStateCreateInfo> inputAssemblyStateCreateInfo;
-        inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-        VkStructure<VkPipelineRasterizationStateCreateInfo> rasterizationStateCreateInfo;
-        // TODO
-
-        VkStructure<VkPipelineMultisampleStateCreateInfo> multisampleStateCreateInfo;
-        // TODO
-
-        VkStructure<VkPipelineDepthStencilStateCreateInfo> depthStencilStateCreateInfo;
-        // TODO
-
-        VkStructure<VkPipelineColorBlendStateCreateInfo> colorBlendStateCreateInfo;
-        // TODO
-
-        VkDynamicState dynamicStates[2] = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR };
-
-        VkStructure<VkPipelineDynamicStateCreateInfo> dynamicStateCreateInfo;
-        dynamicStateCreateInfo.dynamicStateCount = 2;
-        dynamicStateCreateInfo.pDynamicStates = dynamicStates;
-
-        VkStructure<VkGraphicsPipelineCreateInfo> pipelineCreateInfo;
-        pipelineCreateInfo.renderPass = m_DrawStatsRenderPass;
-        pipelineCreateInfo.subpass = 0;
-        pipelineCreateInfo.layout = m_DrawStatsPipelineLayout;
-        pipelineCreateInfo.stageCount = 2;
-        pipelineCreateInfo.pStages = shaderStageCreateInfo;
-        pipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
-        pipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
-        pipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
-        pipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
-        pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-
-        DESTROYANDRETURNONFAIL( m_Callbacks.pfnCreateGraphicsPipelines(
-            pDevice->Device, nullptr, 1, &pipelineCreateInfo, nullptr, &m_DrawStatsPipeline ) );
-        
         return VK_SUCCESS;
     }
 

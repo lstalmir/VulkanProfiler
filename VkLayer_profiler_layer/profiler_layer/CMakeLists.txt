@@ -5,19 +5,24 @@ cmake_minimum_required (VERSION 3.8)
 
 project (profiler_layer)
 
+# Compile shaders
+add_subdirectory (shaders)
+
 set (headers
-    "counters.h"
-    "frame_stats.h"
-    "helpers.h"
     "profiler.h"
     "profiler_callbacks.h"
+    "profiler_counters.h"
+    "profiler_frame_stats.h"
+    "profiler_helpers.h"
     "profiler_overlay.h"
+    "profiler_overlay_state_factory.h"
     )
 
 set (sources
-    "counters.cpp"
     "profiler.cpp"
+    "profiler_counters.cpp"
     "profiler_overlay.cpp"
+    "profiler_overlay_state_factory.cpp"
     )
     
 # Link intermediate static library
@@ -25,13 +30,15 @@ add_library (profiler_layer
     ${sources}
     ${headers})
 
+add_dependencies (profiler_layer profiler_shaders)
 add_dependencies (profiler_layer vulkan_traits)
 
 # Set include path
 target_include_directories (profiler_layer
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits)
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders)
 
 # Link vulkan-1
 if (CMAKE_SIZEOF_VOID_P EQUAL 8) # 64-bit

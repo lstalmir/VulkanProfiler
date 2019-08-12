@@ -1,6 +1,6 @@
 #include "profiler.h"
+#include "profiler_helpers.h"
 #include "profiler_overlay.h"
-#include "helpers.h"
 
 namespace Profiler
 {

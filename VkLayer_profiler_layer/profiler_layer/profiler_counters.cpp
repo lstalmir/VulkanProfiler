@@ -1,4 +1,4 @@
-#include "counters.h"
+#include "profiler_counters.h"
 
 namespace Profiler
 {

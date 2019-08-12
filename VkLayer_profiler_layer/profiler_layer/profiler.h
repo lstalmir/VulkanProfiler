@@ -1,7 +1,7 @@
 #pragma once
-#include "counters.h"
-#include "frame_stats.h"
 #include "profiler_callbacks.h"
+#include "profiler_counters.h"
+#include "profiler_frame_stats.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include <vulkan/vulkan.h>
 

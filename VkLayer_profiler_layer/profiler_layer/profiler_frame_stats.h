@@ -1,5 +1,5 @@
 #pragma once
-#include "counters.h"
+#include "profiler_counters.h"
 #include <atomic>
 
 namespace Profiler
