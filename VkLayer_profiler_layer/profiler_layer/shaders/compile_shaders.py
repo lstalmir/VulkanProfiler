@@ -11,8 +11,10 @@ if __name__ == '__main__':
     compiled_shaders_header = os.path.relpath( COMPILED_SHADERS_HEADER )
     glslang_validator = os.path.normpath( VULKAN_SPIRV_COMPILER )
     glslang_validator_options = \
+        ['-D'] + \
         ['-V'] + \
         ['-o'] + [COMPILED_SHADERS_HEADER_NAME + '.generated.h'] + \
+        ['-e'] + ['main'] + \
         ['--variable-name'] + [COMPILED_SHADERS_HEADER_NAME]
     subprocess.check_call(
         [glslang_validator] + glslang_validator_options + SHADERS,

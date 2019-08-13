@@ -1,6 +1,6 @@
 #include "profiler_overlay_state_factory.h"
 #include "profiler_helpers.h"
-#include "profiler_shaders.generated.h"
+#include "profiler_shaders.h"
 
 namespace Profiler
 {
@@ -101,8 +101,8 @@ namespace Profiler
     VkResult ProfilerOverlayStateFactory::CreateDrawStatsShaderModule( VkShaderModule* pShaderModule )
     {
         VkStructure<VkShaderModuleCreateInfo> shaderModuleCreateInfo;
-        shaderModuleCreateInfo.codeSize = sizeof( profiler_shaders );
-        shaderModuleCreateInfo.pCode = profiler_shaders;
+        shaderModuleCreateInfo.codeSize = sizeof( ProfilerShaders::profiler_shaders );
+        shaderModuleCreateInfo.pCode = ProfilerShaders::profiler_shaders;
 
         return m_Callbacks.pfnCreateShaderModule(
             m_Device, &shaderModuleCreateInfo, nullptr, pShaderModule );
@@ -133,22 +133,47 @@ namespace Profiler
         shaderStageCreateInfo[1].module = shaderModule;
 
         VkStructure<VkPipelineVertexInputStateCreateInfo> vertexInputStateCreateInfo;
-        // TODO
+        vertexInputStateCreateInfo.vertexBindingDescriptionCount = VertexShaderInput::VertexInputBindingCount;
+        vertexInputStateCreateInfo.pVertexBindingDescriptions = VertexShaderInput::VertexInputBindings;
+        vertexInputStateCreateInfo.vertexAttributeDescriptionCount = VertexShaderInput::VertexInputAttributeCount;
+        vertexInputStateCreateInfo.pVertexAttributeDescriptions = VertexShaderInput::VertexInputAttributes;
 
         VkStructure<VkPipelineInputAssemblyStateCreateInfo> inputAssemblyStateCreateInfo;
         inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
         VkStructure<VkPipelineRasterizationStateCreateInfo> rasterizationStateCreateInfo;
-        // TODO
+        rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizationStateCreateInfo.lineWidth = 1.f;
 
         VkStructure<VkPipelineMultisampleStateCreateInfo> multisampleStateCreateInfo;
-        // TODO
+        multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
         VkStructure<VkPipelineDepthStencilStateCreateInfo> depthStencilStateCreateInfo;
-        // TODO
+        depthStencilStateCreateInfo.front.writeMask = 0xFFFFFFFF;
+
+        VkStructure<VkPipelineColorBlendAttachmentState> colorBlendAttachmentState;
+        colorBlendAttachmentState.blendEnable = true;
+        colorBlendAttachmentState.colorWriteMask =
+            VK_COLOR_COMPONENT_R_BIT | 
+            VK_COLOR_COMPONENT_G_BIT |
+            VK_COLOR_COMPONENT_B_BIT |
+            VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 
         VkStructure<VkPipelineColorBlendStateCreateInfo> colorBlendStateCreateInfo;
-        // TODO
+        colorBlendStateCreateInfo.attachmentCount = 1;
+        colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+        colorBlendStateCreateInfo.blendConstants[0] = 1.f;
+        colorBlendStateCreateInfo.blendConstants[1] = 1.f;
+        colorBlendStateCreateInfo.blendConstants[2] = 1.f;
+        colorBlendStateCreateInfo.blendConstants[3] = 1.f;
 
         VkDynamicState dynamicStates[2] = {
             VK_DYNAMIC_STATE_VIEWPORT,

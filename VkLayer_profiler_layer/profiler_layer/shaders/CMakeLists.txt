@@ -11,8 +11,8 @@ find_package (PythonLibs 3.4 REQUIRED)
 set (compiled_shaders_header ${CMAKE_CURRENT_BINARY_DIR}/profiler_overlay_draw_stats_shaders.generated.h)
 
 set (shaders
-    ${CMAKE_CURRENT_SOURCE_DIR}/profiler_overlay_draw_stats.frag.glsl
-    ${CMAKE_CURRENT_SOURCE_DIR}/profiler_overlay_draw_stats.vert.glsl
+    ${CMAKE_CURRENT_SOURCE_DIR}/profiler_overlay_draw_stats.frag.hlsl
+    ${CMAKE_CURRENT_SOURCE_DIR}/profiler_overlay_draw_stats.vert.hlsl
     )
 
 configure_file (
