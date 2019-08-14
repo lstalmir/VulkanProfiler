@@ -156,6 +156,21 @@ namespace Profiler
             m_DrawStatsPipeline = VK_NULL_HANDLE;
         }
 
+        // Destroy shaders
+        if( m_DrawStatsVertexShaderModule )
+        {
+            m_Callbacks.pfnDestroyShaderModule( device, m_DrawStatsVertexShaderModule, nullptr );
+
+            m_DrawStatsVertexShaderModule = VK_NULL_HANDLE;
+        }
+
+        if( m_DrawStatsPixelShaderModule )
+        {
+            m_Callbacks.pfnDestroyShaderModule( device, m_DrawStatsPixelShaderModule, nullptr );
+
+            m_DrawStatsPixelShaderModule = VK_NULL_HANDLE;
+        }
+
         // Destroy pipeline layout
         if( m_DrawStatsPipelineLayout )
         {
