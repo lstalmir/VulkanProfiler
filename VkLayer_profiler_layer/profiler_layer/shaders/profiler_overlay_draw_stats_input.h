@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PROFILER_OVERLAY_DRAW_STATS_INPUT_INCLUDED
+#define PROFILER_OVERLAY_DRAW_STATS_INPUT_INCLUDED
 #include "hlsl_defines.h"
 #include "hlsl_types.h"
 #ifndef INCLUDED_FROM_HLSL
@@ -71,3 +72,5 @@ namespace Profiler
 #ifndef INCLUDED_FROM_HLSL
 } // namespace Profiler
 #endif
+
+#endif // PROFILER_OVERLAY_DRAW_STATS_INPUT_INCLUDED

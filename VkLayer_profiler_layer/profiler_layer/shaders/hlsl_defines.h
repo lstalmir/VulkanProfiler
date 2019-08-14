@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HLSL_DEFINES_INCLUDED
+#define HLSL_DEFINES_INCLUDED
 #ifndef INCLUDED_FROM_HLSL
 
 #define REGISTER( ... )
@@ -11,4 +12,5 @@
 #define REGISTER_SPACE( LOC, SPACE )    register( LOC, SPACE )
 #define SEMANTIC( NAME )                :NAME
 
-#endif
+#endif // INCLUDED_FROM_HLSL
+#endif // HLSL_DEFINES_INCLUDED

@@ -1,5 +1,6 @@
 #pragma once
 #include "profiler_callbacks.h"
+#include "profiler_shaders.h"
 #include <vulkan/vulkan.h>
 
 namespace Profiler
@@ -13,12 +14,12 @@ namespace Profiler
 
         VkResult CreateDrawStatsPipelineLayout( VkPipelineLayout* pPipelineLayout );
 
-        VkResult CreateDrawStatsShaderModule( VkShaderModule* pShaderModule );
+        VkResult CreateDrawStatsShaderModule( VkShaderModule* pShaderModule, ProfilerShaderType shader );
 
         VkResult CreateDrawStatsPipeline(
             VkRenderPass renderPass,
             VkPipelineLayout layout,
-            VkShaderModule shaderModule,
+            const std::unordered_map<VkShaderStageFlagBits, VkShaderModule>& shaderModules,
             VkPipeline* pPipeline );
 
     private:

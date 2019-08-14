@@ -36,7 +36,8 @@ namespace Profiler
         VkCommandBuffer     m_CommandBuffer;
 
         VkRenderPass        m_DrawStatsRenderPass;
-        VkShaderModule      m_DrawStatsShaderModule;
+        VkShaderModule      m_DrawStatsVertexShaderModule;
+        VkShaderModule      m_DrawStatsPixelShaderModule;
         VkPipelineLayout    m_DrawStatsPipelineLayout;
         VkPipeline          m_DrawStatsPipeline;
     };

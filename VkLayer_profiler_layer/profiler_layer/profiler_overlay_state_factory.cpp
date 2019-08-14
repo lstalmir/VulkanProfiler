@@ -1,6 +1,5 @@
 #include "profiler_overlay_state_factory.h"
 #include "profiler_helpers.h"
-#include "profiler_shaders.h"
 
 namespace Profiler
 {
@@ -98,11 +97,19 @@ namespace Profiler
         Create pipeline layout for drawing frame stats.
 
     \***********************************************************************************/
-    VkResult ProfilerOverlayStateFactory::CreateDrawStatsShaderModule( VkShaderModule* pShaderModule )
+    VkResult ProfilerOverlayStateFactory::CreateDrawStatsShaderModule( VkShaderModule* pShaderModule, ProfilerShaderType shader )
     {
+        auto it = ProfilerShadersMap.find( shader );
+        if( it == ProfilerShadersMap.end() )
+        {
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        auto shaderBytecode = it->second;
+
         VkStructure<VkShaderModuleCreateInfo> shaderModuleCreateInfo;
-        shaderModuleCreateInfo.codeSize = sizeof( ProfilerShaders::profiler_shaders );
-        shaderModuleCreateInfo.pCode = ProfilerShaders::profiler_shaders;
+        shaderModuleCreateInfo.codeSize = shaderBytecode.first;
+        shaderModuleCreateInfo.pCode = shaderBytecode.second;
 
         return m_Callbacks.pfnCreateShaderModule(
             m_Device, &shaderModuleCreateInfo, nullptr, pShaderModule );
@@ -120,17 +127,20 @@ namespace Profiler
     VkResult ProfilerOverlayStateFactory::CreateDrawStatsPipeline(
         VkRenderPass renderPass,
         VkPipelineLayout layout,
-        VkShaderModule shaderModule,
+        const std::unordered_map<VkShaderStageFlagBits, VkShaderModule>& shaderModules,
         VkPipeline* pPipeline )
     {
         // Create pipeline for the render pass
-        VkStructure<VkPipelineShaderStageCreateInfo> shaderStageCreateInfo[2];
-        shaderStageCreateInfo[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-        shaderStageCreateInfo[0].pName = "main";
-        shaderStageCreateInfo[0].module = shaderModule;
-        shaderStageCreateInfo[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        shaderStageCreateInfo[1].pName = "main";
-        shaderStageCreateInfo[1].module = shaderModule;
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStageCreateInfos;
+        for( auto module : shaderModules )
+        {
+            VkStructure<VkPipelineShaderStageCreateInfo> shaderStageCreateInfo;
+            shaderStageCreateInfo.stage = module.first;
+            shaderStageCreateInfo.pName = "main";
+            shaderStageCreateInfo.module = module.second;
+
+            shaderStageCreateInfos.push_back( shaderStageCreateInfo );
+        }
 
         VkStructure<VkPipelineVertexInputStateCreateInfo> vertexInputStateCreateInfo;
         vertexInputStateCreateInfo.vertexBindingDescriptionCount = VertexShaderInput::VertexInputBindingCount;
@@ -140,6 +150,10 @@ namespace Profiler
 
         VkStructure<VkPipelineInputAssemblyStateCreateInfo> inputAssemblyStateCreateInfo;
         inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        VkStructure<VkPipelineViewportStateCreateInfo> viewportStateCreateInfo;
+        viewportStateCreateInfo.viewportCount = 0; // dynamic
+        viewportStateCreateInfo.scissorCount = 0; // dynamic
 
         VkStructure<VkPipelineRasterizationStateCreateInfo> rasterizationStateCreateInfo;
         rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -187,10 +201,11 @@ namespace Profiler
         pipelineCreateInfo.renderPass = renderPass;
         pipelineCreateInfo.subpass = 0;
         pipelineCreateInfo.layout = layout;
-        pipelineCreateInfo.stageCount = 2;
-        pipelineCreateInfo.pStages = shaderStageCreateInfo;
+        pipelineCreateInfo.stageCount = shaderStageCreateInfos.size();
+        pipelineCreateInfo.pStages = shaderStageCreateInfos.data();
         pipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+        pipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
         pipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
         pipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
         pipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;

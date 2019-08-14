@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HLSL_TYPES_INCLUDED
+#define HLSL_TYPES_INCLUDED
 #ifndef INCLUDED_FROM_HLSL
 #include <stdint.h>
 
@@ -159,4 +160,5 @@ namespace Profiler
     using bool4x4 = matrix<_hlsl_bool, 4, 4>;
 }
 
-#endif
+#endif // INCLUDED_FROM_HLSL
+#endif // HLSL_TYPES_INCLUDED

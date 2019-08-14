@@ -20,7 +20,8 @@ namespace Profiler
         , m_CommandPool( VK_NULL_HANDLE )
         , m_CommandBuffer( VK_NULL_HANDLE )
         , m_DrawStatsRenderPass( VK_NULL_HANDLE )
-        , m_DrawStatsShaderModule( VK_NULL_HANDLE )
+        , m_DrawStatsVertexShaderModule( VK_NULL_HANDLE )
+        , m_DrawStatsPixelShaderModule( VK_NULL_HANDLE )
         , m_DrawStatsPipelineLayout( VK_NULL_HANDLE )
         , m_DrawStatsPipeline( VK_NULL_HANDLE )
     {
@@ -113,14 +114,24 @@ namespace Profiler
         // Create pipeline layout
         DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsPipelineLayout( &m_DrawStatsPipelineLayout ) );
 
-        // Create shader module
-        DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsShaderModule( &m_DrawStatsShaderModule ) );
+        // Create shader modules
+        DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsShaderModule( &m_DrawStatsVertexShaderModule,
+            ProfilerShaderType::profiler_overlay_draw_stats_vert ) );
+
+        DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsShaderModule( &m_DrawStatsPixelShaderModule,
+            ProfilerShaderType::profiler_overlay_draw_stats_frag ) );
+
+        const std::unordered_map<VkShaderStageFlagBits, VkShaderModule> shaders =
+        {
+            { VK_SHADER_STAGE_VERTEX_BIT, m_DrawStatsVertexShaderModule },
+            { VK_SHADER_STAGE_FRAGMENT_BIT, m_DrawStatsPixelShaderModule }
+        };
 
         // Create pipeline
         DESTROYANDRETURNONFAIL( stateFactory.CreateDrawStatsPipeline(
             m_DrawStatsRenderPass,
             m_DrawStatsPipelineLayout,
-            m_DrawStatsShaderModule,
+            shaders,
             &m_DrawStatsPipeline ) );
 
         return VK_SUCCESS;
