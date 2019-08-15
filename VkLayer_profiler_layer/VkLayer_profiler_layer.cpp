@@ -1,5 +1,4 @@
 ﻿#define VK_NO_PROTOTYPES
-
 #include "profiler_layer_functions/VkInstance_functions.h"
 #include "profiler_layer_functions/VkDevice_functions.h"
 #include <vulkan/vk_layer.h>

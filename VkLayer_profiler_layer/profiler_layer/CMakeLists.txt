@@ -8,6 +8,9 @@ project (profiler_layer)
 # Compile shaders
 add_subdirectory (shaders)
 
+# Embed resources
+add_subdirectory (resources)
+
 set (headers
     "profiler.h"
     "profiler_callbacks.h"
@@ -15,13 +18,17 @@ set (headers
     "profiler_frame_stats.h"
     "profiler_helpers.h"
     "profiler_overlay.h"
+    "profiler_overlay_font.h"
     "profiler_overlay_state_factory.h"
+    "profiler_resources.h"
+    "profiler_shaders.h"
     )
 
 set (sources
     "profiler.cpp"
     "profiler_counters.cpp"
     "profiler_overlay.cpp"
+    "profiler_overlay_font.cpp"
     "profiler_overlay_state_factory.cpp"
     )
     
@@ -31,6 +38,7 @@ add_library (profiler_layer
     ${headers})
 
 add_dependencies (profiler_layer profiler_shaders)
+add_dependencies (profiler_layer profiler_resources)
 add_dependencies (profiler_layer vulkan_traits)
 
 # Set include path
@@ -38,7 +46,8 @@ target_include_directories (profiler_layer
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
 
 # Link vulkan-1
 if (CMAKE_SIZEOF_VOID_P EQUAL 8) # 64-bit

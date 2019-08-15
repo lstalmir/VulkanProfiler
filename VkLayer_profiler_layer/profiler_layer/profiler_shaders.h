@@ -1,6 +1,7 @@
 #pragma once
 #include "shaders/profiler_overlay_draw_stats_input.h"
 #include "profiler_overlay_draw_stats_shaders.generated.h"
+#include <unordered_map>
 
 namespace Profiler
 {

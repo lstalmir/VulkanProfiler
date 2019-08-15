@@ -18,7 +18,7 @@ if __name__ == '__main__':
     with open( compiled_shaders_header_filename, 'w' ) as compiled_shaders_file:
         compiled_shaders_file.write(
             '#pragma once\n' +
-            '#include <unordered_map>\n' +
+            '#include <stdint.h>\n' +
             '\n' +
             'namespace Profiler\n' +
             '{\n' +

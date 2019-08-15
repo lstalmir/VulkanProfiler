@@ -26,6 +26,10 @@ namespace Profiler
         PFN_vkDestroyShaderModule                       pfnDestroyShaderModule;
         PFN_vkCreateGraphicsPipelines                   pfnCreateGraphicsPipelines;
         PFN_vkDestroyPipeline                           pfnDestroyPipeline;
+        PFN_vkCreateImage                               pfnCreateImage;
+        PFN_vkDestroyImage                              pfnDestroyImage;
+        PFN_vkCreateImageView                           pfnCreateImageView;
+        PFN_vkDestroyImageView                          pfnDestroyImageView;
         PFN_vkCreateCommandPool                         pfnCreateCommandPool;
         PFN_vkDestroyCommandPool                        pfnDestroyCommandPool;
         PFN_vkAllocateCommandBuffers                    pfnAllocateCommandBuffers;
