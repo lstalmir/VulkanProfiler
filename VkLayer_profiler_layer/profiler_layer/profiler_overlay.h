@@ -1,5 +1,6 @@
 #pragma once
 #include "profiler_callbacks.h"
+#include "profiler_overlay_font.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include <vulkan/vulkan.h>
@@ -30,6 +31,8 @@ namespace Profiler
     protected:
         Profiler*           m_pProfiler;
         ProfilerCallbacks   m_Callbacks;
+
+        ProfilerOverlayFont m_OverlayFont;
 
         VkQueue_Object      m_GraphicsQueue;
         VkCommandPool       m_CommandPool;

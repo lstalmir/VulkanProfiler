@@ -2,5 +2,6 @@
 
 EMBEDDED_RESOURCES_HEADER = r'${embedded_resources_header}'
 EMBEDDED_RESOURCES_HEADER_NAME = r'${PROJECT_NAME}'
+EMBEDDED_RESOURCES_SOURCE = r'${embedded_resources_source}'
 
 RESOURCES = (r'${resources}').split(';')

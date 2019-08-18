@@ -9,6 +9,7 @@ find_package (PythonInterp 3.4 REQUIRED)
 find_package (PythonLibs 3.4 REQUIRED)
 
 set (embedded_resources_header ${CMAKE_CURRENT_BINARY_DIR}/profiler_resources.generated.h)
+set (embedded_resources_source ${CMAKE_CURRENT_BINARY_DIR}/profiler_resources.generated.cpp)
 
 set (resources
     ${CMAKE_CURRENT_SOURCE_DIR}/profiler_font_glyphs.dds
@@ -20,5 +21,5 @@ configure_file (
 
 add_custom_target (profiler_resources ALL
     COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/embed_resources.py ${CMAKE_CURRENT_BINARY_DIR}
-    BYPRODUCTS ${embedded_resources_header}
+    BYPRODUCTS ${embedded_resources_header} ${embedded_resources_source}
     COMMENT "Embedding resources")

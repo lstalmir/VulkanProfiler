@@ -183,6 +183,10 @@ namespace Profiler
             deviceProfilerCallbacks.pfnDestroyShaderModule = GETDEVICEPROCADDR( *pDevice, vkDestroyShaderModule );
             deviceProfilerCallbacks.pfnCreateGraphicsPipelines = GETDEVICEPROCADDR( *pDevice, vkCreateGraphicsPipelines );
             deviceProfilerCallbacks.pfnDestroyPipeline = GETDEVICEPROCADDR( *pDevice, vkDestroyPipeline );
+            deviceProfilerCallbacks.pfnCreateImage = GETDEVICEPROCADDR( *pDevice, vkCreateImage );
+            deviceProfilerCallbacks.pfnDestroyImage = GETDEVICEPROCADDR( *pDevice, vkDestroyImage );
+            deviceProfilerCallbacks.pfnCreateImageView = GETDEVICEPROCADDR( *pDevice, vkCreateImageView );
+            deviceProfilerCallbacks.pfnDestroyImageView = GETDEVICEPROCADDR( *pDevice, vkDestroyImageView );
             deviceProfilerCallbacks.pfnCreateCommandPool = GETDEVICEPROCADDR( *pDevice, vkCreateCommandPool );
             deviceProfilerCallbacks.pfnDestroyCommandPool = GETDEVICEPROCADDR( *pDevice, vkDestroyCommandPool );
             deviceProfilerCallbacks.pfnAllocateCommandBuffers = GETDEVICEPROCADDR( *pDevice, vkAllocateCommandBuffers );

@@ -134,6 +134,9 @@ namespace Profiler
             shaders,
             &m_DrawStatsPipeline ) );
 
+        // Load the font
+        DESTROYANDRETURNONFAIL( m_OverlayFont.Initialize( pDevice->Device, callbacks ) );
+
         return VK_SUCCESS;
     }
 
@@ -148,6 +151,9 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlay::Destroy( VkDevice device )
     {
+        // Destroy the font
+        m_OverlayFont.Destroy( device );
+
         // Destroy pipeline
         if( m_DrawStatsPipeline )
         {
