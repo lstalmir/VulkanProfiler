@@ -14,19 +14,8 @@ namespace Profiler
 
     \***********************************************************************************/
     Profiler::Profiler()
-        : m_TimestampQueryPool( VK_NULL_HANDLE )
-        , m_TimestampQueryPoolSize( 0 )
-        , m_CurrentTimestampQuery( 0 )
-        , m_pCpuTimestampQueryPool( nullptr )
-        , m_CurrentCpuTimestampQuery( 0 )
-        , m_CurrentFrame( 0 )
-        , m_pCurrentFrameStats( nullptr )
-        , m_pPreviousFrameStats( nullptr )
-        , m_pOverlay( nullptr )
-        , m_Callbacks()
     {
-        // Nullify the callback pointers
-        memset( &m_Callbacks, 0, sizeof( m_Callbacks ) );
+        ClearMemory( this );
     }
 
     /***********************************************************************************\
@@ -61,7 +50,7 @@ namespace Profiler
             // Failed to create timestamp query pool
 
             // Cleanup the profiler
-            Destroy( pDevice->Device );
+            Destroy();
 
             return result;
         }
@@ -75,16 +64,14 @@ namespace Profiler
         m_pPreviousFrameStats = new FrameStats; // will be swapped every frame
 
         // Create profiler overlay
-        m_pOverlay = new ProfilerOverlay;
-
-        result = m_pOverlay->Initialize( pDevice, this, m_Callbacks );
+        result = m_Overlay.Initialize( pDevice, this, callbacks );
 
         if( result != VK_SUCCESS )
         {
             // Creation of the overlay failed
 
             // Cleanup the profiler
-            Destroy( pDevice->Device );
+            Destroy();
 
             return result;
         }
@@ -101,27 +88,22 @@ namespace Profiler
         Frees resources allocated by the profiler.
 
     \***********************************************************************************/
-    void Profiler::Destroy( VkDevice device )
+    void Profiler::Destroy()
     {
-        if( m_pOverlay )
-        {
-            m_pOverlay->Destroy( device );
-        }
-
-        delete m_pOverlay;
+        m_Overlay.Destroy();
 
         delete m_pCurrentFrameStats;
         delete m_pPreviousFrameStats;
 
         delete m_pCpuTimestampQueryPool;
 
-        // Destroy the GPU timestamp query pool
         if( m_TimestampQueryPool )
         {
-            m_Callbacks.pfnDestroyQueryPool( device, m_TimestampQueryPool, nullptr );
-
-            m_TimestampQueryPool = VK_NULL_HANDLE;
+            // Destroy the GPU timestamp query pool
+            m_Callbacks.pfnDestroyQueryPool( m_Device.Device, m_TimestampQueryPool, nullptr );
         }
+
+        ClearMemory( this );
     }
 
     /***********************************************************************************\
@@ -160,7 +142,7 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::PrePresent( VkQueue queue )
     {
-        m_pOverlay->DrawFrameStats( queue );
+        m_Overlay.DrawFrameStats( queue );
     }
 
     /***********************************************************************************\

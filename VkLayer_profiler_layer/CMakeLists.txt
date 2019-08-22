@@ -36,6 +36,7 @@ set (headers
     "profiler_layer_functions/VkDispatch.h"
     "profiler_layer_functions/VkInstance_functions.h"
     "profiler_layer_functions/VkQueue_functions.h"
+    "profiler_layer_objects/VkDevice_object.h"
     "profiler_layer_objects/VkQueue_object.h"
     )
 

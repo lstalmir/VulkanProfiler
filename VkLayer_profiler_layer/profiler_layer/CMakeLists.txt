@@ -13,10 +13,12 @@ add_subdirectory (resources)
 
 set (headers
     "profiler.h"
+    "profiler_buffer.h"
     "profiler_callbacks.h"
     "profiler_counters.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
+    "profiler_image.h"
     "profiler_overlay.h"
     "profiler_overlay_font.h"
     "profiler_overlay_state_factory.h"
@@ -26,7 +28,9 @@ set (headers
 
 set (sources
     "profiler.cpp"
+    "profiler_buffer.cpp"
     "profiler_counters.cpp"
+    "profiler_image.cpp"
     "profiler_overlay.cpp"
     "profiler_overlay_font.cpp"
     "profiler_overlay_state_factory.cpp"

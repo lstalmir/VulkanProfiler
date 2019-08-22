@@ -2,8 +2,35 @@
 #include "vulkan_traits/vulkan_traits.h"
 #include <vulkan/vulkan.h>
 
+// Helper macro for rolling-back to valid state
+#define DESTROYANDRETURNONFAIL( VKRESULT )  \
+    {                                       \
+        VkResult result = (VKRESULT);       \
+        if( result != VK_SUCCESS )          \
+        {                                   \
+            /* Destroy() must be defined */ \
+            Destroy();                      \
+            return result;                  \
+        }                                   \
+    }
+
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Function:
+        ZeroMemory
+
+    Description:
+        Fill memory region with zeros.
+
+    \***********************************************************************************/
+    template<typename T>
+    void ClearMemory( T* pMemory )
+    {
+        memset( pMemory, 0, sizeof( T ) );
+    }
+
     /***********************************************************************************\
 
     Structure:

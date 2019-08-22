@@ -16,9 +16,10 @@ namespace Profiler
     \***********************************************************************************/
     struct VkDevice_Object
     {
-        VkDevice                Device;
-        VkPhysicalDevice        PhysicalDevice;
-        PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr;
-        VkDeviceQueues_Object   Queues;
+        VkDevice                    Device;
+        VkPhysicalDevice            PhysicalDevice;
+        VkDeviceQueues_Object       Queues;
+        PFN_vkGetDeviceProcAddr     pfnGetDeviceProcAddr;
+        PFN_vkGetInstanceProcAddr   pfnGetInstanceProcAddr;
     };
 }

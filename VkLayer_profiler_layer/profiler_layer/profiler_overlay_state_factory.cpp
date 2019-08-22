@@ -201,7 +201,7 @@ namespace Profiler
         pipelineCreateInfo.renderPass = renderPass;
         pipelineCreateInfo.subpass = 0;
         pipelineCreateInfo.layout = layout;
-        pipelineCreateInfo.stageCount = shaderStageCreateInfos.size();
+        pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStageCreateInfos.size());
         pipelineCreateInfo.pStages = shaderStageCreateInfos.data();
         pipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;

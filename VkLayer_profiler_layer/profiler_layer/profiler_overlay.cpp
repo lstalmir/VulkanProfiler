@@ -14,19 +14,8 @@ namespace Profiler
 
     \***********************************************************************************/
     ProfilerOverlay::ProfilerOverlay()
-        : m_pProfiler( nullptr )
-        , m_Callbacks()
-        , m_GraphicsQueue()
-        , m_CommandPool( VK_NULL_HANDLE )
-        , m_CommandBuffer( VK_NULL_HANDLE )
-        , m_DrawStatsRenderPass( VK_NULL_HANDLE )
-        , m_DrawStatsVertexShaderModule( VK_NULL_HANDLE )
-        , m_DrawStatsPixelShaderModule( VK_NULL_HANDLE )
-        , m_DrawStatsPipelineLayout( VK_NULL_HANDLE )
-        , m_DrawStatsPipeline( VK_NULL_HANDLE )
     {
-        memset( &m_Callbacks, 0, sizeof( m_Callbacks ) );
-        memset( &m_GraphicsQueue, 0, sizeof( m_GraphicsQueue ) );
+        ClearMemory( this );
     }
 
     /***********************************************************************************\
@@ -40,22 +29,9 @@ namespace Profiler
     \***********************************************************************************/
     VkResult ProfilerOverlay::Initialize( VkDevice_Object* pDevice, Profiler* pProfiler, ProfilerCallbacks callbacks )
     {
-        // Helper macro for rolling-back to valid state
-#       define DESTROYANDRETURNONFAIL( VKRESULT )   \
-            {                                       \
-                VkResult result = (VKRESULT);       \
-                if( result != VK_SUCCESS )          \
-                {                                   \
-                    Destroy( pDevice->Device );     \
-                    return result;                  \
-                }                                   \
-            }
-
         m_pProfiler = pProfiler;
         m_Callbacks = callbacks;
-
-        // Alias for GETDEVICEPROCADDR macro
-        PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr = pDevice->pfnGetDeviceProcAddr;
+        m_Device = pDevice->Device;
 
         // Find the graphics queue
         uint32_t queueFamilyCount = 0;
@@ -135,7 +111,7 @@ namespace Profiler
             &m_DrawStatsPipeline ) );
 
         // Load the font
-        DESTROYANDRETURNONFAIL( m_OverlayFont.Initialize( pDevice->Device, callbacks ) );
+        DESTROYANDRETURNONFAIL( m_OverlayFont.Initialize( pDevice, this, callbacks ) );
 
         return VK_SUCCESS;
     }
@@ -149,65 +125,54 @@ namespace Profiler
         Frees resources allocated by the profiler overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlay::Destroy( VkDevice device )
+    void ProfilerOverlay::Destroy()
     {
         // Destroy the font
-        m_OverlayFont.Destroy( device );
+        m_OverlayFont.Destroy();
 
-        // Destroy pipeline
         if( m_DrawStatsPipeline )
         {
-            m_Callbacks.pfnDestroyPipeline( device, m_DrawStatsPipeline, nullptr );
-
-            m_DrawStatsPipeline = VK_NULL_HANDLE;
+            // Destroy pipeline
+            m_Callbacks.pfnDestroyPipeline( m_Device, m_DrawStatsPipeline, nullptr );
         }
 
-        // Destroy shaders
         if( m_DrawStatsVertexShaderModule )
         {
-            m_Callbacks.pfnDestroyShaderModule( device, m_DrawStatsVertexShaderModule, nullptr );
-
-            m_DrawStatsVertexShaderModule = VK_NULL_HANDLE;
+            // Destroy vertex shader
+            m_Callbacks.pfnDestroyShaderModule( m_Device, m_DrawStatsVertexShaderModule, nullptr );
         }
 
         if( m_DrawStatsPixelShaderModule )
         {
-            m_Callbacks.pfnDestroyShaderModule( device, m_DrawStatsPixelShaderModule, nullptr );
-
-            m_DrawStatsPixelShaderModule = VK_NULL_HANDLE;
+            // Destroy pixel shader
+            m_Callbacks.pfnDestroyShaderModule( m_Device, m_DrawStatsPixelShaderModule, nullptr );
         }
 
-        // Destroy pipeline layout
         if( m_DrawStatsPipelineLayout )
         {
-            m_Callbacks.pfnDestroyPipelineLayout( device, m_DrawStatsPipelineLayout, nullptr );
-
-            m_DrawStatsPipelineLayout = VK_NULL_HANDLE;
+            // Destroy pipeline layout
+            m_Callbacks.pfnDestroyPipelineLayout( m_Device, m_DrawStatsPipelineLayout, nullptr );
         }
 
-        // Destroy render pass
         if( m_DrawStatsRenderPass )
         {
-            m_Callbacks.pfnDestroyRenderPass( device, m_DrawStatsRenderPass, nullptr );
-
-            m_DrawStatsRenderPass = VK_NULL_HANDLE;
+            // Destroy render pass
+            m_Callbacks.pfnDestroyRenderPass( m_Device, m_DrawStatsRenderPass, nullptr );
         }
 
-        // Destroy the GPU command buffer
         if( m_CommandBuffer )
         {
-            m_Callbacks.pfnFreeCommandBuffers( device, m_CommandPool, 1, &m_CommandBuffer );
-
-            m_CommandBuffer = VK_NULL_HANDLE;
+            // Destroy the GPU command buffer
+            m_Callbacks.pfnFreeCommandBuffers( m_Device, m_CommandPool, 1, &m_CommandBuffer );
         }
 
-        // Destroy the GPU command pool
         if( m_CommandPool )
         {
-            m_Callbacks.pfnDestroyCommandPool( device, m_CommandPool, nullptr );
-
-            m_CommandPool = VK_NULL_HANDLE;
+            // Destroy the GPU command pool
+            m_Callbacks.pfnDestroyCommandPool( m_Device, m_CommandPool, nullptr );
         }
+
+        ClearMemory( this );
     }
 
     /***********************************************************************************\
@@ -266,5 +231,18 @@ namespace Profiler
             // vkQueueSubmit failed
             return;
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCommandPool
+
+    Description:
+
+    \***********************************************************************************/
+    VkCommandPool ProfilerOverlay::GetCommandPool() const
+    {
+        return m_CommandPool;
     }
 }

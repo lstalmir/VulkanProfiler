@@ -23,25 +23,29 @@ namespace Profiler
         ProfilerOverlay();
 
         VkResult Initialize( VkDevice_Object* pDevice, Profiler* pProfiler, ProfilerCallbacks callbacks );
-        void Destroy( VkDevice device );
+        void Destroy();
 
         void DrawFramePerSecStats( VkQueue presentQueue );
         void DrawFrameStats( VkQueue presentQueue );
 
+        VkCommandPool GetCommandPool() const;
+
     protected:
-        Profiler*           m_pProfiler;
-        ProfilerCallbacks   m_Callbacks;
+        Profiler*                   m_pProfiler;
+        ProfilerCallbacks           m_Callbacks;
 
-        ProfilerOverlayFont m_OverlayFont;
+        ProfilerOverlayFont         m_OverlayFont;
 
-        VkQueue_Object      m_GraphicsQueue;
-        VkCommandPool       m_CommandPool;
-        VkCommandBuffer     m_CommandBuffer;
+        VkDevice                    m_Device;
 
-        VkRenderPass        m_DrawStatsRenderPass;
-        VkShaderModule      m_DrawStatsVertexShaderModule;
-        VkShaderModule      m_DrawStatsPixelShaderModule;
-        VkPipelineLayout    m_DrawStatsPipelineLayout;
-        VkPipeline          m_DrawStatsPipeline;
+        VkQueue_Object              m_GraphicsQueue;
+        VkCommandPool               m_CommandPool;
+        VkCommandBuffer             m_CommandBuffer;
+
+        VkRenderPass                m_DrawStatsRenderPass;
+        VkShaderModule              m_DrawStatsVertexShaderModule;
+        VkShaderModule              m_DrawStatsPixelShaderModule;
+        VkPipelineLayout            m_DrawStatsPipelineLayout;
+        VkPipeline                  m_DrawStatsPipeline;
     };
 }

@@ -136,6 +136,7 @@ namespace Profiler
             deviceObject.Device = *pDevice;
             deviceObject.PhysicalDevice = physicalDevice;
             deviceObject.pfnGetDeviceProcAddr = pfnGetDeviceProcAddr;
+            deviceObject.pfnGetInstanceProcAddr = pfnGetInstanceProcAddr;
 
             // Register queues created with the device
             PFN_vkGetDeviceQueue pfnGetDeviceQueue = GETDEVICEPROCADDR( *pDevice, vkGetDeviceQueue );
@@ -173,6 +174,18 @@ namespace Profiler
 
             deviceProfilerCallbacks.pfnGetPhysicalDeviceQueueFamilyProperties =
                 GETINSTANCEPROCADDR( reinterpret_cast<VkInstance>(physicalDevice), vkGetPhysicalDeviceQueueFamilyProperties );
+            deviceProfilerCallbacks.pfnGetPhysicalDeviceMemoryProperties =
+                GETINSTANCEPROCADDR( reinterpret_cast<VkInstance>(physicalDevice), vkGetPhysicalDeviceMemoryProperties );
+            deviceProfilerCallbacks.pfnGetImageMemoryRequirements = GETDEVICEPROCADDR( *pDevice, vkGetImageMemoryRequirements );
+            deviceProfilerCallbacks.pfnGetBufferMemoryRequirements = GETDEVICEPROCADDR( *pDevice, vkGetBufferMemoryRequirements );
+            deviceProfilerCallbacks.pfnAllocateMemory = GETDEVICEPROCADDR( *pDevice, vkAllocateMemory );
+            deviceProfilerCallbacks.pfnFreeMemory = GETDEVICEPROCADDR( *pDevice, vkFreeMemory );
+            deviceProfilerCallbacks.pfnBindImageMemory = GETDEVICEPROCADDR( *pDevice, vkBindImageMemory );
+            deviceProfilerCallbacks.pfnBindBufferMemory = GETDEVICEPROCADDR( *pDevice, vkBindBufferMemory );
+            deviceProfilerCallbacks.pfnMapMemory = GETDEVICEPROCADDR( *pDevice, vkMapMemory );
+            deviceProfilerCallbacks.pfnUnmapMemory = GETDEVICEPROCADDR( *pDevice, vkUnmapMemory );
+            deviceProfilerCallbacks.pfnCreateBuffer = GETDEVICEPROCADDR( *pDevice, vkCreateBuffer );
+            deviceProfilerCallbacks.pfnDestroyBuffer = GETDEVICEPROCADDR( *pDevice, vkDestroyBuffer );
             deviceProfilerCallbacks.pfnCreateQueryPool = GETDEVICEPROCADDR( *pDevice, vkCreateQueryPool );
             deviceProfilerCallbacks.pfnDestroyQueryPool = GETDEVICEPROCADDR( *pDevice, vkDestroyQueryPool );
             deviceProfilerCallbacks.pfnCreateRenderPass = GETDEVICEPROCADDR( *pDevice, vkCreateRenderPass );
@@ -194,7 +207,10 @@ namespace Profiler
             deviceProfilerCallbacks.pfnBeginCommandBuffer = GETDEVICEPROCADDR( *pDevice, vkBeginCommandBuffer );
             deviceProfilerCallbacks.pfnEndCommandBuffer = GETDEVICEPROCADDR( *pDevice, vkEndCommandBuffer );
             deviceProfilerCallbacks.pfnCmdWriteTimestamp = GETDEVICEPROCADDR( *pDevice, vkCmdWriteTimestamp );
+            deviceProfilerCallbacks.pfnCmdPipelineBarrier = GETDEVICEPROCADDR( *pDevice, vkCmdPipelineBarrier );
+            deviceProfilerCallbacks.pfnCmdCopyBufferToImage = GETDEVICEPROCADDR( *pDevice, vkCmdCopyBufferToImage );
             deviceProfilerCallbacks.pfnQueueSubmit = GETDEVICEPROCADDR( *pDevice, vkQueueSubmit );
+            deviceProfilerCallbacks.pfnQueueWaitIdle = GETDEVICEPROCADDR( *pDevice, vkQueueWaitIdle );
 
             // Create the profiler object
             Profiler* deviceProfiler = new Profiler;
@@ -251,7 +267,7 @@ namespace Profiler
         if( it != DeviceProfilers.end() )
         {
             // Cleanup the profiler resources
-            it->second->Destroy( device );
+            it->second->Destroy();
 
             DeviceProfilers.erase( it );
         }

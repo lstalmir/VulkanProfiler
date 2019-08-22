@@ -13,10 +13,12 @@ namespace Profiler
         }
 
 #   define GETDEVICEPROCADDR( DEVICE, NAME )                                            \
-        reinterpret_cast<PFN_##NAME>(pfnGetDeviceProcAddr( DEVICE, #NAME ))
+        reinterpret_cast<PFN_##NAME>(pfnGetDeviceProcAddr(                              \
+            reinterpret_cast<VkDevice>(DEVICE), #NAME ))
 
 #   define GETINSTANCEPROCADDR( INSTANCE, NAME )                                        \
-        reinterpret_cast<PFN_##NAME>(pfnGetInstanceProcAddr( INSTANCE, #NAME ))
+        reinterpret_cast<PFN_##NAME>(pfnGetInstanceProcAddr(                            \
+            reinterpret_cast<VkInstance>(INSTANCE), #NAME ))
 
     template<typename ReturnType, typename... ArgumentTypes>
     using VkFunctionType = VKAPI_ATTR ReturnType( VKAPI_CALL* )(ArgumentTypes...);

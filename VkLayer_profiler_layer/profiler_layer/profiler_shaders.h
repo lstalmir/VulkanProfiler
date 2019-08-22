@@ -14,7 +14,7 @@ namespace Profiler
 
 #define DEFINE_PROFILER_SHADER_MAP_ENTRY( NAME ) \
     { ProfilerShaderType::NAME, { \
-        sizeof( ProfilerShaders::NAME ), \
+        static_cast<uint32_t>(sizeof( ProfilerShaders::NAME )), \
         ProfilerShaders::NAME } }
 
     inline static const std::unordered_map<ProfilerShaderType, std::pair<uint32_t, const uint32_t*>> ProfilerShadersMap =

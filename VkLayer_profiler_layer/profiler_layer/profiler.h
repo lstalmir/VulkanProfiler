@@ -2,6 +2,7 @@
 #include "profiler_callbacks.h"
 #include "profiler_counters.h"
 #include "profiler_frame_stats.h"
+#include "profiler_overlay.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include <vulkan/vulkan.h>
 
@@ -23,7 +24,7 @@ namespace Profiler
         Profiler();
 
         VkResult Initialize( VkDevice_Object* pDevice, ProfilerCallbacks callbacks );
-        void Destroy( VkDevice device );
+        void Destroy();
 
         void PreDraw( VkCommandBuffer );
         void PostDraw( VkCommandBuffer );
@@ -35,19 +36,22 @@ namespace Profiler
         const FrameStats& GetPreviousFrameStats() const;
 
     protected:
+        ProfilerCallbacks       m_Callbacks;
+        
+        ProfilerOverlay         m_Overlay;
+
+        FrameStats*             m_pCurrentFrameStats;
+        FrameStats*             m_pPreviousFrameStats;
+
+        uint32_t                m_CurrentFrame;
+
+        VkDevice_Object         m_Device;
+
         VkQueryPool             m_TimestampQueryPool;
         uint32_t                m_TimestampQueryPoolSize;
         uint32_t                m_CurrentTimestampQuery;
         CpuTimestampCounter*    m_pCpuTimestampQueryPool;
         uint32_t                m_CurrentCpuTimestampQuery;
 
-        uint32_t                m_CurrentFrame;
-
-        FrameStats*             m_pCurrentFrameStats;
-        FrameStats*             m_pPreviousFrameStats;
-
-        ProfilerOverlay*        m_pOverlay;
-
-        ProfilerCallbacks       m_Callbacks;
     };
 }
