@@ -27,7 +27,7 @@ VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(
     VkInstance instance,
     const char* name )
 {
-    return Profiler::GetProcAddr<Profiler::VkInstance_Functions>( instance, name );
+    return Profiler::VkInstance_Functions::GetInstanceProcAddr( instance, name );
 }
 
 /***************************************************************************************\
@@ -43,5 +43,5 @@ VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
     VkDevice device,
     const char* name )
 {
-    return Profiler::GetProcAddr<Profiler::VkDevice_Functions>( device, name );
+    return Profiler::VkDevice_Functions::GetDeviceProcAddr( device, name );
 }

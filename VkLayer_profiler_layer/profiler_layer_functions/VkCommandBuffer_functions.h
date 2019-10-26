@@ -1,7 +1,5 @@
 #pragma once
-#include "VkDispatch.h"
-#include "VkDevice_functions.h"
-#include <vulkan/vk_layer.h>
+#include "VkDevice_functions_base.h"
 
 namespace Profiler
 {
@@ -14,37 +12,8 @@ namespace Profiler
         Set of VkCommandBuffer functions which are overloaded in this layer.
 
     \***********************************************************************************/
-    struct VkCommandBuffer_Functions : VkDevice_Functions
+    struct VkCommandBuffer_Functions : VkDevice_Functions_Base
     {
-        // Pointers to next layer's function implementations
-        struct DispatchTable
-        {
-            PFN_vkBeginCommandBuffer pfnBeginCommandBuffer;
-            PFN_vkEndCommandBuffer   pfnEndCommandBuffer;
-            PFN_vkCmdDraw            pfnCmdDraw;
-            PFN_vkCmdDrawIndexed     pfnCmdDrawIndexed;
-
-            DispatchTable( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr )
-                : pfnBeginCommandBuffer( GETDEVICEPROCADDR( device, vkBeginCommandBuffer ) )
-                , pfnEndCommandBuffer( GETDEVICEPROCADDR( device, vkEndCommandBuffer ) )
-                , pfnCmdDraw( GETDEVICEPROCADDR( device, vkCmdDraw ) )
-                , pfnCmdDrawIndexed( GETDEVICEPROCADDR( device, vkCmdDrawIndexed ) )
-            {
-            }
-        };
-
-        static VkDispatch<VkDevice, DispatchTable> CommandBufferFunctions;
-
-        // Get address of this layer's function implementation
-        static PFN_vkVoidFunction GetInterceptedProcAddr( const char* name );
-
-        // Get address of function implementation
-        static PFN_vkVoidFunction GetProcAddr( VkDevice device, const char* pName );
-
-        static void OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr gpa );
-        static void OnDeviceDestroy( VkDevice device );
-
-
         // vkBeginCommandBuffer
         static VKAPI_ATTR VkResult VKAPI_CALL BeginCommandBuffer(
             VkCommandBuffer commandBuffer,

@@ -1,69 +1,9 @@
 #include "VkDevice_functions.h"
 #include "VkInstance_functions.h"
-#include "VkCommandBuffer_functions.h"
-#include "VkQueue_functions.h"
 #include "VkLayer_profiler_layer.generated.h"
 
 namespace Profiler
 {
-    // Define VkDevice dispatch tables map
-    VkDispatch<VkDevice, VkDevice_Functions::DispatchTable> VkDevice_Functions::DeviceFunctions;
-
-    // Define VkDevice profilers map
-    VkDispatchableMap<VkDevice, Profiler*> VkDevice_Functions::DeviceProfilers;
-
-    // Define VkDevice_Objects map
-    VkDispatchableMap<VkDevice, VkDevice_Object> VkDevice_Functions::DeviceObjects;
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
-
-    Description:
-        Gets address of this layer's function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkDevice_Functions::GetInterceptedProcAddr( const char* pName )
-    {
-        // Intercepted functions
-        GETPROCADDR( GetDeviceProcAddr );
-        GETPROCADDR( CreateDevice );
-        GETPROCADDR( DestroyDevice );
-        GETPROCADDR( EnumerateDeviceLayerProperties );
-        GETPROCADDR( EnumerateDeviceExtensionProperties );
-
-        // CommandBuffer functions
-        if( PFN_vkVoidFunction function = VkCommandBuffer_Functions::GetInterceptedProcAddr( pName ) )
-        {
-            return function;
-        }
-
-        // Queue functions
-        if( PFN_vkVoidFunction function = VkQueue_Functions::GetInterceptedProcAddr( pName ) )
-        {
-            return function;
-        }
-
-        // Function not overloaded
-        return nullptr;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
-
-    Description:
-        Gets pointer to the VkDevice function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkDevice_Functions::GetProcAddr( VkDevice device, const char* pName )
-    {
-        return GetDeviceProcAddr( device, pName );
-    }
-
-
     /***********************************************************************************\
 
     Function:
@@ -77,173 +17,24 @@ namespace Profiler
         VkDevice device,
         const char* pName )
     {
-        // Overloaded functions
-        if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
-        {
-            return function;
-        }
+        // VkDevice_Functions
+        GETPROCADDR( GetDeviceProcAddr );
+        GETPROCADDR( DestroyDevice );
+        GETPROCADDR( EnumerateDeviceLayerProperties );
+        GETPROCADDR( EnumerateDeviceExtensionProperties );
+        GETPROCADDR( AllocateMemory );
+        GETPROCADDR( FreeMemory );
 
-        // Get address from the next layer
-        return DeviceFunctions[device].pfnGetDeviceProcAddr( device, pName );
-    }
+        // VkCommandBuffer_Functions
+        GETPROCADDR( CmdDraw );
+        GETPROCADDR( CmdDrawIndexed );
 
-    /***********************************************************************************\
+        // VkQueue_Functions
+        GETPROCADDR( QueueSubmit );
+        GETPROCADDR( QueuePresentKHR );
 
-    Function:
-        CreateDevice
-
-    Description:
-        Creates VkDevice object and initializes dispatch table.
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateDevice(
-        VkPhysicalDevice physicalDevice,
-        const VkDeviceCreateInfo* pCreateInfo,
-        VkAllocationCallbacks* pAllocator,
-        VkDevice* pDevice )
-    {
-        const VkLayerDeviceCreateInfo* pLayerCreateInfo =
-            reinterpret_cast<const VkLayerDeviceCreateInfo*>(pCreateInfo->pNext);
-
-        // Step through the chain of pNext until we get to the link info
-        while( (pLayerCreateInfo)
-            && (pLayerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO ||
-                pLayerCreateInfo->function != VK_LAYER_LINK_INFO) )
-        {
-            pLayerCreateInfo = reinterpret_cast<const VkLayerDeviceCreateInfo*>(pLayerCreateInfo->pNext);
-        }
-
-        if( !pLayerCreateInfo )
-        {
-            // No loader device create info
-            return VK_ERROR_INITIALIZATION_FAILED;
-        }
-
-        // Get pointers to next layer's vkGetInstanceProcAddr and vkGetDeviceProcAddr
-        PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr =
-            pLayerCreateInfo->u.pLayerInfo->pfnNextGetInstanceProcAddr;
-        PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr =
-            pLayerCreateInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr;
-
-        PFN_vkCreateDevice pfnCreateDevice = GETINSTANCEPROCADDR( VK_NULL_HANDLE, vkCreateDevice );
-
-        // Invoke vkCreateDevice of next layer
-        VkResult result = pfnCreateDevice( physicalDevice, pCreateInfo, pAllocator, pDevice );
-
-        if( result == VK_SUCCESS )
-        {
-            VkDevice_Object deviceObject;
-            deviceObject.Device = *pDevice;
-            deviceObject.PhysicalDevice = physicalDevice;
-            deviceObject.pfnGetDeviceProcAddr = pfnGetDeviceProcAddr;
-            deviceObject.pfnGetInstanceProcAddr = pfnGetInstanceProcAddr;
-
-            // Register queues created with the device
-            PFN_vkGetDeviceQueue pfnGetDeviceQueue = GETDEVICEPROCADDR( *pDevice, vkGetDeviceQueue );
-
-            // Iterate over pCreateInfo for queue infos
-            for( uint32_t i = 0; i < pCreateInfo->queueCreateInfoCount; ++i )
-            {
-                const VkDeviceQueueCreateInfo* pQueueCreateInfo = pCreateInfo->pQueueCreateInfos + i;
-
-                for( uint32_t queueIndex = 0; queueIndex < pQueueCreateInfo->queueCount; ++queueIndex )
-                {
-                    VkQueue_Object queueObject;
-                    queueObject.Device = *pDevice;
-                    queueObject.Index = queueIndex;
-                    queueObject.FamilyIndex = pQueueCreateInfo->queueFamilyIndex;
-                    queueObject.Priority = pQueueCreateInfo->pQueuePriorities[queueIndex];
-
-                    pfnGetDeviceQueue( *pDevice, queueObject.FamilyIndex, queueIndex, &queueObject.Queue );
-
-                    deviceObject.Queues.emplace( queueObject.Queue, queueObject );
-                }
-            }
-
-            std::scoped_lock lk( DeviceObjects, DeviceProfilers );
-
-            auto deviceObjectIt = DeviceObjects.try_emplace( *pDevice, deviceObject );
-            if( !deviceObjectIt.second )
-            {
-                // TODO error, should have created new element
-            }
-
-            // Setup callbacks for the profiler
-            ProfilerCallbacks deviceProfilerCallbacks;
-            memset( &deviceProfilerCallbacks, 0, sizeof( deviceProfilerCallbacks ) );
-
-            deviceProfilerCallbacks.pfnGetPhysicalDeviceQueueFamilyProperties =
-                GETINSTANCEPROCADDR( reinterpret_cast<VkInstance>(physicalDevice), vkGetPhysicalDeviceQueueFamilyProperties );
-            deviceProfilerCallbacks.pfnGetPhysicalDeviceMemoryProperties =
-                GETINSTANCEPROCADDR( reinterpret_cast<VkInstance>(physicalDevice), vkGetPhysicalDeviceMemoryProperties );
-            deviceProfilerCallbacks.pfnGetImageMemoryRequirements = GETDEVICEPROCADDR( *pDevice, vkGetImageMemoryRequirements );
-            deviceProfilerCallbacks.pfnGetBufferMemoryRequirements = GETDEVICEPROCADDR( *pDevice, vkGetBufferMemoryRequirements );
-            deviceProfilerCallbacks.pfnAllocateMemory = GETDEVICEPROCADDR( *pDevice, vkAllocateMemory );
-            deviceProfilerCallbacks.pfnFreeMemory = GETDEVICEPROCADDR( *pDevice, vkFreeMemory );
-            deviceProfilerCallbacks.pfnBindImageMemory = GETDEVICEPROCADDR( *pDevice, vkBindImageMemory );
-            deviceProfilerCallbacks.pfnBindBufferMemory = GETDEVICEPROCADDR( *pDevice, vkBindBufferMemory );
-            deviceProfilerCallbacks.pfnMapMemory = GETDEVICEPROCADDR( *pDevice, vkMapMemory );
-            deviceProfilerCallbacks.pfnUnmapMemory = GETDEVICEPROCADDR( *pDevice, vkUnmapMemory );
-            deviceProfilerCallbacks.pfnCreateBuffer = GETDEVICEPROCADDR( *pDevice, vkCreateBuffer );
-            deviceProfilerCallbacks.pfnDestroyBuffer = GETDEVICEPROCADDR( *pDevice, vkDestroyBuffer );
-            deviceProfilerCallbacks.pfnCreateQueryPool = GETDEVICEPROCADDR( *pDevice, vkCreateQueryPool );
-            deviceProfilerCallbacks.pfnDestroyQueryPool = GETDEVICEPROCADDR( *pDevice, vkDestroyQueryPool );
-            deviceProfilerCallbacks.pfnCreateRenderPass = GETDEVICEPROCADDR( *pDevice, vkCreateRenderPass );
-            deviceProfilerCallbacks.pfnDestroyRenderPass = GETDEVICEPROCADDR( *pDevice, vkDestroyRenderPass );
-            deviceProfilerCallbacks.pfnCreatePipelineLayout = GETDEVICEPROCADDR( *pDevice, vkCreatePipelineLayout );
-            deviceProfilerCallbacks.pfnDestroyPipelineLayout = GETDEVICEPROCADDR( *pDevice, vkDestroyPipelineLayout );
-            deviceProfilerCallbacks.pfnCreateShaderModule = GETDEVICEPROCADDR( *pDevice, vkCreateShaderModule );
-            deviceProfilerCallbacks.pfnDestroyShaderModule = GETDEVICEPROCADDR( *pDevice, vkDestroyShaderModule );
-            deviceProfilerCallbacks.pfnCreateGraphicsPipelines = GETDEVICEPROCADDR( *pDevice, vkCreateGraphicsPipelines );
-            deviceProfilerCallbacks.pfnDestroyPipeline = GETDEVICEPROCADDR( *pDevice, vkDestroyPipeline );
-            deviceProfilerCallbacks.pfnCreateImage = GETDEVICEPROCADDR( *pDevice, vkCreateImage );
-            deviceProfilerCallbacks.pfnDestroyImage = GETDEVICEPROCADDR( *pDevice, vkDestroyImage );
-            deviceProfilerCallbacks.pfnCreateImageView = GETDEVICEPROCADDR( *pDevice, vkCreateImageView );
-            deviceProfilerCallbacks.pfnDestroyImageView = GETDEVICEPROCADDR( *pDevice, vkDestroyImageView );
-            deviceProfilerCallbacks.pfnCreateCommandPool = GETDEVICEPROCADDR( *pDevice, vkCreateCommandPool );
-            deviceProfilerCallbacks.pfnDestroyCommandPool = GETDEVICEPROCADDR( *pDevice, vkDestroyCommandPool );
-            deviceProfilerCallbacks.pfnAllocateCommandBuffers = GETDEVICEPROCADDR( *pDevice, vkAllocateCommandBuffers );
-            deviceProfilerCallbacks.pfnFreeCommandBuffers = GETDEVICEPROCADDR( *pDevice, vkFreeCommandBuffers );
-            deviceProfilerCallbacks.pfnBeginCommandBuffer = GETDEVICEPROCADDR( *pDevice, vkBeginCommandBuffer );
-            deviceProfilerCallbacks.pfnEndCommandBuffer = GETDEVICEPROCADDR( *pDevice, vkEndCommandBuffer );
-            deviceProfilerCallbacks.pfnCmdWriteTimestamp = GETDEVICEPROCADDR( *pDevice, vkCmdWriteTimestamp );
-            deviceProfilerCallbacks.pfnCmdPipelineBarrier = GETDEVICEPROCADDR( *pDevice, vkCmdPipelineBarrier );
-            deviceProfilerCallbacks.pfnCmdCopyBufferToImage = GETDEVICEPROCADDR( *pDevice, vkCmdCopyBufferToImage );
-            deviceProfilerCallbacks.pfnQueueSubmit = GETDEVICEPROCADDR( *pDevice, vkQueueSubmit );
-            deviceProfilerCallbacks.pfnQueueWaitIdle = GETDEVICEPROCADDR( *pDevice, vkQueueWaitIdle );
-
-            // Create the profiler object
-            Profiler* deviceProfiler = new Profiler;
-            result = deviceProfiler->Initialize( &deviceObject, deviceProfilerCallbacks );
-
-            if( result != VK_SUCCESS )
-            {
-                delete deviceProfiler;
-
-                PFN_vkDestroyDevice pfnDestroyDevice = GETDEVICEPROCADDR( *pDevice, vkDestroyDevice );
-
-                // Destroy the device
-                pfnDestroyDevice( *pDevice, pAllocator );
-
-                return result;
-            }
-
-            auto deviceProfilerIt = DeviceProfilers.try_emplace( *pDevice, deviceProfiler );
-            if( !deviceProfilerIt.second )
-            {
-                // TODO error, should have created new element
-            }
-
-            DeviceFunctions.CreateDispatchTable( *pDevice, pfnGetDeviceProcAddr );
-
-            // Initialize VkCommandBuffer functions for the device
-            VkCommandBuffer_Functions::OnDeviceCreate( *pDevice, pfnGetDeviceProcAddr );
-
-            // Initialize VkQueue functions for this device
-            VkQueue_Functions::OnDeviceCreate( *pDevice, pfnGetDeviceProcAddr );
-        }
-
-        return result;
+        // Get device dispatch table
+        return DeviceDispatch.Get( device ).DispatchTable.GetDeviceProcAddr( device, pName );
     }
 
     /***********************************************************************************\
@@ -257,26 +48,16 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyDevice(
         VkDevice device,
-        VkAllocationCallbacks pAllocator )
+        VkAllocationCallbacks* pAllocator )
     {
-        DeviceFunctions.DestroyDispatchTable( device );
+        auto& dd = DeviceDispatch.Get( device );
+        auto pfnDestroyDevice = dd.DispatchTable.DestroyDevice;
 
-        std::scoped_lock lk( DeviceProfilers );
+        // Cleanup dispatch table and profiler
+        VkDevice_Functions_Base::OnDeviceDestroy( device );
 
-        auto it = DeviceProfilers.find( device );
-        if( it != DeviceProfilers.end() )
-        {
-            // Cleanup the profiler resources
-            it->second->Destroy();
-
-            DeviceProfilers.erase( it );
-        }
-
-        // Cleanup VkCommandBuffer function callbacks
-        VkCommandBuffer_Functions::OnDeviceDestroy( device );
-
-        // Cleanup VkQueue function callbacks
-        VkQueue_Functions::OnDeviceDestroy( device );
+        // Destroy the device
+        pfnDestroyDevice( device, pAllocator );
     }
 
     /***********************************************************************************\
@@ -317,9 +98,9 @@ namespace Profiler
             // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
             // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
             // vkEnumerateDeviceExtensionProperties implementation.
-            auto instanceDispatchTable = VkInstance_Functions::InstanceFunctions[physicalDevice];
+            auto id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
 
-            return instanceDispatchTable.pfnEnumerateDeviceExtensionProperties(
+            return id.DispatchTable.EnumerateDeviceExtensionProperties(
                 physicalDevice, pLayerName, pPropertyCount, pProperties );
         }
 
@@ -330,5 +111,59 @@ namespace Profiler
         }
 
         return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AllocateMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::AllocateMemory(
+        VkDevice device,
+        const VkMemoryAllocateInfo* pAllocateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkDeviceMemory* pMemory )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Allocate the memory
+        VkResult result = dd.DispatchTable.AllocateMemory(
+            device, pAllocateInfo, pAllocator, pMemory );
+
+        if( result != VK_SUCCESS )
+        {
+            // Allocation failed, do not profile
+            return result;
+        }
+
+        // Register allocation
+        dd.Profiler.OnAllocateMemory( *pMemory, pAllocateInfo );
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::FreeMemory(
+        VkDevice device,
+        VkDeviceMemory memory,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Free the memory
+        dd.DispatchTable.FreeMemory( device, memory, pAllocator );
+
+        // Unregister allocation
+        dd.Profiler.OnFreeMemory( memory );
     }
 }

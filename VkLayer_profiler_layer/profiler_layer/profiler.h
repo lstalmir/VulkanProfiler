@@ -1,10 +1,9 @@
 #pragma once
-#include "profiler_callbacks.h"
 #include "profiler_counters.h"
 #include "profiler_frame_stats.h"
-#include "profiler_overlay.h"
-#include "profiler_layer_objects/VkDevice_object.h"
-#include <vulkan/vulkan.h>
+#include <unordered_map>
+#include <vk_layer.h>
+#include <vk_layer_dispatch_table.h>
 
 namespace Profiler
 {
@@ -23,7 +22,7 @@ namespace Profiler
     public:
         Profiler();
 
-        VkResult Initialize( VkDevice_Object* pDevice, ProfilerCallbacks callbacks );
+        VkResult Initialize( VkDevice, const VkLayerDispatchTable* );
         void Destroy();
 
         void PreDraw( VkCommandBuffer );
@@ -32,20 +31,20 @@ namespace Profiler
         void PrePresent( VkQueue );
         void PostPresent( VkQueue );
 
+        void OnAllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo );
+        void OnFreeMemory( VkDeviceMemory allocatedMemory );
+
         FrameStats& GetCurrentFrameStats();
         const FrameStats& GetPreviousFrameStats() const;
 
     protected:
-        ProfilerCallbacks       m_Callbacks;
+        VkDevice                m_Device;
+        VkLayerDispatchTable    m_Callbacks;
         
-        ProfilerOverlay         m_Overlay;
-
         FrameStats*             m_pCurrentFrameStats;
         FrameStats*             m_pPreviousFrameStats;
 
         uint32_t                m_CurrentFrame;
-
-        VkDevice_Object         m_Device;
 
         VkQueryPool             m_TimestampQueryPool;
         uint32_t                m_TimestampQueryPoolSize;
@@ -53,5 +52,8 @@ namespace Profiler
         CpuTimestampCounter*    m_pCpuTimestampQueryPool;
         uint32_t                m_CurrentCpuTimestampQuery;
 
+        std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_AllocatedMemory;
+
+        std::atomic_uint64_t m_AllocatedMemorySize;
     };
 }

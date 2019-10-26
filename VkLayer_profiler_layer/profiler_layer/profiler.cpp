@@ -1,13 +1,12 @@
 #include "profiler.h"
 #include "profiler_helpers.h"
-#include "profiler_overlay.h"
 
 namespace Profiler
 {
     /***********************************************************************************\
 
     Function:
-        Profiler
+        PerformanceProfiler
 
     Description:
         Constructor
@@ -27,9 +26,10 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::Initialize( VkDevice_Object* pDevice, ProfilerCallbacks callbacks )
+    VkResult Profiler::Initialize( VkDevice device, const VkLayerDispatchTable* pDispatchTable )
     {
-        m_Callbacks = callbacks;
+        m_Callbacks = *pDispatchTable;
+        m_Device = device;
 
         m_CurrentFrame = 0;
 
@@ -42,8 +42,8 @@ namespace Profiler
         queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
         queryPoolCreateInfo.queryCount = m_TimestampQueryPoolSize;
 
-        VkResult result = m_Callbacks.pfnCreateQueryPool(
-            pDevice->Device, &queryPoolCreateInfo, nullptr, &m_TimestampQueryPool );
+        VkResult result = m_Callbacks.CreateQueryPool(
+            m_Device, &queryPoolCreateInfo, nullptr, &m_TimestampQueryPool );
 
         if( result != VK_SUCCESS )
         {
@@ -63,19 +63,6 @@ namespace Profiler
         m_pCurrentFrameStats = new FrameStats;
         m_pPreviousFrameStats = new FrameStats; // will be swapped every frame
 
-        // Create profiler overlay
-        result = m_Overlay.Initialize( pDevice, this, callbacks );
-
-        if( result != VK_SUCCESS )
-        {
-            // Creation of the overlay failed
-
-            // Cleanup the profiler
-            Destroy();
-
-            return result;
-        }
-
         return VK_SUCCESS;
     }
 
@@ -90,8 +77,6 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::Destroy()
     {
-        m_Overlay.Destroy();
-
         delete m_pCurrentFrameStats;
         delete m_pPreviousFrameStats;
 
@@ -100,7 +85,7 @@ namespace Profiler
         if( m_TimestampQueryPool )
         {
             // Destroy the GPU timestamp query pool
-            m_Callbacks.pfnDestroyQueryPool( m_Device.Device, m_TimestampQueryPool, nullptr );
+            m_Callbacks.DestroyQueryPool( m_Device, m_TimestampQueryPool, nullptr );
         }
 
         ClearMemory( this );
@@ -142,7 +127,6 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::PrePresent( VkQueue queue )
     {
-        m_Overlay.DrawFrameStats( queue );
     }
 
     /***********************************************************************************\
@@ -203,6 +187,42 @@ namespace Profiler
         m_pCurrentFrameStats->Reset();
 
         m_CurrentFrame++;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::OnAllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
+    {
+        // Insert allocation info to the map, it will be needed during deallocation.
+        //m_AllocatedMemory.emplace( allocatedMemory, *pAllocateInfo );
+
+        m_AllocatedMemorySize += pAllocateInfo->allocationSize;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::OnFreeMemory( VkDeviceMemory allocatedMemory )
+    {
+        //auto it = m_AllocatedMemory.find( allocatedMemory );
+        //if( it != m_AllocatedMemory.end() )
+        {
+            //m_AllocatedMemorySize -= it->second.allocationSize;
+
+            // Remove allocation entry from the map
+            //m_AllocatedMemory.erase( it );
+        }
     }
 
     /***********************************************************************************\

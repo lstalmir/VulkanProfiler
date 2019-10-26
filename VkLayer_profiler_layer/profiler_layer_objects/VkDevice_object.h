@@ -1,6 +1,7 @@
 #pragma once
+#include "VkInstance_object.h"
 #include "VkQueue_object.h"
-#include <vulkan/vk_layer.h>
+#include <vulkan.h>
 
 namespace Profiler
 {

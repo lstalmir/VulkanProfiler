@@ -13,27 +13,16 @@ add_subdirectory (resources)
 
 set (headers
     "profiler.h"
-    "profiler_buffer.h"
-    "profiler_callbacks.h"
     "profiler_counters.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
-    "profiler_image.h"
-    "profiler_overlay.h"
-    "profiler_overlay_font.h"
-    "profiler_overlay_state_factory.h"
     "profiler_resources.h"
     "profiler_shaders.h"
     )
 
 set (sources
     "profiler.cpp"
-    "profiler_buffer.cpp"
     "profiler_counters.cpp"
-    "profiler_image.cpp"
-    "profiler_overlay.cpp"
-    "profiler_overlay_font.cpp"
-    "profiler_overlay_state_factory.cpp"
     )
     
 # Link intermediate static library
@@ -48,6 +37,7 @@ add_dependencies (profiler_layer vulkan_traits)
 # Set include path
 target_include_directories (profiler_layer
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
+    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
@@ -59,5 +49,3 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 8) # 64-bit
 else ()
     target_link_directories (profiler_layer INTERFACE $ENV{VK_SDK_PATH}/Lib32)
 endif ()
-
-target_link_libraries (profiler_layer vulkan-1)

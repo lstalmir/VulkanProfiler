@@ -7,3 +7,6 @@
 [submodule "Sample/SDL"]
 	path = Sample/SDL
 	url = https://github.com/SDL-mirror/SDL
+[submodule "Vulkan-Loader"]
+	path = Vulkan-Loader
+	url = https://github.com/KhronosGroup/Vulkan-Loader

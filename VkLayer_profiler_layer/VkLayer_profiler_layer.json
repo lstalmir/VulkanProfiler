@@ -6,6 +6,12 @@
         "library_path": ".\\VkLayer_profiler_layer.dll",
         "api_version": "1.1.106",
         "implementation_version": "1",
-        "description": "Simple Vulkan Profiling Layer"
+        "description": "Simple Vulkan Profiling Layer",
+        "enable_environment": {
+            "ENABLE_PROFILER_LAYER": "1"
+        },
+        "disable_environment": {
+            "DISABLE_PROFILER_LAYER": "1"
+        }
     }
 }

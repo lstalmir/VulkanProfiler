@@ -10,7 +10,7 @@ namespace Profiler
         CpuCounter
 
     Description:
-        Set of VkInstance functions which are overloaded in this layer.
+        
 
     \***********************************************************************************/
     class CpuCounter
@@ -19,8 +19,12 @@ namespace Profiler
         CpuCounter();
 
         void Reset();
+
         void Increment();
         void Decrement();
+        void Add( uint64_t value );
+        void Subtract( uint64_t value );
+
         uint64_t GetValue() const;
 
     protected:
@@ -33,17 +37,19 @@ namespace Profiler
         CpuTimestampCounter
 
     Description:
-        Set of VkInstance functions which are overloaded in this layer.
+
 
     \***********************************************************************************/
     class CpuTimestampCounter
     {
     public:
         CpuTimestampCounter();
-
+        
         void Reset();
+
         void Begin();
         void End();
+
         uint64_t GetValue() const;
 
     protected:

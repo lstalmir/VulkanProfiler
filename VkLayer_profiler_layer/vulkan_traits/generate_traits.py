@@ -34,19 +34,17 @@ def define_vulkan_structure_trait( vulkan_traits_header_file: io.TextIOBase, str
         '    }};\n' ).format( structure_name, structure_type ) )
 
 
-def generate_vulkan_structure_traits( vulkan_traits_header_file: io.TextIOBase, vulkan_header_lines: list ):
-    vulkan_traits_header_file.write(
-        '// Generated file, do not modify\n' +
-        '#pragma once\n' +
-        '#include <vulkan/vulkan.h>\n' +
-        '\n' +
-        'namespace Profiler\n' +
-        '{' )
-    define_vulkan_structure_traits_struct( vulkan_traits_header_file )
+def generate_vulkan_structure_traits( vulkan_traits_header_file: io.TextIOBase, vulkan_header_paths: list ):
+    vulkan_header_lines = []
+    for vulkan_header in vulkan_header_paths:
+        with open( vulkan_header, 'r' ) as vulkan_header_file:
+            vulkan_header_lines.extend( vulkan_header_file.readlines() )
     vulkan_structures_found = False
     vulkan_structures_all = False
     vulkan_structures = {}
     vulkan_extension_capitalized_suffixes = ['Khr', 'Ext', 'Int', 'Nv', 'Nvx', 'Amd', 'Ggp']
+    structure_definition_depth = 0
+    last_structure_type_comment = ''
     re_structure_type_definition = re.compile( r'(?P<type>[\w_]+)\s*=\s*(?P<value>[\w_]+)\s*,' )
     for line in vulkan_header_lines:
         line = line.strip()
@@ -70,12 +68,29 @@ def generate_vulkan_structure_traits( vulkan_traits_header_file: io.TextIOBase, 
                 structure_name = 'Vk' + ''.join( structure_name_components )
                 vulkan_structures[structure_name] = structure_type
         if vulkan_structures_all:
+            if structure_definition_depth == 1 and line.startswith( 'VkStructureType' ):
+                # Maybe there is a comment associating the structure with VK_STRUCTURE_TYPE_
+                comment_position = line.find( '//' )
+                if comment_position != -1:
+                    line = line[comment_position+2:].strip().split()[0]
+                    if line in vulkan_structures.values():
+                        last_structure_type_comment = line
+            if structure_definition_depth == 1 and line.startswith( '}' ):
+                structure_definition_depth = 0
+                line = line.rstrip( ';' ).split()[1]
+                if line != '' and last_structure_type_comment != '':
+                    define_vulkan_structure_trait( vulkan_traits_header_file, line, last_structure_type_comment )
+            if structure_definition_depth > 0 and '{' in line:
+                structure_definition_depth += 1
+            if structure_definition_depth > 1 and '}' in line:
+                structure_definition_depth -= 1
+            if line.startswith( 'typedef struct {' ):
+                # Structure name is at the end of definition
+                structure_definition_depth = 1
             if line.startswith( 'typedef struct' ):
                 structure_name = line.split()[2]
                 if structure_name in vulkan_structures.keys():
                     define_vulkan_structure_trait( vulkan_traits_header_file, structure_name, vulkan_structures[structure_name] )
-    vulkan_traits_header_file.write(
-        '}\n' )
     if not vulkan_structures_found:
         raise LookupError( 'Failed to find VkStructureType enum definition' )
 
@@ -83,9 +98,19 @@ def generate_vulkan_structure_traits( vulkan_traits_header_file: io.TextIOBase, 
 if __name__ == '__main__':
     vulkan_include_dir = os.path.normpath( VULKAN_INCLUDE_DIR )
     vulkan_traits_header = os.path.relpath( VULKAN_TRAITS_HEADER )
-    # Read vulkan.h
-    with open( os.path.join( vulkan_include_dir, 'vulkan', 'vulkan_core.h' ), 'r' ) as vulkan_header_file:
-        vulkan_header_lines = vulkan_header_file.readlines()
     # Generate vulkan type traits
     with open( vulkan_traits_header, 'w' ) as vulkan_traits_header_file:
-        generate_vulkan_structure_traits( vulkan_traits_header_file, vulkan_header_lines )
+        vulkan_traits_header_file.write(
+            '// Generated file, do not modify\n' +
+            '#pragma once\n' +
+            '#include <vk_layer.h>\n' +
+            '\n' +
+            'namespace Profiler\n' +
+            '{' )
+        define_vulkan_structure_traits_struct( vulkan_traits_header_file )
+        generate_vulkan_structure_traits( vulkan_traits_header_file, [
+            os.path.join( vulkan_include_dir, 'vulkan', 'vulkan_core.h' ),
+            os.path.join( vulkan_include_dir, 'vulkan', 'vk_layer.h' ) ] )
+        vulkan_traits_header_file.write(
+            '}\n' )
+    

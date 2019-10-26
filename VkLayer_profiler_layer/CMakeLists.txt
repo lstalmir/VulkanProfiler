@@ -31,9 +31,11 @@ set (generated
     )
 
 set (headers
+    "profiler_layer_functions/Dispatch.h"
+    "profiler_layer_functions/Helpers.h"
     "profiler_layer_functions/VkCommandBuffer_functions.h"
     "profiler_layer_functions/VkDevice_functions.h"
-    "profiler_layer_functions/VkDispatch.h"
+    "profiler_layer_functions/VkDevice_functions_base.h"
     "profiler_layer_functions/VkInstance_functions.h"
     "profiler_layer_functions/VkQueue_functions.h"
     "profiler_layer_objects/VkDevice_object.h"
@@ -43,6 +45,7 @@ set (headers
 set (sources
     "profiler_layer_functions/VkCommandBuffer_functions.cpp"
     "profiler_layer_functions/VkDevice_functions.cpp"
+    "profiler_layer_functions/VkDevice_functions_base.cpp"
     "profiler_layer_functions/VkInstance_functions.cpp"
     "profiler_layer_functions/VkQueue_functions.cpp"
     "VkLayer_profiler_layer.cpp"
@@ -72,6 +75,7 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_layer)
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
+    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/vulkan_traits
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

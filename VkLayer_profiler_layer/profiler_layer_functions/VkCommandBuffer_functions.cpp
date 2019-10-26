@@ -2,83 +2,6 @@
 
 namespace Profiler
 {
-    // Define VkCommandBuffer dispatch tables map
-    VkDispatch<VkDevice, VkCommandBuffer_Functions::DispatchTable> VkCommandBuffer_Functions::CommandBufferFunctions;
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
-
-    Description:
-        Gets address of this layer's function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkCommandBuffer_Functions::GetInterceptedProcAddr( const char* pName )
-    {
-        // Intercepted functions
-        //GETPROCADDR( BeginCommandBuffer );
-        //GETPROCADDR( EndCommandBuffer );
-        GETPROCADDR( CmdDraw );
-        GETPROCADDR( CmdDrawIndexed );
-
-        // Function not overloaded
-        return nullptr;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
-
-    Description:
-        Gets address of this layer's function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkCommandBuffer_Functions::GetProcAddr( VkDevice device, const char* pName )
-    {
-        // Overloaded functions
-        if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
-        {
-            return function;
-        }
-
-        // Get address from the next layer
-        auto dispatchTable = DeviceFunctions.GetDispatchTable( device );
-
-        return dispatchTable.pfnGetDeviceProcAddr( device, pName );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        OnDeviceCreate
-
-    Description:
-        Initializes VkCommandBuffer function callbacks for new device.
-
-    \***********************************************************************************/
-    void VkCommandBuffer_Functions::OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr gpa )
-    {
-        // Create dispatch table for overloaded VkCommandBuffer functions
-        CommandBufferFunctions.CreateDispatchTable( device, gpa );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        OnDeviceCreate
-
-    Description:
-        Removes VkCommandBuffer function callbacks for the device from the memory.
-
-    \***********************************************************************************/
-    void VkCommandBuffer_Functions::OnDeviceDestroy( VkDevice device )
-    {
-        // Remove dispatch table for the destroyed device
-        CommandBufferFunctions.DestroyDispatchTable( device );
-    }
-
     /***********************************************************************************\
 
     Function:
@@ -123,18 +46,18 @@ namespace Profiler
         uint32_t firstVertex,
         uint32_t firstInstance )
     {
-        Profiler* deviceProfiler = DeviceProfilers.at( commandBuffer );
+        auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Increment drawcall counter
-        deviceProfiler->GetCurrentFrameStats().drawCount++;
+        dd.Profiler.GetCurrentFrameStats().drawCount++;
 
-        deviceProfiler->PreDraw( commandBuffer );
+        dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        CommandBufferFunctions.GetDispatchTable( commandBuffer ).pfnCmdDraw(
+        dd.DispatchTable.CmdDraw(
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
-        deviceProfiler->PostDraw( commandBuffer );
+        dd.Profiler.PostDraw( commandBuffer );
     }
 
     /***********************************************************************************\
@@ -153,17 +76,17 @@ namespace Profiler
         int32_t vertexOffset,
         uint32_t firstInstance )
     {
-        Profiler* deviceProfiler = DeviceProfilers.at( commandBuffer );
+        auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Increment drawcall counter
-        deviceProfiler->GetCurrentFrameStats().drawCount++;
+        dd.Profiler.GetCurrentFrameStats().drawCount++;
 
-        deviceProfiler->PreDraw( commandBuffer );
+        dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        CommandBufferFunctions.GetDispatchTable( commandBuffer ).pfnCmdDrawIndexed(
+        dd.DispatchTable.CmdDrawIndexed(
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
-        deviceProfiler->PostDraw( commandBuffer );
+        dd.Profiler.PostDraw( commandBuffer );
     }
 }

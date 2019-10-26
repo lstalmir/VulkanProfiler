@@ -1,6 +1,7 @@
 #include "VkInstance_functions.h"
 #include "VkDevice_functions.h"
 #include "VkLayer_profiler_layer.generated.h"
+#include "Helpers.h"
 
 namespace
 {
@@ -22,49 +23,8 @@ namespace
 
 namespace Profiler
 {
-    // Define VkInstance dispatch tables map
-    VkDispatch<VkInstance, VkInstance_Functions::DispatchTable> VkInstance_Functions::InstanceFunctions;
+    DispatchableMap<VkInstance_Functions::Dispatch> VkInstance_Functions::InstanceDispatch;
 
-    /***********************************************************************************\
-
-    Function:
-        GetInterceptedProcAddr
-
-    Description:
-        Gets address of this layer's function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkInstance_Functions::GetInterceptedProcAddr( const char* pName )
-    {
-        // Intercepted functions
-        GETPROCADDR( GetInstanceProcAddr );
-        GETPROCADDR( CreateInstance );
-        GETPROCADDR( DestroyInstance );
-        GETPROCADDR( EnumerateInstanceLayerProperties );
-        GETPROCADDR( EnumerateInstanceExtensionProperties );
-
-        if( PFN_vkVoidFunction function = VkDevice_Functions::GetInterceptedProcAddr( pName ) )
-        {
-            return function;
-        }
-
-        // Function not overloaded
-        return nullptr;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
-
-    Description:
-        Gets address of function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkInstance_Functions::GetProcAddr( VkInstance instance, const char* pName )
-    {
-        return GetInstanceProcAddr( instance, pName );
-    }
 
     /***********************************************************************************\
 
@@ -79,14 +39,18 @@ namespace Profiler
         VkInstance instance,
         const char* pName )
     {
-        // Overloaded functions
-        if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
-            return function;
+        // VkInstance_Functions
+        GETPROCADDR( GetInstanceProcAddr );
+        GETPROCADDR( CreateInstance );
+        GETPROCADDR( DestroyInstance );
+        GETPROCADDR( CreateDevice );
+        GETPROCADDR( EnumerateInstanceLayerProperties );
+        GETPROCADDR( EnumerateInstanceExtensionProperties );
 
         // Get address from the next layer
-        auto dispatchTable = InstanceFunctions.GetDispatchTable( instance );
+        auto& id = InstanceDispatch.Get( instance );
 
-        return dispatchTable.pfnGetInstanceProcAddr( instance, pName );
+        return id.DispatchTable.GetInstanceProcAddr( instance, pName );
     }
 
     /***********************************************************************************\
@@ -123,8 +87,8 @@ namespace Profiler
         PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr =
             pLayerCreateInfo->u.pLayerInfo->pfnNextGetInstanceProcAddr;
 
-        PFN_vkCreateInstance pfnCreateInstance =
-            (PFN_vkCreateInstance)pfnGetInstanceProcAddr( VK_NULL_HANDLE, "vkCreateInstance" );
+        PFN_vkCreateInstance pfnCreateInstance = reinterpret_cast<PFN_vkCreateInstance>(
+            pfnGetInstanceProcAddr( VK_NULL_HANDLE, "vkCreateInstance" ));
 
         // Invoke vkCreateInstance of next layer
         VkResult result = pfnCreateInstance( pCreateInfo, pAllocator, pInstance );
@@ -132,7 +96,13 @@ namespace Profiler
         // Register callbacks to the next layer
         if( result == VK_SUCCESS )
         {
-            InstanceFunctions.CreateDispatchTable( *pInstance, pfnGetInstanceProcAddr );
+            auto& id = InstanceDispatch.Create( *pInstance );
+
+            // Get function addresses
+            layer_init_instance_dispatch_table( *pInstance, &id.DispatchTable, pfnGetInstanceProcAddr );
+
+            id.DispatchTable.CreateDevice = reinterpret_cast<PFN_vkCreateDevice>(
+                pfnGetInstanceProcAddr( *pInstance, "vkCreateDevice" ));
         }
 
         return result;
@@ -149,9 +119,63 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR void VKAPI_CALL VkInstance_Functions::DestroyInstance(
         VkInstance instance,
-        VkAllocationCallbacks pAllocator )
+        VkAllocationCallbacks* pAllocator )
     {
-        InstanceFunctions.DestroyDispatchTable( instance );
+        auto& id = InstanceDispatch.Get( instance );
+
+        // Destroy the instance
+        id.DispatchTable.DestroyInstance( instance, pAllocator );
+
+        InstanceDispatch.Erase( instance );
+    }
+
+    /***********************************************************************************\
+    
+    Function:
+        CreateDevice
+
+    Description:
+        
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkInstance_Functions::CreateDevice(
+        VkPhysicalDevice physicalDevice,
+        const VkDeviceCreateInfo* pCreateInfo,
+        VkAllocationCallbacks* pAllocator,
+        VkDevice* pDevice )
+    {
+        auto& id = InstanceDispatch.Get( physicalDevice );
+
+        // Prefetch the device link info before creating the device to be sure we have vkDestroyDevice function available
+        const auto* pLayerLinkInfo = GetLayerLinkInfo<VkLayerDeviceCreateInfo>( pCreateInfo );
+
+        if( !pLayerLinkInfo )
+        {
+            // Link info not found, vkGetDeviceProcAddr unavailable
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        // Create the device
+        VkResult result = id.DispatchTable.CreateDevice(
+            physicalDevice, pCreateInfo, pAllocator, pDevice );
+
+        // Initialize dispatch for the created device object
+        result = VkDevice_Functions::OnDeviceCreate(
+            physicalDevice, pCreateInfo, pAllocator, *pDevice );
+
+        if( result != VK_SUCCESS )
+        {
+            // Initialization of the layer failed, destroy the device
+            PFN_vkDestroyDevice pfnDestroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(
+                pLayerLinkInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr( *pDevice, "vkDestroyDevice" ));
+
+            pfnDestroyDevice( *pDevice, pAllocator );
+
+            return result;
+        }
+
+        // Device created successfully
+        return VK_SUCCESS;
     }
 
     /***********************************************************************************\

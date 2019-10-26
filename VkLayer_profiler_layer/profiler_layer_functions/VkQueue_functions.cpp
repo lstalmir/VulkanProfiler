@@ -1,81 +1,7 @@
 #include "VkQueue_functions.h"
-#include <mutex>
 
 namespace Profiler
 {
-    // Define VkQueue dispatch tables map
-    VkDispatch<VkDevice, VkQueue_Functions::DispatchTable> VkQueue_Functions::QueueFunctions;
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
-
-    Description:
-        Gets address of this layer's function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkQueue_Functions::GetInterceptedProcAddr( const char* pName )
-    {
-        // Intercepted functions
-        GETPROCADDR( QueuePresentKHR );
-        GETPROCADDR( QueueSubmit );
-
-        // Function not overloaded
-        return nullptr;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetProcAddr
-
-    Description:
-        Gets address of this layer's function implementation.
-
-    \***********************************************************************************/
-    PFN_vkVoidFunction VkQueue_Functions::GetProcAddr( VkDevice device, const char* pName )
-    {
-        // Overloaded functions
-        if( PFN_vkVoidFunction function = GetInterceptedProcAddr( pName ) )
-        {
-            return function;
-        }
-
-        // Get address from the next layer
-        return DeviceFunctions[device].pfnGetDeviceProcAddr( device, pName );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        OnDeviceCreate
-
-    Description:
-        Initializes VkCommandBuffer function callbacks for new device.
-
-    \***********************************************************************************/
-    void VkQueue_Functions::OnDeviceCreate( VkDevice device, PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr )
-    {
-        // Create dispatch table for overloaded VkCommandBuffer functions
-        QueueFunctions.CreateDispatchTable( device, pfnGetDeviceProcAddr );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        OnDeviceCreate
-
-    Description:
-        Removes VkCommandBuffer function callbacks for the device from the memory.
-
-    \***********************************************************************************/
-    void VkQueue_Functions::OnDeviceDestroy( VkDevice device )
-    {
-        // Remove dispatch table for the destroyed device
-        QueueFunctions.DestroyDispatchTable( device );
-    }
-
     /***********************************************************************************\
 
     Function:
@@ -88,14 +14,14 @@ namespace Profiler
         VkQueue queue,
         const VkPresentInfoKHR* pPresentInfo )
     {
-        Profiler* deviceProfiler = DeviceProfilers.at( queue );
+        auto& dd = DeviceDispatch.Get( queue );
 
-        deviceProfiler->PrePresent( queue );
+        dd.Profiler.PrePresent( queue );
 
         // Present the image
-        VkResult result = QueueFunctions[queue].pfnQueuePresentKHR( queue, pPresentInfo );
+        VkResult result = dd.DispatchTable.QueuePresentKHR( queue, pPresentInfo );
 
-        deviceProfiler->PostPresent( queue );
+        dd.Profiler.PostPresent( queue );
 
         return result;
     }
@@ -114,13 +40,13 @@ namespace Profiler
         const VkSubmitInfo* pSubmits,
         VkFence fence )
     {
-        Profiler* deviceProfiler = DeviceProfilers.at( queue );
+        auto& dd = DeviceDispatch.Get( queue );
 
         // Increment submit counter
-        deviceProfiler->GetCurrentFrameStats().submitCount += submitCount;
+        dd.Profiler.GetCurrentFrameStats().submitCount += submitCount;
 
         // Submit the command buffers
-        VkResult result = QueueFunctions[queue].pfnQueueSubmit( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.DispatchTable.QueueSubmit( queue, submitCount, pSubmits, fence );
 
         return result;
     }
