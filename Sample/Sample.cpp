@@ -176,7 +176,7 @@ int main()
 
 
     // This is where most initializtion for a program should be performed
-
+ 
     // Poll for user input.
     bool stillRunning = true;
     while( stillRunning )
@@ -211,9 +211,11 @@ int main()
     }
 
     // Clean up.
+    swapchain.destroy();
     instance.destroySurfaceKHR( surface );
     SDL_DestroyWindow( window );
     SDL_Quit();
+    device.destroy();
     instance.destroy();
 
     return 0;

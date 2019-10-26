@@ -25,6 +25,8 @@ namespace Sample
 
         ~Device();
 
+        void destroy();
+
     private:
         float getPhysicalDeviceSuitability(
             vk::PhysicalDevice device,

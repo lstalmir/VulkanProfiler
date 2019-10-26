@@ -14,7 +14,9 @@ namespace Profiler
         VkCommandBuffer commandBuffer,
         const VkCommandBufferBeginInfo* pBeginInfo )
     {
-        return VK_ERROR_DEVICE_LOST;
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        return dd.DispatchTable.BeginCommandBuffer( commandBuffer, pBeginInfo );
     }
 
     /***********************************************************************************\
@@ -28,7 +30,9 @@ namespace Profiler
     VKAPI_ATTR VkResult VKAPI_CALL VkCommandBuffer_Functions::EndCommandBuffer(
         VkCommandBuffer commandBuffer )
     {
-        return VK_ERROR_DEVICE_LOST;
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        return dd.DispatchTable.EndCommandBuffer( commandBuffer );
     }
 
     /***********************************************************************************\

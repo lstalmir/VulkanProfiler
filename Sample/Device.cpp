@@ -45,7 +45,19 @@ namespace Sample
 
     Device::~Device()
     {
+        destroy();
+    }
+
+    void Device::destroy()
+    {
+        if( !m_Device )
+        {
+            // Already destroyed
+            return;
+        }
+
         m_Device.destroy();
+        m_Device = nullptr;
     }
 
     float Device::getPhysicalDeviceSuitability(

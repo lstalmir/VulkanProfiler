@@ -20,10 +20,6 @@ namespace Sample
 
     Image::~Image()
     {
-        if( m_Owns )
-        {
-            m_Device.destroyImage( m_Image );
-        }
     }
 
     void Image::layoutTransition(
@@ -48,5 +44,21 @@ namespace Sample
                 range ) } );
 
         m_Layout = newLayout;
+    }
+
+    void Image::destroy()
+    {
+        if( !m_Image )
+        {
+            // Already destroyed
+            return;
+        }
+
+        if( m_Owns )
+        {
+            m_Device.destroyImage( m_Image );
+        }
+
+        m_Image = nullptr;
     }
 }

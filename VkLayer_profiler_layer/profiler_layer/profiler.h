@@ -52,8 +52,6 @@ namespace Profiler
         CpuTimestampCounter*    m_pCpuTimestampQueryPool;
         uint32_t                m_CurrentCpuTimestampQuery;
 
-        std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_AllocatedMemory;
-
-        std::atomic_uint64_t m_AllocatedMemorySize;
+        std::atomic_uint64_t    m_AllocatedMemorySize;
     };
 }

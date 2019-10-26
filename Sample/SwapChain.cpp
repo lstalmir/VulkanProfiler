@@ -140,17 +140,7 @@ namespace Sample
 
     SwapChain::~SwapChain()
     {
-        m_Device.destroySwapchainKHR( m_Swapchain );
-
-        for( auto semaphore : m_ImageAvailableSemaphores )
-        {
-            m_Device.destroySemaphore( semaphore );
-        }
-
-        for( auto semaphore : m_ImageRenderedSemaphores )
-        {
-            m_Device.destroySemaphore( semaphore );
-        }
+        destroy();
     }
 
     void SwapChain::acquireNextImage()
@@ -169,5 +159,37 @@ namespace Sample
             m_Swapchain, UINT64_MAX, m_NextImageAvailableSemaphore, nullptr ).value;
 
         m_Acquired = true;
+    }
+
+    void SwapChain::destroy()
+    {
+        if( !m_Swapchain )
+        {
+            // Already released
+            return;
+        }
+
+        m_Device.waitIdle();
+
+        for( auto semaphore : m_ImageAvailableSemaphores )
+        {
+            m_Device.destroySemaphore( semaphore );
+        }
+        m_ImageAvailableSemaphores.clear();
+
+        for( auto semaphore : m_ImageRenderedSemaphores )
+        {
+            m_Device.destroySemaphore( semaphore );
+        }
+        m_ImageRenderedSemaphores.clear();
+
+        for( auto image : m_Images )
+        {
+            image.destroy();
+        }
+        m_Images.clear();
+
+        m_Device.destroySwapchainKHR( m_Swapchain );
+        m_Swapchain = nullptr;
     }
 }

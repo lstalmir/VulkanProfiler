@@ -24,5 +24,7 @@ namespace Sample
         ~SwapChain();
 
         void acquireNextImage();
+
+        void destroy();
     };
 }

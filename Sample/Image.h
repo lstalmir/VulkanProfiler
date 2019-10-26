@@ -27,5 +27,7 @@ namespace Sample
             vk::CommandBuffer commandBuffer,
             vk::ImageLayout newLayout,
             vk::ImageSubresourceRange range );
+
+        void destroy();
     };
 }
