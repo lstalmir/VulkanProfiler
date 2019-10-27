@@ -1,5 +1,6 @@
 #pragma once
 #include "profiler_allocator.h"
+#include "profiler_command_buffer.h"
 #include "profiler_counters.h"
 #include "profiler_frame_stats.h"
 #include <unordered_map>
@@ -38,14 +39,24 @@ namespace Profiler
     public:
         Profiler();
 
-        VkResult Initialize( VkDevice, const VkLayerDispatchTable* );
+        VkResult Initialize(
+            VkPhysicalDevice, const VkLayerInstanceDispatchTable*,
+            VkDevice, const VkLayerDispatchTable* );
+
         void Destroy();
 
         void PreDraw( VkCommandBuffer );
         void PostDraw( VkCommandBuffer );
 
-        void PreRenderPass( VkCommandBuffer, const VkRenderPassBeginInfo* );
-        void PostRenderPass( VkCommandBuffer );
+        void BindPipeline( VkCommandBuffer, VkPipeline );
+
+        void BeginRenderPass( VkCommandBuffer, VkRenderPass );
+        void EndRenderPass( VkCommandBuffer );
+
+        void BeginCommandBuffer( VkCommandBuffer );
+        void EndCommandBuffer( VkCommandBuffer );
+
+        void SubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo* );
 
         void PrePresent( VkQueue );
         void PostPresent( VkQueue );
@@ -62,30 +73,24 @@ namespace Profiler
 
         ProfilerMode            m_Mode;
 
-        ProfilerAllocator       m_TimestampQueryAllocator;
-        
         FrameStats*             m_pCurrentFrameStats;
         FrameStats*             m_pPreviousFrameStats;
 
         uint32_t                m_CurrentFrame;
 
-        VkQueryPool             m_TimestampQueryPool;
-        uint32_t                m_TimestampQueryPoolSize;
-        uint32_t                m_CurrentTimestampQuery;
         CpuTimestampCounter*    m_pCpuTimestampQueryPool;
+        uint32_t                m_TimestampQueryPoolSize;
         uint32_t                m_CurrentCpuTimestampQuery;
 
         std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         std::atomic_uint64_t    m_AllocatedMemorySize;
 
-        struct TimestampQueryPair
-        {
-            uint32_t BeginTimestampQueryIndex;
-            uint32_t EndTimestampQueryIndex;
-        };
+        std::unordered_map<VkCommandBuffer, ProfilerCommandBuffer> m_ProfiledCommandBuffers;
 
-        std::unordered_map<VkCommandBuffer, TimestampQueryPair> m_ProfiledCommandBuffers;
+        float                   m_TimestampPeriod;
 
-        TimestampQueryPair AllocateTimestampQueryPair();
+        void SendTimestampQuery( ProfilerCommandBuffer&, VkPipelineStageFlagBits );
+
+        void PresentResults( const ProfilerCommandBuffer& );
     };
 }

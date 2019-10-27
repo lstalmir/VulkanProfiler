@@ -42,8 +42,8 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( queue );
 
-        // Increment submit counter
-        dd.Profiler.GetCurrentFrameStats().submitCount += submitCount;
+        // Profile the submit
+        dd.Profiler.SubmitCommandBuffers( queue, submitCount, pSubmits );
 
         // Submit the command buffers
         VkResult result = dd.DispatchTable.QueueSubmit( queue, submitCount, pSubmits, fence );

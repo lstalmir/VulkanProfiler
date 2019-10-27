@@ -30,6 +30,7 @@ namespace Profiler
         GETPROCADDR( EndCommandBuffer );
         GETPROCADDR( CmdBeginRenderPass );
         GETPROCADDR( CmdEndRenderPass );
+        GETPROCADDR( CmdBindPipeline );
         GETPROCADDR( CmdDraw );
         GETPROCADDR( CmdDrawIndexed );
 

@@ -16,6 +16,8 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
+        dd.Profiler.BeginCommandBuffer( commandBuffer );
+
         return dd.DispatchTable.BeginCommandBuffer( commandBuffer, pBeginInfo );
     }
 
@@ -31,6 +33,8 @@ namespace Profiler
         VkCommandBuffer commandBuffer )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        dd.Profiler.EndCommandBuffer( commandBuffer );
 
         return dd.DispatchTable.EndCommandBuffer( commandBuffer );
     }
@@ -51,7 +55,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Profile the render pass time
-        dd.Profiler.PreRenderPass( commandBuffer, pBeginInfo );
+        dd.Profiler.BeginRenderPass( commandBuffer, pBeginInfo->renderPass );
 
         // Begin the render pass
         dd.DispatchTable.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
@@ -74,7 +78,29 @@ namespace Profiler
         dd.DispatchTable.CmdEndRenderPass( commandBuffer );
 
         // Profile the render pass time
-        dd.Profiler.PostRenderPass( commandBuffer );
+        dd.Profiler.EndRenderPass( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdBindPipeline
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdBindPipeline(
+        VkCommandBuffer commandBuffer,
+        VkPipelineBindPoint bindPoint,
+        VkPipeline pipeline )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Bind the pipeline
+        dd.DispatchTable.CmdBindPipeline( commandBuffer, bindPoint, pipeline );
+
+        // Profile the pipeline time
+        dd.Profiler.BindPipeline( commandBuffer, pipeline );
     }
 
     /***********************************************************************************\

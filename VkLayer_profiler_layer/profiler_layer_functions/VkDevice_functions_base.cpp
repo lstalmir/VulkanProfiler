@@ -1,4 +1,5 @@
 #include "VkDevice_functions_base.h"
+#include "VkInstance_functions.h"
 #include "Helpers.h"
 
 namespace Profiler
@@ -37,8 +38,12 @@ namespace Profiler
         layer_init_device_dispatch_table( device, &dd.DispatchTable,
             pLayerCreateInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr );
 
+        // Get instance dispatch table
+        auto& id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
+
         // Initialize the profiler object
-        VkResult result = dd.Profiler.Initialize( device, &dd.DispatchTable );
+        VkResult result = dd.Profiler.Initialize(
+            physicalDevice, &id.DispatchTable, device, &dd.DispatchTable );
 
         if( result != VK_SUCCESS )
         {
