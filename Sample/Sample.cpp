@@ -32,6 +32,7 @@
 #endif
 
 #include "Device.h"
+#include "Shaders.h"
 #include "SwapChain.h"
 
 // Tell SDL not to mess with main()
@@ -45,6 +46,16 @@
 
 #include <iostream>
 #include <vector>
+
+VkBool32 VKAPI_PTR DebugUtilsMessengerCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData)
+{
+    printf( "%s\n", pCallbackData->pMessage );
+    return true;
+}
 
 int main()
 {
@@ -75,6 +86,7 @@ int main()
         std::cout << "Could not get the names of required instance extensions from SDL." << std::endl;
         return 1;
     }
+    extensions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
 
     // Use validation layers if this is a debug build
     std::vector<const char*> layers;
@@ -108,11 +120,38 @@ int main()
     {
         instance = vk::createInstance( instInfo );
     }
-    catch( const std::exception& e )
+    catch( const std::exception & e )
     {
         std::cout << "Could not create a Vulkan instance: " << e.what() << std::endl;
         return 1;
     }
+
+    // Prepare dispatch for debug marker extension
+    struct DebugUtilsEXT_Dispatch
+    {
+        PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectNameEXT;
+        PFN_vkDebugMarkerSetObjectTagEXT vkDebugMarkerSetObjectTagEXT;
+        PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
+        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
+    };
+
+    DebugUtilsEXT_Dispatch debugUtilsEXT;
+    debugUtilsEXT.vkDebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)instance.getProcAddr( "vkDebugMarkerSetObjectNameEXT" );
+    debugUtilsEXT.vkDebugMarkerSetObjectTagEXT = (PFN_vkDebugMarkerSetObjectTagEXT)instance.getProcAddr( "vkDebugMarkerSetObjectTagEXT" );
+    debugUtilsEXT.vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)instance.getProcAddr( "vkCreateDebugUtilsMessengerEXT" );
+    debugUtilsEXT.vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)instance.getProcAddr( "vkDestroyDebugUtilsMessengerEXT" );
+
+    // Create a debug messenger
+    vk::DebugUtilsMessengerEXT debugMessenger = instance.createDebugUtilsMessengerEXT(
+        vk::DebugUtilsMessengerCreateInfoEXT(
+            vk::DebugUtilsMessengerCreateFlagsEXT(),
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eError |
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning,
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+            DebugUtilsMessengerCallback ),
+        nullptr, debugUtilsEXT );
 
     // Create a Vulkan surface for rendering
     VkSurfaceKHR c_surface;
@@ -198,9 +237,80 @@ int main()
             vk::CommandBufferLevel::ePrimary,
             1 ) ).front();
 
+    vk::PipelineLayout pipelineLayout = device.m_Device.createPipelineLayout(
+        vk::PipelineLayoutCreateInfo(
+            vk::PipelineLayoutCreateFlags(),
+            0, nullptr,
+            0, nullptr ) );
+
+    vk::ShaderModule vertexShaderModule = device.m_Device.createShaderModule(
+        vk::ShaderModuleCreateInfo(
+            vk::ShaderModuleCreateFlags(),
+            sizeof( Sample::VertexShaderBytecode ),
+            Sample::VertexShaderBytecode ) );
+
+    vk::ShaderModule fragmentShaderModule = device.m_Device.createShaderModule(
+        vk::ShaderModuleCreateInfo(
+            vk::ShaderModuleCreateFlags(),
+            sizeof( Sample::FragmentShaderBytecode ),
+            Sample::FragmentShaderBytecode ) );
+
+    std::vector<vk::PipelineShaderStageCreateInfo> shaderStages = {
+        vk::PipelineShaderStageCreateInfo(
+            vk::PipelineShaderStageCreateFlags(),
+            vk::ShaderStageFlagBits::eVertex,
+            vertexShaderModule, "main", nullptr ),
+        vk::PipelineShaderStageCreateInfo(
+            vk::PipelineShaderStageCreateFlags(),
+            vk::ShaderStageFlagBits::eFragment,
+            fragmentShaderModule, "main", nullptr ) };
+
+    std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments = {
+        vk::PipelineColorBlendAttachmentState()
+            .setColorWriteMask(
+                vk::ColorComponentFlagBits::eA |
+                vk::ColorComponentFlagBits::eR |
+                vk::ColorComponentFlagBits::eG |
+                vk::ColorComponentFlagBits::eB ) };
+
+    vk::Pipeline pipeline = device.m_Device.createGraphicsPipeline(
+        nullptr,
+        vk::GraphicsPipelineCreateInfo(
+            vk::PipelineCreateFlags(),
+            static_cast<uint32_t>(shaderStages.size()), shaderStages.data(),
+            &vk::PipelineVertexInputStateCreateInfo(),
+            &vk::PipelineInputAssemblyStateCreateInfo(
+                vk::PipelineInputAssemblyStateCreateFlags(),
+                vk::PrimitiveTopology::eTriangleList ),
+            &vk::PipelineTessellationStateCreateInfo(),
+            &vk::PipelineViewportStateCreateInfo(
+                vk::PipelineViewportStateCreateFlags(),
+                1, &swapchain.m_Viewport,
+                1, &swapchain.m_ScissorRect ),
+            &vk::PipelineRasterizationStateCreateInfo(
+                vk::PipelineRasterizationStateCreateFlags(),
+                false,
+                false,
+                vk::PolygonMode::eFill,
+                vk::CullModeFlagBits::eBack,
+                vk::FrontFace::eCounterClockwise ),
+            &vk::PipelineMultisampleStateCreateInfo(),
+            &vk::PipelineDepthStencilStateCreateInfo(
+                vk::PipelineDepthStencilStateCreateFlags(),
+                false,
+                false,
+                vk::CompareOp::eAlways ),
+            &vk::PipelineColorBlendStateCreateInfo(
+                vk::PipelineColorBlendStateCreateFlags(),
+                false, vk::LogicOp::eClear,
+                static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
+                { { 1.f, 1.f, 1.f, 1.f } } ),
+            &vk::PipelineDynamicStateCreateInfo(),
+            pipelineLayout,
+            renderPass ) );
 
     // This is where most initializtion for a program should be performed
- 
+
     // Poll for user input.
     bool stillRunning = true;
     while( stillRunning )
@@ -229,14 +339,22 @@ int main()
         commandBuffer.beginRenderPass( vk::RenderPassBeginInfo(
             renderPass,
             framebuffers[swapchain.m_AcquiredImageIndex],
-            vk::Rect2D( swapchain.m_Extent.width, swapchain.m_Extent.height ),
+            vk::Rect2D( vk::Offset2D(), swapchain.m_Extent ),
             1, &clearValue ),
             vk::SubpassContents::eInline );
+
+        commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
+        commandBuffer.draw( 3, 1, 0, 0 );
 
         commandBuffer.endRenderPass();
         commandBuffer.end();
 
-        device.m_GraphicsQueue.submit( { vk::SubmitInfo( 0, nullptr, nullptr, 1, &commandBuffer, 0, nullptr ) },
+        vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eTopOfPipe;
+
+        device.m_GraphicsQueue.submit( { vk::SubmitInfo( 
+            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
+            static_cast<uint32_t>(1), &commandBuffer,
+            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
             nullptr );
 
         device.m_PresentQueue.presentKHR(
@@ -254,6 +372,7 @@ int main()
     SDL_DestroyWindow( window );
     SDL_Quit();
     device.destroy();
+    instance.destroyDebugUtilsMessengerEXT( debugMessenger, nullptr, debugUtilsEXT );
     instance.destroy();
 
     return 0;

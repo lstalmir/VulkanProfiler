@@ -16,6 +16,8 @@ namespace Sample
         std::vector<vk::Semaphore>  m_ImageAvailableSemaphores;
         std::vector<vk::Semaphore>  m_ImageRenderedSemaphores;
         vk::Semaphore               m_NextImageAvailableSemaphore;
+        vk::Viewport                m_Viewport;
+        vk::Rect2D                  m_ScissorRect;
         bool                        m_Acquired;
         uint32_t                    m_AcquiredImageIndex;
         

@@ -10,6 +10,7 @@ add_subdirectory (SDL)
 set (headers
     "Device.h"
     "Image.h"
+    "Shaders.h"
     "SwapChain.h"
     )
 

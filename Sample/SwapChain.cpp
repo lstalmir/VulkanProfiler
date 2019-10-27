@@ -136,6 +136,9 @@ namespace Sample
             m_ImageRenderedSemaphores.push_back(
                 m_Device.createSemaphore( vk::SemaphoreCreateInfo() ) );
         }
+
+        m_Viewport = vk::Viewport( 0, 0, m_Extent.width, m_Extent.height, 0, 1 );
+        m_ScissorRect = vk::Rect2D( vk::Offset2D(), m_Extent );
     }
 
     SwapChain::~SwapChain()
