@@ -38,6 +38,48 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CmdBeginRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdBeginRenderPass(
+        VkCommandBuffer commandBuffer,
+        const VkRenderPassBeginInfo* pBeginInfo,
+        VkSubpassContents subpassContents )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Profile the render pass time
+        dd.Profiler.PreRenderPass( commandBuffer, pBeginInfo );
+
+        // Begin the render pass
+        dd.DispatchTable.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdEndRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdEndRenderPass(
+        VkCommandBuffer commandBuffer )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // End the render pass
+        dd.DispatchTable.CmdEndRenderPass( commandBuffer );
+
+        // Profile the render pass time
+        dd.Profiler.PostRenderPass( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CmdDraw
 
     Description:

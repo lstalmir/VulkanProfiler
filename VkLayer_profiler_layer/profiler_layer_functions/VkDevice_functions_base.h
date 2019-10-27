@@ -1,6 +1,6 @@
 #pragma once
-#include "profiler_layer/profiler.h"
 #include "Dispatch.h"
+#include "profiler/profiler.h"
 #include <vk_layer.h>
 #include <vk_layer_dispatch_table.h>
 

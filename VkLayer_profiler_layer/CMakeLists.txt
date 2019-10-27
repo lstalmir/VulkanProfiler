@@ -20,7 +20,7 @@ project (${PROFILER_LAYER_PROJECTNAME})
 add_subdirectory (vulkan_traits)
 
 # Include implementation of the layer
-add_subdirectory (profiler_layer)
+add_subdirectory (profiler)
 
 set (resource
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc
@@ -38,8 +38,6 @@ set (headers
     "profiler_layer_functions/VkDevice_functions_base.h"
     "profiler_layer_functions/VkInstance_functions.h"
     "profiler_layer_functions/VkQueue_functions.h"
-    "profiler_layer_objects/VkDevice_object.h"
-    "profiler_layer_objects/VkQueue_object.h"
     )
 
 set (sources

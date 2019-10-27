@@ -30,4 +30,35 @@ namespace Profiler
 
         return pLayerCreateInfo;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        CopyString
+
+    Description:
+
+    \***********************************************************************************/
+    static inline void CopyString( char* dst, size_t dstSize, const char* src )
+    {
+#   ifdef WIN32
+        strcpy_s( dst, dstSize, src );
+#   else
+        strcpy( dst, src );
+#   endif
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CopyString
+
+    Description:
+
+    \***********************************************************************************/
+    template<size_t dstSize>
+    static inline void CopyString( char( &dst )[dstSize], const char* src )
+    {
+        return CopyString( dst, dstSize, src );
+    }
 }

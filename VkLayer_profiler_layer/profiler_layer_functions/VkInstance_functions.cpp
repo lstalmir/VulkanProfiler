@@ -3,24 +3,6 @@
 #include "VkLayer_profiler_layer.generated.h"
 #include "Helpers.h"
 
-namespace
-{
-    static inline void CopyString( char* dst, size_t dstSize, const char* src )
-    {
-#   ifdef WIN32
-        strcpy_s( dst, dstSize, src );
-#   else
-        strcpy( dst, src );
-#   endif
-    }
-
-    template<size_t dstSize>
-    static inline void CopyString( char( &dst )[dstSize], const char* src )
-    {
-        return CopyString( dst, dstSize, src );
-    }
-}
-
 namespace Profiler
 {
     DispatchableMap<VkInstance_Functions::Dispatch> VkInstance_Functions::InstanceDispatch;

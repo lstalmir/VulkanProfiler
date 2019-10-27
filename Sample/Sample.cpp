@@ -163,6 +163,30 @@ int main()
             static_cast<uint32_t>(renderPassSubpasses.size()), renderPassSubpasses.data(),
             static_cast<uint32_t>(0), nullptr ) );
 
+    std::vector<vk::ImageView> imageViews;
+    std::vector<vk::Framebuffer> framebuffers;
+
+    for( auto& image : swapchain.m_Images )
+    {
+        imageViews.push_back( device.m_Device.createImageView( vk::ImageViewCreateInfo(
+            vk::ImageViewCreateFlags(),
+            image.m_Image,
+            vk::ImageViewType::e2D,
+            image.m_Format,
+            vk::ComponentMapping(),
+            vk::ImageSubresourceRange( vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 ) ) ) );
+
+        framebuffers.push_back( device.m_Device.createFramebuffer( vk::FramebufferCreateInfo(
+            vk::FramebufferCreateFlags(),
+            renderPass,
+            1, &imageViews.back(),
+            image.m_Extent.width,
+            image.m_Extent.height,
+            1 ) ) );
+    }
+
+    vk::ClearValue clearValue( std::array<float, 4>( { 0.f, 0.f, 0.f, 1.f } ) );
+
     vk::CommandPool commandPool = device.m_Device.createCommandPool(
         vk::CommandPoolCreateInfo(
             vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
@@ -201,7 +225,19 @@ int main()
 
         swapchain.acquireNextImage();
 
-        
+        commandBuffer.begin( vk::CommandBufferBeginInfo( vk::CommandBufferUsageFlagBits::eSimultaneousUse ) );
+        commandBuffer.beginRenderPass( vk::RenderPassBeginInfo(
+            renderPass,
+            framebuffers[swapchain.m_AcquiredImageIndex],
+            vk::Rect2D( swapchain.m_Extent.width, swapchain.m_Extent.height ),
+            1, &clearValue ),
+            vk::SubpassContents::eInline );
+
+        commandBuffer.endRenderPass();
+        commandBuffer.end();
+
+        device.m_GraphicsQueue.submit( { vk::SubmitInfo( 0, nullptr, nullptr, 1, &commandBuffer, 0, nullptr ) },
+            nullptr );
 
         device.m_PresentQueue.presentKHR(
             vk::PresentInfoKHR(
@@ -211,6 +247,8 @@ int main()
     }
 
     // Clean up.
+    for( auto& framebuffer : framebuffers ) device.m_Device.destroyFramebuffer( framebuffer );
+    for( auto& imageView : imageViews ) device.m_Device.destroyImageView( imageView );
     swapchain.destroy();
     instance.destroySurfaceKHR( surface );
     SDL_DestroyWindow( window );

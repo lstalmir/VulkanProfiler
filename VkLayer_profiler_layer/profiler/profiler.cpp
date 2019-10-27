@@ -13,8 +13,22 @@ namespace Profiler
 
     \***********************************************************************************/
     Profiler::Profiler()
+        : m_Device( nullptr )
+        , m_Callbacks()
+        , m_Mode( ProfilerMode::ePerFrame )
+        , m_TimestampQueryAllocator()
+        , m_pCurrentFrameStats( nullptr )
+        , m_pPreviousFrameStats( nullptr )
+        , m_CurrentFrame( 0 )
+        , m_TimestampQueryPool( nullptr )
+        , m_TimestampQueryPoolSize( 0 )
+        , m_CurrentTimestampQuery( 0 )
+        , m_pCpuTimestampQueryPool( nullptr )
+        , m_CurrentCpuTimestampQuery( 0 )
+        , m_Allocations()
+        , m_AllocatedMemorySize( 0 )
     {
-        ClearMemory( this );
+        ClearMemory( &m_Callbacks );
     }
 
     /***********************************************************************************\
@@ -32,6 +46,8 @@ namespace Profiler
         m_Device = device;
 
         m_CurrentFrame = 0;
+
+        m_TimestampQueryAllocator = ProfilerAllocator( 128 );
 
         m_TimestampQueryPoolSize = 128;
         m_CurrentTimestampQuery = 0;
@@ -78,17 +94,32 @@ namespace Profiler
     void Profiler::Destroy()
     {
         delete m_pCurrentFrameStats;
+        m_pCurrentFrameStats = nullptr;
+
         delete m_pPreviousFrameStats;
+        m_pPreviousFrameStats = nullptr;
 
         delete m_pCpuTimestampQueryPool;
+        m_pCpuTimestampQueryPool = nullptr;
 
         if( m_TimestampQueryPool )
         {
             // Destroy the GPU timestamp query pool
             m_Callbacks.DestroyQueryPool( m_Device, m_TimestampQueryPool, nullptr );
+            m_TimestampQueryPool = nullptr;
+            m_TimestampQueryPoolSize = 0;
         }
 
-        ClearMemory( this );
+        m_CurrentCpuTimestampQuery = 0;
+        m_CurrentTimestampQuery = 0;
+
+        m_Allocations.clear();
+        m_AllocatedMemorySize = 0;
+
+        m_CurrentFrame = 0;
+
+        ClearMemory( &m_Callbacks );
+        m_Device = nullptr;
     }
 
     /***********************************************************************************\
@@ -115,6 +146,55 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::PostDraw( VkCommandBuffer commandBuffer )
     {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PreRenderPass( VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pBeginInfo )
+    {
+        if( m_Mode == ProfilerMode::ePerRenderPass )
+        {
+            auto queryPair = AllocateTimestampQueryPair();
+
+            // Write begin timestamp
+            m_Callbacks.CmdWriteTimestamp(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                m_TimestampQueryPool,
+                queryPair.BeginTimestampQueryIndex );
+
+            // Store the query pair for the commandBuffer
+            m_ProfiledCommandBuffers.emplace( commandBuffer, queryPair );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostRenderPass( VkCommandBuffer commandBuffer )
+    {
+        if( m_Mode == ProfilerMode::ePerRenderPass )
+        {
+            auto it = m_ProfiledCommandBuffers.find( commandBuffer );
+
+            // Write end timestamp
+            m_Callbacks.CmdWriteTimestamp(
+                commandBuffer,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                m_TimestampQueryPool,
+                it->second.EndTimestampQueryIndex );
+        }
     }
 
     /***********************************************************************************\
@@ -163,7 +243,8 @@ namespace Profiler
             // Send query to end previous frame
             m_pCpuTimestampQueryPool[prevCpuQueryIndex].End();
 
-            uint64_t microseconds = m_pCpuTimestampQueryPool[prevCpuQueryIndex].GetValue();
+            uint64_t microseconds = m_pCpuTimestampQueryPool[prevCpuQueryIndex]
+                .GetValue<std::chrono::microseconds>().count();
 
             // TMP
             printf( __FUNCTION__ ": %f ms\n", static_cast<float>(microseconds) / 1000.f );
@@ -200,7 +281,7 @@ namespace Profiler
     void Profiler::OnAllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
         // Insert allocation info to the map, it will be needed during deallocation.
-        //m_AllocatedMemory.emplace( allocatedMemory, *pAllocateInfo );
+        m_Allocations.emplace( allocatedMemory, *pAllocateInfo );
 
         m_AllocatedMemorySize += pAllocateInfo->allocationSize;
     }
@@ -215,13 +296,13 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::OnFreeMemory( VkDeviceMemory allocatedMemory )
     {
-        //auto it = m_AllocatedMemory.find( allocatedMemory );
-        //if( it != m_AllocatedMemory.end() )
+        auto it = m_Allocations.find( allocatedMemory );
+        if( it != m_Allocations.end() )
         {
-            //m_AllocatedMemorySize -= it->second.allocationSize;
+            m_AllocatedMemorySize -= it->second.allocationSize;
 
             // Remove allocation entry from the map
-            //m_AllocatedMemory.erase( it );
+            m_Allocations.erase( it );
         }
     }
 
@@ -249,5 +330,31 @@ namespace Profiler
     const FrameStats& Profiler::GetPreviousFrameStats() const
     {
         return *m_pPreviousFrameStats;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AllocateTimestampQueryPair
+
+    Description:
+
+    \***********************************************************************************/
+    Profiler::TimestampQueryPair Profiler::AllocateTimestampQueryPair()
+    {
+        // Allocate next timestamp query pair
+        auto allocation = m_TimestampQueryAllocator.AllocatePair();
+
+        if( allocation.second == 0xFFFFFFFF )
+        {
+            // Allocation failed
+            // TODO
+        }
+
+        TimestampQueryPair queryPair;
+        queryPair.BeginTimestampQueryIndex = allocation.first;
+        queryPair.EndTimestampQueryIndex = allocation.second;
+
+        return queryPair;
     }
 }

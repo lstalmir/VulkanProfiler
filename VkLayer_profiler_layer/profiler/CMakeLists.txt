@@ -13,6 +13,7 @@ add_subdirectory (resources)
 
 set (headers
     "profiler.h"
+    "profiler_allocator.h"
     "profiler_counters.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
@@ -22,7 +23,6 @@ set (headers
 
 set (sources
     "profiler.cpp"
-    "profiler_counters.cpp"
     )
     
 # Link intermediate static library
