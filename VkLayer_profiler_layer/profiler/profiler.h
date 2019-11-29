@@ -2,7 +2,6 @@
 #include "profiler_allocator.h"
 #include "profiler_command_buffer.h"
 #include "profiler_counters.h"
-#include "profiler_dynamic_query_pool.h"
 #include "profiler_frame_stats.h"
 #include "profiler_output.h"
 #include <unordered_map>

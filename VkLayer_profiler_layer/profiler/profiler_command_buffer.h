@@ -1,5 +1,4 @@
 #pragma once
-#include "profiler_dynamic_query_pool.h"
 #include <vk_layer.h>
 #include <vector>
 

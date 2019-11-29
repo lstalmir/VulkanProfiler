@@ -15,7 +15,7 @@ namespace Profiler
     Profiler::Profiler()
         : m_Device( nullptr )
         , m_Callbacks()
-        , m_Mode( ProfilerMode::ePerRenderPass )
+        , m_Mode( ProfilerMode::ePerPipeline )
         , m_Output()
         , m_pCurrentFrameStats( nullptr )
         , m_pPreviousFrameStats( nullptr )

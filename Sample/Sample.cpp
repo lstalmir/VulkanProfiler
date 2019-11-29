@@ -309,6 +309,50 @@ int main()
             pipelineLayout,
             renderPass ) );
 
+    vk::Viewport viewport = swapchain.m_Viewport;
+    viewport.width /= 2;
+    viewport.height /= 2;
+
+    vk::Rect2D scissor = swapchain.m_ScissorRect;
+    scissor.extent.width /= 2;
+    scissor.extent.height /= 2;
+
+    vk::Pipeline pipeline2 = device.m_Device.createGraphicsPipeline(
+        nullptr,
+        vk::GraphicsPipelineCreateInfo(
+            vk::PipelineCreateFlags(),
+            static_cast<uint32_t>(shaderStages.size()), shaderStages.data(),
+            &vk::PipelineVertexInputStateCreateInfo(),
+            &vk::PipelineInputAssemblyStateCreateInfo(
+                vk::PipelineInputAssemblyStateCreateFlags(),
+                vk::PrimitiveTopology::eTriangleList ),
+            &vk::PipelineTessellationStateCreateInfo(),
+            &vk::PipelineViewportStateCreateInfo(
+                vk::PipelineViewportStateCreateFlags(),
+                1, &viewport,
+                1, &scissor ),
+            &vk::PipelineRasterizationStateCreateInfo(
+                vk::PipelineRasterizationStateCreateFlags(),
+                false,
+                false,
+                vk::PolygonMode::eFill,
+                vk::CullModeFlagBits::eBack,
+                vk::FrontFace::eCounterClockwise ),
+            &vk::PipelineMultisampleStateCreateInfo(),
+            &vk::PipelineDepthStencilStateCreateInfo(
+                vk::PipelineDepthStencilStateCreateFlags(),
+                false,
+                false,
+                vk::CompareOp::eAlways ),
+            &vk::PipelineColorBlendStateCreateInfo(
+                vk::PipelineColorBlendStateCreateFlags(),
+                false, vk::LogicOp::eClear,
+                static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
+                { { 1.f, 1.f, 1.f, 1.f } } ),
+            &vk::PipelineDynamicStateCreateInfo(),
+            pipelineLayout,
+            renderPass ) );
+
     // This is where most initializtion for a program should be performed
 
     // Poll for user input.
@@ -344,6 +388,9 @@ int main()
             vk::SubpassContents::eInline );
 
         commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
+        commandBuffer.draw( 3, 1, 0, 0 );
+
+        commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline2 );
         commandBuffer.draw( 3, 1, 0, 0 );
 
         commandBuffer.endRenderPass();

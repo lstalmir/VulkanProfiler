@@ -16,7 +16,6 @@ set (headers
     "profiler_allocator.h"
     "profiler_command_buffer.h"
     "profiler_counters.h"
-    "profiler_dynamic_query_pool.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
     "profiler_output.h"

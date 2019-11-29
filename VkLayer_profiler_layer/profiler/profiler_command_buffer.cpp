@@ -1,6 +1,6 @@
 #include "profiler_command_buffer.h"
-#include "profiler_dynamic_query_pool.h"
 #include "profiler.h"
+#include "profiler_helpers.h"
 #include <algorithm>
 
 namespace Profiler
