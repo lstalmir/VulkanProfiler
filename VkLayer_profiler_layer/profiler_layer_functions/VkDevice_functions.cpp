@@ -22,6 +22,7 @@ namespace Profiler
         GETPROCADDR( DestroyDevice );
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
+        GETPROCADDR( CreateGraphicsPipelines );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
 
@@ -116,6 +117,86 @@ namespace Profiler
         }
 
         return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateGraphicsPipelines
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateGraphicsPipelines(
+        VkDevice device,
+        VkPipelineCache pipelineCache,
+        uint32_t createInfoCount,
+        const VkGraphicsPipelineCreateInfo* pCreateInfos,
+        const VkAllocationCallbacks* pAllocator,
+        VkPipeline* pPipelines )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Create the pipelines
+        VkResult result = dd.DispatchTable.CreateGraphicsPipelines(
+            device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
+
+        if( result != VK_SUCCESS )
+        {
+            // Pipeline creation failed
+            return result;
+        }
+
+        // Register pipelines
+        //dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyPipeline
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyPipeline(
+        VkDevice device,
+        VkPipeline pipeline,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Unregister the pipeline
+        //dd.Profiler.DestroyPipeline( pipeline );
+
+        // Destroy the pipeline
+        dd.DispatchTable.DestroyPipeline( device, pipeline, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeCommandBuffers
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::FreeCommandBuffers(
+        VkDevice device,
+        VkCommandPool commandPool,
+        uint32_t commandBufferCount,
+        const VkCommandBuffer* pCommandBuffers )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Cleanup profiler resources associated with freed command buffers
+        dd.Profiler.FreeCommandBuffers( commandBufferCount, pCommandBuffers );
+
+        // Free the command buffers
+        dd.DispatchTable.FreeCommandBuffers(
+            device, commandPool, commandBufferCount, pCommandBuffers );
     }
 
     /***********************************************************************************\

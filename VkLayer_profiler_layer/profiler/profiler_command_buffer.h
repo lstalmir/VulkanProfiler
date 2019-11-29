@@ -1,8 +1,24 @@
 #pragma once
+#include "profiler_dynamic_query_pool.h"
 #include <vk_layer.h>
+#include <vector>
 
 namespace Profiler
 {
+    class Profiler;
+
+    struct ProfilerCommandBufferData
+    {
+        uint32_t m_DrawCount;
+        uint32_t m_DispatchCount;
+        uint32_t m_CopyCount;
+
+        std::vector<uint32_t> m_RenderPassPipelineCount;
+        std::vector<uint32_t> m_PipelineDrawCount;
+
+        std::vector<uint64_t> m_CollectedTimestamps;
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -12,25 +28,46 @@ namespace Profiler
         Wrapper for VkCommandBuffer object holding its current state.
 
     \***********************************************************************************/
-    struct ProfilerCommandBuffer
+    class ProfilerCommandBuffer
     {
-        VkCommandBuffer m_CommandBuffer;
+    public:
+        ProfilerCommandBuffer( Profiler&, VkCommandBuffer );
+        ~ProfilerCommandBuffer();
 
-        VkFence         m_ExecutionFence;
-        bool            m_IsExecuting;
+        VkCommandBuffer GetCommandBuffer() const;
+
+        void Begin( const VkCommandBufferBeginInfo* );
+        void End();
+
+        void BeginRenderPass( VkRenderPass );
+        void EndRenderPass();
+
+        void BindPipeline( VkPipeline );
+
+        void Draw();
+        void Dispatch();
+        void Copy();
+
+        ProfilerCommandBufferData GetData();
+
+    protected:
+        Profiler&       m_Profiler;
+
+        VkCommandBuffer m_CommandBuffer;
 
         VkPipeline      m_CurrentPipeline;
         VkRenderPass    m_CurrentRenderPass;
 
-        VkQueryPool     m_TimestampQueryPool;
-        uint32_t        m_TimestampQueryPoolSize;
-        uint32_t        m_TimestampQueryCount;
+        std::vector<VkQueryPool> m_QueryPools;
+        uint32_t        m_QueryPoolSize;
+        uint32_t        m_CurrentQueryPoolIndex;
+        uint32_t        m_CurrentQueryIndex;
 
-        bool            m_ReallocPool;
-        uint32_t        m_TimestampQueryPoolRequiredSize;
+        ProfilerCommandBufferData m_Data;
 
-        uint64_t*       m_TimestampQueryResults;
-        uint32_t        m_TimestampQueryResultsSize;
-        uint32_t        m_TimestampQueryResultsCount;
+        void Reset();
+
+        void SendTimestampQuery( VkPipelineStageFlagBits );
+
     };
 }

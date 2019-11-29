@@ -16,7 +16,7 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        dd.Profiler.BeginCommandBuffer( commandBuffer );
+        dd.Profiler.BeginCommandBuffer( commandBuffer, pBeginInfo );
 
         return dd.DispatchTable.BeginCommandBuffer( commandBuffer, pBeginInfo );
     }

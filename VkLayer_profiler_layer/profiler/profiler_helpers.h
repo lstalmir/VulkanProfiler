@@ -1,6 +1,7 @@
 #pragma once
 #include "vulkan_traits/vulkan_traits.h"
 #include <vulkan/vk_layer.h>
+#include <vector>
 
 // Helper macro for rolling-back to valid state
 #define DESTROYANDRETURNONFAIL( VKRESULT )  \

@@ -14,15 +14,20 @@ add_subdirectory (resources)
 set (headers
     "profiler.h"
     "profiler_allocator.h"
+    "profiler_command_buffer.h"
     "profiler_counters.h"
+    "profiler_dynamic_query_pool.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
+    "profiler_output.h"
     "profiler_resources.h"
+    "profiler_shader_tuple.h"
     "profiler_shaders.h"
     )
 
 set (sources
     "profiler.cpp"
+    "profiler_command_buffer.cpp"
     )
     
 # Link intermediate static library

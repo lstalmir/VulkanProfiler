@@ -40,6 +40,28 @@ namespace Profiler
             uint32_t* pPropertyCount,
             VkExtensionProperties* pProperties );
 
+        // vkCreateGraphicsPipelines
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(
+            VkDevice device,
+            VkPipelineCache pipelineCache,
+            uint32_t createInfoCount,
+            const VkGraphicsPipelineCreateInfo* pCreateInfos,
+            const VkAllocationCallbacks* pAllocator,
+            VkPipeline* pPipelines );
+
+        // vkDestroyPipeline
+        static VKAPI_ATTR void VKAPI_CALL DestroyPipeline(
+            VkDevice device,
+            VkPipeline pipeline,
+            const VkAllocationCallbacks* pAllocator );
+
+        // vkFreeCommandBuffers
+        static VKAPI_ATTR void VKAPI_CALL FreeCommandBuffers(
+            VkDevice device,
+            VkCommandPool commandPool,
+            uint32_t commandBufferCount,
+            const VkCommandBuffer* pCommandBuffers );
+
         // vkAllocateMemory
         static VKAPI_ATTR VkResult VKAPI_CALL AllocateMemory(
             VkDevice device,
