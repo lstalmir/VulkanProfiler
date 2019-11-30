@@ -6,11 +6,11 @@ cmake_minimum_required (VERSION 3.8)
 project (Sample)
 
 add_subdirectory (SDL)
+add_subdirectory (shaders)
 
 set (headers
     "Device.h"
     "Image.h"
-    "Shaders.h"
     "SwapChain.h"
     )
 
@@ -32,6 +32,7 @@ target_include_directories (Sample
     )
 
 add_dependencies (Sample SDL2main)
+add_dependencies (Sample Sample-shaders)
 
 if (${CMAKE_SIZEOF_VOID_P} EQUAL 8) # 64-bit
     target_link_directories (Sample PRIVATE $ENV{VK_SDK_PATH}/Lib)

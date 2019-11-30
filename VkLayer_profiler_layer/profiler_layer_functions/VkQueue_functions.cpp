@@ -44,11 +44,11 @@ namespace Profiler
 
         const VkSubmitInfo* pOriginalSubmits = pSubmits;
 
-        // Profile the submit
-        dd.Profiler.SubmitCommandBuffers( queue, submitCount, pSubmits );
-
         // Submit the command buffers
         VkResult result = dd.DispatchTable.QueueSubmit( queue, submitCount, pSubmits, fence );
+
+        // Profile the submit
+        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits, fence );
 
         // Profiler allocated new pSubmits, release it
         if( pOriginalSubmits != pSubmits )

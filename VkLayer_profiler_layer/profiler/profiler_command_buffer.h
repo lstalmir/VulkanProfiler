@@ -12,8 +12,8 @@ namespace Profiler
         uint32_t m_DispatchCount;
         uint32_t m_CopyCount;
 
-        std::vector<uint32_t> m_RenderPassPipelineCount;
-        std::vector<uint32_t> m_PipelineDrawCount;
+        std::vector<std::pair<VkRenderPass, uint32_t>> m_RenderPassPipelineCount;
+        std::vector<std::pair<VkPipeline, uint32_t>> m_PipelineDrawCount;
 
         std::vector<uint64_t> m_CollectedTimestamps;
     };
@@ -34,6 +34,8 @@ namespace Profiler
         ~ProfilerCommandBuffer();
 
         VkCommandBuffer GetCommandBuffer() const;
+
+        void Submit();
 
         void Begin( const VkCommandBufferBeginInfo* );
         void End();
@@ -56,6 +58,8 @@ namespace Profiler
 
         VkPipeline      m_CurrentPipeline;
         VkRenderPass    m_CurrentRenderPass;
+
+        bool            m_Dirty;
 
         std::vector<VkQueryPool> m_QueryPools;
         uint32_t        m_QueryPoolSize;

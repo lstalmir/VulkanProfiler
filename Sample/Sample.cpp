@@ -32,7 +32,6 @@
 #endif
 
 #include "Device.h"
-#include "Shaders.h"
 #include "SwapChain.h"
 
 // Tell SDL not to mess with main()
@@ -44,6 +43,7 @@
 #include <SDL_vulkan.h>
 #include <vulkan/vulkan.hpp>
 
+#include <fstream>
 #include <iostream>
 #include <vector>
 
@@ -55,6 +55,15 @@ VkBool32 VKAPI_PTR DebugUtilsMessengerCallback(
 {
     printf( "%s\n", pCallbackData->pMessage );
     return true;
+}
+
+std::vector<char> ReadFile( std::string filename )
+{
+    std::ifstream file( filename, std::ios::binary | std::ios::in | std::ios::ate );
+    std::vector<char> content( file.tellg(), 0 );
+    file.seekg( std::ios::beg )
+        .read( content.data(), content.size() );
+    return content;
 }
 
 int main()
@@ -243,17 +252,21 @@ int main()
             0, nullptr,
             0, nullptr ) );
 
+    std::vector<char> vertexShaderModuleBytecode = ReadFile( "VertexShader.vert.hlsl.spv" );
+
     vk::ShaderModule vertexShaderModule = device.m_Device.createShaderModule(
         vk::ShaderModuleCreateInfo(
             vk::ShaderModuleCreateFlags(),
-            sizeof( Sample::VertexShaderBytecode ),
-            Sample::VertexShaderBytecode ) );
+            vertexShaderModuleBytecode.size(),
+            (uint32_t*)vertexShaderModuleBytecode.data() ) );
 
-    vk::ShaderModule fragmentShaderModule = device.m_Device.createShaderModule(
+    std::vector<char> pixelShaderModuleBytecode = ReadFile( "FragmentShader.frag.hlsl.spv" );
+
+    vk::ShaderModule pixelShaderModule = device.m_Device.createShaderModule(
         vk::ShaderModuleCreateInfo(
             vk::ShaderModuleCreateFlags(),
-            sizeof( Sample::FragmentShaderBytecode ),
-            Sample::FragmentShaderBytecode ) );
+            pixelShaderModuleBytecode.size(),
+            (uint32_t*)pixelShaderModuleBytecode.data() ) );
 
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages = {
         vk::PipelineShaderStageCreateInfo(
@@ -263,7 +276,7 @@ int main()
         vk::PipelineShaderStageCreateInfo(
             vk::PipelineShaderStageCreateFlags(),
             vk::ShaderStageFlagBits::eFragment,
-            fragmentShaderModule, "main", nullptr ) };
+            pixelShaderModule, "main", nullptr ) };
 
     std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments = {
         vk::PipelineColorBlendAttachmentState()
@@ -355,6 +368,7 @@ int main()
 
     // This is where most initializtion for a program should be performed
 
+
     // Poll for user input.
     bool stillRunning = true;
     while( stillRunning )
@@ -389,6 +403,14 @@ int main()
 
         commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
         commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
+        commandBuffer.draw( 3, 1, 0, 0 );
 
         commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline2 );
         commandBuffer.draw( 3, 1, 0, 0 );
@@ -399,6 +421,18 @@ int main()
         vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eTopOfPipe;
 
         device.m_GraphicsQueue.submit( { vk::SubmitInfo( 
+            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
+            static_cast<uint32_t>(1), &commandBuffer,
+            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
+            nullptr );
+
+        device.m_GraphicsQueue.submit( { vk::SubmitInfo(
+            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
+            static_cast<uint32_t>(1), &commandBuffer,
+            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
+            nullptr );
+
+        device.m_GraphicsQueue.submit( { vk::SubmitInfo(
             static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
             static_cast<uint32_t>(1), &commandBuffer,
             static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },

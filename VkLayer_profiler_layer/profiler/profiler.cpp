@@ -50,6 +50,9 @@ namespace Profiler
         m_Callbacks = *pDispatchTable;
         m_Device = device;
 
+        // Log to file
+        m_Output = new ProfilerConsoleOutput();
+
         m_CurrentFrame = 0;
 
         m_TimestampQueryPoolSize = 128;
@@ -62,12 +65,25 @@ namespace Profiler
         m_pCurrentFrameStats = new FrameStats;
         m_pPreviousFrameStats = new FrameStats; // will be swapped every frame
 
+        // Create submit fence
+        VkStructure<VkFenceCreateInfo> fenceCreateInfo;
+        
+        VkResult result = m_Callbacks.CreateFence(
+            m_Device, &fenceCreateInfo, nullptr, &m_SubmitFence );
+
+        if( result != VK_SUCCESS )
+        {
+            // Fence creation failed
+            Destroy();
+            return result;
+        }
+
         // Prepare helper command buffer
         VkStructure<VkCommandPoolCreateInfo> commandPoolCreateInfo;
         commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         commandPoolCreateInfo.queueFamilyIndex = 0; // TODO
 
-        VkResult result = m_Callbacks.CreateCommandPool(
+        result = m_Callbacks.CreateCommandPool(
             m_Device, &commandPoolCreateInfo, nullptr, &m_HelperCommandPool );
 
         if( result != VK_SUCCESS )
@@ -155,10 +171,19 @@ namespace Profiler
             m_HelperCommandPool = VK_NULL_HANDLE;
         }
 
+        if( m_SubmitFence != VK_NULL_HANDLE )
+        {
+            m_Callbacks.DestroyFence( m_Device, m_SubmitFence, nullptr );
+            m_SubmitFence = VK_NULL_HANDLE;
+        }
+
         m_CurrentFrame = 0;
 
         ClearMemory( &m_Callbacks );
         m_Device = nullptr;
+
+        delete m_Output;
+        m_Output = nullptr;
     }
 
     /***********************************************************************************\
@@ -172,13 +197,10 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::PreDraw( VkCommandBuffer commandBuffer )
     {
-        if( m_Mode == ProfilerMode::ePerDrawcall )
-        {
-            // ProfilerCommandBuffer object should already be in the map
-            auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
 
-            profilerCommandBuffer.Draw();
-        }
+        profilerCommandBuffer.Draw();
     }
 
     /***********************************************************************************\
@@ -257,12 +279,6 @@ namespace Profiler
         // Grab reference to the ProfilerCommandBuffer instance
         auto& profilerCommandBuffer = emplaced.first->second;
 
-        if( !emplaced.second )
-        {
-            // Already profiling this command buffer
-            PresentResults( profilerCommandBuffer );
-        }
-
         // Prepare the command buffer for the next profiling run
         profilerCommandBuffer.Begin( pBeginInfo );
     }
@@ -277,6 +293,11 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::EndCommandBuffer( VkCommandBuffer commandBuffer )
     {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
+
+        // Prepare the command buffer for the next profiling run
+        profilerCommandBuffer.End();
     }
 
     /***********************************************************************************\
@@ -298,46 +319,54 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        EndCommandBuffer
+        PreSubmitCommandBuffers
 
     Description:
 
     \***********************************************************************************/
-    void Profiler::SubmitCommandBuffers( VkQueue queue, uint32_t& count, const VkSubmitInfo*& pSubmitInfo )
+
+    /***********************************************************************************\
+
+    Function:
+        PostSubmitCommandBuffers
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
-        m_pCurrentFrameStats->submitCount += count;
-
-        if( m_IsFirstSubmitInFrame )
+        // Wait for the submitted command buffers to execute
+        if( m_Mode < ProfilerMode::ePerFrame )
         {
-            VkSubmitInfo* pNewSubmitInfos = new VkSubmitInfo[count + 1];
+            m_Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+            m_Callbacks.WaitForFences( m_Device, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
+        }
 
-            memcpy( pNewSubmitInfos + 1, pSubmitInfo, sizeof( VkSubmitInfo ) * count );
+        // Store submitted command buffers and get results
+        for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
+        {
+            const VkSubmitInfo& submitInfo = pSubmitInfo[submitIdx];
 
-            VkSubmitInfo* pFirstSubmitInfo = pNewSubmitInfos + 1;
+            // Wrap submit info into our structure
+            Submit submit;
 
-            VkStructure<VkSubmitInfo> helperSubmitInfo;
-            helperSubmitInfo.commandBufferCount = 1;
-            helperSubmitInfo.pCommandBuffers = &m_HelperCommandBuffer;
+            for( uint32_t commandBufferIdx = 0; commandBufferIdx < submitInfo.commandBufferCount; ++commandBufferIdx )
+            {
+                // Get command buffer handle
+                VkCommandBuffer commandBuffer = submitInfo.pCommandBuffers[commandBufferIdx];
 
-            // Wait for original semaphores
-            helperSubmitInfo.waitSemaphoreCount = pFirstSubmitInfo->waitSemaphoreCount;
-            helperSubmitInfo.pWaitSemaphores = pFirstSubmitInfo->pWaitSemaphores;
-            helperSubmitInfo.pWaitDstStageMask = pFirstSubmitInfo->pWaitDstStageMask;
+                submit.m_CommandBuffers.push_back( commandBuffer );
 
-            // Signal helper command buffer execution semaphore on end
-            helperSubmitInfo.signalSemaphoreCount = 1;
-            helperSubmitInfo.pSignalSemaphores = &m_HelperCommandBufferExecutionSemaphore;
+                auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
 
-            // Modify original submit info to wait for helper command buffer
-            pFirstSubmitInfo->waitSemaphoreCount = 1;
-            pFirstSubmitInfo->pWaitSemaphores = &m_HelperCommandBufferExecutionSemaphore;
+                // Dirty command buffer profiling data
+                profilerCommandBuffer.Submit();
 
-            pNewSubmitInfos[0] = helperSubmitInfo;
+                submit.m_ProfilingData.push_back( profilerCommandBuffer.GetData() );
+            }
 
-            pSubmitInfo = pNewSubmitInfos;
-            count = count + 1;
-
-            m_IsFirstSubmitInFrame = false;
+            // Store the submit wrapper
+            m_Submits.push_back( submit );
         }
     }
 
@@ -363,43 +392,12 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::PostPresent( VkQueue queue )
     {
-        uint32_t cpuQueryIndex = m_CurrentCpuTimestampQuery++;
-        bool cpuQueryIndexOverflow = false;
-
-        if( cpuQueryIndex == m_TimestampQueryPoolSize )
-        {
-            // Loop back to 0
-            cpuQueryIndex = (m_CurrentCpuTimestampQuery = 0);
-
-            cpuQueryIndexOverflow = true;
-        }
-
-        if( cpuQueryIndex > 0 || cpuQueryIndexOverflow )
-        {
-            uint32_t prevCpuQueryIndex = cpuQueryIndex - 1;
-
-            if( cpuQueryIndexOverflow )
-            {
-                // Previous query was last in the pool
-                prevCpuQueryIndex = m_TimestampQueryPoolSize - 1;
-            }
-
-            // Send query to end previous frame
-            m_pCpuTimestampQueryPool[prevCpuQueryIndex].End();
-        }
-
-        // Send query to begin next frame
-        m_pCpuTimestampQueryPool[cpuQueryIndex].Begin();
-
-        // Store current frame stats
-        std::swap( m_pCurrentFrameStats, m_pPreviousFrameStats );
-
-        // Clear structure for the next frame
-        m_pCurrentFrameStats->Reset();
-
         m_CurrentFrame++;
 
-        m_IsFirstSubmitInFrame = true;
+        // Present profiling results
+        PresentResults();
+
+        m_Submits.clear();
     }
 
     /***********************************************************************************\
@@ -472,64 +470,116 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PresentResults( ProfilerCommandBuffer& profilerCommandBuffer )
+    void Profiler::PresentResults()
     {
-        m_Output.Printf( "VkCommandBuffer (0x%016p) profiling results:\n",
-            profilerCommandBuffer.GetCommandBuffer() );
+        m_Output->WriteLine( "### Frame %u ###",
+            m_CurrentFrame );
 
-        auto data = profilerCommandBuffer.GetData();
+        for( uint32_t submitIdx = 0; submitIdx < m_Submits.size(); ++submitIdx )
+        {
+            // Get the submit info wrapper
+            const auto& submit = m_Submits.at( submitIdx );
 
-        if( data.m_CollectedTimestamps.empty() )
-        {
-            m_Output.Printf( " No profiling data was collected for this command buffer\n" );
-            return;
-        }
+            m_Output->WriteLine( "VkSubmitInfo #%-2u",
+                submitIdx );
 
-        switch( m_Mode )
-        {
-        case ProfilerMode::ePerRenderPass:
-        {
-            // Each render pass has 2 timestamps - begin and end
-            for( uint32_t i = 0; i < data.m_CollectedTimestamps.size(); i += 2 )
+            for( uint32_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
             {
-                uint64_t beginTimestamp = data.m_CollectedTimestamps[i];
-                uint64_t endTimestamp = data.m_CollectedTimestamps[i + 1];
+                m_Output->WriteLine( " VkCommandBuffer (0x%016p)",
+                    submit.m_CommandBuffers[i] );
 
-                // Compute time difference between timestamps
-                uint64_t dt = endTimestamp - beginTimestamp;
+                const auto& data = submit.m_ProfilingData[i];
 
-                // Convert to microseconds
-                float us = (dt * m_TimestampPeriod) / 1000.0f;
+                if( data.m_CollectedTimestamps.empty() )
+                {
+                    m_Output->WriteLine( "  No profiling data was collected for this command buffer" );
+                    return;
+                }
 
-                m_Output.Printf( " VkRenderPass #%-2u - %f us\n", i >> 1, us );
+                switch( m_Mode )
+                {
+                case ProfilerMode::ePerRenderPass:
+                {
+                    // Each render pass has 2 timestamps - begin and end
+                    for( uint32_t i = 0; i < data.m_CollectedTimestamps.size(); i += 2 )
+                    {
+                        uint64_t beginTimestamp = data.m_CollectedTimestamps[i];
+                        uint64_t endTimestamp = data.m_CollectedTimestamps[i + 1];
+
+                        // Compute time difference between timestamps
+                        uint64_t dt = endTimestamp - beginTimestamp;
+
+                        // Convert to microseconds
+                        float us = (dt * m_TimestampPeriod) / 1000.0f;
+
+                        m_Output->WriteLine( "  VkRenderPass #%-2u - %f us", i >> 1, us );
+                    }
+                    break;
+                }
+
+                case ProfilerMode::ePerPipeline:
+                {
+                    // Pipelines are separated with timestamps
+                    uint64_t beginTimestamp = data.m_CollectedTimestamps[0];
+
+                    uint32_t currentPipeline = 1;
+                    uint32_t currentRenderPass = 0;
+
+                    while( currentRenderPass < data.m_RenderPassPipelineCount.size() )
+                    {
+                        const auto& renderPassPipelineCount = data.m_RenderPassPipelineCount[currentRenderPass];
+
+                        // Get last timestamp in this render pass
+                        uint64_t renderPassEndTimestamp = data.m_CollectedTimestamps[currentPipeline + renderPassPipelineCount.second - 1];
+
+                        // Compute time difference between timestamps
+                        uint64_t dt = renderPassEndTimestamp - beginTimestamp;
+
+                        // Convert to microseconds
+                        float us = (dt * m_TimestampPeriod) / 1000.0f;
+
+                        m_Output->WriteLine( "  VkRenderPass #%-2u (0x%016p) - %u pipelines - %f us",
+                            currentRenderPass,
+                            renderPassPipelineCount.first,
+                            renderPassPipelineCount.second,
+                            us );
+
+                        uint32_t currentRenderPassPipeline = 0;
+
+                        while( currentRenderPassPipeline < renderPassPipelineCount.second )
+                        {
+                            const auto& pipelineDrawcallCount = data.m_PipelineDrawCount[currentRenderPassPipeline];
+
+                            uint64_t endTimestamp = data.m_CollectedTimestamps[currentPipeline];
+
+                            // Compute time difference between timestamps
+                            dt = endTimestamp - beginTimestamp;
+
+                            // Convert to microseconds
+                            us = (dt * m_TimestampPeriod) / 1000.0f;
+
+                            m_Output->WriteLine( "   VkPipeline #%-2u (0x%016p) - %u drawcalls - %f us",
+                                currentRenderPassPipeline,
+                                pipelineDrawcallCount.first,
+                                pipelineDrawcallCount.second,
+                                us );
+
+                            beginTimestamp = endTimestamp;
+
+                            currentPipeline++;
+                            currentRenderPassPipeline++;
+                        }
+
+                        currentRenderPass++;
+                    }
+
+                    break;
+                }
+                }
             }
-            break;
         }
 
-        case ProfilerMode::ePerPipeline:
-        {
-            // Pipelines are separated with timestamps
-            uint64_t beginTimestamp = data.m_CollectedTimestamps[0];
-
-            for( uint32_t i = 1; i < data.m_CollectedTimestamps.size(); ++i )
-            {
-                uint64_t endTimestamp = data.m_CollectedTimestamps[i];
-
-                // Compute time difference between timestamps
-                uint64_t dt = endTimestamp - beginTimestamp;
-
-                // Convert to microseconds
-                float us = (dt * m_TimestampPeriod) / 1000.0f;
-
-                m_Output.Printf( " VkPipeline #%-2u - %f us\n", i >> 1, us );
-
-                beginTimestamp = endTimestamp;
-            }
-
-            break;
-        }
-        }
-
-        m_Output.Printf( "\n" );
+        m_Output->WriteLine( "" );
+        m_Output->Flush();
     }
 }

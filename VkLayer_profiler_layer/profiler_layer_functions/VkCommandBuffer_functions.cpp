@@ -16,9 +16,17 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        dd.Profiler.BeginCommandBuffer( commandBuffer, pBeginInfo );
+        // Profiler requires command buffer to already be in recording state
+        VkResult result = dd.DispatchTable.BeginCommandBuffer(
+            commandBuffer, pBeginInfo );
 
-        return dd.DispatchTable.BeginCommandBuffer( commandBuffer, pBeginInfo );
+        if( result == VK_SUCCESS )
+        {
+            // Prepare command buffer for the profiling
+            dd.Profiler.BeginCommandBuffer( commandBuffer, pBeginInfo );
+        }
+
+        return result;
     }
 
     /***********************************************************************************\

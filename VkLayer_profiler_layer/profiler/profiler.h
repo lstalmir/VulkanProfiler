@@ -59,7 +59,8 @@ namespace Profiler
         void BeginCommandBuffer( VkCommandBuffer, const VkCommandBufferBeginInfo* );
         void EndCommandBuffer( VkCommandBuffer );
         void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
-        void SubmitCommandBuffers( VkQueue, uint32_t&, const VkSubmitInfo*& );
+
+        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
 
         void PrePresent( VkQueue );
         void PostPresent( VkQueue );
@@ -76,7 +77,7 @@ namespace Profiler
 
         ProfilerMode            m_Mode;
 
-        ProfilerOutput          m_Output;
+        ProfilerOutput*         m_Output;
 
         FrameStats*             m_pCurrentFrameStats;
         FrameStats*             m_pPreviousFrameStats;
@@ -92,14 +93,24 @@ namespace Profiler
 
         std::unordered_map<VkCommandBuffer, ProfilerCommandBuffer> m_ProfiledCommandBuffers;
 
+        struct Submit
+        {
+            std::vector<VkCommandBuffer> m_CommandBuffers;
+            std::vector<ProfilerCommandBufferData> m_ProfilingData;
+        };
+
+        std::vector<Submit>     m_Submits;
+
         VkCommandPool           m_HelperCommandPool;
         VkCommandBuffer         m_HelperCommandBuffer;
         VkSemaphore             m_HelperCommandBufferExecutionSemaphore;
+
+        VkFence                 m_SubmitFence;
 
         bool                    m_IsFirstSubmitInFrame;
 
         float                   m_TimestampPeriod;
 
-        void PresentResults( ProfilerCommandBuffer& );
+        void PresentResults();
     };
 }

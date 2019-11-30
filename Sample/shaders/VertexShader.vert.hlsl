@@ -1,10 +1,16 @@
 
-float4 main( int vertId : SV_VertexID ) : SV_Position
+struct VS_Out
 {
-    const float2 triangleVertices[3] = {
-        float2(0, -0.5),
-        float2(-0.5, 0.5),
-        float2(0.5, 0.5) };
+    float4 position : SV_Position;
+    float3 color : COLOR;
+};
 
-    return float4(triangleVertices[vertId], 0, 1);
+VS_Out main( int vertId : SV_VertexID )
+{
+    const VS_Out triangleVertices[3] = {
+        { float4(0, -0.5, 0, 1), float3(1, 0, 0) },
+        { float4(-0.5, 0.5, 0, 1), float3(0, 0, 1) },
+        { float4(0.5, 0.5, 0, 1), float3(0, 1, 0) } };
+
+    return triangleVertices[vertId];
 }

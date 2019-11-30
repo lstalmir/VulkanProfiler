@@ -57,6 +57,21 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        Submit
+
+    Description:
+        Dirty cached profiling data.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::Submit()
+    {
+        // Contents of the command buffer did not change, but all queries will be executed again
+        m_Dirty = true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Begin
 
     Description:
@@ -97,6 +112,8 @@ namespace Profiler
         m_Data.m_DrawCount = 0;
         m_Data.m_PipelineDrawCount.clear();
         m_Data.m_RenderPassPipelineCount.clear();
+
+        m_Dirty = true;
     }
 
     /***********************************************************************************\
@@ -131,10 +148,11 @@ namespace Profiler
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
-        m_Data.m_RenderPassPipelineCount.push_back( 0 );
+        m_Data.m_RenderPassPipelineCount.push_back( { renderPass, 0 } );
 
+        // NOT SUPPORTED YET
         // Some drawcalls may appear without binding any pipeline
-        m_Data.m_PipelineDrawCount.push_back( 0 );
+        //m_Data.m_PipelineDrawCount.push_back( { VK_NULL_HANDLE, 0 } );
     }
 
     /***********************************************************************************\
@@ -180,9 +198,10 @@ namespace Profiler
         }
 
         // Increment draw count in current pipeline
-        m_Data.m_RenderPassPipelineCount.back()++;
+        // Binding pipeline must occur only inside render pass, this should be safe
+        m_Data.m_RenderPassPipelineCount.back().second++;
 
-        m_Data.m_PipelineDrawCount.push_back( 0 );
+        m_Data.m_PipelineDrawCount.push_back( { pipeline, 0 } );
     }
 
     /***********************************************************************************\
@@ -202,7 +221,7 @@ namespace Profiler
         }
 
         // Increment draw count in current pipeline
-        m_Data.m_PipelineDrawCount.back()++;
+        m_Data.m_PipelineDrawCount.back().second++;
     }
 
     /***********************************************************************************\
@@ -222,7 +241,7 @@ namespace Profiler
         }
 
         // Increment draw count in current pipeline
-        m_Data.m_PipelineDrawCount.back()++;
+        m_Data.m_PipelineDrawCount.back().second++;
     }
 
     /***********************************************************************************\
@@ -242,7 +261,7 @@ namespace Profiler
         }
 
         // Increment draw count in current pipeline
-        m_Data.m_PipelineDrawCount.back()++;
+        m_Data.m_PipelineDrawCount.back().second++;
     }
 
     /***********************************************************************************\
@@ -257,7 +276,7 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBufferData ProfilerCommandBuffer::GetData()
     {
-        if( !m_QueryPools.empty() )
+        if( m_Dirty && !m_QueryPools.empty() )
         {
             // Calculate number of queried timestamps
             const uint32_t numQueries =
@@ -290,6 +309,9 @@ namespace Profiler
                 numQueriesLeft -= numQueriesInPool;
                 dataOffset += numQueriesInPool;
             }
+
+            // Subsequent calls to GetData will return the same results
+            m_Dirty = false;
         }
         return m_Data;
     }
