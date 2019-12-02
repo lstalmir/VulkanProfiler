@@ -114,6 +114,11 @@ namespace Profiler
         m_Data.m_RenderPassPipelineCount.clear();
 
         m_Dirty = true;
+
+        if( pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT )
+        {
+            __debugbreak();
+        }
     }
 
     /***********************************************************************************\
@@ -197,8 +202,13 @@ namespace Profiler
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
+        // Pipeline bound without render pass
+        if( m_Data.m_RenderPassPipelineCount.empty() )
+        {
+            m_Data.m_RenderPassPipelineCount.push_back( { VK_NULL_HANDLE, 0 } );
+        }
+
         // Increment draw count in current pipeline
-        // Binding pipeline must occur only inside render pass, this should be safe
         m_Data.m_RenderPassPipelineCount.back().second++;
 
         m_Data.m_PipelineDrawCount.push_back( { pipeline, 0 } );

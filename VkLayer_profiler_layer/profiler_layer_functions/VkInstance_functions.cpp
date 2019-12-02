@@ -21,6 +21,9 @@ namespace Profiler
         VkInstance instance,
         const char* pName )
     {
+        // Debug utils extension is instance extension, but SetDebugUtilsObjectNameEXT is device function
+        auto SetDebugUtilsObjectNameEXT = VkDevice_Functions::SetDebugUtilsObjectNameEXT;
+
         // VkInstance_Functions
         GETPROCADDR( GetInstanceProcAddr );
         GETPROCADDR( CreateInstance );
@@ -28,6 +31,7 @@ namespace Profiler
         GETPROCADDR( CreateDevice );
         GETPROCADDR( EnumerateInstanceLayerProperties );
         GETPROCADDR( EnumerateInstanceExtensionProperties );
+        GETPROCADDR( SetDebugUtilsObjectNameEXT );
 
         // Get address from the next layer
         auto& id = InstanceDispatch.Get( instance );

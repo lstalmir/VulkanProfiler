@@ -40,6 +40,11 @@ namespace Profiler
             uint32_t* pPropertyCount,
             VkExtensionProperties* pProperties );
 
+        // vkSetDebugUtilsObjectNameEXT
+        static VKAPI_ATTR VkResult VKAPI_CALL SetDebugUtilsObjectNameEXT(
+            VkDevice device,
+            const VkDebugUtilsObjectNameInfoEXT* pObjectInfo );
+
         // vkCreateGraphicsPipelines
         static VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(
             VkDevice device,

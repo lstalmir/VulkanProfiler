@@ -50,9 +50,6 @@ namespace Profiler
         m_Callbacks = *pDispatchTable;
         m_Device = device;
 
-        // Log to file
-        m_Output = new ProfilerConsoleOutput();
-
         m_CurrentFrame = 0;
 
         m_TimestampQueryPoolSize = 128;
@@ -181,9 +178,20 @@ namespace Profiler
 
         ClearMemory( &m_Callbacks );
         m_Device = nullptr;
+    }
 
-        delete m_Output;
-        m_Output = nullptr;
+    /***********************************************************************************\
+
+    Function:
+        SetDebugObjectName
+
+    Description:
+        Assign user-defined name to the object
+
+    \***********************************************************************************/
+    void Profiler::SetDebugObjectName( uint64_t objectHandle, const char* pObjectName )
+    {
+        m_Debug.SetDebugObjectName( objectHandle, pObjectName );
     }
 
     /***********************************************************************************\
@@ -472,7 +480,16 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::PresentResults()
     {
-        m_Output->WriteLine( "### Frame %u ###",
+        static constexpr char fillLine[] =
+            "...................................................................................................."
+            "...................................................................................................."
+            "...................................................................................................."
+            "....................................................................................................";
+
+        const uint32_t consoleWidth = m_Output.Width();
+        uint32_t lineWidth = 0;
+
+        m_Output.WriteLine( "### Frame %u ###",
             m_CurrentFrame );
 
         for( uint32_t submitIdx = 0; submitIdx < m_Submits.size(); ++submitIdx )
@@ -480,19 +497,19 @@ namespace Profiler
             // Get the submit info wrapper
             const auto& submit = m_Submits.at( submitIdx );
 
-            m_Output->WriteLine( "VkSubmitInfo #%-2u",
+            m_Output.WriteLine( "VkSubmitInfo #%-2u",
                 submitIdx );
 
             for( uint32_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
             {
-                m_Output->WriteLine( " VkCommandBuffer (0x%016p)",
-                    submit.m_CommandBuffers[i] );
+                m_Output.WriteLine( " VkCommandBuffer (%s)",
+                    m_Debug.GetDebugObjectName( (uint64_t)submit.m_CommandBuffers[i] ).c_str() );
 
                 const auto& data = submit.m_ProfilingData[i];
 
                 if( data.m_CollectedTimestamps.empty() )
                 {
-                    m_Output->WriteLine( "  No profiling data was collected for this command buffer" );
+                    m_Output.WriteLine( "  No profiling data was collected for this command buffer" );
                     return;
                 }
 
@@ -512,7 +529,7 @@ namespace Profiler
                         // Convert to microseconds
                         float us = (dt * m_TimestampPeriod) / 1000.0f;
 
-                        m_Output->WriteLine( "  VkRenderPass #%-2u - %f us", i >> 1, us );
+                        m_Output.WriteLine( "  VkRenderPass #%-2u - %f us", i >> 1, us );
                     }
                     break;
                 }
@@ -538,10 +555,20 @@ namespace Profiler
                         // Convert to microseconds
                         float us = (dt * m_TimestampPeriod) / 1000.0f;
 
-                        m_Output->WriteLine( "  VkRenderPass #%-2u (0x%016p) - %u pipelines - %f us",
+                        lineWidth = 46 +
+                            DigitCount( currentRenderPass ) +
+                            DigitCount( renderPassPipelineCount.second );
+
+                        std::string renderPassName =
+                            m_Debug.GetDebugObjectName( (uint64_t)renderPassPipelineCount.first );
+
+                        lineWidth += renderPassName.length();
+
+                        m_Output.WriteLine( "  VkRenderPass #%u (%s) - %u pipelines %.*s %8.4f us",
                             currentRenderPass,
-                            renderPassPipelineCount.first,
+                            renderPassName.c_str(),
                             renderPassPipelineCount.second,
+                            consoleWidth - lineWidth, fillLine,
                             us );
 
                         uint32_t currentRenderPassPipeline = 0;
@@ -558,10 +585,20 @@ namespace Profiler
                             // Convert to microseconds
                             us = (dt * m_TimestampPeriod) / 1000.0f;
 
-                            m_Output->WriteLine( "   VkPipeline #%-2u (0x%016p) - %u drawcalls - %f us",
+                            lineWidth = 45 +
+                                DigitCount( currentRenderPassPipeline ) +
+                                DigitCount( pipelineDrawcallCount.second );
+
+                            std::string pipelineName =
+                                m_Debug.GetDebugObjectName( (uint64_t)pipelineDrawcallCount.first );
+
+                            lineWidth += pipelineName.length();
+
+                            m_Output.WriteLine( "   VkPipeline #%u (%s) - %u drawcalls %.*s %8.4f us",
                                 currentRenderPassPipeline,
-                                pipelineDrawcallCount.first,
+                                pipelineName.c_str(),
                                 pipelineDrawcallCount.second,
+                                consoleWidth - lineWidth, fillLine,
                                 us );
 
                             beginTimestamp = endTimestamp;
@@ -579,7 +616,7 @@ namespace Profiler
             }
         }
 
-        m_Output->WriteLine( "" );
-        m_Output->Flush();
+        m_Output.WriteLine( "" );
+        m_Output.Flush();
     }
 }

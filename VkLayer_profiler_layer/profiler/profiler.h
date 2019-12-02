@@ -1,9 +1,10 @@
 #pragma once
 #include "profiler_allocator.h"
 #include "profiler_command_buffer.h"
+#include "profiler_console_output.h"
 #include "profiler_counters.h"
+#include "profiler_debug_utils.h"
 #include "profiler_frame_stats.h"
-#include "profiler_output.h"
 #include <unordered_map>
 #include <vk_layer.h>
 #include <vk_layer_dispatch_table.h>
@@ -46,6 +47,8 @@ namespace Profiler
 
         void Destroy();
 
+        void SetDebugObjectName( uint64_t, const char* );
+
         void PreDraw( VkCommandBuffer );
         void PostDraw( VkCommandBuffer );
 
@@ -77,7 +80,8 @@ namespace Profiler
 
         ProfilerMode            m_Mode;
 
-        ProfilerOutput*         m_Output;
+        ProfilerConsoleOutput   m_Output;
+        ProfilerDebugUtils      m_Debug;
 
         FrameStats*             m_pCurrentFrameStats;
         FrameStats*             m_pPreviousFrameStats;

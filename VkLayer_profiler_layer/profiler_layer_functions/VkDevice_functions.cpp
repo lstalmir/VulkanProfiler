@@ -122,6 +122,33 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetDebugUtilsObjectNameEXT
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::SetDebugUtilsObjectNameEXT(
+        VkDevice device,
+        const VkDebugUtilsObjectNameInfoEXT* pObjectInfo )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Set the object name
+        VkResult result = dd.DispatchTable.SetDebugUtilsObjectNameEXT( device, pObjectInfo );
+
+        if( result != VK_SUCCESS )
+        {
+            // Failed to set object name
+            return result;
+        }
+
+        // Update profiler
+        dd.Profiler.SetDebugObjectName( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateGraphicsPipelines
 
     Description:

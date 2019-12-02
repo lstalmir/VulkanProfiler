@@ -1,5 +1,6 @@
 #pragma once
 #include "vulkan_traits/vulkan_traits.h"
+#include <cmath>
 #include <vulkan/vk_layer.h>
 #include <vector>
 
@@ -30,6 +31,22 @@ namespace Profiler
     void ClearMemory( T* pMemory )
     {
         memset( pMemory, 0, sizeof( T ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DigitCount
+
+    Description:
+        Get number of digits in the string representation of the number (decimal).
+
+    \***********************************************************************************/
+    template<typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+    uint32_t DigitCount( T value )
+    {
+        return static_cast<uint32_t>(((value != 0) ? (log10( abs( static_cast<int64_t>(value) ) )) : 0) + 1)
+            + ((value < 0) ? (1) : (0)); // minus sign
     }
 
     /***********************************************************************************\

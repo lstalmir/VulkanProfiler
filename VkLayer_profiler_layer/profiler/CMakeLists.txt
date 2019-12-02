@@ -15,10 +15,11 @@ set (headers
     "profiler.h"
     "profiler_allocator.h"
     "profiler_command_buffer.h"
+    "profiler_console_output.h"
     "profiler_counters.h"
+    "profiler_debug_utils.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
-    "profiler_output.h"
     "profiler_resources.h"
     "profiler_shader_tuple.h"
     "profiler_shaders.h"
@@ -27,6 +28,8 @@ set (headers
 set (sources
     "profiler.cpp"
     "profiler_command_buffer.cpp"
+    "profiler_console_output.cpp"
+    "profiler_debug_utils.cpp"
     )
     
 # Link intermediate static library
