@@ -5,29 +5,13 @@
 #include "profiler_counters.h"
 #include "profiler_debug_utils.h"
 #include "profiler_frame_stats.h"
+#include "profiler_mode.h"
 #include <unordered_map>
 #include <vk_layer.h>
 #include <vk_layer_dispatch_table.h>
 
 namespace Profiler
 {
-    /***********************************************************************************\
-
-    Enum:
-        ProfilerMode
-
-    Description:
-        Profiling frequency
-
-    \***********************************************************************************/
-    enum class ProfilerMode
-    {
-        ePerDrawcall,
-        ePerPipeline,
-        ePerRenderPass,
-        ePerFrame
-    };
-
     /***********************************************************************************\
 
     Class:
@@ -41,7 +25,7 @@ namespace Profiler
     public:
         Profiler();
 
-        VkResult Initialize(
+        VkResult Initialize( const VkApplicationInfo*,
             VkPhysicalDevice, const VkLayerInstanceDispatchTable*,
             VkDevice, const VkLayerDispatchTable* );
 

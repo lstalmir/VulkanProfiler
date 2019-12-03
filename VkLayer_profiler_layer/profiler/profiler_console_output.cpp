@@ -1,4 +1,5 @@
 #include "profiler_console_output.h"
+#include <vulkan/vulkan.h>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -24,7 +25,7 @@ namespace Profiler
     {
     #if defined(_WIN32)
         AllocConsole();
-        AttachConsole( GetCurrentProcessId() );
+        AttachConsole( ATTACH_PARENT_PROCESS );
 
         // Get handle to the console output
         m_ConsoleOutputHandle = GetStdHandle( STD_OUTPUT_HANDLE );
@@ -36,6 +37,7 @@ namespace Profiler
 
         m_Width = consoleScreenBufferInfo.dwSize.X;
         m_Height = consoleScreenBufferInfo.dwSize.Y;
+        m_DefaultAttributes = consoleScreenBufferInfo.wAttributes;
 
         m_BufferSize = m_Width * m_Height;
 
@@ -48,13 +50,28 @@ namespace Profiler
             throw std::bad_alloc();
         }
 
+        m_pAttributesBuffer = reinterpret_cast<uint16_t*>(malloc( m_BufferSize * sizeof( uint16_t ) ));
+
+        if( m_pAttributesBuffer == nullptr )
+        {
+            free( m_pBuffer );
+
+            // Allocation failed
+            throw std::bad_alloc();
+        }
+
         memset( m_pBuffer, 0, m_BufferSize );
 
-        m_BackBufferLineCount = 0;
+        FillAttributes( m_DefaultAttributes | COMMON_LVB_REVERSE_VIDEO, 0, m_Width );
+        FillAttributes( m_DefaultAttributes, m_Width, m_BufferSize );
+
+        m_BackBufferLineCount = 2;
         m_FrontBufferLineCount = 0;
     #else
     #error Not implemented
     #endif
+
+        memset( &Summary, 0, sizeof( Summary ) );
     }
 
     /***********************************************************************************\
@@ -123,8 +140,9 @@ namespace Profiler
         // Update only currently visible region
         DWORD writeRegionBeginOffset = m_Width * consoleScreenBufferInfo.srWindow.Top;
 
-        DWORD writeSize = m_Width *
-            max( 0, max( m_BackBufferLineCount, m_FrontBufferLineCount ) - consoleScreenBufferInfo.srWindow.Top );
+        DWORD writeSize = m_Width * (consoleScreenBufferInfo.srWindow.Bottom);
+
+        DrawSummary();
 
         WriteConsoleOutputCharacterA(
             m_ConsoleOutputHandle,
@@ -133,11 +151,21 @@ namespace Profiler
             { 0, consoleScreenBufferInfo.srWindow.Top },
             &numCharactersWritten );
 
+        WriteConsoleOutputAttribute(
+            m_ConsoleOutputHandle,
+            m_pAttributesBuffer + writeRegionBeginOffset,
+            writeSize,
+            { 0, consoleScreenBufferInfo.srWindow.Top },
+            &numCharactersWritten );
+
         // Clear the back buffer
         memset( m_pBuffer, 0, m_BufferSize );
 
+        FillAttributes( m_DefaultAttributes | COMMON_LVB_REVERSE_VIDEO, 0, m_Width );
+        FillAttributes( m_DefaultAttributes, m_Width, m_BufferSize );
+
         m_FrontBufferLineCount = m_BackBufferLineCount;
-        m_BackBufferLineCount = 0;
+        m_BackBufferLineCount = 2;
 
         // Update buffer size
         uint32_t width = consoleScreenBufferInfo.dwSize.X;
@@ -166,5 +194,75 @@ namespace Profiler
 
         m_Width = width;
         m_Height = height;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FillAttributes
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerConsoleOutput::FillAttributes( uint16_t attributes, uint32_t begin, uint32_t count )
+    {
+        const uint32_t end = begin + count;
+
+        for( uint32_t i = begin; i < end; ++i )
+        {
+            m_pAttributesBuffer[i] = attributes;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawUI
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerConsoleOutput::DrawSummary()
+    {
+        const char* mode = "Unknown";
+        switch( Summary.Mode )
+        {
+        case ProfilerMode::ePerFrame: mode = "Frame"; break;
+        case ProfilerMode::ePerRenderPass: mode = "RenderPass"; break;
+        case ProfilerMode::ePerPipeline: mode = "Pipeline"; break;
+        case ProfilerMode::ePerDrawcall: mode = "Drawcall"; break;
+        }
+
+        char modeStr[32];
+        sprintf_s( modeStr, " Mode: %s ", mode );
+
+        char versionStr[16];
+        sprintf_s( versionStr, " Vulkan %u.%u ",
+            (Summary.Version >> 22) & 0x3FF,
+            (Summary.Version >> 12) & 0x3FF);
+
+        DrawButton( modeStr, true, 1 );
+        DrawButton( versionStr, false, 22 );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawButton
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerConsoleOutput::DrawButton( const char* pTitle, bool selected, uint32_t offset )
+    {
+        char* pCharacterBuffer = m_pBuffer + offset;
+
+        // Copy string and set attributes
+        while( *pTitle )
+        {
+            *pCharacterBuffer = *pTitle;
+            pCharacterBuffer++;
+            pTitle++;
+        }
     }
 }

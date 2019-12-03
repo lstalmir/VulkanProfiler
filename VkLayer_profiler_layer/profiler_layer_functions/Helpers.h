@@ -16,7 +16,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename LayerCreateInfo, typename CreateInfo>
-    inline const LayerCreateInfo* GetLayerLinkInfo( const CreateInfo* pCreateInfo )
+    inline LayerCreateInfo* GetLayerLinkInfo( const CreateInfo* pCreateInfo )
     {
         auto pLayerCreateInfo = reinterpret_cast<const LayerCreateInfo*>(pCreateInfo->pNext);
 
@@ -28,7 +28,7 @@ namespace Profiler
             pLayerCreateInfo = reinterpret_cast<const LayerCreateInfo*>(pLayerCreateInfo->pNext);
         }
 
-        return pLayerCreateInfo;
+        return const_cast<LayerCreateInfo*>(pLayerCreateInfo);
     }
 
     /***********************************************************************************\

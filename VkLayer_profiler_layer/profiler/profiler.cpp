@@ -43,7 +43,7 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::Initialize(
+    VkResult Profiler::Initialize( const VkApplicationInfo* pApplicationInfo,
         VkPhysicalDevice physicalDevice, const VkLayerInstanceDispatchTable* pInstanceDispatchTable,
         VkDevice device, const VkLayerDispatchTable* pDispatchTable )
     {
@@ -124,6 +124,10 @@ namespace Profiler
             physicalDevice, &physicalDeviceProperties );
 
         m_TimestampPeriod = physicalDeviceProperties.limits.timestampPeriod;
+
+        // Update application summary view
+        m_Output.Summary.Version = pApplicationInfo->apiVersion;
+        m_Output.Summary.Mode = m_Mode;
 
         return VK_SUCCESS;
     }
@@ -488,9 +492,6 @@ namespace Profiler
 
         const uint32_t consoleWidth = m_Output.Width();
         uint32_t lineWidth = 0;
-
-        m_Output.WriteLine( "### Frame %u ###",
-            m_CurrentFrame );
 
         for( uint32_t submitIdx = 0; submitIdx < m_Submits.size(); ++submitIdx )
         {

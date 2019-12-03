@@ -1,6 +1,7 @@
 #include "VkDevice_functions_base.h"
 #include "VkInstance_functions.h"
 #include "Helpers.h"
+#include "profiler/profiler_helpers.h"
 
 namespace Profiler
 {
@@ -41,8 +42,11 @@ namespace Profiler
         // Get instance dispatch table
         auto& id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
 
+        VkStructure<VkApplicationInfo> applicationInfo;
+        applicationInfo.apiVersion = id.ApiVersion;
+
         // Initialize the profiler object
-        VkResult result = dd.Profiler.Initialize(
+        VkResult result = dd.Profiler.Initialize( &applicationInfo,
             physicalDevice, &id.DispatchTable, device, &dd.DispatchTable );
 
         if( result != VK_SUCCESS )

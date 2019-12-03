@@ -20,6 +20,7 @@ set (headers
     "profiler_debug_utils.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
+    "profiler_mode.h"
     "profiler_resources.h"
     "profiler_shader_tuple.h"
     "profiler_shaders.h"

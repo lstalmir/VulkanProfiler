@@ -53,16 +53,7 @@ namespace Profiler
         VkAllocationCallbacks* pAllocator,
         VkInstance* pInstance )
     {
-        const VkLayerInstanceCreateInfo* pLayerCreateInfo =
-            reinterpret_cast<const VkLayerInstanceCreateInfo*>(pCreateInfo->pNext);
-
-        // Step through the chain of pNext until we get to the link info
-        while( (pLayerCreateInfo)
-            && (pLayerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO ||
-                pLayerCreateInfo->function != VK_LAYER_LINK_INFO) )
-        {
-            pLayerCreateInfo = reinterpret_cast<const VkLayerInstanceCreateInfo*>(pLayerCreateInfo->pNext);
-        }
+        auto* pLayerCreateInfo = GetLayerLinkInfo<VkLayerInstanceCreateInfo>(pCreateInfo);
 
         if( !pLayerCreateInfo )
         {
@@ -76,6 +67,9 @@ namespace Profiler
         PFN_vkCreateInstance pfnCreateInstance = reinterpret_cast<PFN_vkCreateInstance>(
             pfnGetInstanceProcAddr( VK_NULL_HANDLE, "vkCreateInstance" ));
 
+        // Move chain on for next layer
+        pLayerCreateInfo->u.pLayerInfo = pLayerCreateInfo->u.pLayerInfo->pNext;
+
         // Invoke vkCreateInstance of next layer
         VkResult result = pfnCreateInstance( pCreateInfo, pAllocator, pInstance );
 
@@ -83,6 +77,8 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             auto& id = InstanceDispatch.Create( *pInstance );
+
+            id.ApiVersion = pCreateInfo->pApplicationInfo->apiVersion;
 
             // Get function addresses
             layer_init_instance_dispatch_table( *pInstance, &id.DispatchTable, pfnGetInstanceProcAddr );
@@ -133,7 +129,7 @@ namespace Profiler
         auto& id = InstanceDispatch.Get( physicalDevice );
 
         // Prefetch the device link info before creating the device to be sure we have vkDestroyDevice function available
-        const auto* pLayerLinkInfo = GetLayerLinkInfo<VkLayerDeviceCreateInfo>( pCreateInfo );
+        auto* pLayerLinkInfo = GetLayerLinkInfo<VkLayerDeviceCreateInfo>( pCreateInfo );
 
         if( !pLayerLinkInfo )
         {
@@ -141,9 +137,18 @@ namespace Profiler
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
+        // Further layers will alter the create info, store pointer to our link info
+        auto* pLayerInfo = pLayerLinkInfo->u.pLayerInfo;
+
+        // Move chain on for next layer
+        pLayerLinkInfo->u.pLayerInfo = pLayerInfo->pNext;
+
         // Create the device
         VkResult result = id.DispatchTable.CreateDevice(
             physicalDevice, pCreateInfo, pAllocator, pDevice );
+
+        // Restore our layer info
+        pLayerLinkInfo->u.pLayerInfo = pLayerInfo;
 
         // Initialize dispatch for the created device object
         result = VkDevice_Functions::OnDeviceCreate(

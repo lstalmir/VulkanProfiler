@@ -19,6 +19,7 @@ namespace Profiler
         struct Dispatch
         {
             VkLayerInstanceDispatchTable DispatchTable;
+            uint32_t ApiVersion;
         };
 
         static DispatchableMap<Dispatch> InstanceDispatch;
