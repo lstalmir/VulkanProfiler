@@ -45,6 +45,19 @@ namespace Profiler
             VkDevice device,
             const VkDebugUtilsObjectNameInfoEXT* pObjectInfo );
 
+        // vkCreateShaderModule
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(
+            VkDevice device,
+            const VkShaderModuleCreateInfo* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkShaderModule* pShaderModule );
+
+        // vkDestroyShaderModule
+        static VKAPI_ATTR void VKAPI_CALL DestroyShaderModule(
+            VkDevice device,
+            VkShaderModule shaderModule,
+            const VkAllocationCallbacks* pAllocator );
+
         // vkCreateGraphicsPipelines
         static VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(
             VkDevice device,

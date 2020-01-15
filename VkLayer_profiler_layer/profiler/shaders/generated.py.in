@@ -1,7 +1,0 @@
-# Generated file, do not modify
-
-VULKAN_SPIRV_COMPILER = r'$ENV{VULKAN_SDK}/Bin/glslangValidator.exe'
-COMPILED_SHADERS_HEADER = r'${compiled_shaders_header}'
-COMPILED_SHADERS_HEADER_NAME = r'${PROJECT_NAME}'
-
-SHADERS = (r'${shaders}').split(';')

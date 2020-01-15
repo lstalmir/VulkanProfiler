@@ -1,10 +1,33 @@
 #pragma once
-#include "vulkan_traits/vulkan_traits.h"
 #include <vk_layer.h>
 #include <vk_dispatch_table_helper.h>
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Structure:
+        LayerCreateInfoTypeTraits
+
+    Description:
+        Contains metadata for each VkLayer*CreateInfo structure.
+
+    \***********************************************************************************/
+    template<typename LayerCreateInfo>
+    struct LayerCreateInfoTypeTraits;
+
+    template<>
+    struct LayerCreateInfoTypeTraits<VkLayerDeviceCreateInfo>
+    {
+        static constexpr VkStructureType sType = VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO;
+    };
+
+    template<>
+    struct LayerCreateInfoTypeTraits<VkLayerInstanceCreateInfo>
+    {
+        static constexpr VkStructureType sType = VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO;
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -22,7 +45,7 @@ namespace Profiler
 
         // Step through the chain of pNext until we get to the link info
         while( (pLayerCreateInfo)
-            && (pLayerCreateInfo->sType != VkStructureTypeTraits<LayerCreateInfo>::Type ||
+            && (pLayerCreateInfo->sType != LayerCreateInfoTypeTraits<LayerCreateInfo>::sType ||
                 pLayerCreateInfo->function != VK_LAYER_LINK_INFO) )
         {
             pLayerCreateInfo = reinterpret_cast<const LayerCreateInfo*>(pLayerCreateInfo->pNext);

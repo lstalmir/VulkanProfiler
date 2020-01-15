@@ -42,7 +42,9 @@ namespace Profiler
         // Get instance dispatch table
         auto& id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
 
-        VkStructure<VkApplicationInfo> applicationInfo;
+        VkApplicationInfo applicationInfo;
+        ClearStructure( &applicationInfo, VK_STRUCTURE_TYPE_APPLICATION_INFO );
+
         applicationInfo.apiVersion = id.ApiVersion;
 
         // Initialize the profiler object

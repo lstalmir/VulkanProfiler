@@ -17,7 +17,7 @@ namespace Profiler
     ProfilerCommandBuffer::ProfilerCommandBuffer( Profiler& profiler, VkCommandBuffer commandBuffer )
         : m_Profiler( profiler )
         , m_CommandBuffer( commandBuffer )
-        , m_CurrentPipeline( VK_NULL_HANDLE )
+        , m_CurrentPipeline( { VK_NULL_HANDLE } )
         , m_CurrentRenderPass( VK_NULL_HANDLE )
         , m_QueryPools()
         , m_QueryPoolSize( 4096 )
@@ -148,7 +148,7 @@ namespace Profiler
         // Update state
         m_CurrentRenderPass = renderPass;
 
-        if( m_Profiler.m_Mode == ProfilerMode::ePerRenderPass )
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -172,11 +172,11 @@ namespace Profiler
     void ProfilerCommandBuffer::EndRenderPass()
     {
         // Update state
-        m_CurrentPipeline = VK_NULL_HANDLE;
+        m_CurrentPipeline = { VK_NULL_HANDLE };
         m_CurrentRenderPass = VK_NULL_HANDLE;
 
         // vkEndRenderPass marks end of render pass, pipeline and drawcall
-        if( m_Profiler.m_Mode <= ProfilerMode::ePerRenderPass )
+        if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerRenderPass )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -191,13 +191,13 @@ namespace Profiler
         Marks beginning of next render pass pipeline.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::BindPipeline( VkPipeline pipeline )
+    void ProfilerCommandBuffer::BindPipeline( ProfilerPipeline pipeline )
     {
         // Update state
         m_CurrentPipeline = pipeline;
 
         // vkBindPipeline marks end of pipeline and drawcall
-        if( m_Profiler.m_Mode <= ProfilerMode::ePerPipeline )
+        if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerPipeline )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -225,7 +225,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Draw()
     {
-        if( m_Profiler.m_Mode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -245,7 +245,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Dispatch()
     {
-        if( m_Profiler.m_Mode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -265,7 +265,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Copy()
     {
-        if( m_Profiler.m_Mode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -371,13 +371,15 @@ namespace Profiler
                 // Allocate new query pool
                 VkQueryPool queryPool = VK_NULL_HANDLE;
 
-                VkStructure<VkQueryPoolCreateInfo> queryPoolCreateInfo;
-                queryPoolCreateInfo.queryCount = m_QueryPoolSize;
+                VkQueryPoolCreateInfo queryPoolCreateInfo;
+                ClearStructure( &queryPoolCreateInfo, VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO );
+
                 queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                queryPoolCreateInfo.queryCount = m_QueryPoolSize;
 
                 VkResult result = m_Profiler.m_Callbacks.CreateQueryPool(
                     m_Profiler.m_Device,
-                    &queryPoolCreateInfo,
+                    &(VkQueryPoolCreateInfo)queryPoolCreateInfo,
                     nullptr,
                     &queryPool );
 

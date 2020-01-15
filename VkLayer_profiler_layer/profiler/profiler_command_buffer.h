@@ -1,4 +1,5 @@
 #pragma once
+#include "profiler_pipeline.h"
 #include <vk_layer.h>
 #include <vector>
 
@@ -6,21 +7,46 @@ namespace Profiler
 {
     class Profiler;
 
+    /***********************************************************************************\
+
+    Class:
+        ProfilerCommandBufferData
+
+    Description:
+        Contains captured GPU timestamp data for single command buffer.
+
+    \***********************************************************************************/
     struct ProfilerCommandBufferData
     {
+        VkCommandBuffer m_CommandBuffer;
+
         uint32_t m_DrawCount;
         uint32_t m_DispatchCount;
         uint32_t m_CopyCount;
 
         std::vector<std::pair<VkRenderPass, uint32_t>> m_RenderPassPipelineCount;
-        std::vector<std::pair<VkPipeline, uint32_t>> m_PipelineDrawCount;
+        std::vector<std::pair<ProfilerPipeline, uint32_t>> m_PipelineDrawCount;
 
         std::vector<uint64_t> m_CollectedTimestamps;
     };
 
     /***********************************************************************************\
 
-    Function:
+    Class:
+        ProfilerSubmitData
+
+    Description:
+        Contains captured command buffers data for single submit.
+
+    \***********************************************************************************/
+    struct ProfilerSubmitData
+    {
+        std::vector<ProfilerCommandBufferData> m_CommandBuffers;
+    };
+
+    /***********************************************************************************\
+
+    Class:
         ProfilerCommandBuffer
 
     Description:
@@ -43,7 +69,7 @@ namespace Profiler
         void BeginRenderPass( VkRenderPass );
         void EndRenderPass();
 
-        void BindPipeline( VkPipeline );
+        void BindPipeline( ProfilerPipeline );
 
         void Draw();
         void Dispatch();
@@ -56,7 +82,7 @@ namespace Profiler
 
         VkCommandBuffer m_CommandBuffer;
 
-        VkPipeline      m_CurrentPipeline;
+        ProfilerPipeline m_CurrentPipeline;
         VkRenderPass    m_CurrentRenderPass;
 
         bool            m_Dirty;

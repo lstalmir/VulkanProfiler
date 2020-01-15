@@ -1,4 +1,0 @@
-# Generated file, do not modify
-
-VULKAN_INCLUDE_DIR = r'$ENV{VULKAN_SDK}/Include'
-VULKAN_TRAITS_HEADER = r'${vulkan_traits_header}'

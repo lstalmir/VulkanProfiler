@@ -22,6 +22,8 @@ namespace Profiler
         GETPROCADDR( DestroyDevice );
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
+        GETPROCADDR( CreateShaderModule );
+        GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
@@ -144,6 +146,62 @@ namespace Profiler
 
         // Update profiler
         dd.Profiler.SetDebugObjectName( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateShaderModule
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateShaderModule(
+        VkDevice device,
+        const VkShaderModuleCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkShaderModule* pShaderModule )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Create the shader module
+        VkResult result = dd.DispatchTable.CreateShaderModule(
+            device, pCreateInfo, pAllocator, pShaderModule );
+
+        if( result != VK_SUCCESS )
+        {
+            // Shader module creation failed
+            return result;
+        }
+
+        // Register shader module
+        dd.Profiler.CreateShaderModule( *pShaderModule, pCreateInfo );
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyShaderModule
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyShaderModule(
+        VkDevice device,
+        VkShaderModule shaderModule,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Unregister the shader module from the profiler
+        dd.Profiler.DestroyShaderModule( shaderModule );
+
+        // Destroy the shader module
+        dd.DispatchTable.DestroyShaderModule( device, shaderModule, pAllocator );
     }
 
     /***********************************************************************************\
@@ -175,7 +233,7 @@ namespace Profiler
         }
 
         // Register pipelines
-        //dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
+        dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
 
         return VK_SUCCESS;
     }
@@ -196,7 +254,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Unregister the pipeline
-        //dd.Profiler.DestroyPipeline( pipeline );
+        dd.Profiler.DestroyPipeline( pipeline );
 
         // Destroy the pipeline
         dd.DispatchTable.DestroyPipeline( device, pipeline, pAllocator );

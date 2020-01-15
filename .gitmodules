@@ -10,3 +10,12 @@
 [submodule "Vulkan-Loader"]
 	path = Vulkan-Loader
 	url = https://github.com/KhronosGroup/Vulkan-Loader
+[submodule "VkLayer_profiler_layer/profiler/farmhash"]
+	path = VkLayer_profiler_layer/profiler/farmhash
+	url = https://github.com/google/farmhash
+[submodule "farmhash"]
+	path = farmhash
+	url = https://github.com/google/farmhash
+[submodule "Dep/farmhash"]
+	path = Dep/farmhash
+	url = https://github.com/google/farmhash

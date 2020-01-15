@@ -3,8 +3,10 @@
 #include "profiler_command_buffer.h"
 #include "profiler_console_output.h"
 #include "profiler_counters.h"
+#include "profiler_data_aggregator.h"
 #include "profiler_debug_utils.h"
 #include "profiler_frame_stats.h"
+#include "profiler_helpers.h"
 #include "profiler_mode.h"
 #include <unordered_map>
 #include <vk_layer.h>
@@ -12,6 +14,22 @@
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Structure:
+        ProfilerConfig
+
+    Description:
+        Profiler configuration
+
+    \***********************************************************************************/
+    struct ProfilerConfig
+    {
+        ProfilerMode              m_Mode;
+        uint32_t                  m_NumQueriesPerCommandBuffer;
+        std::chrono::milliseconds m_OutputUpdateInterval;
+    };
+
     /***********************************************************************************\
 
     Class:
@@ -40,6 +58,9 @@ namespace Profiler
         void DestroyPipeline( VkPipeline );
         void BindPipeline( VkCommandBuffer, VkPipeline );
 
+        void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
+        void DestroyShaderModule( VkShaderModule );
+
         void BeginRenderPass( VkCommandBuffer, VkRenderPass );
         void EndRenderPass( VkCommandBuffer );
 
@@ -62,32 +83,27 @@ namespace Profiler
         VkDevice                m_Device;
         VkLayerDispatchTable    m_Callbacks;
 
-        ProfilerMode            m_Mode;
+        ProfilerConfig          m_Config;
 
         ProfilerConsoleOutput   m_Output;
         ProfilerDebugUtils      m_Debug;
+
+        ProfilerDataAggregator  m_DataAggregator;
 
         FrameStats*             m_pCurrentFrameStats;
         FrameStats*             m_pPreviousFrameStats;
 
         uint32_t                m_CurrentFrame;
 
-        CpuTimestampCounter*    m_pCpuTimestampQueryPool;
-        uint32_t                m_TimestampQueryPoolSize;
-        uint32_t                m_CurrentCpuTimestampQuery;
+        CpuTimestampCounter     m_CpuTimestampCounter;
 
         std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         std::atomic_uint64_t    m_AllocatedMemorySize;
 
-        std::unordered_map<VkCommandBuffer, ProfilerCommandBuffer> m_ProfiledCommandBuffers;
+        LockableUnorderedMap<VkCommandBuffer, ProfilerCommandBuffer> m_ProfiledCommandBuffers;
 
-        struct Submit
-        {
-            std::vector<VkCommandBuffer> m_CommandBuffers;
-            std::vector<ProfilerCommandBufferData> m_ProfilingData;
-        };
-
-        std::vector<Submit>     m_Submits;
+        LockableUnorderedMap<VkShaderModule, uint32_t> m_ProfiledShaderModules;
+        LockableUnorderedMap<VkPipeline, ProfilerPipeline> m_ProfiledPipelines;
 
         VkCommandPool           m_HelperCommandPool;
         VkCommandBuffer         m_HelperCommandBuffer;
@@ -100,5 +116,7 @@ namespace Profiler
         float                   m_TimestampPeriod;
 
         void PresentResults();
+
+        ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo );
     };
 }

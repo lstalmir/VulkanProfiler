@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 
 namespace Profiler
 {
@@ -11,7 +12,7 @@ namespace Profiler
         Profiling frequency
 
     \***********************************************************************************/
-    enum class ProfilerMode
+    enum class ProfilerMode : uint32_t
     {
         ePerDrawcall,
         ePerPipeline,

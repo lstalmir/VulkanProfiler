@@ -98,6 +98,11 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerConsoleOutput::WriteLine( const char* fmt, ... )
     {
+        if( m_BackBufferLineCount * m_Width == m_BufferSize )
+        {
+            return;
+        }
+
         va_list args;
         va_start( args, fmt );
 

@@ -1,7 +1,11 @@
 #pragma once
-#include "vulkan_traits/vulkan_traits.h"
 #include <cmath>
-#include <vulkan/vk_layer.h>
+#include <filesystem>
+#include <mutex>
+#include <unordered_map>
+#include <unordered_set>
+#include <vk_layer.h>
+#include <vulkan.hpp>
 #include <vector>
 
 // Helper macro for rolling-back to valid state
@@ -21,7 +25,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        ZeroMemory
+        ClearMemory
 
     Description:
         Fill memory region with zeros.
@@ -36,6 +40,22 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ClearStructure
+
+    Description:
+        Fill memory region with zeros and set sType member to provided value.
+
+    \***********************************************************************************/
+    template<typename T>
+    void ClearStructure( T* pStruct, VkStructureType type )
+    {
+        memset( pStruct, 0, sizeof( T ) );
+        pStruct->sType = type;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DigitCount
 
     Description:
@@ -45,131 +65,172 @@ namespace Profiler
     template<typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
     uint32_t DigitCount( T value )
     {
-        return static_cast<uint32_t>(((value != 0) ? (log10( abs( static_cast<int64_t>(value) ) )) : 0) + 1)
-            + ((value < 0) ? (1) : (0)); // minus sign
+        if( value == 0 )
+        {
+            return 1;
+        }
+
+        // Count sign character
+        const uint32_t sign = (value < 0) ? 1 : 0;
+
+        // Log needs positive value
+        const uint64_t absValue = std::abs( static_cast<int64_t>(value) );
+
+        return static_cast<uint32_t>(std::log10( absValue ) + 1 + sign);
     }
 
     /***********************************************************************************\
 
     Function:
-        GetImageCreateInfoForResource
+        operator-
 
     Description:
-        Get CreateInfo structure for given embedded resource.
 
     \***********************************************************************************/
-    template<typename ImageResource>
-    VkImageCreateInfo GetImageCreateInfoForResource()
+    template<typename T>
+    inline std::unordered_set<T> operator-( const std::unordered_set<T>& lh, const std::unordered_set<T>& rh )
     {
-        VkImageType imageType = VK_IMAGE_TYPE_3D;
 
-        if( ImageResource::depth == 0 )
-        {
-            imageType = VK_IMAGE_TYPE_2D;
-
-            if( ImageResource::height == 0 )
-            {
-                imageType = VK_IMAGE_TYPE_1D;
-            }
-        }
-
-        VkStructure<VkImageCreateInfo> createInfo;
-        createInfo.imageType = imageType;
-        createInfo.extent.width = std::max<uint32_t>( 1, ImageResource::width );
-        createInfo.extent.height = std::max<uint32_t>( 1, ImageResource::height );
-        createInfo.extent.depth = std::max<uint32_t>( 1, ImageResource::depth );
-        createInfo.format = ImageResource::format;
-        createInfo.mipLevels = ImageResource::mipCount;
-        createInfo.arrayLayers = ImageResource::arraySize;
-        createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        createInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
-        createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        createInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-        return createInfo;
     }
 
     /***********************************************************************************\
 
-    Function:
-        GetBufferImageCopyForResource
+    Class:
+        LockableUnorderedMap
 
     Description:
-        Get list of VkBufferImageCopy structures for image initialization.
+        std::unordered_map with mutex
 
     \***********************************************************************************/
-    template<typename ImageResource>
-    std::vector<VkBufferImageCopy> GetBufferImageCopyForResource()
+    template<typename K, typename V,
+        typename HashFn = std::hash<K>,
+        typename EqualFn = std::equal_to<K>,
+        typename AllocFn = std::allocator<std::pair<const K, V>>>
+    class LockableUnorderedMap
+        : public std::unordered_map<K, V, HashFn, EqualFn, AllocFn>
     {
-        // One copy for each mip in each layer
-        std::vector<VkBufferImageCopy> copyRegions;
-
-        uint32_t currentBufferOffset = 0;
-
-        // Iterate over array layers
-        for( uint32_t arrayLayer = 0; arrayLayer < ImageResource::arraySize; ++arrayLayer )
-        {
-            // Iterate over mip levels in layer
-            for( uint32_t mipLevel = 0; mipLevel < ImageResource::mipCount; ++mipLevel )
-            {
-                // Recalculate image size for current mip level
-                VkExtent3D mipLevelExtent;
-                mipLevelExtent.width = std::max<uint32_t>( 1, ImageResource::width >> mipLevel );
-                mipLevelExtent.height = std::max<uint32_t>( 1, ImageResource::height >> mipLevel );
-                mipLevelExtent.depth = std::max<uint32_t>( 1, ImageResource::depth >> mipLevel );
-
-                // Prepare copy descriptor
-                VkStructure<VkBufferImageCopy> copyRegion;
-                copyRegion.bufferOffset = currentBufferOffset;
-                copyRegion.imageExtent = mipLevelExtent;
-                copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                copyRegion.imageSubresource.mipLevel = mipLevel;
-                copyRegion.imageSubresource.baseArrayLayer = arrayLayer;
-                copyRegion.imageSubresource.layerCount = 1;
-
-                copyRegions.push_back( copyRegion );
-
-                currentBufferOffset += ImageResource::mipSizes[mipLevel];
-            }
-        }
-
-        return copyRegions;
-    }
-
-    /***********************************************************************************\
-
-    Structure:
-        VkStructure
-
-    Description:
-        Wrapper for Vulkan structures with default initialization and sType setup.
-
-    \***********************************************************************************/
-    template<typename StructureType>
-    struct VkStructure : StructureType
-    {
-        // Clear the structure and set optional sType field
-        VkStructure()
-        {
-            // Clear contents
-            memset( this, 0, sizeof( StructureType ) );
-
-            SetStructureType();
-        }
-
     private:
-        template<bool sTypeDefined = VkStructureTypeTraits<StructureType>::Defined>
-        constexpr void SetStructureType()
+        using BaseType = std::unordered_map<K, V, HashFn, EqualFn, AllocFn>;
+
+        // Helper struct for holding mutex in initializer lists
+        struct Locked
         {
-            // Structure does not have sType field
+        public:
+            Locked( LockableUnorderedMap& map ) : m_Map( map ) { m_Map.lock(); }
+            ~Locked() { m_Map.unlock(); }
+
+            operator LockableUnorderedMap& () { return m_Map; }
+
+        private:
+            LockableUnorderedMap& m_Map;
+        };
+
+        mutable std::mutex m_Mtx;
+
+    public:
+        // Construct empty lockable unordered_map
+        LockableUnorderedMap() : BaseType() {}
+
+        // Construct copy of non-lockable unordered_map
+        LockableUnorderedMap( const BaseType& o ) : BaseType( o ) {}
+
+        // Move non-lockable unordered_map
+        LockableUnorderedMap( BaseType&& o ) : BaseType( std::move( o ) ) {}
+
+        // Construct copy of lockable unordered_map
+        LockableUnorderedMap( const LockableUnorderedMap& o ) : BaseType( Locked( o ) ) {}
+
+        // Move lockable unordered_map
+        LockableUnorderedMap( LockableUnorderedMap&& o ) : BaseType( std::move( Locked( o ) ) ) {}
+
+        // Lock access to the map
+        void lock() { m_Mtx.lock(); }
+
+        // Unlock access to the map
+        void unlock() { m_Mtx.unlock(); }
+
+        // Try to lock access to the map
+        bool try_lock() { return m_Mtx.try_lock(); }
+
+        // Get map's element atomically
+        const V& interlocked_at( const key_type& key ) const
+        {
+            std::scoped_lock lk( m_Mtx );
+            return BaseType::at( key );
         }
 
-        template<>
-        constexpr void SetStructureType<true>()
+        // Get map's element atomically
+        V& interlocked_at( const key_type& key )
         {
-            // Structure has sType field
-            this->sType = VkStructureTypeTraits<StructureType>::Type;
+            std::scoped_lock lk( m_Mtx );
+            return BaseType::at( key );
         }
+
+        // Remove element from map atomically
+        size_t interlocked_erase( const key_type& key )
+        {
+            std::scoped_lock lk( m_Mtx );
+            return BaseType::erase( key );
+        }
+
+        // Try to insert new element to map atomically
+        template<typename... Args>
+        auto interlocked_try_emplace( const key_type& key, Args... arguments )
+        {
+            std::scoped_lock<std::mutex> lk( m_Mtx );
+            return BaseType::try_emplace( key, arguments... );
+        }
+
+        // Insert new element to map atomically
+        template<typename... Args>
+        auto interlocked_emplace( const key_type& key, Args... arguments )
+        {
+            std::scoped_lock<std::mutex> lk( m_Mtx );
+            return BaseType::emplace( key, arguments... );
+        }
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        ProfilerPlatformFunctions
+
+    Description:
+
+    \***********************************************************************************/
+    class ProfilerPlatformFunctions
+    {
+    public:
+        inline static std::filesystem::path GetCustomConfigPath()
+        {
+            std::filesystem::path customConfigPath = "";
+
+            // Check environment variable
+            const char* pEnvProfilerConfigPath = std::getenv( "PROFILER_CONFIG_PATH" );
+
+            if( pEnvProfilerConfigPath )
+            {
+                customConfigPath = pEnvProfilerConfigPath;
+            }
+
+            // Returns empty if custom config path not defined
+            return customConfigPath;
+        }
+
+        inline static std::filesystem::path GetApplicationDir()
+        {
+            static std::filesystem::path applicationDir;
+
+            if( applicationDir.empty() )
+            {
+                // Get full application path and remove filename component
+                applicationDir = GetApplicationPath().remove_filename();
+            }
+
+            return applicationDir;
+        }
+
+        static std::filesystem::path GetApplicationPath();
+
     };
 }

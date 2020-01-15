@@ -1,5 +1,7 @@
 #include "profiler.h"
 #include "profiler_helpers.h"
+#include "farmhash/farmhash.h"
+#include <sstream>
 
 namespace Profiler
 {
@@ -15,14 +17,14 @@ namespace Profiler
     Profiler::Profiler()
         : m_Device( nullptr )
         , m_Callbacks()
-        , m_Mode( ProfilerMode::ePerPipeline )
+        , m_Config()
         , m_Output()
+        , m_Debug()
+        , m_DataAggregator()
         , m_pCurrentFrameStats( nullptr )
         , m_pPreviousFrameStats( nullptr )
         , m_CurrentFrame( 0 )
-        , m_pCpuTimestampQueryPool( nullptr )
-        , m_TimestampQueryPoolSize( 0 )
-        , m_CurrentCpuTimestampQuery( 0 )
+        , m_CpuTimestampCounter()
         , m_Allocations()
         , m_AllocatedMemorySize( 0 )
         , m_ProfiledCommandBuffers()
@@ -52,19 +54,56 @@ namespace Profiler
 
         m_CurrentFrame = 0;
 
-        m_TimestampQueryPoolSize = 128;
+        // Load config
+        std::filesystem::path customConfigPath = ProfilerPlatformFunctions::GetCustomConfigPath();
 
-        // Create the CPU timestamp query pool
-        m_pCpuTimestampQueryPool = new CpuTimestampCounter[m_TimestampQueryPoolSize];
-        m_CurrentCpuTimestampQuery = 0;
+        // Check if custom configuration file exists
+        if( !customConfigPath.empty() &&
+            !std::filesystem::exists( customConfigPath ) )
+        {
+            m_Output.WriteLine( "ERROR: Custom config file %s not found",
+                customConfigPath.c_str() );
 
+            customConfigPath = "";
+        }
+
+        // Look for path relative to the app
+        if( !customConfigPath.is_absolute() )
+        {
+            customConfigPath = ProfilerPlatformFunctions::GetApplicationDir() / customConfigPath;
+        }
+
+        customConfigPath /= "VkLayer_profiler_layer.conf";
+
+        if( std::filesystem::exists( customConfigPath ) )
+        {
+            std::ifstream config( customConfigPath );
+
+            // Check if configuration file was successfully opened
+            while( !config.eof() )
+            {
+                std::string key; config >> key;
+                uint32_t value; config >> value;
+
+                if( key == "MODE" )
+                    m_Config.m_Mode = static_cast<ProfilerMode>(value);
+
+                if( key == "NUM_QUERIES_PER_CMD_BUFFER" )
+                    m_Config.m_NumQueriesPerCommandBuffer = value;
+
+                if( key == "OUTPUT_UPDATE_INTERVAL" )
+                    m_Config.m_OutputUpdateInterval = static_cast<std::chrono::milliseconds>(value);
+            }
+        }
+        
         // Create frame stats counters
         m_pCurrentFrameStats = new FrameStats;
         m_pPreviousFrameStats = new FrameStats; // will be swapped every frame
 
         // Create submit fence
-        VkStructure<VkFenceCreateInfo> fenceCreateInfo;
-        
+        VkFenceCreateInfo fenceCreateInfo;
+        ClearStructure( &fenceCreateInfo, VK_STRUCTURE_TYPE_FENCE_CREATE_INFO );
+
         VkResult result = m_Callbacks.CreateFence(
             m_Device, &fenceCreateInfo, nullptr, &m_SubmitFence );
 
@@ -76,7 +115,9 @@ namespace Profiler
         }
 
         // Prepare helper command buffer
-        VkStructure<VkCommandPoolCreateInfo> commandPoolCreateInfo;
+        VkCommandPoolCreateInfo commandPoolCreateInfo;
+        ClearStructure( &commandPoolCreateInfo, VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO );
+
         commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         commandPoolCreateInfo.queueFamilyIndex = 0; // TODO
 
@@ -90,7 +131,9 @@ namespace Profiler
             return result;
         }
 
-        VkStructure<VkCommandBufferAllocateInfo> commandBufferAllocateInfo;
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo;
+        ClearStructure( &commandBufferAllocateInfo, VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO );
+
         commandBufferAllocateInfo.commandPool = m_HelperCommandPool;
         commandBufferAllocateInfo.commandBufferCount = 1;
         commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -105,7 +148,8 @@ namespace Profiler
             return result;
         }
 
-        VkStructure<VkSemaphoreCreateInfo> commandBufferSemaphoreCreateInfo;
+        VkSemaphoreCreateInfo commandBufferSemaphoreCreateInfo;
+        ClearStructure( &commandBufferSemaphoreCreateInfo, VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO );
 
         result = m_Callbacks.CreateSemaphore(
             m_Device, &commandBufferSemaphoreCreateInfo, nullptr, &m_HelperCommandBufferExecutionSemaphore );
@@ -127,7 +171,7 @@ namespace Profiler
 
         // Update application summary view
         m_Output.Summary.Version = pApplicationInfo->apiVersion;
-        m_Output.Summary.Mode = m_Mode;
+        m_Output.Summary.Mode = m_Config.m_Mode;
 
         return VK_SUCCESS;
     }
@@ -150,12 +194,6 @@ namespace Profiler
 
         delete m_pPreviousFrameStats;
         m_pPreviousFrameStats = nullptr;
-
-        delete m_pCpuTimestampQueryPool;
-        m_pCpuTimestampQueryPool = nullptr;
-
-        m_CurrentCpuTimestampQuery = 0;
-        m_TimestampQueryPoolSize = 0;
 
         m_Allocations.clear();
         m_AllocatedMemorySize = 0;
@@ -210,7 +248,7 @@ namespace Profiler
     void Profiler::PreDraw( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
         profilerCommandBuffer.Draw();
     }
@@ -231,6 +269,50 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreatePipelines
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::CreatePipelines( uint32_t pipelineCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
+    {
+        for( uint32_t i = 0; i < pipelineCount; ++i )
+        {
+            ProfilerPipeline profilerPipeline;
+            profilerPipeline.m_Pipeline = pPipelines[i];
+            profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
+
+            std::stringstream stringBuilder;
+            stringBuilder
+                << "(VS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
+                << profilerPipeline.m_ShaderTuple.m_Vert
+                << ",PS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
+                << profilerPipeline.m_ShaderTuple.m_Frag
+                << ")";
+
+            m_Debug.SetDebugObjectName((uint64_t)profilerPipeline.m_Pipeline,
+                stringBuilder.str().c_str() );
+
+            m_ProfiledPipelines.interlocked_emplace( pPipelines[i], profilerPipeline );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyPipeline
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::DestroyPipeline( VkPipeline pipeline )
+    {
+        m_ProfiledPipelines.interlocked_erase( pipeline );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         BindPipeline
 
     Description:
@@ -239,9 +321,41 @@ namespace Profiler
     void Profiler::BindPipeline( VkCommandBuffer commandBuffer, VkPipeline pipeline )
     {
         // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
-        profilerCommandBuffer.BindPipeline( pipeline );
+        // ProfilerPipeline object should already be in the map
+        auto& profilerPipeline = m_ProfiledPipelines.interlocked_at( pipeline );
+
+        profilerCommandBuffer.BindPipeline( profilerPipeline );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateShaderModule
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
+    {
+        // Compute shader code hash to use later
+        const uint32_t hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+
+        m_ProfiledShaderModules.interlocked_emplace( module, hash );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyShaderModule
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::DestroyShaderModule( VkShaderModule module )
+    {
+        m_ProfiledShaderModules.interlocked_erase( module );
     }
 
     /***********************************************************************************\
@@ -255,7 +369,7 @@ namespace Profiler
     void Profiler::BeginRenderPass( VkCommandBuffer commandBuffer, VkRenderPass renderPass )
     {
         // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
         profilerCommandBuffer.BeginRenderPass( renderPass );
     }
@@ -271,7 +385,7 @@ namespace Profiler
     void Profiler::EndRenderPass( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
         profilerCommandBuffer.EndRenderPass();
     }
@@ -286,7 +400,8 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::BeginCommandBuffer( VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo* pBeginInfo )
     {
-        auto emplaced = m_ProfiledCommandBuffers.try_emplace( commandBuffer, *this, commandBuffer );
+        auto emplaced = m_ProfiledCommandBuffers.interlocked_try_emplace( commandBuffer,
+            std::ref( *this ), commandBuffer );
 
         // Grab reference to the ProfilerCommandBuffer instance
         auto& profilerCommandBuffer = emplaced.first->second;
@@ -306,7 +421,7 @@ namespace Profiler
     void Profiler::EndCommandBuffer( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
         // Prepare the command buffer for the next profiling run
         profilerCommandBuffer.End();
@@ -322,6 +437,9 @@ namespace Profiler
     \***********************************************************************************/
     void Profiler::FreeCommandBuffers( uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers )
     {
+        // Block access from other threads
+        std::scoped_lock lk( m_ProfiledCommandBuffers );
+
         for( uint32_t i = 0; i < commandBufferCount; ++i )
         {
             m_ProfiledCommandBuffers.erase( pCommandBuffers[i] );
@@ -348,7 +466,7 @@ namespace Profiler
     void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
-        if( m_Mode < ProfilerMode::ePerFrame )
+        if( m_Config.m_Mode < ProfilerMode::ePerFrame )
         {
             m_Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
             m_Callbacks.WaitForFences( m_Device, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
@@ -360,25 +478,26 @@ namespace Profiler
             const VkSubmitInfo& submitInfo = pSubmitInfo[submitIdx];
 
             // Wrap submit info into our structure
-            Submit submit;
+            ProfilerSubmitData submit;
 
             for( uint32_t commandBufferIdx = 0; commandBufferIdx < submitInfo.commandBufferCount; ++commandBufferIdx )
             {
                 // Get command buffer handle
                 VkCommandBuffer commandBuffer = submitInfo.pCommandBuffers[commandBufferIdx];
 
-                submit.m_CommandBuffers.push_back( commandBuffer );
+                // Block access from other threads
+                std::scoped_lock lk( m_ProfiledCommandBuffers );
 
                 auto& profilerCommandBuffer = m_ProfiledCommandBuffers.at( commandBuffer );
 
                 // Dirty command buffer profiling data
                 profilerCommandBuffer.Submit();
 
-                submit.m_ProfilingData.push_back( profilerCommandBuffer.GetData() );
+                submit.m_CommandBuffers.push_back( profilerCommandBuffer.GetData() );
             }
 
             // Store the submit wrapper
-            m_Submits.push_back( submit );
+            m_DataAggregator.AppendData( submit );
         }
     }
 
@@ -406,10 +525,15 @@ namespace Profiler
     {
         m_CurrentFrame++;
 
-        // Present profiling results
-        PresentResults();
+        m_CpuTimestampCounter.End();
 
-        m_Submits.clear();
+        if( m_CpuTimestampCounter.GetValue<std::chrono::milliseconds>() > m_Config.m_OutputUpdateInterval )
+        {
+            // Present profiling results
+            PresentResults();
+
+            m_CpuTimestampCounter.Begin();
+        }
     }
 
     /***********************************************************************************\
@@ -493,28 +617,30 @@ namespace Profiler
         const uint32_t consoleWidth = m_Output.Width();
         uint32_t lineWidth = 0;
 
-        for( uint32_t submitIdx = 0; submitIdx < m_Submits.size(); ++submitIdx )
+        std::vector<ProfilerSubmitData> submits = m_DataAggregator.GetAggregatedData();
+
+        for( uint32_t submitIdx = 0; submitIdx < submits.size(); ++submitIdx )
         {
             // Get the submit info wrapper
-            const auto& submit = m_Submits.at( submitIdx );
+            const auto& submit = submits.at( submitIdx );
 
             m_Output.WriteLine( "VkSubmitInfo #%-2u",
                 submitIdx );
 
             for( uint32_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
             {
-                m_Output.WriteLine( " VkCommandBuffer (%s)",
-                    m_Debug.GetDebugObjectName( (uint64_t)submit.m_CommandBuffers[i] ).c_str() );
+                const auto& data = submit.m_CommandBuffers[i];
 
-                const auto& data = submit.m_ProfilingData[i];
+                m_Output.WriteLine( " VkCommandBuffer (%s)",
+                    m_Debug.GetDebugObjectName( (uint64_t)data.m_CommandBuffer ).c_str() );
 
                 if( data.m_CollectedTimestamps.empty() )
                 {
                     m_Output.WriteLine( "  No profiling data was collected for this command buffer" );
-                    return;
+                    continue;
                 }
 
-                switch( m_Mode )
+                switch( m_Config.m_Mode )
                 {
                 case ProfilerMode::ePerRenderPass:
                 {
@@ -524,13 +650,27 @@ namespace Profiler
                         uint64_t beginTimestamp = data.m_CollectedTimestamps[i];
                         uint64_t endTimestamp = data.m_CollectedTimestamps[i + 1];
 
+                        const uint32_t currentRenderPass = i >> 1;
+
                         // Compute time difference between timestamps
                         uint64_t dt = endTimestamp - beginTimestamp;
 
                         // Convert to microseconds
                         float us = (dt * m_TimestampPeriod) / 1000.0f;
 
-                        m_Output.WriteLine( "  VkRenderPass #%-2u - %f us", i >> 1, us );
+                        lineWidth = 46 +
+                            DigitCount( currentRenderPass );
+
+                        std::string renderPassName =
+                            m_Debug.GetDebugObjectName( (uint64_t)data.m_RenderPassPipelineCount[currentRenderPass].first );
+
+                        lineWidth += renderPassName.length();
+
+                        m_Output.WriteLine( "  VkRenderPass #%u (%s) - %.*s %8.4f us",
+                            currentRenderPass,
+                            renderPassName.c_str(),
+                            consoleWidth - lineWidth, fillLine,
+                            us );
                     }
                     break;
                 }
@@ -590,8 +730,7 @@ namespace Profiler
                                 DigitCount( currentRenderPassPipeline ) +
                                 DigitCount( pipelineDrawcallCount.second );
 
-                            std::string pipelineName =
-                                m_Debug.GetDebugObjectName( (uint64_t)pipelineDrawcallCount.first );
+                            std::string pipelineName = m_Debug.GetDebugObjectName( (uint64_t)pipelineDrawcallCount.first.m_Pipeline );
 
                             lineWidth += pipelineName.length();
 
@@ -613,11 +752,60 @@ namespace Profiler
 
                     break;
                 }
+
+                case ProfilerMode::ePerDrawcall:
+                {
+
+                }
                 }
             }
         }
 
         m_Output.WriteLine( "" );
         m_Output.Flush();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateShaderTuple
+
+    Description:
+
+    \***********************************************************************************/
+    ProfilerShaderTuple Profiler::CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo )
+    {
+        ProfilerShaderTuple tuple;
+
+        for( uint32_t i = 0; i < createInfo.stageCount; ++i )
+        {
+            // VkShaderModule entry should already be in the map
+            uint32_t hash = m_ProfiledShaderModules.interlocked_at( createInfo.pStages[i].module );
+
+            const char* entrypoint = createInfo.pStages[i].pName;
+
+            // Hash the entrypoint and append it to the final hash
+            hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
+
+            switch( createInfo.pStages[i].stage )
+            {
+            case VK_SHADER_STAGE_VERTEX_BIT: tuple.m_Vert = hash; break;
+            case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT: tuple.m_Tesc = hash; break;
+            case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT: tuple.m_Tese = hash; break;
+            case VK_SHADER_STAGE_GEOMETRY_BIT: tuple.m_Geom = hash; break;
+            case VK_SHADER_STAGE_FRAGMENT_BIT: tuple.m_Frag = hash; break;
+
+            default:
+            {
+                // Break in debug builds
+                assert( !"Usupported graphics shader stage" );
+
+                m_Output.WriteLine( "WARNING: Unsupported graphics shader stage (%u)",
+                    createInfo.pStages[i].stage );
+            }
+            }
+        }
+
+        return tuple;
     }
 }
