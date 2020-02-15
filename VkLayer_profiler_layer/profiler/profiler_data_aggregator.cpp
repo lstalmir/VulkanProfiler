@@ -90,6 +90,7 @@ namespace Profiler
         auto aggregatedPipelines = CollectTopPipelines();
 
         ProfilerAggregatedData aggregatedData;
+        aggregatedData.m_Stats.Clear();
         aggregatedData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
         aggregatedData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
 
@@ -108,9 +109,7 @@ namespace Profiler
         // Collect per-frame stats
         for( const auto& pipeline : aggregatedPipelines )
         {
-            aggregatedData.m_Stats.m_TotalTicks += pipeline.m_Stats.m_TotalTicks;
-            aggregatedData.m_Stats.m_TotalDrawCount += pipeline.m_Stats.m_TotalDrawCount;
-            // TODO...
+            aggregatedData.m_Stats.Add( pipeline.m_Stats );
         }
 
         return aggregatedData;
@@ -171,18 +170,19 @@ namespace Profiler
                     for( const auto& pipeline : renderPass.m_Subregions )
                     {
                         ProfilerPipeline aggregatedPipeline = pipeline;
-                        // Clear handle to the pipeline object
-                        aggregatedPipeline.m_Handle = VK_NULL_HANDLE;
 
                         auto it = aggregatedPipelines.find( pipeline );
                         if( it != aggregatedPipelines.end() )
                         {
                             aggregatedPipeline = *it;
+                            aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
+
+                            aggregatedPipelines.erase( it );
                         }
 
-                        aggregatedPipeline.m_Stats.m_TotalTicks += pipeline.m_Stats.m_TotalTicks;
-                        aggregatedPipeline.m_Stats.m_TotalDrawCount += pipeline.m_Stats.m_TotalDrawCount;
-                        // TODO
+                        // Clear values which don't make sense after aggregation
+                        aggregatedPipeline.m_Handle = VK_NULL_HANDLE;
+                        aggregatedPipeline.m_Subregions.clear();
 
                         aggregatedPipelines.insert( aggregatedPipeline );
                     }

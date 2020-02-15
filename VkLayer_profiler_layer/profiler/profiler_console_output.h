@@ -30,6 +30,8 @@ namespace Profiler
 
         void WriteLine( const char* fmt, ... );
 
+        void WriteAt( int X, int Y, const char* fmt, ... );
+
         void Flush();
 
         struct

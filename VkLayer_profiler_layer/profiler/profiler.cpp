@@ -269,6 +269,87 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        PreCopy
+
+    Description:
+        Executed before drawcall
+
+    \***********************************************************************************/
+    void Profiler::PreCopy( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.Copy();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostCopy
+
+    Description:
+        Executed after drawcall
+
+    \***********************************************************************************/
+    void Profiler::PostCopy( VkCommandBuffer commandBuffer )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PipelineBarrier
+
+    Description:
+        Collects barrier statistics.
+
+    \***********************************************************************************/
+    void Profiler::PipelineBarrier( VkCommandBuffer commandBuffer,
+        uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers,
+        uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
+        uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profiledCommandBuffer.Barrier(
+            memoryBarrierCount, pMemoryBarriers,
+            bufferMemoryBarrierCount, pBufferMemoryBarriers,
+            imageMemoryBarrierCount, pImageMemoryBarriers );
+
+        // Transitions from undefined layout are slower than from other layouts
+        // BUT are required in some cases (e.g., texture is used for the first time)
+        for( uint32_t i = 0; i < imageMemoryBarrierCount; ++i )
+        {
+            const VkImageMemoryBarrier& barrier = pImageMemoryBarriers[ i ];
+
+            if( barrier.oldLayout == VK_IMAGE_LAYOUT_UNDEFINED )
+            {
+                // TODO: Message
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Clear
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::Clear( VkCommandBuffer commandBuffer, uint32_t attachmentCount )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profiledCommandBuffer.Clear( attachmentCount );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreatePipelines
 
     Description:
@@ -368,12 +449,12 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::BeginRenderPass( VkCommandBuffer commandBuffer, VkRenderPass renderPass )
+    void Profiler::BeginRenderPass( VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pBeginInfo )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
-        profilerCommandBuffer.BeginRenderPass( renderPass );
+        profilerCommandBuffer.BeginRenderPass( pBeginInfo );
     }
 
     /***********************************************************************************\
@@ -623,11 +704,10 @@ namespace Profiler
 
         if( m_Output.NextLinesVisible( 12 ) )
         {
+            // Tuple stats
             int numTopTuples = 10;
-
             m_Output.WriteLine( " Top 10 pipelines:" );
             m_Output.WriteLine( "     Vert     Frag" );
-
             for( const auto& pipeline : data.m_TopPipelines )
             {
                 if( numTopTuples == 0 )
@@ -641,8 +721,28 @@ namespace Profiler
 
                 numTopTuples--;
             }
-
             m_Output.SkipLines( numTopTuples );
+
+            // Drawcall stats
+            m_Output.WriteAt( 40, 2, "Frame statistics:" );
+            m_Output.WriteAt( 40, 3, " Draw:                 %5u", data.m_Stats.m_TotalDrawCount );
+            m_Output.WriteAt( 40, 4, " Draw (indirect):      %5u", data.m_Stats.m_TotalDrawIndirectCount );
+            m_Output.WriteAt( 40, 5, " Dispatch:             %5u", data.m_Stats.m_TotalDispatchCount );
+            m_Output.WriteAt( 40, 6, " Dispatch (indirect):  %5u", data.m_Stats.m_TotalDispatchIndirectCount );
+            m_Output.WriteAt( 40, 7, " Copy:                 %5u", data.m_Stats.m_TotalCopyCount );
+            m_Output.WriteAt( 40, 8, " Clear:                %5u", data.m_Stats.m_TotalClearCount );
+            m_Output.WriteAt( 40, 9, " Clear (implicit):     %5u", data.m_Stats.m_TotalClearImplicitCount );
+            m_Output.WriteAt( 40, 10, " Barrier:              %5u", data.m_Stats.m_TotalBarrierCount );
+            m_Output.WriteAt( 40, 11, "                            " ); // clear
+            m_Output.WriteAt( 40, 12, " TOTAL:                %5u",
+                data.m_Stats.m_TotalDrawCount +
+                data.m_Stats.m_TotalDrawIndirectCount +
+                data.m_Stats.m_TotalDispatchCount +
+                data.m_Stats.m_TotalDispatchIndirectCount +
+                data.m_Stats.m_TotalCopyCount +
+                data.m_Stats.m_TotalClearCount +
+                data.m_Stats.m_TotalClearImplicitCount +
+                data.m_Stats.m_TotalBarrierCount );
         }
         else
         {
@@ -686,20 +786,23 @@ namespace Profiler
         if( m_Config.m_Mode <= ProfilerMode::ePerRenderPass )
         for( const auto& commandBuffer : submit.m_CommandBuffers )
         {
-            // Add number of render passes
-            requiredLineCount += commandBuffer.m_Subregions.size();
-
-            if( m_Config.m_Mode <= ProfilerMode::ePerPipeline )
+            // Add number of valid render passes
             for( const auto& renderPass : commandBuffer.m_Subregions )
             {
-                // Add number of pipelines in the render pass
-                requiredLineCount += renderPass.m_Subregions.size();
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
+                    requiredLineCount++;
 
-                if( m_Config.m_Mode <= ProfilerMode::ePerDrawcall )
+                // Add number of valid pipelines in the render pass
                 for( const auto& pipeline : renderPass.m_Subregions )
                 {
-                    // Add number of drawcalls in each pipeline
-                    requiredLineCount += pipeline.m_Subregions.size();
+                    if( pipeline.m_Handle != VK_NULL_HANDLE )
+                        requiredLineCount++;
+
+                    if( m_Config.m_Mode <= ProfilerMode::ePerDrawcall )
+                    {
+                        // Add number of drawcalls in each pipeline
+                        requiredLineCount += pipeline.m_Subregions.size();
+                    }
                 }
             }
         }
@@ -749,24 +852,27 @@ namespace Profiler
                         continue;
                     }
 
-                    // Compute time difference between timestamps
-                    float us = (renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
+                    if( renderPass.m_Handle != VK_NULL_HANDLE )
+                    {
+                        // Compute time difference between timestamps
+                        float us = (renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
 
-                    uint32_t lineWidth = 46 +
-                        DigitCount( currentRenderPass ) +
-                        DigitCount( pipelineCount );
+                        uint32_t lineWidth = 46 +
+                            DigitCount( currentRenderPass ) +
+                            DigitCount( pipelineCount );
 
-                    std::string renderPassName =
-                        m_Debug.GetDebugObjectName( (uint64_t)renderPass.m_Handle );
+                        std::string renderPassName =
+                            m_Debug.GetDebugObjectName( (uint64_t)renderPass.m_Handle );
 
-                    lineWidth += renderPassName.length();
+                        lineWidth += renderPassName.length();
 
-                    m_Output.WriteLine( "  VkRenderPass #%u (%s) - %u pipelines %.*s %8.4f us",
-                        currentRenderPass,
-                        renderPassName.c_str(),
-                        pipelineCount,
-                        m_Output.Width() - lineWidth, fillLine,
-                        us );
+                        m_Output.WriteLine( "  VkRenderPass #%u (%s) - %u pipelines %.*s %8.4f us",
+                            currentRenderPass,
+                            renderPassName.c_str(),
+                            pipelineCount,
+                            m_Output.Width() - lineWidth, fillLine,
+                            us );
+                    }
 
                     uint32_t currentRenderPassPipeline = 0;
 
@@ -775,29 +881,32 @@ namespace Profiler
                         const auto& pipeline = renderPass.m_Subregions[currentRenderPassPipeline];
                         const size_t pipelineDrawcallCount = pipeline.m_Subregions.size();
 
-                        if( m_Output.NextLinesVisible( 1 ) )
+                        if( pipeline.m_Handle != VK_NULL_HANDLE )
                         {
-                            // Convert to microseconds
-                            us = (pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
+                            if( m_Output.NextLinesVisible( 1 ) )
+                            {
+                                // Convert to microseconds
+                                float us = (pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
 
-                            lineWidth = 45 +
-                                DigitCount( currentRenderPassPipeline ) +
-                                DigitCount( pipelineDrawcallCount );
+                                uint32_t lineWidth = 45 +
+                                    DigitCount( currentRenderPassPipeline ) +
+                                    DigitCount( pipelineDrawcallCount );
 
-                            std::string pipelineName = m_Debug.GetDebugObjectName( (uint64_t)pipeline.m_Handle );
+                                std::string pipelineName = m_Debug.GetDebugObjectName( (uint64_t)pipeline.m_Handle );
 
-                            lineWidth += pipelineName.length();
+                                lineWidth += pipelineName.length();
 
-                            m_Output.WriteLine( "   VkPipeline #%u (%s) - %u drawcalls %.*s %8.4f us",
-                                currentRenderPassPipeline,
-                                pipelineName.c_str(),
-                                pipelineDrawcallCount,
-                                m_Output.Width() - lineWidth, fillLine,
-                                us );
-                        }
-                        else
-                        {
-                            m_Output.SkipLines( 1 );
+                                m_Output.WriteLine( "   VkPipeline #%u (%s) - %u drawcalls %.*s %8.4f us",
+                                    currentRenderPassPipeline,
+                                    pipelineName.c_str(),
+                                    pipelineDrawcallCount,
+                                    m_Output.Width() - lineWidth, fillLine,
+                                    us );
+                            }
+                            else
+                            {
+                                m_Output.SkipLines( 1 );
+                            }
                         }
 
                         currentPipeline++;

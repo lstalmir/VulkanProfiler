@@ -32,19 +32,19 @@ namespace Profiler
         // vkCreateInstance
         static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(
             const VkInstanceCreateInfo* pCreateInfo,
-            VkAllocationCallbacks* pAllocator,
+            const VkAllocationCallbacks* pAllocator,
             VkInstance* pInstance );
 
         // vkDestroyInstance
         static VKAPI_ATTR void VKAPI_CALL DestroyInstance(
             VkInstance instance,
-            VkAllocationCallbacks* pAllocator );
+            const VkAllocationCallbacks* pAllocator );
 
         // vkCreateDevice
         static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(
             VkPhysicalDevice physicalDevice,
             const VkDeviceCreateInfo* pCreateInfo,
-            VkAllocationCallbacks* pAllocator,
+            const VkAllocationCallbacks* pAllocator,
             VkDevice* pDevice );
 
         // vkEnumerateInstanceLayerProperties

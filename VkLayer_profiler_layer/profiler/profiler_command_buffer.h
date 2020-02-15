@@ -69,7 +69,7 @@ namespace Profiler
         void Begin( const VkCommandBufferBeginInfo* );
         void End();
 
-        void BeginRenderPass( VkRenderPass );
+        void BeginRenderPass( const VkRenderPassBeginInfo* );
         void EndRenderPass();
 
         void BindPipeline( ProfilerPipeline );
@@ -77,6 +77,11 @@ namespace Profiler
         void Draw();
         void Dispatch();
         void Copy();
+        void Clear( uint32_t );
+        void Barrier(
+            uint32_t, const VkMemoryBarrier*,
+            uint32_t, const VkBufferMemoryBarrier*,
+            uint32_t, const VkImageMemoryBarrier* );
 
         ProfilerCommandBufferData GetData();
 

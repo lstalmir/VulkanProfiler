@@ -26,10 +26,11 @@ namespace Profiler
         // vkDestroyDevice
         static VKAPI_ATTR void VKAPI_CALL DestroyDevice(
             VkDevice device,
-            VkAllocationCallbacks* pAllocator );
+            const VkAllocationCallbacks* pAllocator );
 
         // vkEnumerateDeviceLayerProperties
         static VKAPI_ATTR VkResult VKAPI_CALL EnumerateDeviceLayerProperties(
+            VkPhysicalDevice physicalDevice,
             uint32_t* pPropertyCount,
             VkLayerProperties* pLayerProperties );
 

@@ -34,8 +34,16 @@ namespace Profiler
         GETPROCADDR( CmdBeginRenderPass );
         GETPROCADDR( CmdEndRenderPass );
         GETPROCADDR( CmdBindPipeline );
+        GETPROCADDR( CmdPipelineBarrier );
         GETPROCADDR( CmdDraw );
         GETPROCADDR( CmdDrawIndexed );
+        GETPROCADDR( CmdCopyBuffer );
+        GETPROCADDR( CmdCopyBufferToImage );
+        GETPROCADDR( CmdCopyImage );
+        GETPROCADDR( CmdCopyImageToBuffer );
+        GETPROCADDR( CmdClearAttachments );
+        GETPROCADDR( CmdClearColorImage );
+        GETPROCADDR( CmdClearDepthStencilImage );
 
         // VkQueue_Functions
         GETPROCADDR( QueueSubmit );
@@ -56,7 +64,7 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyDevice(
         VkDevice device,
-        VkAllocationCallbacks* pAllocator )
+        const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
         auto pfnDestroyDevice = dd.DispatchTable.DestroyDevice;
@@ -77,6 +85,7 @@ namespace Profiler
 
     \***********************************************************************************/
     VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::EnumerateDeviceLayerProperties(
+        VkPhysicalDevice physicalDevice,
         uint32_t* pPropertyCount,
         VkLayerProperties* pLayerProperties )
     {

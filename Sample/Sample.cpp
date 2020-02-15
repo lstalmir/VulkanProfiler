@@ -111,7 +111,7 @@ int main()
         .setApplicationVersion( 1 )
         .setPEngineName( "LunarG SDK" )
         .setEngineVersion( 1 )
-        .setApiVersion( VK_API_VERSION_1_0 );
+        .setApiVersion( VK_API_VERSION_1_1 );
 
     // vk::InstanceCreateInfo is where the programmer specifies the layers and/or extensions that
     // are needed.

@@ -39,6 +39,19 @@ namespace Profiler
             VkPipelineBindPoint bindPoint,
             VkPipeline pipeline );
 
+        // vkPipelineBarrier
+        static VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier(
+            VkCommandBuffer commandBuffer,
+            VkPipelineStageFlags srcStageMask,
+            VkPipelineStageFlags dstStageMask,
+            VkDependencyFlags dependencyFlags,
+            uint32_t memoryBarrierCount,
+            const VkMemoryBarrier* pMemoryBarriers,
+            uint32_t bufferMemoryBarrierCount,
+            const VkBufferMemoryBarrier* pBufferMemoryBarriers,
+            uint32_t imageMemoryBarrierCount,
+            const VkImageMemoryBarrier* pImageMemoryBarriers );
+
         // vkCmdDraw
         static VKAPI_ATTR void VKAPI_CALL CmdDraw(
             VkCommandBuffer commandBuffer,
@@ -55,5 +68,67 @@ namespace Profiler
             uint32_t firstIndex,
             int32_t vertexOffset,
             uint32_t firstInstance );
+
+        // vkCmdCopyBuffer
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyBuffer(
+            VkCommandBuffer commandBuffer,
+            VkBuffer srcBuffer,
+            VkBuffer dstBuffer,
+            uint32_t regionCount,
+            const VkBufferCopy* pRegions );
+
+        // vkCmdCopyBufferToImage
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyBufferToImage(
+            VkCommandBuffer commandBuffer,
+            VkBuffer srcBuffer,
+            VkImage dstImage,
+            VkImageLayout dstImageLayout,
+            uint32_t regionCount,
+            const VkBufferImageCopy* pRegions );
+
+        // vkCmdCopyImage
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyImage(
+            VkCommandBuffer commandBuffer,
+            VkImage srcImage,
+            VkImageLayout srcImageLayout,
+            VkImage dstImage,
+            VkImageLayout dstImageLayout,
+            uint32_t regionCount,
+            const VkImageCopy* pRegions );
+
+        // vkCmdCopyImageToBuffer
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyImageToBuffer(
+            VkCommandBuffer commandBuffer,
+            VkImage srcImage,
+            VkImageLayout srcImageLayout,
+            VkBuffer dstBuffer,
+            uint32_t regionCount,
+            const VkBufferImageCopy* pRegions );
+
+        // vkCmdClearAttachments
+        static VKAPI_ATTR void VKAPI_CALL CmdClearAttachments(
+            VkCommandBuffer commandBuffer,
+            uint32_t attachmentCount,
+            const VkClearAttachment* pAttachments,
+            uint32_t rectCount,
+            const VkClearRect* pRects );
+
+        // vkCmdClearColorImage
+        static VKAPI_ATTR void VKAPI_CALL CmdClearColorImage(
+            VkCommandBuffer commandBuffer,
+            VkImage image,
+            VkImageLayout imageLayout,
+            const VkClearColorValue* pColor,
+            uint32_t rangeCount,
+            const VkImageSubresourceRange* pRanges );
+
+        // vkCmdClearDepthStencilImage
+        static VKAPI_ATTR void VKAPI_CALL CmdClearDepthStencilImage(
+            VkCommandBuffer commandBuffer,
+            VkImage image,
+            VkImageLayout imageLayout,
+            const VkClearDepthStencilValue* pDepthStencil,
+            uint32_t rangeCount,
+            const VkImageSubresourceRange* pRanges );
     };
 }

@@ -50,7 +50,7 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR VkResult VKAPI_CALL VkInstance_Functions::CreateInstance(
         const VkInstanceCreateInfo* pCreateInfo,
-        VkAllocationCallbacks* pAllocator,
+        const VkAllocationCallbacks* pAllocator,
         VkInstance* pInstance )
     {
         auto* pLayerCreateInfo = GetLayerLinkInfo<VkLayerInstanceCreateInfo>(pCreateInfo);
@@ -101,7 +101,7 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR void VKAPI_CALL VkInstance_Functions::DestroyInstance(
         VkInstance instance,
-        VkAllocationCallbacks* pAllocator )
+        const VkAllocationCallbacks* pAllocator )
     {
         auto& id = InstanceDispatch.Get( instance );
 
@@ -123,7 +123,7 @@ namespace Profiler
     VKAPI_ATTR VkResult VKAPI_CALL VkInstance_Functions::CreateDevice(
         VkPhysicalDevice physicalDevice,
         const VkDeviceCreateInfo* pCreateInfo,
-        VkAllocationCallbacks* pAllocator,
+        const VkAllocationCallbacks* pAllocator,
         VkDevice* pDevice )
     {
         auto& id = InstanceDispatch.Get( physicalDevice );

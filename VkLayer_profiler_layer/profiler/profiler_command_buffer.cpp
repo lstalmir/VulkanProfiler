@@ -145,10 +145,10 @@ namespace Profiler
         Marks beginning of next render pass.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::BeginRenderPass( VkRenderPass renderPass )
+    void ProfilerCommandBuffer::BeginRenderPass( const VkRenderPassBeginInfo* pBeginInfo )
     {
         // Update state
-        m_CurrentRenderPass = renderPass;
+        m_CurrentRenderPass = pBeginInfo->renderPass;
 
         if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass )
         {
@@ -156,14 +156,20 @@ namespace Profiler
         }
 
         ProfilerRenderPass profilerRenderPass;
-        profilerRenderPass.m_Handle = renderPass;
+        profilerRenderPass.m_Handle = pBeginInfo->renderPass;
         profilerRenderPass.Clear();
 
         m_Data.m_Subregions.push_back( profilerRenderPass );
 
-        // NOT SUPPORTED YET
-        // Some drawcalls may appear without binding any pipeline
-        //m_Data.m_PipelineDrawCount.push_back( { VK_NULL_HANDLE, 0 } );
+        // Temporary pipeline for storing stats before actual pipeline is bound
+        ProfilerPipeline profilerPipeline;
+        profilerPipeline.m_Handle = VK_NULL_HANDLE;
+        profilerPipeline.Clear();
+
+        m_Data.m_Subregions.back().m_Subregions.push_back( profilerPipeline );
+
+        // Clears issued when render pass begins
+        m_Data.IncrementStat<STAT_CLEAR_IMPLICIT_COUNT>( pBeginInfo->clearValueCount );
     }
 
     /***********************************************************************************\
@@ -207,6 +213,7 @@ namespace Profiler
     {
         // Update state
         m_CurrentPipeline = pipeline;
+        m_CurrentPipeline.Clear();
 
         // vkBindPipeline marks end of pipeline and drawcall
         if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline )
@@ -214,18 +221,8 @@ namespace Profiler
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
-        // Pipeline bound without render pass
-        if( m_Data.m_Subregions.empty() )
-        {
-            ProfilerRenderPass profilerRenderPass;
-            profilerRenderPass.m_Handle = VK_NULL_HANDLE;
-            profilerRenderPass.Clear();
-
-            m_Data.m_Subregions.push_back( profilerRenderPass );
-        }
-
         // Register new pipeline to current render pass
-        m_Data.m_Subregions.back().m_Subregions.push_back( pipeline );
+        m_Data.m_Subregions.back().m_Subregions.push_back( m_CurrentPipeline );
     }
 
     /***********************************************************************************\
@@ -245,7 +242,7 @@ namespace Profiler
         }
 
         // Increment draw count in current pipeline
-        m_Data.OnDraw();
+        m_Data.IncrementStat<STAT_DRAW_COUNT>();
     }
 
     /***********************************************************************************\
@@ -265,7 +262,7 @@ namespace Profiler
         }
 
         // Increment dispatch count
-        m_Data.OnDispatch();
+        m_Data.IncrementStat<STAT_DISPATCH_COUNT>();
     }
 
     /***********************************************************************************\
@@ -284,8 +281,109 @@ namespace Profiler
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
+        // Check if we're in render pass
+        if( m_Data.m_Subregions.empty() )
+        {
+            ProfilerRenderPass nullRenderPass;
+            nullRenderPass.m_Handle = VK_NULL_HANDLE;
+            nullRenderPass.Clear();
+
+            m_Data.m_Subregions.push_back( nullRenderPass );
+        }
+
+        // Check if we're in pipeline
+        if( m_Data.m_Subregions.back().m_Subregions.empty() )
+        {
+            ProfilerPipeline nullPipeline;
+            nullPipeline.m_Handle = VK_NULL_HANDLE;
+            nullPipeline.Clear();
+
+            m_Data.m_Subregions.back().m_Subregions.push_back( nullPipeline );
+        }
+
         // Increment draw count in current pipeline
-        m_Data.OnCopy();
+        m_Data.IncrementStat<STAT_COPY_COUNT>();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Clear
+
+    Description:
+        Marks beginning of next clear drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::Clear( uint32_t attachmentCount )
+    {
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        }
+
+        // Check if we're in render pass
+        if( m_Data.m_Subregions.empty() )
+        {
+            ProfilerRenderPass nullRenderPass;
+            nullRenderPass.m_Handle = VK_NULL_HANDLE;
+            nullRenderPass.Clear();
+
+            m_Data.m_Subregions.push_back( nullRenderPass );
+        }
+
+        // Check if we're in pipeline
+        if( m_Data.m_Subregions.back().m_Subregions.empty() )
+        {
+            ProfilerPipeline nullPipeline;
+            nullPipeline.m_Handle = VK_NULL_HANDLE;
+            nullPipeline.Clear();
+
+            m_Data.m_Subregions.back().m_Subregions.push_back( nullPipeline );
+        }
+
+        // Increment draw count in current pipeline
+        m_Data.IncrementStat<STAT_CLEAR_COUNT>( attachmentCount );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Barrier
+
+    Description:
+        Stores barrier statistics in currently profiled entity.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::Barrier(
+        uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers,
+        uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
+        uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
+    {
+        // Check if we're in render pass
+        if( m_Data.m_Subregions.empty() )
+        {
+            ProfilerRenderPass nullRenderPass;
+            nullRenderPass.m_Handle = VK_NULL_HANDLE;
+            nullRenderPass.Clear();
+
+            m_Data.m_Subregions.push_back( nullRenderPass );
+        }
+
+        // Check if we're in pipeline
+        if( m_Data.m_Subregions.back().m_Subregions.empty() )
+        {
+            ProfilerPipeline nullPipeline;
+            nullPipeline.m_Handle = VK_NULL_HANDLE;
+            nullPipeline.Clear();
+
+            m_Data.m_Subregions.back().m_Subregions.push_back( nullPipeline );
+        }
+
+        // Increment barrier count
+        m_Data.IncrementStat<STAT_BARRIER_COUNT>(
+            memoryBarrierCount +
+            bufferMemoryBarrierCount +
+            imageMemoryBarrierCount );
     }
 
     /***********************************************************************************\
@@ -368,11 +466,19 @@ namespace Profiler
                                     }
                                 }
 
-                                if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline )
+                                if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline &&
+                                    pipeline.m_Handle != VK_NULL_HANDLE )
                                 {
                                     // Update pipeline time
                                     pipeline.m_Stats.m_TotalTicks = collectedQueries[ currentQueryIndex ] - pipeline.m_Stats.m_BeginTimestamp;
                                     currentQueryIndex++;
+
+                                    // TMP
+                                    // TODO: Detect timestamp disjoints
+                                    if( pipeline.m_Stats.m_TotalTicks > 1000000 )
+                                    {
+                                        pipeline.m_Stats.m_TotalTicks = 0;
+                                    }
                                 }
 
                                 // Update render pass time
@@ -380,7 +486,8 @@ namespace Profiler
                             }
                         }
 
-                        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass )
+                        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass &&
+                            renderPass.m_Handle != VK_NULL_HANDLE )
                         {
                             // Update render pass time
                             renderPass.m_Stats.m_TotalTicks += collectedQueries[ currentQueryIndex ] - renderPass.m_Stats.m_BeginTimestamp;

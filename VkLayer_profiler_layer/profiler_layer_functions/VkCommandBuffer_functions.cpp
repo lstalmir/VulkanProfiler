@@ -1,4 +1,5 @@
 #include "VkCommandBuffer_functions.h"
+#include "Helpers.h"
 
 namespace Profiler
 {
@@ -63,7 +64,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Profile the render pass time
-        dd.Profiler.BeginRenderPass( commandBuffer, pBeginInfo->renderPass );
+        dd.Profiler.BeginRenderPass( commandBuffer, pBeginInfo );
 
         // Begin the render pass
         dd.DispatchTable.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
@@ -109,6 +110,42 @@ namespace Profiler
 
         // Profile the pipeline time
         dd.Profiler.BindPipeline( commandBuffer, pipeline );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdPipelineBarrier
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdPipelineBarrier(
+        VkCommandBuffer commandBuffer,
+        VkPipelineStageFlags srcStageMask,
+        VkPipelineStageFlags dstStageMask,
+        VkDependencyFlags dependencyFlags,
+        uint32_t memoryBarrierCount,
+        const VkMemoryBarrier* pMemoryBarriers,
+        uint32_t bufferMemoryBarrierCount,
+        const VkBufferMemoryBarrier* pBufferMemoryBarriers,
+        uint32_t imageMemoryBarrierCount,
+        const VkImageMemoryBarrier* pImageMemoryBarriers )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Insert the barrier
+        dd.DispatchTable.CmdPipelineBarrier( commandBuffer,
+            srcStageMask, dstStageMask, dependencyFlags,
+            memoryBarrierCount, pMemoryBarriers,
+            bufferMemoryBarrierCount, pBufferMemoryBarriers,
+            imageMemoryBarrierCount, pImageMemoryBarriers );
+
+        // Record barrier statistics
+        dd.Profiler.PipelineBarrier( commandBuffer,
+            memoryBarrierCount, pMemoryBarriers,
+            bufferMemoryBarrierCount, pBufferMemoryBarriers,
+            imageMemoryBarrierCount, pImageMemoryBarriers );
     }
 
     /***********************************************************************************\
@@ -168,5 +205,199 @@ namespace Profiler
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
         dd.Profiler.PostDraw( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyBuffer(
+        VkCommandBuffer commandBuffer,
+        VkBuffer srcBuffer,
+        VkBuffer dstBuffer,
+        uint32_t regionCount,
+        const VkBufferCopy* pRegions )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Increment drawcall counter
+        dd.Profiler.GetCurrentFrameStats().drawCount++;
+
+        dd.Profiler.PreCopy( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdCopyBuffer(
+            commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions );
+
+        dd.Profiler.PostCopy( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyBufferToImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyBufferToImage(
+        VkCommandBuffer commandBuffer,
+        VkBuffer srcBuffer,
+        VkImage dstImage,
+        VkImageLayout dstImageLayout,
+        uint32_t regionCount,
+        const VkBufferImageCopy* pRegions )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Increment drawcall counter
+        dd.Profiler.GetCurrentFrameStats().drawCount++;
+
+        dd.Profiler.PreCopy( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdCopyBufferToImage(
+            commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions );
+
+        dd.Profiler.PostCopy( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyImage(
+        VkCommandBuffer commandBuffer,
+        VkImage srcImage,
+        VkImageLayout srcImageLayout,
+        VkImage dstImage,
+        VkImageLayout dstImageLayout,
+        uint32_t regionCount,
+        const VkImageCopy* pRegions )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Increment drawcall counter
+        dd.Profiler.GetCurrentFrameStats().drawCount++;
+
+        dd.Profiler.PreCopy( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdCopyImage(
+            commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions );
+
+        dd.Profiler.PostCopy( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyImageToBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyImageToBuffer(
+        VkCommandBuffer commandBuffer,
+        VkImage srcImage,
+        VkImageLayout srcImageLayout,
+        VkBuffer dstBuffer,
+        uint32_t regionCount,
+        const VkBufferImageCopy* pRegions )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Increment drawcall counter
+        dd.Profiler.GetCurrentFrameStats().drawCount++;
+
+        dd.Profiler.PreCopy( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdCopyImageToBuffer(
+            commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions );
+
+        dd.Profiler.PostCopy( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdClearAttachments
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdClearAttachments(
+        VkCommandBuffer commandBuffer,
+        uint32_t attachmentCount,
+        const VkClearAttachment* pAttachments,
+        uint32_t rectCount,
+        const VkClearRect* pRects )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdClearAttachments(
+            commandBuffer, attachmentCount, pAttachments, rectCount, pRects );
+
+        dd.Profiler.Clear( commandBuffer, attachmentCount );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdClearColorImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdClearColorImage(
+        VkCommandBuffer commandBuffer,
+        VkImage image,
+        VkImageLayout imageLayout,
+        const VkClearColorValue* pColor,
+        uint32_t rangeCount,
+        const VkImageSubresourceRange* pRanges )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdClearColorImage(
+            commandBuffer, image, imageLayout, pColor, rangeCount, pRanges );
+
+        dd.Profiler.Clear( commandBuffer, 1 );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdClearDepthStencilImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdClearDepthStencilImage(
+        VkCommandBuffer commandBuffer,
+        VkImage image,
+        VkImageLayout imageLayout,
+        const VkClearDepthStencilValue* pDepthStencil,
+        uint32_t rangeCount,
+        const VkImageSubresourceRange* pRanges )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdClearDepthStencilImage(
+            commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges );
+
+        dd.Profiler.Clear( commandBuffer, 1 );
     }
 }

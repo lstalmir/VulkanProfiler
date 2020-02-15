@@ -21,7 +21,7 @@ namespace Profiler
     VkResult VkDevice_Functions_Base::OnDeviceCreate(
         VkPhysicalDevice physicalDevice,
         const VkDeviceCreateInfo* pCreateInfo,
-        VkAllocationCallbacks* pAllocator,
+        const VkAllocationCallbacks* pAllocator,
         VkDevice device )
     {
         // Get address of vkGetDeviceProcAddr function

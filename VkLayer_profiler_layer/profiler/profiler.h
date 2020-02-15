@@ -54,6 +54,16 @@ namespace Profiler
         void PreDraw( VkCommandBuffer );
         void PostDraw( VkCommandBuffer );
 
+        void PreCopy( VkCommandBuffer );
+        void PostCopy( VkCommandBuffer );
+
+        void PipelineBarrier( VkCommandBuffer,
+            uint32_t, const VkMemoryBarrier*,
+            uint32_t, const VkBufferMemoryBarrier*,
+            uint32_t, const VkImageMemoryBarrier* );
+
+        void Clear( VkCommandBuffer, uint32_t );
+
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void DestroyPipeline( VkPipeline );
         void BindPipeline( VkCommandBuffer, VkPipeline );
@@ -61,7 +71,7 @@ namespace Profiler
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
         void DestroyShaderModule( VkShaderModule );
 
-        void BeginRenderPass( VkCommandBuffer, VkRenderPass );
+        void BeginRenderPass( VkCommandBuffer, const VkRenderPassBeginInfo* );
         void EndRenderPass( VkCommandBuffer );
 
         void BeginCommandBuffer( VkCommandBuffer, const VkCommandBufferBeginInfo* );

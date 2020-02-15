@@ -33,7 +33,7 @@ namespace Profiler
         static VkResult OnDeviceCreate(
             VkPhysicalDevice physicalDevice,
             const VkDeviceCreateInfo* pCreateInfo,
-            VkAllocationCallbacks* pAllocator,
+            const VkAllocationCallbacks* pAllocator,
             VkDevice device );
 
         // Invoked on vkDestroyDevice

@@ -12,15 +12,53 @@ namespace Profiler
         uint64_t m_TotalTicks;
 
         uint32_t m_TotalDrawCount;
+        uint32_t m_TotalDrawIndirectCount;
         uint32_t m_TotalDispatchCount;
+        uint32_t m_TotalDispatchIndirectCount;
         uint32_t m_TotalCopyCount;
+        uint32_t m_TotalClearCount;
+        uint32_t m_TotalClearImplicitCount;
         uint32_t m_TotalBarrierCount;
 
         inline void Clear()
         {
             ClearMemory( this );
         }
+
+        inline void Add( const ProfilerRangeStats& rh )
+        {
+            m_TotalTicks += rh.m_TotalTicks;
+            m_TotalDrawCount += rh.m_TotalDrawCount;
+            m_TotalDrawIndirectCount += rh.m_TotalDrawIndirectCount;
+            m_TotalDispatchCount += rh.m_TotalDispatchCount;
+            m_TotalDispatchIndirectCount += rh.m_TotalDispatchIndirectCount;
+            m_TotalCopyCount += rh.m_TotalCopyCount;
+            m_TotalClearCount += rh.m_TotalClearCount;
+            m_TotalClearImplicitCount += rh.m_TotalClearImplicitCount;
+            m_TotalBarrierCount += rh.m_TotalBarrierCount;
+        }
+
+        template<size_t Stat>
+        inline void IncrementStat( uint32_t count = 1 )
+        {
+            // Get address of the counter
+            uint8_t* pCounter = reinterpret_cast<uint8_t*>(this) + Stat;
+
+            // Convert to modifiable uint32_t reference
+            uint32_t& counter = *reinterpret_cast<uint32_t*>(pCounter);
+
+            counter += count;
+        }
     };
+
+    static constexpr size_t STAT_DRAW_COUNT = offsetof( ProfilerRangeStats, m_TotalDrawCount );
+    static constexpr size_t STAT_DRAW_INDIRECT_COUNT = offsetof( ProfilerRangeStats, m_TotalDrawIndirectCount );
+    static constexpr size_t STAT_DISPATCH_COUNT = offsetof( ProfilerRangeStats, m_TotalDispatchCount );
+    static constexpr size_t STAT_DISPATCH_INDIRECT_COUNT = offsetof( ProfilerRangeStats, m_TotalDispatchIndirectCount );
+    static constexpr size_t STAT_COPY_COUNT = offsetof( ProfilerRangeStats, m_TotalCopyCount );
+    static constexpr size_t STAT_CLEAR_COUNT = offsetof( ProfilerRangeStats, m_TotalClearCount );
+    static constexpr size_t STAT_CLEAR_IMPLICIT_COUNT = offsetof( ProfilerRangeStats, m_TotalClearImplicitCount );
+    static constexpr size_t STAT_BARRIER_COUNT = offsetof( ProfilerRangeStats, m_TotalBarrierCount );
 
 
     template<typename Handle, typename Subtype>
@@ -38,22 +76,11 @@ namespace Profiler
             m_Subregions.clear();
         }
 
-        inline void OnDraw()
+        template<size_t Stat>
+        inline void IncrementStat( uint32_t count = 1 )
         {
-            m_Stats.m_TotalDrawCount++;
-            m_Subregions.back().OnDraw();
-        }
-
-        inline void OnDispatch()
-        {
-            m_Stats.m_TotalDispatchCount++;
-            m_Subregions.back().OnDispatch();
-        }
-
-        inline void OnCopy()
-        {
-            m_Stats.m_TotalCopyCount++;
-            m_Subregions.back().OnCopy();
+            m_Stats.IncrementStat<Stat>( count );
+            m_Subregions.back().IncrementStat<Stat>( count );
         }
     };
 
@@ -75,22 +102,27 @@ namespace Profiler
             return m_ShaderTuple == rh.m_ShaderTuple;
         }
 
-        inline void OnDraw()
+        template<size_t Stat>
+        inline void IncrementStat( uint32_t count = 1 )
         {
-            m_Stats.m_TotalDrawCount++;
-            m_Subregions.push_back( { ProfilerDrawcallType::eDraw } );
-        }
+            m_Stats.IncrementStat<Stat>( count );
 
-        inline void OnDispatch()
-        {
-            m_Stats.m_TotalDispatchCount++;
-            m_Subregions.push_back( { ProfilerDrawcallType::eDispatch } );
-        }
+            switch( Stat )
+            {
+            case STAT_DRAW_COUNT:
+            case STAT_DRAW_INDIRECT_COUNT:
+                m_Subregions.push_back( { ProfilerDrawcallType::eDraw } ); break;
 
-        inline void OnCopy()
-        {
-            m_Stats.m_TotalCopyCount++;
-            m_Subregions.push_back( { ProfilerDrawcallType::eCopy } );
+            case STAT_DISPATCH_COUNT:
+            case STAT_DISPATCH_INDIRECT_COUNT:
+                m_Subregions.push_back( { ProfilerDrawcallType::eDispatch } ); break;
+
+            case STAT_CLEAR_COUNT:
+                m_Subregions.push_back( { ProfilerDrawcallType::eClear } ); break;
+
+            case STAT_COPY_COUNT:
+                m_Subregions.push_back( { ProfilerDrawcallType::eCopy } ); break;
+            }
         }
     };
 }

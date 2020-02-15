@@ -154,6 +154,41 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        WriteAt
+
+    Description:
+        Write text at specified position.
+
+    \***********************************************************************************/
+    void ProfilerConsoleOutput::WriteAt( int X, int Y, const char* fmt, ... )
+    {
+        if( Y * m_Width >= m_BufferSize )
+        {
+            return;
+        }
+
+        assert( X < m_Width );
+
+        va_list args;
+        va_start( args, fmt );
+
+        // Write to the back buffer to avoid flickering
+        [[maybe_unused]]
+        int charactersWritten = vsnprintf(
+            m_pBuffer + Y * m_Width + X, m_Width - X, fmt, args );
+
+        va_end( args );
+
+        #if defined(_WIN32) && defined(_DEBUG) && 0
+        // Additionally write to the debug console
+        OutputDebugStringA( m_pBuffer + Y * m_Width + X );
+        OutputDebugStringA( "\n" );
+        #endif
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Flush
 
     Description:
