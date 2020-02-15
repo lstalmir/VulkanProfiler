@@ -279,18 +279,17 @@ namespace Profiler
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             ProfilerPipeline profilerPipeline;
-            profilerPipeline.m_Pipeline = pPipelines[i];
+            profilerPipeline.m_Handle = pPipelines[i];
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
 
             std::stringstream stringBuilder;
             stringBuilder
-                << "(VS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
+                << "VS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
                 << profilerPipeline.m_ShaderTuple.m_Vert
                 << ",PS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
-                << profilerPipeline.m_ShaderTuple.m_Frag
-                << ")";
+                << profilerPipeline.m_ShaderTuple.m_Frag;
 
-            m_Debug.SetDebugObjectName((uint64_t)profilerPipeline.m_Pipeline,
+            m_Debug.SetDebugObjectName((uint64_t)profilerPipeline.m_Handle,
                 stringBuilder.str().c_str() );
 
             m_ProfiledPipelines.interlocked_emplace( pPipelines[i], profilerPipeline );
@@ -324,9 +323,12 @@ namespace Profiler
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
         // ProfilerPipeline object should already be in the map
-        auto& profilerPipeline = m_ProfiledPipelines.interlocked_at( pipeline );
-
-        profilerCommandBuffer.BindPipeline( profilerPipeline );
+        // TMP
+        auto it = m_ProfiledPipelines.find( pipeline );
+        if( it != m_ProfiledPipelines.end() )
+        {
+            profilerCommandBuffer.BindPipeline( it->second );
+        }
     }
 
     /***********************************************************************************\
@@ -527,13 +529,21 @@ namespace Profiler
 
         m_CpuTimestampCounter.End();
 
+        // TMP
+        ProfilerAggregatedData data = m_DataAggregator.GetAggregatedData();
+
         if( m_CpuTimestampCounter.GetValue<std::chrono::milliseconds>() > m_Config.m_OutputUpdateInterval )
         {
             // Present profiling results
-            PresentResults();
+            PresentResults( data );
 
             m_CpuTimestampCounter.Begin();
         }
+
+        m_LastFrameBeginTimestamp = data.m_Stats.m_BeginTimestamp;
+
+        // TMP
+        m_DataAggregator.Reset();
     }
 
     /***********************************************************************************\
@@ -606,7 +616,51 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PresentResults()
+    void Profiler::PresentResults( const ProfilerAggregatedData& data )
+    {
+        // Summary stats
+        m_Output.Summary.FPS = 1000000000. / (m_TimestampPeriod * (data.m_Stats.m_BeginTimestamp - m_LastFrameBeginTimestamp));
+
+        if( m_Output.NextLinesVisible( 12 ) )
+        {
+            int numTopTuples = 10;
+
+            m_Output.WriteLine( " Top 10 pipelines:" );
+            m_Output.WriteLine( "     Vert     Frag" );
+
+            for( const auto& pipeline : data.m_TopPipelines )
+            {
+                if( numTopTuples == 0 )
+                    break;
+
+                m_Output.WriteLine( " %2d. %08x %08x  (%0.1f%%)",
+                    11 - numTopTuples,
+                    pipeline.m_ShaderTuple.m_Vert,
+                    pipeline.m_ShaderTuple.m_Frag,
+                    100.f * static_cast<float>(pipeline.m_Stats.m_TotalTicks) / static_cast<float>(data.m_Stats.m_TotalTicks) );
+
+                numTopTuples--;
+            }
+
+            m_Output.SkipLines( numTopTuples );
+        }
+        else
+        {
+            m_Output.SkipLines( 12 );
+        }
+
+        m_Output.WriteLine( "" );
+
+        for( uint32_t submitIdx = 0; submitIdx < data.m_Submits.size(); ++submitIdx )
+        {
+            PresentSubmit( submitIdx, data.m_Submits.at( submitIdx ) );
+        }
+
+        m_Output.WriteLine( "" );
+        m_Output.Flush();
+    }
+
+    namespace
     {
         static constexpr char fillLine[] =
             "...................................................................................................."
@@ -614,155 +668,154 @@ namespace Profiler
             "...................................................................................................."
             "....................................................................................................";
 
-        const uint32_t consoleWidth = m_Output.Width();
-        uint32_t lineWidth = 0;
+    }
 
-        std::vector<ProfilerSubmitData> submits = m_DataAggregator.GetAggregatedData();
+    /***********************************************************************************\
 
-        for( uint32_t submitIdx = 0; submitIdx < submits.size(); ++submitIdx )
+    Function:
+        PresentResults
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PresentSubmit( uint32_t submitIdx, const ProfilerSubmitData& submit )
+    {
+        // Calculate how many lines this submit will generate
+        uint32_t requiredLineCount = 1 + submit.m_CommandBuffers.size();
+
+        if( m_Config.m_Mode <= ProfilerMode::ePerRenderPass )
+        for( const auto& commandBuffer : submit.m_CommandBuffers )
         {
-            // Get the submit info wrapper
-            const auto& submit = submits.at( submitIdx );
+            // Add number of render passes
+            requiredLineCount += commandBuffer.m_Subregions.size();
 
-            m_Output.WriteLine( "VkSubmitInfo #%-2u",
-                submitIdx );
-
-            for( uint32_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
+            if( m_Config.m_Mode <= ProfilerMode::ePerPipeline )
+            for( const auto& renderPass : commandBuffer.m_Subregions )
             {
-                const auto& data = submit.m_CommandBuffers[i];
+                // Add number of pipelines in the render pass
+                requiredLineCount += renderPass.m_Subregions.size();
 
-                m_Output.WriteLine( " VkCommandBuffer (%s)",
-                    m_Debug.GetDebugObjectName( (uint64_t)data.m_CommandBuffer ).c_str() );
-
-                if( data.m_CollectedTimestamps.empty() )
+                if( m_Config.m_Mode <= ProfilerMode::ePerDrawcall )
+                for( const auto& pipeline : renderPass.m_Subregions )
                 {
-                    m_Output.WriteLine( "  No profiling data was collected for this command buffer" );
-                    continue;
+                    // Add number of drawcalls in each pipeline
+                    requiredLineCount += pipeline.m_Subregions.size();
                 }
+            }
+        }
 
-                switch( m_Config.m_Mode )
+        if( !m_Output.NextLinesVisible( requiredLineCount ) )
+        {
+            m_Output.SkipLines( requiredLineCount );
+            return;
+        }
+
+        m_Output.WriteLine( "VkSubmitInfo #%2u", submitIdx );
+
+        for( uint32_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
+        {
+            const auto& commandBuffer = submit.m_CommandBuffers[i];
+
+            m_Output.WriteLine( " VkCommandBuffer (%s)",
+                m_Debug.GetDebugObjectName( (uint64_t)commandBuffer.m_Handle ).c_str() );
+
+            if( commandBuffer.m_Subregions.empty() )
+            {
+                continue;
+            }
+
+            switch( m_Config.m_Mode )
+            {
+            case ProfilerMode::ePerRenderPass:
+            {
+                break;
+            }
+
+            case ProfilerMode::ePerPipeline:
+            {
+                uint32_t currentPipeline = 1;
+                uint32_t currentRenderPass = 0;
+
+                while( currentRenderPass < commandBuffer.m_Subregions.size() )
                 {
-                case ProfilerMode::ePerRenderPass:
-                {
-                    // Each render pass has 2 timestamps - begin and end
-                    for( uint32_t i = 0; i < data.m_CollectedTimestamps.size(); i += 2 )
+                    const auto& renderPass = commandBuffer.m_Subregions[currentRenderPass];
+                    const uint32_t pipelineCount = renderPass.m_Subregions.size();
+
+                    if( !m_Output.NextLinesVisible( 1 + pipelineCount ) )
                     {
-                        uint64_t beginTimestamp = data.m_CollectedTimestamps[i];
-                        uint64_t endTimestamp = data.m_CollectedTimestamps[i + 1];
-
-                        const uint32_t currentRenderPass = i >> 1;
-
-                        // Compute time difference between timestamps
-                        uint64_t dt = endTimestamp - beginTimestamp;
-
-                        // Convert to microseconds
-                        float us = (dt * m_TimestampPeriod) / 1000.0f;
-
-                        lineWidth = 46 +
-                            DigitCount( currentRenderPass );
-
-                        std::string renderPassName =
-                            m_Debug.GetDebugObjectName( (uint64_t)data.m_RenderPassPipelineCount[currentRenderPass].first );
-
-                        lineWidth += renderPassName.length();
-
-                        m_Output.WriteLine( "  VkRenderPass #%u (%s) - %.*s %8.4f us",
-                            currentRenderPass,
-                            renderPassName.c_str(),
-                            consoleWidth - lineWidth, fillLine,
-                            us );
+                        m_Output.SkipLines( 1 + pipelineCount );
+                        currentPipeline += pipelineCount;
+                        currentRenderPass++;
+                        continue;
                     }
-                    break;
-                }
 
-                case ProfilerMode::ePerPipeline:
-                {
-                    // Pipelines are separated with timestamps
-                    uint64_t beginTimestamp = data.m_CollectedTimestamps[0];
+                    // Compute time difference between timestamps
+                    float us = (renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
 
-                    uint32_t currentPipeline = 1;
-                    uint32_t currentRenderPass = 0;
+                    uint32_t lineWidth = 46 +
+                        DigitCount( currentRenderPass ) +
+                        DigitCount( pipelineCount );
 
-                    while( currentRenderPass < data.m_RenderPassPipelineCount.size() )
+                    std::string renderPassName =
+                        m_Debug.GetDebugObjectName( (uint64_t)renderPass.m_Handle );
+
+                    lineWidth += renderPassName.length();
+
+                    m_Output.WriteLine( "  VkRenderPass #%u (%s) - %u pipelines %.*s %8.4f us",
+                        currentRenderPass,
+                        renderPassName.c_str(),
+                        pipelineCount,
+                        m_Output.Width() - lineWidth, fillLine,
+                        us );
+
+                    uint32_t currentRenderPassPipeline = 0;
+
+                    while( currentRenderPassPipeline < pipelineCount )
                     {
-                        const auto& renderPassPipelineCount = data.m_RenderPassPipelineCount[currentRenderPass];
+                        const auto& pipeline = renderPass.m_Subregions[currentRenderPassPipeline];
+                        const size_t pipelineDrawcallCount = pipeline.m_Subregions.size();
 
-                        // Get last timestamp in this render pass
-                        uint64_t renderPassEndTimestamp = data.m_CollectedTimestamps[currentPipeline + renderPassPipelineCount.second - 1];
-
-                        // Compute time difference between timestamps
-                        uint64_t dt = renderPassEndTimestamp - beginTimestamp;
-
-                        // Convert to microseconds
-                        float us = (dt * m_TimestampPeriod) / 1000.0f;
-
-                        lineWidth = 46 +
-                            DigitCount( currentRenderPass ) +
-                            DigitCount( renderPassPipelineCount.second );
-
-                        std::string renderPassName =
-                            m_Debug.GetDebugObjectName( (uint64_t)renderPassPipelineCount.first );
-
-                        lineWidth += renderPassName.length();
-
-                        m_Output.WriteLine( "  VkRenderPass #%u (%s) - %u pipelines %.*s %8.4f us",
-                            currentRenderPass,
-                            renderPassName.c_str(),
-                            renderPassPipelineCount.second,
-                            consoleWidth - lineWidth, fillLine,
-                            us );
-
-                        uint32_t currentRenderPassPipeline = 0;
-
-                        while( currentRenderPassPipeline < renderPassPipelineCount.second )
+                        if( m_Output.NextLinesVisible( 1 ) )
                         {
-                            const auto& pipelineDrawcallCount = data.m_PipelineDrawCount[currentRenderPassPipeline];
-
-                            uint64_t endTimestamp = data.m_CollectedTimestamps[currentPipeline];
-
-                            // Compute time difference between timestamps
-                            dt = endTimestamp - beginTimestamp;
-
                             // Convert to microseconds
-                            us = (dt * m_TimestampPeriod) / 1000.0f;
+                            us = (pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
 
                             lineWidth = 45 +
                                 DigitCount( currentRenderPassPipeline ) +
-                                DigitCount( pipelineDrawcallCount.second );
+                                DigitCount( pipelineDrawcallCount );
 
-                            std::string pipelineName = m_Debug.GetDebugObjectName( (uint64_t)pipelineDrawcallCount.first.m_Pipeline );
+                            std::string pipelineName = m_Debug.GetDebugObjectName( (uint64_t)pipeline.m_Handle );
 
                             lineWidth += pipelineName.length();
 
                             m_Output.WriteLine( "   VkPipeline #%u (%s) - %u drawcalls %.*s %8.4f us",
                                 currentRenderPassPipeline,
                                 pipelineName.c_str(),
-                                pipelineDrawcallCount.second,
-                                consoleWidth - lineWidth, fillLine,
+                                pipelineDrawcallCount,
+                                m_Output.Width() - lineWidth, fillLine,
                                 us );
-
-                            beginTimestamp = endTimestamp;
-
-                            currentPipeline++;
-                            currentRenderPassPipeline++;
+                        }
+                        else
+                        {
+                            m_Output.SkipLines( 1 );
                         }
 
-                        currentRenderPass++;
+                        currentPipeline++;
+                        currentRenderPassPipeline++;
                     }
 
-                    break;
+                    currentRenderPass++;
                 }
 
-                case ProfilerMode::ePerDrawcall:
-                {
+                break;
+            }
 
-                }
-                }
+            case ProfilerMode::ePerDrawcall:
+            {
+
+            }
             }
         }
-
-        m_Output.WriteLine( "" );
-        m_Output.Flush();
     }
 
     /***********************************************************************************\
@@ -805,6 +858,9 @@ namespace Profiler
             }
             }
         }
+
+        // Compute aggregated tuple hash for fast comparison
+        tuple.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(&tuple), sizeof( tuple ) );
 
         return tuple;
     }

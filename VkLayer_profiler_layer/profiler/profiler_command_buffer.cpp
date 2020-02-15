@@ -24,6 +24,7 @@ namespace Profiler
         , m_CurrentQueryPoolIndex( UINT_MAX )
         , m_CurrentQueryIndex( UINT_MAX )
     {
+        m_Data.m_Handle = commandBuffer;
     }
 
     /***********************************************************************************\
@@ -84,36 +85,37 @@ namespace Profiler
         m_CurrentQueryPoolIndex = UINT_MAX;
 
         // Resize query pool to reduce number of vkGetQueryPoolResults calls
-        if( m_QueryPools.size() > 1 )
-        {
-            // N * m_QueryPoolSize queries were issued in previous command buffer,
-            // change allocation unit to fit all these queries in one pool
-            m_QueryPoolSize = (m_QueryPools.size() + 1) * m_QueryPoolSize;
-
-            // Destroy the pools to free some memory
-            Reset();
-        }
+        //if( m_QueryPools.size() > 1 )
+        //{
+        //    // N * m_QueryPoolSize queries were issued in previous command buffer,
+        //    // change allocation unit to fit all these queries in one pool
+        //    m_QueryPoolSize = (m_QueryPools.size() + 1) * m_QueryPoolSize;
+        //
+        //    // Destroy the pools to free some memory
+        //    Reset();
+        //}
 
         if( !m_QueryPools.empty() )
         {
-            // Reset existing query pool to reuse the queries
-            m_Profiler.m_Callbacks.CmdResetQueryPool(
-                m_CommandBuffer,
-                m_QueryPools.front(),
-                0, m_QueryPoolSize );
+            //assert( m_QueryPools.size() == 1 );
+
+            for( auto queryPool : m_QueryPools )
+            {
+                // Reset existing query pool to reuse the queries
+                m_Profiler.m_Callbacks.CmdResetQueryPool(
+                    m_CommandBuffer,
+                    queryPool,
+                    0, m_QueryPoolSize );
+            }
 
             m_CurrentQueryPoolIndex++;
         }
 
         // Reset statistics
-        m_Data.m_CollectedTimestamps.clear();
-        m_Data.m_CopyCount = 0;
-        m_Data.m_DispatchCount = 0;
-        m_Data.m_DrawCount = 0;
-        m_Data.m_PipelineDrawCount.clear();
-        m_Data.m_RenderPassPipelineCount.clear();
+        m_Data.Clear();
 
         m_Dirty = true;
+        m_RunningQuery = false;
 
         if( pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT )
         {
@@ -153,7 +155,11 @@ namespace Profiler
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
-        m_Data.m_RenderPassPipelineCount.push_back( { renderPass, 0 } );
+        ProfilerRenderPass profilerRenderPass;
+        profilerRenderPass.m_Handle = renderPass;
+        profilerRenderPass.Clear();
+
+        m_Data.m_Subregions.push_back( profilerRenderPass );
 
         // NOT SUPPORTED YET
         // Some drawcalls may appear without binding any pipeline
@@ -175,10 +181,16 @@ namespace Profiler
         m_CurrentPipeline = { VK_NULL_HANDLE };
         m_CurrentRenderPass = VK_NULL_HANDLE;
 
-        // vkEndRenderPass marks end of render pass, pipeline and drawcall
-        if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerRenderPass )
+        // vkEndRenderPass marks end of render pass and pipeline
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass ||
+            m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline && m_RunningQuery )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        }
+
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline )
+        {
+            m_RunningQuery = false;
         }
     }
 
@@ -197,21 +209,23 @@ namespace Profiler
         m_CurrentPipeline = pipeline;
 
         // vkBindPipeline marks end of pipeline and drawcall
-        if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerPipeline )
+        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
         // Pipeline bound without render pass
-        if( m_Data.m_RenderPassPipelineCount.empty() )
+        if( m_Data.m_Subregions.empty() )
         {
-            m_Data.m_RenderPassPipelineCount.push_back( { VK_NULL_HANDLE, 0 } );
+            ProfilerRenderPass profilerRenderPass;
+            profilerRenderPass.m_Handle = VK_NULL_HANDLE;
+            profilerRenderPass.Clear();
+
+            m_Data.m_Subregions.push_back( profilerRenderPass );
         }
 
-        // Increment draw count in current pipeline
-        m_Data.m_RenderPassPipelineCount.back().second++;
-
-        m_Data.m_PipelineDrawCount.push_back( { pipeline, 0 } );
+        // Register new pipeline to current render pass
+        m_Data.m_Subregions.back().m_Subregions.push_back( pipeline );
     }
 
     /***********************************************************************************\
@@ -231,7 +245,7 @@ namespace Profiler
         }
 
         // Increment draw count in current pipeline
-        m_Data.m_PipelineDrawCount.back().second++;
+        m_Data.OnDraw();
     }
 
     /***********************************************************************************\
@@ -250,8 +264,8 @@ namespace Profiler
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
-        // Increment draw count in current pipeline
-        m_Data.m_PipelineDrawCount.back().second++;
+        // Increment dispatch count
+        m_Data.OnDispatch();
     }
 
     /***********************************************************************************\
@@ -271,7 +285,7 @@ namespace Profiler
         }
 
         // Increment draw count in current pipeline
-        m_Data.m_PipelineDrawCount.back().second++;
+        m_Data.OnCopy();
     }
 
     /***********************************************************************************\
@@ -293,7 +307,7 @@ namespace Profiler
                 (m_QueryPoolSize * m_CurrentQueryPoolIndex) +
                 (m_CurrentQueryIndex + 1);
 
-            m_Data.m_CollectedTimestamps.resize( numQueries );
+            std::vector<uint64_t> collectedQueries( numQueries );
 
             // Count how many queries we need to get
             uint32_t numQueriesLeft = numQueries;
@@ -311,13 +325,77 @@ namespace Profiler
                     m_QueryPools[i],
                     0, numQueriesInPool,
                     dataSize,
-                    m_Data.m_CollectedTimestamps.data() + dataOffset,
+                    collectedQueries.data() + dataOffset,
                     sizeof( uint64_t ),
                     VK_QUERY_RESULT_64_BIT |
                     VK_QUERY_RESULT_WAIT_BIT );
 
                 numQueriesLeft -= numQueriesInPool;
                 dataOffset += numQueriesInPool;
+            }
+
+            // Update timestamp stats for each profiled entity
+            if( collectedQueries.size() > 1 )
+            {
+                size_t currentQueryIndex = 1;
+
+                // Update command buffer begin timestamp
+                m_Data.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
+
+                if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerRenderPass )
+                {
+                    for( auto& renderPass : m_Data.m_Subregions )
+                    {
+                        // Update render pass begin timestamp
+                        renderPass.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
+
+                        if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerPipeline )
+                        {
+                            for( auto& pipeline : renderPass.m_Subregions )
+                            {
+                                // Update pipeline begin timestamp
+                                pipeline.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
+
+                                if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
+                                {
+                                    for( auto& drawcall : pipeline.m_Subregions )
+                                    {
+                                        // Update drawcall time
+                                        drawcall.m_Ticks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
+                                        // Update pipeline time
+                                        pipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                        currentQueryIndex++;
+                                    }
+                                }
+
+                                if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline )
+                                {
+                                    // Update pipeline time
+                                    pipeline.m_Stats.m_TotalTicks = collectedQueries[ currentQueryIndex ] - pipeline.m_Stats.m_BeginTimestamp;
+                                    currentQueryIndex++;
+                                }
+
+                                // Update render pass time
+                                renderPass.m_Stats.m_TotalTicks += pipeline.m_Stats.m_TotalTicks;
+                            }
+                        }
+
+                        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass )
+                        {
+                            // Update render pass time
+                            renderPass.m_Stats.m_TotalTicks += collectedQueries[ currentQueryIndex ] - renderPass.m_Stats.m_BeginTimestamp;
+                            currentQueryIndex++;
+                        }
+
+                        // Update command buffer time
+                        m_Data.m_Stats.m_TotalTicks += renderPass.m_Stats.m_TotalTicks;
+                    }
+                }
+                else
+                {
+                    // Update command buffer time
+                    m_Data.m_Stats.m_TotalTicks = collectedQueries[ currentQueryIndex ] - m_Data.m_Stats.m_BeginTimestamp;
+                }
             }
 
             // Subsequent calls to GetData will return the same results
@@ -399,5 +477,7 @@ namespace Profiler
             stage,
             m_QueryPools[m_CurrentQueryPoolIndex],
             m_CurrentQueryIndex );
+
+        m_RunningQuery = true;
     }
 }

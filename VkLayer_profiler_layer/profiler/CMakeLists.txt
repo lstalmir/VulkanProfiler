@@ -13,6 +13,7 @@ set (headers
     "profiler_counters.h"
     "profiler_data_aggregator.h"
     "profiler_debug_utils.h"
+    "profiler_drawcall.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
     "profiler_mode.h"

@@ -94,6 +94,7 @@ namespace Profiler
         FrameStats*             m_pPreviousFrameStats;
 
         uint32_t                m_CurrentFrame;
+        uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;
 
@@ -115,7 +116,9 @@ namespace Profiler
 
         float                   m_TimestampPeriod;
 
-        void PresentResults();
+        void PresentResults( const ProfilerAggregatedData& );
+        void PresentSubmit( uint32_t, const ProfilerSubmitData& );
+        void PresentCommandBuffer( uint32_t, const ProfilerCommandBufferData& );
 
         ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo );
     };

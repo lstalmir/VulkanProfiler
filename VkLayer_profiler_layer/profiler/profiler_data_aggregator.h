@@ -9,7 +9,23 @@ namespace Profiler
 {
     /***********************************************************************************\
 
-    Function:
+    Structure:
+        ProfilerAggregatedData
+
+    Description:
+
+    \***********************************************************************************/
+    struct ProfilerAggregatedData
+    {
+        std::vector<ProfilerSubmitData> m_Submits;
+        std::vector<ProfilerPipeline> m_TopPipelines;
+
+        ProfilerRangeStats m_Stats;
+    };
+
+    /***********************************************************************************\
+
+    Class:
         ProfilerDataAggregator
 
     Description:
@@ -23,7 +39,7 @@ namespace Profiler
 
         void Reset();
 
-        std::vector<ProfilerSubmitData> GetAggregatedData();
+        ProfilerAggregatedData GetAggregatedData();
 
     private:
         std::list<ProfilerSubmitData> m_AggregatedData;
@@ -32,5 +48,7 @@ namespace Profiler
 
         //std::unordered_set<ProfilerShaderTuple> CollectShaderTuples( const ProfilerSubmitData& ) const;
         //std::unordered_set<ProfilerShaderTuple> CollectShaderTuples( const ProfilerCommandBufferData& ) const;
+
+        std::list<ProfilerPipeline> CollectTopPipelines();
     };
 }

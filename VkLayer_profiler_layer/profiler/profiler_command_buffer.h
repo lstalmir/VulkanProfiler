@@ -9,30 +9,33 @@ namespace Profiler
 
     /***********************************************************************************\
 
-    Class:
+    Structure:
+        ProfilerRenderPass
+
+    Description:
+        Contains captured GPU timestamp data for single render pass.
+
+    \***********************************************************************************/
+    struct ProfilerRenderPass : ProfilerRangeStatsCollector<VkRenderPass, ProfilerPipeline>
+    {
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         ProfilerCommandBufferData
 
     Description:
         Contains captured GPU timestamp data for single command buffer.
 
     \***********************************************************************************/
-    struct ProfilerCommandBufferData
+    struct ProfilerCommandBufferData : ProfilerRangeStatsCollector<VkCommandBuffer, ProfilerRenderPass>
     {
-        VkCommandBuffer m_CommandBuffer;
-
-        uint32_t m_DrawCount;
-        uint32_t m_DispatchCount;
-        uint32_t m_CopyCount;
-
-        std::vector<std::pair<VkRenderPass, uint32_t>> m_RenderPassPipelineCount;
-        std::vector<std::pair<ProfilerPipeline, uint32_t>> m_PipelineDrawCount;
-
-        std::vector<uint64_t> m_CollectedTimestamps;
     };
 
     /***********************************************************************************\
 
-    Class:
+    Structure:
         ProfilerSubmitData
 
     Description:
@@ -86,6 +89,7 @@ namespace Profiler
         VkRenderPass    m_CurrentRenderPass;
 
         bool            m_Dirty;
+        bool            m_RunningQuery;
 
         std::vector<VkQueryPool> m_QueryPools;
         uint32_t        m_QueryPoolSize;

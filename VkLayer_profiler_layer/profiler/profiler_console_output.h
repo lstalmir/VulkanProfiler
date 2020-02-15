@@ -24,6 +24,10 @@ namespace Profiler
 
         uint32_t Width() const;
 
+        bool NextLinesVisible( int count ) const;
+
+        void SkipLines( int count );
+
         void WriteLine( const char* fmt, ... );
 
         void Flush();
@@ -34,6 +38,7 @@ namespace Profiler
             uint32_t Height;
             uint32_t Version;
             ProfilerMode Mode;
+            float FPS;
         }   Summary;
 
     protected:
@@ -44,11 +49,14 @@ namespace Profiler
         uint32_t m_BufferSize;
         char* m_pBuffer;
 
-        uint32_t m_FrontBufferLineCount;
-        uint32_t m_BackBufferLineCount;
+        int m_FrontBufferLineCount;
+        int m_BackBufferLineCount;
 
         uint16_t m_DefaultAttributes;
         uint16_t* m_pAttributesBuffer;
+
+        int m_FirstVisibleLine;
+        int m_LastVisibleLine;
 
         void FillAttributes( uint16_t, uint32_t, uint32_t );
 

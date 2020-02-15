@@ -7,6 +7,8 @@ namespace Profiler
 {
     struct ProfilerShaderTuple
     {
+        uint32_t m_Hash = 0;
+
         uint32_t m_Vert = 0;
         uint32_t m_Tesc = 0;
         uint32_t m_Tese = 0;
@@ -16,17 +18,25 @@ namespace Profiler
 
         inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
         {
-            return m_Frag == rh.m_Frag
-                && m_Vert == rh.m_Vert
-                && m_Comp == rh.m_Comp
-                && m_Geom == rh.m_Geom
-                && m_Tesc == rh.m_Tesc
-                && m_Tese == rh.m_Tese;
+            return m_Hash == rh.m_Hash;
         }
 
         inline constexpr bool operator!=( const ProfilerShaderTuple& rh ) const
         {
             return !operator==( rh );
+        }
+    };
+}
+
+
+namespace std
+{
+    template<>
+    struct hash<Profiler::ProfilerShaderTuple>
+    {
+        inline size_t operator()( const Profiler::ProfilerShaderTuple& tuple ) const
+        {
+            return tuple.m_Hash;
         }
     };
 }

@@ -81,17 +81,39 @@ namespace Profiler
         Prepare aggregator for the next profiling run.
 
     \***********************************************************************************/
-    std::vector<ProfilerSubmitData> ProfilerDataAggregator::GetAggregatedData()
+    ProfilerAggregatedData ProfilerDataAggregator::GetAggregatedData()
     {
         // Application may use multiple command buffers to perform the same tasks
         MergeCommandBuffers();
 
-        auto aggregatedData = m_AggregatedData;
+        auto aggregatedSubmits = m_AggregatedData;
+        auto aggregatedPipelines = CollectTopPipelines();
 
-        // Prepare aggregator for next profiling run
-        Reset();
+        ProfilerAggregatedData aggregatedData;
+        aggregatedData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
+        aggregatedData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
 
-        return { aggregatedData.begin(), aggregatedData.end() };
+        for( const auto& submit : aggregatedData.m_Submits )
+        {
+            for( const auto& commandBuffer : submit.m_CommandBuffers )
+            {
+                if( commandBuffer.m_Stats.m_BeginTimestamp != 0 )
+                {
+                    aggregatedData.m_Stats.m_BeginTimestamp = commandBuffer.m_Stats.m_BeginTimestamp;
+                    break;
+                }
+            }
+        }
+
+        // Collect per-frame stats
+        for( const auto& pipeline : aggregatedPipelines )
+        {
+            aggregatedData.m_Stats.m_TotalTicks += pipeline.m_Stats.m_TotalTicks;
+            aggregatedData.m_Stats.m_TotalDrawCount += pipeline.m_Stats.m_TotalDrawCount;
+            // TODO...
+        }
+
+        return aggregatedData;
     }
 
     /***********************************************************************************\
@@ -105,7 +127,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::MergeCommandBuffers()
     {
-
     }
 
     #if 0
@@ -135,4 +156,48 @@ namespace Profiler
         return tuples;
     }
     #endif
+
+
+    std::list<ProfilerPipeline> ProfilerDataAggregator::CollectTopPipelines()
+    {
+        std::unordered_set<ProfilerPipeline> aggregatedPipelines;
+
+        for( const auto& submit : m_AggregatedData )
+        {
+            for( const auto& commandBuffer : submit.m_CommandBuffers )
+            {
+                for( const auto& renderPass : commandBuffer.m_Subregions )
+                {
+                    for( const auto& pipeline : renderPass.m_Subregions )
+                    {
+                        ProfilerPipeline aggregatedPipeline = pipeline;
+                        // Clear handle to the pipeline object
+                        aggregatedPipeline.m_Handle = VK_NULL_HANDLE;
+
+                        auto it = aggregatedPipelines.find( pipeline );
+                        if( it != aggregatedPipelines.end() )
+                        {
+                            aggregatedPipeline = *it;
+                        }
+
+                        aggregatedPipeline.m_Stats.m_TotalTicks += pipeline.m_Stats.m_TotalTicks;
+                        aggregatedPipeline.m_Stats.m_TotalDrawCount += pipeline.m_Stats.m_TotalDrawCount;
+                        // TODO
+
+                        aggregatedPipelines.insert( aggregatedPipeline );
+                    }
+                }
+            }
+        }
+        
+        // Sort by time
+        std::list<ProfilerPipeline> pipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
+
+        pipelines.sort( []( const ProfilerPipeline& a, const ProfilerPipeline& b )
+            {
+                return a.m_Stats.m_TotalTicks > b.m_Stats.m_TotalTicks;
+            } );
+
+        return pipelines;
+    }
 }

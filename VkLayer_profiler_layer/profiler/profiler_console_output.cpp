@@ -1,4 +1,5 @@
 #include "profiler_console_output.h"
+#include "profiler_helpers.h"
 #include <vulkan/vulkan.h>
 
 #if defined(_WIN32)
@@ -71,7 +72,7 @@ namespace Profiler
     #error Not implemented
     #endif
 
-        memset( &Summary, 0, sizeof( Summary ) );
+        ClearMemory( &Summary );
     }
 
     /***********************************************************************************\
@@ -91,6 +92,33 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        NextLineVisible
+
+    Description:
+
+    \***********************************************************************************/
+    bool ProfilerConsoleOutput::NextLinesVisible( int count ) const
+    {
+        return m_BackBufferLineCount + count >= m_FirstVisibleLine
+            && m_BackBufferLineCount - count <= m_LastVisibleLine;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SkipLines
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerConsoleOutput::SkipLines( int count )
+    {
+        m_BackBufferLineCount += count;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteLine
 
     Description:
@@ -98,7 +126,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerConsoleOutput::WriteLine( const char* fmt, ... )
     {
-        if( m_BackBufferLineCount * m_Width == m_BufferSize )
+        if( m_BackBufferLineCount * m_Width >= m_BufferSize )
         {
             return;
         }
@@ -141,6 +169,9 @@ namespace Profiler
 
         [[maybe_unused]]
         DWORD numCharactersWritten = 0;
+
+        m_FirstVisibleLine = consoleScreenBufferInfo.srWindow.Top;
+        m_LastVisibleLine = consoleScreenBufferInfo.srWindow.Bottom;
 
         // Update only currently visible region
         DWORD writeRegionBeginOffset = m_Width * consoleScreenBufferInfo.srWindow.Top;
@@ -246,8 +277,12 @@ namespace Profiler
             (Summary.Version >> 22) & 0x3FF,
             (Summary.Version >> 12) & 0x3FF);
 
+        char fpsStr[16];
+        sprintf_s( fpsStr, " %8.2f fps ", Summary.FPS );
+
         DrawButton( modeStr, true, 1 );
         DrawButton( versionStr, false, 22 );
+        DrawButton( fpsStr, false, 38 );
     }
 
     /***********************************************************************************\
