@@ -60,6 +60,14 @@ namespace Profiler
             uint32_t firstVertex,
             uint32_t firstInstance );
 
+        // vkCmdDrawIndirect
+        static VKAPI_ATTR void VKAPI_CALL CmdDrawIndirect(
+            VkCommandBuffer commandBuffer,
+            VkBuffer buffer,
+            VkDeviceSize offset,
+            uint32_t drawCount,
+            uint32_t stride );
+
         // vkCmdDrawIndexed
         static VKAPI_ATTR void VKAPI_CALL CmdDrawIndexed(
             VkCommandBuffer commandBuffer,
@@ -68,6 +76,27 @@ namespace Profiler
             uint32_t firstIndex,
             int32_t vertexOffset,
             uint32_t firstInstance );
+
+        // vkCmdDrawIndexedIndirect
+        static VKAPI_ATTR void VKAPI_CALL CmdDrawIndexedIndirect(
+            VkCommandBuffer commandBuffer,
+            VkBuffer buffer,
+            VkDeviceSize offset,
+            uint32_t drawCount,
+            uint32_t stride );
+
+        // vkCmdDispatch
+        static VKAPI_ATTR void VKAPI_CALL CmdDispatch(
+            VkCommandBuffer commandBuffer,
+            uint32_t x,
+            uint32_t y,
+            uint32_t z );
+
+        // vkCmdDispatch
+        static VKAPI_ATTR void VKAPI_CALL CmdDispatchIndirect(
+            VkCommandBuffer commandBuffer,
+            VkBuffer buffer,
+            VkDeviceSize offset );
 
         // vkCmdCopyBuffer
         static VKAPI_ATTR void VKAPI_CALL CmdCopyBuffer(

@@ -25,7 +25,8 @@ namespace Profiler
     \***********************************************************************************/
     struct ProfilerConfig
     {
-        ProfilerMode              m_Mode;
+        ProfilerMode              m_DisplayMode;
+        ProfilerMode              m_SamplingMode;
         uint32_t                  m_NumQueriesPerCommandBuffer;
         std::chrono::milliseconds m_OutputUpdateInterval;
     };
@@ -53,16 +54,20 @@ namespace Profiler
 
         void PreDraw( VkCommandBuffer );
         void PostDraw( VkCommandBuffer );
-
+        void PreDrawIndirect( VkCommandBuffer );
+        void PostDrawIndirect( VkCommandBuffer );
+        void PreDispatch( VkCommandBuffer );
+        void PostDispatch( VkCommandBuffer );
+        void PreDispatchIndirect( VkCommandBuffer );
+        void PostDispatchIndirect( VkCommandBuffer );
         void PreCopy( VkCommandBuffer );
         void PostCopy( VkCommandBuffer );
-
-        void PipelineBarrier( VkCommandBuffer,
+        void PreClear( VkCommandBuffer );
+        void PostClear( VkCommandBuffer, uint32_t );
+        void OnPipelineBarrier( VkCommandBuffer,
             uint32_t, const VkMemoryBarrier*,
             uint32_t, const VkBufferMemoryBarrier*,
             uint32_t, const VkImageMemoryBarrier* );
-
-        void Clear( VkCommandBuffer, uint32_t );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void DestroyPipeline( VkPipeline );
@@ -116,13 +121,7 @@ namespace Profiler
         LockableUnorderedMap<VkShaderModule, uint32_t> m_ProfiledShaderModules;
         LockableUnorderedMap<VkPipeline, ProfilerPipeline> m_ProfiledPipelines;
 
-        VkCommandPool           m_HelperCommandPool;
-        VkCommandBuffer         m_HelperCommandBuffer;
-        VkSemaphore             m_HelperCommandBufferExecutionSemaphore;
-
         VkFence                 m_SubmitFence;
-
-        bool                    m_IsFirstSubmitInFrame;
 
         float                   m_TimestampPeriod;
 

@@ -74,11 +74,19 @@ namespace Profiler
 
         void BindPipeline( ProfilerPipeline );
 
-        void Draw();
-        void Dispatch();
-        void Copy();
-        void Clear( uint32_t );
-        void Barrier(
+        void PreDraw();
+        void PostDraw();
+        void PreDrawIndirect();
+        void PostDrawIndirect();
+        void PreDispatch();
+        void PostDispatch();
+        void PreDispatchIndirect();
+        void PostDispatchIndirect();
+        void PreCopy();
+        void PostCopy();
+        void PreClear();
+        void PostClear( uint32_t );
+        void OnPipelineBarrier(
             uint32_t, const VkMemoryBarrier*,
             uint32_t, const VkBufferMemoryBarrier*,
             uint32_t, const VkImageMemoryBarrier* );
@@ -106,6 +114,8 @@ namespace Profiler
         void Reset();
 
         void SendTimestampQuery( VkPipelineStageFlagBits );
+
+        void SetupCommandBufferForStatCounting();
 
     };
 }

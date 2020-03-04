@@ -8,7 +8,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetApplicationDir_Windows
+        GetApplicationPath
 
     Description:
         Returns directory in which current exe is located.
@@ -50,6 +50,43 @@ namespace Profiler
 
         return applicationPath;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        IsPreemptionEnabled
+
+    Description:
+        Checks if the scheduler allows preemption of DMA packets sent to the GPU.
+
+    \***********************************************************************************/
+    bool ProfilerPlatformFunctions::IsPreemptionEnabled()
+    {
+        // Read registry key
+        DWORD enablePreemptionValue = 1;
+        DWORD enablePreemptionValueSize = sizeof( DWORD );
+
+        // Currently the only way to disable GPU DMA packet preemption is to set
+        // HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDriver\Scheduler\EnablePreemption
+        // DWORD value to 0.
+        LSTATUS status = RegGetValueA(
+            HKEY_LOCAL_MACHINE,
+            "SYSTEM\\CurrentControlSet\\Control\\GraphicsDriver\\Scheduler",
+            "EnablePreemption",
+            RRF_RT_REG_DWORD,
+            nullptr,
+            &enablePreemptionValue,
+            &enablePreemptionValueSize );
+
+        // TODO: Is this check needed?
+        if( status == ERROR_SUCCESS )
+        {
+            return static_cast<bool>(enablePreemptionValue);
+        }
+
+        return false;
+    }
+
 }
 
 #endif // WIN32

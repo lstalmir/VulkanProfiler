@@ -236,7 +236,7 @@ namespace Profiler
         FillAttributes( m_DefaultAttributes, m_Width, m_BufferSize );
 
         m_FrontBufferLineCount = m_BackBufferLineCount;
-        m_BackBufferLineCount = 2;
+        m_BackBufferLineCount = 3;
 
         // Update buffer size
         uint32_t width = consoleScreenBufferInfo.dwSize.X;
@@ -318,6 +318,27 @@ namespace Profiler
         DrawButton( modeStr, true, 1 );
         DrawButton( versionStr, false, 22 );
         DrawButton( fpsStr, false, 38 );
+
+        if( !Summary.Message.empty() )
+        {
+            // Print at next line
+            char* pCharacterBuffer = m_pBuffer + m_Width + 1;
+            uint16_t* pAttributeBuffer = m_pAttributesBuffer + m_Width + 1;
+
+            const WORD attribute = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+
+            const char* pMessage = Summary.Message.c_str();
+
+            // Copy string and set attributes
+            while( *pMessage )
+            {
+                *pCharacterBuffer = *pMessage;
+                *pAttributeBuffer = attribute;
+                pCharacterBuffer++;
+                pAttributeBuffer++;
+                pMessage++;
+            }
+        }
     }
 
     /***********************************************************************************\

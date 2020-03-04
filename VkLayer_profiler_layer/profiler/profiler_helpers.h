@@ -232,5 +232,7 @@ namespace Profiler
 
         static std::filesystem::path GetApplicationPath();
 
+        static bool IsPreemptionEnabled();
+
     };
 }

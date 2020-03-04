@@ -41,6 +41,7 @@ namespace Profiler
             uint32_t Version;
             ProfilerMode Mode;
             float FPS;
+            std::string Message;
         }   Summary;
 
     protected:

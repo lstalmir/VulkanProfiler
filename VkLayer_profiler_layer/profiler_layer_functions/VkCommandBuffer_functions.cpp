@@ -134,15 +134,15 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        // Insert the barrier
-        dd.DispatchTable.CmdPipelineBarrier( commandBuffer,
-            srcStageMask, dstStageMask, dependencyFlags,
+        // Record barrier statistics
+        dd.Profiler.OnPipelineBarrier( commandBuffer,
             memoryBarrierCount, pMemoryBarriers,
             bufferMemoryBarrierCount, pBufferMemoryBarriers,
             imageMemoryBarrierCount, pImageMemoryBarriers );
 
-        // Record barrier statistics
-        dd.Profiler.PipelineBarrier( commandBuffer,
+        // Insert the barrier
+        dd.DispatchTable.CmdPipelineBarrier( commandBuffer,
+            srcStageMask, dstStageMask, dependencyFlags,
             memoryBarrierCount, pMemoryBarriers,
             bufferMemoryBarrierCount, pBufferMemoryBarriers,
             imageMemoryBarrierCount, pImageMemoryBarriers );
@@ -165,9 +165,6 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        // Increment drawcall counter
-        dd.Profiler.GetCurrentFrameStats().drawCount++;
-
         dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
@@ -175,6 +172,32 @@ namespace Profiler
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
         dd.Profiler.PostDraw( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndirect
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndirect(
+        VkCommandBuffer commandBuffer,
+        VkBuffer buffer,
+        VkDeviceSize offset,
+        uint32_t drawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        dd.Profiler.PreDrawIndirect( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdDrawIndirect(
+            commandBuffer, buffer, offset, drawCount, stride );
+
+        dd.Profiler.PostDrawIndirect( commandBuffer );
     }
 
     /***********************************************************************************\
@@ -195,9 +218,6 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        // Increment drawcall counter
-        dd.Profiler.GetCurrentFrameStats().drawCount++;
-
         dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
@@ -205,6 +225,79 @@ namespace Profiler
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
         dd.Profiler.PostDraw( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndexedIndirect
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndexedIndirect(
+        VkCommandBuffer commandBuffer,
+        VkBuffer buffer,
+        VkDeviceSize offset,
+        uint32_t drawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        dd.Profiler.PreDrawIndirect( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdDrawIndexedIndirect(
+            commandBuffer, buffer, offset, drawCount, stride );
+
+        dd.Profiler.PostDrawIndirect( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDispatch
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDispatch(
+        VkCommandBuffer commandBuffer,
+        uint32_t x,
+        uint32_t y,
+        uint32_t z )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        dd.Profiler.PreDispatch( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdDispatch( commandBuffer, x, y, z );
+
+        dd.Profiler.PostDispatch( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDispatchIndirect
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDispatchIndirect(
+        VkCommandBuffer commandBuffer,
+        VkBuffer buffer,
+        VkDeviceSize offset )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        dd.Profiler.PreDispatchIndirect( commandBuffer );
+
+        // Invoke next layer's implementation
+        dd.DispatchTable.CmdDispatchIndirect( commandBuffer, buffer, offset );
+
+        dd.Profiler.PostDispatchIndirect( commandBuffer );
     }
 
     /***********************************************************************************\
@@ -223,9 +316,6 @@ namespace Profiler
         const VkBufferCopy* pRegions )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
-
-        // Increment drawcall counter
-        dd.Profiler.GetCurrentFrameStats().drawCount++;
 
         dd.Profiler.PreCopy( commandBuffer );
 
@@ -253,9 +343,6 @@ namespace Profiler
         const VkBufferImageCopy* pRegions )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
-
-        // Increment drawcall counter
-        dd.Profiler.GetCurrentFrameStats().drawCount++;
 
         dd.Profiler.PreCopy( commandBuffer );
 
@@ -285,9 +372,6 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        // Increment drawcall counter
-        dd.Profiler.GetCurrentFrameStats().drawCount++;
-
         dd.Profiler.PreCopy( commandBuffer );
 
         // Invoke next layer's implementation
@@ -315,9 +399,6 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        // Increment drawcall counter
-        dd.Profiler.GetCurrentFrameStats().drawCount++;
-
         dd.Profiler.PreCopy( commandBuffer );
 
         // Invoke next layer's implementation
@@ -344,11 +425,13 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
+        dd.Profiler.PreClear( commandBuffer );
+
         // Invoke next layer's implementation
         dd.DispatchTable.CmdClearAttachments(
             commandBuffer, attachmentCount, pAttachments, rectCount, pRects );
 
-        dd.Profiler.Clear( commandBuffer, attachmentCount );
+        dd.Profiler.PostClear( commandBuffer, attachmentCount );
     }
 
     /***********************************************************************************\
@@ -369,11 +452,13 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
+        dd.Profiler.PreClear( commandBuffer );
+
         // Invoke next layer's implementation
         dd.DispatchTable.CmdClearColorImage(
             commandBuffer, image, imageLayout, pColor, rangeCount, pRanges );
 
-        dd.Profiler.Clear( commandBuffer, 1 );
+        dd.Profiler.PostClear( commandBuffer, 1 );
     }
 
     /***********************************************************************************\
@@ -394,10 +479,12 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
+        dd.Profiler.PreClear( commandBuffer );
+
         // Invoke next layer's implementation
         dd.DispatchTable.CmdClearDepthStencilImage(
             commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges );
 
-        dd.Profiler.Clear( commandBuffer, 1 );
+        dd.Profiler.PostClear( commandBuffer, 1 );
     }
 }

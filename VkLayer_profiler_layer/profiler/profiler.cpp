@@ -28,9 +28,6 @@ namespace Profiler
         , m_Allocations()
         , m_AllocatedMemorySize( 0 )
         , m_ProfiledCommandBuffers()
-        , m_HelperCommandPool( nullptr )
-        , m_HelperCommandBuffer( nullptr )
-        , m_IsFirstSubmitInFrame( false )
         , m_TimestampPeriod( 0.0f )
     {
         ClearMemory( &m_Callbacks );
@@ -86,7 +83,7 @@ namespace Profiler
                 uint32_t value; config >> value;
 
                 if( key == "MODE" )
-                    m_Config.m_Mode = static_cast<ProfilerMode>(value);
+                    m_Config.m_DisplayMode = static_cast<ProfilerMode>(value);
 
                 if( key == "NUM_QUERIES_PER_CMD_BUFFER" )
                     m_Config.m_NumQueriesPerCommandBuffer = value;
@@ -95,7 +92,18 @@ namespace Profiler
                     m_Config.m_OutputUpdateInterval = static_cast<std::chrono::milliseconds>(value);
             }
         }
-        
+
+        m_Config.m_SamplingMode = m_Config.m_DisplayMode;
+
+        // Check if preemption is enabled
+        // It may break the results
+        if( ProfilerPlatformFunctions::IsPreemptionEnabled() )
+        {
+            // Sample per drawcall to avoid DMA packet splits between timestamps
+            m_Config.m_SamplingMode = ProfilerMode::ePerDrawcall;
+            m_Output.Summary.Message = "Preemption enabled. Profiler will collect results per drawcall.";
+        }
+
         // Create frame stats counters
         m_pCurrentFrameStats = new FrameStats;
         m_pPreviousFrameStats = new FrameStats; // will be swapped every frame
@@ -114,54 +122,6 @@ namespace Profiler
             return result;
         }
 
-        // Prepare helper command buffer
-        VkCommandPoolCreateInfo commandPoolCreateInfo;
-        ClearStructure( &commandPoolCreateInfo, VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO );
-
-        commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        commandPoolCreateInfo.queueFamilyIndex = 0; // TODO
-
-        result = m_Callbacks.CreateCommandPool(
-            m_Device, &commandPoolCreateInfo, nullptr, &m_HelperCommandPool );
-
-        if( result != VK_SUCCESS )
-        {
-            // Command pool allocation failed
-            Destroy();
-            return result;
-        }
-
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo;
-        ClearStructure( &commandBufferAllocateInfo, VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO );
-
-        commandBufferAllocateInfo.commandPool = m_HelperCommandPool;
-        commandBufferAllocateInfo.commandBufferCount = 1;
-        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-        result = m_Callbacks.AllocateCommandBuffers(
-            m_Device, &commandBufferAllocateInfo, &m_HelperCommandBuffer );
-
-        if( result != VK_SUCCESS )
-        {
-            // Command buffer allocation failed
-            Destroy();
-            return result;
-        }
-
-        VkSemaphoreCreateInfo commandBufferSemaphoreCreateInfo;
-        ClearStructure( &commandBufferSemaphoreCreateInfo, VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO );
-
-        result = m_Callbacks.CreateSemaphore(
-            m_Device, &commandBufferSemaphoreCreateInfo, nullptr, &m_HelperCommandBufferExecutionSemaphore );
-
-        if( result != VK_SUCCESS )
-        {
-            Destroy();
-            return result;
-        }
-
-        m_IsFirstSubmitInFrame = true;
-
         // Get GPU timestamp period
         VkPhysicalDeviceProperties physicalDeviceProperties;
         pInstanceDispatchTable->GetPhysicalDeviceProperties(
@@ -171,7 +131,7 @@ namespace Profiler
 
         // Update application summary view
         m_Output.Summary.Version = pApplicationInfo->apiVersion;
-        m_Output.Summary.Mode = m_Config.m_Mode;
+        m_Output.Summary.Mode = m_Config.m_DisplayMode;
 
         return VK_SUCCESS;
     }
@@ -197,18 +157,6 @@ namespace Profiler
 
         m_Allocations.clear();
         m_AllocatedMemorySize = 0;
-
-        if( m_HelperCommandBuffer != VK_NULL_HANDLE )
-        {
-            m_Callbacks.FreeCommandBuffers( m_Device, m_HelperCommandPool, 1, &m_HelperCommandBuffer );
-            m_HelperCommandBuffer = VK_NULL_HANDLE;
-        }
-
-        if( m_HelperCommandPool != VK_NULL_HANDLE )
-        {
-            m_Callbacks.DestroyCommandPool( m_Device, m_HelperCommandPool, nullptr );
-            m_HelperCommandPool = VK_NULL_HANDLE;
-        }
 
         if( m_SubmitFence != VK_NULL_HANDLE )
         {
@@ -242,7 +190,6 @@ namespace Profiler
         PreDraw
 
     Description:
-        Executed before drawcall
 
     \***********************************************************************************/
     void Profiler::PreDraw( VkCommandBuffer commandBuffer )
@@ -250,7 +197,7 @@ namespace Profiler
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
-        profilerCommandBuffer.Draw();
+        profilerCommandBuffer.PreDraw();
     }
 
     /***********************************************************************************\
@@ -259,11 +206,110 @@ namespace Profiler
         PostDraw
 
     Description:
-        Executed after drawcall
 
     \***********************************************************************************/
     void Profiler::PostDraw( VkCommandBuffer commandBuffer )
     {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PostDraw();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreDrawIndirect
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PreDrawIndirect( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PreDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostDrawIndirect
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostDrawIndirect( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PostDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreDispatch
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PreDispatch( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PreDispatch();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostDispatch
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostDispatch( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PostDispatch();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreDispatchIndirect
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PreDispatchIndirect( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PreDispatchIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostDispatchIndirect
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostDispatchIndirect( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PostDispatchIndirect();
     }
 
     /***********************************************************************************\
@@ -272,7 +318,6 @@ namespace Profiler
         PreCopy
 
     Description:
-        Executed before drawcall
 
     \***********************************************************************************/
     void Profiler::PreCopy( VkCommandBuffer commandBuffer )
@@ -280,7 +325,7 @@ namespace Profiler
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
-        profilerCommandBuffer.Copy();
+        profilerCommandBuffer.PreCopy();
     }
 
     /***********************************************************************************\
@@ -289,11 +334,46 @@ namespace Profiler
         PostCopy
 
     Description:
-        Executed after drawcall
 
     \***********************************************************************************/
     void Profiler::PostCopy( VkCommandBuffer commandBuffer )
     {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PostCopy();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreClear
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PreClear( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profiledCommandBuffer.PreClear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostClear
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostClear( VkCommandBuffer commandBuffer, uint32_t attachmentCount )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profiledCommandBuffer.PostClear( attachmentCount );
     }
 
     /***********************************************************************************\
@@ -305,7 +385,7 @@ namespace Profiler
         Collects barrier statistics.
 
     \***********************************************************************************/
-    void Profiler::PipelineBarrier( VkCommandBuffer commandBuffer,
+    void Profiler::OnPipelineBarrier( VkCommandBuffer commandBuffer,
         uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers,
         uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
         uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
@@ -313,7 +393,7 @@ namespace Profiler
         // ProfilerCommandBuffer object should already be in the map
         auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
-        profiledCommandBuffer.Barrier(
+        profiledCommandBuffer.OnPipelineBarrier(
             memoryBarrierCount, pMemoryBarriers,
             bufferMemoryBarrierCount, pBufferMemoryBarriers,
             imageMemoryBarrierCount, pImageMemoryBarriers );
@@ -329,22 +409,6 @@ namespace Profiler
                 // TODO: Message
             }
         }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        Clear
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::Clear( VkCommandBuffer commandBuffer, uint32_t attachmentCount )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profiledCommandBuffer.Clear( attachmentCount );
     }
 
     /***********************************************************************************\
@@ -549,7 +613,7 @@ namespace Profiler
     void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
-        if( m_Config.m_Mode < ProfilerMode::ePerFrame )
+        if( m_Config.m_SamplingMode < ProfilerMode::ePerFrame )
         {
             m_Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
             m_Callbacks.WaitForFences( m_Device, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
@@ -724,17 +788,17 @@ namespace Profiler
             m_Output.SkipLines( numTopTuples );
 
             // Drawcall stats
-            m_Output.WriteAt( 40, 2, "Frame statistics:" );
-            m_Output.WriteAt( 40, 3, " Draw:                 %5u", data.m_Stats.m_TotalDrawCount );
-            m_Output.WriteAt( 40, 4, " Draw (indirect):      %5u", data.m_Stats.m_TotalDrawIndirectCount );
-            m_Output.WriteAt( 40, 5, " Dispatch:             %5u", data.m_Stats.m_TotalDispatchCount );
-            m_Output.WriteAt( 40, 6, " Dispatch (indirect):  %5u", data.m_Stats.m_TotalDispatchIndirectCount );
-            m_Output.WriteAt( 40, 7, " Copy:                 %5u", data.m_Stats.m_TotalCopyCount );
-            m_Output.WriteAt( 40, 8, " Clear:                %5u", data.m_Stats.m_TotalClearCount );
-            m_Output.WriteAt( 40, 9, " Clear (implicit):     %5u", data.m_Stats.m_TotalClearImplicitCount );
-            m_Output.WriteAt( 40, 10, " Barrier:              %5u", data.m_Stats.m_TotalBarrierCount );
-            m_Output.WriteAt( 40, 11, "                            " ); // clear
-            m_Output.WriteAt( 40, 12, " TOTAL:                %5u",
+            m_Output.WriteAt( 40, 3, "Frame statistics:" );
+            m_Output.WriteAt( 40, 4, " Draw:                 %5u", data.m_Stats.m_TotalDrawCount );
+            m_Output.WriteAt( 40, 5, " Draw (indirect):      %5u", data.m_Stats.m_TotalDrawIndirectCount );
+            m_Output.WriteAt( 40, 6, " Dispatch:             %5u", data.m_Stats.m_TotalDispatchCount );
+            m_Output.WriteAt( 40, 7, " Dispatch (indirect):  %5u", data.m_Stats.m_TotalDispatchIndirectCount );
+            m_Output.WriteAt( 40, 8, " Copy:                 %5u", data.m_Stats.m_TotalCopyCount );
+            m_Output.WriteAt( 40, 9, " Clear:                %5u", data.m_Stats.m_TotalClearCount );
+            m_Output.WriteAt( 40, 10, " Clear (implicit):     %5u", data.m_Stats.m_TotalClearImplicitCount );
+            m_Output.WriteAt( 40, 11, " Barrier:              %5u", data.m_Stats.m_TotalBarrierCount );
+            m_Output.WriteAt( 40, 12, "                            " ); // clear
+            m_Output.WriteAt( 40, 13, " TOTAL:                %5u",
                 data.m_Stats.m_TotalDrawCount +
                 data.m_Stats.m_TotalDrawIndirectCount +
                 data.m_Stats.m_TotalDispatchCount +
@@ -783,7 +847,7 @@ namespace Profiler
         // Calculate how many lines this submit will generate
         uint32_t requiredLineCount = 1 + submit.m_CommandBuffers.size();
 
-        if( m_Config.m_Mode <= ProfilerMode::ePerRenderPass )
+        if( m_Config.m_DisplayMode <= ProfilerMode::ePerRenderPass )
         for( const auto& commandBuffer : submit.m_CommandBuffers )
         {
             // Add number of valid render passes
@@ -798,7 +862,7 @@ namespace Profiler
                     if( pipeline.m_Handle != VK_NULL_HANDLE )
                         requiredLineCount++;
 
-                    if( m_Config.m_Mode <= ProfilerMode::ePerDrawcall )
+                    if( m_Config.m_DisplayMode <= ProfilerMode::ePerDrawcall )
                     {
                         // Add number of drawcalls in each pipeline
                         requiredLineCount += pipeline.m_Subregions.size();
@@ -817,7 +881,7 @@ namespace Profiler
 
         for( uint32_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
         {
-            const auto& commandBuffer = submit.m_CommandBuffers[i];
+            const auto& commandBuffer = submit.m_CommandBuffers[ i ];
 
             m_Output.WriteLine( " VkCommandBuffer (%s)",
                 m_Debug.GetDebugObjectName( (uint64_t)commandBuffer.m_Handle ).c_str() );
@@ -827,102 +891,146 @@ namespace Profiler
                 continue;
             }
 
-            switch( m_Config.m_Mode )
+            if( m_Config.m_DisplayMode > ProfilerMode::ePerRenderPass )
             {
-            case ProfilerMode::ePerRenderPass:
-            {
-                break;
+                continue;
             }
 
-            case ProfilerMode::ePerPipeline:
+            uint32_t currentRenderPass = 0;
+
+            while( currentRenderPass < commandBuffer.m_Subregions.size() )
             {
-                uint32_t currentPipeline = 1;
-                uint32_t currentRenderPass = 0;
+                const auto& renderPass = commandBuffer.m_Subregions[currentRenderPass];
+                const uint32_t pipelineCount = renderPass.m_Subregions.size();
+                const uint32_t drawcallCount = renderPass.m_Stats.m_TotalDrawcallCount;
 
-                while( currentRenderPass < commandBuffer.m_Subregions.size() )
+                const uint32_t sublines =
+                    (m_Config.m_DisplayMode <= ProfilerMode::ePerPipeline) * pipelineCount +
+                    (m_Config.m_DisplayMode <= ProfilerMode::ePerDrawcall) * drawcallCount;
+
+                if( !m_Output.NextLinesVisible( 1 + sublines ) )
                 {
-                    const auto& renderPass = commandBuffer.m_Subregions[currentRenderPass];
-                    const uint32_t pipelineCount = renderPass.m_Subregions.size();
+                    m_Output.SkipLines( 1 + pipelineCount );
+                    currentRenderPass++;
+                    continue;
+                }
 
-                    if( !m_Output.NextLinesVisible( 1 + pipelineCount ) )
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
+                {
+                    // Compute time difference between timestamps
+                    float us = (renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
+
+                    uint32_t lineWidth = 48 +
+                        DigitCount( currentRenderPass ) +
+                        DigitCount( pipelineCount );
+
+                    std::string renderPassName =
+                        m_Debug.GetDebugObjectName( (uint64_t)renderPass.m_Handle );
+
+                    lineWidth += renderPassName.length();
+
+                    m_Output.WriteLine( "  VkRenderPass #%u (%s) - %u pipelines %.*s %10.4f us",
+                        currentRenderPass,
+                        renderPassName.c_str(),
+                        pipelineCount,
+                        m_Output.Width() - lineWidth, fillLine,
+                        us );
+                }
+
+                if( m_Config.m_DisplayMode > ProfilerMode::ePerPipeline )
+                {
+                    currentRenderPass++;
+                    continue;
+                }
+
+                uint32_t currentRenderPassPipeline = 0;
+
+                while( currentRenderPassPipeline < pipelineCount )
+                {
+                    const auto& pipeline = renderPass.m_Subregions[currentRenderPassPipeline];
+                    const size_t drawcallCount = pipeline.m_Subregions.size();
+
+                    const uint32_t sublines =
+                        (m_Config.m_DisplayMode <= ProfilerMode::ePerDrawcall) * drawcallCount;
+
+                    if( !m_Output.NextLinesVisible( 1 + sublines ) )
                     {
-                        m_Output.SkipLines( 1 + pipelineCount );
-                        currentPipeline += pipelineCount;
-                        currentRenderPass++;
+                        m_Output.SkipLines( 1 + drawcallCount );
+                        currentRenderPassPipeline++;
                         continue;
                     }
 
-                    if( renderPass.m_Handle != VK_NULL_HANDLE )
+                    if( pipeline.m_Handle != VK_NULL_HANDLE )
                     {
-                        // Compute time difference between timestamps
-                        float us = (renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
+                        // Convert to microseconds
+                        float us = (pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
 
-                        uint32_t lineWidth = 46 +
-                            DigitCount( currentRenderPass ) +
-                            DigitCount( pipelineCount );
+                        uint32_t lineWidth = 47 +
+                            DigitCount( currentRenderPassPipeline ) +
+                            DigitCount( drawcallCount );
 
-                        std::string renderPassName =
-                            m_Debug.GetDebugObjectName( (uint64_t)renderPass.m_Handle );
+                        std::string pipelineName = m_Debug.GetDebugObjectName( (uint64_t)pipeline.m_Handle );
 
-                        lineWidth += renderPassName.length();
+                        lineWidth += pipelineName.length();
 
-                        m_Output.WriteLine( "  VkRenderPass #%u (%s) - %u pipelines %.*s %8.4f us",
-                            currentRenderPass,
-                            renderPassName.c_str(),
-                            pipelineCount,
+                        m_Output.WriteLine( "   VkPipeline #%u (%s) - %u drawcalls %.*s %10.4f us",
+                            currentRenderPassPipeline,
+                            pipelineName.c_str(),
+                            drawcallCount,
                             m_Output.Width() - lineWidth, fillLine,
                             us );
                     }
 
-                    uint32_t currentRenderPassPipeline = 0;
-
-                    while( currentRenderPassPipeline < pipelineCount )
+                    if( m_Config.m_DisplayMode > ProfilerMode::ePerDrawcall )
                     {
-                        const auto& pipeline = renderPass.m_Subregions[currentRenderPassPipeline];
-                        const size_t pipelineDrawcallCount = pipeline.m_Subregions.size();
-
-                        if( pipeline.m_Handle != VK_NULL_HANDLE )
-                        {
-                            if( m_Output.NextLinesVisible( 1 ) )
-                            {
-                                // Convert to microseconds
-                                float us = (pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod) / 1000.0f;
-
-                                uint32_t lineWidth = 45 +
-                                    DigitCount( currentRenderPassPipeline ) +
-                                    DigitCount( pipelineDrawcallCount );
-
-                                std::string pipelineName = m_Debug.GetDebugObjectName( (uint64_t)pipeline.m_Handle );
-
-                                lineWidth += pipelineName.length();
-
-                                m_Output.WriteLine( "   VkPipeline #%u (%s) - %u drawcalls %.*s %8.4f us",
-                                    currentRenderPassPipeline,
-                                    pipelineName.c_str(),
-                                    pipelineDrawcallCount,
-                                    m_Output.Width() - lineWidth, fillLine,
-                                    us );
-                            }
-                            else
-                            {
-                                m_Output.SkipLines( 1 );
-                            }
-                        }
-
-                        currentPipeline++;
                         currentRenderPassPipeline++;
+                        continue;
                     }
 
-                    currentRenderPass++;
+                    uint32_t currentPipelineDrawcall = 0;
+
+                    while( currentPipelineDrawcall < drawcallCount )
+                    {
+                        const auto& drawcall = pipeline.m_Subregions[ currentPipelineDrawcall ];
+
+                        if( !m_Output.NextLinesVisible( 1 ) )
+                        {
+                            m_Output.SkipLines( 1 );
+                            currentPipelineDrawcall++;
+                            continue;
+                        }
+
+                        // Convert to microseconds
+                        float us = (drawcall.m_Ticks * m_TimestampPeriod) / 1000.0f;
+
+                        uint32_t lineWidth = 50 +
+                            DigitCount( currentPipelineDrawcall );
+
+                        switch( drawcall.m_Type )
+                        {
+                        case ProfilerDrawcallType::eDraw:
+                            m_Output.WriteLine( "    vkCmdDraw %.*s %8.4f us",
+                                //drawcall.m_DrawArgs.vertexCount,
+                                //drawcall.m_DrawArgs.instanceCount,
+                                //drawcall.m_DrawArgs.firstVertex,
+                                //drawcall.m_DrawArgs.firstInstance,
+                                m_Output.Width() - lineWidth, fillLine, us );
+                            break;
+
+                        case ProfilerDrawcallType::eCopy:
+                            m_Output.WriteLine( "    vkCmdCopy %.*s %8.4f us",
+                                m_Output.Width() - lineWidth, fillLine, us );
+                            break;
+                        }
+
+
+                        currentPipelineDrawcall++;
+                    }
+
+                    currentRenderPassPipeline++;
                 }
 
-                break;
-            }
-
-            case ProfilerMode::ePerDrawcall:
-            {
-
-            }
+                currentRenderPass++;
             }
         }
     }

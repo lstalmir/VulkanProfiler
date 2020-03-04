@@ -11,6 +11,7 @@ namespace Profiler
         uint64_t m_BeginTimestamp;
         uint64_t m_TotalTicks;
 
+        uint32_t m_TotalDrawcallCount;
         uint32_t m_TotalDrawCount;
         uint32_t m_TotalDrawIndirectCount;
         uint32_t m_TotalDispatchCount;
@@ -28,6 +29,7 @@ namespace Profiler
         inline void Add( const ProfilerRangeStats& rh )
         {
             m_TotalTicks += rh.m_TotalTicks;
+            m_TotalDrawcallCount += rh.m_TotalDrawcallCount;
             m_TotalDrawCount += rh.m_TotalDrawCount;
             m_TotalDrawIndirectCount += rh.m_TotalDrawIndirectCount;
             m_TotalDispatchCount += rh.m_TotalDispatchCount;
@@ -48,6 +50,15 @@ namespace Profiler
             uint32_t& counter = *reinterpret_cast<uint32_t*>(pCounter);
 
             counter += count;
+
+            IncrementDrawcallCount<Stat>( count );
+        }
+
+    private:
+        template<size_t Size>
+        inline void IncrementDrawcallCount( uint32_t count )
+        {
+            m_TotalDrawcallCount += count;
         }
     };
 
@@ -59,6 +70,11 @@ namespace Profiler
     static constexpr size_t STAT_CLEAR_COUNT = offsetof( ProfilerRangeStats, m_TotalClearCount );
     static constexpr size_t STAT_CLEAR_IMPLICIT_COUNT = offsetof( ProfilerRangeStats, m_TotalClearImplicitCount );
     static constexpr size_t STAT_BARRIER_COUNT = offsetof( ProfilerRangeStats, m_TotalBarrierCount );
+
+    template<>
+    inline void ProfilerRangeStats::IncrementDrawcallCount<STAT_BARRIER_COUNT>( uint32_t )
+    {
+    }
 
 
     template<typename Handle, typename Subtype>

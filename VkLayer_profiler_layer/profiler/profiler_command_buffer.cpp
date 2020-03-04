@@ -150,7 +150,7 @@ namespace Profiler
         // Update state
         m_CurrentRenderPass = pBeginInfo->renderPass;
 
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerRenderPass )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -161,12 +161,8 @@ namespace Profiler
 
         m_Data.m_Subregions.push_back( profilerRenderPass );
 
-        // Temporary pipeline for storing stats before actual pipeline is bound
-        ProfilerPipeline profilerPipeline;
-        profilerPipeline.m_Handle = VK_NULL_HANDLE;
-        profilerPipeline.Clear();
-
-        m_Data.m_Subregions.back().m_Subregions.push_back( profilerPipeline );
+        // Ensure there is a render pass and pipeline bound
+        SetupCommandBufferForStatCounting();
 
         // Clears issued when render pass begins
         m_Data.IncrementStat<STAT_CLEAR_IMPLICIT_COUNT>( pBeginInfo->clearValueCount );
@@ -188,13 +184,13 @@ namespace Profiler
         m_CurrentRenderPass = VK_NULL_HANDLE;
 
         // vkEndRenderPass marks end of render pass and pipeline
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass ||
-            m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline && m_RunningQuery )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerRenderPass ||
+            m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline && m_RunningQuery )
         {
-            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline )
         {
             m_RunningQuery = false;
         }
@@ -216,7 +212,7 @@ namespace Profiler
         m_CurrentPipeline.Clear();
 
         // vkBindPipeline marks end of pipeline and drawcall
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -228,17 +224,34 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Draw
+        PreDraw
 
     Description:
         Marks beginning of next 3d drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::Draw()
+    void ProfilerCommandBuffer::PreDraw()
     {
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostDraw
+
+    Description:
+        Marks end of current 3d drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostDraw()
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
 
         // Increment draw count in current pipeline
@@ -248,58 +261,149 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Dispatch
+        PreDrawIndirect
+
+    Description:
+        Marks beginning of next indirect 3d drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PreDrawIndirect()
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostDrawIndirect
+
+    Description:
+        Marks end of current indirect 3d drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostDrawIndirect()
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        }
+
+        // Increment draw count in current pipeline
+        m_Data.IncrementStat<STAT_DRAW_INDIRECT_COUNT>();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreDispatch
 
     Description:
         Marks beginning of next compute drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::Dispatch()
+    void ProfilerCommandBuffer::PreDispatch()
     {
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
+    }
 
-        // Increment dispatch count
+    /***********************************************************************************\
+
+    Function:
+        PostDispatch
+
+    Description:
+        Marks end of current compute drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostDispatch()
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        }
+
+        // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_DISPATCH_COUNT>();
     }
 
     /***********************************************************************************\
 
     Function:
-        Copy
+        PreDispatchIndirect
+
+    Description:
+        Marks beginning of next indirect compute drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PreDispatchIndirect()
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostDispatchIndirect
+
+    Description:
+        Marks end of current indirect compute drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostDispatchIndirect()
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        }
+
+        // Increment draw count in current pipeline
+        m_Data.IncrementStat<STAT_DISPATCH_INDIRECT_COUNT>();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreCopy
 
     Description:
         Marks beginning of next copy drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::Copy()
+    void ProfilerCommandBuffer::PreCopy()
     {
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
+    }
 
-        // Check if we're in render pass
-        if( m_Data.m_Subregions.empty() )
+    /***********************************************************************************\
+
+    Function:
+        PostCopy
+
+    Description:
+        Marks end of current copy drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostCopy()
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
         {
-            ProfilerRenderPass nullRenderPass;
-            nullRenderPass.m_Handle = VK_NULL_HANDLE;
-            nullRenderPass.Clear();
-
-            m_Data.m_Subregions.push_back( nullRenderPass );
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
 
-        // Check if we're in pipeline
-        if( m_Data.m_Subregions.back().m_Subregions.empty() )
-        {
-            ProfilerPipeline nullPipeline;
-            nullPipeline.m_Handle = VK_NULL_HANDLE;
-            nullPipeline.Clear();
-
-            m_Data.m_Subregions.back().m_Subregions.push_back( nullPipeline );
-        }
+        // Ensure there is a render pass and pipeline bound
+        SetupCommandBufferForStatCounting();
 
         // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_COPY_COUNT>();
@@ -308,38 +412,38 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Clear
+        PreClear
 
     Description:
         Marks beginning of next clear drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::Clear( uint32_t attachmentCount )
+    void ProfilerCommandBuffer::PreClear()
     {
-        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
+    }
 
-        // Check if we're in render pass
-        if( m_Data.m_Subregions.empty() )
+    /***********************************************************************************\
+
+    Function:
+        PostClear
+
+    Description:
+        Marks end of current clear drawcall.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostClear( uint32_t attachmentCount )
+    {
+        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
         {
-            ProfilerRenderPass nullRenderPass;
-            nullRenderPass.m_Handle = VK_NULL_HANDLE;
-            nullRenderPass.Clear();
-
-            m_Data.m_Subregions.push_back( nullRenderPass );
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
 
-        // Check if we're in pipeline
-        if( m_Data.m_Subregions.back().m_Subregions.empty() )
-        {
-            ProfilerPipeline nullPipeline;
-            nullPipeline.m_Handle = VK_NULL_HANDLE;
-            nullPipeline.Clear();
-
-            m_Data.m_Subregions.back().m_Subregions.push_back( nullPipeline );
-        }
+        // Ensure there is a render pass and pipeline bound
+        SetupCommandBufferForStatCounting();
 
         // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_CLEAR_COUNT>( attachmentCount );
@@ -348,36 +452,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Barrier
+        OnPipelineBarrier
 
     Description:
         Stores barrier statistics in currently profiled entity.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::Barrier(
+    void ProfilerCommandBuffer::OnPipelineBarrier(
         uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers,
         uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
         uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
     {
-        // Check if we're in render pass
-        if( m_Data.m_Subregions.empty() )
-        {
-            ProfilerRenderPass nullRenderPass;
-            nullRenderPass.m_Handle = VK_NULL_HANDLE;
-            nullRenderPass.Clear();
-
-            m_Data.m_Subregions.push_back( nullRenderPass );
-        }
-
-        // Check if we're in pipeline
-        if( m_Data.m_Subregions.back().m_Subregions.empty() )
-        {
-            ProfilerPipeline nullPipeline;
-            nullPipeline.m_Handle = VK_NULL_HANDLE;
-            nullPipeline.Clear();
-
-            m_Data.m_Subregions.back().m_Subregions.push_back( nullPipeline );
-        }
+        // Ensure there is a render pass and pipeline bound
+        SetupCommandBufferForStatCounting();
 
         // Increment barrier count
         m_Data.IncrementStat<STAT_BARRIER_COUNT>(
@@ -440,21 +527,21 @@ namespace Profiler
                 // Update command buffer begin timestamp
                 m_Data.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
 
-                if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerRenderPass )
+                if( m_Profiler.m_Config.m_SamplingMode <= ProfilerMode::ePerRenderPass )
                 {
                     for( auto& renderPass : m_Data.m_Subregions )
                     {
                         // Update render pass begin timestamp
                         renderPass.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
 
-                        if( m_Profiler.m_Config.m_Mode <= ProfilerMode::ePerPipeline )
+                        if( m_Profiler.m_Config.m_SamplingMode <= ProfilerMode::ePerPipeline )
                         {
                             for( auto& pipeline : renderPass.m_Subregions )
                             {
                                 // Update pipeline begin timestamp
                                 pipeline.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
 
-                                if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerDrawcall )
+                                if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
                                 {
                                     for( auto& drawcall : pipeline.m_Subregions )
                                     {
@@ -462,11 +549,12 @@ namespace Profiler
                                         drawcall.m_Ticks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
                                         // Update pipeline time
                                         pipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                        currentQueryIndex++;
+                                        // Each drawcall has begin and end query
+                                        currentQueryIndex += 2;
                                     }
                                 }
 
-                                if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerPipeline &&
+                                if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline &&
                                     pipeline.m_Handle != VK_NULL_HANDLE )
                                 {
                                     // Update pipeline time
@@ -486,7 +574,7 @@ namespace Profiler
                             }
                         }
 
-                        if( m_Profiler.m_Config.m_Mode == ProfilerMode::ePerRenderPass &&
+                        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerRenderPass &&
                             renderPass.m_Handle != VK_NULL_HANDLE )
                         {
                             // Update render pass time
@@ -586,5 +674,36 @@ namespace Profiler
             m_CurrentQueryIndex );
 
         m_RunningQuery = true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetupCommandBufferForStatCounting
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::SetupCommandBufferForStatCounting()
+    {
+        // Check if we're in render pass
+        if( m_Data.m_Subregions.empty() )
+        {
+            ProfilerRenderPass nullRenderPass;
+            nullRenderPass.m_Handle = VK_NULL_HANDLE;
+            nullRenderPass.Clear();
+
+            m_Data.m_Subregions.push_back( nullRenderPass );
+        }
+
+        // Check if we're in pipeline
+        if( m_Data.m_Subregions.back().m_Subregions.empty() )
+        {
+            ProfilerPipeline nullPipeline;
+            nullPipeline.m_Handle = VK_NULL_HANDLE;
+            nullPipeline.Clear();
+
+            m_Data.m_Subregions.back().m_Subregions.push_back( nullPipeline );
+        }
     }
 }

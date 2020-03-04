@@ -36,7 +36,11 @@ namespace Profiler
         GETPROCADDR( CmdBindPipeline );
         GETPROCADDR( CmdPipelineBarrier );
         GETPROCADDR( CmdDraw );
+        GETPROCADDR( CmdDrawIndirect );
         GETPROCADDR( CmdDrawIndexed );
+        GETPROCADDR( CmdDrawIndexedIndirect );
+        GETPROCADDR( CmdDispatch );
+        GETPROCADDR( CmdDispatchIndirect );
         GETPROCADDR( CmdCopyBuffer );
         GETPROCADDR( CmdCopyBufferToImage );
         GETPROCADDR( CmdCopyImage );
