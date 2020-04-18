@@ -1,5 +1,6 @@
 #pragma once
 #include "Dispatch.h"
+#include "profiler_layer_objects/VkInstance_object.h"
 #include <vk_layer.h>
 #include <vk_layer_dispatch_table.h>
 
@@ -18,8 +19,7 @@ namespace Profiler
     {
         struct Dispatch
         {
-            VkLayerInstanceDispatchTable DispatchTable;
-            uint32_t ApiVersion;
+            VkInstance_Object Instance;
         };
 
         static DispatchableMap<Dispatch> InstanceDispatch;
@@ -32,19 +32,19 @@ namespace Profiler
         // vkCreateInstance
         static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(
             const VkInstanceCreateInfo* pCreateInfo,
-            VkAllocationCallbacks* pAllocator,
+            const VkAllocationCallbacks* pAllocator,
             VkInstance* pInstance );
 
         // vkDestroyInstance
         static VKAPI_ATTR void VKAPI_CALL DestroyInstance(
             VkInstance instance,
-            VkAllocationCallbacks* pAllocator );
+            const VkAllocationCallbacks* pAllocator );
 
         // vkCreateDevice
         static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(
             VkPhysicalDevice physicalDevice,
             const VkDeviceCreateInfo* pCreateInfo,
-            VkAllocationCallbacks* pAllocator,
+            const VkAllocationCallbacks* pAllocator,
             VkDevice* pDevice );
 
         // vkEnumerateInstanceLayerProperties
@@ -57,6 +57,21 @@ namespace Profiler
             const char* pLayerName,
             uint32_t* pPropertyCount,
             VkExtensionProperties* pExtensionProperties );
+
+        #ifdef VK_USE_PLATFORM_WIN32_KHR
+        // vkCreateWin32SurfaceKHR
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateWin32SurfaceKHR(
+            VkInstance instance,
+            const VkWin32SurfaceCreateInfoKHR* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkSurfaceKHR* pSurface );
+        #endif
+
+        // vkDestroySurfaceKHR
+        static VKAPI_ATTR void VKAPI_CALL DestroySurfaceKHR(
+            VkInstance instance,
+            VkSurfaceKHR surface,
+            const VkAllocationCallbacks* pAllocator );
     };
 
 }

@@ -99,10 +99,10 @@ int main()
 
     // Use validation layers if this is a debug build
     std::vector<const char*> layers;
-#if defined(_DEBUG)
-    layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
-#endif
-    layers.push_back( "VK_LAYER_profiler" );
+    #if defined(_DEBUG)
+    //layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
+    #endif
+    //layers.push_back( "VK_LAYER_profiler" );
 
     // vk::ApplicationInfo allows the programmer to specifiy some basic information about the
     // program, which can be useful for layers and tools to provide more debug information.
@@ -188,8 +188,8 @@ int main()
             vk::AttachmentStoreOp::eStore,
             vk::AttachmentLoadOp::eDontCare,
             vk::AttachmentStoreOp::eDontCare,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageLayout::eColorAttachmentOptimal ) };
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::ePresentSrcKHR ) };
 
     std::vector<vk::AttachmentReference> renderPassAttachmentReferences = {
         vk::AttachmentReference( 0, vk::ImageLayout::eColorAttachmentOptimal ) };
@@ -240,11 +240,11 @@ int main()
             vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
             device.m_QueueFamilyIndices.m_GraphicsQueueFamilyIndex ) );
 
-    vk::CommandBuffer commandBuffer = device.m_Device.allocateCommandBuffers(
+    std::vector<vk::CommandBuffer> commandBuffer = device.m_Device.allocateCommandBuffers(
         vk::CommandBufferAllocateInfo(
             commandPool,
             vk::CommandBufferLevel::ePrimary,
-            1 ) ).front();
+            swapchain.m_Images.size() ) );
 
     vk::PipelineLayout pipelineLayout = device.m_Device.createPipelineLayout(
         vk::PipelineLayoutCreateInfo(
@@ -286,41 +286,37 @@ int main()
                 vk::ColorComponentFlagBits::eG |
                 vk::ColorComponentFlagBits::eB ) };
 
-    vk::Pipeline pipeline = device.m_Device.createGraphicsPipeline(
-        nullptr,
-        vk::GraphicsPipelineCreateInfo(
-            vk::PipelineCreateFlags(),
-            static_cast<uint32_t>(shaderStages.size()), shaderStages.data(),
-            &vk::PipelineVertexInputStateCreateInfo(),
-            &vk::PipelineInputAssemblyStateCreateInfo(
-                vk::PipelineInputAssemblyStateCreateFlags(),
-                vk::PrimitiveTopology::eTriangleList ),
-            &vk::PipelineTessellationStateCreateInfo(),
-            &vk::PipelineViewportStateCreateInfo(
-                vk::PipelineViewportStateCreateFlags(),
-                1, &swapchain.m_Viewport,
-                1, &swapchain.m_ScissorRect ),
-            &vk::PipelineRasterizationStateCreateInfo(
-                vk::PipelineRasterizationStateCreateFlags(),
-                false,
-                false,
-                vk::PolygonMode::eFill,
-                vk::CullModeFlagBits::eBack,
-                vk::FrontFace::eCounterClockwise ),
-            &vk::PipelineMultisampleStateCreateInfo(),
-            &vk::PipelineDepthStencilStateCreateInfo(
-                vk::PipelineDepthStencilStateCreateFlags(),
-                false,
-                false,
-                vk::CompareOp::eAlways ),
-            &vk::PipelineColorBlendStateCreateInfo(
-                vk::PipelineColorBlendStateCreateFlags(),
-                false, vk::LogicOp::eClear,
-                static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
-                { { 1.f, 1.f, 1.f, 1.f } } ),
-            &vk::PipelineDynamicStateCreateInfo(),
-            pipelineLayout,
-            renderPass ) );
+    vk::Pipeline pipeline = device.createGraphicsPipeline(
+        pipelineLayout,
+        renderPass,
+        shaderStages,
+        vk::PipelineVertexInputStateCreateInfo(),
+        vk::PipelineInputAssemblyStateCreateInfo(
+            vk::PipelineInputAssemblyStateCreateFlags(),
+            vk::PrimitiveTopology::eTriangleList ),
+        vk::PipelineViewportStateCreateInfo(
+            vk::PipelineViewportStateCreateFlags(),
+            1, &swapchain.m_Viewport,
+            1, &swapchain.m_ScissorRect ),
+        vk::PipelineRasterizationStateCreateInfo(
+            vk::PipelineRasterizationStateCreateFlags(),
+            false,
+            false,
+            vk::PolygonMode::eFill,
+            vk::CullModeFlagBits::eBack,
+            vk::FrontFace::eCounterClockwise,
+            false, 0, 0, 0, 1 ),
+        vk::PipelineMultisampleStateCreateInfo(),
+        vk::PipelineDepthStencilStateCreateInfo(
+            vk::PipelineDepthStencilStateCreateFlags(),
+            false,
+            false,
+            vk::CompareOp::eAlways ),
+        vk::PipelineColorBlendStateCreateInfo(
+            vk::PipelineColorBlendStateCreateFlags(),
+            false, vk::LogicOp::eClear,
+            static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
+            { { 1.f, 1.f, 1.f, 1.f } } ) );
 
     vk::Viewport viewport = swapchain.m_Viewport;
     viewport.width /= 2;
@@ -330,44 +326,68 @@ int main()
     scissor.extent.width /= 2;
     scissor.extent.height /= 2;
 
-    vk::Pipeline pipeline2 = device.m_Device.createGraphicsPipeline(
-        nullptr,
-        vk::GraphicsPipelineCreateInfo(
-            vk::PipelineCreateFlags(),
-            static_cast<uint32_t>(shaderStages.size()), shaderStages.data(),
-            &vk::PipelineVertexInputStateCreateInfo(),
-            &vk::PipelineInputAssemblyStateCreateInfo(
-                vk::PipelineInputAssemblyStateCreateFlags(),
-                vk::PrimitiveTopology::eTriangleList ),
-            &vk::PipelineTessellationStateCreateInfo(),
-            &vk::PipelineViewportStateCreateInfo(
-                vk::PipelineViewportStateCreateFlags(),
-                1, &viewport,
-                1, &scissor ),
-            &vk::PipelineRasterizationStateCreateInfo(
-                vk::PipelineRasterizationStateCreateFlags(),
-                false,
-                false,
-                vk::PolygonMode::eFill,
-                vk::CullModeFlagBits::eBack,
-                vk::FrontFace::eCounterClockwise ),
-            &vk::PipelineMultisampleStateCreateInfo(),
-            &vk::PipelineDepthStencilStateCreateInfo(
-                vk::PipelineDepthStencilStateCreateFlags(),
-                false,
-                false,
-                vk::CompareOp::eAlways ),
-            &vk::PipelineColorBlendStateCreateInfo(
-                vk::PipelineColorBlendStateCreateFlags(),
-                false, vk::LogicOp::eClear,
-                static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
-                { { 1.f, 1.f, 1.f, 1.f } } ),
-            &vk::PipelineDynamicStateCreateInfo(),
-            pipelineLayout,
-            renderPass ) );
+    vk::Pipeline pipeline2 = device.createGraphicsPipeline(
+        pipelineLayout,
+        renderPass,
+        shaderStages,
+        vk::PipelineVertexInputStateCreateInfo(),
+        vk::PipelineInputAssemblyStateCreateInfo(
+            vk::PipelineInputAssemblyStateCreateFlags(),
+            vk::PrimitiveTopology::eTriangleList ),
+        vk::PipelineViewportStateCreateInfo(
+            vk::PipelineViewportStateCreateFlags(),
+            1, &viewport,
+            1, &scissor ),
+        vk::PipelineRasterizationStateCreateInfo(
+            vk::PipelineRasterizationStateCreateFlags(),
+            false,
+            false,
+            vk::PolygonMode::eFill,
+            vk::CullModeFlagBits::eBack,
+            vk::FrontFace::eCounterClockwise,
+            false, 0, 0, 0, 1 ),
+        vk::PipelineMultisampleStateCreateInfo(),
+        vk::PipelineDepthStencilStateCreateInfo(
+            vk::PipelineDepthStencilStateCreateFlags(),
+            false,
+            false,
+            vk::CompareOp::eAlways ),
+        vk::PipelineColorBlendStateCreateInfo(
+            vk::PipelineColorBlendStateCreateFlags(),
+            false, vk::LogicOp::eClear,
+            static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
+            { { 1.f, 1.f, 1.f, 1.f } } ) );
 
     // This is where most initializtion for a program should be performed
 
+    for( int i = 0; i < commandBuffer.size(); ++i )
+    {
+        commandBuffer[ i ].begin( vk::CommandBufferBeginInfo( vk::CommandBufferUsageFlagBits::eSimultaneousUse ) );
+        commandBuffer[ i ].beginRenderPass( vk::RenderPassBeginInfo(
+            renderPass,
+            framebuffers[ i ],
+            vk::Rect2D( vk::Offset2D(), swapchain.m_Extent ),
+            1, &clearValue ),
+            vk::SubpassContents::eInline );
+
+        commandBuffer[ i ].bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+
+        commandBuffer[ i ].bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline2 );
+        commandBuffer[ i ].draw( 3, 1, 0, 0 );
+
+        commandBuffer[ i ].endRenderPass();
+        commandBuffer[ i ].end();
+
+    }
 
     // Poll for user input.
     bool stillRunning = true;
@@ -393,55 +413,18 @@ int main()
 
         swapchain.acquireNextImage();
 
-        commandBuffer.begin( vk::CommandBufferBeginInfo( vk::CommandBufferUsageFlagBits::eSimultaneousUse ) );
-        commandBuffer.beginRenderPass( vk::RenderPassBeginInfo(
-            renderPass,
-            framebuffers[swapchain.m_AcquiredImageIndex],
-            vk::Rect2D( vk::Offset2D(), swapchain.m_Extent ),
-            1, &clearValue ),
-            vk::SubpassContents::eInline );
-
-        commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-
-        commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline2 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-
-        commandBuffer.endRenderPass();
-        commandBuffer.end();
-
         vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eTopOfPipe;
 
         device.m_GraphicsQueue.submit( { vk::SubmitInfo( 
-            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
-            static_cast<uint32_t>(1), &commandBuffer,
-            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
-            nullptr );
-
-        device.m_GraphicsQueue.submit( { vk::SubmitInfo(
-            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
-            static_cast<uint32_t>(1), &commandBuffer,
-            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
-            nullptr );
-
-        device.m_GraphicsQueue.submit( { vk::SubmitInfo(
-            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
-            static_cast<uint32_t>(1), &commandBuffer,
-            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
+            1, &swapchain.m_NextImageAvailableSemaphore, &waitStage,
+            1, &commandBuffer[swapchain.m_AcquiredImageIndex],
+            1, &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
             nullptr );
 
         device.m_PresentQueue.presentKHR(
             vk::PresentInfoKHR(
-                static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex],
-                static_cast<uint32_t>(1), &swapchain.m_Swapchain,
+                1, &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex],
+                1, &swapchain.m_Swapchain,
                 &swapchain.m_AcquiredImageIndex ) );
     }
 

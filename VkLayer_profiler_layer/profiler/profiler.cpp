@@ -1,7 +1,9 @@
 #include "profiler.h"
 #include "profiler_helpers.h"
-#include "farmhash/farmhash.h"
+#include "farmhash/src/farmhash.h"
 #include <sstream>
+
+#undef max
 
 namespace Profiler
 {
@@ -15,10 +17,10 @@ namespace Profiler
 
     \***********************************************************************************/
     Profiler::Profiler()
-        : m_Device( nullptr )
-        , m_Callbacks()
+        : m_pDevice( nullptr )
         , m_Config()
         , m_Output()
+        , m_Overlay( *this )
         , m_Debug()
         , m_DataAggregator()
         , m_pCurrentFrameStats( nullptr )
@@ -28,12 +30,9 @@ namespace Profiler
         , m_Allocations()
         , m_AllocatedMemorySize( 0 )
         , m_ProfiledCommandBuffers()
-        , m_HelperCommandPool( nullptr )
-        , m_HelperCommandBuffer( nullptr )
         , m_IsFirstSubmitInFrame( false )
         , m_TimestampPeriod( 0.0f )
     {
-        ClearMemory( &m_Callbacks );
     }
 
     /***********************************************************************************\
@@ -45,14 +44,12 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::Initialize( const VkApplicationInfo* pApplicationInfo,
-        VkPhysicalDevice physicalDevice, const VkLayerInstanceDispatchTable* pInstanceDispatchTable,
-        VkDevice device, const VkLayerDispatchTable* pDispatchTable )
+    VkResult Profiler::Initialize( VkDevice_Object* pDevice )
     {
-        m_Callbacks = *pDispatchTable;
-        m_Device = device;
-
+        m_pDevice = pDevice;
         m_CurrentFrame = 0;
+
+        VkResult result;
 
         // Load config
         std::filesystem::path customConfigPath = ProfilerPlatformFunctions::GetCustomConfigPath();
@@ -104,8 +101,8 @@ namespace Profiler
         VkFenceCreateInfo fenceCreateInfo;
         ClearStructure( &fenceCreateInfo, VK_STRUCTURE_TYPE_FENCE_CREATE_INFO );
 
-        VkResult result = m_Callbacks.CreateFence(
-            m_Device, &fenceCreateInfo, nullptr, &m_SubmitFence );
+        result = m_pDevice->Callbacks.CreateFence(
+            m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence );
 
         if( result != VK_SUCCESS )
         {
@@ -114,63 +111,17 @@ namespace Profiler
             return result;
         }
 
-        // Prepare helper command buffer
-        VkCommandPoolCreateInfo commandPoolCreateInfo;
-        ClearStructure( &commandPoolCreateInfo, VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO );
-
-        commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        commandPoolCreateInfo.queueFamilyIndex = 0; // TODO
-
-        result = m_Callbacks.CreateCommandPool(
-            m_Device, &commandPoolCreateInfo, nullptr, &m_HelperCommandPool );
-
-        if( result != VK_SUCCESS )
-        {
-            // Command pool allocation failed
-            Destroy();
-            return result;
-        }
-
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo;
-        ClearStructure( &commandBufferAllocateInfo, VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO );
-
-        commandBufferAllocateInfo.commandPool = m_HelperCommandPool;
-        commandBufferAllocateInfo.commandBufferCount = 1;
-        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-        result = m_Callbacks.AllocateCommandBuffers(
-            m_Device, &commandBufferAllocateInfo, &m_HelperCommandBuffer );
-
-        if( result != VK_SUCCESS )
-        {
-            // Command buffer allocation failed
-            Destroy();
-            return result;
-        }
-
-        VkSemaphoreCreateInfo commandBufferSemaphoreCreateInfo;
-        ClearStructure( &commandBufferSemaphoreCreateInfo, VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO );
-
-        result = m_Callbacks.CreateSemaphore(
-            m_Device, &commandBufferSemaphoreCreateInfo, nullptr, &m_HelperCommandBufferExecutionSemaphore );
-
-        if( result != VK_SUCCESS )
-        {
-            Destroy();
-            return result;
-        }
-
         m_IsFirstSubmitInFrame = true;
 
         // Get GPU timestamp period
         VkPhysicalDeviceProperties physicalDeviceProperties;
-        pInstanceDispatchTable->GetPhysicalDeviceProperties(
-            physicalDevice, &physicalDeviceProperties );
+        m_pDevice->pInstance->Callbacks.GetPhysicalDeviceProperties(
+            m_pDevice->PhysicalDevice, &physicalDeviceProperties );
 
         m_TimestampPeriod = physicalDeviceProperties.limits.timestampPeriod;
 
         // Update application summary view
-        m_Output.Summary.Version = pApplicationInfo->apiVersion;
+        m_Output.Summary.Version = m_pDevice->pInstance->ApplicationInfo.apiVersion;
         m_Output.Summary.Mode = m_Config.m_Mode;
 
         return VK_SUCCESS;
@@ -198,28 +149,42 @@ namespace Profiler
         m_Allocations.clear();
         m_AllocatedMemorySize = 0;
 
-        if( m_HelperCommandBuffer != VK_NULL_HANDLE )
-        {
-            m_Callbacks.FreeCommandBuffers( m_Device, m_HelperCommandPool, 1, &m_HelperCommandBuffer );
-            m_HelperCommandBuffer = VK_NULL_HANDLE;
-        }
-
-        if( m_HelperCommandPool != VK_NULL_HANDLE )
-        {
-            m_Callbacks.DestroyCommandPool( m_Device, m_HelperCommandPool, nullptr );
-            m_HelperCommandPool = VK_NULL_HANDLE;
-        }
-
         if( m_SubmitFence != VK_NULL_HANDLE )
         {
-            m_Callbacks.DestroyFence( m_Device, m_SubmitFence, nullptr );
+            m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
             m_SubmitFence = VK_NULL_HANDLE;
         }
 
         m_CurrentFrame = 0;
+        m_pDevice = nullptr;
+    }
 
-        ClearMemory( &m_Callbacks );
-        m_Device = nullptr;
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    VkResult Profiler::SetMode( ProfilerMode mode )
+    {
+        // TODO: Invalidate all command buffers
+        m_Config.m_Mode = mode;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    void Profiler::CreateSwapchain( const VkSwapchainCreateInfoKHR* pCreateInfo, VkSwapchainKHR swapchain )
+    {
+        // Initialize overlay output
+        m_Overlay.Initialize( pCreateInfo, swapchain );
+    }
+
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    void Profiler::DestroySwapchain( VkSwapchainKHR swapchain )
+    {
+        m_Overlay.Destroy();
     }
 
     /***********************************************************************************\
@@ -468,8 +433,8 @@ namespace Profiler
         // Wait for the submitted command buffers to execute
         if( m_Config.m_Mode < ProfilerMode::ePerFrame )
         {
-            m_Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
-            m_Callbacks.WaitForFences( m_Device, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
+            m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+            m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
         }
 
         // Store submitted command buffers and get results
@@ -509,8 +474,9 @@ namespace Profiler
     Description:
     
     \***********************************************************************************/
-    void Profiler::PrePresent( VkQueue queue )
+    void Profiler::AcquireNextImage( uint32_t acquiredImageIndex )
     {
+        m_Overlay.AcquireNextImage( acquiredImageIndex );
     }
 
     /***********************************************************************************\
@@ -521,19 +487,22 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PostPresent( VkQueue queue )
+    void Profiler::Present( VkPresentInfoKHR* pPresentInfo )
     {
         m_CurrentFrame++;
 
         m_CpuTimestampCounter.End();
 
-        if( m_CpuTimestampCounter.GetValue<std::chrono::milliseconds>() > m_Config.m_OutputUpdateInterval )
+        //if( m_CpuTimestampCounter.GetValue<std::chrono::milliseconds>() > m_Config.m_OutputUpdateInterval )
         {
             // Present profiling results
             PresentResults();
 
             m_CpuTimestampCounter.Begin();
         }
+
+        m_Overlay.Flush();
+        m_Overlay.Present( pPresentInfo );
     }
 
     /***********************************************************************************\
@@ -614,6 +583,8 @@ namespace Profiler
             "...................................................................................................."
             "....................................................................................................";
 
+        m_Overlay.BeginWindow();
+
         const uint32_t consoleWidth = m_Output.Width();
         uint32_t lineWidth = 0;
 
@@ -623,6 +594,8 @@ namespace Profiler
         {
             // Get the submit info wrapper
             const auto& submit = submits.at( submitIdx );
+
+            m_Overlay.WriteSubmit( submit );
 
             m_Output.WriteLine( "VkSubmitInfo #%-2u",
                 submitIdx );
@@ -763,6 +736,8 @@ namespace Profiler
 
         m_Output.WriteLine( "" );
         m_Output.Flush();
+
+        m_Overlay.EndWindow();
     }
 
     /***********************************************************************************\

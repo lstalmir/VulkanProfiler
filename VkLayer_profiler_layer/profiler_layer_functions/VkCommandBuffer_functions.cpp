@@ -17,7 +17,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Profiler requires command buffer to already be in recording state
-        VkResult result = dd.DispatchTable.BeginCommandBuffer(
+        VkResult result = dd.Device.Callbacks.BeginCommandBuffer(
             commandBuffer, pBeginInfo );
 
         if( result == VK_SUCCESS )
@@ -44,7 +44,7 @@ namespace Profiler
 
         dd.Profiler.EndCommandBuffer( commandBuffer );
 
-        return dd.DispatchTable.EndCommandBuffer( commandBuffer );
+        return dd.Device.Callbacks.EndCommandBuffer( commandBuffer );
     }
 
     /***********************************************************************************\
@@ -66,7 +66,7 @@ namespace Profiler
         dd.Profiler.BeginRenderPass( commandBuffer, pBeginInfo->renderPass );
 
         // Begin the render pass
-        dd.DispatchTable.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
+        dd.Device.Callbacks.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
     }
 
     /***********************************************************************************\
@@ -83,7 +83,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // End the render pass
-        dd.DispatchTable.CmdEndRenderPass( commandBuffer );
+        dd.Device.Callbacks.CmdEndRenderPass( commandBuffer );
 
         // Profile the render pass time
         dd.Profiler.EndRenderPass( commandBuffer );
@@ -105,7 +105,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Bind the pipeline
-        dd.DispatchTable.CmdBindPipeline( commandBuffer, bindPoint, pipeline );
+        dd.Device.Callbacks.CmdBindPipeline( commandBuffer, bindPoint, pipeline );
 
         // Profile the pipeline time
         dd.Profiler.BindPipeline( commandBuffer, pipeline );
@@ -134,7 +134,7 @@ namespace Profiler
         dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDraw(
+        dd.Device.Callbacks.CmdDraw(
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
         dd.Profiler.PostDraw( commandBuffer );
@@ -164,7 +164,7 @@ namespace Profiler
         dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDrawIndexed(
+        dd.Device.Callbacks.CmdDrawIndexed(
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
         dd.Profiler.PostDraw( commandBuffer );

@@ -26,7 +26,7 @@ namespace Profiler
         // vkDestroyDevice
         static VKAPI_ATTR void VKAPI_CALL DestroyDevice(
             VkDevice device,
-            VkAllocationCallbacks* pAllocator );
+            const VkAllocationCallbacks* pAllocator );
 
         // vkEnumerateDeviceLayerProperties
         static VKAPI_ATTR VkResult VKAPI_CALL EnumerateDeviceLayerProperties(
@@ -44,6 +44,19 @@ namespace Profiler
         static VKAPI_ATTR VkResult VKAPI_CALL SetDebugUtilsObjectNameEXT(
             VkDevice device,
             const VkDebugUtilsObjectNameInfoEXT* pObjectInfo );
+
+        // vkCreateSwapchainKHR
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(
+            VkDevice device,
+            const VkSwapchainCreateInfoKHR* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkSwapchainKHR* pSwapchain );
+
+        // vkDestroySwapchainKHR
+        static VKAPI_ATTR void VKAPI_CALL DestroySwapchainKHR(
+            VkDevice device,
+            VkSwapchainKHR swapchain,
+            const VkAllocationCallbacks* pAllocator );
 
         // vkCreateShaderModule
         static VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(
@@ -92,5 +105,14 @@ namespace Profiler
             VkDevice device,
             VkDeviceMemory memory,
             const VkAllocationCallbacks* pAllocator );
+
+        // vkAcquireNextImageKHR
+        static VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImageKHR(
+            VkDevice device,
+            VkSwapchainKHR swapchain,
+            uint64_t timeout,
+            VkSemaphore semaphore,
+            VkFence fence,
+            uint32_t* pImageIndex );
     };
 }
