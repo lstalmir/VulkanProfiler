@@ -46,6 +46,24 @@ namespace Profiler
             VkDevice device,
             const VkDebugUtilsObjectNameInfoEXT* pObjectInfo );
 
+        // vkDebugMarkerSetObjectNameEXT
+        static VKAPI_ATTR VkResult VKAPI_CALL DebugMarkerSetObjectNameEXT(
+            VkDevice device,
+            const VkDebugMarkerObjectNameInfoEXT* pObjectInfo );
+
+        // vkCreateSwapchainKHR
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(
+            VkDevice device,
+            const VkSwapchainCreateInfoKHR* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkSwapchainKHR* pSwapchain );
+
+        // vkDestroySwapchainKHR
+        static VKAPI_ATTR void VKAPI_CALL DestroySwapchainKHR(
+            VkDevice device,
+            VkSwapchainKHR swapchain,
+            const VkAllocationCallbacks* pAllocator );
+
         // vkCreateShaderModule
         static VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(
             VkDevice device,

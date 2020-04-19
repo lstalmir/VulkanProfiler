@@ -1,6 +1,9 @@
 #include "VkDevice_functions.h"
 #include "VkInstance_functions.h"
+#include "profiler_layer_objects/VkSwapchainKHR_object.h"
 #include "VkLayer_profiler_layer.generated.h"
+
+#include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
@@ -22,6 +25,10 @@ namespace Profiler
         GETPROCADDR( DestroyDevice );
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
+        GETPROCADDR( SetDebugUtilsObjectNameEXT );
+        GETPROCADDR( DebugMarkerSetObjectNameEXT );
+        GETPROCADDR( CreateSwapchainKHR );
+        GETPROCADDR( DestroySwapchainKHR );
         GETPROCADDR( CreateShaderModule );
         GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
@@ -53,8 +60,12 @@ namespace Profiler
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueuePresentKHR );
 
+        // VK_EXT_profiler functions
+        GETPROCADDR_EXT( vkSetProfilerModeEXT );
+        GETPROCADDR_EXT( vkCmdDrawProfilerOverlayEXT );
+
         // Get device dispatch table
-        return DeviceDispatch.Get( device ).DispatchTable.GetDeviceProcAddr( device, pName );
+        return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
     }
 
     /***********************************************************************************\
@@ -71,7 +82,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
-        auto pfnDestroyDevice = dd.DispatchTable.DestroyDevice;
+        auto pfnDestroyDevice = dd.Device.Callbacks.DestroyDevice;
 
         // Cleanup dispatch table and profiler
         VkDevice_Functions_Base::OnDeviceDestroy( device );
@@ -121,15 +132,27 @@ namespace Profiler
             // vkEnumerateDeviceExtensionProperties implementation.
             auto id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
 
-            return id.DispatchTable.EnumerateDeviceExtensionProperties(
+            return id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
                 physicalDevice, pLayerName, pPropertyCount, pProperties );
         }
 
-        // Don't expose any extensions
-        if( pPropertyCount )
+        static VkExtensionProperties layerExtensions[] = {
+            { VK_EXT_PROFILER_EXTENSION_NAME, VK_EXT_PROFILER_SPEC_VERSION } };
+
+        if( pProperties )
         {
-            (*pPropertyCount) = 0;
+            const size_t dstBufferSize = *pPropertyCount * sizeof( VkExtensionProperties );
+
+            // Copy device extension properties to output ptr
+            memcpy_s( pProperties, dstBufferSize, layerExtensions,
+                min( dstBufferSize, sizeof( layerExtensions ) ) );
+
+            if( dstBufferSize < sizeof( layerExtensions ) )
+                return VK_INCOMPLETE;
         }
+
+        // SPEC: pPropertyCount MUST be valid uint32_t pointer
+        *pPropertyCount = _countof( layerExtensions );
 
         return VK_SUCCESS;
     }
@@ -149,7 +172,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Set the object name
-        VkResult result = dd.DispatchTable.SetDebugUtilsObjectNameEXT( device, pObjectInfo );
+        VkResult result = dd.Device.Callbacks.SetDebugUtilsObjectNameEXT( device, pObjectInfo );
 
         if( result != VK_SUCCESS )
         {
@@ -161,6 +184,113 @@ namespace Profiler
         dd.Profiler.SetDebugObjectName( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
 
         return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DebugMarkerSetObjectNameEXT
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::DebugMarkerSetObjectNameEXT(
+        VkDevice device,
+        const VkDebugMarkerObjectNameInfoEXT* pObjectInfo )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Set the object name
+        VkResult result = dd.Device.Callbacks.DebugMarkerSetObjectNameEXT( device, pObjectInfo );
+
+        if( result != VK_SUCCESS )
+        {
+            // Failed to set object name
+            return result;
+        }
+
+        // Update profiler
+        dd.Profiler.SetDebugObjectName( pObjectInfo->object, pObjectInfo->pObjectName );
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateSwapchainKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateSwapchainKHR(
+        VkDevice device,
+        const VkSwapchainCreateInfoKHR* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkSwapchainKHR* pSwapchain )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        VkSwapchainCreateInfoKHR createInfo = *pCreateInfo;
+
+        if( dd.Profiler.m_Config.m_OutputFlags & VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT )
+        {
+            // Make sure we are able to write to presented image
+            createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        }
+
+        // Create the swapchain
+        VkResult result = dd.Device.Callbacks.CreateSwapchainKHR(
+            device, &createInfo, pAllocator, pSwapchain );
+
+        if( result != VK_SUCCESS )
+        {
+            // Swapchain creation failed
+            return result;
+        }
+
+        VkSwapchainKHR_Object swapchainObject = {};
+        swapchainObject.Handle = *pSwapchain;
+        swapchainObject.pSurface = &dd.Device.pInstance->Surfaces[ pCreateInfo->surface ];
+        
+        uint32_t swapchainImageCount = 0;
+        dd.Device.Callbacks.GetSwapchainImagesKHR(
+            device, *pSwapchain, &swapchainImageCount, nullptr );
+
+        swapchainObject.Images.resize( swapchainImageCount );
+        dd.Device.Callbacks.GetSwapchainImagesKHR(
+            device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
+
+        dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
+
+        // Register swapchain
+        dd.Profiler.CreateSwapchain( pCreateInfo, *pSwapchain );
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroySwapchainKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroySwapchainKHR(
+        VkDevice device,
+        VkSwapchainKHR swapchain,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Unregister the swapchain from the profiler
+        dd.Profiler.DestroySwapchain( swapchain );
+
+        dd.Device.Swapchains.erase( swapchain );
+
+        // Destroy the swapchain
+        dd.Device.Callbacks.DestroySwapchainKHR( device, swapchain, pAllocator );
     }
 
     /***********************************************************************************\
@@ -180,7 +310,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Create the shader module
-        VkResult result = dd.DispatchTable.CreateShaderModule(
+        VkResult result = dd.Device.Callbacks.CreateShaderModule(
             device, pCreateInfo, pAllocator, pShaderModule );
 
         if( result != VK_SUCCESS )
@@ -214,7 +344,7 @@ namespace Profiler
         dd.Profiler.DestroyShaderModule( shaderModule );
 
         // Destroy the shader module
-        dd.DispatchTable.DestroyShaderModule( device, shaderModule, pAllocator );
+        dd.Device.Callbacks.DestroyShaderModule( device, shaderModule, pAllocator );
     }
 
     /***********************************************************************************\
@@ -236,7 +366,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Create the pipelines
-        VkResult result = dd.DispatchTable.CreateGraphicsPipelines(
+        VkResult result = dd.Device.Callbacks.CreateGraphicsPipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
         if( result != VK_SUCCESS )
@@ -270,7 +400,7 @@ namespace Profiler
         dd.Profiler.DestroyPipeline( pipeline );
 
         // Destroy the pipeline
-        dd.DispatchTable.DestroyPipeline( device, pipeline, pAllocator );
+        dd.Device.Callbacks.DestroyPipeline( device, pipeline, pAllocator );
     }
 
     /***********************************************************************************\
@@ -293,7 +423,7 @@ namespace Profiler
         dd.Profiler.FreeCommandBuffers( commandBufferCount, pCommandBuffers );
 
         // Free the command buffers
-        dd.DispatchTable.FreeCommandBuffers(
+        dd.Device.Callbacks.FreeCommandBuffers(
             device, commandPool, commandBufferCount, pCommandBuffers );
     }
 
@@ -314,7 +444,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Allocate the memory
-        VkResult result = dd.DispatchTable.AllocateMemory(
+        VkResult result = dd.Device.Callbacks.AllocateMemory(
             device, pAllocateInfo, pAllocator, pMemory );
 
         if( result != VK_SUCCESS )
@@ -345,7 +475,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Free the memory
-        dd.DispatchTable.FreeMemory( device, memory, pAllocator );
+        dd.Device.Callbacks.FreeMemory( device, memory, pAllocator );
 
         // Unregister allocation
         dd.Profiler.OnFreeMemory( memory );

@@ -1,5 +1,8 @@
 #pragma once
-#include "profiler_mode.h"
+
+// Public interface
+#include "profiler_ext/VkProfilerEXT.h"
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -39,7 +42,7 @@ namespace Profiler
             uint32_t Width;
             uint32_t Height;
             uint32_t Version;
-            ProfilerMode Mode;
+            VkProfilerModeEXT Mode;
             float FPS;
             std::string Message;
         }   Summary;

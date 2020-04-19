@@ -95,21 +95,21 @@ namespace Profiler
         //    Reset();
         //}
 
-        if( !m_QueryPools.empty() )
+        if( m_QueryPools.empty() )
         {
-            //assert( m_QueryPools.size() == 1 );
-
-            for( auto queryPool : m_QueryPools )
-            {
-                // Reset existing query pool to reuse the queries
-                m_Profiler.m_Callbacks.CmdResetQueryPool(
-                    m_CommandBuffer,
-                    queryPool,
-                    0, m_QueryPoolSize );
-            }
-
-            m_CurrentQueryPoolIndex++;
+            // Allocate initial query pool
+            AllocateQueryPool();
         }
+        else
+        {
+            // Reset existing query pool to reuse the queries
+            m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
+                m_CommandBuffer,
+                m_QueryPools.front(),
+                0, m_QueryPoolSize );
+        }
+
+        m_CurrentQueryPoolIndex++;
 
         // Reset statistics
         m_Data.Clear();
@@ -150,7 +150,7 @@ namespace Profiler
         // Update state
         m_CurrentRenderPass = pBeginInfo->renderPass;
 
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerRenderPass )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -166,6 +166,13 @@ namespace Profiler
 
         // Clears issued when render pass begins
         m_Data.IncrementStat<STAT_CLEAR_IMPLICIT_COUNT>( pBeginInfo->clearValueCount );
+
+        // Check if we're running out of current query pool
+        if( m_CurrentQueryPoolIndex + 1 == m_QueryPools.size() &&
+            m_CurrentQueryPoolIndex + 1 > m_QueryPoolSize * 0.85 )
+        {
+            AllocateQueryPool();
+        }
     }
 
     /***********************************************************************************\
@@ -184,13 +191,13 @@ namespace Profiler
         m_CurrentRenderPass = VK_NULL_HANDLE;
 
         // vkEndRenderPass marks end of render pass and pipeline
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerRenderPass ||
-            m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline && m_RunningQuery )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT ||
+            m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT && m_RunningQuery )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
 
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT )
         {
             m_RunningQuery = false;
         }
@@ -212,7 +219,7 @@ namespace Profiler
         m_CurrentPipeline.Clear();
 
         // vkBindPipeline marks end of pipeline and drawcall
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -232,7 +239,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreDraw()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -249,7 +256,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostDraw()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -269,7 +276,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreDrawIndirect()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -286,7 +293,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostDrawIndirect()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -306,7 +313,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreDispatch()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -323,7 +330,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostDispatch()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -343,7 +350,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreDispatchIndirect()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -360,7 +367,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostDispatchIndirect()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -380,7 +387,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreCopy()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -397,7 +404,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostCopy()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -420,7 +427,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreClear()
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -437,7 +444,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostClear( uint32_t attachmentCount )
     {
-        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -501,12 +508,12 @@ namespace Profiler
             // Collect queried timestamps
             for( uint32_t i = 0; i < m_CurrentQueryPoolIndex + 1; ++i )
             {
-                const uint32_t numQueriesInPool = std::min( m_QueryPoolSize, numQueriesLeft );
+                const uint32_t numQueriesInPool = min( m_QueryPoolSize, numQueriesLeft );
                 const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
 
                 // Get results from next query pool
-                VkResult result = m_Profiler.m_Callbacks.GetQueryPoolResults(
-                    m_Profiler.m_Device,
+                VkResult result = m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
+                    m_Profiler.m_pDevice->Handle,
                     m_QueryPools[i],
                     0, numQueriesInPool,
                     dataSize,
@@ -527,21 +534,21 @@ namespace Profiler
                 // Update command buffer begin timestamp
                 m_Data.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
 
-                if( m_Profiler.m_Config.m_SamplingMode <= ProfilerMode::ePerRenderPass )
+                if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
                 {
                     for( auto& renderPass : m_Data.m_Subregions )
                     {
                         // Update render pass begin timestamp
                         renderPass.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
 
-                        if( m_Profiler.m_Config.m_SamplingMode <= ProfilerMode::ePerPipeline )
+                        if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
                         {
                             for( auto& pipeline : renderPass.m_Subregions )
                             {
                                 // Update pipeline begin timestamp
                                 pipeline.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
 
-                                if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerDrawcall )
+                                if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
                                 {
                                     for( auto& drawcall : pipeline.m_Subregions )
                                     {
@@ -554,19 +561,14 @@ namespace Profiler
                                     }
                                 }
 
-                                if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerPipeline &&
+                                if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT &&
                                     pipeline.m_Handle != VK_NULL_HANDLE )
                                 {
                                     // Update pipeline time
                                     pipeline.m_Stats.m_TotalTicks = collectedQueries[ currentQueryIndex ] - pipeline.m_Stats.m_BeginTimestamp;
                                     currentQueryIndex++;
 
-                                    // TMP
                                     // TODO: Detect timestamp disjoints
-                                    if( pipeline.m_Stats.m_TotalTicks > 1000000 )
-                                    {
-                                        pipeline.m_Stats.m_TotalTicks = 0;
-                                    }
                                 }
 
                                 // Update render pass time
@@ -574,7 +576,7 @@ namespace Profiler
                             }
                         }
 
-                        if( m_Profiler.m_Config.m_SamplingMode == ProfilerMode::ePerRenderPass &&
+                        if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT &&
                             renderPass.m_Handle != VK_NULL_HANDLE )
                         {
                             // Update render pass time
@@ -613,10 +615,45 @@ namespace Profiler
         // Destroy allocated query pools
         for( auto& pool : m_QueryPools )
         {
-            m_Profiler.m_Callbacks.DestroyQueryPool( m_Profiler.m_Device, pool, nullptr );
+            m_Profiler.m_pDevice->Callbacks.DestroyQueryPool(
+                m_Profiler.m_pDevice->Handle, pool, nullptr );
         }
 
         m_QueryPools.clear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AllocateQueryPool
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::AllocateQueryPool()
+    {
+        VkQueryPool queryPool = VK_NULL_HANDLE;
+
+        VkQueryPoolCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        info.queryCount = m_QueryPoolSize;
+
+        // Allocate new query pool
+        VkResult result = m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
+            m_Profiler.m_pDevice->Handle, &info, nullptr, &queryPool );
+
+        if( result != VK_SUCCESS )
+        {
+            // Allocation failed
+            return;
+        }
+
+        // Pools must be reset before first use
+        m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
+            m_CommandBuffer, queryPool, 0, m_QueryPoolSize );
+
+        m_QueryPools.push_back( queryPool );
     }
 
     /***********************************************************************************\
@@ -641,33 +678,12 @@ namespace Profiler
 
             if( m_CurrentQueryPoolIndex == m_QueryPools.size() )
             {
-                // Allocate new query pool
-                VkQueryPool queryPool = VK_NULL_HANDLE;
-
-                VkQueryPoolCreateInfo queryPoolCreateInfo;
-                ClearStructure( &queryPoolCreateInfo, VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO );
-
-                queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
-                queryPoolCreateInfo.queryCount = m_QueryPoolSize;
-
-                VkResult result = m_Profiler.m_Callbacks.CreateQueryPool(
-                    m_Profiler.m_Device,
-                    &(VkQueryPoolCreateInfo)queryPoolCreateInfo,
-                    nullptr,
-                    &queryPool );
-
-                if( result != VK_SUCCESS )
-                {
-                    // Failed to allocate new query pool
-                    return;
-                }
-
-                m_QueryPools.push_back( queryPool );
+                __debugbreak();
             }
         }
 
         // Send the query
-        m_Profiler.m_Callbacks.CmdWriteTimestamp(
+        m_Profiler.m_pDevice->Callbacks.CmdWriteTimestamp(
             m_CommandBuffer,
             stage,
             m_QueryPools[m_CurrentQueryPoolIndex],

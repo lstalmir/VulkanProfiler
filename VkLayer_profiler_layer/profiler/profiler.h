@@ -7,10 +7,13 @@
 #include "profiler_debug_utils.h"
 #include "profiler_frame_stats.h"
 #include "profiler_helpers.h"
-#include "profiler_mode.h"
+#include "profiler_overlay_output.h"
+#include "profiler_layer_objects/VkDevice_object.h"
+#include "profiler_layer_objects/VkQueue_object.h"
 #include <unordered_map>
-#include <vk_layer.h>
-#include <vk_layer_dispatch_table.h>
+
+// Public interface
+#include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
@@ -25,10 +28,11 @@ namespace Profiler
     \***********************************************************************************/
     struct ProfilerConfig
     {
-        ProfilerMode              m_DisplayMode;
-        ProfilerMode              m_SamplingMode;
+        VkProfilerModeEXT         m_DisplayMode;
+        VkProfilerModeEXT         m_SamplingMode;
         uint32_t                  m_NumQueriesPerCommandBuffer;
         std::chrono::milliseconds m_OutputUpdateInterval;
+        VkProfilerOutputFlagsEXT  m_OutputFlags;
     };
 
     /***********************************************************************************\
@@ -44,11 +48,14 @@ namespace Profiler
     public:
         Profiler();
 
-        VkResult Initialize( const VkApplicationInfo*,
-            VkPhysicalDevice, const VkLayerInstanceDispatchTable*,
-            VkDevice, const VkLayerDispatchTable* );
+        VkResult Initialize( VkDevice_Object* pDevice );
 
         void Destroy();
+
+        VkResult SetMode( VkProfilerModeEXT mode );
+
+        void CreateSwapchain( const VkSwapchainCreateInfoKHR*, VkSwapchainKHR );
+        void DestroySwapchain( VkSwapchainKHR );
 
         void SetDebugObjectName( uint64_t, const char* );
 
@@ -85,8 +92,7 @@ namespace Profiler
 
         void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
 
-        void PrePresent( VkQueue );
-        void PostPresent( VkQueue );
+        void Present( const VkQueue_Object&, VkPresentInfoKHR* );
 
         void OnAllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void OnFreeMemory( VkDeviceMemory );
@@ -95,12 +101,12 @@ namespace Profiler
         const FrameStats& GetPreviousFrameStats() const;
 
     public:
-        VkDevice                m_Device;
-        VkLayerDispatchTable    m_Callbacks;
+        VkDevice_Object*        m_pDevice;
 
         ProfilerConfig          m_Config;
 
         ProfilerConsoleOutput   m_Output;
+        ProfilerOverlayOutput   m_Overlay;
         ProfilerDebugUtils      m_Debug;
 
         ProfilerDataAggregator  m_DataAggregator;
@@ -113,8 +119,17 @@ namespace Profiler
 
         CpuTimestampCounter     m_CpuTimestampCounter;
 
+        VkPhysicalDeviceProperties m_DeviceProperties;
+        VkPhysicalDeviceMemoryProperties m_MemoryProperties;
+        VkPhysicalDeviceMemoryProperties2 m_MemoryProperties2;
+
         std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
-        std::atomic_uint64_t    m_AllocatedMemorySize;
+        std::atomic_uint64_t    m_DeviceLocalAllocatedMemorySize;
+        std::atomic_uint64_t    m_HostVisibleAllocatedMemorySize;
+        std::atomic_uint64_t    m_TotalAllocatedMemorySize;
+        std::atomic_uint64_t    m_DeviceLocalAllocationCount;
+        std::atomic_uint64_t    m_HostVisibleAllocationCount;
+        std::atomic_uint64_t    m_TotalAllocationCount;
 
         LockableUnorderedMap<VkCommandBuffer, ProfilerCommandBuffer> m_ProfiledCommandBuffers;
 

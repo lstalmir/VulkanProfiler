@@ -20,6 +20,7 @@ namespace Profiler
         uint32_t m_TotalClearCount;
         uint32_t m_TotalClearImplicitCount;
         uint32_t m_TotalBarrierCount;
+        uint32_t m_TotalImplicitBarrierCount;
 
         inline void Clear()
         {
@@ -38,6 +39,7 @@ namespace Profiler
             m_TotalClearCount += rh.m_TotalClearCount;
             m_TotalClearImplicitCount += rh.m_TotalClearImplicitCount;
             m_TotalBarrierCount += rh.m_TotalBarrierCount;
+            m_TotalImplicitBarrierCount += rh.m_TotalImplicitBarrierCount;
         }
 
         template<size_t Stat>
@@ -70,9 +72,15 @@ namespace Profiler
     static constexpr size_t STAT_CLEAR_COUNT = offsetof( ProfilerRangeStats, m_TotalClearCount );
     static constexpr size_t STAT_CLEAR_IMPLICIT_COUNT = offsetof( ProfilerRangeStats, m_TotalClearImplicitCount );
     static constexpr size_t STAT_BARRIER_COUNT = offsetof( ProfilerRangeStats, m_TotalBarrierCount );
+    static constexpr size_t STAT_IMPLICIT_BARRIER_COUNT = offsetof( ProfilerRangeStats, m_TotalImplicitBarrierCount );
 
     template<>
     inline void ProfilerRangeStats::IncrementDrawcallCount<STAT_BARRIER_COUNT>( uint32_t )
+    {
+    }
+
+    template<>
+    inline void ProfilerRangeStats::IncrementDrawcallCount<STAT_IMPLICIT_BARRIER_COUNT>( uint32_t )
     {
     }
 

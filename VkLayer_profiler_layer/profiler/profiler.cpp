@@ -1,7 +1,9 @@
 #include "profiler.h"
 #include "profiler_helpers.h"
-#include "farmhash/farmhash.h"
+#include "farmhash/src/farmhash.h"
 #include <sstream>
+
+#undef max
 
 namespace Profiler
 {
@@ -15,10 +17,10 @@ namespace Profiler
 
     \***********************************************************************************/
     Profiler::Profiler()
-        : m_Device( nullptr )
-        , m_Callbacks()
+        : m_pDevice( nullptr )
         , m_Config()
         , m_Output()
+        , m_Overlay( *this )
         , m_Debug()
         , m_DataAggregator()
         , m_pCurrentFrameStats( nullptr )
@@ -26,11 +28,13 @@ namespace Profiler
         , m_CurrentFrame( 0 )
         , m_CpuTimestampCounter()
         , m_Allocations()
-        , m_AllocatedMemorySize( 0 )
+        , m_DeviceLocalAllocatedMemorySize( 0 )
+        , m_DeviceLocalAllocationCount( 0 )
+        , m_HostVisibleAllocatedMemorySize( 0 )
+        , m_HostVisibleAllocationCount( 0 )
         , m_ProfiledCommandBuffers()
         , m_TimestampPeriod( 0.0f )
     {
-        ClearMemory( &m_Callbacks );
     }
 
     /***********************************************************************************\
@@ -42,14 +46,12 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::Initialize( const VkApplicationInfo* pApplicationInfo,
-        VkPhysicalDevice physicalDevice, const VkLayerInstanceDispatchTable* pInstanceDispatchTable,
-        VkDevice device, const VkLayerDispatchTable* pDispatchTable )
+    VkResult Profiler::Initialize( VkDevice_Object* pDevice )
     {
-        m_Callbacks = *pDispatchTable;
-        m_Device = device;
-
+        m_pDevice = pDevice;
         m_CurrentFrame = 0;
+
+        VkResult result;
 
         // Load config
         std::filesystem::path customConfigPath = ProfilerPlatformFunctions::GetCustomConfigPath();
@@ -83,15 +85,21 @@ namespace Profiler
                 uint32_t value; config >> value;
 
                 if( key == "MODE" )
-                    m_Config.m_DisplayMode = static_cast<ProfilerMode>(value);
+                    m_Config.m_DisplayMode = static_cast<VkProfilerModeEXT>(value);
 
                 if( key == "NUM_QUERIES_PER_CMD_BUFFER" )
                     m_Config.m_NumQueriesPerCommandBuffer = value;
 
                 if( key == "OUTPUT_UPDATE_INTERVAL" )
                     m_Config.m_OutputUpdateInterval = static_cast<std::chrono::milliseconds>(value);
+
+                if( key == "OUTPUT_FLAGS" )
+                    m_Config.m_OutputFlags = static_cast<VkProfilerOutputFlagsEXT>(value);
             }
         }
+
+        // TODO: Remove
+        m_Config.m_OutputFlags |= VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT;
 
         m_Config.m_SamplingMode = m_Config.m_DisplayMode;
 
@@ -100,8 +108,9 @@ namespace Profiler
         if( ProfilerPlatformFunctions::IsPreemptionEnabled() )
         {
             // Sample per drawcall to avoid DMA packet splits between timestamps
-            m_Config.m_SamplingMode = ProfilerMode::ePerDrawcall;
+            //m_Config.m_SamplingMode = ProfilerMode::ePerDrawcall;
             m_Output.Summary.Message = "Preemption enabled. Profiler will collect results per drawcall.";
+            m_Overlay.Summary.Message = "Preemption enabled. Results may be unstable.";
         }
 
         // Create frame stats counters
@@ -112,8 +121,8 @@ namespace Profiler
         VkFenceCreateInfo fenceCreateInfo;
         ClearStructure( &fenceCreateInfo, VK_STRUCTURE_TYPE_FENCE_CREATE_INFO );
 
-        VkResult result = m_Callbacks.CreateFence(
-            m_Device, &fenceCreateInfo, nullptr, &m_SubmitFence );
+        result = m_pDevice->Callbacks.CreateFence(
+            m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence );
 
         if( result != VK_SUCCESS )
         {
@@ -123,14 +132,13 @@ namespace Profiler
         }
 
         // Get GPU timestamp period
-        VkPhysicalDeviceProperties physicalDeviceProperties;
-        pInstanceDispatchTable->GetPhysicalDeviceProperties(
-            physicalDevice, &physicalDeviceProperties );
+        m_pDevice->pInstance->Callbacks.GetPhysicalDeviceProperties(
+            m_pDevice->PhysicalDevice, &m_DeviceProperties );
 
-        m_TimestampPeriod = physicalDeviceProperties.limits.timestampPeriod;
+        m_TimestampPeriod = m_DeviceProperties.limits.timestampPeriod;
 
         // Update application summary view
-        m_Output.Summary.Version = pApplicationInfo->apiVersion;
+        m_Output.Summary.Version = m_pDevice->pInstance->ApplicationInfo.apiVersion;
         m_Output.Summary.Mode = m_Config.m_DisplayMode;
 
         return VK_SUCCESS;
@@ -156,18 +164,43 @@ namespace Profiler
         m_pPreviousFrameStats = nullptr;
 
         m_Allocations.clear();
-        m_AllocatedMemorySize = 0;
 
         if( m_SubmitFence != VK_NULL_HANDLE )
         {
-            m_Callbacks.DestroyFence( m_Device, m_SubmitFence, nullptr );
+            m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
             m_SubmitFence = VK_NULL_HANDLE;
         }
 
         m_CurrentFrame = 0;
+        m_pDevice = nullptr;
+    }
 
-        ClearMemory( &m_Callbacks );
-        m_Device = nullptr;
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    VkResult Profiler::SetMode( VkProfilerModeEXT mode )
+    {
+        // TODO: Invalidate all command buffers
+        m_Config.m_DisplayMode = mode;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    void Profiler::CreateSwapchain( const VkSwapchainCreateInfoKHR* pCreateInfo, VkSwapchainKHR swapchain )
+    {
+        // Initialize overlay output
+        m_Overlay.Initialize( pCreateInfo, swapchain );
+    }
+
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    void Profiler::DestroySwapchain( VkSwapchainKHR swapchain )
+    {
+        m_Overlay.Destroy();
     }
 
     /***********************************************************************************\
@@ -613,10 +646,10 @@ namespace Profiler
     void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
-        if( m_Config.m_SamplingMode < ProfilerMode::ePerFrame )
+        if( m_Config.m_SamplingMode < VK_PROFILER_MODE_PER_FRAME_EXT )
         {
-            m_Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
-            m_Callbacks.WaitForFences( m_Device, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
+            m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+            m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
         }
 
         // Store submitted command buffers and get results
@@ -651,24 +684,12 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PrePresent
-
-    Description:
-    
-    \***********************************************************************************/
-    void Profiler::PrePresent( VkQueue queue )
-    {
-    }
-
-    /***********************************************************************************\
-
-    Function:
         PostPresent
 
     Description:
 
     \***********************************************************************************/
-    void Profiler::PostPresent( VkQueue queue )
+    void Profiler::Present( const VkQueue_Object& queue, VkPresentInfoKHR* pPresentInfo )
     {
         m_CurrentFrame++;
 
@@ -676,6 +697,17 @@ namespace Profiler
 
         // TMP
         ProfilerAggregatedData data = m_DataAggregator.GetAggregatedData();
+        // TODO: Move to memory tracker
+        data.m_Memory.m_TotalAllocationCount = m_TotalAllocationCount;
+        data.m_Memory.m_TotalAllocationSize = m_TotalAllocatedMemorySize;
+        data.m_Memory.m_DeviceLocalAllocationSize = m_DeviceLocalAllocatedMemorySize;
+        data.m_Memory.m_HostVisibleAllocationSize = m_HostVisibleAllocatedMemorySize;
+
+        // TODO: Move to memory tracker
+        ClearStructure( &m_MemoryProperties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 );
+        m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR(
+            m_pDevice->PhysicalDevice,
+            &m_MemoryProperties2 );
 
         if( m_CpuTimestampCounter.GetValue<std::chrono::milliseconds>() > m_Config.m_OutputUpdateInterval )
         {
@@ -686,6 +718,9 @@ namespace Profiler
         }
 
         m_LastFrameBeginTimestamp = data.m_Stats.m_BeginTimestamp;
+
+        m_Overlay.Update( data );
+        m_Overlay.Present( queue, pPresentInfo );
 
         // TMP
         m_DataAggregator.Reset();
@@ -704,7 +739,20 @@ namespace Profiler
         // Insert allocation info to the map, it will be needed during deallocation.
         m_Allocations.emplace( allocatedMemory, *pAllocateInfo );
 
-        m_AllocatedMemorySize += pAllocateInfo->allocationSize;
+        const VkMemoryType& memoryType =
+            m_MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
+
+        if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+        {
+            m_DeviceLocalAllocationCount++;
+            m_DeviceLocalAllocatedMemorySize += pAllocateInfo->allocationSize;
+        }
+
+        if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
+        {
+            m_HostVisibleAllocationCount++;
+            m_HostVisibleAllocatedMemorySize += pAllocateInfo->allocationSize;
+        }
     }
 
     /***********************************************************************************\
@@ -720,7 +768,20 @@ namespace Profiler
         auto it = m_Allocations.find( allocatedMemory );
         if( it != m_Allocations.end() )
         {
-            m_AllocatedMemorySize -= it->second.allocationSize;
+            const VkMemoryType& memoryType =
+                m_MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
+
+            if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+            {
+                m_DeviceLocalAllocationCount--;
+                m_DeviceLocalAllocatedMemorySize -= it->second.allocationSize;
+            }
+
+            if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
+            {
+                m_HostVisibleAllocationCount--;
+                m_HostVisibleAllocatedMemorySize -= it->second.allocationSize;
+            }
 
             // Remove allocation entry from the map
             m_Allocations.erase( it );
@@ -847,7 +908,7 @@ namespace Profiler
         // Calculate how many lines this submit will generate
         uint32_t requiredLineCount = 1 + submit.m_CommandBuffers.size();
 
-        if( m_Config.m_DisplayMode <= ProfilerMode::ePerRenderPass )
+        if( m_Config.m_DisplayMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
         for( const auto& commandBuffer : submit.m_CommandBuffers )
         {
             // Add number of valid render passes
@@ -862,7 +923,7 @@ namespace Profiler
                     if( pipeline.m_Handle != VK_NULL_HANDLE )
                         requiredLineCount++;
 
-                    if( m_Config.m_DisplayMode <= ProfilerMode::ePerDrawcall )
+                    if( m_Config.m_DisplayMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
                     {
                         // Add number of drawcalls in each pipeline
                         requiredLineCount += pipeline.m_Subregions.size();
@@ -891,7 +952,7 @@ namespace Profiler
                 continue;
             }
 
-            if( m_Config.m_DisplayMode > ProfilerMode::ePerRenderPass )
+            if( m_Config.m_DisplayMode > VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
             {
                 continue;
             }
@@ -905,8 +966,8 @@ namespace Profiler
                 const uint32_t drawcallCount = renderPass.m_Stats.m_TotalDrawcallCount;
 
                 const uint32_t sublines =
-                    (m_Config.m_DisplayMode <= ProfilerMode::ePerPipeline) * pipelineCount +
-                    (m_Config.m_DisplayMode <= ProfilerMode::ePerDrawcall) * drawcallCount;
+                    (m_Config.m_DisplayMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) * pipelineCount +
+                    (m_Config.m_DisplayMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT) * drawcallCount;
 
                 if( !m_Output.NextLinesVisible( 1 + sublines ) )
                 {
@@ -937,7 +998,7 @@ namespace Profiler
                         us );
                 }
 
-                if( m_Config.m_DisplayMode > ProfilerMode::ePerPipeline )
+                if( m_Config.m_DisplayMode > VK_PROFILER_MODE_PER_PIPELINE_EXT )
                 {
                     currentRenderPass++;
                     continue;
@@ -951,7 +1012,7 @@ namespace Profiler
                     const size_t drawcallCount = pipeline.m_Subregions.size();
 
                     const uint32_t sublines =
-                        (m_Config.m_DisplayMode <= ProfilerMode::ePerDrawcall) * drawcallCount;
+                        (m_Config.m_DisplayMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT) * drawcallCount;
 
                     if( !m_Output.NextLinesVisible( 1 + sublines ) )
                     {
@@ -981,7 +1042,7 @@ namespace Profiler
                             us );
                     }
 
-                    if( m_Config.m_DisplayMode > ProfilerMode::ePerDrawcall )
+                    if( m_Config.m_DisplayMode > VK_PROFILER_MODE_PER_DRAWCALL_EXT )
                     {
                         currentRenderPassPipeline++;
                         continue;

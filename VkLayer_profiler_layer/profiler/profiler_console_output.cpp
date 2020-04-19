@@ -113,6 +113,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerConsoleOutput::SkipLines( int count )
     {
+        return;
+
         m_BackBufferLineCount += count;
     }
 
@@ -126,6 +128,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerConsoleOutput::WriteLine( const char* fmt, ... )
     {
+        return;
+
         if( m_BackBufferLineCount * m_Width >= m_BufferSize )
         {
             return;
@@ -162,6 +166,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerConsoleOutput::WriteAt( int X, int Y, const char* fmt, ... )
     {
+        return;
+
         if( Y * m_Width >= m_BufferSize )
         {
             return;
@@ -197,6 +203,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerConsoleOutput::Flush()
     {
+        return;
+
         // Get size of the console
         CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
 
@@ -298,10 +306,12 @@ namespace Profiler
         const char* mode = "Unknown";
         switch( Summary.Mode )
         {
-        case ProfilerMode::ePerFrame: mode = "Frame"; break;
-        case ProfilerMode::ePerRenderPass: mode = "RenderPass"; break;
-        case ProfilerMode::ePerPipeline: mode = "Pipeline"; break;
-        case ProfilerMode::ePerDrawcall: mode = "Drawcall"; break;
+        case VK_PROFILER_MODE_PER_FRAME_EXT: mode = "Frame"; break;
+        case VK_PROFILER_MODE_PER_SUBMIT_EXT: mode = "Submit"; break;
+        case VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT: mode = "CommandBuffer"; break;
+        case VK_PROFILER_MODE_PER_RENDER_PASS_EXT: mode = "RenderPass"; break;
+        case VK_PROFILER_MODE_PER_PIPELINE_EXT: mode = "Pipeline"; break;
+        case VK_PROFILER_MODE_PER_DRAWCALL_EXT: mode = "Drawcall"; break;
         }
 
         char modeStr[32];

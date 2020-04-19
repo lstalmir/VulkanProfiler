@@ -21,6 +21,12 @@ namespace Profiler
             return reinterpret_cast<PFN_vkVoidFunction>(NAME);                          \
         }
 
+    #define GETPROCADDR_EXT( NAME )                                                     \
+        if( strcmp( pName, #NAME ) == 0 )                                               \
+        {                                                                               \
+            return reinterpret_cast<PFN_vkVoidFunction>(NAME);                          \
+        }
+
     /***********************************************************************************\
 
     Type:
@@ -74,6 +80,7 @@ namespace Profiler
             Creates new layer dispatch table and stores it in the dispatcher object.
 
         \*******************************************************************************/
+        template<typename... Args>
         inline ValueType& Create( DispatchableHandle handle )
         {
             std::scoped_lock lk( m_DispatchMutex );

@@ -25,7 +25,7 @@ namespace Sample
 
         ~SwapChain();
 
-        void acquireNextImage();
+        vk::Result acquireNextImage();
 
         void destroy();
     };

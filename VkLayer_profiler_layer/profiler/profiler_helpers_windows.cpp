@@ -69,7 +69,7 @@ namespace Profiler
         // Currently the only way to disable GPU DMA packet preemption is to set
         // HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDriver\Scheduler\EnablePreemption
         // DWORD value to 0.
-        LSTATUS status = RegGetValueA(
+        RegGetValueA(
             HKEY_LOCAL_MACHINE,
             "SYSTEM\\CurrentControlSet\\Control\\GraphicsDriver\\Scheduler",
             "EnablePreemption",
@@ -78,13 +78,7 @@ namespace Profiler
             &enablePreemptionValue,
             &enablePreemptionValueSize );
 
-        // TODO: Is this check needed?
-        if( status == ERROR_SUCCESS )
-        {
-            return static_cast<bool>(enablePreemptionValue);
-        }
-
-        return false;
+        return static_cast<bool>(enablePreemptionValue);
     }
 
 }

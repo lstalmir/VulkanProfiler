@@ -18,7 +18,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Profiler requires command buffer to already be in recording state
-        VkResult result = dd.DispatchTable.BeginCommandBuffer(
+        VkResult result = dd.Device.Callbacks.BeginCommandBuffer(
             commandBuffer, pBeginInfo );
 
         if( result == VK_SUCCESS )
@@ -45,7 +45,7 @@ namespace Profiler
 
         dd.Profiler.EndCommandBuffer( commandBuffer );
 
-        return dd.DispatchTable.EndCommandBuffer( commandBuffer );
+        return dd.Device.Callbacks.EndCommandBuffer( commandBuffer );
     }
 
     /***********************************************************************************\
@@ -67,7 +67,7 @@ namespace Profiler
         dd.Profiler.BeginRenderPass( commandBuffer, pBeginInfo );
 
         // Begin the render pass
-        dd.DispatchTable.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
+        dd.Device.Callbacks.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
     }
 
     /***********************************************************************************\
@@ -84,7 +84,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // End the render pass
-        dd.DispatchTable.CmdEndRenderPass( commandBuffer );
+        dd.Device.Callbacks.CmdEndRenderPass( commandBuffer );
 
         // Profile the render pass time
         dd.Profiler.EndRenderPass( commandBuffer );
@@ -106,7 +106,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
         // Bind the pipeline
-        dd.DispatchTable.CmdBindPipeline( commandBuffer, bindPoint, pipeline );
+        dd.Device.Callbacks.CmdBindPipeline( commandBuffer, bindPoint, pipeline );
 
         // Profile the pipeline time
         dd.Profiler.BindPipeline( commandBuffer, pipeline );
@@ -141,7 +141,7 @@ namespace Profiler
             imageMemoryBarrierCount, pImageMemoryBarriers );
 
         // Insert the barrier
-        dd.DispatchTable.CmdPipelineBarrier( commandBuffer,
+        dd.Device.Callbacks.CmdPipelineBarrier( commandBuffer,
             srcStageMask, dstStageMask, dependencyFlags,
             memoryBarrierCount, pMemoryBarriers,
             bufferMemoryBarrierCount, pBufferMemoryBarriers,
@@ -168,7 +168,7 @@ namespace Profiler
         dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDraw(
+        dd.Device.Callbacks.CmdDraw(
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
         dd.Profiler.PostDraw( commandBuffer );
@@ -194,7 +194,7 @@ namespace Profiler
         dd.Profiler.PreDrawIndirect( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDrawIndirect(
+        dd.Device.Callbacks.CmdDrawIndirect(
             commandBuffer, buffer, offset, drawCount, stride );
 
         dd.Profiler.PostDrawIndirect( commandBuffer );
@@ -221,7 +221,7 @@ namespace Profiler
         dd.Profiler.PreDraw( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDrawIndexed(
+        dd.Device.Callbacks.CmdDrawIndexed(
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
         dd.Profiler.PostDraw( commandBuffer );
@@ -247,7 +247,7 @@ namespace Profiler
         dd.Profiler.PreDrawIndirect( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDrawIndexedIndirect(
+        dd.Device.Callbacks.CmdDrawIndexedIndirect(
             commandBuffer, buffer, offset, drawCount, stride );
 
         dd.Profiler.PostDrawIndirect( commandBuffer );
@@ -272,7 +272,7 @@ namespace Profiler
         dd.Profiler.PreDispatch( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDispatch( commandBuffer, x, y, z );
+        dd.Device.Callbacks.CmdDispatch( commandBuffer, x, y, z );
 
         dd.Profiler.PostDispatch( commandBuffer );
     }
@@ -295,7 +295,7 @@ namespace Profiler
         dd.Profiler.PreDispatchIndirect( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdDispatchIndirect( commandBuffer, buffer, offset );
+        dd.Device.Callbacks.CmdDispatchIndirect( commandBuffer, buffer, offset );
 
         dd.Profiler.PostDispatchIndirect( commandBuffer );
     }
@@ -320,7 +320,7 @@ namespace Profiler
         dd.Profiler.PreCopy( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdCopyBuffer(
+        dd.Device.Callbacks.CmdCopyBuffer(
             commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions );
 
         dd.Profiler.PostCopy( commandBuffer );
@@ -347,7 +347,7 @@ namespace Profiler
         dd.Profiler.PreCopy( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdCopyBufferToImage(
+        dd.Device.Callbacks.CmdCopyBufferToImage(
             commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions );
 
         dd.Profiler.PostCopy( commandBuffer );
@@ -375,7 +375,7 @@ namespace Profiler
         dd.Profiler.PreCopy( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdCopyImage(
+        dd.Device.Callbacks.CmdCopyImage(
             commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions );
 
         dd.Profiler.PostCopy( commandBuffer );
@@ -402,7 +402,7 @@ namespace Profiler
         dd.Profiler.PreCopy( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdCopyImageToBuffer(
+        dd.Device.Callbacks.CmdCopyImageToBuffer(
             commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions );
 
         dd.Profiler.PostCopy( commandBuffer );
@@ -428,7 +428,7 @@ namespace Profiler
         dd.Profiler.PreClear( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdClearAttachments(
+        dd.Device.Callbacks.CmdClearAttachments(
             commandBuffer, attachmentCount, pAttachments, rectCount, pRects );
 
         dd.Profiler.PostClear( commandBuffer, attachmentCount );
@@ -455,7 +455,7 @@ namespace Profiler
         dd.Profiler.PreClear( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdClearColorImage(
+        dd.Device.Callbacks.CmdClearColorImage(
             commandBuffer, image, imageLayout, pColor, rangeCount, pRanges );
 
         dd.Profiler.PostClear( commandBuffer, 1 );
@@ -482,7 +482,7 @@ namespace Profiler
         dd.Profiler.PreClear( commandBuffer );
 
         // Invoke next layer's implementation
-        dd.DispatchTable.CmdClearDepthStencilImage(
+        dd.Device.Callbacks.CmdClearDepthStencilImage(
             commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges );
 
         dd.Profiler.PostClear( commandBuffer, 1 );

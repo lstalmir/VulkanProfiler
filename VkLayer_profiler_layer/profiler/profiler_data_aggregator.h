@@ -7,6 +7,14 @@
 
 namespace Profiler
 {
+    struct ProfilerAggregatedMemoryData
+    {
+        uint64_t m_TotalAllocationSize;
+        uint64_t m_TotalAllocationCount;
+        uint64_t m_DeviceLocalAllocationSize;
+        uint64_t m_HostVisibleAllocationSize;
+    };
+
     /***********************************************************************************\
 
     Structure:
@@ -21,6 +29,8 @@ namespace Profiler
         std::vector<ProfilerPipeline> m_TopPipelines;
 
         ProfilerRangeStats m_Stats;
+
+        ProfilerAggregatedMemoryData m_Memory;
     };
 
     /***********************************************************************************\
@@ -36,7 +46,7 @@ namespace Profiler
     {
     public:
         void AppendData( const ProfilerSubmitData& );
-
+        
         void Reset();
 
         ProfilerAggregatedData GetAggregatedData();
