@@ -8,6 +8,11 @@
 
 namespace Profiler
 {
+    struct VkDevice_debug_Object
+    {
+        std::map<uint64_t, std::string> ObjectNames;
+    };
+
     struct VkDevice_Object
     {
         VkDevice Handle;
@@ -17,6 +22,11 @@ namespace Profiler
 
         // Dispatch tables
         VkLayerDispatchTable Callbacks;
+
+        VkPhysicalDeviceProperties Properties;
+        VkPhysicalDeviceMemoryProperties MemoryProperties;
+        
+        VkDevice_debug_Object Debug;
 
         std::unordered_map<VkQueue, VkQueue_Object> Queues;
 

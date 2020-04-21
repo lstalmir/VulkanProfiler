@@ -9,14 +9,12 @@ set (headers
     "profiler.h"
     "profiler_allocator.h"
     "profiler_command_buffer.h"
-    "profiler_console_output.h"
     "profiler_counters.h"
     "profiler_data_aggregator.h"
     "profiler_debug_utils.h"
     "profiler_drawcall.h"
     "profiler_frame_stats.h"
     "profiler_helpers.h"
-    "profiler_mode.h"
     "profiler_pipeline.h"
     "profiler_resources.h"
     "profiler_shader.h"
@@ -25,10 +23,8 @@ set (headers
 set (sources
     "profiler.cpp"
     "profiler_command_buffer.cpp"
-    "profiler_console_output.cpp"
     "profiler_data_aggregator.cpp"
     "profiler_debug_utils.cpp"
-    "profiler_overlay_output.cpp"
     # Windows
     "profiler_helpers_windows.cpp"
     )
@@ -38,24 +34,11 @@ set (farmhash
     "farmhash/src/farmhash.cc"
     )
 
-set (imgui
-    "imgui/imgui.h"
-    "imgui/imgui.cpp"
-    "imgui/imgui_demo.cpp"
-    "imgui/imgui_draw.cpp"
-    "imgui/imgui_widgets.cpp"
-    "imgui/examples/imgui_impl_win32.h"
-    "imgui/examples/imgui_impl_win32.cpp"
-    "imgui_impl_vulkan_layer.h"
-    "imgui_impl_vulkan_layer.cpp"
-    )
-    
 # Link intermediate static library
 add_library (profiler_layer
     ${sources}
     ${headers}
-    ${farmhash}
-    ${imgui})
+    ${farmhash})
 
 target_compile_definitions (profiler_layer
     PRIVATE -DNAMESPACE_FOR_HASH_FUNCTIONS=Profiler::Hash
@@ -69,7 +52,6 @@ endif ()
 
 # Set include path
 target_include_directories (profiler_layer
-    PRIVATE imgui
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..

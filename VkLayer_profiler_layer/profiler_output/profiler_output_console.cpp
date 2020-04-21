@@ -1,4 +1,5 @@
-#include "profiler_console_output.h"
+#if 0
+#include "profiler_output_console.h"
 #include "profiler_helpers.h"
 #include <vulkan/vulkan.h>
 
@@ -372,3 +373,4 @@ namespace Profiler
         }
     }
 }
+#endif

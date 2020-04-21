@@ -21,6 +21,7 @@ add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
 # Include implementation of the layer
 add_subdirectory (profiler)
 add_subdirectory (profiler_ext)
+add_subdirectory (profiler_output)
 
 set (resource
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc
@@ -70,6 +71,7 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_layer)
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_ext)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_output)
 
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}

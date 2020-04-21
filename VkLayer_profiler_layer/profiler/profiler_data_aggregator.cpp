@@ -181,7 +181,7 @@ namespace Profiler
                         }
 
                         // Clear values which don't make sense after aggregation
-                        aggregatedPipeline.m_Handle = VK_NULL_HANDLE;
+                        aggregatedPipeline.m_Handle = pipeline.m_Handle;
                         aggregatedPipeline.m_Subregions.clear();
 
                         aggregatedPipelines.insert( aggregatedPipeline );

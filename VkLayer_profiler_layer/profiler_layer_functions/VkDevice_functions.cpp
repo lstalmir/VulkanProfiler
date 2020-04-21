@@ -2,8 +2,54 @@
 #include "VkInstance_functions.h"
 #include "profiler_layer_objects/VkSwapchainKHR_object.h"
 #include "VkLayer_profiler_layer.generated.h"
+#include "Helpers.h"
 
 #include "profiler_ext/VkProfilerEXT.h"
+
+namespace
+{
+    // VkDebugReportObjectTypeEXT to VkObjectType mapping
+    static const std::map<VkDebugReportObjectTypeEXT, VkObjectType> VkDebugReportObjectTypeEXT_to_VkObjectType =
+    {
+        { VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT,                      VK_OBJECT_TYPE_UNKNOWN },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_INSTANCE_EXT,                     VK_OBJECT_TYPE_INSTANCE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_PHYSICAL_DEVICE_EXT,              VK_OBJECT_TYPE_PHYSICAL_DEVICE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_EXT,                       VK_OBJECT_TYPE_DEVICE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_QUEUE_EXT,                        VK_OBJECT_TYPE_QUEUE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT,                    VK_OBJECT_TYPE_SEMAPHORE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT,               VK_OBJECT_TYPE_COMMAND_BUFFER },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT,                        VK_OBJECT_TYPE_FENCE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT,                VK_OBJECT_TYPE_DEVICE_MEMORY },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT,                       VK_OBJECT_TYPE_BUFFER },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,                        VK_OBJECT_TYPE_IMAGE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_EVENT_EXT,                        VK_OBJECT_TYPE_EVENT },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_QUERY_POOL_EXT,                   VK_OBJECT_TYPE_QUERY_POOL },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT,                  VK_OBJECT_TYPE_BUFFER_VIEW },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT,                   VK_OBJECT_TYPE_IMAGE_VIEW },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,                VK_OBJECT_TYPE_SHADER_MODULE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_CACHE_EXT,               VK_OBJECT_TYPE_PIPELINE_CACHE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT,              VK_OBJECT_TYPE_PIPELINE_LAYOUT },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT,                  VK_OBJECT_TYPE_RENDER_PASS },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT,                     VK_OBJECT_TYPE_PIPELINE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,        VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT,                      VK_OBJECT_TYPE_SAMPLER },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_POOL_EXT,              VK_OBJECT_TYPE_DESCRIPTOR_POOL },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_EXT,               VK_OBJECT_TYPE_DESCRIPTOR_SET },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT,                  VK_OBJECT_TYPE_FRAMEBUFFER },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT,                 VK_OBJECT_TYPE_COMMAND_POOL },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_SURFACE_KHR_EXT,                  VK_OBJECT_TYPE_SURFACE_KHR },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT,                VK_OBJECT_TYPE_SWAPCHAIN_KHR },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT_EXT,    VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_KHR_EXT,                  VK_OBJECT_TYPE_DISPLAY_KHR },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_MODE_KHR_EXT,             VK_OBJECT_TYPE_DISPLAY_MODE_KHR },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_OBJECT_TABLE_NVX_EXT,             VK_OBJECT_TYPE_OBJECT_TABLE_NVX },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX_EXT, VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_VALIDATION_CACHE_EXT,             VK_OBJECT_TYPE_VALIDATION_CACHE_EXT },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_EXT,     VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_EXT,   VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE },
+        { VK_DEBUG_REPORT_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV_EXT,    VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV }
+    };
+}
 
 namespace Profiler
 {
@@ -62,7 +108,7 @@ namespace Profiler
 
         // VK_EXT_profiler functions
         GETPROCADDR_EXT( vkSetProfilerModeEXT );
-        GETPROCADDR_EXT( vkCmdDrawProfilerOverlayEXT );
+        GETPROCADDR_EXT( vkGetProfilerDataEXT );
 
         // Get device dispatch table
         return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
@@ -180,8 +226,9 @@ namespace Profiler
             return result;
         }
 
-        // Update profiler
-        dd.Profiler.SetDebugObjectName( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
+        dd.Device.Debug.ObjectNames.emplace(
+            pObjectInfo->objectHandle,
+            pObjectInfo->pObjectName );
 
         return VK_SUCCESS;
     }
@@ -209,8 +256,9 @@ namespace Profiler
             return result;
         }
 
-        // Update profiler
-        dd.Profiler.SetDebugObjectName( pObjectInfo->object, pObjectInfo->pObjectName );
+        dd.Device.Debug.ObjectNames.emplace(
+            pObjectInfo->object,
+            pObjectInfo->pObjectName );
 
         return VK_SUCCESS;
     }
@@ -243,30 +291,61 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.CreateSwapchainKHR(
             device, &createInfo, pAllocator, pSwapchain );
 
-        if( result != VK_SUCCESS )
+        // Create wrapping object
+        if( result == VK_SUCCESS )
         {
-            // Swapchain creation failed
-            return result;
+            VkSwapchainKHR_Object swapchainObject = {};
+            swapchainObject.Handle = *pSwapchain;
+            swapchainObject.pSurface = &dd.Device.pInstance->Surfaces[ pCreateInfo->surface ];
+
+            uint32_t swapchainImageCount = 0;
+            dd.Device.Callbacks.GetSwapchainImagesKHR(
+                device, *pSwapchain, &swapchainImageCount, nullptr );
+
+            swapchainObject.Images.resize( swapchainImageCount );
+            dd.Device.Callbacks.GetSwapchainImagesKHR(
+                device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
+
+            dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
         }
 
-        VkSwapchainKHR_Object swapchainObject = {};
-        swapchainObject.Handle = *pSwapchain;
-        swapchainObject.pSurface = &dd.Device.pInstance->Surfaces[ pCreateInfo->surface ];
-        
-        uint32_t swapchainImageCount = 0;
-        dd.Device.Callbacks.GetSwapchainImagesKHR(
-            device, *pSwapchain, &swapchainImageCount, nullptr );
+        // Create overlay
+        if( result == VK_SUCCESS &&
+            dd.Profiler.m_Config.m_OutputFlags & VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT )
+        {
+            // TODO: Multiple swapchain support
+            assert( dd.pOverlay == nullptr );
 
-        swapchainObject.Images.resize( swapchainImageCount );
-        dd.Device.Callbacks.GetSwapchainImagesKHR(
-            device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
+            // Select graphics queue for the overlay draw commands
+            VkQueue graphicsQueue = VK_NULL_HANDLE;
 
-        dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
+            for( auto& it : dd.Device.Queues )
+            {
+                if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
+                {
+                    graphicsQueue = it.second.Handle;
+                    break;
+                }
+            }
 
-        // Register swapchain
-        dd.Profiler.CreateSwapchain( pCreateInfo, *pSwapchain );
+            assert( graphicsQueue != VK_NULL_HANDLE );
 
-        return VK_SUCCESS;
+            // Create overlay
+            result = Create<ProfilerOverlayOutput>(
+                dd.pOverlay,
+                dd.Device,
+                dd.Device.Queues.at( graphicsQueue ),
+                dd.Device.Swapchains.at( *pSwapchain ),
+                pCreateInfo );
+
+            if( result != VK_SUCCESS )
+            {
+                // Full initialization failed, don't continue in partially-initialized state
+                VkDevice_Functions::DestroySwapchainKHR( device, *pSwapchain, pAllocator );
+            }
+        }
+
+        return result;
     }
 
     /***********************************************************************************\
@@ -284,8 +363,10 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
-        // Unregister the swapchain from the profiler
-        dd.Profiler.DestroySwapchain( swapchain );
+        if( dd.pOverlay )
+        {
+            Destroy<ProfilerOverlayOutput>( dd.pOverlay );
+        }
 
         dd.Device.Swapchains.erase( swapchain );
 

@@ -11,8 +11,16 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
         .Profiler.SetMode( mode );
 }
 
-VKAPI_ATTR void VKAPI_CALL vkCmdDrawProfilerOverlayEXT(
-    VkCommandBuffer commandBuffer )
+VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerDataEXT(
+    VkDevice device,
+    VkProfilerDataEXT* pData )
 {
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
+    // Get latest data from profiler
+    ProfilerAggregatedData data = dd.Profiler.GetData();
+
+    // TODO: Translate internal data to VkProfilerDataEXT
+
+    return VK_INCOMPLETE;
 }

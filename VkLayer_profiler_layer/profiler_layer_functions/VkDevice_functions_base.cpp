@@ -38,6 +38,13 @@ namespace Profiler
         dd.Device.pInstance = &id.Instance;
         dd.Device.PhysicalDevice = physicalDevice;
 
+        // Get device properties
+        id.Instance.Callbacks.GetPhysicalDeviceProperties(
+            physicalDevice, &dd.Device.Properties );
+
+        id.Instance.Callbacks.GetPhysicalDeviceMemoryProperties(
+            physicalDevice, &dd.Device.MemoryProperties );
+
         // Enumerate queue families
         uint32_t queueFamilyPropertyCount = 0;
         id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(
@@ -83,6 +90,8 @@ namespace Profiler
             return result;
         }
 
+        dd.pOverlay = nullptr;
+
         return VK_SUCCESS;
     }
 
@@ -101,6 +110,12 @@ namespace Profiler
 
         // Destroy the profiler instance
         dd.Profiler.Destroy();
+
+        if( dd.pOverlay )
+        {
+            // Should have been freed in DestroySwapchainKHR
+            Destroy<ProfilerOverlayOutput>( dd.pOverlay );
+        }
 
         DeviceDispatch.Erase( device );
     }

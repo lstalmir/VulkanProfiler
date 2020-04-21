@@ -1,16 +1,15 @@
 #pragma once
 #include "profiler_allocator.h"
 #include "profiler_command_buffer.h"
-#include "profiler_console_output.h"
 #include "profiler_counters.h"
 #include "profiler_data_aggregator.h"
 #include "profiler_debug_utils.h"
 #include "profiler_frame_stats.h"
 #include "profiler_helpers.h"
-#include "profiler_overlay_output.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include <unordered_map>
+#include <sstream>
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
@@ -52,10 +51,9 @@ namespace Profiler
 
         void Destroy();
 
+        // Public interface
         VkResult SetMode( VkProfilerModeEXT mode );
-
-        void CreateSwapchain( const VkSwapchainCreateInfoKHR*, VkSwapchainKHR );
-        void DestroySwapchain( VkSwapchainKHR );
+        ProfilerAggregatedData GetData() const;
 
         void SetDebugObjectName( uint64_t, const char* );
 
@@ -97,22 +95,16 @@ namespace Profiler
         void OnAllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void OnFreeMemory( VkDeviceMemory );
 
-        FrameStats& GetCurrentFrameStats();
-        const FrameStats& GetPreviousFrameStats() const;
-
     public:
         VkDevice_Object*        m_pDevice;
 
         ProfilerConfig          m_Config;
-
-        ProfilerConsoleOutput   m_Output;
-        ProfilerOverlayOutput   m_Overlay;
         ProfilerDebugUtils      m_Debug;
 
-        ProfilerDataAggregator  m_DataAggregator;
+        mutable std::mutex      m_DataMutex;
+        ProfilerAggregatedData  m_Data;
 
-        FrameStats*             m_pCurrentFrameStats;
-        FrameStats*             m_pPreviousFrameStats;
+        ProfilerDataAggregator  m_DataAggregator;
 
         uint32_t                m_CurrentFrame;
         uint64_t                m_LastFrameBeginTimestamp;
@@ -140,10 +132,32 @@ namespace Profiler
 
         float                   m_TimestampPeriod;
 
+        #if 0
         void PresentResults( const ProfilerAggregatedData& );
         void PresentSubmit( uint32_t, const ProfilerSubmitData& );
         void PresentCommandBuffer( uint32_t, const ProfilerCommandBufferData& );
+        #endif
+
+        void FreeProfilerData( VkProfilerRegionDataEXT* pData ) const;
+
+        template<typename... Args>
+        inline char* CreateRegionName( Args... args ) const
+        {
+            std::stringstream sstr;
+            sstr << args << ...;
+            std::string str = sstr.str();
+            return _strdup( str.c_str() );
+        }
+
+        void FillProfilerData( VkProfilerRegionDataEXT* pData, const ProfilerRangeStats& stats ) const;
 
         ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo );
+
+        inline VkDevice Device() const { return m_pDevice->Handle; }
+        inline VkInstance Instance() const { return m_pDevice->pInstance->Handle; }
+        inline VkPhysicalDevice PhysicalDevice() const { return m_pDevice->PhysicalDevice; }
+
+        inline const VkLayerDispatchTable& Dispatch() const { return m_pDevice->Callbacks; }
+        inline const VkLayerInstanceDispatchTable& InstanceDispatch() const { return m_pDevice->pInstance->Callbacks; }
     };
 }

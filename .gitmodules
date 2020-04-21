@@ -20,5 +20,5 @@
 	path = Dep/farmhash
 	url = https://github.com/google/farmhash
 [submodule "VkLayer_profiler_layer/profiler/imgui"]
-	path = VkLayer_profiler_layer/profiler/imgui
+	path = VkLayer_profiler_layer/profiler_output/imgui
 	url = https://github.com/ocornut/imgui

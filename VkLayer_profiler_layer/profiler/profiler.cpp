@@ -2,6 +2,7 @@
 #include "profiler_helpers.h"
 #include "farmhash/src/farmhash.h"
 #include <sstream>
+#include <fstream>
 
 #undef max
 
@@ -19,12 +20,10 @@ namespace Profiler
     Profiler::Profiler()
         : m_pDevice( nullptr )
         , m_Config()
-        , m_Output()
-        , m_Overlay( *this )
         , m_Debug()
+        , m_DataMutex()
+        , m_Data()
         , m_DataAggregator()
-        , m_pCurrentFrameStats( nullptr )
-        , m_pPreviousFrameStats( nullptr )
         , m_CurrentFrame( 0 )
         , m_CpuTimestampCounter()
         , m_Allocations()
@@ -60,8 +59,8 @@ namespace Profiler
         if( !customConfigPath.empty() &&
             !std::filesystem::exists( customConfigPath ) )
         {
-            m_Output.WriteLine( "ERROR: Custom config file %s not found",
-                customConfigPath.c_str() );
+            //m_Output.WriteLine( "ERROR: Custom config file %s not found",
+            //    customConfigPath.c_str() );
 
             customConfigPath = "";
         }
@@ -109,13 +108,11 @@ namespace Profiler
         {
             // Sample per drawcall to avoid DMA packet splits between timestamps
             //m_Config.m_SamplingMode = ProfilerMode::ePerDrawcall;
+            #if 0
             m_Output.Summary.Message = "Preemption enabled. Profiler will collect results per drawcall.";
             m_Overlay.Summary.Message = "Preemption enabled. Results may be unstable.";
+            #endif
         }
-
-        // Create frame stats counters
-        m_pCurrentFrameStats = new FrameStats;
-        m_pPreviousFrameStats = new FrameStats; // will be swapped every frame
 
         // Create submit fence
         VkFenceCreateInfo fenceCreateInfo;
@@ -137,10 +134,6 @@ namespace Profiler
 
         m_TimestampPeriod = m_DeviceProperties.limits.timestampPeriod;
 
-        // Update application summary view
-        m_Output.Summary.Version = m_pDevice->pInstance->ApplicationInfo.apiVersion;
-        m_Output.Summary.Mode = m_Config.m_DisplayMode;
-
         return VK_SUCCESS;
     }
 
@@ -156,12 +149,6 @@ namespace Profiler
     void Profiler::Destroy()
     {
         m_ProfiledCommandBuffers.clear();
-
-        delete m_pCurrentFrameStats;
-        m_pCurrentFrameStats = nullptr;
-
-        delete m_pPreviousFrameStats;
-        m_pPreviousFrameStats = nullptr;
 
         m_Allocations.clear();
 
@@ -189,18 +176,11 @@ namespace Profiler
     /***********************************************************************************\
 
     \***********************************************************************************/
-    void Profiler::CreateSwapchain( const VkSwapchainCreateInfoKHR* pCreateInfo, VkSwapchainKHR swapchain )
+    ProfilerAggregatedData Profiler::GetData() const
     {
-        // Initialize overlay output
-        m_Overlay.Initialize( pCreateInfo, swapchain );
-    }
-
-    /***********************************************************************************\
-
-    \***********************************************************************************/
-    void Profiler::DestroySwapchain( VkSwapchainKHR swapchain )
-    {
-        m_Overlay.Destroy();
+        // Hold aggregator updates to keep m_Data consistent
+        std::scoped_lock lk( m_DataMutex );
+        return m_Data;
     }
 
     /***********************************************************************************\
@@ -696,12 +676,14 @@ namespace Profiler
         m_CpuTimestampCounter.End();
 
         // TMP
-        ProfilerAggregatedData data = m_DataAggregator.GetAggregatedData();
+        std::scoped_lock lk( m_DataMutex );
+        m_Data = m_DataAggregator.GetAggregatedData();
+
         // TODO: Move to memory tracker
-        data.m_Memory.m_TotalAllocationCount = m_TotalAllocationCount;
-        data.m_Memory.m_TotalAllocationSize = m_TotalAllocatedMemorySize;
-        data.m_Memory.m_DeviceLocalAllocationSize = m_DeviceLocalAllocatedMemorySize;
-        data.m_Memory.m_HostVisibleAllocationSize = m_HostVisibleAllocatedMemorySize;
+        m_Data.m_Memory.m_TotalAllocationCount = m_TotalAllocationCount;
+        m_Data.m_Memory.m_TotalAllocationSize = m_TotalAllocatedMemorySize;
+        m_Data.m_Memory.m_DeviceLocalAllocationSize = m_DeviceLocalAllocatedMemorySize;
+        m_Data.m_Memory.m_HostVisibleAllocationSize = m_HostVisibleAllocatedMemorySize;
 
         // TODO: Move to memory tracker
         ClearStructure( &m_MemoryProperties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 );
@@ -711,16 +693,52 @@ namespace Profiler
 
         if( m_CpuTimestampCounter.GetValue<std::chrono::milliseconds>() > m_Config.m_OutputUpdateInterval )
         {
-            // Present profiling results
-            PresentResults( data );
+            // Process data (TODO: Move to profiler_ext)
+            #if 0
+            m_DataStaging.memory.deviceLocalMemoryAllocated = data.m_Memory.m_DeviceLocalAllocationSize;
+
+            FreeProfilerData( &m_DataStaging.frame );
+
+            m_DataStaging.frame.regionType = VK_PROFILER_REGION_TYPE_FRAME_EXT;
+            m_DataStaging.frame.pRegionName = CreateRegionName( "Frame #", m_CurrentFrame );
+            
+            // Frame stats
+            FillProfilerData( &m_DataStaging.frame, data.m_Stats );
+
+            m_DataStaging.frame.subregionCount = data.m_Submits.size();
+            m_DataStaging.frame.pSubregions = new VkProfilerRegionDataEXT[ data.m_Submits.size() ];
+
+            uint32_t submitIdx = 0;
+            VkProfilerRegionDataEXT* pSubmitRegion = m_DataStaging.frame.pSubregions;
+
+            for( const auto& submit : data.m_Submits )
+            {
+                pSubmitRegion->regionType = VK_PROFILER_REGION_TYPE_SUBMIT_EXT;
+                pSubmitRegion->regionObject = VK_NULL_HANDLE;
+                pSubmitRegion->pRegionName = CreateRegionName( "Submit #", submitIdx );
+
+                // Submit stats (TODO)
+
+                pSubmitRegion->subregionCount = submit.m_CommandBuffers.size();
+                pSubmitRegion->pSubregions = new VkProfilerRegionDataEXT[ submit.m_CommandBuffers.size() ];
+
+                VkProfilerRegionDataEXT* pCmdBufferRegion = pSubmitRegion->pSubregions;
+
+                for( const auto& cmdBuffer : submit.m_CommandBuffers )
+                {
+                    pCmdBufferRegion
+                }
+
+                // Move to next submit region
+                submitIdx++;
+                pSubmitRegion++;
+            }
+            #endif
 
             m_CpuTimestampCounter.Begin();
         }
 
-        m_LastFrameBeginTimestamp = data.m_Stats.m_BeginTimestamp;
-
-        m_Overlay.Update( data );
-        m_Overlay.Present( queue, pPresentInfo );
+        m_LastFrameBeginTimestamp = m_Data.m_Stats.m_BeginTimestamp;
 
         // TMP
         m_DataAggregator.Reset();
@@ -788,32 +806,7 @@ namespace Profiler
         }
     }
 
-    /***********************************************************************************\
-
-    Function:
-        GetCurrentFrameStats
-
-    Description:
-
-    \***********************************************************************************/
-    FrameStats& Profiler::GetCurrentFrameStats()
-    {
-        return *m_pCurrentFrameStats;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetPreviousFrameStats
-
-    Description:
-
-    \***********************************************************************************/
-    const FrameStats& Profiler::GetPreviousFrameStats() const
-    {
-        return *m_pPreviousFrameStats;
-    }
-
+    #if 0
     /***********************************************************************************\
 
     Function:
@@ -1095,6 +1088,47 @@ namespace Profiler
             }
         }
     }
+    #endif
+
+    /***********************************************************************************\
+
+    Function:
+        FreeProfilerData
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::FreeProfilerData( VkProfilerRegionDataEXT* pData ) const
+    {
+        for( uint32_t i = 0; i < pData->subregionCount; ++i )
+        {
+            FreeProfilerData( &pData->pSubregions[ i ] );
+            delete[] pData->pSubregions;
+        }
+
+        std::free( const_cast<char*>(pData->pRegionName) );
+
+        std::memset( pData, 0, sizeof( VkProfilerRegionDataEXT ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FillProfilerData
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::FillProfilerData( VkProfilerRegionDataEXT* pData, const ProfilerRangeStats& stats ) const
+    {
+        pData->duration = 1000000.f * stats.m_TotalTicks / m_TimestampPeriod;
+        pData->drawCount = stats.m_TotalDrawCount;
+        pData->drawIndirectCount = stats.m_TotalDrawIndirectCount;
+        pData->dispatchCount = stats.m_TotalDispatchCount;
+        pData->dispatchIndirectCount = stats.m_TotalDispatchIndirectCount;
+        pData->clearCount = stats.m_TotalClearCount + stats.m_TotalClearImplicitCount;
+        pData->barrierCount = stats.m_TotalBarrierCount;
+    }
 
     /***********************************************************************************\
 
@@ -1130,9 +1164,6 @@ namespace Profiler
             {
                 // Break in debug builds
                 assert( !"Usupported graphics shader stage" );
-
-                m_Output.WriteLine( "WARNING: Unsupported graphics shader stage (%u)",
-                    createInfo.pStages[i].stage );
             }
             }
         }
