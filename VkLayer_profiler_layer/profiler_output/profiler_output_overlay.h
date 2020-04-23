@@ -5,6 +5,7 @@
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "profiler_layer_objects/VkSwapchainKHR_object.h"
 #include <vulkan/vk_layer.h>
+#include <list>
 #include <vector>
 #include <mutex>
 
@@ -68,6 +69,15 @@ namespace Profiler
 
         const float m_TimestampPeriod;
 
+        enum class FrameBrowserSortMode
+        {
+            eSubmissionOrder,
+            eDurationDescending,
+            eDurationAscending
+        };
+
+        FrameBrowserSortMode m_FrameBrowserSortMode;
+
         // Dispatch overriden window procedures
         static LockableUnorderedMap<void*, WNDPROC> s_pfnWindowProc;
 
@@ -87,5 +97,57 @@ namespace Profiler
         void TextAlignRight( const char* fmt, ... );
 
         std::string GetDebugObjectName( VkObjectType type, uint64_t handle ) const;
+
+        // Range duration comparator
+        template<typename Data>
+        inline static bool DurationDesc( const Data& a, const Data& b )
+        {
+            return a.m_Stats.m_TotalTicks > b.m_Stats.m_TotalTicks;
+        }
+
+        template<typename Data>
+        inline static bool DurationAsc( const Data& a, const Data& b )
+        {
+            return a.m_Stats.m_TotalTicks < b.m_Stats.m_TotalTicks;
+        }
+
+        // Drawcall duration comparator
+        template<>
+        inline static bool DurationDesc( const ProfilerDrawcall& a, const ProfilerDrawcall& b )
+        {
+            return a.m_Ticks > b.m_Ticks;
+        }
+
+        template<>
+        inline static bool DurationAsc( const ProfilerDrawcall& a, const ProfilerDrawcall& b )
+        {
+            return a.m_Ticks < b.m_Ticks;
+        }
+
+        // Sort frame browser data
+        template<typename Data>
+        std::list<const Data*> SortFrameBrowserData( const std::vector<Data>& data ) const
+        {
+            std::list<const Data*> pSortedData;
+
+            for( const Data& subdata : data )
+                pSortedData.push_back( &subdata );
+
+            switch( m_FrameBrowserSortMode )
+            {
+            case FrameBrowserSortMode::eSubmissionOrder:
+                break; // No sorting in submission order view
+
+            case FrameBrowserSortMode::eDurationDescending:
+                pSortedData.sort( []( const Data* a, const Data* b )
+                    { return DurationDesc( *a, *b ); } ); break;
+
+            case FrameBrowserSortMode::eDurationAscending:
+                pSortedData.sort( []( const Data* a, const Data* b )
+                    { return DurationAsc( *a, *b ); } ); break;
+            }
+
+            return pSortedData;
+        }
     };
 }

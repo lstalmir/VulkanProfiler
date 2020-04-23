@@ -42,6 +42,7 @@ namespace Profiler
         , m_CommandFences()
         , m_CommandSemaphores()
         , m_TimestampPeriod( device.Properties.limits.timestampPeriod * 1000000.f )
+        , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
     {
         // Get swapchain images
         uint32_t swapchainImageCount = 0;
@@ -702,6 +703,43 @@ namespace Profiler
         // Frame browser
         if( ImGui::CollapsingHeader( "Frame browser" ) )
         {
+            // Select sort mode
+            {
+                static const char* sortOptions[] = {
+                    "Submission order",
+                    "Duration descending",
+                    "Duration ascending" };
+
+                const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
+
+                ImGui::Text( "Sort" );
+                ImGui::SameLine();
+
+                if( ImGui::BeginCombo( "FrameBrowserSortMode", selectedOption ) )
+                {
+                    for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
+                    {
+                        bool isSelected = (selectedOption == sortOptions[ i ]);
+
+                        if( ImGui::Selectable( sortOptions[ i ], isSelected ) )
+                        {
+                            // Selection changed
+                            selectedOption = sortOptions[ i ];
+                            isSelected = true;
+
+                            m_FrameBrowserSortMode = FrameBrowserSortMode( i );
+                        }
+
+                        if( isSelected )
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+
+                    ImGui::EndCombo();
+                }
+            }
+
             uint64_t index = 0;
 
             // Enumerate submits in frame
@@ -712,10 +750,17 @@ namespace Profiler
 
                 if( ImGui::TreeNode( indexStr, "Submit #%u", index ) )
                 {
+                    // Sort frame browser data
+                    std::list<const ProfilerCommandBufferData*> pCommandBuffers =
+                        SortFrameBrowserData( submit.m_CommandBuffers );
+
                     // Enumerate command buffers in submit
-                    for( uint64_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
+                    uint64_t commandBufferIndex = 0;
+
+                    for( const auto* pCommandBuffer : pCommandBuffers )
                     {
-                        PrintCommandBuffer( submit.m_CommandBuffers[ i ], index | (i << 12) );
+                        PrintCommandBuffer( *pCommandBuffer, index | (commandBufferIndex << 12) );
+                        commandBufferIndex++;
                     }
 
                     // Finish submit subtree
@@ -854,10 +899,17 @@ namespace Profiler
             // Command buffer opened
             TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks / m_TimestampPeriod );
 
+            // Sort frame browser data
+            std::list<const ProfilerRenderPass*> pRenderPasses =
+                SortFrameBrowserData( cmdBuffer.m_Subregions );
+
             // Enumerate render passes in command buffer
-            for( uint64_t i = 0; i < cmdBuffer.m_Subregions.size(); ++i )
+            uint64_t renderPassIndex = 0;
+
+            for( const ProfilerRenderPass* pRenderPass : pRenderPasses )
             {
-                PrintRenderPass( cmdBuffer.m_Subregions[ i ], index | (i << 24) );
+                PrintRenderPass( *pRenderPass, index | (renderPassIndex << 24) );
+                renderPassIndex++;
             }
 
             ImGui::TreePop();
@@ -917,24 +969,35 @@ namespace Profiler
 
             if( renderPass.m_Subregions.size() > 1 )
             {
+                // Sort frame browser data
+                std::list<const ProfilerSubpass*> pSubpasses =
+                    SortFrameBrowserData( renderPass.m_Subregions );
+
                 // Enumerate subpasses (who uses subpasses anyway)
-                for( uint64_t i = 0; i < renderPass.m_Subregions.size(); ++i )
+                uint64_t subpassIndex = 0;
+
+                for( const ProfilerSubpass* pSubpass : pSubpasses )
                 {
-                    uint64_t subpassIndex = index | (i << 36);
+                    const uint64_t i = index | (subpassIndex << 36);
                     // Subpass ID
-                    _ui64toa_s( subpassIndex, indexStr, 17, 16 );
+                    _ui64toa_s( i, indexStr, 17, 16 );
 
-                    const ProfilerSubpass& subpass = renderPass.m_Subregions[ i ];
-
-                    if( ImGui::TreeNode( indexStr, "Subpass #%llu", i ) )
+                    if( ImGui::TreeNode( indexStr, "Subpass #%llu", subpassIndex ) )
                     {
                         // Subpass subtree opened
-                        TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks / m_TimestampPeriod );
+
+                        // Sort frame browser data
+                        std::list<const ProfilerPipeline*> pPipelines =
+                            SortFrameBrowserData( pSubpass->m_Subregions );
 
                         // Enumerate pipelines in subpass
-                        for( uint64_t i = 0; i < renderPass.m_Subregions.size(); ++i )
+                        uint64_t pipelineIndex = 0;
+
+                        for( const ProfilerPipeline* pPipeline : pPipelines )
                         {
-                            PrintPipeline( subpass.m_Subregions[ i ], subpassIndex | (i << 48) );
+                            PrintPipeline( *pPipeline, i | (pipelineIndex << 48) );
+                            pipelineIndex++;
                         }
 
                         // Finish subpass tree
@@ -943,18 +1006,27 @@ namespace Profiler
                     else
                     {
                         // Subpass collapsed
-                        TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks / m_TimestampPeriod );
                     }
+
+                    subpassIndex++;
                 }
             }
             else
             {
                 const ProfilerSubpass& subpass = renderPass.m_Subregions.front();
 
+                // Sort frame browser data
+                std::list<const ProfilerPipeline*> pPipelines =
+                    SortFrameBrowserData( subpass.m_Subregions );
+
                 // Enumerate pipelines in render pass
-                for( uint64_t i = 0; i < subpass.m_Subregions.size(); ++i )
+                uint64_t pipelineIndex = 0;
+
+                for( const ProfilerPipeline* pPipeline : pPipelines )
                 {
-                    PrintPipeline( subpass.m_Subregions[ i ], index | (i << 48) );
+                    PrintPipeline( *pPipeline, index | (pipelineIndex << 48) );
+                    pipelineIndex++;
                 }
             }
         }
@@ -1004,11 +1076,15 @@ namespace Profiler
         if( inPipelineSubtree ||
             (pipeline.m_Handle == VK_NULL_HANDLE) )
         {
+            // Sort frame browser data
+            std::list<const ProfilerDrawcall*> pDrawcalls =
+                SortFrameBrowserData( pipeline.m_Subregions );
+
             // Enumerate drawcalls in pipeline
-            for( const auto& drawcall : pipeline.m_Subregions )
+            for( const ProfilerDrawcall* pDrawcall : pDrawcalls )
             {
                 const char* pDrawcallCmd = "";
-                switch( drawcall.m_Type )
+                switch( pDrawcall->m_Type )
                 {
                 case ProfilerDrawcallType::eDraw:
                     pDrawcallCmd = "vkCmdDraw"; break;
@@ -1021,7 +1097,7 @@ namespace Profiler
                 }
 
                 ImGui::Text( "%s", pDrawcallCmd );
-                TextAlignRight( "%.2f ms", drawcall.m_Ticks / m_TimestampPeriod );
+                TextAlignRight( "%.2f ms", pDrawcall->m_Ticks / m_TimestampPeriod );
             }
         }
 
