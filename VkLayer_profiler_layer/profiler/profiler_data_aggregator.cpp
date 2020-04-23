@@ -167,24 +167,27 @@ namespace Profiler
             {
                 for( const auto& renderPass : commandBuffer.m_Subregions )
                 {
-                    for( const auto& pipeline : renderPass.m_Subregions )
+                    for( const auto& subpass : renderPass.m_Subregions )
                     {
-                        ProfilerPipeline aggregatedPipeline = pipeline;
-
-                        auto it = aggregatedPipelines.find( pipeline );
-                        if( it != aggregatedPipelines.end() )
+                        for( const auto& pipeline : subpass.m_Subregions )
                         {
-                            aggregatedPipeline = *it;
-                            aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
+                            ProfilerPipeline aggregatedPipeline = pipeline;
 
-                            aggregatedPipelines.erase( it );
+                            auto it = aggregatedPipelines.find( pipeline );
+                            if( it != aggregatedPipelines.end() )
+                            {
+                                aggregatedPipeline = *it;
+                                aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
+
+                                aggregatedPipelines.erase( it );
+                            }
+
+                            // Clear values which don't make sense after aggregation
+                            aggregatedPipeline.m_Handle = pipeline.m_Handle;
+                            aggregatedPipeline.m_Subregions.clear();
+
+                            aggregatedPipelines.insert( aggregatedPipeline );
                         }
-
-                        // Clear values which don't make sense after aggregation
-                        aggregatedPipeline.m_Handle = pipeline.m_Handle;
-                        aggregatedPipeline.m_Subregions.clear();
-
-                        aggregatedPipelines.insert( aggregatedPipeline );
                     }
                 }
             }

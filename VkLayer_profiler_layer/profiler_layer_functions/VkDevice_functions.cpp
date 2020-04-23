@@ -86,6 +86,7 @@ namespace Profiler
         GETPROCADDR( EndCommandBuffer );
         GETPROCADDR( CmdBeginRenderPass );
         GETPROCADDR( CmdEndRenderPass );
+        GETPROCADDR( CmdNextSubpass );
         GETPROCADDR( CmdBindPipeline );
         GETPROCADDR( CmdPipelineBarrier );
         GETPROCADDR( CmdDraw );

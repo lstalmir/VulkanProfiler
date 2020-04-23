@@ -91,7 +91,6 @@ namespace Profiler
         Handle m_Handle;
         ProfilerRangeStats m_Stats;
 
-        // Valid only if profiling mode collects data for Subtype regions
         std::vector<Subtype> m_Subregions;
 
         inline void Clear()

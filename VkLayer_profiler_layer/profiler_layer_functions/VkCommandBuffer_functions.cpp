@@ -63,11 +63,12 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
-        // Profile the render pass time
-        dd.Profiler.BeginRenderPass( commandBuffer, pBeginInfo );
+        dd.Profiler.PreBeginRenderPass( commandBuffer, pBeginInfo );
 
         // Begin the render pass
         dd.Device.Callbacks.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
+
+        dd.Profiler.PostBeginRenderPass( commandBuffer );
     }
 
     /***********************************************************************************\
@@ -83,11 +84,32 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
 
+        dd.Profiler.PreEndRenderPass( commandBuffer );
+
         // End the render pass
         dd.Device.Callbacks.CmdEndRenderPass( commandBuffer );
 
-        // Profile the render pass time
-        dd.Profiler.EndRenderPass( commandBuffer );
+        dd.Profiler.PostEndRenderPass( commandBuffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdNextSubpass
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdNextSubpass(
+        VkCommandBuffer commandBuffer,
+        VkSubpassContents contents )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+
+        dd.Profiler.NextSubpass( commandBuffer, contents );
+        
+        // Begin next subpass
+        dd.Device.Callbacks.CmdNextSubpass( commandBuffer, contents );
     }
 
     /***********************************************************************************\

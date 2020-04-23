@@ -10,14 +10,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        ProfilerSubpass
+
+    Description:
+        Contains captured GPU timestamp data for render pass subpass.
+
+    \***********************************************************************************/
+    struct ProfilerSubpass : ProfilerRangeStatsCollector<uint64_t, ProfilerPipeline>
+    {
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         ProfilerRenderPass
 
     Description:
         Contains captured GPU timestamp data for single render pass.
 
     \***********************************************************************************/
-    struct ProfilerRenderPass : ProfilerRangeStatsCollector<VkRenderPass, ProfilerPipeline>
+    struct ProfilerRenderPass : ProfilerRangeStatsCollector<VkRenderPass, ProfilerSubpass>
     {
+        uint64_t m_BeginTicks;
+        uint64_t m_EndTicks;
     };
 
     /***********************************************************************************\
@@ -69,8 +84,12 @@ namespace Profiler
         void Begin( const VkCommandBufferBeginInfo* );
         void End();
 
-        void BeginRenderPass( const VkRenderPassBeginInfo* );
-        void EndRenderPass();
+        void PreBeginRenderPass( const VkRenderPassBeginInfo* );
+        void PostBeginRenderPass();
+        void PreEndRenderPass();
+        void PostEndRenderPass();
+
+        void NextSubpass( VkSubpassContents );
 
         void BindPipeline( ProfilerPipeline );
 
@@ -98,11 +117,7 @@ namespace Profiler
 
         VkCommandBuffer m_CommandBuffer;
 
-        ProfilerPipeline m_CurrentPipeline;
-        VkRenderPass    m_CurrentRenderPass;
-
         bool            m_Dirty;
-        bool            m_RunningQuery;
 
         std::vector<VkQueryPool> m_QueryPools;
         uint32_t        m_QueryPoolSize;

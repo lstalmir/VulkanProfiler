@@ -28,7 +28,6 @@ namespace Profiler
     struct ProfilerConfig
     {
         VkProfilerModeEXT         m_DisplayMode;
-        VkProfilerModeEXT         m_SamplingMode;
         uint32_t                  m_NumQueriesPerCommandBuffer;
         std::chrono::milliseconds m_OutputUpdateInterval;
         VkProfilerOutputFlagsEXT  m_OutputFlags;
@@ -81,8 +80,11 @@ namespace Profiler
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
         void DestroyShaderModule( VkShaderModule );
 
-        void BeginRenderPass( VkCommandBuffer, const VkRenderPassBeginInfo* );
-        void EndRenderPass( VkCommandBuffer );
+        void PreBeginRenderPass( VkCommandBuffer, const VkRenderPassBeginInfo* );
+        void PostBeginRenderPass( VkCommandBuffer );
+        void PreEndRenderPass( VkCommandBuffer );
+        void PostEndRenderPass( VkCommandBuffer );
+        void NextSubpass( VkCommandBuffer, VkSubpassContents );
 
         void BeginCommandBuffer( VkCommandBuffer, const VkCommandBufferBeginInfo* );
         void EndCommandBuffer( VkCommandBuffer );

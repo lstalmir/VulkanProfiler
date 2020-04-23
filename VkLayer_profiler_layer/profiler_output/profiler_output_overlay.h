@@ -66,6 +66,8 @@ namespace Profiler
         std::vector<VkFence> m_CommandFences;
         std::vector<VkSemaphore> m_CommandSemaphores;
 
+        const float m_TimestampPeriod;
+
         // Dispatch overriden window procedures
         static LockableUnorderedMap<void*, WNDPROC> s_pfnWindowProc;
 
@@ -76,6 +78,11 @@ namespace Profiler
         void UpdatePerformanceTab( const ProfilerAggregatedData& data );
         void UpdateMemoryTab( const ProfilerAggregatedData& data );
         void UpdateStatisticsTab( const ProfilerAggregatedData& data );
+
+        // Frame browser helpers
+        void PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index );
+        void PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index );
+        void PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index );
 
         void TextAlignRight( const char* fmt, ... );
 

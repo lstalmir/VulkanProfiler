@@ -41,6 +41,7 @@ namespace Profiler
         , m_CommandBuffers()
         , m_CommandFences()
         , m_CommandSemaphores()
+        , m_TimestampPeriod( device.Properties.limits.timestampPeriod * 1000000.f )
     {
         // Get swapchain images
         uint32_t swapchainImageCount = 0;
@@ -637,6 +638,14 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceTab( const ProfilerAggregatedData& data )
     {
+        // Header
+        {
+            const float gpuTime = data.m_Stats.m_TotalTicks / m_TimestampPeriod;
+
+            ImGui::Text( "GPU Time: %.2f ms (%.0f fps)",
+                gpuTime, 1000.f / gpuTime );
+        }
+
         // Histogram
         {
             std::vector<float> contributions;
@@ -673,96 +682,47 @@ namespace Profiler
         // Top pipelines
         if( ImGui::CollapsingHeader( "Top pipelines" ) )
         {
+            uint32_t i = 0;
+
             for( const auto& pipeline : data.m_TopPipelines )
             {
-                ImGui::Text( GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
-                TextAlignRight( "%f ms", pipeline.m_Stats.m_TotalTicks / timestampPeriod );
+                if( pipeline.m_Handle != VK_NULL_HANDLE )
+                {
+                    ImGui::Text( "%2u. %s", i + 1,
+                        GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
+
+                    TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / timestampPeriod );
+
+                    // Print up to 10 top pipelines
+                    if( (++i) == 10 ) break;
+                }
             }
         }
 
         // Frame browser
         if( ImGui::CollapsingHeader( "Frame browser" ) )
         {
-            std::stringstream sstr;
-
-            uint32_t submitIndex = 0;
+            uint64_t index = 0;
 
             // Enumerate submits in frame
             for( const auto& submit : data.m_Submits )
             {
-                // Unique submit ID
-                sstr << submitIndex;
+                char indexStr[ 17 ] = {};
+                _ui64toa_s( index, indexStr, 17, 16 );
 
-                if( ImGui::TreeNode( sstr.str().c_str(),
-                    "Submit #%u", submitIndex ) )
+                if( ImGui::TreeNode( indexStr, "Submit #%u", index ) )
                 {
-                    uint32_t cmdBufferIndex = 0;
-
                     // Enumerate command buffers in submit
-                    for( const auto& cmdBuffer : submit.m_CommandBuffers )
+                    for( uint64_t i = 0; i < submit.m_CommandBuffers.size(); ++i )
                     {
-                        sstr.clear();
-                        // Unique command buffer ID
-                        sstr << submitIndex << ":" << cmdBufferIndex;
-
-                        if( ImGui::TreeNode( sstr.str().c_str(),
-                            GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle ).c_str() ) )
-                        {
-                            TextAlignRight( "%f ms", cmdBuffer.m_Stats.m_TotalTicks / timestampPeriod );
-
-                            uint32_t renderPassIndex = 0;
-
-                            // Enumerate render passes in command buffer
-                            for( const auto& renderPass : cmdBuffer.m_Subregions )
-                            {
-                                sstr.clear();
-                                // Unique renderpass ID
-                                sstr << submitIndex << ":" << cmdBufferIndex << ":" << renderPassIndex;
-
-                                if( ImGui::TreeNode( sstr.str().c_str(),
-                                    GetDebugObjectName( VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)renderPass.m_Handle ).c_str() ) )
-                                {
-                                    TextAlignRight( "%f ms", renderPass.m_Stats.m_TotalTicks / timestampPeriod );
-
-                                    uint32_t pipelineIndex = 0;
-
-                                    // Enumerate pipelines in render pass
-                                    for( const auto& pipeline : renderPass.m_Subregions )
-                                    {
-                                        sstr.clear();
-                                        // Unique renderpass ID
-                                        sstr << submitIndex << ":" << cmdBufferIndex << ":" << renderPassIndex << ":" << pipelineIndex;
-
-                                        if( ImGui::TreeNode( sstr.str().c_str(),
-                                            GetDebugObjectName( VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipeline.m_Handle ).c_str() ) )
-                                        {
-                                            TextAlignRight( "%f ms", pipeline.m_Stats.m_TotalTicks / timestampPeriod );
-
-                                            // TODO: Enumerate drawcalls in pipeline
-
-                                            ImGui::TreePop();
-                                        }
-                                        else TextAlignRight( "%f ms", pipeline.m_Stats.m_TotalTicks / timestampPeriod );
-
-                                        pipelineIndex++;
-                                    }
-
-                                    ImGui::TreePop();
-                                }
-                                else TextAlignRight( "%f ms", renderPass.m_Stats.m_TotalTicks / timestampPeriod );
-
-                                renderPassIndex++;
-                            }
-                            ImGui::TreePop();
-                        }
-                        else TextAlignRight( "%f ms", cmdBuffer.m_Stats.m_TotalTicks / timestampPeriod );
-
-                        cmdBufferIndex++;
+                        PrintCommandBuffer( submit.m_CommandBuffers[ i ], index | (i << 12) );
                     }
+
+                    // Finish submit subtree
                     ImGui::TreePop();
                 }
 
-                submitIndex++;
+                index++;
             }
         }
     }
@@ -871,6 +831,211 @@ namespace Profiler
             ImGui::Text( "Clear calls:                      %u", data.m_Stats.m_TotalClearCount );
             ImGui::Text( "Clear calls (implicit):           %u", data.m_Stats.m_TotalClearImplicitCount );
             ImGui::Text( "Resolve calls:                    %u", 0 );// TODO
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintCommandBuffer
+
+    Description:
+        Writes command buffer data to the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index )
+    {
+        char indexStr[ 17 ] = {};
+        _ui64toa_s( index, indexStr, 17, 16 );
+
+        if( ImGui::TreeNode( indexStr,
+            GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle ).c_str() ) )
+        {
+            // Command buffer opened
+            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks / m_TimestampPeriod );
+
+            // Enumerate render passes in command buffer
+            for( uint64_t i = 0; i < cmdBuffer.m_Subregions.size(); ++i )
+            {
+                PrintRenderPass( cmdBuffer.m_Subregions[ i ], index | (i << 24) );
+            }
+
+            ImGui::TreePop();
+        }
+        else
+        {
+            // Command buffer collapsed
+            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks / m_TimestampPeriod );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintRenderPass
+
+    Description:
+        Writes render pass data to the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index )
+    {
+        char indexStr[ 17 ] = {};
+        // Render pass ID
+        _ui64toa_s( index, indexStr, 17, 16 );
+
+        // At least one subpass must be present
+        assert( !renderPass.m_Subregions.empty() );
+
+        const bool inRenderPassSubtree =
+            (renderPass.m_Handle != VK_NULL_HANDLE) &&
+            (ImGui::TreeNode( indexStr,
+                GetDebugObjectName( VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)renderPass.m_Handle ).c_str() ));
+
+        if( inRenderPassSubtree )
+        {
+            // Render pass subtree opened
+            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+
+            if( renderPass.m_Handle != VK_NULL_HANDLE )
+            {
+                ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
+                TextAlignRight( "%.2f ms", renderPass.m_BeginTicks / m_TimestampPeriod );
+            }
+        }
+
+        if( inRenderPassSubtree ||
+            (renderPass.m_Handle == VK_NULL_HANDLE) )
+        {
+            // If renderpass handle is invalid, one subpass must be present, up to one pipeline
+            // must be present and it must be invalid too
+            assert( (renderPass.m_Handle != VK_NULL_HANDLE) || (
+                (renderPass.m_Subregions.size() == 1) && (
+                    ((renderPass.m_Subregions[ 0 ].m_Subregions.size() == 1) &&
+                        (renderPass.m_Subregions[ 0 ].m_Subregions[ 0 ].m_Handle == VK_NULL_HANDLE)) ||
+                    (renderPass.m_Subregions[ 0 ].m_Subregions.empty())) ) );
+
+            if( renderPass.m_Subregions.size() > 1 )
+            {
+                // Enumerate subpasses (who uses subpasses anyway)
+                for( uint64_t i = 0; i < renderPass.m_Subregions.size(); ++i )
+                {
+                    uint64_t subpassIndex = index | (i << 36);
+                    // Subpass ID
+                    _ui64toa_s( subpassIndex, indexStr, 17, 16 );
+
+                    const ProfilerSubpass& subpass = renderPass.m_Subregions[ i ];
+
+                    if( ImGui::TreeNode( indexStr, "Subpass #%llu", i ) )
+                    {
+                        // Subpass subtree opened
+                        TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+
+                        // Enumerate pipelines in subpass
+                        for( uint64_t i = 0; i < renderPass.m_Subregions.size(); ++i )
+                        {
+                            PrintPipeline( subpass.m_Subregions[ i ], subpassIndex | (i << 48) );
+                        }
+
+                        // Finish subpass tree
+                        ImGui::TreePop();
+                    }
+                    else
+                    {
+                        // Subpass collapsed
+                        TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+                    }
+                }
+            }
+            else
+            {
+                const ProfilerSubpass& subpass = renderPass.m_Subregions.front();
+
+                // Enumerate pipelines in render pass
+                for( uint64_t i = 0; i < subpass.m_Subregions.size(); ++i )
+                {
+                    PrintPipeline( subpass.m_Subregions[ i ], index | (i << 48) );
+                }
+            }
+        }
+
+        if( inRenderPassSubtree )
+        {
+            // Finish render pass subtree
+            ImGui::TextUnformatted( "vkCmdEndRenderPass" );
+            TextAlignRight( "%.2f ms", renderPass.m_EndTicks / m_TimestampPeriod );
+
+            ImGui::TreePop();
+        }
+
+        if( !inRenderPassSubtree &&
+            (renderPass.m_Handle != VK_NULL_HANDLE) )
+        {
+            // Render pass collapsed
+            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintPipeline
+
+    Description:
+        Writes pipeline data to the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index )
+    {
+        char indexStr[ 17 ] = {};
+        _ui64toa_s( index, indexStr, 17, 16 );
+
+        const bool inPipelineSubtree =
+            (pipeline.m_Handle != VK_NULL_HANDLE) &&
+            (ImGui::TreeNode( indexStr,
+                GetDebugObjectName( VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipeline.m_Handle ).c_str() ));
+
+        if( inPipelineSubtree )
+        {
+            // Pipeline subtree opened
+            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / m_TimestampPeriod );
+        }
+
+        if( inPipelineSubtree ||
+            (pipeline.m_Handle == VK_NULL_HANDLE) )
+        {
+            // Enumerate drawcalls in pipeline
+            for( const auto& drawcall : pipeline.m_Subregions )
+            {
+                const char* pDrawcallCmd = "";
+                switch( drawcall.m_Type )
+                {
+                case ProfilerDrawcallType::eDraw:
+                    pDrawcallCmd = "vkCmdDraw"; break;
+                case ProfilerDrawcallType::eDispatch:
+                    pDrawcallCmd = "vkCmdDispatch"; break;
+                case ProfilerDrawcallType::eCopy:
+                    pDrawcallCmd = "vkCmdCopy"; break;
+                case ProfilerDrawcallType::eClear:
+                    pDrawcallCmd = "vkCmdClear"; break;
+                }
+
+                ImGui::Text( "%s", pDrawcallCmd );
+                TextAlignRight( "%.2f ms", drawcall.m_Ticks / m_TimestampPeriod );
+            }
+        }
+
+        if( inPipelineSubtree )
+        {
+            // Finish pipeline subtree
+            ImGui::TreePop();
+        }
+
+        if( !inPipelineSubtree &&
+            (pipeline.m_Handle != VK_NULL_HANDLE) )
+        {
+            // Pipeline collapsed
+            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / m_TimestampPeriod );
         }
     }
 

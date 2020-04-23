@@ -84,7 +84,8 @@ namespace Profiler
                 uint32_t value; config >> value;
 
                 if( key == "MODE" )
-                    m_Config.m_DisplayMode = static_cast<VkProfilerModeEXT>(value);
+                    //m_Config.m_DisplayMode = static_cast<VkProfilerModeEXT>(value);
+                    ;
 
                 if( key == "NUM_QUERIES_PER_CMD_BUFFER" )
                     m_Config.m_NumQueriesPerCommandBuffer = value;
@@ -99,8 +100,6 @@ namespace Profiler
 
         // TODO: Remove
         m_Config.m_OutputFlags |= VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT;
-
-        m_Config.m_SamplingMode = m_Config.m_DisplayMode;
 
         // Check if preemption is enabled
         // It may break the results
@@ -521,33 +520,76 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        BeginRenderPass
+        PreBeginRenderPass
 
     Description:
 
     \***********************************************************************************/
-    void Profiler::BeginRenderPass( VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pBeginInfo )
+    void Profiler::PreBeginRenderPass( VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pBeginInfo )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
-        profilerCommandBuffer.BeginRenderPass( pBeginInfo );
+        profilerCommandBuffer.PreBeginRenderPass( pBeginInfo );
     }
 
     /***********************************************************************************\
 
     Function:
-        EndRenderPass
+        PostBeginRenderPass
 
     Description:
 
     \***********************************************************************************/
-    void Profiler::EndRenderPass( VkCommandBuffer commandBuffer )
+    void Profiler::PostBeginRenderPass( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
 
-        profilerCommandBuffer.EndRenderPass();
+        profilerCommandBuffer.PostBeginRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreEndRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PreEndRenderPass( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PreEndRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostEndRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    void Profiler::PostEndRenderPass( VkCommandBuffer commandBuffer )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.PostEndRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    void Profiler::NextSubpass( VkCommandBuffer commandBuffer, VkSubpassContents contents )
+    {
+        // ProfilerCommandBuffer object should already be in the map
+        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+
+        profilerCommandBuffer.NextSubpass( contents );
     }
 
     /***********************************************************************************\
@@ -626,11 +668,8 @@ namespace Profiler
     void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
-        if( m_Config.m_SamplingMode < VK_PROFILER_MODE_PER_FRAME_EXT )
-        {
-            m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
-            m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
-        }
+        m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+        m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
 
         // Store submitted command buffers and get results
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )

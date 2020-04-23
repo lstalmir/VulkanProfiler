@@ -33,6 +33,11 @@ namespace Profiler
         static VKAPI_ATTR void VKAPI_CALL CmdEndRenderPass(
             VkCommandBuffer commandBuffer );
 
+        // vkCmdNextSubpass
+        static VKAPI_ATTR void VKAPI_CALL CmdNextSubpass(
+            VkCommandBuffer commandBuffer,
+            VkSubpassContents contents );
+
         // vkCmdBindPipeline
         static VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(
             VkCommandBuffer commandBuffer,
