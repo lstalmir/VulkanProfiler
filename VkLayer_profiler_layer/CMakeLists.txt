@@ -38,6 +38,7 @@ set (headers
     "profiler_layer_functions/VkDevice_functions.h"
     "profiler_layer_functions/VkDevice_functions_base.h"
     "profiler_layer_functions/VkInstance_functions.h"
+    "profiler_layer_functions/VkLoader_functions.h"
     "profiler_layer_functions/VkQueue_functions.h"
     )
 
@@ -46,6 +47,7 @@ set (sources
     "profiler_layer_functions/VkDevice_functions.cpp"
     "profiler_layer_functions/VkDevice_functions_base.cpp"
     "profiler_layer_functions/VkInstance_functions.cpp"
+    "profiler_layer_functions/VkLoader_functions.cpp"
     "profiler_layer_functions/VkQueue_functions.cpp"
     "VkLayer_profiler_layer.cpp"
     )

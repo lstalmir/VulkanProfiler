@@ -22,6 +22,7 @@ namespace Profiler
 
         // Dispatch tables
         VkLayerDispatchTable Callbacks;
+        PFN_vkSetDeviceLoaderData SetDeviceLoaderData;
 
         VkPhysicalDeviceProperties Properties;
         VkPhysicalDeviceMemoryProperties MemoryProperties;

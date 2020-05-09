@@ -197,195 +197,22 @@ namespace Profiler
     }
 
     /***********************************************************************************\
-
-    Function:
-        PreDraw
-
-    Description:
-
     \***********************************************************************************/
-    void Profiler::PreDraw( VkCommandBuffer commandBuffer )
+    ProfilerCommandBuffer& Profiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
     {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
+        // Create new wrapper if command buffer is not tracked yet
+        // TODO: Move to AllocateCommandBuffers()
+        auto emplaced = m_ProfiledCommandBuffers.interlocked_try_emplace(
+            commandBuffer, std::ref( *this ), commandBuffer );
 
-        profilerCommandBuffer.PreDraw();
+        return emplaced.first->second;
     }
 
     /***********************************************************************************\
-
-    Function:
-        PostDraw
-
-    Description:
-
     \***********************************************************************************/
-    void Profiler::PostDraw( VkCommandBuffer commandBuffer )
+    ProfilerPipeline& Profiler::GetPipeline( VkPipeline pipeline )
     {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PostDraw();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PreDrawIndirect
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PreDrawIndirect( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PreDrawIndirect();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostDrawIndirect
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PostDrawIndirect( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PostDrawIndirect();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PreDispatch
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PreDispatch( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PreDispatch();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostDispatch
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PostDispatch( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PostDispatch();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PreDispatchIndirect
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PreDispatchIndirect( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PreDispatchIndirect();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostDispatchIndirect
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PostDispatchIndirect( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PostDispatchIndirect();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PreCopy
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PreCopy( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PreCopy();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostCopy
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PostCopy( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profilerCommandBuffer.PostCopy();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PreClear
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PreClear( VkCommandBuffer commandBuffer )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profiledCommandBuffer.PreClear();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostClear
-
-    Description:
-
-    \***********************************************************************************/
-    void Profiler::PostClear( VkCommandBuffer commandBuffer, uint32_t attachmentCount )
-    {
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profiledCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
-
-        profiledCommandBuffer.PostClear( attachmentCount );
+        return m_ProfiledPipelines.interlocked_at( pipeline );
     }
 
     /***********************************************************************************\
@@ -668,8 +495,8 @@ namespace Profiler
     void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
-        m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
-        m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
+        //m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+        //m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
 
         // Store submitted command buffers and get results
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
@@ -677,7 +504,7 @@ namespace Profiler
             const VkSubmitInfo& submitInfo = pSubmitInfo[submitIdx];
 
             // Wrap submit info into our structure
-            ProfilerSubmitData submit;
+            ProfilerSubmit submit;
 
             for( uint32_t commandBufferIdx = 0; commandBufferIdx < submitInfo.commandBufferCount; ++commandBufferIdx )
             {
@@ -692,11 +519,11 @@ namespace Profiler
                 // Dirty command buffer profiling data
                 profilerCommandBuffer.Submit();
 
-                submit.m_CommandBuffers.push_back( profilerCommandBuffer.GetData() );
+                submit.m_pCommandBuffers.push_back( &profilerCommandBuffer );
             }
 
             // Store the submit wrapper
-            m_DataAggregator.AppendData( submit );
+            m_DataAggregator.AppendSubmit( submit );
         }
     }
 
@@ -717,6 +544,9 @@ namespace Profiler
         // TMP
         std::scoped_lock lk( m_DataMutex );
         m_Data = m_DataAggregator.GetAggregatedData();
+
+        // TODO: Move to CPU tracker
+        m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();
 
         // TODO: Move to memory tracker
         m_Data.m_Memory.m_TotalAllocationCount = m_TotalAllocationCount;
@@ -774,8 +604,9 @@ namespace Profiler
             }
             #endif
 
-            m_CpuTimestampCounter.Begin();
         }
+
+        m_CpuTimestampCounter.Begin();
 
         m_LastFrameBeginTimestamp = m_Data.m_Stats.m_BeginTimestamp;
 

@@ -164,5 +164,15 @@ namespace Profiler
             const VkClearDepthStencilValue* pDepthStencil,
             uint32_t rangeCount,
             const VkImageSubresourceRange* pRanges );
+
+        // vkCmdResolveImage
+        static VKAPI_ATTR void VKAPI_CALL CmdResolveImage(
+            VkCommandBuffer commandBuffer,
+            VkImage srcImage,
+            VkImageLayout srcImageLayout,
+            VkImage dstImage,
+            VkImageLayout dstImageLayout,
+            uint32_t regionCount,
+            const VkImageResolve* pRegions );
     };
 }

@@ -17,7 +17,8 @@ namespace Profiler
         eDraw,
         eDispatch,
         eCopy,
-        eClear
+        eClear,
+        eResolve
     };
 
     /***********************************************************************************\

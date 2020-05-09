@@ -15,6 +15,11 @@ namespace Profiler
         uint64_t m_HostVisibleAllocationSize;
     };
 
+    struct ProfilerAggregatedCPUData
+    {
+        uint64_t m_TimeNs;
+    };
+
     /***********************************************************************************\
 
     Structure:
@@ -31,6 +36,12 @@ namespace Profiler
         ProfilerRangeStats m_Stats;
 
         ProfilerAggregatedMemoryData m_Memory;
+        ProfilerAggregatedCPUData m_CPU;
+    };
+
+    struct ProfilerSubmit
+    {
+        std::vector<ProfilerCommandBuffer*> m_pCommandBuffers;
     };
 
     /***********************************************************************************\
@@ -45,13 +56,15 @@ namespace Profiler
     class ProfilerDataAggregator
     {
     public:
-        void AppendData( const ProfilerSubmitData& );
+        void AppendSubmit( const ProfilerSubmit& );
         
         void Reset();
 
         ProfilerAggregatedData GetAggregatedData();
 
     private:
+        std::list<ProfilerSubmit> m_Submits;
+
         std::list<ProfilerSubmitData> m_AggregatedData;
 
         void MergeCommandBuffers();

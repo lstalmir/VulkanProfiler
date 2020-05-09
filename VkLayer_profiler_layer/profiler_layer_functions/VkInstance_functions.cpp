@@ -1,5 +1,6 @@
 #include "VkInstance_functions.h"
 #include "VkDevice_functions.h"
+#include "VkLoader_functions.h"
 #include "VkLayer_profiler_layer.generated.h"
 #include "Helpers.h"
 
@@ -57,7 +58,8 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator,
         VkInstance* pInstance )
     {
-        auto* pLayerCreateInfo = GetLayerLinkInfo<VkLayerInstanceCreateInfo>(pCreateInfo);
+        auto* pLayerCreateInfo = GetLayerLinkInfo<VkLayerInstanceCreateInfo>( pCreateInfo, VK_LAYER_LINK_INFO );
+        auto* pLoaderCallbacks = GetLayerLinkInfo<VkLayerInstanceCreateInfo>( pCreateInfo, VK_LOADER_DATA_CALLBACK );
 
         if( !pLayerCreateInfo )
         {
@@ -67,6 +69,11 @@ namespace Profiler
 
         PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr =
             pLayerCreateInfo->u.pLayerInfo->pfnNextGetInstanceProcAddr;
+
+        PFN_vkSetInstanceLoaderData pfnSetInstanceLoaderData =
+            (pLoaderCallbacks != nullptr)
+            ? pLoaderCallbacks->u.pfnSetInstanceLoaderData
+            : VkLoader_Functions::SetInstanceLoaderData;
 
         PFN_vkCreateInstance pfnCreateInstance = reinterpret_cast<PFN_vkCreateInstance>(
             pfnGetInstanceProcAddr( VK_NULL_HANDLE, "vkCreateInstance" ));
@@ -88,6 +95,8 @@ namespace Profiler
             // Get function addresses
             layer_init_instance_dispatch_table(
                 *pInstance, &id.Instance.Callbacks, pfnGetInstanceProcAddr );
+
+            id.Instance.SetInstanceLoaderData = pfnSetInstanceLoaderData;
 
             id.Instance.Callbacks.CreateDevice = reinterpret_cast<PFN_vkCreateDevice>(
                 pfnGetInstanceProcAddr( *pInstance, "vkCreateDevice" ));
@@ -135,7 +144,8 @@ namespace Profiler
         auto& id = InstanceDispatch.Get( physicalDevice );
 
         // Prefetch the device link info before creating the device to be sure we have vkDestroyDevice function available
-        auto* pLayerLinkInfo = GetLayerLinkInfo<VkLayerDeviceCreateInfo>( pCreateInfo );
+        auto* pLayerLinkInfo = GetLayerLinkInfo<VkLayerDeviceCreateInfo>( pCreateInfo, VK_LAYER_LINK_INFO );
+        auto* pLoaderCallbacks = GetLayerLinkInfo<VkLayerDeviceCreateInfo>( pCreateInfo, VK_LOADER_DATA_CALLBACK );
 
         if( !pLayerLinkInfo )
         {
@@ -146,6 +156,11 @@ namespace Profiler
         PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr =
             pLayerLinkInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr;
 
+        PFN_vkSetDeviceLoaderData pfnSetDeviceLoaderData =
+            (pLoaderCallbacks != nullptr)
+            ? pLoaderCallbacks->u.pfnSetDeviceLoaderData
+            : VkLoader_Functions::SetDeviceLoaderData;
+
         // Move chain on for next layer
         pLayerLinkInfo->u.pLayerInfo = pLayerLinkInfo->u.pLayerInfo->pNext;
 
@@ -155,7 +170,12 @@ namespace Profiler
 
         // Initialize dispatch for the created device object
         result = VkDevice_Functions::OnDeviceCreate(
-            physicalDevice, pCreateInfo, pfnGetDeviceProcAddr, pAllocator, *pDevice );
+            physicalDevice,
+            pCreateInfo,
+            pfnGetDeviceProcAddr,
+            pfnSetDeviceLoaderData,
+            pAllocator,
+            *pDevice );
         
         if( result != VK_SUCCESS )
         {

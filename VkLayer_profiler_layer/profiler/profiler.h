@@ -56,18 +56,12 @@ namespace Profiler
 
         void SetDebugObjectName( uint64_t, const char* );
 
-        void PreDraw( VkCommandBuffer );
-        void PostDraw( VkCommandBuffer );
-        void PreDrawIndirect( VkCommandBuffer );
-        void PostDrawIndirect( VkCommandBuffer );
-        void PreDispatch( VkCommandBuffer );
-        void PostDispatch( VkCommandBuffer );
-        void PreDispatchIndirect( VkCommandBuffer );
-        void PostDispatchIndirect( VkCommandBuffer );
-        void PreCopy( VkCommandBuffer );
-        void PostCopy( VkCommandBuffer );
-        void PreClear( VkCommandBuffer );
-        void PostClear( VkCommandBuffer, uint32_t );
+        // TODO: Create wrappers in AllocateCommandBuffers()
+        ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer );
+        // TODO: Wrap render passes
+        ProfilerPipeline& GetPipeline( VkPipeline );
+
+        // Deprecate
         void OnPipelineBarrier( VkCommandBuffer,
             uint32_t, const VkMemoryBarrier*,
             uint32_t, const VkBufferMemoryBarrier*,

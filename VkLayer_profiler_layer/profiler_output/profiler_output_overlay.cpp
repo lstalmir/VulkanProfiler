@@ -43,6 +43,7 @@ namespace Profiler
         , m_CommandSemaphores()
         , m_TimestampPeriod( device.Properties.limits.timestampPeriod * 1000000.f )
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
+        , m_Pause( false )
     {
         // Get swapchain images
         uint32_t swapchainImageCount = 0;
@@ -219,7 +220,6 @@ namespace Profiler
 
             std::vector<VkCommandBuffer> commandBuffers( swapchainImageCount );
             
-            // TODO: WTF?
             result = m_Device.Callbacks.AllocateCommandBuffers(
                 m_Device.Handle, &allocInfo, commandBuffers.data() );
 
@@ -234,6 +234,9 @@ namespace Profiler
 
             for( auto cmdBuffer : m_CommandBuffers )
             {
+                // Command buffers are dispatchable handles, update pointers to parent's dispatch table
+                m_Device.SetDeviceLoaderData( m_Device.Handle, cmdBuffer );
+                
                 VkDebugMarkerObjectNameInfoEXT info = {};
                 info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
                 info.objectType = VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT;
@@ -585,21 +588,30 @@ namespace Profiler
             VK_VERSION_MAJOR( m_Device.pInstance->ApplicationInfo.apiVersion ),
             VK_VERSION_MINOR( m_Device.pInstance->ApplicationInfo.apiVersion ) );
 
+        // Keep results
+        ImGui::Checkbox( "Pause", &m_Pause );
+
+        if( !m_Pause )
+        {
+            // Update data
+            m_Data = data;
+        }
+
         ImGui::BeginTabBar( "" );
 
         if( ImGui::BeginTabItem( "Performance" ) )
         {
-            UpdatePerformanceTab( data );
+            UpdatePerformanceTab();
             ImGui::EndTabItem();
         }
         if( ImGui::BeginTabItem( "Memory" ) )
         {
-            UpdateMemoryTab( data );
+            UpdateMemoryTab();
             ImGui::EndTabItem();
         }
         if( ImGui::BeginTabItem( "Statistics" ) )
         {
-            UpdateStatisticsTab( data );
+            UpdateStatisticsTab();
             ImGui::EndTabItem();
         }
 
@@ -637,24 +649,26 @@ namespace Profiler
         Updates "Performance" tab.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::UpdatePerformanceTab( const ProfilerAggregatedData& data )
+    void ProfilerOverlayOutput::UpdatePerformanceTab()
     {
         // Header
         {
-            const float gpuTime = data.m_Stats.m_TotalTicks / m_TimestampPeriod;
+            const float gpuTime = m_Data.m_Stats.m_TotalTicks / m_TimestampPeriod;
+            const float cpuTime = m_Data.m_CPU.m_TimeNs / 1000000.f;
 
-            ImGui::Text( "GPU Time: %.2f ms (%.0f fps)",
-                gpuTime, 1000.f / gpuTime );
+            ImGui::Text( "GPU Time: %.2f ms", gpuTime );
+            ImGui::Text( "CPU Time: %.2f ms", cpuTime );
+            TextAlignRight( "%.0f fps", 1000.f / cpuTime );
         }
 
         // Histogram
         {
             std::vector<float> contributions;
 
-            if( data.m_Stats.m_TotalTicks > 0 )
+            if( m_Data.m_Stats.m_TotalTicks > 0 )
             {
                 // Enumerate submits in frame
-                for( const auto& submit : data.m_Submits )
+                for( const auto& submit : m_Data.m_Submits )
                 {
                     // Enumerate command buffers in submit
                     for( const auto& cmdBuffer : submit.m_CommandBuffers )
@@ -677,22 +691,19 @@ namespace Profiler
                 0, "GPU Cycles", FLT_MAX, FLT_MAX, { 0, 80 } );
         }
 
-        const float timestampPeriod =
-            m_Device.Properties.limits.timestampPeriod * 1000000.f;
-
         // Top pipelines
         if( ImGui::CollapsingHeader( "Top pipelines" ) )
         {
             uint32_t i = 0;
 
-            for( const auto& pipeline : data.m_TopPipelines )
+            for( const auto& pipeline : m_Data.m_TopPipelines )
             {
                 if( pipeline.m_Handle != VK_NULL_HANDLE )
                 {
                     ImGui::Text( "%2u. %s", i + 1,
                         GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
 
-                    TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / timestampPeriod );
+                    TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / m_TimestampPeriod );
 
                     // Print up to 10 top pipelines
                     if( (++i) == 10 ) break;
@@ -740,10 +751,13 @@ namespace Profiler
                 }
             }
 
+            // Mark hotspots with color
+            const uint64_t frameTicks = m_Data.m_Stats.m_TotalTicks;
+
             uint64_t index = 0;
 
             // Enumerate submits in frame
-            for( const auto& submit : data.m_Submits )
+            for( const auto& submit : m_Data.m_Submits )
             {
                 char indexStr[ 17 ] = {};
                 _ui64toa_s( index, indexStr, 17, 16 );
@@ -759,7 +773,7 @@ namespace Profiler
 
                     for( const auto* pCommandBuffer : pCommandBuffers )
                     {
-                        PrintCommandBuffer( *pCommandBuffer, index | (commandBufferIndex << 12) );
+                        PrintCommandBuffer( *pCommandBuffer, index | (commandBufferIndex << 12), frameTicks );
                         commandBufferIndex++;
                     }
 
@@ -781,7 +795,7 @@ namespace Profiler
         Updates "Memory" tab.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::UpdateMemoryTab( const ProfilerAggregatedData& data )
+    void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_Device.MemoryProperties;
@@ -834,7 +848,7 @@ namespace Profiler
 
                     if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
                     {
-                        allocatedSize = data.m_Memory.m_DeviceLocalAllocationSize;
+                        allocatedSize = m_Data.m_Memory.m_DeviceLocalAllocationSize;
                     }
 
                     usage = (float)allocatedSize / memoryProperties.memoryHeaps[ i ].size;
@@ -863,19 +877,22 @@ namespace Profiler
         Updates "Statistics" tab.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::UpdateStatisticsTab( const ProfilerAggregatedData& data )
+    void ProfilerOverlayOutput::UpdateStatisticsTab()
     {
         // Draw count statistics
         {
-            ImGui::Text( "Draw calls:                       %u", data.m_Stats.m_TotalDrawCount );
-            ImGui::Text( "Draw calls (indirect):            %u", data.m_Stats.m_TotalDrawIndirectCount );
-            ImGui::Text( "Dispatch calls:                   %u", data.m_Stats.m_TotalDispatchCount );
-            ImGui::Text( "Dispatch calls (indirect):        %u", data.m_Stats.m_TotalDispatchIndirectCount );
-            ImGui::Text( "Pipeline barriers:                %u", data.m_Stats.m_TotalBarrierCount );
-            ImGui::Text( "Pipeline barriers (implicit):     %u", data.m_Stats.m_TotalImplicitBarrierCount );
-            ImGui::Text( "Clear calls:                      %u", data.m_Stats.m_TotalClearCount );
-            ImGui::Text( "Clear calls (implicit):           %u", data.m_Stats.m_TotalClearImplicitCount );
-            ImGui::Text( "Resolve calls:                    %u", 0 );// TODO
+            ImGui::Text( "Draw calls:                       %u", m_Data.m_Stats.m_TotalDrawCount );
+            ImGui::Text( "Draw calls (indirect):            %u", m_Data.m_Stats.m_TotalDrawIndirectCount );
+            ImGui::Text( "Dispatch calls:                   %u", m_Data.m_Stats.m_TotalDispatchCount );
+            ImGui::Text( "Dispatch calls (indirect):        %u", m_Data.m_Stats.m_TotalDispatchIndirectCount );
+            ImGui::Text( "Pipeline barriers:                %u", m_Data.m_Stats.m_TotalBarrierCount );
+            ImGui::Text( "Pipeline barriers (implicit):     %u", m_Data.m_Stats.m_TotalImplicitBarrierCount );
+            ImGui::Text( "Clear calls:                      %u", m_Data.m_Stats.m_TotalClearCount );
+            ImGui::Text( "Clear calls (implicit):           %u", m_Data.m_Stats.m_TotalClearImplicitCount );
+            ImGui::Text( "Resolve calls:                    %u", m_Data.m_Stats.m_TotalResolveCount );
+            ImGui::Text( "Resolve calls (implicit):         %u", m_Data.m_Stats.m_TotalResolveImplicitCount );
+            ImGui::Separator();
+            ImGui::Text( "Total calls:                      %u", m_Data.m_Stats.m_TotalDrawcallCount );
         }
     }
 
@@ -888,8 +905,11 @@ namespace Profiler
         Writes command buffer data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index )
+    void ProfilerOverlayOutput::PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index, uint64_t frameTicks )
     {
+        // Mark hotspots with color
+        DrawSignificanceRect( (float)cmdBuffer.m_Stats.m_TotalTicks / frameTicks );
+
         char indexStr[ 17 ] = {};
         _ui64toa_s( index, indexStr, 17, 16 );
 
@@ -908,7 +928,7 @@ namespace Profiler
 
             for( const ProfilerRenderPass* pRenderPass : pRenderPasses )
             {
-                PrintRenderPass( *pRenderPass, index | (renderPassIndex << 24) );
+                PrintRenderPass( *pRenderPass, index | (renderPassIndex << 24), frameTicks );
                 renderPassIndex++;
             }
 
@@ -930,8 +950,11 @@ namespace Profiler
         Writes render pass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index )
+    void ProfilerOverlayOutput::PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index, uint64_t frameTicks )
     {
+        // Mark hotspots with color
+        DrawSignificanceRect( (float)renderPass.m_Stats.m_TotalTicks / frameTicks );
+
         char indexStr[ 17 ] = {};
         // Render pass ID
         _ui64toa_s( index, indexStr, 17, 16 );
@@ -951,6 +974,8 @@ namespace Profiler
 
             if( renderPass.m_Handle != VK_NULL_HANDLE )
             {
+                DrawSignificanceRect( (float)renderPass.m_BeginTicks / frameTicks );
+
                 ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
                 TextAlignRight( "%.2f ms", renderPass.m_BeginTicks / m_TimestampPeriod );
             }
@@ -996,7 +1021,7 @@ namespace Profiler
 
                         for( const ProfilerPipeline* pPipeline : pPipelines )
                         {
-                            PrintPipeline( *pPipeline, i | (pipelineIndex << 48) );
+                            PrintPipeline( *pPipeline, i | (pipelineIndex << 48), frameTicks );
                             pipelineIndex++;
                         }
 
@@ -1025,7 +1050,7 @@ namespace Profiler
 
                 for( const ProfilerPipeline* pPipeline : pPipelines )
                 {
-                    PrintPipeline( *pPipeline, index | (pipelineIndex << 48) );
+                    PrintPipeline( *pPipeline, index | (pipelineIndex << 48), frameTicks );
                     pipelineIndex++;
                 }
             }
@@ -1033,6 +1058,8 @@ namespace Profiler
 
         if( inRenderPassSubtree )
         {
+            DrawSignificanceRect( (float)renderPass.m_EndTicks / frameTicks );
+
             // Finish render pass subtree
             ImGui::TextUnformatted( "vkCmdEndRenderPass" );
             TextAlignRight( "%.2f ms", renderPass.m_EndTicks / m_TimestampPeriod );
@@ -1057,8 +1084,11 @@ namespace Profiler
         Writes pipeline data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index )
+    void ProfilerOverlayOutput::PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index, uint64_t frameTicks )
     {
+        // Mark hotspots with color
+        DrawSignificanceRect( (float)pipeline.m_Stats.m_TotalTicks / frameTicks );
+
         char indexStr[ 17 ] = {};
         _ui64toa_s( index, indexStr, 17, 16 );
 
@@ -1095,6 +1125,9 @@ namespace Profiler
                 case ProfilerDrawcallType::eClear:
                     pDrawcallCmd = "vkCmdClear"; break;
                 }
+
+                // Mark hotspots with color
+                DrawSignificanceRect( (float)pDrawcall->m_Ticks / frameTicks );
 
                 ImGui::Text( "%s", pDrawcallCmd );
                 TextAlignRight( "%.2f ms", pDrawcall->m_Ticks / m_TimestampPeriod );
@@ -1138,6 +1171,30 @@ namespace Profiler
 
         ImGui::SameLine( ImGui::GetWindowContentRegionMax().x - textSize );
         ImGui::TextUnformatted( text );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawSignificanceRect
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawSignificanceRect( float significance )
+    {
+        ImVec2 cursorPosition = ImGui::GetCursorScreenPos();
+        ImVec2 cmdBufferNameSize;
+
+        cursorPosition.x = ImGui::GetWindowPos().x;
+
+        cmdBufferNameSize.x = cursorPosition.x + ImGui::GetWindowSize().x;
+        cmdBufferNameSize.y = cursorPosition.y + ImGui::GetTextLineHeight();
+
+        ImU32 color = ImGui::GetColorU32( { 1, 0, 0, significance } );
+
+        ImDrawList* pDrawList = ImGui::GetWindowDrawList();
+        pDrawList->AddRectFilled( cursorPosition, cmdBufferNameSize, color );
     }
 
     /***********************************************************************************\

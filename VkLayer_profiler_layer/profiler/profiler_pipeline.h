@@ -21,6 +21,8 @@ namespace Profiler
         uint32_t m_TotalClearImplicitCount;
         uint32_t m_TotalBarrierCount;
         uint32_t m_TotalImplicitBarrierCount;
+        uint32_t m_TotalResolveCount;
+        uint32_t m_TotalResolveImplicitCount;
 
         inline void Clear()
         {
@@ -73,6 +75,8 @@ namespace Profiler
     static constexpr size_t STAT_CLEAR_IMPLICIT_COUNT = offsetof( ProfilerRangeStats, m_TotalClearImplicitCount );
     static constexpr size_t STAT_BARRIER_COUNT = offsetof( ProfilerRangeStats, m_TotalBarrierCount );
     static constexpr size_t STAT_IMPLICIT_BARRIER_COUNT = offsetof( ProfilerRangeStats, m_TotalImplicitBarrierCount );
+    static constexpr size_t STAT_RESOLVE_COUNT = offsetof( ProfilerRangeStats, m_TotalResolveCount );
+    static constexpr size_t STAT_RESOLVE_IMPLICIT_COUNT = offsetof( ProfilerRangeStats, m_TotalResolveImplicitCount );
 
     template<>
     inline void ProfilerRangeStats::IncrementDrawcallCount<STAT_BARRIER_COUNT>( uint32_t )
@@ -145,6 +149,9 @@ namespace Profiler
 
             case STAT_COPY_COUNT:
                 m_Subregions.push_back( { ProfilerDrawcallType::eCopy } ); break;
+
+            case STAT_RESOLVE_COUNT:
+                m_Subregions.push_back( { ProfilerDrawcallType::eResolve } ); break;
             }
         }
     };

@@ -12,6 +12,7 @@ namespace Profiler
 
         // Dispatch tables
         VkLayerInstanceDispatchTable Callbacks;
+        PFN_vkSetInstanceLoaderData SetInstanceLoaderData;
 
         VkApplicationInfo ApplicationInfo;
 

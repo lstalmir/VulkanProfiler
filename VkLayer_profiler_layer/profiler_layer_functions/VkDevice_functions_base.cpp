@@ -22,6 +22,7 @@ namespace Profiler
         VkPhysicalDevice physicalDevice,
         const VkDeviceCreateInfo* pCreateInfo,
         PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
+        PFN_vkSetDeviceLoaderData pfnSetDeviceLoaderData,
         const VkAllocationCallbacks* pAllocator,
         VkDevice device )
     {
@@ -33,6 +34,8 @@ namespace Profiler
 
         layer_init_device_dispatch_table( device, &dd.Device.Callbacks,
             pfnGetDeviceProcAddr );
+
+        dd.Device.SetDeviceLoaderData = pfnSetDeviceLoaderData;
 
         dd.Device.Handle = device;
         dd.Device.pInstance = &id.Instance;

@@ -78,6 +78,9 @@ namespace Profiler
 
         FrameBrowserSortMode m_FrameBrowserSortMode;
 
+        ProfilerAggregatedData m_Data;
+        bool m_Pause;
+
         // Dispatch overriden window procedures
         static LockableUnorderedMap<void*, WNDPROC> s_pfnWindowProc;
 
@@ -85,16 +88,17 @@ namespace Profiler
         static LRESULT CALLBACK WindowProc( HWND, UINT, WPARAM, LPARAM );
 
         void Update( const ProfilerAggregatedData& data );
-        void UpdatePerformanceTab( const ProfilerAggregatedData& data );
-        void UpdateMemoryTab( const ProfilerAggregatedData& data );
-        void UpdateStatisticsTab( const ProfilerAggregatedData& data );
+        void UpdatePerformanceTab();
+        void UpdateMemoryTab();
+        void UpdateStatisticsTab();
 
         // Frame browser helpers
-        void PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index );
-        void PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index );
-        void PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index );
+        void PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index, uint64_t frameTicks );
+        void PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index, uint64_t frameTicks );
+        void PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index, uint64_t frameTicks );
 
         void TextAlignRight( const char* fmt, ... );
+        void DrawSignificanceRect( float significance );
 
         std::string GetDebugObjectName( VkObjectType type, uint64_t handle ) const;
 

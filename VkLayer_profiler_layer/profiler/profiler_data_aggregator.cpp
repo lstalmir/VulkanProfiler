@@ -13,7 +13,7 @@ namespace Profiler
         Add submit data to the aggregator. The data must be ready for reading.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::AppendData( const ProfilerSubmitData& submit )
+    void ProfilerDataAggregator::AppendSubmit( const ProfilerSubmit& submit )
     {
         #if 0
         const auto submitTuples = CollectShaderTuples( submit );
@@ -54,7 +54,7 @@ namespace Profiler
         }
         #endif
 
-        m_AggregatedData.push_back( submit );
+        m_Submits.push_back( submit );
     }
 
     /***********************************************************************************\
@@ -68,6 +68,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Reset()
     {
+        m_Submits.clear();
         m_AggregatedData.clear();
     }
 
@@ -126,6 +127,17 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::MergeCommandBuffers()
     {
+        for( const ProfilerSubmit& submit : m_Submits )
+        {
+            ProfilerSubmitData submitData;
+
+            for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+            {
+                submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
+            }
+
+            m_AggregatedData.push_back( submitData );
+        }
     }
 
     #if 0

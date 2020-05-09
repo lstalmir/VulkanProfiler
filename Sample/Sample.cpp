@@ -359,10 +359,10 @@ int main()
 
     // Use validation layers if this is a debug build
     std::vector<const char*> layers;
+    layers.push_back( "VK_LAYER_profiler" );
     #if defined(_DEBUG)
-    //layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
+    layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
     #endif
-    //layers.push_back( "VK_LAYER_profiler" );
 
     // vk::ApplicationInfo allows the programmer to specifiy some basic information about the
     // program, which can be useful for layers and tools to provide more debug information.

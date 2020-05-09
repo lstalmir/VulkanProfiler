@@ -38,6 +38,7 @@ namespace Profiler
             VkPhysicalDevice physicalDevice,
             const VkDeviceCreateInfo* pCreateInfo,
             PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
+            PFN_vkSetDeviceLoaderData pfnSetDeviceLoaderData,
             const VkAllocationCallbacks* pAllocator,
             VkDevice device );
 

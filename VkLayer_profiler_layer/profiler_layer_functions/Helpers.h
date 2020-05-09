@@ -39,14 +39,14 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename LayerCreateInfo, typename CreateInfo>
-    inline LayerCreateInfo* GetLayerLinkInfo( const CreateInfo* pCreateInfo )
+    inline LayerCreateInfo* GetLayerLinkInfo( const CreateInfo* pCreateInfo, VkLayerFunction function )
     {
         auto pLayerCreateInfo = reinterpret_cast<const LayerCreateInfo*>(pCreateInfo->pNext);
 
         // Step through the chain of pNext until we get to the link info
         while( (pLayerCreateInfo)
             && (pLayerCreateInfo->sType != LayerCreateInfoTypeTraits<LayerCreateInfo>::sType ||
-                pLayerCreateInfo->function != VK_LAYER_LINK_INFO) )
+                pLayerCreateInfo->function != function) )
         {
             pLayerCreateInfo = reinterpret_cast<const LayerCreateInfo*>(pLayerCreateInfo->pNext);
         }
