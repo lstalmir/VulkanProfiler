@@ -86,6 +86,15 @@ namespace Profiler
             const VkAllocationCallbacks* pAllocator,
             VkPipeline* pPipelines );
 
+        // vkCreateComputePipelines
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateComputePipelines(
+            VkDevice device,
+            VkPipelineCache pipelineCache,
+            uint32_t createInfoCount,
+            const VkComputePipelineCreateInfo* pCreateInfos,
+            const VkAllocationCallbacks* pAllocator,
+            VkPipeline* pPipelines );
+
         // vkDestroyPipeline
         static VKAPI_ATTR void VKAPI_CALL DestroyPipeline(
             VkDevice device,

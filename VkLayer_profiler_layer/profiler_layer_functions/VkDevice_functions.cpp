@@ -78,6 +78,7 @@ namespace Profiler
         GETPROCADDR( CreateShaderModule );
         GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
+        GETPROCADDR( CreateComputePipelines );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
 
@@ -314,8 +315,10 @@ namespace Profiler
         if( result == VK_SUCCESS &&
             dd.Profiler.m_Config.m_OutputFlags & VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT )
         {
-            // TODO: Multiple swapchain support
-            assert( dd.pOverlay == nullptr );
+            if( dd.pOverlay != nullptr )
+            {
+                Destroy<ProfilerOverlayOutput>( dd.pOverlay );
+            }
 
             // Select graphics queue for the overlay draw commands
             VkQueue graphicsQueue = VK_NULL_HANDLE;
@@ -449,6 +452,40 @@ namespace Profiler
 
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateGraphicsPipelines(
+            device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
+
+        if( result != VK_SUCCESS )
+        {
+            // Pipeline creation failed
+            return result;
+        }
+
+        // Register pipelines
+        dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateComputePipelines
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateComputePipelines(
+        VkDevice device,
+        VkPipelineCache pipelineCache,
+        uint32_t createInfoCount,
+        const VkComputePipelineCreateInfo* pCreateInfos,
+        const VkAllocationCallbacks* pAllocator,
+        VkPipeline* pPipelines )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Create the pipelines
+        VkResult result = dd.Device.Callbacks.CreateComputePipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
         if( result != VK_SUCCESS )

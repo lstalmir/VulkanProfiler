@@ -68,6 +68,7 @@ namespace Profiler
             uint32_t, const VkImageMemoryBarrier* );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
+        void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
         void DestroyPipeline( VkPipeline );
         void BindPipeline( VkCommandBuffer, VkPipeline );
 
@@ -148,6 +149,7 @@ namespace Profiler
         void FillProfilerData( VkProfilerRegionDataEXT* pData, const ProfilerRangeStats& stats ) const;
 
         ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo );
+        ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo );
 
         inline VkDevice Device() const { return m_pDevice->Handle; }
         inline VkInstance Instance() const { return m_pDevice->pInstance->Handle; }

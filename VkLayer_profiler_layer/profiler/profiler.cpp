@@ -256,6 +256,7 @@ namespace Profiler
         CreatePipelines
 
     Description:
+        Register graphics pipelines.
 
     \***********************************************************************************/
     void Profiler::CreatePipelines( uint32_t pipelineCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
@@ -277,6 +278,35 @@ namespace Profiler
                 stringBuilder.str().c_str() );
 
             m_ProfiledPipelines.interlocked_emplace( pPipelines[i], profilerPipeline );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreatePipelines
+
+    Description:
+        Register compute pipelines.
+
+    \***********************************************************************************/
+    void Profiler::CreatePipelines( uint32_t pipelineCount, const VkComputePipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
+    {
+        for( uint32_t i = 0; i < pipelineCount; ++i )
+        {
+            ProfilerPipeline profilerPipeline;
+            profilerPipeline.m_Handle = pPipelines[ i ];
+            profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
+
+            std::stringstream stringBuilder;
+            stringBuilder
+                << "CS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
+                << profilerPipeline.m_ShaderTuple.m_Comp;
+
+            m_Debug.SetDebugObjectName( (uint64_t)profilerPipeline.m_Handle,
+                stringBuilder.str().c_str() );
+
+            m_ProfiledPipelines.interlocked_emplace( pPipelines[ i ], profilerPipeline );
         }
     }
 
@@ -1040,6 +1070,37 @@ namespace Profiler
 
         // Compute aggregated tuple hash for fast comparison
         tuple.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(&tuple), sizeof( tuple ) );
+
+        return tuple;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateShaderTuple
+
+    Description:
+
+    \***********************************************************************************/
+    ProfilerShaderTuple Profiler::CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo )
+    {
+        ProfilerShaderTuple tuple;
+
+        // VkShaderModule entry should already be in the map
+        uint32_t hash = m_ProfiledShaderModules.interlocked_at( createInfo.stage.module );
+
+        const char* entrypoint = createInfo.stage.pName;
+
+        // Hash the entrypoint and append it to the final hash
+        hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
+
+        // This should be checked in validation layers
+        assert( createInfo.stage.stage == VK_SHADER_STAGE_COMPUTE_BIT );
+
+        tuple.m_Comp = hash;
+
+        // Aggregated tuple hash for fast comparison
+        tuple.m_Hash = hash;
 
         return tuple;
     }
