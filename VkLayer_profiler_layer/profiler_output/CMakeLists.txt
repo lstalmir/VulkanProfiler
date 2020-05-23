@@ -26,12 +26,18 @@ set (imgui
     "imgui_impl_vulkan_layer.h"
     "imgui_impl_vulkan_layer.cpp"
     )
+
+set (imgui_widgets
+    "imgui_widgets/imgui_histogram_ex.h"
+    "imgui_widgets/imgui_histogram_ex.cpp"
+    )
     
 # Link intermediate static library
 add_library (profiler_output
     ${sources}
     ${headers}
-    ${imgui})
+    ${imgui}
+    ${imgui_widgets})
 
 # Set include path
 target_include_directories (profiler_output

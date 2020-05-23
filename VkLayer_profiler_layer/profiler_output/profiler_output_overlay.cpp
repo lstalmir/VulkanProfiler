@@ -4,6 +4,8 @@
 #include <string>
 #include <sstream>
 
+#include "imgui_widgets/imgui_histogram_ex.h"
+
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 
 namespace Profiler
@@ -31,6 +33,7 @@ namespace Profiler
         , m_Swapchain( swapchain )
         , m_pWindowHandle( nullptr )
         , m_pImGuiContext( nullptr )
+        , m_pImGuiVulkanContext( nullptr )
         , m_DescriptorPool( nullptr )
         , m_RenderPass( nullptr )
         , m_RenderArea( {} )
@@ -342,7 +345,16 @@ namespace Profiler
 
         imGuiInitInfo.DescriptorPool = m_DescriptorPool;
 
-        if( !ImGui_ImplVulkan_Init( &imGuiInitInfo, m_RenderPass ) )
+        m_pImGuiVulkanContext = new (std::nothrow) ImGui_ImplVulkan_Context();
+
+        if( !m_pImGuiVulkanContext )
+        {
+            // Class is marked final, destructor must not be virtual
+            ProfilerOverlayOutput::~ProfilerOverlayOutput();
+            throw VK_ERROR_OUT_OF_HOST_MEMORY;
+        }
+
+        if( !m_pImGuiVulkanContext->Init( &imGuiInitInfo, m_RenderPass ) )
         {
             // Class is marked final, destructor must not be virtual
             ProfilerOverlayOutput::~ProfilerOverlayOutput();
@@ -362,7 +374,7 @@ namespace Profiler
                 m_CommandBuffers[ 0 ], &info );
         }
 
-        ImGui_ImplVulkan_CreateFontsTexture( m_CommandBuffers[ 0 ] );
+        m_pImGuiVulkanContext->CreateFontsTexture( m_CommandBuffers[ 0 ] );
 
         {
             VkSubmitInfo info = {};
@@ -401,9 +413,16 @@ namespace Profiler
             m_pWindowHandle = nullptr;
         }
 
+        if( m_pImGuiVulkanContext )
+        {
+            m_pImGuiVulkanContext->Shutdown();
+            delete m_pImGuiVulkanContext;
+
+            m_pImGuiVulkanContext = nullptr;
+        }
+
         if( m_pImGuiContext )
         {
-            ImGui_ImplVulkan_Shutdown();
             ImGui_ImplWin32_Shutdown();
             ImGui::DestroyContext( m_pImGuiContext );
 
@@ -534,7 +553,7 @@ namespace Profiler
             }
 
             // Record Imgui Draw Data and draw funcs into command buffer
-            ImGui_ImplVulkan_RenderDrawData( ImGui::GetDrawData(), commandBuffer );
+            m_pImGuiVulkanContext->RenderDrawData( ImGui::GetDrawData(), commandBuffer );
 
             // Submit command buffer
             m_Device.Callbacks.CmdEndRenderPass( commandBuffer );
@@ -575,7 +594,7 @@ namespace Profiler
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
 
-        ImGui_ImplVulkan_NewFrame();
+        m_pImGuiVulkanContext->NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
@@ -634,7 +653,15 @@ namespace Profiler
     LRESULT CALLBACK ProfilerOverlayOutput::WindowProc( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam )
     {
         // Update overlay
-        ImGui_ImplWin32_WndProcHandler( hWnd, Msg, wParam, lParam );
+        const LRESULT result = ImGui_ImplWin32_WndProcHandler( hWnd, Msg, wParam, lParam );
+        
+        // Don't pass handled mouse messages to application
+        if( Msg >= WM_MOUSEFIRST &&
+            Msg <= WM_MOUSELAST &&
+            ImGui::GetIO().WantCaptureMouse )
+        {
+            return result;
+        }
 
         // Call original window proc
         return CallWindowProc( s_pfnWindowProc.interlocked_at( hWnd ), hWnd, Msg, wParam, lParam );
@@ -684,11 +711,12 @@ namespace Profiler
             }
 
             ImGui::PushItemWidth( -1 );
-            ImGui::PlotHistogram(
+            ImGuiX::PlotHistogramEx(
                 "",
+                contributions.data(), // Scale x with y
                 contributions.data(),
                 contributions.size(),
-                0, "GPU Cycles", FLT_MAX, FLT_MAX, { 0, 80 } );
+                0, "GPU Cycles (Render passes)", 0, FLT_MAX, { 0, 80 } );
         }
 
         // Top pipelines
