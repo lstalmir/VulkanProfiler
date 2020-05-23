@@ -65,22 +65,22 @@ private:
     VkLayerDispatchTable     m_DispatchTable;
 
     // Vulkan data
-    ImGui_ImplVulkan_InitInfo m_VulkanInitInfo = {};
-    VkRenderPass             m_RenderPass = VK_NULL_HANDLE;
-    VkDeviceSize             m_BufferMemoryAlignment = 256;
-    VkPipelineCreateFlags    m_PipelineCreateFlags = 0x00;
-    VkDescriptorSetLayout    m_DescriptorSetLayout = VK_NULL_HANDLE;
-    VkPipelineLayout         m_PipelineLayout = VK_NULL_HANDLE;
-    VkDescriptorSet          m_DescriptorSet = VK_NULL_HANDLE;
-    VkPipeline               m_Pipeline = VK_NULL_HANDLE;
+    ImGui_ImplVulkan_InitInfo m_VulkanInitInfo;
+    VkRenderPass             m_RenderPass;
+    VkDeviceSize             m_BufferMemoryAlignment;
+    VkPipelineCreateFlags    m_PipelineCreateFlags;
+    VkDescriptorSetLayout    m_DescriptorSetLayout;
+    VkPipelineLayout         m_PipelineLayout;
+    VkDescriptorSet          m_DescriptorSet;
+    VkPipeline               m_Pipeline;
 
     // Font data
-    VkSampler                m_FontSampler = VK_NULL_HANDLE;
-    VkDeviceMemory           m_FontMemory = VK_NULL_HANDLE;
-    VkImage                  m_FontImage = VK_NULL_HANDLE;
-    VkImageView              m_FontView = VK_NULL_HANDLE;
-    VkDeviceMemory           m_UploadBufferMemory = VK_NULL_HANDLE;
-    VkBuffer                 m_UploadBuffer = VK_NULL_HANDLE;
+    VkSampler                m_FontSampler;
+    VkDeviceMemory           m_FontMemory;
+    VkImage                  m_FontImage;
+    VkImageView              m_FontView;
+    VkDeviceMemory           m_UploadBufferMemory;
+    VkBuffer                 m_UploadBuffer;
 
     // Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplVulkan_RenderDrawData()
     // [Please zero-clear before use!]
