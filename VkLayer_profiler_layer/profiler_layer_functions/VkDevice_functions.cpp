@@ -42,8 +42,6 @@ namespace
         { VK_DEBUG_REPORT_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT_EXT,    VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT },
         { VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_KHR_EXT,                  VK_OBJECT_TYPE_DISPLAY_KHR },
         { VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_MODE_KHR_EXT,             VK_OBJECT_TYPE_DISPLAY_MODE_KHR },
-        { VK_DEBUG_REPORT_OBJECT_TYPE_OBJECT_TABLE_NVX_EXT,             VK_OBJECT_TYPE_OBJECT_TABLE_NVX },
-        { VK_DEBUG_REPORT_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX_EXT, VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX },
         { VK_DEBUG_REPORT_OBJECT_TYPE_VALIDATION_CACHE_EXT,             VK_OBJECT_TYPE_VALIDATION_CACHE_EXT },
         { VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_EXT,     VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION },
         { VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_EXT,   VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE },
@@ -315,37 +313,42 @@ namespace Profiler
         if( result == VK_SUCCESS &&
             dd.Profiler.m_Config.m_OutputFlags & VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT )
         {
-            if( dd.pOverlay != nullptr )
+            if( dd.pOverlay == nullptr )
             {
-                Destroy<ProfilerOverlayOutput>( dd.pOverlay );
-            }
+                // Select graphics queue for the overlay draw commands
+                VkQueue graphicsQueue = VK_NULL_HANDLE;
 
-            // Select graphics queue for the overlay draw commands
-            VkQueue graphicsQueue = VK_NULL_HANDLE;
-
-            for( auto& it : dd.Device.Queues )
-            {
-                if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
+                for( auto& it : dd.Device.Queues )
                 {
-                    graphicsQueue = it.second.Handle;
-                    break;
+                    if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
+                    {
+                        graphicsQueue = it.second.Handle;
+                        break;
+                    }
+                }
+
+                assert( graphicsQueue != VK_NULL_HANDLE );
+
+                // Create overlay
+                result = Create<ProfilerOverlayOutput>(
+                    dd.pOverlay,
+                    dd.Device,
+                    dd.Device.Queues.at( graphicsQueue ),
+                    dd.Device.Swapchains.at( *pSwapchain ),
+                    pCreateInfo );
+
+                if( result != VK_SUCCESS )
+                {
+                    // Full initialization failed, don't continue in partially-initialized state
+                    VkDevice_Functions::DestroySwapchainKHR( device, *pSwapchain, pAllocator );
                 }
             }
-
-            assert( graphicsQueue != VK_NULL_HANDLE );
-
-            // Create overlay
-            result = Create<ProfilerOverlayOutput>(
-                dd.pOverlay,
-                dd.Device,
-                dd.Device.Queues.at( graphicsQueue ),
-                dd.Device.Swapchains.at( *pSwapchain ),
-                pCreateInfo );
-
-            if( result != VK_SUCCESS )
+            else
             {
-                // Full initialization failed, don't continue in partially-initialized state
-                VkDevice_Functions::DestroySwapchainKHR( device, *pSwapchain, pAllocator );
+                // Reinitialize overlay for the new swapchain
+                dd.pOverlay->ResetSwapchain(
+                    dd.Device.Swapchains.at( *pSwapchain ),
+                    pCreateInfo );
             }
         }
 

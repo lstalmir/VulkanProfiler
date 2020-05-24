@@ -40,6 +40,10 @@ namespace Profiler
 
         ~ProfilerOverlayOutput();
 
+        void ResetSwapchain(
+            VkSwapchainKHR_Object& swapchain,
+            const VkSwapchainCreateInfoKHR* pCreateInfo );
+
         void Present(
             const ProfilerAggregatedData& data,
             const VkQueue_Object& presentQueue,
@@ -48,7 +52,7 @@ namespace Profiler
     private:
         VkDevice_Object& m_Device;
         VkQueue_Object& m_GraphicsQueue;
-        VkSwapchainKHR_Object& m_Swapchain;
+        VkSwapchainKHR_Object* m_pSwapchain;
 
         void* m_pWindowHandle;
 
@@ -60,6 +64,7 @@ namespace Profiler
 
         VkRenderPass m_RenderPass;
         VkExtent2D m_RenderArea;
+        VkFormat m_ImageFormat;
         std::vector<VkImage> m_Images;
         std::vector<VkImageView> m_ImageViews;
         std::vector<VkFramebuffer> m_Framebuffers;
@@ -88,6 +93,9 @@ namespace Profiler
 
         // Common window procedure
         static LRESULT CALLBACK WindowProc( HWND, UINT, WPARAM, LPARAM );
+
+        void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo );
+        void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo );
 
         void Update( const ProfilerAggregatedData& data );
         void UpdatePerformanceTab();
