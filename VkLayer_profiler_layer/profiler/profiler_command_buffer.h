@@ -46,6 +46,7 @@ namespace Profiler
     \***********************************************************************************/
     struct ProfilerCommandBufferData : ProfilerRangeStatsCollector<VkCommandBuffer, ProfilerRenderPass>
     {
+        std::vector<char> tmp;
     };
 
     /***********************************************************************************\
@@ -123,6 +124,8 @@ namespace Profiler
         uint32_t        m_QueryPoolSize;
         uint32_t        m_CurrentQueryPoolIndex;
         uint32_t        m_CurrentQueryIndex;
+
+        VkQueryPool     m_PerformanceQueryPoolINTEL;
 
         ProfilerCommandBufferData m_Data;
 

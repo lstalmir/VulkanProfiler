@@ -48,6 +48,8 @@ namespace Profiler
         id.Instance.Callbacks.GetPhysicalDeviceMemoryProperties(
             physicalDevice, &dd.Device.MemoryProperties );
 
+        dd.Device.VendorID = VkDevice_Vendor_ID( dd.Device.Properties.vendorID );
+
         // Enumerate queue families
         uint32_t queueFamilyPropertyCount = 0;
         id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(

@@ -34,11 +34,17 @@ set (farmhash
     "farmhash/src/farmhash.cc"
     )
 
+set (intel
+    "intel/profiler_metrics_api.h"
+    "intel/profiler_metrics_api.cpp"
+    )
+
 # Link intermediate static library
 add_library (profiler_layer
     ${sources}
     ${headers}
-    ${farmhash})
+    ${farmhash}
+    ${intel})
 
 target_compile_definitions (profiler_layer
     PRIVATE -DNAMESPACE_FOR_HASH_FUNCTIONS=Profiler::Hash

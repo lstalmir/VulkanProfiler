@@ -48,7 +48,10 @@ namespace ImGuiX
         ItemSize( total_bb, style.FramePadding.y );
         if( !ItemAdd( total_bb, 0, &frame_bb ) )
             return;
-        const bool hovered = ItemHoverable( frame_bb, id );
+
+        const bool hovered =
+            ItemHoverable( frame_bb, id ) &&
+            inner_bb.Contains( g.IO.MousePos );
 
         // Determine scale from values if not specified
         if( scale_min == FLT_MAX || scale_max == FLT_MAX )
@@ -82,23 +85,9 @@ namespace ImGuiX
             int res_w = ImMin( (int)graph_size.x, values_count );
             int item_count = values_count;
 
-            // Tooltip on hover
-            if( hovered && inner_bb.Contains( g.IO.MousePos ) )
-            {
-                const float t = ImClamp( (g.IO.MousePos.x - inner_bb.Min.x) / (inner_bb.Max.x - inner_bb.Min.x), 0.0f, 0.9999f );
-                const int v_idx = (int)(t * item_count);
-                IM_ASSERT( v_idx >= 0 && v_idx < values_count );
-
-                const float v0 = values_y[ (v_idx + values_offset) % values_count ];
-                const float v1 = values_y[ (v_idx + 1 + values_offset) % values_count ];
-                SetTooltip( "%d: %8.4g", v_idx, v0 );
-                idx_hovered = v_idx;
-            }
-
+            const int v_step = values_count / res_w;
             const float t_step = 1.0f / (float)x_size;
             const float inv_scale = (scale_min == scale_max) ? 0.0f : (1.0f / (scale_max - scale_min));
-
-            const int v_step = values_count / res_w;
 
             float v0 = values_y[ (0 + values_offset) % values_count ];
             float t0 = 0.0f;
@@ -107,6 +96,8 @@ namespace ImGuiX
 
             const ImU32 col_base = GetColorU32( ImGuiCol_PlotHistogram );
             const ImU32 col_hovered = GetColorU32( ImGuiCol_PlotHistogramHovered );
+
+            bool tooltipDrawn = false;
 
             for( int n = 0; n < res_w; n++ )
             {
@@ -121,7 +112,21 @@ namespace ImGuiX
                 ImVec2 pos1 = ImLerp( inner_bb.Min, inner_bb.Max, ImVec2( tp1.x, histogram_zero_line_t ) );
                 if( pos1.x >= pos0.x + 2.0f )
                     pos1.x -= 1.0f;
-                window->DrawList->AddRectFilled( pos0, pos1, idx_hovered == v1_idx ? col_hovered : col_base );
+
+                if( hovered &&
+                    tooltipDrawn == false &&
+                    ImRect( pos0, pos1 ).Contains( g.IO.MousePos ) )
+                {
+                    // Draw tooltip
+                    SetTooltip( "%d: %8.4g", v1_idx, v0 );
+                    window->DrawList->AddRectFilled( pos0, pos1, col_hovered );
+                    // Don't check other blocks
+                    tooltipDrawn = true;
+                }
+                else
+                {
+                    window->DrawList->AddRectFilled( pos0, pos1, col_base );
+                }
 
                 t0 = t1;
                 tp0 = tp1;

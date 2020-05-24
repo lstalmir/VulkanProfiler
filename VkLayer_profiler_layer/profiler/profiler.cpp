@@ -33,6 +33,7 @@ namespace Profiler
         , m_HostVisibleAllocationCount( 0 )
         , m_ProfiledCommandBuffers()
         , m_TimestampPeriod( 0.0f )
+        , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
     {
     }
 
@@ -132,6 +133,73 @@ namespace Profiler
             m_pDevice->PhysicalDevice, &m_DeviceProperties );
 
         m_TimestampPeriod = m_DeviceProperties.limits.timestampPeriod;
+
+        // Enable vendor-specific extensions
+        switch( pDevice->VendorID )
+        {
+        case VkDevice_Vendor_ID::eINTEL:
+        {
+            InitializeINTEL();
+            break;
+        }
+        }
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InitializeINTEL
+
+    Description:
+        Initializes INTEL-specific profiler resources.
+
+    \***********************************************************************************/
+    VkResult Profiler::InitializeINTEL()
+    {
+        // Load MDAPI
+        VkResult result = m_MetricsApiINTEL.Initialize();
+
+        if( result != VK_SUCCESS ||
+            m_MetricsApiINTEL.IsAvailable() == false )
+        {
+            return result;
+        }
+
+        // Import extension functions
+        if( m_pDevice->Callbacks.InitializePerformanceApiINTEL == nullptr )
+        {
+            auto gpa = m_pDevice->Callbacks.GetDeviceProcAddr;
+
+            #define GPA( PROC ) (PFN_vk##PROC)gpa( m_pDevice->Handle, "vk" #PROC ); \
+            assert( m_pDevice->Callbacks.PROC )
+
+            m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL = GPA( AcquirePerformanceConfigurationINTEL );
+            m_pDevice->Callbacks.CmdSetPerformanceMarkerINTEL = GPA( CmdSetPerformanceMarkerINTEL );
+            m_pDevice->Callbacks.CmdSetPerformanceOverrideINTEL = GPA( CmdSetPerformanceOverrideINTEL );
+            m_pDevice->Callbacks.CmdSetPerformanceStreamMarkerINTEL = GPA( CmdSetPerformanceStreamMarkerINTEL );
+            m_pDevice->Callbacks.GetPerformanceParameterINTEL = GPA( GetPerformanceParameterINTEL );
+            m_pDevice->Callbacks.InitializePerformanceApiINTEL = GPA( InitializePerformanceApiINTEL );
+            m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL = GPA( QueueSetPerformanceConfigurationINTEL );
+            m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL = GPA( ReleasePerformanceConfigurationINTEL );
+            m_pDevice->Callbacks.UninitializePerformanceApiINTEL = GPA( UninitializePerformanceApiINTEL );
+        }
+
+        // Initialize performance API
+        {
+            VkInitializePerformanceApiInfoINTEL initInfo = {};
+            initInfo.sType = VK_STRUCTURE_TYPE_INITIALIZE_PERFORMANCE_API_INFO_INTEL;
+
+            result = m_pDevice->Callbacks.InitializePerformanceApiINTEL(
+                m_pDevice->Handle, &initInfo );
+
+            if( result != VK_SUCCESS )
+            {
+                m_MetricsApiINTEL.Destroy();
+                return result;
+            }
+        }
 
         return VK_SUCCESS;
     }
@@ -513,6 +581,36 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
+    void Profiler::PreSubmitCommandBuffers( VkQueue queue, uint32_t, const VkSubmitInfo*, VkFence )
+    {
+        assert( m_PerformanceConfigurationINTEL == VK_NULL_HANDLE );
+
+        if( m_MetricsApiINTEL.IsAvailable() )
+        {
+            VkResult result;
+
+            // Acquire performance configuration
+            {
+                VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
+                acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
+                acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
+
+                result = m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
+                    m_pDevice->Handle,
+                    &acquireInfo,
+                    &m_PerformanceConfigurationINTEL );
+            }
+
+            // Set performance configuration for the queue
+            if( result == VK_SUCCESS )
+            {
+                result = m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
+                    queue, m_PerformanceConfigurationINTEL );
+            }
+
+            assert( result == VK_SUCCESS );
+        }
+    }
 
     /***********************************************************************************\
 
@@ -525,8 +623,9 @@ namespace Profiler
     void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
-        //m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
-        //m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
+        m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+        m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
+        m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_SubmitFence );
 
         // Store submitted command buffers and get results
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
@@ -555,6 +654,20 @@ namespace Profiler
             // Store the submit wrapper
             m_DataAggregator.AppendSubmit( submit );
         }
+
+        // Release performance configuration
+        if( m_PerformanceConfigurationINTEL )
+        {
+            assert( m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL );
+
+            VkResult result = m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
+                m_pDevice->Handle, m_PerformanceConfigurationINTEL );
+
+            assert( result == VK_SUCCESS );
+
+            // Reset object handle for the next submit
+            m_PerformanceConfigurationINTEL = VK_NULL_HANDLE;
+        }
     }
 
     /***********************************************************************************\
@@ -574,6 +687,14 @@ namespace Profiler
         // TMP
         std::scoped_lock lk( m_DataMutex );
         m_Data = m_DataAggregator.GetAggregatedData();
+
+        // TODO: Move to aggregator
+        if( m_MetricsApiINTEL.IsAvailable() )
+        {
+            m_Data.m_VendorMetrics = m_MetricsApiINTEL.ParseReport(
+                m_Data.m_Submits.front().m_CommandBuffers.front().tmp.data(),
+                m_Data.m_Submits.front().m_CommandBuffers.front().tmp.size() );
+        }
 
         // TODO: Move to CPU tracker
         m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();

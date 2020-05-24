@@ -11,6 +11,9 @@
 #include <unordered_map>
 #include <sstream>
 
+// Vendor APIs
+#include "intel/profiler_metrics_api.h"
+
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -85,6 +88,7 @@ namespace Profiler
         void EndCommandBuffer( VkCommandBuffer );
         void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
 
+        void PreSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
         void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
 
         void Present( const VkQueue_Object&, VkPresentInfoKHR* );
@@ -129,11 +133,17 @@ namespace Profiler
 
         float                   m_TimestampPeriod;
 
+        VkPerformanceConfigurationINTEL m_PerformanceConfigurationINTEL;
+
+        ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
+
         #if 0
         void PresentResults( const ProfilerAggregatedData& );
         void PresentSubmit( uint32_t, const ProfilerSubmitData& );
         void PresentCommandBuffer( uint32_t, const ProfilerCommandBufferData& );
         #endif
+
+        VkResult InitializeINTEL();
 
         void FreeProfilerData( VkProfilerRegionDataEXT* pData ) const;
 

@@ -37,6 +37,8 @@ namespace Profiler
 
         ProfilerAggregatedMemoryData m_Memory;
         ProfilerAggregatedCPUData m_CPU;
+
+        std::list<std::pair<std::string, float>> m_VendorMetrics;
     };
 
     struct ProfilerSubmit

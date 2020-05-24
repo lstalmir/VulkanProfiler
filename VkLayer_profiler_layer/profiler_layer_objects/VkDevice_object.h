@@ -8,6 +8,15 @@
 
 namespace Profiler
 {
+    enum class VkDevice_Vendor_ID
+    {
+        eAMD = 0x1002,
+        eARM = 0x13B3,
+        eINTEL = 0x8086,
+        eNV = 0x10DE,
+        eQualcomm = 0x5143
+    };
+
     struct VkDevice_debug_Object
     {
         std::map<uint64_t, std::string> ObjectNames;
@@ -19,6 +28,8 @@ namespace Profiler
 
         VkInstance_Object* pInstance;
         VkPhysicalDevice PhysicalDevice;
+
+        VkDevice_Vendor_ID VendorID;
 
         // Dispatch tables
         VkLayerDispatchTable Callbacks;

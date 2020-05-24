@@ -44,7 +44,7 @@ namespace Profiler
         , m_CommandBuffers()
         , m_CommandFences()
         , m_CommandSemaphores()
-        , m_TimestampPeriod( device.Properties.limits.timestampPeriod * 1000000.f )
+        , m_TimestampPeriod( device.Properties.limits.timestampPeriod / 1000000.f )
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
         , m_Pause( false )
     {
@@ -680,7 +680,7 @@ namespace Profiler
     {
         // Header
         {
-            const float gpuTime = m_Data.m_Stats.m_TotalTicks / m_TimestampPeriod;
+            const float gpuTime = m_Data.m_Stats.m_TotalTicks * m_TimestampPeriod;
             const float cpuTime = m_Data.m_CPU.m_TimeNs / 1000000.f;
 
             ImGui::Text( "GPU Time: %.2f ms", gpuTime );
@@ -731,11 +731,29 @@ namespace Profiler
                     ImGui::Text( "%2u. %s", i + 1,
                         GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
 
-                    TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / m_TimestampPeriod );
+                    TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
 
                     // Print up to 10 top pipelines
                     if( (++i) == 10 ) break;
                 }
+            }
+        }
+
+        // Vendor-specific
+        if( m_Device.VendorID == VkDevice_Vendor_ID::eINTEL &&
+            ImGui::CollapsingHeader( "INTEL Performance counters" ) )
+        {
+            if( !m_Data.m_VendorMetrics.empty() )
+            {
+                for( const auto& [label, value] : m_Data.m_VendorMetrics )
+                {
+                    ImGui::Text( "%s", label.c_str() );
+                    TextAlignRight( "%.2f", value );
+                }
+            }
+            else
+            {
+                ImGui::Text( "No metrics available" );
             }
         }
 
@@ -945,7 +963,7 @@ namespace Profiler
             GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle ).c_str() ) )
         {
             // Command buffer opened
-            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks / m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks * m_TimestampPeriod );
 
             // Sort frame browser data
             std::list<const ProfilerRenderPass*> pRenderPasses =
@@ -965,7 +983,7 @@ namespace Profiler
         else
         {
             // Command buffer collapsed
-            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks / m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks * m_TimestampPeriod );
         }
     }
 
@@ -998,14 +1016,14 @@ namespace Profiler
         if( inRenderPassSubtree )
         {
             // Render pass subtree opened
-            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod );
 
             if( renderPass.m_Handle != VK_NULL_HANDLE )
             {
                 DrawSignificanceRect( (float)renderPass.m_BeginTicks / frameTicks );
 
                 ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-                TextAlignRight( "%.2f ms", renderPass.m_BeginTicks / m_TimestampPeriod );
+                TextAlignRight( "%.2f ms", renderPass.m_BeginTicks * m_TimestampPeriod );
             }
         }
 
@@ -1038,7 +1056,7 @@ namespace Profiler
                     if( ImGui::TreeNode( indexStr, "Subpass #%llu", subpassIndex ) )
                     {
                         // Subpass subtree opened
-                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks / m_TimestampPeriod );
+                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks * m_TimestampPeriod );
 
                         // Sort frame browser data
                         std::list<const ProfilerPipeline*> pPipelines =
@@ -1059,7 +1077,7 @@ namespace Profiler
                     else
                     {
                         // Subpass collapsed
-                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks / m_TimestampPeriod );
+                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks * m_TimestampPeriod );
                     }
 
                     subpassIndex++;
@@ -1090,7 +1108,7 @@ namespace Profiler
 
             // Finish render pass subtree
             ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-            TextAlignRight( "%.2f ms", renderPass.m_EndTicks / m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPass.m_EndTicks * m_TimestampPeriod );
 
             ImGui::TreePop();
         }
@@ -1099,7 +1117,7 @@ namespace Profiler
             (renderPass.m_Handle != VK_NULL_HANDLE) )
         {
             // Render pass collapsed
-            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks / m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod );
         }
     }
 
@@ -1128,7 +1146,7 @@ namespace Profiler
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
-            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
         }
 
         if( inPipelineSubtree ||
@@ -1158,7 +1176,7 @@ namespace Profiler
                 DrawSignificanceRect( (float)pDrawcall->m_Ticks / frameTicks );
 
                 ImGui::Text( "%s", pDrawcallCmd );
-                TextAlignRight( "%.2f ms", pDrawcall->m_Ticks / m_TimestampPeriod );
+                TextAlignRight( "%.2f ms", pDrawcall->m_Ticks * m_TimestampPeriod );
             }
         }
 
@@ -1172,7 +1190,7 @@ namespace Profiler
             (pipeline.m_Handle != VK_NULL_HANDLE) )
         {
             // Pipeline collapsed
-            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks / m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
         }
     }
 

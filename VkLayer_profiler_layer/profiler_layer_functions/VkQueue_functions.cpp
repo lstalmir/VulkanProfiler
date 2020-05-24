@@ -51,10 +51,11 @@ namespace Profiler
 
         const VkSubmitInfo* pOriginalSubmits = pSubmits;
 
+        dd.Profiler.PreSubmitCommandBuffers( queue, submitCount, pSubmits, fence );
+
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
 
-        // Profile the submit
         dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits, fence );
 
         // Profiler allocated new pSubmits, release it

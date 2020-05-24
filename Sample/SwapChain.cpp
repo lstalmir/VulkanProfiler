@@ -86,11 +86,7 @@ namespace Sample
             }
 
             // Whatever, as long as it is supported...
-            if( presentMode != vk::PresentModeKHR::eMailbox &&
-                presentMode != vk::PresentModeKHR::eFifo )
-            {
-                presentMode = mode;
-            }
+            presentMode = mode;
         }
 
         // Get command queue index

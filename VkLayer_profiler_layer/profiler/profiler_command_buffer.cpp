@@ -22,9 +22,30 @@ namespace Profiler
         , m_QueryPoolSize( 4096 )
         , m_CurrentQueryPoolIndex( UINT_MAX )
         , m_CurrentQueryIndex( UINT_MAX )
+        , m_PerformanceQueryPoolINTEL( VK_NULL_HANDLE )
         , m_Data()
     {
         m_Data.m_Handle = commandBuffer;
+
+        // Initialize performance query once
+        if( m_Profiler.m_MetricsApiINTEL.IsAvailable() )
+        {
+            VkQueryPoolCreateInfoINTEL intelCreateInfo = {};
+            intelCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO_INTEL;
+            intelCreateInfo.performanceCountersSampling = VK_QUERY_POOL_SAMPLING_MODE_MANUAL_INTEL;
+
+            VkQueryPoolCreateInfo createInfo = {};
+            createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+            createInfo.pNext = &intelCreateInfo;
+            createInfo.queryType = VK_QUERY_TYPE_PERFORMANCE_QUERY_INTEL;
+            createInfo.queryCount = 1;
+
+            m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
+                m_Profiler.m_pDevice->Handle,
+                &createInfo,
+                nullptr,
+                &m_PerformanceQueryPoolINTEL );
+        }
     }
 
     /***********************************************************************************\
@@ -119,6 +140,17 @@ namespace Profiler
         {
             __debugbreak();
         }
+
+        if( m_PerformanceQueryPoolINTEL )
+        {
+            m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
+                m_CommandBuffer,
+                m_PerformanceQueryPoolINTEL, 0, 1 );
+
+            m_Profiler.m_pDevice->Callbacks.CmdBeginQuery(
+                m_CommandBuffer,
+                m_PerformanceQueryPoolINTEL, 0, 0 );
+        }
     }
 
     /***********************************************************************************\
@@ -132,6 +164,12 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::End()
     {
+        if( m_PerformanceQueryPoolINTEL )
+        {
+            m_Profiler.m_pDevice->Callbacks.CmdEndQuery(
+                m_CommandBuffer,
+                m_PerformanceQueryPoolINTEL, 0 );
+        }
     }
 
     /***********************************************************************************\
@@ -607,6 +645,23 @@ namespace Profiler
                     // Update command buffer time
                     m_Data.m_Stats.m_TotalTicks += renderPass.m_Stats.m_TotalTicks;
                 }
+            }
+
+            // Read vendor-specific data
+            if( m_PerformanceQueryPoolINTEL )
+            {
+                const size_t reportSize = m_Profiler.m_MetricsApiINTEL.GetReportSize();
+
+                m_Data.tmp.resize( reportSize );
+
+                VkResult result = m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
+                    m_Profiler.m_pDevice->Handle,
+                    m_PerformanceQueryPoolINTEL,
+                    0, 1, reportSize,
+                    m_Data.tmp.data(),
+                    reportSize, 0 );
+
+                assert( result == VK_SUCCESS );
             }
 
             // Subsequent calls to GetData will return the same results
