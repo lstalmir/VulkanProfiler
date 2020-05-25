@@ -85,6 +85,15 @@ namespace Profiler
 
         FrameBrowserSortMode m_FrameBrowserSortMode;
 
+        enum class HistogramGroupMode
+        {
+            eRenderPass,
+            ePipeline,
+            eDrawcall
+        };
+
+        HistogramGroupMode m_HistogramGroupMode;
+
         ProfilerAggregatedData m_Data;
         bool m_Pause;
 
@@ -101,6 +110,7 @@ namespace Profiler
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
         void UpdateStatisticsTab();
+        void UpdateSettingsTab();
 
         // Frame browser helpers
         void PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index, uint64_t frameTicks );

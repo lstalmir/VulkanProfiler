@@ -123,6 +123,7 @@ namespace Profiler
     struct ProfilerPipeline : ProfilerRangeStatsCollector<VkPipeline, ProfilerDrawcall>
     {
         ProfilerShaderTuple m_ShaderTuple;
+        VkPipelineBindPoint m_BindPoint;
 
         inline bool operator==( const ProfilerPipeline& rh ) const
         {

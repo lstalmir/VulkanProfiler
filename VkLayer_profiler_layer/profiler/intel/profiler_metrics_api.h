@@ -1,6 +1,8 @@
 #pragma once
 #include "metrics-discovery/inc/common/instrumentation/api/metrics_discovery_api.h"
 #include <filesystem>
+#include <list>
+#include <string>
 #include <vulkan/vulkan.h>
 
 namespace Profiler

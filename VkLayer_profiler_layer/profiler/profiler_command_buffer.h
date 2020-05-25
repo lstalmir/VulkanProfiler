@@ -33,6 +33,14 @@ namespace Profiler
     {
         uint64_t m_BeginTicks;
         uint64_t m_EndTicks;
+
+        inline void Clear()
+        {
+            ProfilerRangeStatsCollector::Clear();
+
+            m_BeginTicks = 0;
+            m_EndTicks = 0;
+        }
     };
 
     /***********************************************************************************\

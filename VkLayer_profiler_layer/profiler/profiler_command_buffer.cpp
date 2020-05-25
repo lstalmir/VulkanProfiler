@@ -293,6 +293,12 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::BindPipeline( ProfilerPipeline pipeline )
     {
+        // Compute pipelines may be used outside of the render pass
+        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
+        {
+            SetupCommandBufferForStatCounting();
+        }
+
         // Render pass must be already tracked
         assert( !m_Data.m_Subregions.empty() );
 
@@ -564,8 +570,7 @@ namespace Profiler
                     dataSize,
                     collectedQueries.data() + dataOffset,
                     sizeof( uint64_t ),
-                    VK_QUERY_RESULT_64_BIT |
-                    VK_QUERY_RESULT_WAIT_BIT );
+                    VK_QUERY_RESULT_64_BIT );
 
                 numQueriesLeft -= numQueriesInPool;
                 dataOffset += numQueriesInPool;

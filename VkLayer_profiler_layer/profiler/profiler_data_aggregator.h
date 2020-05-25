@@ -7,6 +7,8 @@
 
 namespace Profiler
 {
+    class VkDevice_Object;
+
     struct ProfilerAggregatedMemoryData
     {
         uint64_t m_TotalAllocationSize;
@@ -46,6 +48,13 @@ namespace Profiler
         std::vector<ProfilerCommandBuffer*> m_pCommandBuffers;
     };
 
+    static constexpr uint32_t COPY_TUPLE_HASH = 0xFFFFFFFE;
+    static constexpr uint32_t CLEAR_TUPLE_HASH = 0xFFFFFFFD;
+    static constexpr uint32_t BEGIN_RENDER_PASS_TUPLE_HASH = 0xFFFFFFFC;
+    static constexpr uint32_t END_RENDER_PASS_TUPLE_HASH = 0xFFFFFFFB;
+    static constexpr uint32_t PIPELINE_BARRIER_TUPLE_HASH = 0xFFFFFFFA;
+    static constexpr uint32_t RESOLVE_TUPLE_HASH = 0xFFFFFFF9;
+
     /***********************************************************************************\
 
     Class:
@@ -58,6 +67,8 @@ namespace Profiler
     class ProfilerDataAggregator
     {
     public:
+        VkResult Initialize( VkDevice_Object* );
+
         void AppendSubmit( const ProfilerSubmit& );
         
         void Reset();
@@ -68,6 +79,16 @@ namespace Profiler
         std::list<ProfilerSubmit> m_Submits;
 
         std::list<ProfilerSubmitData> m_AggregatedData;
+
+        // Pipelines accumulating drawcall data
+        ProfilerPipeline m_CopyPipeline;
+        ProfilerPipeline m_ClearPipeline;
+        ProfilerPipeline m_BeginRenderPassPipeline;
+        ProfilerPipeline m_EndRenderPassPipeline;
+        ProfilerPipeline m_PipelineBarrierPipeline;
+        ProfilerPipeline m_ResolvePipeline;
+
+        void InitializePipeline( VkDevice_Object*, ProfilerPipeline&, uint32_t );
 
         void MergeCommandBuffers();
 

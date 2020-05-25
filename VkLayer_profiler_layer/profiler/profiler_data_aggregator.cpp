@@ -1,9 +1,60 @@
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
+#include "profiler_layer_objects/VkDevice_object.h"
 #include <unordered_set>
 
 namespace Profiler
 {
+    static const std::map<uint32_t, const char*> _g_pInternalTupleDebugNames =
+    {
+        { COPY_TUPLE_HASH, "Copy" },
+        { CLEAR_TUPLE_HASH, "Clear" },
+        { BEGIN_RENDER_PASS_TUPLE_HASH, "BeginRenderPass" },
+        { END_RENDER_PASS_TUPLE_HASH, "EndRenderPass" },
+        { PIPELINE_BARRIER_TUPLE_HASH, "PipelineBarrier" },
+        { RESOLVE_TUPLE_HASH, "Resolve" }
+    };
+
+    /***********************************************************************************\
+
+    Function:
+        Initialize
+
+    Description:
+        Initializer.
+
+    \***********************************************************************************/
+    VkResult ProfilerDataAggregator::Initialize( VkDevice_Object* pDevice )
+    {
+        InitializePipeline( pDevice, m_CopyPipeline, COPY_TUPLE_HASH );
+        InitializePipeline( pDevice, m_ClearPipeline, CLEAR_TUPLE_HASH );
+        InitializePipeline( pDevice, m_BeginRenderPassPipeline, BEGIN_RENDER_PASS_TUPLE_HASH );
+        InitializePipeline( pDevice, m_EndRenderPassPipeline, END_RENDER_PASS_TUPLE_HASH );
+        InitializePipeline( pDevice, m_PipelineBarrierPipeline, PIPELINE_BARRIER_TUPLE_HASH );
+        InitializePipeline( pDevice, m_ResolvePipeline, RESOLVE_TUPLE_HASH );
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InitializePipeline
+
+    Description:
+        Assign internal hash to the pipeline.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::InitializePipeline( VkDevice_Object* pDevice, ProfilerPipeline& pipeline, uint32_t hash )
+    {
+        pipeline.m_Handle = (VkPipeline)hash;
+        pipeline.m_ShaderTuple.m_Hash = hash;
+
+        // Set debug name
+        pDevice->Debug.ObjectNames.emplace( (uint64_t)pipeline.m_Handle,
+            _g_pInternalTupleDebugNames.at( hash ) );
+    }
+
     /***********************************************************************************\
 
     Function:
@@ -28,7 +79,7 @@ namespace Profiler
 
             // Find number of differences between sets
             const float diffPercentage =
-                static_cast<float>((submitTuples - existingSubmitTuples).size()) / 
+                static_cast<float>((submitTuples - existingSubmitTuples).size()) /
                 static_cast<float>(existingSubmitTuples.size());
 
             if( (diffPercentage / existingSubmitTuples.size()) < bestMatchPercentage )
@@ -173,6 +224,14 @@ namespace Profiler
     {
         std::unordered_set<ProfilerPipeline> aggregatedPipelines;
 
+        // Clear drawcall pipelines
+        m_CopyPipeline.Clear();
+        m_ClearPipeline.Clear();
+        m_BeginRenderPassPipeline.Clear();
+        m_EndRenderPassPipeline.Clear();
+        m_PipelineBarrierPipeline.Clear();
+        m_ResolvePipeline.Clear();
+
         for( const auto& submit : m_AggregatedData )
         {
             for( const auto& commandBuffer : submit.m_CommandBuffers )
@@ -199,12 +258,43 @@ namespace Profiler
                             aggregatedPipeline.m_Subregions.clear();
 
                             aggregatedPipelines.insert( aggregatedPipeline );
+
+                            // Artificial pipelines for calls which doesn't need pipeline
+                            for( const auto& drawcall : pipeline.m_Subregions )
+                            {
+                                switch( drawcall.m_Type )
+                                {
+                                case ProfilerDrawcallType::eCopy:
+                                    m_CopyPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                    break;
+
+                                case ProfilerDrawcallType::eClear:
+                                    m_ClearPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                    break;
+
+                                case ProfilerDrawcallType::eResolve:
+                                    m_ResolvePipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                    break;
+                                }
+                            }
                         }
                     }
+
+                    // Artificial pipelines for render pass begin/ends
+                    m_BeginRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_BeginTicks;
+                    m_EndRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_EndTicks;
                 }
             }
         }
-        
+
+        // Add artificial pipelines
+        if( m_CopyPipeline.m_Stats.m_TotalTicks > 0 )               aggregatedPipelines.emplace( m_CopyPipeline );
+        if( m_ClearPipeline.m_Stats.m_TotalTicks > 0 )              aggregatedPipelines.emplace( m_ClearPipeline );
+        if( m_BeginRenderPassPipeline.m_Stats.m_TotalTicks > 0 )    aggregatedPipelines.emplace( m_BeginRenderPassPipeline );
+        if( m_EndRenderPassPipeline.m_Stats.m_TotalTicks > 0 )      aggregatedPipelines.emplace( m_EndRenderPassPipeline );
+        if( m_PipelineBarrierPipeline.m_Stats.m_TotalTicks > 0 )    aggregatedPipelines.emplace( m_PipelineBarrierPipeline );
+        if( m_ResolvePipeline.m_Stats.m_TotalTicks > 0 )            aggregatedPipelines.emplace( m_ResolvePipeline );
+
         // Sort by time
         std::list<ProfilerPipeline> pipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
 

@@ -56,6 +56,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        u32tohex
+
+    Description:
+        Convert 32-bit unsigned number to hexadecimal string.
+
+    \***********************************************************************************/
+    inline void u32tohex( char* pBuffer, uint32_t value )
+    {
+        const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert( sizeof( hexDigits ) == 16 );
+
+        for( int i = 0; i < 8; ++i )
+        {
+            // Begin with most significant bit:
+            // out[0] = hex[ (V >> 28) & 0xF ]
+            // out[1] = hex[ (V >> 24) & 0xF ] ...
+            pBuffer[ i ] = hexDigits[ (value >> (32 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DigitCount
 
     Description:

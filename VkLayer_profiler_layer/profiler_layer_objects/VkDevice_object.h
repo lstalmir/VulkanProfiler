@@ -2,6 +2,7 @@
 #include "VkInstance_object.h"
 #include "VkQueue_object.h"
 #include "VkSwapchainKHR_object.h"
+#include <map>
 #include <vector>
 #include <vk_layer.h>
 #include <vk_dispatch_table_helper.h>

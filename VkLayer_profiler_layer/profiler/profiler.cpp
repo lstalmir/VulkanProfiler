@@ -20,7 +20,6 @@ namespace Profiler
     Profiler::Profiler()
         : m_pDevice( nullptr )
         , m_Config()
-        , m_Debug()
         , m_DataMutex()
         , m_Data()
         , m_DataAggregator()
@@ -144,6 +143,9 @@ namespace Profiler
         }
         }
 
+        // Initialize aggregator
+        m_DataAggregator.Initialize( pDevice );
+
         return VK_SUCCESS;
     }
 
@@ -251,20 +253,6 @@ namespace Profiler
     }
 
     /***********************************************************************************\
-
-    Function:
-        SetDebugObjectName
-
-    Description:
-        Assign user-defined name to the object
-
-    \***********************************************************************************/
-    void Profiler::SetDebugObjectName( uint64_t objectHandle, const char* pObjectName )
-    {
-        m_Debug.SetDebugObjectName( objectHandle, pObjectName );
-    }
-
-    /***********************************************************************************\
     \***********************************************************************************/
     ProfilerCommandBuffer& Profiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
     {
@@ -334,16 +322,13 @@ namespace Profiler
             ProfilerPipeline profilerPipeline;
             profilerPipeline.m_Handle = pPipelines[i];
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
+            profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-            std::stringstream stringBuilder;
-            stringBuilder
-                << "VS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
-                << profilerPipeline.m_ShaderTuple.m_Vert
-                << ",PS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
-                << profilerPipeline.m_ShaderTuple.m_Frag;
+            char pPipelineDebugName[ 24 ] = "VS=XXXXXXXX,PS=XXXXXXXX";
+            u32tohex( pPipelineDebugName + 3, profilerPipeline.m_ShaderTuple.m_Vert );
+            u32tohex( pPipelineDebugName + 15, profilerPipeline.m_ShaderTuple.m_Frag );
 
-            m_Debug.SetDebugObjectName((uint64_t)profilerPipeline.m_Handle,
-                stringBuilder.str().c_str() );
+            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)profilerPipeline.m_Handle, pPipelineDebugName );
 
             m_ProfiledPipelines.interlocked_emplace( pPipelines[i], profilerPipeline );
         }
@@ -365,14 +350,12 @@ namespace Profiler
             ProfilerPipeline profilerPipeline;
             profilerPipeline.m_Handle = pPipelines[ i ];
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
+            profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 
-            std::stringstream stringBuilder;
-            stringBuilder
-                << "CS=" << std::hex << std::setfill( '0' ) << std::setw( 8 )
-                << profilerPipeline.m_ShaderTuple.m_Comp;
+            char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
+            u32tohex( pPipelineDebugName + 3, profilerPipeline.m_ShaderTuple.m_Comp );
 
-            m_Debug.SetDebugObjectName( (uint64_t)profilerPipeline.m_Handle,
-                stringBuilder.str().c_str() );
+            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)profilerPipeline.m_Handle, pPipelineDebugName );
 
             m_ProfiledPipelines.interlocked_emplace( pPipelines[ i ], profilerPipeline );
         }
@@ -623,9 +606,9 @@ namespace Profiler
     void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
-        m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
-        m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
-        m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_SubmitFence );
+        //m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+        //m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
+        //m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_SubmitFence );
 
         // Store submitted command buffers and get results
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
@@ -683,6 +666,9 @@ namespace Profiler
         m_CurrentFrame++;
 
         m_CpuTimestampCounter.End();
+
+        // TMP (doesn't introduce in-frame CPU overhead but may cause some image-count-related issues disappear)
+        m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
 
         // TMP
         std::scoped_lock lk( m_DataMutex );

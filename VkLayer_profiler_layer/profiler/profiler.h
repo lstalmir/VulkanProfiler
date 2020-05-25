@@ -57,8 +57,6 @@ namespace Profiler
         VkResult SetMode( VkProfilerModeEXT mode );
         ProfilerAggregatedData GetData() const;
 
-        void SetDebugObjectName( uint64_t, const char* );
-
         // TODO: Create wrappers in AllocateCommandBuffers()
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer );
         // TODO: Wrap render passes
@@ -100,7 +98,6 @@ namespace Profiler
         VkDevice_Object*        m_pDevice;
 
         ProfilerConfig          m_Config;
-        ProfilerDebugUtils      m_Debug;
 
         mutable std::mutex      m_DataMutex;
         ProfilerAggregatedData  m_Data;
@@ -134,7 +131,7 @@ namespace Profiler
         float                   m_TimestampPeriod;
 
         VkPerformanceConfigurationINTEL m_PerformanceConfigurationINTEL;
-
+        
         ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
 
         #if 0

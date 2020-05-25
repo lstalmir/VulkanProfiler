@@ -47,6 +47,7 @@ namespace Profiler
         , m_CommandSemaphores()
         , m_TimestampPeriod( device.Properties.limits.timestampPeriod / 1000000.f )
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
+        , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
     {
         // Create internal descriptor pool
@@ -629,6 +630,11 @@ namespace Profiler
             UpdateStatisticsTab();
             ImGui::EndTabItem();
         }
+        if( ImGui::BeginTabItem( "Settings" ) )
+        {
+            UpdateSettingsTab();
+            ImGui::EndTabItem();
+        }
 
         ImGui::EndTabBar();
 
@@ -808,6 +814,40 @@ namespace Profiler
         {
             std::vector<float> contributions;
 
+            static const char* groupOptions[] = {
+                "Render passes",
+                "Pipelines",
+                "Drawcalls" };
+
+            const char* selectedOption = groupOptions[ (size_t)m_HistogramGroupMode ];
+
+            // Select group mode
+            {
+                if( ImGui::BeginCombo( "Histogram groups", selectedOption, ImGuiComboFlags_NoPreview ) )
+                {
+                    for( size_t i = 0; i < std::extent_v<decltype(groupOptions)>; ++i )
+                    {
+                        bool isSelected = (selectedOption == groupOptions[ i ]);
+
+                        if( ImGui::Selectable( groupOptions[ i ], isSelected ) )
+                        {
+                            // Selection changed
+                            selectedOption = groupOptions[ i ];
+                            isSelected = true;
+
+                            m_HistogramGroupMode = HistogramGroupMode( i );
+                        }
+
+                        if( isSelected )
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+
+                    ImGui::EndCombo();
+                }
+            }
+
             if( m_Data.m_Stats.m_TotalTicks > 0 )
             {
                 // Enumerate submits in frame
@@ -819,12 +859,43 @@ namespace Profiler
                         // Enumerate render passes in command buffer
                         for( const auto& renderPass : cmdBuffer.m_Subregions )
                         {
-                            // Insert render pass cycle count to histogram
-                            contributions.push_back( renderPass.m_Stats.m_TotalTicks );
+                            if( m_HistogramGroupMode > HistogramGroupMode::eRenderPass )
+                            {
+                                // Enumerate subpasses in render pass
+                                for( const auto& subpass : renderPass.m_Subregions )
+                                {
+                                    // Enumerate pipelines in subpass
+                                    for( const auto& pipeline : subpass.m_Subregions )
+                                    {
+                                        if( m_HistogramGroupMode > HistogramGroupMode::ePipeline )
+                                        {
+                                            // Enumerate drawcalls in pipeline
+                                            for( const auto& drawcall : pipeline.m_Subregions )
+                                            {
+                                                // Insert drawcall cycle count to histogram
+                                                contributions.push_back( drawcall.m_Ticks );
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Insert pipeline cycle count to histogram
+                                            contributions.push_back( pipeline.m_Stats.m_TotalTicks );
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Insert render pass cycle count to histogram
+                                contributions.push_back( renderPass.m_Stats.m_TotalTicks );
+                            }
                         }
                     }
                 }
             }
+
+            char pHistogramDescription[ 32 ];
+            sprintf_s( pHistogramDescription, "GPU Cycles (%s)", selectedOption );
 
             ImGui::PushItemWidth( -1 );
             ImGuiX::PlotHistogramEx(
@@ -832,7 +903,7 @@ namespace Profiler
                 contributions.data(), // Scale x with y
                 contributions.data(),
                 contributions.size(),
-                0, "GPU Cycles (Render passes)", 0, FLT_MAX, { 0, 80 } );
+                0, pHistogramDescription, 0, FLT_MAX, { 0, 100 } );
         }
 
         // Top pipelines
@@ -847,7 +918,9 @@ namespace Profiler
                     ImGui::Text( "%2u. %s", i + 1,
                         GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
 
-                    TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
+                    TextAlignRight( "(%.1f %%) %.2f ms",
+                        pipeline.m_Stats.m_TotalTicks * 100.f / m_Data.m_Stats.m_TotalTicks, 
+                        pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
 
                     // Print up to 10 top pipelines
                     if( (++i) == 10 ) break;
@@ -1047,6 +1120,7 @@ namespace Profiler
             ImGui::Text( "Draw calls (indirect):            %u", m_Data.m_Stats.m_TotalDrawIndirectCount );
             ImGui::Text( "Dispatch calls:                   %u", m_Data.m_Stats.m_TotalDispatchCount );
             ImGui::Text( "Dispatch calls (indirect):        %u", m_Data.m_Stats.m_TotalDispatchIndirectCount );
+            ImGui::Text( "Copy calls:                       %u", m_Data.m_Stats.m_TotalCopyCount );
             ImGui::Text( "Pipeline barriers:                %u", m_Data.m_Stats.m_TotalBarrierCount );
             ImGui::Text( "Pipeline barriers (implicit):     %u", m_Data.m_Stats.m_TotalImplicitBarrierCount );
             ImGui::Text( "Clear calls:                      %u", m_Data.m_Stats.m_TotalClearCount );
@@ -1055,6 +1129,23 @@ namespace Profiler
             ImGui::Text( "Resolve calls (implicit):         %u", m_Data.m_Stats.m_TotalResolveImplicitCount );
             ImGui::Separator();
             ImGui::Text( "Total calls:                      %u", m_Data.m_Stats.m_TotalDrawcallCount );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateSettingsTab
+
+    Description:
+        Updates "Settings" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateSettingsTab()
+    {
+        // Draw profiler settings
+        {
+
         }
     }
 
@@ -1072,11 +1163,24 @@ namespace Profiler
         // Mark hotspots with color
         DrawSignificanceRect( (float)cmdBuffer.m_Stats.m_TotalTicks / frameTicks );
 
+        const std::string cmdBufferName =
+            GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle );
+
+        #if 0
+        // Disable empty command buffer expanding
+        if( cmdBuffer.m_Subregions.empty() )
+        {
+            assert( cmdBuffer.m_Stats.m_TotalTicks == 0 );
+
+            ImGui::TextUnformatted( cmdBufferName.c_str() );
+            return;
+        }
+        #endif
+
         char indexStr[ 17 ] = {};
         _ui64toa_s( index, indexStr, 17, 16 );
 
-        if( ImGui::TreeNode( indexStr,
-            GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle ).c_str() ) )
+        if( ImGui::TreeNode( indexStr, cmdBufferName.c_str() ) )
         {
             // Command buffer opened
             TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks * m_TimestampPeriod );
@@ -1146,14 +1250,6 @@ namespace Profiler
         if( inRenderPassSubtree ||
             (renderPass.m_Handle == VK_NULL_HANDLE) )
         {
-            // If renderpass handle is invalid, one subpass must be present, up to one pipeline
-            // must be present and it must be invalid too
-            assert( (renderPass.m_Handle != VK_NULL_HANDLE) || (
-                (renderPass.m_Subregions.size() == 1) && (
-                    ((renderPass.m_Subregions[ 0 ].m_Subregions.size() == 1) &&
-                        (renderPass.m_Subregions[ 0 ].m_Subregions[ 0 ].m_Handle == VK_NULL_HANDLE)) ||
-                    (renderPass.m_Subregions[ 0 ].m_Subregions.empty())) ) );
-
             if( renderPass.m_Subregions.size() > 1 )
             {
                 // Sort frame browser data

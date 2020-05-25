@@ -72,12 +72,33 @@ namespace ImGuiX
                 scale_max = y_max;
         }
 
+        // Adjust scale to have some normalized value
+        {
+            scale_min = floorf( scale_min / 10000.f ) * 10000.f;
+            scale_max = ceilf( scale_max / 10000.f ) * 10000.f;
+        }
+
         // Determine horizontal scale from values
         float x_size = 0.f;
         for( int i = 0; i < values_count; i++ )
             x_size += values_x[ i ];
 
-        RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
+        //RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
+
+        // Render horizontal lines
+        {
+            // Divide range to 10 equal parts
+            const float step = inner_bb.GetHeight() / 10.f;
+            const ImU32 lineCol = GetColorU32( ImGuiCol_Separator, 0.2f );
+
+            for( int i = 0; i < 10; ++i )
+            {
+                window->DrawList->AddLine(
+                    { inner_bb.Min.x, inner_bb.Min.y + (i * step) },
+                    { inner_bb.Max.x, inner_bb.Min.y + (i * step) },
+                    lineCol );
+            }
+        }
 
         int idx_hovered = -1;
         if( values_count > 0 )
@@ -139,5 +160,18 @@ namespace ImGuiX
 
         if( label_size.x > 0.0f )
             RenderText( ImVec2( frame_bb.Max.x + style.ItemInnerSpacing.x, inner_bb.Min.y ), label );
+
+        // Render scale
+        {
+            const float range = scale_max - scale_min;
+
+            char scale[ 16 ];
+            if( range < 100000.f )
+                sprintf_s( scale, "%.0f", range );
+            else
+                sprintf_s( scale, "%.0fk", ceilf( range / 1000.f ) );
+
+            RenderText( inner_bb.Min, scale );
+        }
     }
 }
