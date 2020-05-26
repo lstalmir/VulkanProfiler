@@ -1,4 +1,5 @@
 #pragma once
+#include <cstring>
 #include <memory>
 #include <mutex>
 
@@ -57,6 +58,7 @@ namespace Profiler
         // Allocate one block
         inline uint32_t Allocate()
         {
+            return -1;
         }
 
         // Allocate two blocks

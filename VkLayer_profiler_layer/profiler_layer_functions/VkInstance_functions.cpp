@@ -36,6 +36,12 @@ namespace Profiler
         #ifdef VK_USE_PLATFORM_WIN32_KHR
         GETPROCADDR( CreateWin32SurfaceKHR );
         #endif
+        #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+        GETPROCADDR( CreateWaylandSurfaceKHR );
+        #endif
+        #ifdef VK_USE_PLATFORM_XLIB_KHR
+        GETPROCADDR( CreateXlibSurfaceKHR );
+        #endif
         GETPROCADDR( DestroySurfaceKHR );
 
         // Get address from the next layer
@@ -272,7 +278,7 @@ namespace Profiler
         {
             VkSurfaceKHR_Object surfaceObject = {};
             surfaceObject.Handle = *pSurface;
-            surfaceObject.WindowHandle = pCreateInfo->hwnd;
+            surfaceObject.Window = pCreateInfo->hwnd;
 
             id.Instance.Surfaces.emplace( *pSurface, surfaceObject );
         }
@@ -280,6 +286,39 @@ namespace Profiler
         return result;
     }
     #endif // VK_USE_PLATFORM_WIN32_KHR
+
+    #ifdef VK_USE_PLATFORM_XLIB_KHR
+    /***********************************************************************************\
+
+    Function:
+        CreateWin32SurfaceKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkInstance_Functions::CreateXlibSurfaceKHR(
+        VkInstance instance,
+        const VkXlibSurfaceCreateInfoKHR* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkSurfaceKHR* pSurface )
+    {
+        auto& id = InstanceDispatch.Get( instance );
+
+        VkResult result = id.Instance.Callbacks.CreateXlibSurfaceKHR(
+            instance, pCreateInfo, pAllocator, pSurface );
+
+        if( result == VK_SUCCESS )
+        {
+            VkSurfaceKHR_Object surfaceObject = {};
+            surfaceObject.Handle = *pSurface;
+            surfaceObject.Window = pCreateInfo->window;
+
+            id.Instance.Surfaces.emplace( *pSurface, surfaceObject );
+        }
+
+        return result;
+    }
+    #endif // VK_USE_PLATFORM_XLIB_KHR
 
     /***********************************************************************************\
 

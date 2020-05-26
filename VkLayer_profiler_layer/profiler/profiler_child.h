@@ -4,14 +4,14 @@
 
 namespace Profiler
 {
-    class Profiler;
+    class DeviceProfiler;
 
     class ProfilerChild
     {
     protected:
-        Profiler& m_Profiler;
+        DeviceProfiler& m_Profiler;
 
-        ProfilerChild( Profiler& profiler );
+        ProfilerChild( DeviceProfiler& profiler );
 
         VkDevice Device() const;
         VkInstance Instance() const;

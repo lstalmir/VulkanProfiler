@@ -16,7 +16,39 @@ set (PROFILER_LAYER_PRODUCTNAME "Vulkan(R) Profiling Layer")
 
 project (${PROFILER_LAYER_PROJECTNAME})
 
-add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
+if (WIN32)
+
+    add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
+
+elseif (UNIX)
+
+    add_compile_options (-fPIC)
+
+    find_package (Wayland)
+    if (Wayland_FOUND)
+        add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
+    endif ()
+
+    find_package (XCB)
+    if (XCB_FOUND)
+        add_definitions (-DVK_USE_PLATFORM_XCB_KHR)
+    endif ()
+
+    find_package (X11)
+    if (X11_FOUND)
+        add_definitions (-DVK_USE_PLATFORM_XLIB_KHR)
+    endif ()
+    if (X11_Xrandr_FOUND)
+        add_definitions (-DVK_USE_PLATFORM_XLIB_XRANDR_EXT)
+    endif ()
+
+    if (NOT Wayland_FOUND AND
+        NOT XCB_FOUND AND
+        NOT X11_FOUND)
+        message (FATAL_ERROR "No window library found")
+    endif ()
+
+endif ()
 
 # Include implementation of the layer
 add_subdirectory (profiler)

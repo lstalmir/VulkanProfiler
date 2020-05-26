@@ -4,10 +4,15 @@
 #include "imgui_histogram_ex.h"
 #include <imgui_internal.h>
 
+// Definitions of sprintf_s for Linux
+#include "profiler/profiler_helpers.h"
+
 namespace ImGuiX
 {
     // Fast access to native ImGui functions and structures.
     using namespace ImGui;
+
+    using Profiler::sprintf_s;
 
     /*************************************************************************\
 

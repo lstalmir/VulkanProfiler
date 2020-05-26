@@ -3,6 +3,11 @@
 #include "profiler_helpers.h"
 #include <algorithm>
 
+#ifndef _DEBUG
+#define NDEBUG
+#endif
+#include <assert.h>
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -14,14 +19,14 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerCommandBuffer::ProfilerCommandBuffer( Profiler& profiler, VkCommandBuffer commandBuffer )
+    ProfilerCommandBuffer::ProfilerCommandBuffer( DeviceProfiler& profiler, VkCommandBuffer commandBuffer )
         : m_Profiler( profiler )
         , m_CommandBuffer( commandBuffer )
         , m_Dirty( false )
         , m_QueryPools()
         , m_QueryPoolSize( 4096 )
-        , m_CurrentQueryPoolIndex( UINT_MAX )
-        , m_CurrentQueryIndex( UINT_MAX )
+        , m_CurrentQueryPoolIndex( -1 )
+        , m_CurrentQueryIndex( -1 )
         , m_PerformanceQueryPoolINTEL( VK_NULL_HANDLE )
         , m_Data()
     {
@@ -102,8 +107,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Begin( const VkCommandBufferBeginInfo* pBeginInfo )
     {
-        m_CurrentQueryIndex = UINT_MAX;
-        m_CurrentQueryPoolIndex = UINT_MAX;
+        m_CurrentQueryIndex = -1;
+        m_CurrentQueryPoolIndex = -1;
 
         // Resize query pool to reduce number of vkGetQueryPoolResults calls
         //if( m_QueryPools.size() > 1 )
@@ -138,7 +143,7 @@ namespace Profiler
 
         if( pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT )
         {
-            __debugbreak();
+            //__debugbreak();
         }
 
         if( m_PerformanceQueryPoolINTEL )
@@ -559,7 +564,7 @@ namespace Profiler
             // Collect queried timestamps
             for( uint32_t i = 0; i < m_CurrentQueryPoolIndex + 1; ++i )
             {
-                const uint32_t numQueriesInPool = min( m_QueryPoolSize, numQueriesLeft );
+                const uint32_t numQueriesInPool = std::min( m_QueryPoolSize, numQueriesLeft );
                 const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
 
                 // Get results from next query pool
@@ -752,7 +757,7 @@ namespace Profiler
 
             if( m_CurrentQueryPoolIndex == m_QueryPools.size() )
             {
-                __debugbreak();
+                //__debugbreak();
             }
         }
 

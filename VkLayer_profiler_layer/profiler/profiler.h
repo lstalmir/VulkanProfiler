@@ -39,15 +39,15 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
-        Profiler
+        DeviceProfiler
 
     Description:
 
     \***********************************************************************************/
-    class Profiler
+    class DeviceProfiler
     {
     public:
-        Profiler();
+        DeviceProfiler();
 
         VkResult Initialize( VkDevice_Object* pDevice );
 
@@ -148,9 +148,9 @@ namespace Profiler
         inline char* CreateRegionName( Args... args ) const
         {
             std::stringstream sstr;
-            sstr << args << ...;
+            (sstr << ... << args);
             std::string str = sstr.str();
-            return _strdup( str.c_str() );
+            return strdup( str.c_str() );
         }
 
         void FillProfilerData( VkProfilerRegionDataEXT* pData, const ProfilerRangeStats& stats ) const;

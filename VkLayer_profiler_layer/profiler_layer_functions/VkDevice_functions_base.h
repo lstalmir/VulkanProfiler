@@ -26,7 +26,7 @@ namespace Profiler
         struct Dispatch
         {
             VkDevice_Object Device;
-            Profiler Profiler;
+            DeviceProfiler Profiler;
 
             ProfilerOverlayOutput* pOverlay;
         };

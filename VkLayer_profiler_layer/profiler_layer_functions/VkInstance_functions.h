@@ -67,6 +67,19 @@ namespace Profiler
             VkSurfaceKHR* pSurface );
         #endif
 
+        #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+
+        #endif
+        
+        #ifdef VK_USE_PLATFORM_XLIB_KHR
+        // vkCreateXlibSurfaceKHR
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateXlibSurfaceKHR(
+            VkInstance instance,
+            const VkXlibSurfaceCreateInfoKHR* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkSurfaceKHR* pSurface );
+        #endif
+
         // vkDestroySurfaceKHR
         static VKAPI_ATTR void VKAPI_CALL DestroySurfaceKHR(
             VkInstance instance,

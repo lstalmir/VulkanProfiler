@@ -18,6 +18,7 @@ set (headers
     "profiler_pipeline.h"
     "profiler_resources.h"
     "profiler_shader.h"
+    "profiler_stat_comparators.h"
     )
 
 set (sources

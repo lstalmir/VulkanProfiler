@@ -1,11 +1,12 @@
 #pragma once
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
-#include <vk_layer.h>
-#include <vulkan.hpp>
+#include <vulkan/vk_layer.h>
+#include <vulkan/vulkan.h>
 #include <vector>
 
 // Helper macro for rolling-back to valid state
@@ -22,6 +23,67 @@
 
 namespace Profiler
 {
+    // Windows-linux compatibility
+    #ifndef _MSC_VER
+
+    /***********************************************************************************\
+
+    Function:
+        printf_s
+
+    \***********************************************************************************/
+    template<typename... Args>
+    inline int printf_s( const char* fmt, Args... args )
+    {
+        return printf( fmt, args... );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        sprintf_s
+
+    \***********************************************************************************/
+    template<typename... Args>
+    inline int sprintf_s( char* dst, size_t size, const char* fmt, Args... args )
+    {
+        (size); // Welp, we should check if buffer will fit the args...
+        return sprintf( dst, fmt, args... );
+    }
+
+    template<size_t N, typename... Args>
+    inline int sprintf_s( char( &dst )[N], const char* fmt, Args... args )
+    {
+        (N); // ... and here too
+        return sprintf( dst, fmt, args... );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        vsprintf_s
+
+    \***********************************************************************************/
+    inline int vsprintf_s( char* dst, size_t size, const char* fmt, va_list args )
+    {
+        (size); // ... and here
+        return vsprintf( dst, fmt, args );
+    }
+
+    template<size_t N>
+    inline int vsprintf_s( char( &dst )[N], const char* fmt, va_list args )
+    {
+        (N); // ...
+        return vsprintf( dst, fmt, args );
+    }
+
+    #else // _MSC_VER defined
+
+    // Use Posix function signatures
+    #define strdup _strdup
+
+    #endif /// _MSC_VER
+
     /***********************************************************************************\
 
     Function:
@@ -64,7 +126,7 @@ namespace Profiler
     \***********************************************************************************/
     inline void u32tohex( char* pBuffer, uint32_t value )
     {
-        const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert( sizeof( hexDigits ) == 16 );
 
         for( int i = 0; i < 8; ++i )
@@ -73,6 +135,29 @@ namespace Profiler
             // out[0] = hex[ (V >> 28) & 0xF ]
             // out[1] = hex[ (V >> 24) & 0xF ] ...
             pBuffer[ i ] = hexDigits[ (value >> (32 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        u64tohex
+
+    Description:
+        Convert 64-bit unsigned number to hexadecimal string.
+
+    \***********************************************************************************/
+    inline void u64tohex( char* pBuffer, uint64_t value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert( sizeof( hexDigits ) == 16 );
+
+        for( int i = 0; i < 16; ++i )
+        {
+            // Begin with most significant bit:
+            // out[0] = hex[ (V >> 60) & 0xF ]
+            // out[1] = hex[ (V >> 56) & 0xF ]
+            pBuffer[ i ] = hexDigits[ (value >> (64 - ((i + 1) << 2))) & 0xF ];
         }
     }
 
@@ -125,15 +210,15 @@ namespace Profiler
         std::unordered_map with mutex
 
     \***********************************************************************************/
-    template<typename K, typename V,
-        typename HashFn = std::hash<K>,
-        typename EqualFn = std::equal_to<K>,
-        typename AllocFn = std::allocator<std::pair<const K, V>>>
+    template<typename KeyType, typename ValueType,
+        typename HashFn = std::hash<KeyType>,
+        typename EqualFn = std::equal_to<KeyType>,
+        typename AllocFn = std::allocator<std::pair<const KeyType, ValueType>>>
     class LockableUnorderedMap
-        : public std::unordered_map<K, V, HashFn, EqualFn, AllocFn>
+        : public std::unordered_map<KeyType, ValueType, HashFn, EqualFn, AllocFn>
     {
     private:
-        using BaseType = std::unordered_map<K, V, HashFn, EqualFn, AllocFn>;
+        using BaseType = std::unordered_map<KeyType, ValueType, HashFn, EqualFn, AllocFn>;
 
         // Helper struct for holding mutex in initializer lists
         struct Locked
@@ -176,21 +261,21 @@ namespace Profiler
         bool try_lock() { return m_Mtx.try_lock(); }
 
         // Get map's element atomically
-        const V& interlocked_at( const key_type& key ) const
+        const ValueType& interlocked_at( const KeyType& key ) const
         {
             std::scoped_lock lk( m_Mtx );
             return BaseType::at( key );
         }
 
         // Get map's element atomically
-        V& interlocked_at( const key_type& key )
+        ValueType& interlocked_at( const KeyType& key )
         {
             std::scoped_lock lk( m_Mtx );
             return BaseType::at( key );
         }
 
         // Remove element from map atomically
-        size_t interlocked_erase( const key_type& key )
+        size_t interlocked_erase( const KeyType& key )
         {
             std::scoped_lock lk( m_Mtx );
             return BaseType::erase( key );
@@ -198,7 +283,7 @@ namespace Profiler
 
         // Try to insert new element to map atomically
         template<typename... Args>
-        auto interlocked_try_emplace( const key_type& key, Args... arguments )
+        auto interlocked_try_emplace( const KeyType& key, Args... arguments )
         {
             std::scoped_lock<std::mutex> lk( m_Mtx );
             return BaseType::try_emplace( key, arguments... );
@@ -206,7 +291,7 @@ namespace Profiler
 
         // Insert new element to map atomically
         template<typename... Args>
-        auto interlocked_emplace( const key_type& key, Args... arguments )
+        auto interlocked_emplace( const KeyType& key, Args... arguments )
         {
             std::scoped_lock<std::mutex> lk( m_Mtx );
             return BaseType::emplace( key, arguments... );

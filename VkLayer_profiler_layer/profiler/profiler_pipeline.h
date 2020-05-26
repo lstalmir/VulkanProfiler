@@ -107,7 +107,7 @@ namespace Profiler
         inline void IncrementStat( uint32_t count = 1 )
         {
             m_Stats.IncrementStat<Stat>( count );
-            m_Subregions.back().IncrementStat<Stat>( count );
+            m_Subregions.back().template IncrementStat<Stat>( count );
         }
     };
 

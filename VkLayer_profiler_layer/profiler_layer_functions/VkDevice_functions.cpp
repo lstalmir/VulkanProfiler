@@ -190,15 +190,15 @@ namespace Profiler
             const size_t dstBufferSize = *pPropertyCount * sizeof( VkExtensionProperties );
 
             // Copy device extension properties to output ptr
-            memcpy_s( pProperties, dstBufferSize, layerExtensions,
-                min( dstBufferSize, sizeof( layerExtensions ) ) );
+            std::memcpy( pProperties, layerExtensions,
+                std::min( dstBufferSize, sizeof( layerExtensions ) ) );
 
             if( dstBufferSize < sizeof( layerExtensions ) )
                 return VK_INCOMPLETE;
         }
 
         // SPEC: pPropertyCount MUST be valid uint32_t pointer
-        *pPropertyCount = _countof( layerExtensions );
+        *pPropertyCount = std::extent_v<decltype( layerExtensions )>;
 
         return VK_SUCCESS;
     }

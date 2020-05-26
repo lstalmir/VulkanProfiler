@@ -1,18 +1,39 @@
 #include "profiler_output_overlay.h"
 #include "imgui_impl_vulkan_layer.h"
-#include "imgui/examples/imgui_impl_win32.h"
 #include <string>
 #include <sstream>
 
 #include "imgui_widgets/imgui_histogram_ex.h"
 
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+#include "imgui/examples/imgui_impl_win32.h"
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
+#endif
+
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+#include <wayland-client.h>
+#endif
+
+#ifdef VK_USE_PLATFORM_XCB_KHR
+#include <xcb/xcb.h>
+#endif
+
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+#include <X11/Xlib.h>
+#endif
+
+#ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#include <X11/extensions/Xrandr.h>
+#endif
 
 namespace Profiler
 {
     // Define static members
     std::mutex ProfilerOverlayOutput::s_ImGuiMutex;
+
+    #ifdef VK_USE_PLATFORM_WIN32_KHR
     LockableUnorderedMap<void*, WNDPROC> ProfilerOverlayOutput::s_pfnWindowProc;
+    #endif
 
     /***********************************************************************************\
 
@@ -31,7 +52,7 @@ namespace Profiler
         : m_Device( device )
         , m_GraphicsQueue( graphicsQueue )
         , m_pSwapchain( nullptr )
-        , m_pWindowHandle( nullptr )
+        , m_Window()
         , m_pImGuiContext( nullptr )
         , m_pImGuiVulkanContext( nullptr )
         , m_DescriptorPool( nullptr )
@@ -139,17 +160,21 @@ namespace Profiler
     {
         m_Device.Callbacks.DeviceWaitIdle( m_Device.Handle );
 
-        if( m_pWindowHandle )
+        if( m_Window )
         {
+            #ifdef VK_USE_PLATFORM_WIN32_KHR
+            assert( m_Window.Type == OSWindowHandleType::eWin32 );
+
             std::scoped_lock lk( s_pfnWindowProc );
 
             // Restore original window proc
-            SetWindowLongPtr( (HWND)m_pWindowHandle,
-                GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( m_pWindowHandle ) );
+            SetWindowLongPtr( m_Window.Win32Handle,
+                GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( m_Window.Win32Handle ) );
 
             s_pfnWindowProc.erase( m_pWindowHandle );
+            #endif
 
-            m_pWindowHandle = nullptr;
+            m_Window = OSWindowHandle();
         }
 
         if( m_pImGuiVulkanContext )
@@ -162,7 +187,9 @@ namespace Profiler
 
         if( m_pImGuiContext )
         {
+            #ifdef VK_USE_PLATFORM_WIN32_KHR
             ImGui_ImplWin32_Shutdown();
+            #endif
             ImGui::DestroyContext( m_pImGuiContext );
 
             m_pImGuiContext = nullptr;
@@ -592,7 +619,11 @@ namespace Profiler
         ImGui::SetCurrentContext( m_pImGuiContext );
 
         m_pImGuiVulkanContext->NewFrame();
+
+        #ifdef VK_USE_PLATFORM_WIN32_KHR    
         ImGui_ImplWin32_NewFrame();
+        #endif
+
         ImGui::NewFrame();
 
         ImGui::Begin( "VkProfiler" );
@@ -642,6 +673,7 @@ namespace Profiler
         ImGui::Render();
     }
 
+    #ifdef VK_USE_PLATFORM_WIN32_KHR
     /***********************************************************************************\
 
     Function:
@@ -668,6 +700,7 @@ namespace Profiler
         // Call original window proc
         return CallWindowProc( s_pfnWindowProc.interlocked_at( hWnd ), hWnd, Msg, wParam, lParam );
     }
+    #endif // VK_USE_PLATFORM_WIN32_KHR
 
     /***********************************************************************************\
 
@@ -679,13 +712,19 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo )
     {
-        void* windowHandle = m_Device.pInstance->Surfaces.at( pCreateInfo->surface ).WindowHandle;
+        OSWindowHandle window = m_Device.pInstance->Surfaces.at( pCreateInfo->surface ).Window;
+
+        #ifdef VK_USE_PLATFORM_WIN32_KHR
+        // No other window systems supported on Win32
+        assert( window.Type == OSWindowHandleType::eWin32 );
+        
+        HWND windowHandle = window.Win32Handle;
 
         std::scoped_lock lk( s_pfnWindowProc );
         if( s_pfnWindowProc.count( windowHandle ) )
         {
             // Restore original window proc
-            SetWindowLongPtr( (HWND)windowHandle,
+            SetWindowLongPtr( windowHandle,
                 GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( windowHandle ) );
 
             s_pfnWindowProc.erase( windowHandle );
@@ -697,14 +736,15 @@ namespace Profiler
 
         // Override window procedure
         {
-            WNDPROC wndProc = (WNDPROC)GetWindowLongPtr( (HWND)windowHandle, GWLP_WNDPROC );
+            WNDPROC wndProc = (WNDPROC)GetWindowLongPtr( windowHandle, GWLP_WNDPROC );
             s_pfnWindowProc.emplace( windowHandle, wndProc );
 
-            SetWindowLongPtr( (HWND)windowHandle,
+            SetWindowLongPtr( windowHandle,
                 GWLP_WNDPROC, (LONG_PTR)ProfilerOverlayOutput::WindowProc );
         }
+        #endif // VK_USE_PLATFORM_WIN32_KHR
 
-        m_pWindowHandle = windowHandle;
+        m_Window = window;
     }
 
     /***********************************************************************************\
@@ -995,7 +1035,7 @@ namespace Profiler
             for( const auto& submit : m_Data.m_Submits )
             {
                 char indexStr[ 17 ] = {};
-                _ui64toa_s( index, indexStr, 17, 16 );
+                u64tohex( indexStr, index );
 
                 if( ImGui::TreeNode( indexStr, "Submit #%u", index ) )
                 {
@@ -1178,7 +1218,7 @@ namespace Profiler
         #endif
 
         char indexStr[ 17 ] = {};
-        _ui64toa_s( index, indexStr, 17, 16 );
+        u64tohex( indexStr, index );
 
         if( ImGui::TreeNode( indexStr, cmdBufferName.c_str() ) )
         {
@@ -1223,7 +1263,7 @@ namespace Profiler
 
         char indexStr[ 17 ] = {};
         // Render pass ID
-        _ui64toa_s( index, indexStr, 17, 16 );
+        u64tohex( indexStr, index );
 
         // At least one subpass must be present
         assert( !renderPass.m_Subregions.empty() );
@@ -1263,7 +1303,7 @@ namespace Profiler
                 {
                     const uint64_t i = index | (subpassIndex << 36);
                     // Subpass ID
-                    _ui64toa_s( i, indexStr, 17, 16 );
+                    u64tohex( indexStr, i );
 
                     if( ImGui::TreeNode( indexStr, "Subpass #%llu", subpassIndex ) )
                     {
@@ -1348,7 +1388,7 @@ namespace Profiler
         DrawSignificanceRect( (float)pipeline.m_Stats.m_TotalTicks / frameTicks );
 
         char indexStr[ 17 ] = {};
-        _ui64toa_s( index, indexStr, 17, 16 );
+        u64tohex( indexStr, index );
 
         const bool inPipelineSubtree =
             (pipeline.m_Handle != VK_NULL_HANDLE) &&
@@ -1484,7 +1524,7 @@ namespace Profiler
         else
         {
             char unnamedObjectName[ 20 ] = "0x";
-            _ui64toa_s( handle, unnamedObjectName + 2, 18, 16 );
+            u64tohex( unnamedObjectName + 2, handle );
 
             sstr << unnamedObjectName;
         }

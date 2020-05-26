@@ -5,7 +5,7 @@
 
 namespace Profiler
 {
-    class Profiler;
+    class DeviceProfiler;
 
     /***********************************************************************************\
 
@@ -83,7 +83,7 @@ namespace Profiler
     class ProfilerCommandBuffer
     {
     public:
-        ProfilerCommandBuffer( Profiler&, VkCommandBuffer );
+        ProfilerCommandBuffer( DeviceProfiler&, VkCommandBuffer );
         ~ProfilerCommandBuffer();
 
         VkCommandBuffer GetCommandBuffer() const;
@@ -122,7 +122,7 @@ namespace Profiler
         ProfilerCommandBufferData GetData();
 
     protected:
-        Profiler&       m_Profiler;
+        DeviceProfiler&       m_Profiler;
 
         VkCommandBuffer m_CommandBuffer;
 

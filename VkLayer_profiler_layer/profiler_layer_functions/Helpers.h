@@ -1,4 +1,5 @@
 #pragma once
+#include <assert.h>
 #include <vk_layer.h>
 #include <vk_dispatch_table_helper.h>
 

@@ -35,7 +35,6 @@ namespace Profiler
     private:
         #ifdef WIN32
         HMODULE m_hMDDll;
-
         // Since we have no official support for Windows, we have to open the library manually
         static std::filesystem::path FindMetricsDiscoveryLibrary( const std::filesystem::path& );
         #endif

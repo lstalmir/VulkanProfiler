@@ -1,4 +1,5 @@
 #include "profiler_metrics_api.h"
+#include "profiler/profiler_helpers.h"
 
 #ifndef _DEBUG
 #define NDEBUG
@@ -80,7 +81,9 @@ namespace Profiler
 
                 char msg[ 256 ];
                 sprintf_s( msg, "PROFILER: %s - %u metrics\n", pSetParams->ShortName, pSetParams->MetricsCount );
+                #ifdef WIN32
                 OutputDebugStringA( msg );
+                #endif
             }
         }
 

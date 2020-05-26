@@ -1,4 +1,5 @@
 #include "profiler_debug_utils.h"
+#include "profiler_helpers.h"
 
 namespace Profiler
 {
@@ -18,7 +19,7 @@ namespace Profiler
         if( it == m_ObjectNames.end() )
         {
             char unnamedObjectName[20] = "0x";
-            _ui64toa_s( objectHandle, unnamedObjectName + 2, 18, 16 );
+            u64tohex( unnamedObjectName + 2, objectHandle );
             return unnamedObjectName;
         }
         return (it->second).c_str();

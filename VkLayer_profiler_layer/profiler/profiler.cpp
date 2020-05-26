@@ -11,13 +11,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PerformanceProfiler
+        DeviceProfiler
 
     Description:
         Constructor
 
     \***********************************************************************************/
-    Profiler::Profiler()
+    DeviceProfiler::DeviceProfiler()
         : m_pDevice( nullptr )
         , m_Config()
         , m_DataMutex()
@@ -45,7 +45,7 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::Initialize( VkDevice_Object* pDevice )
+    VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice )
     {
         m_pDevice = pDevice;
         m_CurrentFrame = 0;
@@ -158,7 +158,7 @@ namespace Profiler
         Initializes INTEL-specific profiler resources.
 
     \***********************************************************************************/
-    VkResult Profiler::InitializeINTEL()
+    VkResult DeviceProfiler::InitializeINTEL()
     {
         // Load MDAPI
         VkResult result = m_MetricsApiINTEL.Initialize();
@@ -215,7 +215,7 @@ namespace Profiler
         Frees resources allocated by the profiler.
 
     \***********************************************************************************/
-    void Profiler::Destroy()
+    void DeviceProfiler::Destroy()
     {
         m_ProfiledCommandBuffers.clear();
 
@@ -234,7 +234,7 @@ namespace Profiler
     /***********************************************************************************\
 
     \***********************************************************************************/
-    VkResult Profiler::SetMode( VkProfilerModeEXT mode )
+    VkResult DeviceProfiler::SetMode( VkProfilerModeEXT mode )
     {
         // TODO: Invalidate all command buffers
         m_Config.m_DisplayMode = mode;
@@ -245,7 +245,7 @@ namespace Profiler
     /***********************************************************************************\
 
     \***********************************************************************************/
-    ProfilerAggregatedData Profiler::GetData() const
+    ProfilerAggregatedData DeviceProfiler::GetData() const
     {
         // Hold aggregator updates to keep m_Data consistent
         std::scoped_lock lk( m_DataMutex );
@@ -254,7 +254,7 @@ namespace Profiler
 
     /***********************************************************************************\
     \***********************************************************************************/
-    ProfilerCommandBuffer& Profiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
+    ProfilerCommandBuffer& DeviceProfiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
     {
         // Create new wrapper if command buffer is not tracked yet
         // TODO: Move to AllocateCommandBuffers()
@@ -266,7 +266,7 @@ namespace Profiler
 
     /***********************************************************************************\
     \***********************************************************************************/
-    ProfilerPipeline& Profiler::GetPipeline( VkPipeline pipeline )
+    ProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
     {
         return m_ProfiledPipelines.interlocked_at( pipeline );
     }
@@ -280,7 +280,7 @@ namespace Profiler
         Collects barrier statistics.
 
     \***********************************************************************************/
-    void Profiler::OnPipelineBarrier( VkCommandBuffer commandBuffer,
+    void DeviceProfiler::OnPipelineBarrier( VkCommandBuffer commandBuffer,
         uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers,
         uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
         uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
@@ -315,7 +315,7 @@ namespace Profiler
         Register graphics pipelines.
 
     \***********************************************************************************/
-    void Profiler::CreatePipelines( uint32_t pipelineCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
+    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
     {
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
@@ -343,7 +343,7 @@ namespace Profiler
         Register compute pipelines.
 
     \***********************************************************************************/
-    void Profiler::CreatePipelines( uint32_t pipelineCount, const VkComputePipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
+    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkComputePipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
     {
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
@@ -369,7 +369,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::DestroyPipeline( VkPipeline pipeline )
+    void DeviceProfiler::DestroyPipeline( VkPipeline pipeline )
     {
         m_ProfiledPipelines.interlocked_erase( pipeline );
     }
@@ -382,7 +382,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::BindPipeline( VkCommandBuffer commandBuffer, VkPipeline pipeline )
+    void DeviceProfiler::BindPipeline( VkCommandBuffer commandBuffer, VkPipeline pipeline )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
@@ -404,7 +404,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
+    void DeviceProfiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
     {
         // Compute shader code hash to use later
         const uint32_t hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
@@ -420,7 +420,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::DestroyShaderModule( VkShaderModule module )
+    void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
     {
         m_ProfiledShaderModules.interlocked_erase( module );
     }
@@ -433,7 +433,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PreBeginRenderPass( VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pBeginInfo )
+    void DeviceProfiler::PreBeginRenderPass( VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pBeginInfo )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
@@ -449,7 +449,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PostBeginRenderPass( VkCommandBuffer commandBuffer )
+    void DeviceProfiler::PostBeginRenderPass( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
@@ -465,7 +465,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PreEndRenderPass( VkCommandBuffer commandBuffer )
+    void DeviceProfiler::PreEndRenderPass( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
@@ -481,7 +481,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PostEndRenderPass( VkCommandBuffer commandBuffer )
+    void DeviceProfiler::PostEndRenderPass( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
@@ -492,7 +492,7 @@ namespace Profiler
     /***********************************************************************************\
 
     \***********************************************************************************/
-    void Profiler::NextSubpass( VkCommandBuffer commandBuffer, VkSubpassContents contents )
+    void DeviceProfiler::NextSubpass( VkCommandBuffer commandBuffer, VkSubpassContents contents )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
@@ -508,7 +508,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::BeginCommandBuffer( VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo* pBeginInfo )
+    void DeviceProfiler::BeginCommandBuffer( VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo* pBeginInfo )
     {
         auto emplaced = m_ProfiledCommandBuffers.interlocked_try_emplace( commandBuffer,
             std::ref( *this ), commandBuffer );
@@ -528,7 +528,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::EndCommandBuffer( VkCommandBuffer commandBuffer )
+    void DeviceProfiler::EndCommandBuffer( VkCommandBuffer commandBuffer )
     {
         // ProfilerCommandBuffer object should already be in the map
         auto& profilerCommandBuffer = m_ProfiledCommandBuffers.interlocked_at( commandBuffer );
@@ -545,7 +545,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::FreeCommandBuffers( uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers )
+    void DeviceProfiler::FreeCommandBuffers( uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers )
     {
         // Block access from other threads
         std::scoped_lock lk( m_ProfiledCommandBuffers );
@@ -564,7 +564,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PreSubmitCommandBuffers( VkQueue queue, uint32_t, const VkSubmitInfo*, VkFence )
+    void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue, uint32_t, const VkSubmitInfo*, VkFence )
     {
         assert( m_PerformanceConfigurationINTEL == VK_NULL_HANDLE );
 
@@ -603,7 +603,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
+    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
         // Wait for the submitted command buffers to execute
         //m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
@@ -661,7 +661,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::Present( const VkQueue_Object& queue, VkPresentInfoKHR* pPresentInfo )
+    void DeviceProfiler::Present( const VkQueue_Object& queue, VkPresentInfoKHR* pPresentInfo )
     {
         m_CurrentFrame++;
 
@@ -759,7 +759,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::OnAllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
+    void DeviceProfiler::OnAllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
         // Insert allocation info to the map, it will be needed during deallocation.
         m_Allocations.emplace( allocatedMemory, *pAllocateInfo );
@@ -788,7 +788,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::OnFreeMemory( VkDeviceMemory allocatedMemory )
+    void DeviceProfiler::OnFreeMemory( VkDeviceMemory allocatedMemory )
     {
         auto it = m_Allocations.find( allocatedMemory );
         if( it != m_Allocations.end() )
@@ -822,7 +822,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PresentResults( const ProfilerAggregatedData& data )
+    void DeviceProfiler::PresentResults( const ProfilerAggregatedData& data )
     {
         // Summary stats
         m_Output.Summary.FPS = 1000000000. / (m_TimestampPeriod * (data.m_Stats.m_BeginTimestamp - m_LastFrameBeginTimestamp));
@@ -903,7 +903,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::PresentSubmit( uint32_t submitIdx, const ProfilerSubmitData& submit )
+    void DeviceProfiler::PresentSubmit( uint32_t submitIdx, const ProfilerSubmitData& submit )
     {
         // Calculate how many lines this submit will generate
         uint32_t requiredLineCount = 1 + submit.m_CommandBuffers.size();
@@ -1105,7 +1105,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::FreeProfilerData( VkProfilerRegionDataEXT* pData ) const
+    void DeviceProfiler::FreeProfilerData( VkProfilerRegionDataEXT* pData ) const
     {
         for( uint32_t i = 0; i < pData->subregionCount; ++i )
         {
@@ -1126,7 +1126,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void Profiler::FillProfilerData( VkProfilerRegionDataEXT* pData, const ProfilerRangeStats& stats ) const
+    void DeviceProfiler::FillProfilerData( VkProfilerRegionDataEXT* pData, const ProfilerRangeStats& stats ) const
     {
         pData->duration = 1000000.f * stats.m_TotalTicks / m_TimestampPeriod;
         pData->drawCount = stats.m_TotalDrawCount;
@@ -1145,7 +1145,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    ProfilerShaderTuple Profiler::CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo )
+    ProfilerShaderTuple DeviceProfiler::CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo )
     {
         ProfilerShaderTuple tuple;
 
@@ -1189,7 +1189,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    ProfilerShaderTuple Profiler::CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo )
+    ProfilerShaderTuple DeviceProfiler::CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo )
     {
         ProfilerShaderTuple tuple;
 

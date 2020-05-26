@@ -1,6 +1,7 @@
 #pragma once
 #include "profiler/profiler_data_aggregator.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler/profiler_stat_comparators.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "profiler_layer_objects/VkSwapchainKHR_object.h"
@@ -17,7 +18,7 @@ struct ImGui_ImplVulkan_Context;
 
 namespace Profiler
 {
-    class Profiler;
+    class DeviceProfiler;
     struct ProfilerSubmitData;
 
     /***********************************************************************************\
@@ -54,7 +55,7 @@ namespace Profiler
         VkQueue_Object& m_GraphicsQueue;
         VkSwapchainKHR_Object* m_pSwapchain;
 
-        void* m_pWindowHandle;
+        OSWindowHandle m_Window;
 
         static std::mutex s_ImGuiMutex;
         ImGuiContext* m_pImGuiContext;
@@ -97,11 +98,18 @@ namespace Profiler
         ProfilerAggregatedData m_Data;
         bool m_Pause;
 
+        #ifdef VK_USE_PLATFORM_WIN32_KHR
         // Dispatch overriden window procedures
         static LockableUnorderedMap<void*, WNDPROC> s_pfnWindowProc;
-
-        // Common window procedure
+        // Common Win32 window procedure
         static LRESULT CALLBACK WindowProc( HWND, UINT, WPARAM, LPARAM );
+        #endif
+        #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+
+        #endif
+        #ifdef VK_USE_PLATFORM_XLIB_KHR
+
+        #endif
 
         void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo );
         void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo );
@@ -121,32 +129,6 @@ namespace Profiler
         void DrawSignificanceRect( float significance );
 
         std::string GetDebugObjectName( VkObjectType type, uint64_t handle ) const;
-
-        // Range duration comparator
-        template<typename Data>
-        inline static bool DurationDesc( const Data& a, const Data& b )
-        {
-            return a.m_Stats.m_TotalTicks > b.m_Stats.m_TotalTicks;
-        }
-
-        template<typename Data>
-        inline static bool DurationAsc( const Data& a, const Data& b )
-        {
-            return a.m_Stats.m_TotalTicks < b.m_Stats.m_TotalTicks;
-        }
-
-        // Drawcall duration comparator
-        template<>
-        inline static bool DurationDesc( const ProfilerDrawcall& a, const ProfilerDrawcall& b )
-        {
-            return a.m_Ticks > b.m_Ticks;
-        }
-
-        template<>
-        inline static bool DurationAsc( const ProfilerDrawcall& a, const ProfilerDrawcall& b )
-        {
-            return a.m_Ticks < b.m_Ticks;
-        }
 
         // Sort frame browser data
         template<typename Data>
