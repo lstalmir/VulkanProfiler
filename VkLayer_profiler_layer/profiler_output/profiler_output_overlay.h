@@ -104,12 +104,6 @@ namespace Profiler
         // Common Win32 window procedure
         static LRESULT CALLBACK WindowProc( HWND, UINT, WPARAM, LPARAM );
         #endif
-        #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-
-        #endif
-        #ifdef VK_USE_PLATFORM_XLIB_KHR
-
-        #endif
 
         void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo );
         void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo );

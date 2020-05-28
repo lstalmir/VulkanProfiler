@@ -28,6 +28,8 @@ set (sources
     "profiler_debug_utils.cpp"
     # Windows
     "profiler_helpers_windows.cpp"
+    # Linux
+    "profiler_helpers_linux.cpp"
     )
 
 set (farmhash

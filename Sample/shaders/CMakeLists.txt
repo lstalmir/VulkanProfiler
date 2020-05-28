@@ -5,7 +5,7 @@ cmake_minimum_required (VERSION 3.8)
 
 project (Sample-shaders)
 
-find_program (glslangvalidator glslangvalidator)
+find_program (glslangvalidator glslangValidator)
 if (NOT glslangvalidator)
     message (FATAL_ERROR "glslangvalidator not found")
 else ()

@@ -3,7 +3,7 @@
     "layer": {
         "name": "VK_LAYER_profiler",
         "type": "GLOBAL",
-        "library_path": ".\\VkLayer_profiler_layer.dll",
+        "library_path": "./libVkLayer_profiler_layer.so",
         "api_version": "1.1.106",
         "implementation_version": "1",
         "description": "Simple Vulkan Profiling Layer"

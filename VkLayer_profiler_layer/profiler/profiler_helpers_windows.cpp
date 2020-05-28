@@ -1,4 +1,4 @@
-#ifdef VK_USE_PLATFORM_WIN32_KHR
+#ifdef WIN32
 #include "profiler_helpers.h"
 
 #include <Windows.h>
@@ -83,4 +83,4 @@ namespace Profiler
 
 }
 
-#endif // VK_USE_PLATFORM_WIN32_KHR
+#endif // WIN32

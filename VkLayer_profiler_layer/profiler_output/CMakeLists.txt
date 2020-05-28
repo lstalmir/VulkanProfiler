@@ -31,8 +31,10 @@ set (imgui_platform
     "imgui/examples/imgui_impl_win32.h"
     "imgui/examples/imgui_impl_win32.cpp"
     )
-else ()
+elseif (X11_FOUND)
 set (imgui_platform
+    "imgui_impl_xlib.h"
+    "imgui_impl_xlib.cpp"
     )
 endif ()
 

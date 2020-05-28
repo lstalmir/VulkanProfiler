@@ -2,6 +2,7 @@
 #include "imgui_impl_vulkan_layer.h"
 #include <string>
 #include <sstream>
+#include <stack>
 
 #include "imgui_widgets/imgui_histogram_ex.h"
 
@@ -19,7 +20,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND hWnd, UINT ms
 #endif
 
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-#include <X11/Xlib.h>
+#include "imgui_impl_xlib.h"
 #endif
 
 #ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
@@ -624,6 +625,10 @@ namespace Profiler
         ImGui_ImplWin32_NewFrame();
         #endif
 
+        #ifdef VK_USE_PLATFORM_XLIB_KHR
+        ImGui_ImplXlib_NewFrame();
+        #endif
+
         ImGui::NewFrame();
 
         ImGui::Begin( "VkProfiler" );
@@ -715,34 +720,55 @@ namespace Profiler
         OSWindowHandle window = m_Device.pInstance->Surfaces.at( pCreateInfo->surface ).Window;
 
         #ifdef VK_USE_PLATFORM_WIN32_KHR
-        // No other window systems supported on Win32
-        assert( window.Type == OSWindowHandleType::eWin32 );
-        
-        HWND windowHandle = window.Win32Handle;
-
-        std::scoped_lock lk( s_pfnWindowProc );
-        if( s_pfnWindowProc.count( windowHandle ) )
+        if( window.Type == OSWindowHandleType::eWin32 )
         {
-            // Restore original window proc
-            SetWindowLongPtr( windowHandle,
-                GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( windowHandle ) );
+            HWND windowHandle = window.Win32Handle;
 
-            s_pfnWindowProc.erase( windowHandle );
+            std::scoped_lock lk( s_pfnWindowProc );
+            if( s_pfnWindowProc.count( windowHandle ) )
+            {
+                // Restore original window proc
+                SetWindowLongPtr( windowHandle,
+                    GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( windowHandle ) );
 
-            ImGui_ImplWin32_Shutdown();
-        }
+                s_pfnWindowProc.erase( windowHandle );
 
-        ImGui_ImplWin32_Init( windowHandle );
+                ImGui_ImplWin32_Shutdown();
+            }
 
-        // Override window procedure
-        {
-            WNDPROC wndProc = (WNDPROC)GetWindowLongPtr( windowHandle, GWLP_WNDPROC );
-            s_pfnWindowProc.emplace( windowHandle, wndProc );
+            ImGui_ImplWin32_Init( windowHandle );
 
-            SetWindowLongPtr( windowHandle,
-                GWLP_WNDPROC, (LONG_PTR)ProfilerOverlayOutput::WindowProc );
+            // Override window procedure
+            {
+                WNDPROC wndProc = (WNDPROC)GetWindowLongPtr( windowHandle, GWLP_WNDPROC );
+                s_pfnWindowProc.emplace( windowHandle, wndProc );
+
+                SetWindowLongPtr( windowHandle,
+                    GWLP_WNDPROC, (LONG_PTR)ProfilerOverlayOutput::WindowProc );
+            }
         }
         #endif // VK_USE_PLATFORM_WIN32_KHR
+
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+        if( window.Type == OSWindowHandleType::eXCB )
+        {
+            m_Window = window;
+        }
+        #endif
+
+        #ifdef VK_USE_PLATFORM_XLIB_KHR
+        if( window.Type == OSWindowHandleType::eX11 )
+        {
+            if( m_Window )
+            {
+                ImGui_ImplXlib_Shutdown();
+            }
+
+            ImGui_ImplXlib_Init( window.X11Handle );
+
+            m_Window = window;
+        }
+        #endif // VK_USE_PLATFORM_XLIB_KHR
 
         m_Window = window;
     }

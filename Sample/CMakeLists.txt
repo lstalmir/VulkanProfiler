@@ -5,6 +5,8 @@ cmake_minimum_required (VERSION 3.7)
 
 project (Sample)
 
+find_package (Vulkan REQUIRED)
+
 add_subdirectory (SDL)
 add_subdirectory (shaders)
 
@@ -26,7 +28,7 @@ add_executable (Sample
     ${sources})
 
 target_include_directories (Sample
-    PRIVATE $ENV{VK_SDK_PATH}/Include
+    PRIVATE ${Vulkan_INCLUDE_DIRS}
     PRIVATE "${CMAKE_CURRENT_LIST_DIR}/glm/glm"
     PRIVATE "${CMAKE_CURRENT_LIST_DIR}/SDL/include"
     )
@@ -49,9 +51,11 @@ else ()
 endif ()
 
 target_link_libraries (Sample
-    PRIVATE vulkan-1
+    PRIVATE ${Vulkan_LIBRARIES}
     PRIVATE SDL2-static
     PRIVATE SDL2main
     )
 
-install (TARGETS Sample DESTINATION ${CMAKE_OUTPUT_BINDIR})
+install (TARGETS Sample
+    RUNTIME DESTINATION bin
+    DESTINATION ${CMAKE_OUTPUT_BINDIR})
