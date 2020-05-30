@@ -23,67 +23,6 @@
 
 namespace Profiler
 {
-    // Windows-linux compatibility
-    #ifndef _MSC_VER
-
-    /***********************************************************************************\
-
-    Function:
-        printf_s
-
-    \***********************************************************************************/
-    template<typename... Args>
-    inline int printf_s( const char* fmt, Args... args )
-    {
-        return printf( fmt, args... );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        sprintf_s
-
-    \***********************************************************************************/
-    template<typename... Args>
-    inline int sprintf_s( char* dst, size_t size, const char* fmt, Args... args )
-    {
-        (size); // Welp, we should check if buffer will fit the args...
-        return sprintf( dst, fmt, args... );
-    }
-
-    template<size_t N, typename... Args>
-    inline int sprintf_s( char( &dst )[N], const char* fmt, Args... args )
-    {
-        (N); // ... and here too
-        return sprintf( dst, fmt, args... );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        vsprintf_s
-
-    \***********************************************************************************/
-    inline int vsprintf_s( char* dst, size_t size, const char* fmt, va_list args )
-    {
-        (size); // ... and here
-        return vsprintf( dst, fmt, args );
-    }
-
-    template<size_t N>
-    inline int vsprintf_s( char( &dst )[N], const char* fmt, va_list args )
-    {
-        (N); // ...
-        return vsprintf( dst, fmt, args );
-    }
-
-    #else // _MSC_VER defined
-
-    // Use Posix function signatures
-    #define strdup _strdup
-
-    #endif /// _MSC_VER
-
     /***********************************************************************************\
 
     Function:

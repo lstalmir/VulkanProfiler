@@ -4,6 +4,20 @@
 #define VK_EXT_PROFILER_SPEC_VERSION 1
 #define VK_EXT_PROFILER_EXTENSION_NAME "VK_EXT_profiler"
 
+enum VkProfilerStructureTypeEXT
+{
+    VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT = 1000999000,
+    VK_PROFILER_STRUCTURE_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
+};
+
+enum VkProfilerCreateFlagBitsEXT
+{
+    VK_PROFILER_CREATE_DISABLE_OVERLAY_BIT_EXT = 1,
+    VK_PROFILER_CREATE_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
+};
+
+typedef VkFlags VkProfilerCreateFlagsEXT;
+
 enum VkProfilerModeEXT
 {
     VK_PROFILER_MODE_PER_DRAWCALL_EXT,
@@ -12,17 +26,8 @@ enum VkProfilerModeEXT
     VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT,
     VK_PROFILER_MODE_PER_SUBMIT_EXT,
     VK_PROFILER_MODE_PER_FRAME_EXT,
-    VK_PROFILER_MODE_MAX_ENUM_EXT = UINT32_MAX
+    VK_PROFILER_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
 };
-
-enum VkProfilerOutputFlagBitsEXT
-{
-    VK_PROFILER_OUTPUT_FLAG_CONSOLE_BIT_EXT = 1,
-    VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT = 2,
-    VK_PROFILER_OUTPUT_FLAG_MAX_ENUM_EXT = UINT32_MAX
-};
-
-typedef VkFlags VkProfilerOutputFlagsEXT;
 
 enum VkProfilerRegionTypeEXT
 {
@@ -32,24 +37,28 @@ enum VkProfilerRegionTypeEXT
     VK_PROFILER_REGION_TYPE_DEBUG_MARKER_EXT,
     VK_PROFILER_REGION_TYPE_RENDER_PASS_EXT,
     VK_PROFILER_REGION_TYPE_PIPELINE_EXT,
-    VK_PROFILER_REGION_TYPE_MAX_ENUM_EXT = UINT32_MAX
+    VK_PROFILER_REGION_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
 };
+
+enum VkProfilerSyncModeEXT
+{
+    VK_PROFILER_SYNC_MODE_PRESENT_EXT,
+    VK_PROFILER_SYNC_MODE_SUBMIT_EXT,
+    VK_PROFILER_SYNC_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
+};
+
+typedef struct VkProfilerCreateInfoEXT
+{
+    VkProfilerStructureTypeEXT sType;
+    const void* pNext;
+    VkProfilerCreateFlagsEXT flags;
+} VkProfilerCreateInfoEXT;
 
 typedef struct VkProfilerRegionDataEXT
 {
     VkProfilerRegionTypeEXT regionType;
-    const char* pRegionName;
-    uint64_t regionObject;
-    uint32_t regionID;
-    uint32_t subregionCount;
-    struct VkProfilerRegionDataEXT* pSubregions;
+    char regionName[ 256 ];
     float duration;
-    uint32_t drawCount;
-    uint32_t drawIndirectCount;
-    uint32_t dispatchCount;
-    uint32_t dispatchIndirectCount;
-    uint32_t clearCount;
-    uint32_t barrierCount;
 } VkProfilerRegionDataEXT;
 
 typedef struct VkProfilerMemoryDataEXT
@@ -64,12 +73,25 @@ typedef struct VkProfilerDataEXT
 } VkProfilerDataEXT;
 
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerModeEXT )(VkDevice, VkProfilerModeEXT);
-typedef VKAPI_ATTR void(VKAPI_CALL* PFN_vkGetProfilerDataEXT)(VkDevice, const VkProfilerRegionDataEXT**);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerRegionDataEXT*);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerCommandBufferDataEXT )(VkDevice, VkCommandBuffer, VkProfilerRegionDataEXT*);
 
+#ifndef VK_NO_PROTOTYPES
 VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
     VkDevice device,
     VkProfilerModeEXT mode );
 
-VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerDataEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
     VkDevice device,
-    VkProfilerDataEXT* pData );
+    VkProfilerSyncModeEXT syncMode );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
+    VkDevice device,
+    VkProfilerRegionDataEXT* pData );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerCommandBufferDataEXT(
+    VkDevice device,
+    VkCommandBuffer commandBuffer,
+    VkProfilerRegionDataEXT* pData );
+#endif // VK_NO_PROTOTYPES

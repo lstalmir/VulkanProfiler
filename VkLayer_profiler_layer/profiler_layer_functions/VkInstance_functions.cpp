@@ -25,6 +25,9 @@ namespace Profiler
         // Debug utils extension is instance extension, but SetDebugUtilsObjectNameEXT is device function
         auto SetDebugUtilsObjectNameEXT = VkDevice_Functions::SetDebugUtilsObjectNameEXT;
 
+        auto EnumerateDeviceExtensionProperties = VkDevice_Functions::EnumerateDeviceExtensionProperties;
+        auto EnumerateDeviceLayerProperties = VkDevice_Functions::EnumerateDeviceLayerProperties;
+
         // VkInstance_Functions
         GETPROCADDR( GetInstanceProcAddr );
         GETPROCADDR( CreateInstance );
@@ -32,6 +35,8 @@ namespace Profiler
         GETPROCADDR( CreateDevice );
         GETPROCADDR( EnumerateInstanceLayerProperties );
         GETPROCADDR( EnumerateInstanceExtensionProperties );
+        GETPROCADDR( EnumerateDeviceLayerProperties );
+        GETPROCADDR( EnumerateDeviceExtensionProperties );
         GETPROCADDR( SetDebugUtilsObjectNameEXT );
         #ifdef VK_USE_PLATFORM_WIN32_KHR
         GETPROCADDR( CreateWin32SurfaceKHR );
@@ -101,6 +106,9 @@ namespace Profiler
             // Get function addresses
             layer_init_instance_dispatch_table(
                 *pInstance, &id.Instance.Callbacks, pfnGetInstanceProcAddr );
+            
+            // Call loader to obtain API version we're running
+            VkLoader_Functions::EnumerateInstanceVersion( &id.Instance.LoaderVersion );
 
             id.Instance.SetInstanceLoaderData = pfnSetInstanceLoaderData;
 
@@ -175,23 +183,25 @@ namespace Profiler
             physicalDevice, pCreateInfo, pAllocator, pDevice );
 
         // Initialize dispatch for the created device object
-        result = VkDevice_Functions::OnDeviceCreate(
-            physicalDevice,
-            pCreateInfo,
-            pfnGetDeviceProcAddr,
-            pfnSetDeviceLoaderData,
-            pAllocator,
-            *pDevice );
-        
-        if( result != VK_SUCCESS )
+        if( result == VK_SUCCESS )
+        {
+            result = VkDevice_Functions::OnDeviceCreate(
+                physicalDevice,
+                pCreateInfo,
+                pfnGetDeviceProcAddr,
+                pfnSetDeviceLoaderData,
+                pAllocator,
+                *pDevice );
+        }
+
+        if( result != VK_SUCCESS &&
+            *pDevice != VK_NULL_HANDLE )
         {
             // Initialization of the layer failed, destroy the device
             PFN_vkDestroyDevice pfnDestroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(
                 pfnGetDeviceProcAddr( *pDevice, "vkDestroyDevice" ));
-        
+
             pfnDestroyDevice( *pDevice, pAllocator );
-        
-            return result;
         }
 
         // Device created successfully
@@ -217,8 +227,8 @@ namespace Profiler
 
         if( pLayerProperties )
         {
-            CopyString( pLayerProperties->layerName, VK_LAYER_profiler_name );
-            CopyString( pLayerProperties->description, VK_LAYER_profiler_desc );
+            strcpy( pLayerProperties->layerName, VK_LAYER_profiler_name );
+            strcpy( pLayerProperties->description, VK_LAYER_profiler_desc );
 
             pLayerProperties->implementationVersion = VK_LAYER_profiler_impl_ver;
             pLayerProperties->specVersion = VK_API_VERSION_1_0;

@@ -19,8 +19,9 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerCommandBuffer::ProfilerCommandBuffer( DeviceProfiler& profiler, VkCommandBuffer commandBuffer )
+    ProfilerCommandBuffer::ProfilerCommandBuffer( DeviceProfiler& profiler, VkCommandPool commandPool, VkCommandBuffer commandBuffer )
         : m_Profiler( profiler )
+        , m_CommandPool( commandPool )
         , m_CommandBuffer( commandBuffer )
         , m_Dirty( false )
         , m_QueryPools()
@@ -65,6 +66,20 @@ namespace Profiler
     ProfilerCommandBuffer::~ProfilerCommandBuffer()
     {
         Reset();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCommandPool
+
+    Description:
+        Returns VkCommandPool object associated with this instance.
+
+    \***********************************************************************************/
+    VkCommandPool ProfilerCommandBuffer::GetCommandPool() const
+    {
+        return m_CommandPool;
     }
 
     /***********************************************************************************\

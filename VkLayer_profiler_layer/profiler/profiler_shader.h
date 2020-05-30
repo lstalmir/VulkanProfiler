@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include <stdint.h>
-#include <vulkan.h>
+#include <vulkan/vulkan.h>
 
 namespace Profiler
 {

@@ -77,6 +77,9 @@ namespace Profiler
         GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
         GETPROCADDR( CreateComputePipelines );
+        GETPROCADDR( DestroyCommandPool );
+        GETPROCADDR( AllocateCommandBuffers );
+        //GETPROCADDR( FreeCommandBuffers );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
 
@@ -108,7 +111,9 @@ namespace Profiler
 
         // VK_EXT_profiler functions
         GETPROCADDR_EXT( vkSetProfilerModeEXT );
-        GETPROCADDR_EXT( vkGetProfilerDataEXT );
+        GETPROCADDR_EXT( vkSetProfilerSyncModeEXT );
+        GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
+        GETPROCADDR_EXT( vkGetProfilerCommandBufferDataEXT );
 
         // Get device dispatch table
         return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
@@ -281,7 +286,11 @@ namespace Profiler
 
         VkSwapchainCreateInfoKHR createInfo = *pCreateInfo;
 
-        if( dd.Profiler.m_Config.m_OutputFlags & VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT )
+        // TODO: Move to separate layer
+        const bool createProfilerOverlay =
+            (dd.Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_DISABLE_OVERLAY_BIT_EXT) == 0;
+
+        if( createProfilerOverlay )
         {
             // Make sure we are able to write to presented image
             createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -310,8 +319,9 @@ namespace Profiler
         }
 
         // Create overlay
+        // TODO: Move to separate layer
         if( result == VK_SUCCESS &&
-            dd.Profiler.m_Config.m_OutputFlags & VK_PROFILER_OUTPUT_FLAG_OVERLAY_BIT_EXT )
+            createProfilerOverlay )
         {
             if( dd.pOverlay == nullptr )
             {
@@ -528,6 +538,60 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        DestroyCommandPool
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyCommandPool(
+        VkDevice device,
+        VkCommandPool commandPool,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Cleanup profiler resources associated with the command pool
+        dd.Profiler.UnregisterCommandBuffers( commandPool );
+
+        // Destroy the command pool
+        dd.Device.Callbacks.DestroyCommandPool(
+            device, commandPool, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AllocateCommandBuffers
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::AllocateCommandBuffers(
+        VkDevice device,
+        const VkCommandBufferAllocateInfo* pAllocateInfo,
+        VkCommandBuffer* pCommandBuffers )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Allocate command buffers
+        VkResult result = dd.Device.Callbacks.AllocateCommandBuffers(
+            device, pAllocateInfo, pCommandBuffers );
+
+        if( result == VK_SUCCESS )
+        {
+            // Begin profiling
+            dd.Profiler.RegisterCommandBuffers(
+                pAllocateInfo->commandPool,
+                pAllocateInfo->commandBufferCount,
+                pCommandBuffers );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         FreeCommandBuffers
 
     Description:
@@ -542,7 +606,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Cleanup profiler resources associated with freed command buffers
-        dd.Profiler.FreeCommandBuffers( commandBufferCount, pCommandBuffers );
+        dd.Profiler.UnregisterCommandBuffers( commandBufferCount, pCommandBuffers );
 
         // Free the command buffers
         dd.Device.Callbacks.FreeCommandBuffers(

@@ -1,4 +1,4 @@
-#include "profiler_output_overlay.h"
+#include "profiler_overlay.h"
 #include "imgui_impl_vulkan_layer.h"
 #include <string>
 #include <sstream>
@@ -172,7 +172,7 @@ namespace Profiler
             SetWindowLongPtr( m_Window.Win32Handle,
                 GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( m_Window.Win32Handle ) );
 
-            s_pfnWindowProc.erase( m_pWindowHandle );
+            s_pfnWindowProc.erase( m_Window.Win32Handle );
             #endif
 
             m_Window = OSWindowHandle();
@@ -961,7 +961,7 @@ namespace Profiler
             }
 
             char pHistogramDescription[ 32 ];
-            sprintf_s( pHistogramDescription, "GPU Cycles (%s)", selectedOption );
+            sprintf( pHistogramDescription, "GPU Cycles (%s)", selectedOption );
 
             ImGui::PushItemWidth( -1 );
             ImGuiX::PlotHistogramEx(
@@ -1127,7 +1127,7 @@ namespace Profiler
                     usage = (float)pMemoryBudgetProperties->heapUsage[ i ] /
                         pMemoryBudgetProperties->heapBudget[ i ];
 
-                    sprintf_s( usageStr, "%.2f/%.2f MB (%.1f%%)",
+                    sprintf( usageStr, "%.2f/%.2f MB (%.1f%%)",
                         pMemoryBudgetProperties->heapUsage[ i ] / 1048576.f,
                         pMemoryBudgetProperties->heapBudget[ i ] / 1048576.f,
                         usage * 100.f );
@@ -1154,7 +1154,7 @@ namespace Profiler
 
                     usage = (float)allocatedSize / memoryProperties.memoryHeaps[ i ].size;
 
-                    sprintf_s( usageStr, "%.2f/%.2f MB (%.1f%%)",
+                    sprintf( usageStr, "%.2f/%.2f MB (%.1f%%)",
                         allocatedSize / 1048576.f,
                         memoryProperties.memoryHeaps[ i ].size / 1048576.f,
                         usage * 100.f );
@@ -1209,6 +1209,48 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateSettingsTab()
     {
+        // Select synchronization mode
+        {
+            static const char* groupOptions[] = {
+                "Present",
+                "Submit" };
+
+            // TMP
+            static int selectedOption = 0;
+            int previousSelectedOption = selectedOption;
+
+            ImGui::Combo( "Sync mode", &selectedOption, groupOptions, 2 );
+
+            if( selectedOption != previousSelectedOption )
+            {
+                vkSetProfilerSyncModeEXT( m_Device.Handle, (VkProfilerSyncModeEXT)selectedOption );
+            }
+
+            //if( ImGui::BeginCombo( "Sync mode", selectedOption ) )
+            //{
+            //    for( size_t i = 0; i < std::extent_v<decltype(groupOptions)>; ++i )
+            //    {
+            //        bool isSelected = (selectedOption == groupOptions[ i ]);
+            //
+            //        if( ImGui::Selectable( groupOptions[ i ], isSelected ) )
+            //        {
+            //            // Selection changed
+            //            selectedOption = groupOptions[ i ];
+            //            isSelected = true;
+            //
+            //            vkSetProfilerSyncModeEXT( m_Device.Handle, (VkProfilerSyncModeEXT)i );
+            //        }
+            //
+            //        if( isSelected )
+            //        {
+            //            ImGui::SetItemDefaultFocus();
+            //        }
+            //    }
+            //
+            //    ImGui::EndCombo();
+            //}
+        }
+
         // Draw profiler settings
         {
 
@@ -1487,7 +1529,7 @@ namespace Profiler
         va_start( args, fmt );
 
         char text[ 128 ];
-        vsprintf_s( text, fmt, args );
+        vsprintf( text, fmt, args );
 
         va_end( args );
 

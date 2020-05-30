@@ -101,6 +101,18 @@ namespace Profiler
             VkPipeline pipeline,
             const VkAllocationCallbacks* pAllocator );
 
+        // vkDestroyCommandPool
+        static VKAPI_ATTR void VKAPI_CALL DestroyCommandPool(
+            VkDevice device,
+            VkCommandPool commandPool,
+            const VkAllocationCallbacks* pAllocator );
+
+        // vkAllocateCommandBuffers
+        static VKAPI_ATTR VkResult VKAPI_CALL AllocateCommandBuffers(
+            VkDevice device,
+            const VkCommandBufferAllocateInfo* pAllocateInfo,
+            VkCommandBuffer* pCommandBuffers );
+
         // vkFreeCommandBuffers
         static VKAPI_ATTR void VKAPI_CALL FreeCommandBuffers(
             VkDevice device,

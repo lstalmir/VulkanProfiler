@@ -2,7 +2,7 @@
 #include "profiler_drawcall.h"
 #include "profiler_helpers.h"
 #include "profiler_shader.h"
-#include <vulkan.h>
+#include <vulkan/vulkan.h>
 
 namespace Profiler
 {

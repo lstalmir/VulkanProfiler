@@ -84,8 +84,27 @@ namespace Profiler
             }
         }
 
+        // Check if profiler create info was provided
+        const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
+
+        {
+            const VkBaseInStructure* pStructure =
+                reinterpret_cast<const VkBaseInStructure*>(pCreateInfo->pNext);
+
+            while( pStructure )
+            {
+                if( pStructure->sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
+                {
+                    pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>(pStructure);
+                    break;
+                }
+
+                pStructure = pStructure->pNext;
+            }
+        }
+
         // Initialize the profiler object
-        VkResult result = dd.Profiler.Initialize( &dd.Device );
+        VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
 
         if( result != VK_SUCCESS )
         {

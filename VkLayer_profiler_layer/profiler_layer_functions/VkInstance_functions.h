@@ -1,7 +1,7 @@
 #pragma once
 #include "Dispatch.h"
 #include "profiler_layer_objects/VkInstance_object.h"
-#include <vk_layer.h>
+#include <vulkan/vk_layer.h>
 #include <vk_layer_dispatch_table.h>
 
 namespace Profiler

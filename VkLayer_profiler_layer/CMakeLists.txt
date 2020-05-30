@@ -19,6 +19,7 @@ project (${PROFILER_LAYER_PROJECTNAME})
 if (WIN32)
 
     add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
+    add_definitions (-DNOMINMAX)
 
 elseif (UNIX)
 
@@ -53,7 +54,7 @@ endif ()
 # Include implementation of the layer
 add_subdirectory (profiler)
 add_subdirectory (profiler_ext)
-add_subdirectory (profiler_output)
+add_subdirectory (profiler_overlay)
 
 set (resource
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc
@@ -61,6 +62,10 @@ set (resource
 
 set (generated
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h
+    )
+
+set (json
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
     )
 
 set (headers
@@ -83,7 +88,7 @@ set (sources
     "profiler_layer_functions/VkQueue_functions.cpp"
     "VkLayer_profiler_layer.cpp"
     )
-    
+
 # Configure resources file
 configure_file (
     ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in
@@ -95,17 +100,27 @@ configure_file (
     ${generated}
     @ONLY)
 
+configure_file (
+    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in
+    ${json}_configured
+    @ONLY)
+
 # Add sources to this project's executable.
 add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     ${sources}
     ${headers}
+    ${utils}
     ${generated}
     ${resource})
+
+file (GENERATE
+    OUTPUT ${json}
+    INPUT ${json}_configured)
 
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_layer)
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_ext)
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_output)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_overlay)
 
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}
@@ -118,13 +133,5 @@ target_include_directories (${PROFILER_LAYER_PROJECTNAME}
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-# Export the layer metadata file
-install (FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
+install (FILES ${json}
     DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-add_custom_command (TARGET ${PROFILER_LAYER_PROJECTNAME}
-    POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json)
-    

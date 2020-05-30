@@ -1,6 +1,6 @@
 #pragma once
 #include <assert.h>
-#include <vk_layer.h>
+#include <vulkan/vk_layer.h>
 #include <vk_dispatch_table_helper.h>
 
 namespace Profiler
@@ -58,32 +58,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        CopyString
+        AppendPNext
 
     Description:
 
     \***********************************************************************************/
-    static inline void CopyString( char* dst, size_t dstSize, const char* src )
+    template<typename StructureType>
+    inline void AppendPNext( StructureType& structure, void* pNext )
     {
-#   ifdef WIN32
-        strcpy_s( dst, dstSize, src );
-#   else
-        strcpy( dst, src );
-#   endif
-    }
+        VkBaseOutStructure* pStruct = reinterpret_cast<VkBaseOutStructure*>(&structure);
 
-    /***********************************************************************************\
+        // Skip pNext pointers until we get to the end of chain
+        while( pStruct->pNext ) pStruct = pStruct->pNext;
 
-    Function:
-        CopyString
-
-    Description:
-
-    \***********************************************************************************/
-    template<size_t dstSize>
-    static inline void CopyString( char( &dst )[dstSize], const char* src )
-    {
-        return CopyString( dst, dstSize, src );
+        pStruct->pNext = reinterpret_cast<VkBaseOutStructure*>(pNext);
     }
 
     /***********************************************************************************\

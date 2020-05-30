@@ -1,6 +1,6 @@
 #pragma once
 #include "profiler_pipeline.h"
-#include <vk_layer.h>
+#include <vulkan/vk_layer.h>
 #include <vector>
 
 namespace Profiler
@@ -83,9 +83,10 @@ namespace Profiler
     class ProfilerCommandBuffer
     {
     public:
-        ProfilerCommandBuffer( DeviceProfiler&, VkCommandBuffer );
+        ProfilerCommandBuffer( DeviceProfiler&, VkCommandPool, VkCommandBuffer );
         ~ProfilerCommandBuffer();
 
+        VkCommandPool GetCommandPool() const;
         VkCommandBuffer GetCommandBuffer() const;
 
         void Submit();
@@ -122,8 +123,9 @@ namespace Profiler
         ProfilerCommandBufferData GetData();
 
     protected:
-        DeviceProfiler&       m_Profiler;
+        DeviceProfiler& m_Profiler;
 
+        VkCommandPool   m_CommandPool;
         VkCommandBuffer m_CommandBuffer;
 
         bool            m_Dirty;

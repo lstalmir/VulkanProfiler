@@ -3,16 +3,14 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler_output)
+project (profiler_overlay)
 
 set (headers
-    "profiler_output_console.h"
-    "profiler_output_overlay.h"
+    "profiler_overlay.h"
     )
 
 set (sources
-    "profiler_output_console.cpp"
-    "profiler_output_overlay.cpp"
+    "profiler_overlay.cpp"
     )
 
 set (imgui
@@ -44,7 +42,7 @@ set (imgui_widgets
     )
     
 # Link intermediate static library
-add_library (profiler_output
+add_library (profiler_overlay
     ${sources}
     ${headers}
     ${imgui}
@@ -52,10 +50,11 @@ add_library (profiler_output
     ${imgui_widgets})
 
 # Set include path
-target_include_directories (profiler_output
+target_include_directories (profiler_overlay
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../VkLayer_profiler_layer
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources
@@ -65,25 +64,25 @@ target_include_directories (profiler_output
 if (UNIX)
 
     if (Wayland_FOUND)
-        target_link_libraries (profiler_output ${Wayland_LIBRARIES})
-        target_include_directories (profiler_output
+        target_link_libraries (profiler_overlay ${Wayland_LIBRARIES})
+        target_include_directories (profiler_overlay
             PRIVATE ${Wayland_INCLUDE_DIRS})
     endif () # Wayland_FOUND
 
     if (XCB_FOUND)
-        target_link_libraries (profiler_output ${XCB_LIBRARIES})
-        target_include_directories (profiler_output
+        target_link_libraries (profiler_overlay ${XCB_LIBRARIES})
+        target_include_directories (profiler_overlay
             PRIVATE ${XCB_INCLUDE_DIRS})
     endif () # XCB_FOUND
 
     if (X11_FOUND)
-        target_link_libraries (profiler_output ${X11_LIBRARIES} )
-        target_include_directories (profiler_output
+        target_link_libraries (profiler_overlay ${X11_LIBRARIES} )
+        target_include_directories (profiler_overlay
             PRIVATE ${X11_INCLUDE_DIR})
     endif () # X11_FOUND
     if (X11_Xrandr_FOUND)
-        target_link_libraries (profiler_output ${X11_Xrandr_LIB})
-        target_include_directories (profiler_output
+        target_link_libraries (profiler_overlay ${X11_Xrandr_LIB})
+        target_include_directories (profiler_overlay
             PRIVATE ${X11_Xrandr_INCLUDE_PATH})
     endif () # X11_Xrandr_FOUND
 

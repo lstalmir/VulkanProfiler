@@ -80,7 +80,7 @@ namespace Profiler
                 MD::TMetricSetParams_1_4* pSetParams = pSet->GetParams();
 
                 char msg[ 256 ];
-                sprintf_s( msg, "PROFILER: %s - %u metrics\n", pSetParams->ShortName, pSetParams->MetricsCount );
+                sprintf( msg, "PROFILER: %s - %u metrics\n", pSetParams->ShortName, pSetParams->MetricsCount );
                 #ifdef WIN32
                 OutputDebugStringA( msg );
                 #endif
@@ -273,7 +273,7 @@ namespace Profiler
         char pSystemDirectory[ MAX_PATH ];
         GetSystemDirectoryA( pSystemDirectory, MAX_PATH );
 
-        strcat_s( pSystemDirectory, "\\DriverStore\\FileRepository" );
+        strcat( pSystemDirectory, "\\DriverStore\\FileRepository" );
 
         // Find location of igdmdX.dll
         const std::filesystem::path mdDllPath = FindMetricsDiscoveryLibrary( pSystemDirectory );

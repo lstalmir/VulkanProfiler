@@ -30,10 +30,9 @@ namespace Profiler
     \***********************************************************************************/
     struct ProfilerConfig
     {
-        VkProfilerModeEXT         m_DisplayMode;
-        uint32_t                  m_NumQueriesPerCommandBuffer;
-        std::chrono::milliseconds m_OutputUpdateInterval;
-        VkProfilerOutputFlagsEXT  m_OutputFlags;
+        VkProfilerCreateFlagsEXT  m_Flags;
+        VkProfilerModeEXT         m_Mode;
+        VkProfilerSyncModeEXT     m_SyncMode;
     };
 
     /***********************************************************************************\
@@ -49,15 +48,19 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        VkResult Initialize( VkDevice_Object* pDevice );
+        VkResult Initialize( VkDevice_Object* pDevice, const VkProfilerCreateInfoEXT* pCreateInfo );
 
         void Destroy();
 
         // Public interface
         VkResult SetMode( VkProfilerModeEXT mode );
+        VkResult SetSyncMode( VkProfilerSyncModeEXT syncMode );
         ProfilerAggregatedData GetData() const;
 
-        // TODO: Create wrappers in AllocateCommandBuffers()
+        void RegisterCommandBuffers( VkCommandPool, uint32_t, VkCommandBuffer* );
+        void UnregisterCommandBuffers( uint32_t, const VkCommandBuffer* );
+        void UnregisterCommandBuffers( VkCommandPool );
+
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer );
         // TODO: Wrap render passes
         ProfilerPipeline& GetPipeline( VkPipeline );
@@ -71,20 +74,9 @@ namespace Profiler
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
         void DestroyPipeline( VkPipeline );
-        void BindPipeline( VkCommandBuffer, VkPipeline );
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
         void DestroyShaderModule( VkShaderModule );
-
-        void PreBeginRenderPass( VkCommandBuffer, const VkRenderPassBeginInfo* );
-        void PostBeginRenderPass( VkCommandBuffer );
-        void PreEndRenderPass( VkCommandBuffer );
-        void PostEndRenderPass( VkCommandBuffer );
-        void NextSubpass( VkCommandBuffer, VkSubpassContents );
-
-        void BeginCommandBuffer( VkCommandBuffer, const VkCommandBufferBeginInfo* );
-        void EndCommandBuffer( VkCommandBuffer );
-        void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
 
         void PreSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
         void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
@@ -121,48 +113,23 @@ namespace Profiler
         std::atomic_uint64_t    m_HostVisibleAllocationCount;
         std::atomic_uint64_t    m_TotalAllocationCount;
 
-        LockableUnorderedMap<VkCommandBuffer, ProfilerCommandBuffer> m_ProfiledCommandBuffers;
+        LockableUnorderedMap<VkCommandBuffer, ProfilerCommandBuffer> m_CommandBuffers;
 
-        LockableUnorderedMap<VkShaderModule, uint32_t> m_ProfiledShaderModules;
-        LockableUnorderedMap<VkPipeline, ProfilerPipeline> m_ProfiledPipelines;
+        LockableUnorderedMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
+        LockableUnorderedMap<VkPipeline, ProfilerPipeline> m_Pipelines;
 
         VkFence                 m_SubmitFence;
 
         float                   m_TimestampPeriod;
 
         VkPerformanceConfigurationINTEL m_PerformanceConfigurationINTEL;
-        
+
         ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
 
-        #if 0
-        void PresentResults( const ProfilerAggregatedData& );
-        void PresentSubmit( uint32_t, const ProfilerSubmitData& );
-        void PresentCommandBuffer( uint32_t, const ProfilerCommandBufferData& );
-        #endif
 
         VkResult InitializeINTEL();
 
-        void FreeProfilerData( VkProfilerRegionDataEXT* pData ) const;
-
-        template<typename... Args>
-        inline char* CreateRegionName( Args... args ) const
-        {
-            std::stringstream sstr;
-            (sstr << ... << args);
-            std::string str = sstr.str();
-            return strdup( str.c_str() );
-        }
-
-        void FillProfilerData( VkProfilerRegionDataEXT* pData, const ProfilerRangeStats& stats ) const;
-
         ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo );
         ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo );
-
-        inline VkDevice Device() const { return m_pDevice->Handle; }
-        inline VkInstance Instance() const { return m_pDevice->pInstance->Handle; }
-        inline VkPhysicalDevice PhysicalDevice() const { return m_pDevice->PhysicalDevice; }
-
-        inline const VkLayerDispatchTable& Dispatch() const { return m_pDevice->Callbacks; }
-        inline const VkLayerInstanceDispatchTable& InstanceDispatch() const { return m_pDevice->pInstance->Callbacks; }
     };
 }

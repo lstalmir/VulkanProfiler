@@ -29,6 +29,7 @@ add_executable (Sample
 
 target_include_directories (Sample
     PRIVATE ${Vulkan_INCLUDE_DIRS}
+    PRIVATE ${VK_EXT_PROFILER_INCLUDE_DIR}
     PRIVATE "${CMAKE_CURRENT_LIST_DIR}/glm/glm"
     PRIVATE "${CMAKE_CURRENT_LIST_DIR}/SDL/include"
     )
@@ -36,7 +37,7 @@ target_include_directories (Sample
 add_dependencies (Sample SDL2main)
 add_dependencies (Sample Sample-shaders)
 
-function (TARGET_LINK_DIRECTORIES target)
+function (TARGET_LINK_DIRECTORIES_H target)
     if (${CMAKE_VERSION} VERSION_LESS "3.15.0")
         link_directories (${ARGN})
     else ()
@@ -45,9 +46,9 @@ function (TARGET_LINK_DIRECTORIES target)
 endfunction ()
 
 if (${CMAKE_SIZEOF_VOID_P} EQUAL 8) # 64-bit
-    TARGET_LINK_DIRECTORIES (Sample $ENV{VK_SDK_PATH}/Lib)
+    TARGET_LINK_DIRECTORIES_H (Sample $ENV{VK_SDK_PATH}/Lib)
 else ()
-    TARGET_LINK_DIRECTORIES (Sample $ENV{VK_SDK_PATH}/Lib32)
+    TARGET_LINK_DIRECTORIES_H (Sample $ENV{VK_SDK_PATH}/Lib32)
 endif ()
 
 target_link_libraries (Sample

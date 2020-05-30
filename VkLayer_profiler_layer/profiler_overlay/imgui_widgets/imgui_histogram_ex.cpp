@@ -4,15 +4,10 @@
 #include "imgui_histogram_ex.h"
 #include <imgui_internal.h>
 
-// Definitions of sprintf_s for Linux
-#include "profiler/profiler_helpers.h"
-
 namespace ImGuiX
 {
     // Fast access to native ImGui functions and structures.
     using namespace ImGui;
-
-    using Profiler::sprintf_s;
 
     /*************************************************************************\
 
@@ -172,9 +167,9 @@ namespace ImGuiX
 
             char scale[ 16 ];
             if( range < 100000.f )
-                sprintf_s( scale, "%.0f", range );
+                sprintf( scale, "%.0f", range );
             else
-                sprintf_s( scale, "%.0fk", ceilf( range / 1000.f ) );
+                sprintf( scale, "%.0fk", ceilf( range / 1000.f ) );
 
             RenderText( inner_bb.Min, scale );
         }
