@@ -21,6 +21,7 @@ set (imgui
     "imgui/imgui_widgets.cpp"
     "imgui_impl_vulkan_layer.h"
     "imgui_impl_vulkan_layer.cpp"
+    "imgui_window.h"
     )
 
 # Platform-dependent implementation
@@ -28,6 +29,8 @@ if (WIN32)
 set (imgui_platform
     "imgui/examples/imgui_impl_win32.h"
     "imgui/examples/imgui_impl_win32.cpp"
+    "imgui_impl_win32.h"
+    "imgui_impl_win32.cpp"
     )
 elseif (X11_FOUND)
 set (imgui_platform

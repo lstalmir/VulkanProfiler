@@ -7,8 +7,7 @@
 #include "imgui_widgets/imgui_histogram_ex.h"
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-#include "imgui/examples/imgui_impl_win32.h"
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
+#include "imgui_impl_win32.h"
 #endif
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
@@ -32,10 +31,6 @@ namespace Profiler
     // Define static members
     std::mutex ProfilerOverlayOutput::s_ImGuiMutex;
 
-    #ifdef VK_USE_PLATFORM_WIN32_KHR
-    LockableUnorderedMap<void*, WNDPROC> ProfilerOverlayOutput::s_pfnWindowProc;
-    #endif
-
     /***********************************************************************************\
 
     Function:
@@ -56,6 +51,7 @@ namespace Profiler
         , m_Window()
         , m_pImGuiContext( nullptr )
         , m_pImGuiVulkanContext( nullptr )
+        , m_pImGuiWindowContext( nullptr )
         , m_DescriptorPool( nullptr )
         , m_RenderPass( nullptr )
         , m_RenderArea( {} )
@@ -161,22 +157,7 @@ namespace Profiler
     {
         m_Device.Callbacks.DeviceWaitIdle( m_Device.Handle );
 
-        if( m_Window )
-        {
-            #ifdef VK_USE_PLATFORM_WIN32_KHR
-            assert( m_Window.Type == OSWindowHandleType::eWin32 );
-
-            std::scoped_lock lk( s_pfnWindowProc );
-
-            // Restore original window proc
-            SetWindowLongPtr( m_Window.Win32Handle,
-                GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( m_Window.Win32Handle ) );
-
-            s_pfnWindowProc.erase( m_Window.Win32Handle );
-            #endif
-
-            m_Window = OSWindowHandle();
-        }
+        m_Window = OSWindowHandle();
 
         if( m_pImGuiVulkanContext )
         {
@@ -186,13 +167,15 @@ namespace Profiler
             m_pImGuiVulkanContext = nullptr;
         }
 
+        if( m_pImGuiWindowContext )
+        {
+            delete m_pImGuiWindowContext;
+            m_pImGuiWindowContext = nullptr;
+        }
+
         if( m_pImGuiContext )
         {
-            #ifdef VK_USE_PLATFORM_WIN32_KHR
-            ImGui_ImplWin32_Shutdown();
-            #endif
             ImGui::DestroyContext( m_pImGuiContext );
-
             m_pImGuiContext = nullptr;
         }
 
@@ -555,11 +538,8 @@ namespace Profiler
             VkCommandBuffer& commandBuffer = m_CommandBuffers[ imageIndex ];
             VkFramebuffer& framebuffer = m_Framebuffers[ imageIndex ];
 
-            m_Device.Callbacks.WaitForFences(
-                m_Device.Handle, 1, &fence, VK_TRUE, UINT64_MAX );
-
-            m_Device.Callbacks.ResetFences(
-                m_Device.Handle, 1, &fence );
+            m_Device.Callbacks.WaitForFences( m_Device.Handle, 1, &fence, VK_TRUE, UINT64_MAX );
+            m_Device.Callbacks.ResetFences( m_Device.Handle, 1, &fence );
 
             {
                 VkCommandBufferBeginInfo info = {};
@@ -621,13 +601,7 @@ namespace Profiler
 
         m_pImGuiVulkanContext->NewFrame();
 
-        #ifdef VK_USE_PLATFORM_WIN32_KHR    
-        ImGui_ImplWin32_NewFrame();
-        #endif
-
-        #ifdef VK_USE_PLATFORM_XLIB_KHR
-        ImGui_ImplXlib_NewFrame();
-        #endif
+        m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
 
@@ -678,35 +652,6 @@ namespace Profiler
         ImGui::Render();
     }
 
-    #ifdef VK_USE_PLATFORM_WIN32_KHR
-    /***********************************************************************************\
-
-    Function:
-        WindowProc
-
-    Description:
-        Overrides standard window procedure on Windows. Invokes ImGui handler to intercept
-        incoming user input, then calls original window procedure.
-
-    \***********************************************************************************/
-    LRESULT CALLBACK ProfilerOverlayOutput::WindowProc( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam )
-    {
-        // Update overlay
-        const LRESULT result = ImGui_ImplWin32_WndProcHandler( hWnd, Msg, wParam, lParam );
-        
-        // Don't pass handled mouse messages to application
-        if( Msg >= WM_MOUSEFIRST &&
-            Msg <= WM_MOUSELAST &&
-            ImGui::GetIO().WantCaptureMouse )
-        {
-            return result;
-        }
-
-        // Call original window proc
-        return CallWindowProc( s_pfnWindowProc.interlocked_at( hWnd ), hWnd, Msg, wParam, lParam );
-    }
-    #endif // VK_USE_PLATFORM_WIN32_KHR
-
     /***********************************************************************************\
 
     Function:
@@ -722,30 +667,12 @@ namespace Profiler
         #ifdef VK_USE_PLATFORM_WIN32_KHR
         if( window.Type == OSWindowHandleType::eWin32 )
         {
-            HWND windowHandle = window.Win32Handle;
-
-            std::scoped_lock lk( s_pfnWindowProc );
-            if( s_pfnWindowProc.count( windowHandle ) )
+            if( m_pImGuiWindowContext )
             {
-                // Restore original window proc
-                SetWindowLongPtr( windowHandle,
-                    GWLP_WNDPROC, (LONG_PTR)s_pfnWindowProc.at( windowHandle ) );
-
-                s_pfnWindowProc.erase( windowHandle );
-
-                ImGui_ImplWin32_Shutdown();
+                delete m_pImGuiWindowContext;
             }
 
-            ImGui_ImplWin32_Init( windowHandle );
-
-            // Override window procedure
-            {
-                WNDPROC wndProc = (WNDPROC)GetWindowLongPtr( windowHandle, GWLP_WNDPROC );
-                s_pfnWindowProc.emplace( windowHandle, wndProc );
-
-                SetWindowLongPtr( windowHandle,
-                    GWLP_WNDPROC, (LONG_PTR)ProfilerOverlayOutput::WindowProc );
-            }
+            m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
         }
         #endif // VK_USE_PLATFORM_WIN32_KHR
 
@@ -754,19 +681,17 @@ namespace Profiler
         {
             m_Window = window;
         }
-        #endif
+        #endif // VK_USE_PLATFORM_XCB_KHR
 
         #ifdef VK_USE_PLATFORM_XLIB_KHR
         if( window.Type == OSWindowHandleType::eX11 )
         {
-            if( m_Window )
+            if( m_pImGuiWindowContext )
             {
-                ImGui_ImplXlib_Shutdown();
+                delete m_pImGuiWindowContext;
             }
 
-            ImGui_ImplXlib_Init( window.X11Handle );
-
-            m_Window = window;
+            m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.X11Handle );
         }
         #endif // VK_USE_PLATFORM_XLIB_KHR
 

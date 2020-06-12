@@ -1,85 +1,36 @@
 #include "imgui_impl_xlib.h"
 #include "imgui/imgui.h"
 
-static Display* g_Display;
-static XIM g_IM;
-static Window g_AppWindow;
-static Window g_InputWindow;
-
-// Cleanup from partially initialized state
-static bool InitError()
-{
-    ImGui_ImplXlib_Shutdown();
-    return false;
-}
-
-// Check if window a is child of window b
-static bool IsChild( Window a, Window b )
-{
-    Window root, parent, *pChildren;
-    unsigned int childrenCount;
-    
-    // Traverse the tree bottom-up for faster lookup
-    if( !XQueryTree( g_Display, a, &root, &parent, &pChildren, &childrenCount ) )
-        return false;
-
-    if( pChildren ) XFree( pChildren );
-    if( parent == b ) return true;
-
-    // a is child of b if parent of a is child of b
-    return IsChild( parent, b );
-}
-
 /***********************************************************************************\
 
 Function:
-    ImGui_ImplXlib_UpdateMousePos
+    ImGui_ImplXlib_Context
 
 Description:
+    Constructor.
 
 \***********************************************************************************/
-static void ImGui_ImplXlib_UpdateMousePos()
+ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
+    : m_Display( nullptr )
+    , m_IM( None )
+    , m_AppWindow( window )
+    , m_InputWindow( None )
 {
-    ImGuiIO& io = ImGui::GetIO();
-
-    // Set OS mouse position if requested (rarely used, only when ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
-    if (io.WantSetMousePos)
-    {
-        XPoint pos = { (short)io.MousePos.x, (short)io.MousePos.y };
-        XWarpPointer( g_Display, None, g_InputWindow, 0, 0, 0, 0, pos.x, pos.y );
-    }
-}
-
-/***********************************************************************************\
-
-Function:
-    ImGui_ImplXlib_Init
-
-Description:
-    Initialize XLIB implementation of ImGui.
-
-\***********************************************************************************/
-bool ImGui_ImplXlib_Init( Window window )
-{
-    // Must be uninitialized
-    assert( g_Display == nullptr );
-
-    g_Display = XOpenDisplay( nullptr );
+    m_Display = XOpenDisplay( nullptr );
     if( !g_Display )
-        return InitError();
+        InitError();
 
-    g_IM = XOpenIM( g_Display, nullptr, nullptr, nullptr );
-    if( !g_IM )
-        return InitError();
+    m_IM = XOpenIM( m_Display, nullptr, nullptr, nullptr );
+    if( !m_IM )
+        InitError();
 
     XWindowAttributes windowAttributes;
     // TODO: error check
-    XGetWindowAttributes( g_Display, window, &windowAttributes );
+    XGetWindowAttributes( m_Display, window, &windowAttributes );
 
-    g_AppWindow = window;
-    g_InputWindow = XCreateWindow(
-        g_Display,
-        g_AppWindow,
+    m_InputWindow = XCreateWindow(
+        m_Display,
+        m_AppWindow,
         0, 0,
         windowAttributes.width,
         windowAttributes.height,
@@ -88,14 +39,14 @@ bool ImGui_ImplXlib_Init( Window window )
         CopyFromParent,
         0, nullptr );
 
-    if( !g_InputWindow )
-        return InitError();
+    if( !m_InputWindow )
+        InitError();
 
     // TODO: error check
-    XMapWindow( g_Display, g_InputWindow );
+    XMapWindow( m_Display, m_InputWindow );
 
     // Get supported input mask of the created window
-    XGetWindowAttributes( g_Display, g_InputWindow, &windowAttributes );
+    XGetWindowAttributes( m_Display, m_InputWindow, &windowAttributes );
 
     const int inputEventMask =
         ButtonPressMask |
@@ -106,52 +57,50 @@ bool ImGui_ImplXlib_Init( Window window )
     //    return InitError();
 
     // Start listening
-    if( !XSelectInput( g_Display, g_InputWindow, inputEventMask ) )
-        return InitError();
+    if( !XSelectInput( m_Display, m_InputWindow, inputEventMask ) )
+        InitError();
 
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xlib";
-    io.ImeWindowHandle = (void*)g_InputWindow;
+    io.ImeWindowHandle = (void*)m_InputWindow;
 
     // TODO: keyboard mapping to ImGui
-
-    return true;
 }
 
 /***********************************************************************************\
 
 Function:
-    ImGui_ImplXlib_Shutdown
+    ~ImGui_ImplXlib_Context
 
 Description:
-    Cleanup XLIB implementation.
+    Destructor.
 
 \***********************************************************************************/
-void ImGui_ImplXlib_Shutdown()
+ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 {
-    if( g_InputWindow ) XDestroyWindow( g_Display, g_InputWindow );
-    g_InputWindow = None;
-    g_AppWindow = None;
+    if( m_InputWindow ) XDestroyWindow( m_Display, m_InputWindow );
+    m_InputWindow = None;
+    m_AppWindow = None;
 
-    if( g_IM ) XCloseIM( g_IM );
-    g_IM = None;
+    if( m_IM ) XCloseIM( m_IM );
+    m_IM = None;
 
-    if( g_Display ) XCloseDisplay( g_Display );
-    g_Display = nullptr;
+    if( m_Display ) XCloseDisplay( m_Display );
+    m_Display = nullptr;
 }
 
 /***********************************************************************************\
 
 Function:
-    ImGui_ImplXlib_NewFrame
+    NewFrame
 
 Description:
     Handle incoming events.
 
 \***********************************************************************************/
-void ImGui_ImplXlib_NewFrame()
+void ImGui_ImplXlib_Context::NewFrame()
 {
     if( !ImGui::GetCurrentContext() )
         return;
@@ -161,7 +110,7 @@ void ImGui_ImplXlib_NewFrame()
 
     // Setup display size (every frame to accommodate for window resizing)
     XWindowAttributes windowAttributes;
-    XGetWindowAttributes( g_Display, g_AppWindow, &windowAttributes );
+    XGetWindowAttributes( m_Display, m_AppWindow, &windowAttributes );
     io.DisplaySize = ImVec2((float)(windowAttributes.width), (float)(windowAttributes.height));
 
     #if 0
@@ -174,15 +123,15 @@ void ImGui_ImplXlib_NewFrame()
     #endif
 
     // Update OS mouse position
-    ImGui_ImplXlib_UpdateMousePos();
+    UpdateMousePos();
 
     // Handle incoming input events
     // Don't block if there are no pending events
-    while( XEventsQueued( g_Display, QueuedAlready ) )
+    while( XEventsQueued( m_Display, QueuedAlready ) )
     {
         XEvent event;
         // TODO: error check
-        XNextEvent( g_Display, &event );
+        XNextEvent( m_Display, &event );
 
         switch( event.type )
         {
@@ -229,5 +178,65 @@ void ImGui_ImplXlib_NewFrame()
             break;
         }
         }
+    }
+}
+
+/***********************************************************************************\
+
+Function:
+    InitError
+
+Description:
+    Cleanup from partially initialized state
+
+\***********************************************************************************/
+void ImGui_ImplXlib_Context::InitError()
+{
+    ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context();
+    throw;
+}
+
+/***********************************************************************************\
+
+Function:
+    IsChild
+
+Description:
+    Check if window a is child of window b
+
+\***********************************************************************************/
+bool ImGui_ImplXlib_Context::IsChild( Window a, Window b )
+{
+    Window root, parent, * pChildren;
+    unsigned int childrenCount;
+
+    // Traverse the tree bottom-up for faster lookup
+    if( !XQueryTree( m_Display, a, &root, &parent, &pChildren, &childrenCount ) )
+        return false;
+
+    if( pChildren ) XFree( pChildren );
+    if( parent == b ) return true;
+
+    // a is child of b if parent of a is child of b
+    return IsChild( parent, b );
+}
+
+/***********************************************************************************\
+
+Function:
+    UpdateMousePos
+
+Description:
+
+\***********************************************************************************/
+void ImGui_ImplXlib_Context::UpdateMousePos()
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Set OS mouse position if requested (rarely used, only when ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
+    if( io.WantSetMousePos )
+    {
+        XPoint pos = { (short)io.MousePos.x, (short)io.MousePos.y };
+        XWarpPointer( m_Display, None, m_InputWindow, 0, 0, 0, 0, pos.x, pos.y );
     }
 }

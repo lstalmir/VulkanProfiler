@@ -100,6 +100,14 @@ configure_file (
     ${generated}
     @ONLY)
 
+if (WIN32)
+    # WA: Windows uses backslash as directory separator, which needs to be
+    # escaped twice (once here and once in the json, thus 4 backslashes)
+    set (THIS_DIR ".\\\\")
+else ()
+    set (THIS_DIR "./")
+endif ()
+
 configure_file (
     ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in
     ${json}_configured

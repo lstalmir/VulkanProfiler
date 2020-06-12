@@ -14,7 +14,8 @@
 #include "profiler_ext/VkProfilerEXT.h"
 
 struct ImGuiContext;
-struct ImGui_ImplVulkan_Context;
+class ImGui_ImplVulkan_Context;
+class ImGui_Window_Context;
 
 namespace Profiler
 {
@@ -60,6 +61,7 @@ namespace Profiler
         static std::mutex s_ImGuiMutex;
         ImGuiContext* m_pImGuiContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
+        ImGui_Window_Context* m_pImGuiWindowContext;
 
         VkDescriptorPool m_DescriptorPool;
 
@@ -97,13 +99,6 @@ namespace Profiler
 
         ProfilerAggregatedData m_Data;
         bool m_Pause;
-
-        #ifdef VK_USE_PLATFORM_WIN32_KHR
-        // Dispatch overriden window procedures
-        static LockableUnorderedMap<void*, WNDPROC> s_pfnWindowProc;
-        // Common Win32 window procedure
-        static LRESULT CALLBACK WindowProc( HWND, UINT, WPARAM, LPARAM );
-        #endif
 
         void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo );
         void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo );
