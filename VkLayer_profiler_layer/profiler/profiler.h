@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <sstream>
 
+#include "lockable_unordered_map.h"
+
 // Vendor APIs
 #include "intel/profiler_metrics_api.h"
 

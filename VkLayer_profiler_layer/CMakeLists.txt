@@ -51,6 +51,9 @@ elseif (UNIX)
 
 endif ()
 
+# Utilities
+include_directories (Utils)
+
 # Include implementation of the layer
 add_subdirectory (profiler)
 add_subdirectory (profiler_ext)

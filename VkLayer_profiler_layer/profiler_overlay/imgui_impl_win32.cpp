@@ -4,7 +4,7 @@
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM, LPARAM );
 
 // Define static fields
-Profiler::LockableUnorderedMap<HWND, WNDPROC> ImGui_ImplWin32_Context::s_AppWindowProcs;
+LockableUnorderedMap<HWND, WNDPROC> ImGui_ImplWin32_Context::s_AppWindowProcs;
 
 /***********************************************************************************\
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "imgui_window.h"
-#include "../profiler/profiler_helpers.h"
+#include "lockable_unordered_map.h"
+
 #include <Windows.h>
 
 class ImGui_ImplWin32_Context : public ImGui_Window_Context
@@ -16,7 +17,7 @@ private:
     HWND m_AppWindow;
 
     // Must be available from static WindowProc
-    static Profiler::LockableUnorderedMap<HWND, WNDPROC> s_AppWindowProcs;
+    static LockableUnorderedMap<HWND, WNDPROC> s_AppWindowProcs;
 
     void InitError();
 
