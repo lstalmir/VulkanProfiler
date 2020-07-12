@@ -63,6 +63,7 @@ namespace Profiler
         , m_CommandBuffers()
         , m_CommandFences()
         , m_CommandSemaphores()
+        , m_VendorMetricProperties()
         , m_TimestampPeriod( device.Properties.limits.timestampPeriod / 1000000.f )
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
@@ -142,6 +143,15 @@ namespace Profiler
 
         // Init vulkan
         InitializeImGuiVulkanContext( pCreateInfo );
+
+        // Get vendor metric properties
+        {
+            uint32_t vendorMetricCount = 0;
+            vkEnumerateProfilerMetricPropertiesEXT( device.Handle, &vendorMetricCount, nullptr );
+
+            m_VendorMetricProperties.resize( vendorMetricCount );
+            vkEnumerateProfilerMetricPropertiesEXT( device.Handle, &vendorMetricCount, m_VendorMetricProperties.data() );
+        }
     }
 
     /***********************************************************************************\
@@ -921,14 +931,48 @@ namespace Profiler
 
         // Vendor-specific
         if( m_Device.VendorID == VkDevice_Vendor_ID::eINTEL &&
-            ImGui::CollapsingHeader( "INTEL Performance counters" ) )
+            ImGui::CollapsingHeader( "Performance counters (INTEL)" ) )
         {
             if( !m_Data.m_VendorMetrics.empty() )
             {
-                for( const auto& [label, value] : m_Data.m_VendorMetrics )
+                assert( m_Data.m_VendorMetrics.size() == m_VendorMetricProperties.size() );
+
+                for( uint32_t i = 0; i < m_Data.m_VendorMetrics.size(); ++i )
                 {
-                    ImGui::Text( "%s", label.c_str() );
-                    TextAlignRight( "%.2f", value );
+                    const VkProfilerMetricEXT& metric = m_Data.m_VendorMetrics[ i ];
+                    const VkProfilerMetricPropertiesEXT& metricProperties = m_VendorMetricProperties[ i ];
+
+                    ImGui::Text( "%s", metricProperties.shortName );
+                    if( ImGui::IsItemHovered() )
+                    {
+                        ImGui::BeginTooltip();
+                        ImGui::PushTextWrapPos( 350.f );
+                        ImGui::TextUnformatted( metricProperties.description );
+                        ImGui::PopTextWrapPos();
+                        ImGui::EndTooltip();
+                    }
+
+                    switch( metricProperties.type )
+                    {
+                    case VK_PROFILER_METRIC_TYPE_FLOAT_EXT:
+                        TextAlignRight( "%.2f %s", metric.floatValue, metricProperties.unit );
+                        break;
+
+                    case VK_PROFILER_METRIC_TYPE_UINT32_EXT:
+                        TextAlignRight( "%u %s", metric.uint32Value, metricProperties.unit );
+                        break;
+
+                    case VK_PROFILER_METRIC_TYPE_UINT64_EXT:
+                        TextAlignRight( "%llu %s", metric.uint64Value, metricProperties.unit );
+                        break;
+
+                    case VK_PROFILER_METRIC_TYPE_BOOL_EXT:
+                        if( metric.boolValue )
+                            TextAlignRight( "True" );
+                        else
+                            TextAlignRight( "False" );
+                        break;
+                    }
                 }
             }
             else

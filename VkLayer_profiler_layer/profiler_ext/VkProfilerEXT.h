@@ -47,6 +47,15 @@ enum VkProfilerSyncModeEXT
     VK_PROFILER_SYNC_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
+enum VkProfilerMetricTypeEXT
+{
+    VK_PROFILER_METRIC_TYPE_FLOAT_EXT,
+    VK_PROFILER_METRIC_TYPE_UINT32_EXT,
+    VK_PROFILER_METRIC_TYPE_UINT64_EXT,
+    VK_PROFILER_METRIC_TYPE_BOOL_EXT,
+    VK_PROFILER_METRIC_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
+};
+
 typedef struct VkProfilerCreateInfoEXT
 {
     VkProfilerStructureTypeEXT sType;
@@ -72,10 +81,27 @@ typedef struct VkProfilerDataEXT
     VkProfilerMemoryDataEXT memory;
 } VkProfilerDataEXT;
 
+typedef struct VkProfilerMetricPropertiesEXT
+{
+    char shortName[ 64 ];
+    char description[ 256 ];
+    char unit[ 32 ];
+    VkProfilerMetricTypeEXT type;
+} VkProfilerMetricPropertiesEXT;
+
+typedef union VkProfilerMetricEXT
+{
+    float floatValue;
+    uint32_t uint32Value;
+    uint64_t uint64Value;
+    VkBool32 boolValue;
+} VkProfilerTypedMetricEXT;
+
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerModeEXT )(VkDevice, VkProfilerModeEXT);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerRegionDataEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerCommandBufferDataEXT )(VkDevice, VkCommandBuffer, VkProfilerRegionDataEXT*);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerMetricPropertiesEXT )(VkDevice, uint32_t*, VkProfilerMetricPropertiesEXT*);
 
 #ifndef VK_NO_PROTOTYPES
 VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
@@ -94,4 +120,9 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerCommandBufferDataEXT(
     VkDevice device,
     VkCommandBuffer commandBuffer,
     VkProfilerRegionDataEXT* pData );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerMetricPropertiesEXT(
+    VkDevice device,
+    uint32_t* pProfilerMetricCount,
+    VkProfilerMetricPropertiesEXT* pProfilerMetricProperties );
 #endif // VK_NO_PROTOTYPES

@@ -11,6 +11,7 @@ namespace Profiler
 {
     enum class VkDevice_Vendor_ID
     {
+        eUnknown = 0,
         eAMD = 0x1002,
         eARM = 0x13B3,
         eINTEL = 0x8086,

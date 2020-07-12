@@ -80,3 +80,54 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerCommandBufferDataEXT(
 
     return VK_SUCCESS;
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerMetricPropertiesEXT(
+    VkDevice device,
+    uint32_t* pProfilerMetricCount,
+    VkProfilerMetricPropertiesEXT* pProfilerMetricProperties )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    bool hasSufficientSpace = true;
+
+    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
+    {
+        if( (*pProfilerMetricCount) == 0 )
+        {
+            // Return number of reported metrics
+            (*pProfilerMetricCount) += dd.Profiler.m_MetricsApiINTEL.GetMetricsCount();
+        }
+        else
+        {
+            // Get reported metrics descriptions
+            const std::vector<VkProfilerMetricPropertiesEXT> intelMetricsProperties =
+                dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties();
+
+            const uint32_t returnedMetricPropertyCount =
+                std::template min<uint32_t>( (*pProfilerMetricCount), intelMetricsProperties.size() );
+
+            std::memcpy( pProfilerMetricProperties,
+                intelMetricsProperties.data(),
+                returnedMetricPropertyCount * sizeof( VkProfilerMetricPropertiesEXT ) );
+
+            // There may be other metric sources that will be appended to the end
+            pProfilerMetricProperties += returnedMetricPropertyCount;
+            (*pProfilerMetricCount) -= returnedMetricPropertyCount;
+
+            if( returnedMetricPropertyCount < intelMetricsProperties.size() )
+            {
+                hasSufficientSpace = false;
+            }
+        }
+    }
+
+    // TODO: Other metric sources (VK_KHR_performance_query)
+
+    if( !hasSufficientSpace )
+    {
+        // All vkEnumerate* functions return VK_INCOMPLETE when provided buffer was too small
+        return VK_INCOMPLETE;
+    }
+
+    return VK_SUCCESS;
+}

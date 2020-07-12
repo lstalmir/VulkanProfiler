@@ -77,6 +77,8 @@ namespace Profiler
         std::vector<VkFence> m_CommandFences;
         std::vector<VkSemaphore> m_CommandSemaphores;
 
+        std::vector<VkProfilerMetricPropertiesEXT> m_VendorMetricProperties;
+
         const float m_TimestampPeriod;
 
         enum class FrameBrowserSortMode

@@ -4,6 +4,8 @@
 #include <list>
 #include <map>
 #include <unordered_set>
+// Import extension structures
+#include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
@@ -40,7 +42,7 @@ namespace Profiler
         ProfilerAggregatedMemoryData m_Memory;
         ProfilerAggregatedCPUData m_CPU;
 
-        std::list<std::pair<std::string, float>> m_VendorMetrics;
+        std::vector<VkProfilerMetricEXT> m_VendorMetrics;
     };
 
     struct ProfilerSubmit

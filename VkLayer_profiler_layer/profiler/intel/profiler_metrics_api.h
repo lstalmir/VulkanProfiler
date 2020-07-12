@@ -4,6 +4,8 @@
 #include <list>
 #include <string>
 #include <vulkan/vulkan.h>
+// Import extension structures
+#include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
@@ -28,14 +30,18 @@ namespace Profiler
 
         size_t GetReportSize() const;
 
-        std::list<std::pair<std::string, float>> ParseReport(
+        size_t GetMetricsCount() const;
+
+        std::vector<VkProfilerMetricPropertiesEXT> GetMetricsProperties() const;
+
+        std::vector<VkProfilerMetricEXT> ParseReport(
             const char* pQueryReportData,
             size_t queryReportSize );
 
     private:
         #ifdef WIN32
         HMODULE m_hMDDll;
-        // Since we have no official support for Windows, we have to open the library manually
+        // Since there is no official support for Windows, we have to open the library manually
         static std::filesystem::path FindMetricsDiscoveryLibrary( const std::filesystem::path& );
         #endif
 
@@ -44,6 +50,8 @@ namespace Profiler
 
         MetricsDiscovery::IMetricSet_1_5* m_pActiveMetricSet;
         MetricsDiscovery::TMetricSetParams_1_4* m_pActiveMetricSetParams;
+
+        std::vector<VkProfilerMetricPropertiesEXT> m_ActiveMetricsProperties;
 
         bool LoadMetricsDiscoveryLibrary();
         void UnloadMetricsDiscoveryLibrary();
