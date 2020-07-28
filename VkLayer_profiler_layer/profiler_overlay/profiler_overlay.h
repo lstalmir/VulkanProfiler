@@ -77,7 +77,7 @@ namespace Profiler
         std::vector<VkFence> m_CommandFences;
         std::vector<VkSemaphore> m_CommandSemaphores;
 
-        std::vector<VkProfilerMetricPropertiesEXT> m_VendorMetricProperties;
+        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
 
         const float m_TimestampPeriod;
 
@@ -116,6 +116,7 @@ namespace Profiler
         void PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index, uint64_t frameTicks );
         void PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index, uint64_t frameTicks );
 
+        void TextAlignRight( float contentAreaWidth, const char* fmt, ... );
         void TextAlignRight( const char* fmt, ... );
         void DrawSignificanceRect( float significance );
 

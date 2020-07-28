@@ -42,6 +42,8 @@ endif ()
 set (imgui_widgets
     "imgui_widgets/imgui_histogram_ex.h"
     "imgui_widgets/imgui_histogram_ex.cpp"
+    "imgui_widgets/imgui_table_ex.h"
+    "imgui_widgets/imgui_table_ex.cpp"
     )
     
 # Link intermediate static library

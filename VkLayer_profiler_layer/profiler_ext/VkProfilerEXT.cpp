@@ -81,10 +81,10 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerCommandBufferDataEXT(
     return VK_SUCCESS;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerMetricPropertiesEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEXT(
     VkDevice device,
     uint32_t* pProfilerMetricCount,
-    VkProfilerMetricPropertiesEXT* pProfilerMetricProperties )
+    VkProfilerPerformanceCounterPropertiesEXT* pProfilerMetricProperties )
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
@@ -100,7 +100,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerMetricPropertiesEXT(
         else
         {
             // Get reported metrics descriptions
-            const std::vector<VkProfilerMetricPropertiesEXT> intelMetricsProperties =
+            const std::vector<VkProfilerPerformanceCounterPropertiesEXT> intelMetricsProperties =
                 dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties();
 
             const uint32_t returnedMetricPropertyCount =
@@ -108,7 +108,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerMetricPropertiesEXT(
 
             std::memcpy( pProfilerMetricProperties,
                 intelMetricsProperties.data(),
-                returnedMetricPropertyCount * sizeof( VkProfilerMetricPropertiesEXT ) );
+                returnedMetricPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
 
             // There may be other metric sources that will be appended to the end
             pProfilerMetricProperties += returnedMetricPropertyCount;

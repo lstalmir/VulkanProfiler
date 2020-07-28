@@ -129,7 +129,7 @@ file (GENERATE
     INPUT ${json}_configured)
 
 # Link against implementation
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_layer)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler)
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_ext)
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_overlay)
 

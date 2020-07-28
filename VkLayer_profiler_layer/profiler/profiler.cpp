@@ -101,7 +101,7 @@ namespace Profiler
         }
 
         // Initialize aggregator
-        m_DataAggregator.Initialize( pDevice );
+        m_DataAggregator.Initialize( this );
 
         return VK_SUCCESS;
     }
@@ -235,7 +235,7 @@ namespace Profiler
     }
 
     /***********************************************************************************\
-    
+
     Function:
         RegisterCommandBuffers
 
@@ -570,14 +570,6 @@ namespace Profiler
         // TMP
         std::scoped_lock lk( m_DataMutex );
         m_Data = m_DataAggregator.GetAggregatedData();
-
-        // TODO: Move to aggregator
-        if( m_MetricsApiINTEL.IsAvailable() )
-        {
-            m_Data.m_VendorMetrics = m_MetricsApiINTEL.ParseReport(
-                m_Data.m_Submits.front().m_CommandBuffers.front().tmp.data(),
-                m_Data.m_Submits.front().m_CommandBuffers.front().tmp.size() );
-        }
 
         // TODO: Move to CPU tracker
         m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();

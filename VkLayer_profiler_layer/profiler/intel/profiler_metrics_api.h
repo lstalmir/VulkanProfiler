@@ -32,9 +32,9 @@ namespace Profiler
 
         size_t GetMetricsCount() const;
 
-        std::vector<VkProfilerMetricPropertiesEXT> GetMetricsProperties() const;
+        std::vector<VkProfilerPerformanceCounterPropertiesEXT> GetMetricsProperties() const;
 
-        std::vector<VkProfilerMetricEXT> ParseReport(
+        std::vector<VkProfilerPerformanceCounterResultEXT> ParseReport(
             const char* pQueryReportData,
             size_t queryReportSize );
 
@@ -48,15 +48,24 @@ namespace Profiler
         MetricsDiscovery::IMetricsDevice_1_5* m_pDevice;
         MetricsDiscovery::TMetricsDeviceParams_1_2* m_pDeviceParams;
 
+        MetricsDiscovery::IConcurrentGroup_1_5* m_pConcurrentGroup;
+        MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
+
         MetricsDiscovery::IMetricSet_1_5* m_pActiveMetricSet;
         MetricsDiscovery::TMetricSetParams_1_4* m_pActiveMetricSetParams;
 
-        std::vector<VkProfilerMetricPropertiesEXT> m_ActiveMetricsProperties;
+        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_ActiveMetricsProperties;
+
+        // Some metrics are reported in premultiplied units, e.g., MHz
+        // This vector contains factors applied to each metric in output reports
+        std::vector<double> m_MetricFactors;
 
         bool LoadMetricsDiscoveryLibrary();
         void UnloadMetricsDiscoveryLibrary();
 
         bool OpenMetricsDevice();
         void CloseMetricsDevice();
+
+        static VkProfilerPerformanceCounterUnitEXT TranslateUnit( const char* pUnit, double& factor );
     };
 }

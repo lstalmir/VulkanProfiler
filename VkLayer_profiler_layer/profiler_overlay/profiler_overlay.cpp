@@ -5,6 +5,7 @@
 #include <stack>
 
 #include "imgui_widgets/imgui_histogram_ex.h"
+#include "imgui_widgets/imgui_table_ex.h"
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "imgui_impl_win32.h"
@@ -130,7 +131,7 @@ namespace Profiler
         ImGuiIO& io = ImGui::GetIO();
         io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
         io.DeltaTime = 1.0f / 60.0f;
-
+        io.IniFilename = "VK_LAYER_profiler_imgui.ini";
         io.ConfigFlags = ImGuiConfigFlags_None;
 
         // Build atlas
@@ -147,10 +148,10 @@ namespace Profiler
         // Get vendor metric properties
         {
             uint32_t vendorMetricCount = 0;
-            vkEnumerateProfilerMetricPropertiesEXT( device.Handle, &vendorMetricCount, nullptr );
+            vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, &vendorMetricCount, nullptr );
 
             m_VendorMetricProperties.resize( vendorMetricCount );
-            vkEnumerateProfilerMetricPropertiesEXT( device.Handle, &vendorMetricCount, m_VendorMetricProperties.data() );
+            vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, &vendorMetricCount, m_VendorMetricProperties.data() );
         }
     }
 
@@ -930,20 +931,34 @@ namespace Profiler
         }
 
         // Vendor-specific
-        if( m_Device.VendorID == VkDevice_Vendor_ID::eINTEL &&
-            ImGui::CollapsingHeader( "Performance counters (INTEL)" ) )
+        if( !m_Data.m_VendorMetrics.empty() &&
+            ImGui::CollapsingHeader( "Performance counters" ) )
         {
-            if( !m_Data.m_VendorMetrics.empty() )
+            assert( m_Data.m_VendorMetrics.size() == m_VendorMetricProperties.size() );
+
+            ImGui::BeginTable( "Performance counters table",
+                /* columns_count */ 3,
+                ImGuiTableFlags_Resizable |
+                ImGuiTableFlags_NoClipX |
+                ImGuiTableFlags_Borders );
+
+            // Headers
+            ImGui::TableSetupColumn( "Metric", ImGuiTableColumnFlags_WidthAlwaysAutoResize );
+            ImGui::TableSetupColumn( "Frame", ImGuiTableColumnFlags_WidthStretch );
+            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthAlwaysAutoResize );
+            ImGui::TableAutoHeaders();
+
+            for( uint32_t i = 0; i < m_Data.m_VendorMetrics.size(); ++i )
             {
-                assert( m_Data.m_VendorMetrics.size() == m_VendorMetricProperties.size() );
+                const VkProfilerPerformanceCounterResultEXT& metric = m_Data.m_VendorMetrics[ i ];
+                const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = m_VendorMetricProperties[ i ];
 
-                for( uint32_t i = 0; i < m_Data.m_VendorMetrics.size(); ++i )
+                ImGui::TableNextCell();
                 {
-                    const VkProfilerMetricEXT& metric = m_Data.m_VendorMetrics[ i ];
-                    const VkProfilerMetricPropertiesEXT& metricProperties = m_VendorMetricProperties[ i ];
-
                     ImGui::Text( "%s", metricProperties.shortName );
-                    if( ImGui::IsItemHovered() )
+
+                    if( ImGui::IsItemHovered() &&
+                        metricProperties.description[ 0 ] )
                     {
                         ImGui::BeginTooltip();
                         ImGui::PushTextWrapPos( 350.f );
@@ -951,34 +966,57 @@ namespace Profiler
                         ImGui::PopTextWrapPos();
                         ImGui::EndTooltip();
                     }
+                }
 
-                    switch( metricProperties.type )
+                ImGui::TableNextCell();
+                {
+                    const float columnWidth = ImGuiX::TableGetColumnWidth();
+                    switch( metricProperties.storage )
                     {
-                    case VK_PROFILER_METRIC_TYPE_FLOAT_EXT:
-                        TextAlignRight( "%.2f %s", metric.floatValue, metricProperties.unit );
+                    case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
+                        TextAlignRight( columnWidth, "%.2f", metric.float32 );
                         break;
 
-                    case VK_PROFILER_METRIC_TYPE_UINT32_EXT:
-                        TextAlignRight( "%u %s", metric.uint32Value, metricProperties.unit );
+                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                        TextAlignRight( columnWidth, "%u", metric.uint32 );
                         break;
 
-                    case VK_PROFILER_METRIC_TYPE_UINT64_EXT:
-                        TextAlignRight( "%llu %s", metric.uint64Value, metricProperties.unit );
-                        break;
-
-                    case VK_PROFILER_METRIC_TYPE_BOOL_EXT:
-                        if( metric.boolValue )
-                            TextAlignRight( "True" );
-                        else
-                            TextAlignRight( "False" );
+                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                        TextAlignRight( columnWidth, "%llu", metric.uint64 );
                         break;
                     }
                 }
+
+                ImGui::TableNextCell();
+                {
+                    const char* pUnitString = "???";
+
+                    assert( metricProperties.unit < 11 );
+                    static const char* const ppUnitString[ 11 ] =
+                    {
+                        "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
+                        "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
+                        "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
+                        "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
+                        "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
+                        "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
+                        "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
+                        "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
+                        "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
+                        "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
+                        "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
+                    };
+
+                    if( metricProperties.unit < 11 )
+                    {
+                        pUnitString = ppUnitString[ metricProperties.unit ];
+                    }
+
+                    ImGui::TextUnformatted( pUnitString );
+                }
             }
-            else
-            {
-                ImGui::Text( "No metrics available" );
-            }
+
+            ImGui::EndTable();
         }
 
         // Frame browser
@@ -1487,6 +1525,32 @@ namespace Profiler
 
     Function:
         TextAlignRight
+
+    Description:
+        Displays text in the next line, aligned to right.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::TextAlignRight( float contentAreaWidth, const char* fmt, ... )
+    {
+        va_list args;
+        va_start( args, fmt );
+
+        char text[ 128 ];
+        vsprintf( text, fmt, args );
+
+        va_end( args );
+
+        uint32_t textSize = ImGui::CalcTextSize( text ).x;
+
+        ImGui::SameLine( contentAreaWidth - textSize );
+        ImGui::TextUnformatted( text );
+    }
+
+
+    /***********************************************************************************\
+
+    Function:
+        TextAlignRightSameLine
 
     Description:
         Displays text in the same line, aligned to right.

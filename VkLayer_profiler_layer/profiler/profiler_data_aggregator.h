@@ -9,7 +9,8 @@
 
 namespace Profiler
 {
-    class VkDevice_Object;
+    class DeviceProfiler;
+    struct VkDevice_Object;
 
     struct ProfilerAggregatedMemoryData
     {
@@ -42,7 +43,7 @@ namespace Profiler
         ProfilerAggregatedMemoryData m_Memory;
         ProfilerAggregatedCPUData m_CPU;
 
-        std::vector<VkProfilerMetricEXT> m_VendorMetrics;
+        std::vector<VkProfilerPerformanceCounterResultEXT> m_VendorMetrics;
     };
 
     struct ProfilerSubmit
@@ -69,7 +70,7 @@ namespace Profiler
     class ProfilerDataAggregator
     {
     public:
-        VkResult Initialize( VkDevice_Object* );
+        VkResult Initialize( DeviceProfiler* );
 
         void AppendSubmit( const ProfilerSubmit& );
         
@@ -78,6 +79,8 @@ namespace Profiler
         ProfilerAggregatedData GetAggregatedData();
 
     private:
+        DeviceProfiler* m_pProfiler;
+
         std::list<ProfilerSubmit> m_Submits;
 
         std::list<ProfilerSubmitData> m_AggregatedData;
@@ -90,12 +93,14 @@ namespace Profiler
         ProfilerPipeline m_PipelineBarrierPipeline;
         ProfilerPipeline m_ResolvePipeline;
 
+        // Vendor-specific metric properties
+        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
+
         void InitializePipeline( VkDevice_Object*, ProfilerPipeline&, uint32_t );
 
         void MergeCommandBuffers();
 
-        //std::unordered_set<ProfilerShaderTuple> CollectShaderTuples( const ProfilerSubmitData& ) const;
-        //std::unordered_set<ProfilerShaderTuple> CollectShaderTuples( const ProfilerCommandBufferData& ) const;
+        std::vector<VkPerformanceCounterResultKHR> AggregateVendorMetrics() const;
 
         std::list<ProfilerPipeline> CollectTopPipelines();
     };

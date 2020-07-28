@@ -54,7 +54,7 @@ namespace Profiler
     \***********************************************************************************/
     struct ProfilerCommandBufferData : ProfilerRangeStatsCollector<VkCommandBuffer, ProfilerRenderPass>
     {
-        std::vector<char> tmp;
+        std::vector<char> m_PerformanceQueryReportINTEL;
     };
 
     /***********************************************************************************\

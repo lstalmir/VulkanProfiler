@@ -46,11 +46,13 @@ namespace Profiler
             createInfo.queryType = VK_QUERY_TYPE_PERFORMANCE_QUERY_INTEL;
             createInfo.queryCount = 1;
 
-            m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
+            VkResult result = m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
                 m_Profiler.m_pDevice->Handle,
                 &createInfo,
                 nullptr,
                 &m_PerformanceQueryPoolINTEL );
+
+            assert( result == VK_SUCCESS );
         }
     }
 
@@ -158,7 +160,7 @@ namespace Profiler
 
         if( pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT )
         {
-            //__debugbreak();
+            __debugbreak();
         }
 
         if( m_PerformanceQueryPoolINTEL )
@@ -677,16 +679,20 @@ namespace Profiler
             {
                 const size_t reportSize = m_Profiler.m_MetricsApiINTEL.GetReportSize();
 
-                m_Data.tmp.resize( reportSize );
+                m_Data.m_PerformanceQueryReportINTEL.resize( reportSize );
 
                 VkResult result = m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
                     m_Profiler.m_pDevice->Handle,
                     m_PerformanceQueryPoolINTEL,
                     0, 1, reportSize,
-                    m_Data.tmp.data(),
+                    m_Data.m_PerformanceQueryReportINTEL.data(),
                     reportSize, 0 );
 
-                assert( result == VK_SUCCESS );
+                if( result != VK_SUCCESS )
+                {
+                    // No data available
+                    m_Data.m_PerformanceQueryReportINTEL.clear();
+                }
             }
 
             // Subsequent calls to GetData will return the same results

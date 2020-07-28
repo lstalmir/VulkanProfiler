@@ -3,7 +3,7 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler_layer)
+project (profiler)
 
 set (headers
     "profiler.h"
@@ -43,24 +43,24 @@ set (intel
     )
 
 # Link intermediate static library
-add_library (profiler_layer
+add_library (profiler
     ${sources}
     ${headers}
     ${farmhash}
     ${intel})
 
-target_compile_definitions (profiler_layer
+target_compile_definitions (profiler
     PRIVATE -DNAMESPACE_FOR_HASH_FUNCTIONS=Profiler::Hash
     )
 
 if (MSVC)
     # Disable __builtin_expect in MSVC builds
-    target_compile_definitions (profiler_layer
+    target_compile_definitions (profiler
         PRIVATE -DFARMHASH_NO_BUILTIN_EXPECT)
 endif ()
 
 # Set include path
-target_include_directories (profiler_layer
+target_include_directories (profiler
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..

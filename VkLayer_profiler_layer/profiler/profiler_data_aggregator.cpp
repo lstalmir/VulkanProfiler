@@ -1,6 +1,9 @@
 #include "profiler_data_aggregator.h"
+#include "profiler.h"
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
+#include "intel/profiler_metrics_api.h"
+#include <assert.h>
 #include <unordered_set>
 
 namespace Profiler
@@ -15,6 +18,85 @@ namespace Profiler
         { RESOLVE_TUPLE_HASH, "Resolve" }
     };
 
+    struct SumAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
+        {
+            acc += value;
+        }
+    };
+
+    struct AvgAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t& accWeight, T& acc, uint64_t valueWeight, const T& value ) const
+        {
+            accWeight += valueWeight;
+            acc += valueWeight * value;
+        }
+    };
+
+    struct NormAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t valueWeight, const T& value ) const
+        {
+            if( valueWeight > 0 )
+                acc = static_cast<T>(value / static_cast<double>(valueWeight));
+            else
+                acc = value;
+        }
+    };
+
+    template<typename AggregatorType>
+    static inline void Aggregate(
+        uint64_t& accWeight,
+        VkProfilerPerformanceCounterResultEXT& acc,
+        uint64_t valueWeight,
+        const VkProfilerPerformanceCounterResultEXT& value,
+        VkProfilerPerformanceCounterStorageEXT storage )
+    {
+        AggregatorType aggregator;
+        switch( storage )
+        {
+        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+            aggregator( accWeight, acc.float32, valueWeight, value.float32 );
+            break;
+
+        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+            aggregator( accWeight, acc.float64, valueWeight, value.float64 );
+            break;
+
+        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+            aggregator( accWeight, acc.int32, valueWeight, value.int32 );
+            break;
+
+        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+            aggregator( accWeight, acc.int64, valueWeight, value.int64 );
+            break;
+
+        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+            aggregator( accWeight, acc.uint32, valueWeight, value.uint32 );
+            break;
+
+        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+            aggregator( accWeight, acc.uint64, valueWeight, value.uint64 );
+            break;
+        }
+    }
+
+    template<typename AggregatorType>
+    static inline void Aggregate(
+        VkProfilerPerformanceCounterResultEXT& acc,
+        uint64_t valueWeight,
+        const VkProfilerPerformanceCounterResultEXT& value,
+        VkProfilerPerformanceCounterStorageEXT storage )
+    {
+        uint64_t dummy = 0;
+        Aggregate<AggregatorType>( dummy, acc, valueWeight, value, storage );
+    }
+
     /***********************************************************************************\
 
     Function:
@@ -24,14 +106,17 @@ namespace Profiler
         Initializer.
 
     \***********************************************************************************/
-    VkResult ProfilerDataAggregator::Initialize( VkDevice_Object* pDevice )
+    VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
-        InitializePipeline( pDevice, m_CopyPipeline, COPY_TUPLE_HASH );
-        InitializePipeline( pDevice, m_ClearPipeline, CLEAR_TUPLE_HASH );
-        InitializePipeline( pDevice, m_BeginRenderPassPipeline, BEGIN_RENDER_PASS_TUPLE_HASH );
-        InitializePipeline( pDevice, m_EndRenderPassPipeline, END_RENDER_PASS_TUPLE_HASH );
-        InitializePipeline( pDevice, m_PipelineBarrierPipeline, PIPELINE_BARRIER_TUPLE_HASH );
-        InitializePipeline( pDevice, m_ResolvePipeline, RESOLVE_TUPLE_HASH );
+        m_pProfiler = pProfiler;
+        m_VendorMetricProperties = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties();
+
+        InitializePipeline( m_pProfiler->m_pDevice, m_CopyPipeline, COPY_TUPLE_HASH );
+        InitializePipeline( m_pProfiler->m_pDevice, m_ClearPipeline, CLEAR_TUPLE_HASH );
+        InitializePipeline( m_pProfiler->m_pDevice, m_BeginRenderPassPipeline, BEGIN_RENDER_PASS_TUPLE_HASH );
+        InitializePipeline( m_pProfiler->m_pDevice, m_EndRenderPassPipeline, END_RENDER_PASS_TUPLE_HASH );
+        InitializePipeline( m_pProfiler->m_pDevice, m_PipelineBarrierPipeline, PIPELINE_BARRIER_TUPLE_HASH );
+        InitializePipeline( m_pProfiler->m_pDevice, m_ResolvePipeline, RESOLVE_TUPLE_HASH );
 
         return VK_SUCCESS;
     }
@@ -140,11 +225,13 @@ namespace Profiler
 
         auto aggregatedSubmits = m_AggregatedData;
         auto aggregatedPipelines = CollectTopPipelines();
+        auto aggregatedVendorMetrics = AggregateVendorMetrics();
 
         ProfilerAggregatedData aggregatedData;
         aggregatedData.m_Stats.Clear();
         aggregatedData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
         aggregatedData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
+        aggregatedData.m_VendorMetrics = aggregatedVendorMetrics;
 
         for( const auto& submit : aggregatedData.m_Submits )
         {
@@ -189,6 +276,106 @@ namespace Profiler
 
             m_AggregatedData.push_back( submitData );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AggregateVendorMetrics
+
+    Description:
+        Merge vendor metrics collected from different command buffers.
+
+    \***********************************************************************************/
+    std::vector<VkPerformanceCounterResultKHR> ProfilerDataAggregator::AggregateVendorMetrics() const
+    {
+        const uint32_t metricCount = m_VendorMetricProperties.size();
+
+        // No vendor metrics available
+        if( metricCount == 0 )
+            return {};
+
+        // Helper structure containing aggregated metric value and its weight.
+        struct __WeightedMetric
+        {
+            VkProfilerPerformanceCounterResultEXT value;
+            uint64_t weight;
+        };
+
+        std::vector<__WeightedMetric> aggregatedVendorMetrics( metricCount );
+
+        for( const ProfilerSubmitData& submitData : m_AggregatedData )
+        {
+            for( const ProfilerCommandBufferData& commandBufferData : submitData.m_CommandBuffers )
+            {
+                // Preprocess metrics for the command buffer
+                const std::vector<VkPerformanceCounterResultKHR> commandBufferVendorMetrics =
+                    m_pProfiler->m_MetricsApiINTEL.ParseReport(
+                        commandBufferData.m_PerformanceQueryReportINTEL.data(),
+                        commandBufferData.m_PerformanceQueryReportINTEL.size() );
+
+                assert( commandBufferVendorMetrics.size() == metricCount );
+
+                for( uint32_t i = 0; i < metricCount; ++i )
+                {
+                    // Get metric accumulator
+                    __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+
+                    switch( m_VendorMetricProperties[ i ].unit )
+                    {
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_EXT:
+                    {
+                        // Metrics aggregated by sum
+                        Aggregate<SumAggregator>(
+                            weightedMetric.weight,
+                            weightedMetric.value,
+                            commandBufferData.m_Stats.m_TotalTicks,
+                            commandBufferVendorMetrics[ i ],
+                            m_VendorMetricProperties[ i ].storage );
+
+                        break;
+                    }
+
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_AMPS_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_HERTZ_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_KELVIN_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_VOLTS_EXT:
+                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_WATTS_EXT:
+                    {
+                        // Metrics aggregated by average
+                        Aggregate<AvgAggregator>(
+                            weightedMetric.weight,
+                            weightedMetric.value,
+                            commandBufferData.m_Stats.m_TotalTicks,
+                            commandBufferVendorMetrics[ i ],
+                            m_VendorMetricProperties[ i ].storage );
+
+                        break;
+                    }
+                    }
+                }
+            }
+        }
+
+        // Normalize aggregated metrics by weight
+        std::vector<VkPerformanceCounterResultKHR> normalizedAggregatedVendorMetrics( metricCount );
+
+        for( uint32_t i = 0; i < metricCount; ++i )
+        {
+            const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+            Aggregate<NormAggregator>(
+                normalizedAggregatedVendorMetrics[ i ],
+                weightedMetric.weight,
+                weightedMetric.value,
+                m_VendorMetricProperties[ i ].storage );
+        }
+
+        return normalizedAggregatedVendorMetrics;
     }
 
     #if 0
