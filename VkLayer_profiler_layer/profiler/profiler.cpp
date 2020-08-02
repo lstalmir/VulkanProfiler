@@ -251,13 +251,10 @@ namespace Profiler
         {
             VkCommandBuffer commandBuffer = pCommandBuffers[ i ];
 
-            auto emplaced = m_CommandBuffers.try_emplace( commandBuffer,
+            m_CommandBuffers.try_emplace( commandBuffer,
                 std::ref( *this ),
                 commandPool,
                 commandBuffer );
-
-            // Should create new object
-            assert( emplaced.second );
         }
     }
 

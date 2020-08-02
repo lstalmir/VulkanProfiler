@@ -683,7 +683,7 @@ namespace Profiler
                 delete m_pImGuiWindowContext;
             }
 
-            m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
+            m_pImGuiWindowContext = new ImGui_ImplWin32_Context( m_pImGuiContext, window.Win32Handle );
         }
         #endif // VK_USE_PLATFORM_WIN32_KHR
 
