@@ -120,6 +120,144 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CmdBeginRenderPass2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdBeginRenderPass2(
+        VkCommandBuffer commandBuffer,
+        const VkRenderPassBeginInfo* pBeginInfo,
+        const VkSubpassBeginInfo* pSubpassBeginInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo );
+
+        // Begin the render pass
+        dd.Device.Callbacks.CmdBeginRenderPass2( commandBuffer, pBeginInfo, pSubpassBeginInfo );
+
+        profiledCommandBuffer.PostBeginRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdEndRenderPass2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdEndRenderPass2(
+        VkCommandBuffer commandBuffer,
+        const VkSubpassEndInfo* pSubpassEndInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreEndRenderPass();
+
+        // End the render pass
+        dd.Device.Callbacks.CmdEndRenderPass2( commandBuffer, pSubpassEndInfo );
+
+        profiledCommandBuffer.PostEndRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdNextSubpass2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdNextSubpass2(
+        VkCommandBuffer commandBuffer,
+        const VkSubpassBeginInfo* pSubpassBeginInfo,
+        const VkSubpassEndInfo* pSubpassEndInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.NextSubpass( pSubpassBeginInfo->contents );
+
+        // Begin next subpass
+        dd.Device.Callbacks.CmdNextSubpass2( commandBuffer, pSubpassBeginInfo, pSubpassEndInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdBeginRenderPass2KHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdBeginRenderPass2KHR(
+        VkCommandBuffer commandBuffer,
+        const VkRenderPassBeginInfo* pBeginInfo,
+        const VkSubpassBeginInfoKHR* pSubpassBeginInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo );
+
+        // Begin the render pass
+        dd.Device.Callbacks.CmdBeginRenderPass2KHR( commandBuffer, pBeginInfo, pSubpassBeginInfo );
+
+        profiledCommandBuffer.PostBeginRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdEndRenderPass2KHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdEndRenderPass2KHR(
+        VkCommandBuffer commandBuffer,
+        const VkSubpassEndInfoKHR* pSubpassEndInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreEndRenderPass();
+
+        // End the render pass
+        dd.Device.Callbacks.CmdEndRenderPass2KHR( commandBuffer, pSubpassEndInfo );
+
+        profiledCommandBuffer.PostEndRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdNextSubpass2KHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdNextSubpass2KHR(
+        VkCommandBuffer commandBuffer,
+        const VkSubpassBeginInfoKHR* pSubpassBeginInfo,
+        const VkSubpassEndInfoKHR* pSubpassEndInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.NextSubpass( pSubpassBeginInfo->contents );
+
+        // Begin next subpass
+        dd.Device.Callbacks.CmdNextSubpass2KHR( commandBuffer, pSubpassBeginInfo, pSubpassEndInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CmdBindPipeline
 
     Description:
@@ -282,6 +420,180 @@ namespace Profiler
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexedIndirect(
             commandBuffer, buffer, offset, drawCount, stride );
+
+        profiledCommandBuffer.PostDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndirectCount
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndirectCount(
+        VkCommandBuffer commandBuffer,
+        VkBuffer argsBuffer,
+        VkDeviceSize argsOffset,
+        VkBuffer countBuffer,
+        VkDeviceSize countOffset,
+        uint32_t maxDrawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreDrawIndirect();
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdDrawIndirectCount(
+            commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
+
+        profiledCommandBuffer.PostDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndexedIndirectCount
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndexedIndirectCount(
+        VkCommandBuffer commandBuffer,
+        VkBuffer argsBuffer,
+        VkDeviceSize argsOffset,
+        VkBuffer countBuffer,
+        VkDeviceSize countOffset,
+        uint32_t maxDrawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreDrawIndirect();
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdDrawIndexedIndirectCount(
+            commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
+
+        profiledCommandBuffer.PostDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndirectCountKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndirectCountKHR(
+        VkCommandBuffer commandBuffer,
+        VkBuffer argsBuffer,
+        VkDeviceSize argsOffset,
+        VkBuffer countBuffer,
+        VkDeviceSize countOffset,
+        uint32_t maxDrawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreDrawIndirect();
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdDrawIndirectCountKHR(
+            commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
+
+        profiledCommandBuffer.PostDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndexedIndirectCountKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndexedIndirectCountKHR(
+        VkCommandBuffer commandBuffer,
+        VkBuffer argsBuffer,
+        VkDeviceSize argsOffset,
+        VkBuffer countBuffer,
+        VkDeviceSize countOffset,
+        uint32_t maxDrawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreDrawIndirect();
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdDrawIndexedIndirectCountKHR(
+            commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
+
+        profiledCommandBuffer.PostDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndirectCountAMD
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndirectCountAMD(
+        VkCommandBuffer commandBuffer,
+        VkBuffer argsBuffer,
+        VkDeviceSize argsOffset,
+        VkBuffer countBuffer,
+        VkDeviceSize countOffset,
+        uint32_t maxDrawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreDrawIndirect();
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdDrawIndirectCountAMD(
+            commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
+
+        profiledCommandBuffer.PostDrawIndirect();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdDrawIndexedIndirectCountAMD
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdDrawIndexedIndirectCountAMD(
+        VkCommandBuffer commandBuffer,
+        VkBuffer argsBuffer,
+        VkDeviceSize argsOffset,
+        VkBuffer countBuffer,
+        VkDeviceSize countOffset,
+        uint32_t maxDrawCount,
+        uint32_t stride )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreDrawIndirect();
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdDrawIndexedIndirectCountAMD(
+            commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
         profiledCommandBuffer.PostDrawIndirect();
     }
