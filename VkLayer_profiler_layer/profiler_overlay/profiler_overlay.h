@@ -42,6 +42,8 @@ namespace Profiler
 
         ~ProfilerOverlayOutput();
 
+        VkSwapchainKHR GetSwapchain() const;
+
         void ResetSwapchain(
             VkSwapchainKHR_Object& swapchain,
             const VkSwapchainCreateInfoKHR* pCreateInfo );

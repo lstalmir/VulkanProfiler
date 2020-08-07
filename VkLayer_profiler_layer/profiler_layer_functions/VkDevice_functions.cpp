@@ -394,7 +394,13 @@ namespace Profiler
 
         if( dd.pOverlay )
         {
-            Destroy<ProfilerOverlayOutput>( dd.pOverlay );
+            // After recreating swapchain using CreateSwapchainKHR parent swapchain of the overlay has changed.
+            // The old swapchain is then destroyed and will invalidate the overlay if we don't check which
+            // swapchain is actually being destreoyed.
+            if( dd.pOverlay->GetSwapchain() == swapchain )
+            {
+                Destroy<ProfilerOverlayOutput>( dd.pOverlay );
+            }
         }
 
         dd.Device.Swapchains.erase( swapchain );

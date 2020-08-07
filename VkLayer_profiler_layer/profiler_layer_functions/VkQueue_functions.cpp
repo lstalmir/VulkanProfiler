@@ -25,8 +25,11 @@ namespace Profiler
 
         if( dd.pOverlay )
         {
-            // Display overlay
-            dd.pOverlay->Present( dd.Profiler.GetData(), presentQueue, &presentInfo );
+            if( dd.pOverlay->GetSwapchain() == presentInfo.pSwapchains[ 0 ] )
+            {
+                // Display overlay
+                dd.pOverlay->Present( dd.Profiler.GetData(), presentQueue, &presentInfo );
+            }
         }
 
         // Present the image

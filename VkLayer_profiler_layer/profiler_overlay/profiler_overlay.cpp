@@ -266,6 +266,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetSwapchain
+
+    Description:
+        Return swapchain the overlay is associated with.
+
+    \***********************************************************************************/
+    VkSwapchainKHR ProfilerOverlayOutput::GetSwapchain() const
+    {
+        return m_pSwapchain->Handle;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ResetSwapchain
 
     Description:
@@ -354,9 +368,6 @@ namespace Profiler
         }
 
         // Recreate image views and framebuffers 
-        if( pCreateInfo->imageExtent.width != m_RenderArea.width ||
-            pCreateInfo->imageExtent.height != m_RenderArea.height ||
-            swapchainImageCount != m_Images.size() )
         {
             if( !m_Images.empty() )
             {
