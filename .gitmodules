@@ -25,3 +25,6 @@
 [submodule "VkLayer_profiler_layer/profiler/intel/metrics-discovery"]
 	path = VkLayer_profiler_layer/profiler/intel/metrics-discovery
 	url = https://github.com/intel/metrics-discovery
+[submodule "VkLayer_profiler_layer/profiler_ult/googletest"]
+	path = VkLayer_profiler_layer/profiler_ult/googletest
+	url = https://github.com/google/googletest

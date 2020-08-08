@@ -51,6 +51,9 @@ elseif (UNIX)
 
 endif ()
 
+# Generated files
+include_directories (${CMAKE_CURRENT_BINARY_DIR})
+
 # Utilities
 include_directories (Utils)
 
@@ -58,6 +61,9 @@ include_directories (Utils)
 add_subdirectory (profiler)
 add_subdirectory (profiler_ext)
 add_subdirectory (profiler_overlay)
+
+# Enable tests
+add_subdirectory (profiler_ult)
 
 set (resource
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc
@@ -89,7 +95,6 @@ set (sources
     "profiler_layer_functions/VkInstance_functions.cpp"
     "profiler_layer_functions/VkLoader_functions.cpp"
     "profiler_layer_functions/VkQueue_functions.cpp"
-    "VkLayer_profiler_layer.cpp"
     )
 
 # Configure resources file
@@ -116,12 +121,15 @@ configure_file (
     ${json}_configured
     @ONLY)
 
-# Add sources to this project's executable.
-add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
+add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
     ${sources}
     ${headers}
     ${utils}
-    ${generated}
+    ${generated})
+
+# Add sources to this project's executable.
+add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
+    "VkLayer_profiler_layer.cpp"
     ${resource})
 
 file (GENERATE
@@ -129,14 +137,16 @@ file (GENERATE
     INPUT ${json}_configured)
 
 # Link against implementation
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler)
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_ext)
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME} profiler_overlay)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib PUBLIC profiler)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib PUBLIC profiler_ext)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib PUBLIC profiler_overlay)
+
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME} PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
 
 # Set include path
-target_include_directories (${PROFILER_LAYER_PROJECTNAME}
-    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
-    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
+target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
+    PUBLIC ${VULKAN_HEADERS_INCLUDE_DIR}
+    PUBLIC ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
