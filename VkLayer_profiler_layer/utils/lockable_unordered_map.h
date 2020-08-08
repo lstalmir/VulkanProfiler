@@ -61,7 +61,7 @@ public:
     template<typename... Args>
     auto interlocked_try_emplace( const KeyType& key, Args... arguments )
     {
-        std::scoped_lock<std::mutex> lk( m_Mtx );
+        std::scoped_lock lk( m_Mtx );
         return BaseType::try_emplace( key, arguments... );
     }
 
@@ -69,7 +69,7 @@ public:
     template<typename... Args>
     auto interlocked_emplace( const KeyType& key, Args... arguments )
     {
-        std::scoped_lock<std::mutex> lk( m_Mtx );
+        std::scoped_lock lk( m_Mtx );
         return BaseType::emplace( key, arguments... );
     }
 };

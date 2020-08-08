@@ -96,6 +96,7 @@ namespace Profiler
         GETPROCADDR( CmdEndRenderPass2KHR );
         GETPROCADDR( CmdNextSubpass2KHR );
         GETPROCADDR( CmdBindPipeline );
+        GETPROCADDR( CmdExecuteCommands );
         GETPROCADDR( CmdPipelineBarrier );
         GETPROCADDR( CmdDraw );
         GETPROCADDR( CmdDrawIndirect );
@@ -600,6 +601,7 @@ namespace Profiler
             // Begin profiling
             dd.Profiler.RegisterCommandBuffers(
                 pAllocateInfo->commandPool,
+                pAllocateInfo->level,
                 pAllocateInfo->commandBufferCount,
                 pCommandBuffers );
         }

@@ -78,6 +78,12 @@ namespace Profiler
             VkPipelineBindPoint bindPoint,
             VkPipeline pipeline );
 
+        // vkCmdExecuteCommands
+        static VKAPI_ATTR void VKAPI_CALL CmdExecuteCommands(
+            VkCommandBuffer commandBuffer,
+            uint32_t commandBufferCount,
+            const VkCommandBuffer* pCommandBuffers );
+
         // vkPipelineBarrier
         static VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier(
             VkCommandBuffer commandBuffer,

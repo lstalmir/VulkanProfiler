@@ -662,6 +662,11 @@ namespace Profiler
             UpdateStatisticsTab();
             ImGui::EndTabItem();
         }
+        if( ImGui::BeginTabItem( "Self" ) )
+        {
+            UpdateSelfTab();
+            ImGui::EndTabItem();
+        }
         if( ImGui::BeginTabItem( "Settings" ) )
         {
             UpdateSettingsTab();
@@ -877,23 +882,30 @@ namespace Profiler
                                 // Enumerate subpasses in render pass
                                 for( const auto& subpass : renderPass.m_Subregions )
                                 {
-                                    // Enumerate pipelines in subpass
-                                    for( const auto& pipeline : subpass.m_Subregions )
+                                    if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                                     {
-                                        if( m_HistogramGroupMode > HistogramGroupMode::ePipeline )
+                                        // Enumerate pipelines in subpass
+                                        for( const auto& pipeline : subpass.m_Pipelines )
                                         {
-                                            // Enumerate drawcalls in pipeline
-                                            for( const auto& drawcall : pipeline.m_Subregions )
+                                            if( m_HistogramGroupMode > HistogramGroupMode::ePipeline )
                                             {
-                                                // Insert drawcall cycle count to histogram
-                                                contributions.push_back( drawcall.m_Ticks );
+                                                // Enumerate drawcalls in pipeline
+                                                for( const auto& drawcall : pipeline.m_Subregions )
+                                                {
+                                                    // Insert drawcall cycle count to histogram
+                                                    contributions.push_back( drawcall.m_Ticks );
+                                                }
+                                            }
+                                            else
+                                            {
+                                                // Insert pipeline cycle count to histogram
+                                                contributions.push_back( pipeline.m_Stats.m_TotalTicks );
                                             }
                                         }
-                                        else
-                                        {
-                                            // Insert pipeline cycle count to histogram
-                                            contributions.push_back( pipeline.m_Stats.m_TotalTicks );
-                                        }
+                                    }
+                                    else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                                    {
+                                        // TODO
                                     }
                                 }
                             }
@@ -1219,6 +1231,24 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        UpdateSelfTab
+
+    Description:
+        Updates "Self" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateSelfTab()
+    {
+        // Print self test values
+        {
+            ImGui::Text( "VkCommandBuffer lookup time:      %.2f ms", m_Data.m_Self.m_CommandBufferLookupTimeNs / 1000000.f );
+            ImGui::Text( "VkPipeline lookup time:           %.2f ms", m_Data.m_Self.m_PipelineLookupTimeNs / 1000000.f );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UpdateSettingsTab
 
     Description:
@@ -1376,67 +1406,17 @@ namespace Profiler
         if( inRenderPassSubtree ||
             (renderPass.m_Handle == VK_NULL_HANDLE) )
         {
-            if( renderPass.m_Subregions.size() > 1 )
+            // Sort frame browser data
+            std::list<const ProfilerSubpass*> pSubpasses =
+                SortFrameBrowserData( renderPass.m_Subregions );
+
+            // Enumerate subpasses
+            uint64_t subpassIndex = 0;
+
+            for( const ProfilerSubpass* pSubpass : pSubpasses )
             {
-                // Sort frame browser data
-                std::list<const ProfilerSubpass*> pSubpasses =
-                    SortFrameBrowserData( renderPass.m_Subregions );
-
-                // Enumerate subpasses (who uses subpasses anyway)
-                uint64_t subpassIndex = 0;
-
-                for( const ProfilerSubpass* pSubpass : pSubpasses )
-                {
-                    const uint64_t i = index | (subpassIndex << 36);
-                    // Subpass ID
-                    u64tohex( indexStr, i );
-
-                    if( ImGui::TreeNode( indexStr, "Subpass #%llu", subpassIndex ) )
-                    {
-                        // Subpass subtree opened
-                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks * m_TimestampPeriod );
-
-                        // Sort frame browser data
-                        std::list<const ProfilerPipeline*> pPipelines =
-                            SortFrameBrowserData( pSubpass->m_Subregions );
-
-                        // Enumerate pipelines in subpass
-                        uint64_t pipelineIndex = 0;
-
-                        for( const ProfilerPipeline* pPipeline : pPipelines )
-                        {
-                            PrintPipeline( *pPipeline, i | (pipelineIndex << 48), frameTicks );
-                            pipelineIndex++;
-                        }
-
-                        // Finish subpass tree
-                        ImGui::TreePop();
-                    }
-                    else
-                    {
-                        // Subpass collapsed
-                        TextAlignRight( "%.2f ms", pSubpass->m_Stats.m_TotalTicks * m_TimestampPeriod );
-                    }
-
-                    subpassIndex++;
-                }
-            }
-            else
-            {
-                const ProfilerSubpass& subpass = renderPass.m_Subregions.front();
-
-                // Sort frame browser data
-                std::list<const ProfilerPipeline*> pPipelines =
-                    SortFrameBrowserData( subpass.m_Subregions );
-
-                // Enumerate pipelines in render pass
-                uint64_t pipelineIndex = 0;
-
-                for( const ProfilerPipeline* pPipeline : pPipelines )
-                {
-                    PrintPipeline( *pPipeline, index | (pipelineIndex << 48), frameTicks );
-                    pipelineIndex++;
-                }
+                PrintSubpass( *pSubpass, index | (subpassIndex << 36), frameTicks );
+                subpassIndex++;
             }
         }
 
@@ -1456,6 +1436,81 @@ namespace Profiler
         {
             // Render pass collapsed
             TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintSubpass
+
+    Description:
+        Writes subpass data to the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintSubpass( const ProfilerSubpass& subpass, uint64_t index, uint64_t frameTicks )
+    {
+        // Subpass ID
+        char indexStr[ 17 ] = {};
+        u64tohex( indexStr, index );
+
+        const bool inSubpassSubtree =
+            (subpass.m_Index != -1) &&
+            (ImGui::TreeNode( indexStr, "Subpass #%u", subpass.m_Index ));
+
+        if( inSubpassSubtree )
+        {
+            // Subpass subtree opened
+            TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks * m_TimestampPeriod );
+        }
+
+        if( inSubpassSubtree ||
+            (subpass.m_Index == -1) )
+        {
+            if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+            {
+                // Sort frame browser data
+                std::list<const ProfilerPipeline*> pPipelines =
+                    SortFrameBrowserData( subpass.m_Pipelines );
+
+                // Enumerate pipelines in subpass
+                uint64_t pipelineIndex = 0;
+
+                for( const ProfilerPipeline* pPipeline : pPipelines )
+                {
+                    PrintPipeline( *pPipeline, index | (pipelineIndex << 48), frameTicks );
+                    pipelineIndex++;
+                }
+            }
+
+            else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+            {
+                // Sort command buffers
+                std::list<const ProfilerCommandBufferData*> pCommandBuffers =
+                    SortFrameBrowserData( subpass.m_SecondaryCommandBuffers );
+
+                // Enumerate command buffers in subpass
+                uint64_t commandBufferIndex = 0;
+
+                for( const ProfilerCommandBufferData* pCommandBuffer : pCommandBuffers )
+                {
+                    PrintCommandBuffer( *pCommandBuffer, index | (commandBufferIndex << 58), frameTicks );
+                    commandBufferIndex++;
+                }
+            }
+        }
+
+        if( inSubpassSubtree )
+        {
+            // Finish subpass tree
+            ImGui::TreePop();
+        }
+
+        if( !inSubpassSubtree &&
+            (subpass.m_Index != -1) )
+        {
+            // Subpass collapsed
+            TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks * m_TimestampPeriod );
         }
     }
 

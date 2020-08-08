@@ -16,8 +16,31 @@ namespace Profiler
         Contains captured GPU timestamp data for render pass subpass.
 
     \***********************************************************************************/
-    struct ProfilerSubpass : ProfilerRangeStatsCollector<uint64_t, ProfilerPipeline>
+    struct ProfilerSubpass
     {
+        uint32_t                                        m_Index;
+        VkSubpassContents                               m_Contents;
+        ProfilerRangeStats                              m_Stats;
+
+        std::vector<struct ProfilerPipeline>            m_Pipelines;
+        std::vector<struct ProfilerCommandBufferData>   m_SecondaryCommandBuffers;
+
+        inline void Clear()
+        {
+            m_Stats.Clear();
+            m_Pipelines.clear();
+            m_SecondaryCommandBuffers.clear();
+        }
+
+        template<size_t Stat>
+        inline void IncrementStat( uint32_t count = 1 )
+        {
+            m_Stats.IncrementStat<Stat>( count );
+
+            // IncrementStat shouldn't be called within secondary command buffer subpass
+            // (only vkCmdExecuteCommands is allowed according to spec)
+            m_Pipelines.back().template IncrementStat<Stat>( count );
+        }
     };
 
     /***********************************************************************************\
@@ -83,7 +106,7 @@ namespace Profiler
     class ProfilerCommandBuffer
     {
     public:
-        ProfilerCommandBuffer( DeviceProfiler&, VkCommandPool, VkCommandBuffer );
+        ProfilerCommandBuffer( DeviceProfiler&, VkCommandPool, VkCommandBuffer, VkCommandBufferLevel );
         ~ProfilerCommandBuffer();
 
         VkCommandPool GetCommandPool() const;
@@ -94,14 +117,15 @@ namespace Profiler
         void Begin( const VkCommandBufferBeginInfo* );
         void End();
 
-        void PreBeginRenderPass( const VkRenderPassBeginInfo* );
-        void PostBeginRenderPass();
+        void PreBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents );
+        void PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents );
         void PreEndRenderPass();
         void PostEndRenderPass();
 
+        void EndSubpass();
         void NextSubpass( VkSubpassContents );
 
-        void BindPipeline( ProfilerPipeline );
+        void BindPipeline( VkPipelineBindPoint, ProfilerPipeline );
 
         void PreDraw();
         void PostDraw();
@@ -115,6 +139,7 @@ namespace Profiler
         void PostCopy();
         void PreClear();
         void PostClear( uint32_t );
+        void ExecuteCommands( uint32_t, const VkCommandBuffer* );
         void OnPipelineBarrier(
             uint32_t, const VkMemoryBarrier*,
             uint32_t, const VkBufferMemoryBarrier*,
@@ -125,8 +150,9 @@ namespace Profiler
     protected:
         DeviceProfiler& m_Profiler;
 
-        VkCommandPool   m_CommandPool;
-        VkCommandBuffer m_CommandBuffer;
+        const VkCommandPool   m_CommandPool;
+        const VkCommandBuffer m_CommandBuffer;
+        const VkCommandBufferLevel m_Level;
 
         bool            m_Dirty;
 
@@ -139,12 +165,19 @@ namespace Profiler
 
         ProfilerCommandBufferData m_Data;
 
+        uint32_t        m_CurrentSubpassIndex;
+
+        ProfilerPipeline m_CurrentGraphicsPipeline;
+        ProfilerPipeline m_CurrentComputePipeline;
+
         void Reset();
         void AllocateQueryPool();
 
         void SendTimestampQuery( VkPipelineStageFlagBits );
 
         void SetupCommandBufferForStatCounting();
+        void SetupCommandBufferForStatCounting( ProfilerPipeline );
+        void SetupCommandBufferForSecondaryBuffers();
 
     };
 }

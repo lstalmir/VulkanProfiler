@@ -25,6 +25,12 @@ namespace Profiler
         uint64_t m_TimeNs;
     };
 
+    struct ProfilerAggregatedSelfData
+    {
+        uint64_t m_CommandBufferLookupTimeNs;
+        uint64_t m_PipelineLookupTimeNs;
+    };
+
     /***********************************************************************************\
 
     Structure:
@@ -44,6 +50,9 @@ namespace Profiler
         ProfilerAggregatedCPUData m_CPU;
 
         std::vector<VkProfilerPerformanceCounterResultEXT> m_VendorMetrics;
+
+        // Self test
+        ProfilerAggregatedSelfData m_Self;
     };
 
     struct ProfilerSubmit
@@ -103,5 +112,9 @@ namespace Profiler
         std::vector<VkPerformanceCounterResultKHR> AggregateVendorMetrics() const;
 
         std::list<ProfilerPipeline> CollectTopPipelines();
+
+        void CollectTopPipelinesFromCommandBuffer(
+            const ProfilerCommandBufferData&,
+            std::unordered_set<ProfilerPipeline>& );
     };
 }

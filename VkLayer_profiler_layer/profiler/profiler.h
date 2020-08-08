@@ -59,7 +59,7 @@ namespace Profiler
         VkResult SetSyncMode( VkProfilerSyncModeEXT syncMode );
         ProfilerAggregatedData GetData() const;
 
-        void RegisterCommandBuffers( VkCommandPool, uint32_t, VkCommandBuffer* );
+        void RegisterCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
         void UnregisterCommandBuffers( uint32_t, const VkCommandBuffer* );
         void UnregisterCommandBuffers( VkCommandPool );
 
@@ -106,6 +106,8 @@ namespace Profiler
         VkPhysicalDeviceProperties m_DeviceProperties;
         VkPhysicalDeviceMemoryProperties m_MemoryProperties;
         VkPhysicalDeviceMemoryProperties2 m_MemoryProperties2;
+
+        ProfilerAggregatedSelfData m_SelfData;
 
         std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         std::atomic_uint64_t    m_DeviceLocalAllocatedMemorySize;

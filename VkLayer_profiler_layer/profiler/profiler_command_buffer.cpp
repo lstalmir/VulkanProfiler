@@ -19,10 +19,11 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerCommandBuffer::ProfilerCommandBuffer( DeviceProfiler& profiler, VkCommandPool commandPool, VkCommandBuffer commandBuffer )
+    ProfilerCommandBuffer::ProfilerCommandBuffer( DeviceProfiler& profiler, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkCommandBufferLevel level )
         : m_Profiler( profiler )
         , m_CommandPool( commandPool )
         , m_CommandBuffer( commandBuffer )
+        , m_Level( level )
         , m_Dirty( false )
         , m_QueryPools()
         , m_QueryPoolSize( 4096 )
@@ -30,11 +31,19 @@ namespace Profiler
         , m_CurrentQueryIndex( -1 )
         , m_PerformanceQueryPoolINTEL( VK_NULL_HANDLE )
         , m_Data()
+        , m_CurrentSubpassIndex( -1 )
     {
         m_Data.m_Handle = commandBuffer;
 
+        // Initialize pipelines
+        std::memset( &m_CurrentGraphicsPipeline, 0, sizeof( ProfilerPipeline ) );
+        m_CurrentGraphicsPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+        std::memset( &m_CurrentComputePipeline, 0, sizeof( ProfilerPipeline ) );
+        m_CurrentComputePipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+
         // Initialize performance query once
-        if( m_Profiler.m_MetricsApiINTEL.IsAvailable() )
+        if( (m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) && (m_Profiler.m_MetricsApiINTEL.IsAvailable()) )
         {
             VkQueryPoolCreateInfoINTEL intelCreateInfo = {};
             intelCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO_INTEL;
@@ -160,7 +169,8 @@ namespace Profiler
 
         if( pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT )
         {
-            __debugbreak();
+            // Setup render pass and subpass for commands
+            SetupCommandBufferForStatCounting();
         }
 
         if( m_PerformanceQueryPoolINTEL )
@@ -203,18 +213,11 @@ namespace Profiler
         Marks beginning of next render pass.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PreBeginRenderPass( const VkRenderPassBeginInfo* pBeginInfo )
+    void ProfilerCommandBuffer::PreBeginRenderPass( const VkRenderPassBeginInfo* pBeginInfo, VkSubpassContents )
     {
         ProfilerRenderPass profilerRenderPass;
         profilerRenderPass.m_Handle = pBeginInfo->renderPass;
         profilerRenderPass.Clear();
-
-        // Begin first subpass
-        ProfilerSubpass firstSubpass;
-        firstSubpass.m_Handle = 0;
-        firstSubpass.Clear();
-
-        profilerRenderPass.m_Subregions.push_back( firstSubpass );
 
         m_Data.m_Subregions.push_back( profilerRenderPass );
 
@@ -245,9 +248,12 @@ namespace Profiler
         Marks beginning of next render pass.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PostBeginRenderPass()
+    void ProfilerCommandBuffer::PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents contents )
     {
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+
+        // Begin first subpass
+        NextSubpass( contents );
     }
 
     /***********************************************************************************\
@@ -261,6 +267,12 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreEndRenderPass()
     {
+        // End currently profiled subpass
+        EndSubpass();
+
+        // No more subpasses in this render pass
+        m_CurrentSubpassIndex = -1;
+
         // Record final transitions and resolves
         SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
     }
@@ -282,25 +294,50 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        NextSubpass
+        EndSubpass
 
     Description:
-        Marks beginning of next render pass subpass.
+        Marks end of current render pass subpass.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::NextSubpass( VkSubpassContents )
+    void ProfilerCommandBuffer::EndSubpass()
     {
         // Render pass must be already tracked
         assert( !m_Data.m_Subregions.empty() );
 
         ProfilerRenderPass& currentRenderPass = m_Data.m_Subregions.back();
 
-        const uint64_t nextSubpassIndex = currentRenderPass.m_Subregions.size();
+        // Send new timestamp query after secondary command buffer subpass to subtract
+        // time spent in the command buffer from the next subpass
+        if( !currentRenderPass.m_Subregions.empty() &&
+            currentRenderPass.m_Subregions.back().m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        NextSubpass
+
+    Description:
+        Marks beginning of next render pass subpass.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::NextSubpass( VkSubpassContents contents )
+    {
+        // End currently profiled subpass before beginning new one
+        EndSubpass();
+
+        m_CurrentSubpassIndex++;
 
         ProfilerSubpass nextSubpass;
-        nextSubpass.m_Handle = nextSubpassIndex;
+        nextSubpass.m_Index = m_CurrentSubpassIndex;
+        nextSubpass.m_Contents = contents;
         nextSubpass.Clear();
 
+        ProfilerRenderPass& currentRenderPass = m_Data.m_Subregions.back();
         currentRenderPass.m_Subregions.push_back( nextSubpass );
     }
 
@@ -313,28 +350,30 @@ namespace Profiler
         Marks beginning of next render pass pipeline.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::BindPipeline( ProfilerPipeline pipeline )
+    void ProfilerCommandBuffer::BindPipeline( VkPipelineBindPoint bindPoint, ProfilerPipeline pipeline )
     {
-        // Compute pipelines may be used outside of the render pass
-        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
-        {
-            SetupCommandBufferForStatCounting();
-        }
-
-        // Render pass must be already tracked
-        assert( !m_Data.m_Subregions.empty() );
-
-        ProfilerRenderPass& currentRenderPass = m_Data.m_Subregions.back();
-
-        // Render pass must have at least one subpass
-        assert( !currentRenderPass.m_Subregions.empty() );
-
-        ProfilerSubpass& currentSubpass = currentRenderPass.m_Subregions.back();
-
+        // Reset stats
         pipeline.Clear();
 
+        switch( bindPoint )
+        {
+        case VK_PIPELINE_BIND_POINT_GRAPHICS:
+            m_CurrentGraphicsPipeline = pipeline;
+            break;
+
+        case VK_PIPELINE_BIND_POINT_COMPUTE:
+            m_CurrentComputePipeline = pipeline;
+            break;
+
+        case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+            ProfilerPlatformFunctions::WriteDebug(
+                "%s - VK_KHR_ray_tracing extension not supported\n",
+                __FUNCTION__ );
+            break;
+        }
+
         // Register new pipeline to current subpass
-        currentSubpass.m_Subregions.push_back( pipeline );
+        SetupCommandBufferForStatCounting( pipeline );
     }
 
     /***********************************************************************************\
@@ -363,6 +402,9 @@ namespace Profiler
     void ProfilerCommandBuffer::PostDraw()
     {
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+
+        // Ensure there is a pipeline bound
+        SetupCommandBufferForStatCounting( m_CurrentGraphicsPipeline );
 
         // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_DRAW_COUNT>();
@@ -395,6 +437,9 @@ namespace Profiler
     {
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
+        // Ensure there is a pipeline bound
+        SetupCommandBufferForStatCounting( m_CurrentGraphicsPipeline );
+
         // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_DRAW_INDIRECT_COUNT>();
     }
@@ -426,6 +471,9 @@ namespace Profiler
     {
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
+        // Ensure there is a pipeline bound
+        SetupCommandBufferForStatCounting( m_CurrentComputePipeline );
+
         // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_DISPATCH_COUNT>();
     }
@@ -456,6 +504,9 @@ namespace Profiler
     void ProfilerCommandBuffer::PostDispatchIndirect()
     {
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+
+        // Ensure there is a pipeline bound
+        SetupCommandBufferForStatCounting( m_CurrentComputePipeline );
 
         // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_DISPATCH_INDIRECT_COUNT>();
@@ -527,6 +578,33 @@ namespace Profiler
 
         // Increment draw count in current pipeline
         m_Data.IncrementStat<STAT_CLEAR_COUNT>( attachmentCount );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ExecuteCommands
+
+    Description:
+        Record secondary command buffers.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ExecuteCommands( uint32_t count, const VkCommandBuffer* pCommandBuffers )
+    {
+        // Ensure there is a render pass and subpass with VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS flag
+        SetupCommandBufferForSecondaryBuffers();
+
+        auto& currentRenderPass = m_Data.m_Subregions.back();
+        auto& currentSubpass = currentRenderPass.m_Subregions.back();
+
+        for( uint32_t i = 0; i < count; ++i )
+        {
+            ProfilerCommandBufferData placeholder;
+            placeholder.m_Handle = pCommandBuffers[ i ];
+            placeholder.Clear();
+
+            currentSubpass.m_SecondaryCommandBuffers.push_back( placeholder );
+        }
     }
 
     /***********************************************************************************\
@@ -624,6 +702,9 @@ namespace Profiler
                         // Get vkCmdBeginRenderPass time
                         renderPass.m_BeginTicks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
                         currentQueryIndex += 2;
+
+                        // Include this time in total render pass time
+                        renderPass.m_Stats.m_TotalTicks += renderPass.m_BeginTicks;
                     }
 
                     for( auto& subpass : renderPass.m_Subregions )
@@ -633,25 +714,57 @@ namespace Profiler
                         // Reset accumulated cycle count if buffer is being reused
                         subpass.m_Stats.m_TotalTicks = 0;
 
-                        for( auto& pipeline : subpass.m_Subregions )
+                        if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                         {
-                            // Update pipeline begin timestamp
-                            pipeline.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
-                            // Reset accumulated cycle count if buffer is being reused
-                            pipeline.m_Stats.m_TotalTicks = 0;
-
-                            for( auto& drawcall : pipeline.m_Subregions )
+                            for( auto& pipeline : subpass.m_Pipelines )
                             {
-                                // Update drawcall time
-                                drawcall.m_Ticks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
-                                // Update pipeline time
-                                pipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                // Each drawcall has begin and end query
-                                currentQueryIndex += 2;
+                                // Update pipeline begin timestamp
+                                pipeline.m_Stats.m_BeginTimestamp = collectedQueries[ currentQueryIndex - 1 ];
+                                // Reset accumulated cycle count if buffer is being reused
+                                pipeline.m_Stats.m_TotalTicks = 0;
+
+                                for( auto& drawcall : pipeline.m_Subregions )
+                                {
+                                    // Update drawcall time
+                                    drawcall.m_Ticks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
+                                    // Update pipeline time
+                                    pipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                    // Each drawcall has begin and end query
+                                    currentQueryIndex += 2;
+                                }
+
+                                // Update subpass time
+                                subpass.m_Stats.m_TotalTicks += pipeline.m_Stats.m_TotalTicks;
+                            }
+                        }
+                        else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                        {
+                            for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
+                            {
+                                VkCommandBuffer handle = commandBuffer.m_Handle;
+
+                                // Collect secondary command buffer data
+                                commandBuffer = m_Profiler.GetCommandBuffer( handle ).GetData();
+                                assert( commandBuffer.m_Handle == handle );
+
+                                // Update subpass stats
+                                subpass.m_Stats.Add( commandBuffer.m_Stats );
                             }
 
-                            // Update subpass time
-                            subpass.m_Stats.m_TotalTicks += pipeline.m_Stats.m_TotalTicks;
+                            // Update render pass stats
+                            renderPass.m_Stats.AddStats( subpass.m_Stats );
+                            // Update command buffer stats
+                            m_Data.m_Stats.AddStats( subpass.m_Stats );
+
+                            // Move to the next query
+                            currentQueryIndex++;
+                        }
+                        else
+                        {
+                            ProfilerPlatformFunctions::WriteDebug(
+                                "%s - Unsupported VkSubpassContents enum value (%u)\n",
+                                __FUNCTION__,
+                                subpass.m_Contents );
                         }
 
                         // Update render pass time
@@ -667,6 +780,9 @@ namespace Profiler
                         // Get vkCmdEndRenderPass time
                         renderPass.m_EndTicks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
                         currentQueryIndex += 2;
+
+                        // Include this time in total render pass time
+                        renderPass.m_Stats.m_TotalTicks += renderPass.m_EndTicks;
                     }
 
                     // Update command buffer time
@@ -800,6 +916,24 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::SetupCommandBufferForStatCounting()
     {
+        ProfilerPipeline nullPipeline;
+        nullPipeline.m_Handle = VK_NULL_HANDLE;
+        nullPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        nullPipeline.Clear();
+
+        SetupCommandBufferForStatCounting( nullPipeline );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetupCommandBufferForStatCounting
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::SetupCommandBufferForStatCounting( ProfilerPipeline pipeline )
+    {
         // Check if we're in render pass
         if( m_Data.m_Subregions.empty() )
         {
@@ -807,31 +941,65 @@ namespace Profiler
             nullRenderPass.m_Handle = VK_NULL_HANDLE;
             nullRenderPass.Clear();
 
-            // Each render pass must have at least one subpass
+            m_Data.m_Subregions.push_back( nullRenderPass );
+        }
+
+        ProfilerRenderPass& currentRenderPass = m_Data.m_Subregions.back();
+
+        // Check if current subpass allows inline commands
+        if( currentRenderPass.m_Subregions.empty() ||
+            currentRenderPass.m_Subregions.back().m_Contents != VK_SUBPASS_CONTENTS_INLINE )
+        {
             ProfilerSubpass nullSubpass;
-            nullSubpass.m_Handle = VK_NULL_HANDLE;
+            nullSubpass.m_Index = m_CurrentSubpassIndex;
+            nullSubpass.m_Contents = VK_SUBPASS_CONTENTS_INLINE;
             nullSubpass.Clear();
 
-            nullRenderPass.m_Subregions.push_back( nullSubpass );
+            currentRenderPass.m_Subregions.push_back( nullSubpass );
+        }
+
+        ProfilerSubpass& currentSubpass = currentRenderPass.m_Subregions.back();
+
+        // Check if we're in pipeline
+        if( currentSubpass.m_Pipelines.empty() ||
+            (currentSubpass.m_Pipelines.back().m_Handle != pipeline.m_Handle) )
+        {
+            currentSubpass.m_Pipelines.push_back( pipeline );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetupCommandBufferForSecondaryCommandBuffers
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::SetupCommandBufferForSecondaryBuffers()
+    {
+        // Check if we're in render pass
+        if( m_Data.m_Subregions.empty() )
+        {
+            ProfilerRenderPass nullRenderPass;
+            nullRenderPass.m_Handle = VK_NULL_HANDLE;
+            nullRenderPass.Clear();
 
             m_Data.m_Subregions.push_back( nullRenderPass );
         }
 
-        // Check if we're in pipeline
-        if( m_Data.m_Subregions.back().m_Subregions[ 0 ].m_Subregions.empty() )
+        ProfilerRenderPass& currentRenderPass = m_Data.m_Subregions.back();
+
+        // Check if current subpass allows secondary command buffers
+        if( currentRenderPass.m_Subregions.empty() ||
+            currentRenderPass.m_Subregions.back().m_Contents != VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
         {
-            ProfilerPipeline nullPipeline;
-            nullPipeline.m_Handle = VK_NULL_HANDLE;
-            nullPipeline.Clear();
+            ProfilerSubpass nullSubpass;
+            nullSubpass.m_Index = m_CurrentSubpassIndex;
+            nullSubpass.m_Contents = VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
+            nullSubpass.Clear();
 
-            ProfilerRenderPass& currentRenderPass = m_Data.m_Subregions.back();
-
-            // Each render pass must have at least one subpass
-            assert( !currentRenderPass.m_Subregions.empty() );
-
-            ProfilerSubpass& currentSubpass = currentRenderPass.m_Subregions.back();
-
-            currentSubpass.m_Subregions.push_back( nullPipeline );
+            currentRenderPass.m_Subregions.push_back( nullSubpass );
         }
     }
 }

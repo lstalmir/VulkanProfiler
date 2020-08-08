@@ -111,11 +111,13 @@ namespace Profiler
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
         void UpdateStatisticsTab();
+        void UpdateSelfTab();
         void UpdateSettingsTab();
 
         // Frame browser helpers
         void PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index, uint64_t frameTicks );
         void PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index, uint64_t frameTicks );
+        void PrintSubpass( const ProfilerSubpass& subpass, uint64_t index, uint64_t frameTicks );
         void PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index, uint64_t frameTicks );
 
         void TextAlignRight( float contentAreaWidth, const char* fmt, ... );

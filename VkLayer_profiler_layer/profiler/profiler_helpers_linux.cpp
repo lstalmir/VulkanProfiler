@@ -48,6 +48,27 @@ namespace Profiler
     {
         return false;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteDebugUnformatted
+
+    Description:
+        Write string to debug output.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::WriteDebugUnformatted( const char* str )
+    {
+        [[maybe_unused]]
+        const size_t messageLength = std::strlen( str );
+        // Output strings must end with newline
+        assert( str[ messageLength - 1 ] == '\n' );
+
+        // Use standard output
+        printf( "%s", str );
+    }
+
 }
 
 #endif // __linux__

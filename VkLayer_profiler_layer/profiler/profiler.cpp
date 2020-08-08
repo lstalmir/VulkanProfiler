@@ -243,7 +243,7 @@ namespace Profiler
         Create wrappers for VkCommandBuffer objects.
 
     \***********************************************************************************/
-    void DeviceProfiler::RegisterCommandBuffers( VkCommandPool commandPool, uint32_t count, VkCommandBuffer* pCommandBuffers )
+    void DeviceProfiler::RegisterCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
         std::scoped_lock lk( m_CommandBuffers );
 
@@ -254,7 +254,8 @@ namespace Profiler
             m_CommandBuffers.try_emplace( commandBuffer,
                 std::ref( *this ),
                 commandPool,
-                commandBuffer );
+                commandBuffer,
+                level );
         }
     }
 
@@ -302,6 +303,7 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBuffer& DeviceProfiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
     {
+        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_SelfData.m_CommandBufferLookupTimeNs );
         return m_CommandBuffers.interlocked_at( commandBuffer );
     }
 
@@ -309,6 +311,7 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
     {
+        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_SelfData.m_PipelineLookupTimeNs );
         return m_Pipelines.interlocked_at( pipeline );
     }
 
@@ -326,8 +329,18 @@ namespace Profiler
         uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
         uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
     {
+        CpuTimestampCounter commandBufferLookupTimeCounter;
+
+        commandBufferLookupTimeCounter.Begin();
+
         // ProfilerCommandBuffer object should already be in the map
         auto& profiledCommandBuffer = m_CommandBuffers.interlocked_at( commandBuffer );
+
+        commandBufferLookupTimeCounter.End();
+
+        // Aggregate command buffer lookup time
+        m_SelfData.m_CommandBufferLookupTimeNs +=
+            commandBufferLookupTimeCounter.GetValue<std::chrono::nanoseconds>().count();
 
         profiledCommandBuffer.OnPipelineBarrier(
             memoryBarrierCount, pMemoryBarriers,
@@ -493,6 +506,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
+        CpuTimestampCounter commandBufferLookupTimeCounter;
+
         // Wait for the submitted command buffers to execute
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
         {
@@ -517,7 +532,15 @@ namespace Profiler
                 // Block access from other threads
                 std::scoped_lock lk( m_CommandBuffers );
 
+                commandBufferLookupTimeCounter.Begin();
+
                 auto& profilerCommandBuffer = m_CommandBuffers.at( commandBuffer );
+
+                commandBufferLookupTimeCounter.End();
+
+                // Aggregate command buffer lookup time
+                m_SelfData.m_CommandBufferLookupTimeNs +=
+                    commandBufferLookupTimeCounter.GetValue<std::chrono::nanoseconds>().count();
 
                 // Dirty command buffer profiling data
                 profilerCommandBuffer.Submit();
@@ -556,13 +579,13 @@ namespace Profiler
     {
         m_CurrentFrame++;
 
-        m_CpuTimestampCounter.End();
-
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_PRESENT_EXT )
         {
             // Doesn't introduce in-frame CPU overhead but may cause some image-count-related issues disappear
             m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
         }
+
+        m_CpuTimestampCounter.End();
 
         // TMP
         std::scoped_lock lk( m_DataMutex );
@@ -578,10 +601,15 @@ namespace Profiler
         m_Data.m_Memory.m_HostVisibleAllocationSize = m_HostVisibleAllocatedMemorySize;
 
         // TODO: Move to memory tracker
-        ClearStructure( &m_MemoryProperties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 );
-        m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR(
-            m_pDevice->PhysicalDevice,
-            &m_MemoryProperties2 );
+        //ClearStructure( &m_MemoryProperties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 );
+        //m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR(
+        //    m_pDevice->PhysicalDevice,
+        //    &m_MemoryProperties2 );
+
+        m_Data.m_Self = m_SelfData;
+        
+        // Reset self data for the next frame
+        std::memset( &m_SelfData, 0, sizeof( m_SelfData ) );
 
         m_CpuTimestampCounter.Begin();
 

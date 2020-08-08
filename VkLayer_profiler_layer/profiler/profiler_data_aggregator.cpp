@@ -423,54 +423,7 @@ namespace Profiler
         {
             for( const auto& commandBuffer : submit.m_CommandBuffers )
             {
-                for( const auto& renderPass : commandBuffer.m_Subregions )
-                {
-                    for( const auto& subpass : renderPass.m_Subregions )
-                    {
-                        for( const auto& pipeline : subpass.m_Subregions )
-                        {
-                            ProfilerPipeline aggregatedPipeline = pipeline;
-
-                            auto it = aggregatedPipelines.find( pipeline );
-                            if( it != aggregatedPipelines.end() )
-                            {
-                                aggregatedPipeline = *it;
-                                aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
-
-                                aggregatedPipelines.erase( it );
-                            }
-
-                            // Clear values which don't make sense after aggregation
-                            aggregatedPipeline.m_Handle = pipeline.m_Handle;
-                            aggregatedPipeline.m_Subregions.clear();
-
-                            aggregatedPipelines.insert( aggregatedPipeline );
-
-                            // Artificial pipelines for calls which doesn't need pipeline
-                            for( const auto& drawcall : pipeline.m_Subregions )
-                            {
-                                switch( drawcall.m_Type )
-                                {
-                                case ProfilerDrawcallType::eCopy:
-                                    m_CopyPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                    break;
-
-                                case ProfilerDrawcallType::eClear:
-                                    m_ClearPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                    break;
-
-                                case ProfilerDrawcallType::eResolve:
-                                    m_ResolvePipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // Artificial pipelines for render pass begin/ends
-                    m_BeginRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_BeginTicks;
-                    m_EndRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_EndTicks;
-                }
+                CollectTopPipelinesFromCommandBuffer( commandBuffer, aggregatedPipelines );
             }
         }
 
@@ -491,5 +444,71 @@ namespace Profiler
             } );
 
         return pipelines;
+    }
+
+
+    void ProfilerDataAggregator::CollectTopPipelinesFromCommandBuffer(
+        const ProfilerCommandBufferData& commandBuffer,
+        std::unordered_set<ProfilerPipeline>& aggregatedPipelines )
+    {
+        for( const auto& renderPass : commandBuffer.m_Subregions )
+        {
+            for( const auto& subpass : renderPass.m_Subregions )
+            {
+                if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+                {
+                    for( const auto& pipeline : subpass.m_Pipelines )
+                    {
+                        ProfilerPipeline aggregatedPipeline = pipeline;
+
+                        auto it = aggregatedPipelines.find( pipeline );
+                        if( it != aggregatedPipelines.end() )
+                        {
+                            aggregatedPipeline = *it;
+                            aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
+
+                            aggregatedPipelines.erase( it );
+                        }
+
+                        // Clear values which don't make sense after aggregation
+                        aggregatedPipeline.m_Handle = pipeline.m_Handle;
+                        aggregatedPipeline.m_Subregions.clear();
+
+                        aggregatedPipelines.insert( aggregatedPipeline );
+
+                        // Artificial pipelines for calls which doesn't need pipeline
+                        for( const auto& drawcall : pipeline.m_Subregions )
+                        {
+                            switch( drawcall.m_Type )
+                            {
+                            case ProfilerDrawcallType::eCopy:
+                                m_CopyPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                break;
+
+                            case ProfilerDrawcallType::eClear:
+                                m_ClearPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                break;
+
+                            case ProfilerDrawcallType::eResolve:
+                                m_ResolvePipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                {
+                    for( const auto& secondaryCommandBuffer : subpass.m_SecondaryCommandBuffers )
+                    {
+                        CollectTopPipelinesFromCommandBuffer( secondaryCommandBuffer, aggregatedPipelines );
+                    }
+                }
+            }
+
+            // Artificial pipelines for render pass begin/ends
+            m_BeginRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_BeginTicks;
+            m_EndRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_EndTicks;
+        }
     }
 }

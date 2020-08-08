@@ -1,7 +1,12 @@
 #ifdef WIN32
 #include "profiler_helpers.h"
 
+#if !defined _DEBUG && !defined NDEBUG
+#define NDEBUG // for assert.h
+#endif
+
 #include <Windows.h>
+#include <assert.h>
 
 namespace Profiler
 {
@@ -79,6 +84,25 @@ namespace Profiler
             &enablePreemptionValueSize );
 
         return static_cast<bool>(enablePreemptionValue);
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteDebugUnformatted
+
+    Description:
+        Write string to debug output.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::WriteDebugUnformatted( const char* str )
+    {
+        [[maybe_unused]]
+        const size_t messageLength = std::strlen( str );
+        // Output strings must end with newline
+        assert( str[ messageLength - 1 ] == '\n' );
+
+        OutputDebugStringA( str );
     }
 
 }

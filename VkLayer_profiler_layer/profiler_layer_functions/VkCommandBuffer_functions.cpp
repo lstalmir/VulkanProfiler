@@ -66,12 +66,12 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo );
+        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, subpassContents );
 
         // Begin the render pass
         dd.Device.Callbacks.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
 
-        profiledCommandBuffer.PostBeginRenderPass();
+        profiledCommandBuffer.PostBeginRenderPass( pBeginInfo, subpassContents );
     }
 
     /***********************************************************************************\
@@ -133,12 +133,12 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo );
+        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
 
         // Begin the render pass
         dd.Device.Callbacks.CmdBeginRenderPass2( commandBuffer, pBeginInfo, pSubpassBeginInfo );
 
-        profiledCommandBuffer.PostBeginRenderPass();
+        profiledCommandBuffer.PostBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
     }
 
     /***********************************************************************************\
@@ -202,12 +202,12 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo );
+        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
 
         // Begin the render pass
         dd.Device.Callbacks.CmdBeginRenderPass2KHR( commandBuffer, pBeginInfo, pSubpassBeginInfo );
 
-        profiledCommandBuffer.PostBeginRenderPass();
+        profiledCommandBuffer.PostBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
     }
 
     /***********************************************************************************\
@@ -276,7 +276,30 @@ namespace Profiler
         dd.Device.Callbacks.CmdBindPipeline( commandBuffer, bindPoint, pipeline );
 
         // Profile the pipeline time
-        profiledCommandBuffer.BindPipeline( profiledPipeline );
+        profiledCommandBuffer.BindPipeline( bindPoint, profiledPipeline );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdExecuteCommands
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdExecuteCommands(
+        VkCommandBuffer commandBuffer,
+        uint32_t commandBufferCount,
+        const VkCommandBuffer* pCommandBuffers )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Record secondary command buffers
+        profiledCommandBuffer.ExecuteCommands( commandBufferCount, pCommandBuffers );
+
+        // Execute commands
+        dd.Device.Callbacks.CmdExecuteCommands( commandBuffer, commandBufferCount, pCommandBuffers );
     }
 
     /***********************************************************************************\

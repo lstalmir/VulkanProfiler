@@ -9,6 +9,8 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
+#include "VkLayer_profiler_layer.generated.h"
+
 // Helper macro for rolling-back to valid state
 #define DESTROYANDRETURNONFAIL( VKRESULT )  \
     {                                       \
@@ -169,6 +171,22 @@ namespace Profiler
         static std::filesystem::path GetApplicationPath();
 
         static bool IsPreemptionEnabled();
+
+        template<typename... Args>
+        inline static void WriteDebug( const char* fmt, Args... args )
+        {
+            // Include layer prefix to filter debug output
+            // Skip ' ' at the end and include string terminator instead
+            static constexpr size_t messagePrefixLength = sizeof( VK_LAYER_profiler_name ":" );
+
+            char debugMessageBuffer[ 256 ] = VK_LAYER_profiler_name ": ";
+            sprintf( debugMessageBuffer + messagePrefixLength, fmt, args... );
+
+            // Invoke OS-specific implementation
+            WriteDebugUnformatted( debugMessageBuffer );
+        }
+
+        static void WriteDebugUnformatted( const char* str );
 
     };
 }

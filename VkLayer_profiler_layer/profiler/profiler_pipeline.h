@@ -32,6 +32,11 @@ namespace Profiler
         inline void Add( const ProfilerRangeStats& rh )
         {
             m_TotalTicks += rh.m_TotalTicks;
+            AddStats( rh );
+        }
+
+        inline void AddStats( const ProfilerRangeStats& rh )
+        {
             m_TotalDrawcallCount += rh.m_TotalDrawcallCount;
             m_TotalDrawCount += rh.m_TotalDrawCount;
             m_TotalDrawIndirectCount += rh.m_TotalDrawIndirectCount;
