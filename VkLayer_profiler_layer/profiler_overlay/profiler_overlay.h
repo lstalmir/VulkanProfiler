@@ -101,13 +101,23 @@ namespace Profiler
 
         HistogramGroupMode m_HistogramGroupMode;
 
+        struct FrameBrowserTreeNodeIndex
+        {
+            uint16_t SubmitIndex;
+            uint16_t PrimaryCommandBufferIndex;
+            uint16_t SecondaryCommandBufferIndex;
+            uint16_t RenderPassIndex;
+            uint16_t SubpassIndex;
+            uint16_t PipelineIndex;
+        };
+
         ProfilerAggregatedData m_Data;
         bool m_Pause;
 
-        void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo );
-        void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo );
+        void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
+        void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
-        void Update( const ProfilerAggregatedData& data );
+        void Update( const ProfilerAggregatedData& );
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
         void UpdateStatisticsTab();
@@ -115,16 +125,16 @@ namespace Profiler
         void UpdateSettingsTab();
 
         // Frame browser helpers
-        void PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index, uint64_t frameTicks );
-        void PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index, uint64_t frameTicks );
-        void PrintSubpass( const ProfilerSubpass& subpass, uint64_t index, uint64_t frameTicks );
-        void PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index, uint64_t frameTicks );
+        void PrintCommandBuffer( const ProfilerCommandBufferData&, FrameBrowserTreeNodeIndex, uint64_t );
+        void PrintRenderPass( const ProfilerRenderPass&, FrameBrowserTreeNodeIndex, uint64_t );
+        void PrintSubpass( const ProfilerSubpass&, FrameBrowserTreeNodeIndex, uint64_t );
+        void PrintPipeline( const ProfilerPipeline&, FrameBrowserTreeNodeIndex, uint64_t );
 
-        void TextAlignRight( float contentAreaWidth, const char* fmt, ... );
-        void TextAlignRight( const char* fmt, ... );
-        void DrawSignificanceRect( float significance );
+        void TextAlignRight( float, const char*, ... );
+        void TextAlignRight( const char*, ... );
+        void DrawSignificanceRect( float );
 
-        std::string GetDebugObjectName( VkObjectType type, uint64_t handle ) const;
+        std::string GetDebugObjectName( VkObjectType, uint64_t ) const;
 
         // Sort frame browser data
         template<typename Data>

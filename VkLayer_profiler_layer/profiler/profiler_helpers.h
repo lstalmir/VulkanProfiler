@@ -59,6 +59,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        u16tohex
+
+    Description:
+        Convert 16-bit unsigned number to hexadecimal string.
+
+    \***********************************************************************************/
+    inline void u16tohex( char* pBuffer, uint16_t value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert(sizeof( hexDigits ) == 16);
+
+        for( int i = 0; i < 4; ++i )
+        {
+            // Begin with most significant bit:
+            // out[0] = hex[ (V >> 28) & 0xF ]
+            // out[1] = hex[ (V >> 24) & 0xF ] ...
+            pBuffer[ i ] = hexDigits[ (value >> (16 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         u32tohex
 
     Description:
@@ -99,6 +122,31 @@ namespace Profiler
             // out[0] = hex[ (V >> 60) & 0xF ]
             // out[1] = hex[ (V >> 56) & 0xF ]
             pBuffer[ i ] = hexDigits[ (value >> (64 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        structtohex
+
+    Description:
+        Convert structure to hexadecimal string.
+
+    \***********************************************************************************/
+    template<typename T, size_t Size>
+    inline void structtohex( char( &pBuffer )[ Size ], const T& value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert(sizeof( hexDigits ) == 16);
+        static_assert(sizeof( T ) <= (Size / 2));
+
+        for( int i = 0; i < sizeof( T ); ++i )
+        {
+            const int byte = reinterpret_cast<const char*>(&value)[ i ] & 0xFF;
+
+            pBuffer[ 2 * i ] = hexDigits[ byte >> 4 ];
+            pBuffer[ 2 * i + 1 ] = hexDigits[ byte & 0xF ];
         }
     }
 

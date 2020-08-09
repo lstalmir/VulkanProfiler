@@ -1085,34 +1085,32 @@ namespace Profiler
             // Mark hotspots with color
             const uint64_t frameTicks = m_Data.m_Stats.m_TotalTicks;
 
-            uint64_t index = 0;
+            FrameBrowserTreeNodeIndex index = {};
 
             // Enumerate submits in frame
             for( const auto& submit : m_Data.m_Submits )
             {
-                char indexStr[ 17 ] = {};
-                u64tohex( indexStr, index );
+                char indexStr[ 30 ] = {};
+                structtohex( indexStr, index );
 
-                if( ImGui::TreeNode( indexStr, "Submit #%u", index ) )
+                if( ImGui::TreeNode( indexStr, "Submit #%u", index.SubmitIndex ) )
                 {
                     // Sort frame browser data
                     std::list<const ProfilerCommandBufferData*> pCommandBuffers =
                         SortFrameBrowserData( submit.m_CommandBuffers );
 
                     // Enumerate command buffers in submit
-                    uint64_t commandBufferIndex = 0;
-
                     for( const auto* pCommandBuffer : pCommandBuffers )
                     {
-                        PrintCommandBuffer( *pCommandBuffer, index | (commandBufferIndex << 12), frameTicks );
-                        commandBufferIndex++;
+                        PrintCommandBuffer( *pCommandBuffer, index, frameTicks );
+                        index.PrimaryCommandBufferIndex++;
                     }
 
                     // Finish submit subtree
                     ImGui::TreePop();
                 }
 
-                index++;
+                index.SubmitIndex++;
             }
         }
     }
@@ -1314,7 +1312,7 @@ namespace Profiler
         Writes command buffer data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, uint64_t index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
     {
         // Mark hotspots with color
         DrawSignificanceRect( (float)cmdBuffer.m_Stats.m_TotalTicks / frameTicks );
@@ -1333,8 +1331,8 @@ namespace Profiler
         }
         #endif
 
-        char indexStr[ 17 ] = {};
-        u64tohex( indexStr, index );
+        char indexStr[ 30 ] = {};
+        structtohex( indexStr, index );
 
         if( ImGui::TreeNode( indexStr, cmdBufferName.c_str() ) )
         {
@@ -1346,12 +1344,10 @@ namespace Profiler
                 SortFrameBrowserData( cmdBuffer.m_Subregions );
 
             // Enumerate render passes in command buffer
-            uint64_t renderPassIndex = 0;
-
             for( const ProfilerRenderPass* pRenderPass : pRenderPasses )
             {
-                PrintRenderPass( *pRenderPass, index | (renderPassIndex << 24), frameTicks );
-                renderPassIndex++;
+                PrintRenderPass( *pRenderPass, index, frameTicks );
+                index.RenderPassIndex++;
             }
 
             ImGui::TreePop();
@@ -1372,14 +1368,13 @@ namespace Profiler
         Writes render pass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintRenderPass( const ProfilerRenderPass& renderPass, uint64_t index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintRenderPass( const ProfilerRenderPass& renderPass, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
     {
         // Mark hotspots with color
         DrawSignificanceRect( (float)renderPass.m_Stats.m_TotalTicks / frameTicks );
 
-        char indexStr[ 17 ] = {};
-        // Render pass ID
-        u64tohex( indexStr, index );
+        char indexStr[ 30 ] = {};
+        structtohex( indexStr, index );
 
         // At least one subpass must be present
         assert( !renderPass.m_Subregions.empty() );
@@ -1411,12 +1406,10 @@ namespace Profiler
                 SortFrameBrowserData( renderPass.m_Subregions );
 
             // Enumerate subpasses
-            uint64_t subpassIndex = 0;
-
             for( const ProfilerSubpass* pSubpass : pSubpasses )
             {
-                PrintSubpass( *pSubpass, index | (subpassIndex << 36), frameTicks );
-                subpassIndex++;
+                PrintSubpass( *pSubpass, index, frameTicks );
+                index.SubpassIndex++;
             }
         }
 
@@ -1448,11 +1441,10 @@ namespace Profiler
         Writes subpass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintSubpass( const ProfilerSubpass& subpass, uint64_t index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintSubpass( const ProfilerSubpass& subpass, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
     {
-        // Subpass ID
-        char indexStr[ 17 ] = {};
-        u64tohex( indexStr, index );
+        char indexStr[ 30 ] = {};
+        structtohex( indexStr, index );
 
         const bool inSubpassSubtree =
             (subpass.m_Index != -1) &&
@@ -1474,12 +1466,10 @@ namespace Profiler
                     SortFrameBrowserData( subpass.m_Pipelines );
 
                 // Enumerate pipelines in subpass
-                uint64_t pipelineIndex = 0;
-
                 for( const ProfilerPipeline* pPipeline : pPipelines )
                 {
-                    PrintPipeline( *pPipeline, index | (pipelineIndex << 48), frameTicks );
-                    pipelineIndex++;
+                    PrintPipeline( *pPipeline, index, frameTicks );
+                    index.PipelineIndex++;
                 }
             }
 
@@ -1490,12 +1480,10 @@ namespace Profiler
                     SortFrameBrowserData( subpass.m_SecondaryCommandBuffers );
 
                 // Enumerate command buffers in subpass
-                uint64_t commandBufferIndex = 0;
-
                 for( const ProfilerCommandBufferData* pCommandBuffer : pCommandBuffers )
                 {
-                    PrintCommandBuffer( *pCommandBuffer, index | (commandBufferIndex << 58), frameTicks );
-                    commandBufferIndex++;
+                    PrintCommandBuffer( *pCommandBuffer, index, frameTicks );
+                    index.SecondaryCommandBufferIndex++;
                 }
             }
         }
@@ -1523,13 +1511,13 @@ namespace Profiler
         Writes pipeline data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintPipeline( const ProfilerPipeline& pipeline, uint64_t index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintPipeline( const ProfilerPipeline& pipeline, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
     {
         // Mark hotspots with color
         DrawSignificanceRect( (float)pipeline.m_Stats.m_TotalTicks / frameTicks );
 
-        char indexStr[ 17 ] = {};
-        u64tohex( indexStr, index );
+        char indexStr[ 30 ] = {};
+        structtohex( indexStr, index );
 
         const bool inPipelineSubtree =
             (pipeline.m_Handle != VK_NULL_HANDLE) &&
