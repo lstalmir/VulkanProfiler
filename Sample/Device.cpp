@@ -85,7 +85,11 @@ namespace Sample
             .setPDepthStencilState( &depthStencilState )
             .setPColorBlendState( &colorBlendState )
             .setLayout( layout )
-            .setRenderPass( renderPass ) );
+            .setRenderPass( renderPass ) )
+            #if VK_HEADER_VERSION >= 136
+            .value // Return type of createGraphicsPipeline has changed to (VkResult,VkPipeline) pair
+            #endif
+            ;
     }
 
     float Device::getPhysicalDeviceSuitability(
@@ -128,7 +132,7 @@ namespace Sample
 
         for( auto extensionProperties : device.enumerateDeviceExtensionProperties() )
         {
-            _Extensions.erase( extensionProperties.extensionName );
+            _Extensions.erase( (const char*)extensionProperties.extensionName );
         }
 
         // Check if all extensions are available

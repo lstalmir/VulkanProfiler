@@ -1,7 +1,9 @@
 #pragma once
 #include "metrics-discovery/inc/common/instrumentation/api/metrics_discovery_api.h"
+#ifdef WIN32
 #include <filesystem>
-#include <list>
+#endif
+#include <vector>
 #include <string>
 #include <vulkan/vulkan.h>
 // Import extension structures

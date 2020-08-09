@@ -1,4 +1,9 @@
 #include "profiler/profiler.h"
+
+// Undefine names conflicting in gtest
+#undef None
+#undef Bool
+
 #include <gtest/gtest.h>
 
 #include "profiler_vulkan_state.h"

@@ -17,7 +17,7 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
     , m_InputWindow( None )
 {
     m_Display = XOpenDisplay( nullptr );
-    if( !g_Display )
+    if( !m_Display )
         InitError();
 
     m_IM = XOpenIM( m_Display, nullptr, nullptr, nullptr );
@@ -205,7 +205,7 @@ Description:
     Check if window a is child of window b
 
 \***********************************************************************************/
-bool ImGui_ImplXlib_Context::IsChild( Window a, Window b )
+bool ImGui_ImplXlib_Context::IsChild( Window a, Window b ) const
 {
     Window root, parent, * pChildren;
     unsigned int childrenCount;

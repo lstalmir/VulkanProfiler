@@ -64,8 +64,13 @@ namespace Profiler
 
         PFN_vkEnumerateInstanceVersion pfnEnumerateInstanceVersion =
             (PFN_vkEnumerateInstanceVersion)GetProcAddress( hLoaderModule, "vkEnumerateInstanceVersion" );
-        #endif
 
         return pfnEnumerateInstanceVersion( pVersion );
+        #else
+        // Assume lowest version
+        *pVersion = VK_API_VERSION_1_0;
+
+        return VK_SUCCESS;
+        #endif
     }
 }

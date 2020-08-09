@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.8)
 
 project (profiler_ult)
 
-find_package (vulkan REQUIRED)
+find_package (Vulkan REQUIRED)
 
 # Prevent overriding the parent project's compiler/linker
 # settings on Windows

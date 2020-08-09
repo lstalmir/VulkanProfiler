@@ -25,28 +25,20 @@ elseif (UNIX)
 
     add_compile_options (-fPIC)
 
-    find_package (Wayland)
     if (Wayland_FOUND)
         add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
     endif ()
 
-    find_package (XCB)
     if (XCB_FOUND)
         add_definitions (-DVK_USE_PLATFORM_XCB_KHR)
     endif ()
 
-    find_package (X11)
     if (X11_FOUND)
         add_definitions (-DVK_USE_PLATFORM_XLIB_KHR)
     endif ()
+
     if (X11_Xrandr_FOUND)
         add_definitions (-DVK_USE_PLATFORM_XLIB_XRANDR_EXT)
-    endif ()
-
-    if (NOT Wayland_FOUND AND
-        NOT XCB_FOUND AND
-        NOT X11_FOUND)
-        message (FATAL_ERROR "No window library found")
     endif ()
 
 endif ()
@@ -55,7 +47,7 @@ endif ()
 include_directories (${CMAKE_CURRENT_BINARY_DIR})
 
 # Utilities
-include_directories (Utils)
+include_directories (utils)
 
 # Include implementation of the layer
 add_subdirectory (profiler)
@@ -147,8 +139,8 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME} PRIVATE ${PROFILER_LAYER_PR
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC ${VULKAN_HEADERS_INCLUDE_DIR}
     PUBLIC ${VULKAN_LOADER_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Install target
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}

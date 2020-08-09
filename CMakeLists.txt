@@ -5,6 +5,30 @@ cmake_minimum_required (VERSION 3.8)
 
 project (VulkanProfiler CXX)
 
+# Detect available libraries
+if (UNIX)
+    find_package (Wayland)
+    find_package (XCB)
+    find_package (X11)
+
+    if (NOT Wayland_FOUND)
+        set (BUILD_WSI_WAYLAND_SUPPORT OFF CACHE "" FORCE)
+    endif ()
+
+    if (NOT XCB_FOUND)
+        set (BUILD_WSI_XCB_SUPPORT OFF CACHE "" FORCE)
+    endif ()
+
+    if (NOT X11_FOUND)
+        set (BUILD_WSI_XLIB_SUPPORT OFF CACHE "" FORCE)
+    endif ()
+
+    if (NOT Wayland_FOUND AND NOT XCB_FOUND AND NOT X11_FOUND)
+        message (FATAL_ERROR "No window library found")
+    endif ()
+
+endif ()
+
 # Build with C++17
 set (CMAKE_CXX_STANDARD 17)
 
