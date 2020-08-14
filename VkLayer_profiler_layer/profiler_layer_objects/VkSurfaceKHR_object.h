@@ -33,7 +33,7 @@ namespace Profiler
             #endif
         };
 
-        inline operator bool () const { return Type != OSWindowHandleType::eInvalid; }
+        inline operator bool() const { return Type != OSWindowHandleType::eInvalid; }
 
         inline OSWindowHandle() : Type( OSWindowHandleType::eInvalid ) {}
 
@@ -44,9 +44,27 @@ namespace Profiler
         #ifdef VK_USE_PLATFORM_XLIB_KHR
         inline OSWindowHandle( Window handle ) : Type( OSWindowHandleType::eX11 ) { X11Handle = handle; }
         #endif
+
+        inline bool operator==( const OSWindowHandle& rh ) const
+        {
+            if( Type != rh.Type ) { return false; }
+            switch( Type )
+            {
+                #ifdef VK_USE_PLATFORM_WIN32_KHR
+            case OSWindowHandleType::eWin32: return (Win32Handle == rh.Win32Handle);
+                #endif
+                #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+                #error Wayland not supported
+                #endif
+                #ifdef VK_USE_PLATFORM_XLIB_KHR
+            case OSWindowHandleType::eX11: return (X11Handle == rh.X11Handle);
+                #endif
+            }
+            return false;
+        }
     };
 
-    struct VkSurfaceKHR_Object
+    struct VkSurfaceKhr_Object
     {
         VkSurfaceKHR Handle;
         OSWindowHandle Window;

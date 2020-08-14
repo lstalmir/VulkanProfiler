@@ -49,10 +49,9 @@ struct ImGui_ImplVulkan_InitInfo
 class ImGui_ImplVulkan_Context
 {
 public:
-    ImGui_ImplVulkan_Context();
+    ImGui_ImplVulkan_Context( ImGui_ImplVulkan_InitInfo* info, VkRenderPass render_pass );
+    ~ImGui_ImplVulkan_Context();
 
-    bool Init( ImGui_ImplVulkan_InitInfo* info, VkRenderPass render_pass );
-    void Shutdown();
     void NewFrame();
     void RenderDrawData( ImDrawData* draw_data, VkCommandBuffer command_buffer );
     bool CreateFontsTexture( VkCommandBuffer command_buffer );

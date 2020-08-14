@@ -35,18 +35,22 @@ namespace Profiler
     class ProfilerOverlayOutput final
     {
     public:
-        ProfilerOverlayOutput(
+        ProfilerOverlayOutput();
+
+        VkResult Initialize(
             VkDevice_Object& device,
             VkQueue_Object& graphicsQueue,
-            VkSwapchainKHR_Object& swapchain,
+            VkSwapchainKhr_Object& swapchain,
             const VkSwapchainCreateInfoKHR* pCreateInfo );
 
-        ~ProfilerOverlayOutput();
+        void Destroy();
+
+        bool IsAvailable() const;
 
         VkSwapchainKHR GetSwapchain() const;
 
-        void ResetSwapchain(
-            VkSwapchainKHR_Object& swapchain,
+        VkResult ResetSwapchain(
+            VkSwapchainKhr_Object& swapchain,
             const VkSwapchainCreateInfoKHR* pCreateInfo );
 
         void Present(
@@ -55,9 +59,9 @@ namespace Profiler
             VkPresentInfoKHR* pPresentInfo );
 
     private:
-        VkDevice_Object& m_Device;
-        VkQueue_Object& m_GraphicsQueue;
-        VkSwapchainKHR_Object* m_pSwapchain;
+        VkDevice_Object* m_pDevice;
+        VkQueue_Object* m_pGraphicsQueue;
+        VkSwapchainKhr_Object* m_pSwapchain;
 
         OSWindowHandle m_Window;
 
@@ -82,7 +86,7 @@ namespace Profiler
 
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
 
-        const float m_TimestampPeriod;
+        float m_TimestampPeriod;
 
         enum class FrameBrowserSortMode
         {
@@ -117,8 +121,8 @@ namespace Profiler
         bool m_Pause;
         bool m_ShowDebugLabels;
 
-        void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
-        void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
+        VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
+        VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();

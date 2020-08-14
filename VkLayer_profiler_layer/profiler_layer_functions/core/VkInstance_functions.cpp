@@ -2,7 +2,7 @@
 #include "VkDevice_functions.h"
 #include "VkLoader_functions.h"
 #include "VkLayer_profiler_layer.generated.h"
-#include "Helpers.h"
+#include "profiler_layer_functions/Helpers.h"
 
 namespace Profiler
 {
@@ -299,7 +299,7 @@ namespace Profiler
 
         if( result == VK_SUCCESS )
         {
-            VkSurfaceKHR_Object surfaceObject = {};
+            VkSurfaceKhr_Object surfaceObject = {};
             surfaceObject.Handle = *pSurface;
             surfaceObject.Window = pCreateInfo->hwnd;
 
@@ -332,7 +332,7 @@ namespace Profiler
 
         if( result == VK_SUCCESS )
         {
-            VkSurfaceKHR_Object surfaceObject = {};
+            VkSurfaceKhr_Object surfaceObject = {};
             surfaceObject.Handle = *pSurface;
             surfaceObject.Window = pCreateInfo->window;
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "VkSurfaceKHR_object.h"
+#include "VkSurfaceKhr_object.h"
 #include <vulkan/vk_layer.h>
 #include <vk_dispatch_table_helper.h>
 #include <unordered_map>
@@ -19,6 +19,6 @@ namespace Profiler
         uint32_t LoaderVersion;
 
         // Surfaces created with this instance
-        std::unordered_map<VkSurfaceKHR, VkSurfaceKHR_Object> Surfaces;
+        std::unordered_map<VkSurfaceKHR, VkSurfaceKhr_Object> Surfaces;
     };
 }

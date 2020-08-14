@@ -1,6 +1,6 @@
 #include "VkDevice_functions_base.h"
 #include "VkInstance_functions.h"
-#include "Helpers.h"
+#include "profiler_layer_functions/Helpers.h"
 #include "profiler/profiler_helpers.h"
 
 namespace Profiler
@@ -114,8 +114,6 @@ namespace Profiler
             return result;
         }
 
-        dd.pOverlay = nullptr;
-
         return VK_SUCCESS;
     }
 
@@ -134,12 +132,8 @@ namespace Profiler
 
         // Destroy the profiler instance
         dd.Profiler.Destroy();
-
-        if( dd.pOverlay )
-        {
-            // Should have been freed in DestroySwapchainKHR
-            Destroy<ProfilerOverlayOutput>( dd.pOverlay );
-        }
+        // Destroy the overlay
+        dd.Overlay.Destroy();
 
         DeviceDispatch.Erase( device );
     }

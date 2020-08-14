@@ -2,7 +2,7 @@
 #include "VkInstance_functions.h"
 #include "profiler_layer_objects/VkSwapchainKHR_object.h"
 #include "VkLayer_profiler_layer.generated.h"
-#include "Helpers.h"
+#include "profiler_layer_functions/Helpers.h"
 
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -64,20 +64,17 @@ namespace Profiler
         VkDevice device,
         const char* pName )
     {
-        // VkDevice_Functions
+        // VkDevice core functions
         GETPROCADDR( GetDeviceProcAddr );
         GETPROCADDR( DestroyDevice );
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
-        GETPROCADDR( CreateSwapchainKHR );
-        GETPROCADDR( DestroySwapchainKHR );
         GETPROCADDR( CreateShaderModule );
         GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
         GETPROCADDR( CreateComputePipelines );
         GETPROCADDR( DestroyPipeline );
         GETPROCADDR( CreateRenderPass );
-        GETPROCADDR( CreateRenderPass2KHR );
         GETPROCADDR( CreateRenderPass2 );
         GETPROCADDR( DestroyRenderPass );
         GETPROCADDR( DestroyCommandPool );
@@ -86,7 +83,7 @@ namespace Profiler
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
 
-        // VkCommandBuffer_Functions
+        // VkCommandBuffer core functions
         GETPROCADDR( BeginCommandBuffer );
         GETPROCADDR( EndCommandBuffer );
         GETPROCADDR( CmdBeginRenderPass );
@@ -95,9 +92,6 @@ namespace Profiler
         GETPROCADDR( CmdBeginRenderPass2 );
         GETPROCADDR( CmdEndRenderPass2 );
         GETPROCADDR( CmdNextSubpass2 );
-        GETPROCADDR( CmdBeginRenderPass2KHR );
-        GETPROCADDR( CmdEndRenderPass2KHR );
-        GETPROCADDR( CmdNextSubpass2KHR );
         GETPROCADDR( CmdBindPipeline );
         GETPROCADDR( CmdExecuteCommands );
         GETPROCADDR( CmdPipelineBarrier );
@@ -107,10 +101,6 @@ namespace Profiler
         GETPROCADDR( CmdDrawIndexedIndirect );
         GETPROCADDR( CmdDrawIndirectCount );
         GETPROCADDR( CmdDrawIndexedIndirectCount );
-        GETPROCADDR( CmdDrawIndirectCountKHR );
-        GETPROCADDR( CmdDrawIndexedIndirectCountKHR );
-        GETPROCADDR( CmdDrawIndirectCountAMD );
-        GETPROCADDR( CmdDrawIndexedIndirectCountAMD );
         GETPROCADDR( CmdDispatch );
         GETPROCADDR( CmdDispatchIndirect );
         GETPROCADDR( CmdCopyBuffer );
@@ -125,9 +115,14 @@ namespace Profiler
         GETPROCADDR( CmdFillBuffer );
         GETPROCADDR( CmdUpdateBuffer );
 
-        // VkQueue_Functions
+        // VkQueue core functions
         GETPROCADDR( QueueSubmit );
-        GETPROCADDR( QueuePresentKHR );
+
+        // VK_KHR_create_renderpass2 functions
+        GETPROCADDR( CreateRenderPass2KHR );
+        GETPROCADDR( CmdBeginRenderPass2KHR );
+        GETPROCADDR( CmdEndRenderPass2KHR );
+        GETPROCADDR( CmdNextSubpass2KHR );
 
         // VK_EXT_debug_marker functions
         GETPROCADDR( DebugMarkerSetObjectNameEXT );
@@ -142,6 +137,19 @@ namespace Profiler
         GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
         GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
         GETPROCADDR( CmdEndDebugUtilsLabelEXT );
+
+        // VK_AMD_draw_indirect_count functions
+        GETPROCADDR( CmdDrawIndirectCountAMD );
+        GETPROCADDR( CmdDrawIndexedIndirectCountAMD );
+
+        // VK_KHR_draw_indirect_count functions
+        GETPROCADDR( CmdDrawIndirectCountKHR );
+        GETPROCADDR( CmdDrawIndexedIndirectCountKHR );
+
+        // VK_KHR_swapchain functions
+        GETPROCADDR( QueuePresentKHR );
+        GETPROCADDR( CreateSwapchainKHR );
+        GETPROCADDR( DestroySwapchainKHR );
 
         // VK_EXT_profiler functions
         GETPROCADDR_EXT( vkSetProfilerModeEXT );
@@ -258,135 +266,6 @@ namespace Profiler
         }
 
         return result;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        CreateSwapchainKHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateSwapchainKHR(
-        VkDevice device,
-        const VkSwapchainCreateInfoKHR* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
-        VkSwapchainKHR* pSwapchain )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        VkSwapchainCreateInfoKHR createInfo = *pCreateInfo;
-
-        // TODO: Move to separate layer
-        const bool createProfilerOverlay =
-            (dd.Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_DISABLE_OVERLAY_BIT_EXT) == 0;
-
-        if( createProfilerOverlay )
-        {
-            // Make sure we are able to write to presented image
-            createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        }
-
-        // Create the swapchain
-        VkResult result = dd.Device.Callbacks.CreateSwapchainKHR(
-            device, &createInfo, pAllocator, pSwapchain );
-
-        // Create wrapping object
-        if( result == VK_SUCCESS )
-        {
-            VkSwapchainKHR_Object swapchainObject = {};
-            swapchainObject.Handle = *pSwapchain;
-            swapchainObject.pSurface = &dd.Device.pInstance->Surfaces[ pCreateInfo->surface ];
-
-            uint32_t swapchainImageCount = 0;
-            dd.Device.Callbacks.GetSwapchainImagesKHR(
-                device, *pSwapchain, &swapchainImageCount, nullptr );
-
-            swapchainObject.Images.resize( swapchainImageCount );
-            dd.Device.Callbacks.GetSwapchainImagesKHR(
-                device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
-
-            dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
-        }
-
-        // Create overlay
-        // TODO: Move to separate layer
-        if( result == VK_SUCCESS &&
-            createProfilerOverlay )
-        {
-            if( dd.pOverlay == nullptr )
-            {
-                // Select graphics queue for the overlay draw commands
-                VkQueue graphicsQueue = VK_NULL_HANDLE;
-
-                for( auto& it : dd.Device.Queues )
-                {
-                    if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
-                    {
-                        graphicsQueue = it.second.Handle;
-                        break;
-                    }
-                }
-
-                assert( graphicsQueue != VK_NULL_HANDLE );
-
-                // Create overlay
-                result = Create<ProfilerOverlayOutput>(
-                    dd.pOverlay,
-                    dd.Device,
-                    dd.Device.Queues.at( graphicsQueue ),
-                    dd.Device.Swapchains.at( *pSwapchain ),
-                    pCreateInfo );
-
-                if( result != VK_SUCCESS )
-                {
-                    // Full initialization failed, don't continue in partially-initialized state
-                    VkDevice_Functions::DestroySwapchainKHR( device, *pSwapchain, pAllocator );
-                }
-            }
-            else
-            {
-                // Reinitialize overlay for the new swapchain
-                dd.pOverlay->ResetSwapchain(
-                    dd.Device.Swapchains.at( *pSwapchain ),
-                    pCreateInfo );
-            }
-        }
-
-        return result;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        DestroySwapchainKHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroySwapchainKHR(
-        VkDevice device,
-        VkSwapchainKHR swapchain,
-        const VkAllocationCallbacks* pAllocator )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        if( dd.pOverlay )
-        {
-            // After recreating swapchain using CreateSwapchainKHR parent swapchain of the overlay has changed.
-            // The old swapchain is then destroyed and will invalidate the overlay if we don't check which
-            // swapchain is actually being destreoyed.
-            if( dd.pOverlay->GetSwapchain() == swapchain )
-            {
-                Destroy<ProfilerOverlayOutput>( dd.pOverlay );
-            }
-        }
-
-        dd.Device.Swapchains.erase( swapchain );
-
-        // Destroy the swapchain
-        dd.Device.Callbacks.DestroySwapchainKHR( device, swapchain, pAllocator );
     }
 
     /***********************************************************************************\
@@ -551,35 +430,6 @@ namespace Profiler
 
         // Create the render pass
         VkResult result = dd.Device.Callbacks.CreateRenderPass(
-            device, pCreateInfo, pAllocator, pRenderPass );
-
-        if( result == VK_SUCCESS )
-        {
-            // Register new render pass
-            dd.Profiler.CreateRenderPass( *pRenderPass, pCreateInfo );
-        }
-
-        return result;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        CreateRenderPass2KHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateRenderPass2KHR(
-        VkDevice device,
-        const VkRenderPassCreateInfo2KHR* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
-        VkRenderPass* pRenderPass )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        // Create the render pass
-        VkResult result = dd.Device.Callbacks.CreateRenderPass2KHR(
             device, pCreateInfo, pAllocator, pRenderPass );
 
         if( result == VK_SUCCESS )

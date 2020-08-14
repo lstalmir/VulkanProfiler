@@ -1,5 +1,5 @@
 #pragma once
-#include "VkDevice_functions_base.h"
+#include "profiler_layer_functions/core/VkDevice_functions_base.h"
 
 namespace Profiler
 {

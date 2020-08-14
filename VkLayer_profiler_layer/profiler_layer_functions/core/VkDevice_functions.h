@@ -1,9 +1,12 @@
 #pragma once
-#include "Dispatch.h"
 #include "VkCommandBuffer_functions.h"
 #include "VkQueue_functions.h"
-#include "VkDebugMarkerExt_Functions.h"
-#include "VkDebugUtilsExt_functions.h"
+#include "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.h"
+#include "profiler_layer_functions/extensions/VkDebugMarkerExt_Functions.h"
+#include "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.h"
+#include "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
+#include "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.h"
+#include "profiler_layer_functions/extensions/VkSwapchainKhr_functions.h"
 
 namespace Profiler
 {
@@ -19,8 +22,12 @@ namespace Profiler
     struct VkDevice_Functions
         : VkCommandBuffer_Functions
         , VkQueue_Functions
+        , VkCreateRenderPass2Khr_Functions
         , VkDebugMarkerExt_Functions
         , VkDebugUtilsExt_Functions
+        , VkDrawIndirectCountAmd_Functions
+        , VkDrawIndirectCountKhr_Functions
+        , VkSwapchainKhr_Functions
     {
         // vkGetDeviceProcAddr
         static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetDeviceProcAddr(
@@ -44,19 +51,6 @@ namespace Profiler
             const char* pLayerName,
             uint32_t* pPropertyCount,
             VkExtensionProperties* pProperties );
-
-        // vkCreateSwapchainKHR
-        static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(
-            VkDevice device,
-            const VkSwapchainCreateInfoKHR* pCreateInfo,
-            const VkAllocationCallbacks* pAllocator,
-            VkSwapchainKHR* pSwapchain );
-
-        // vkDestroySwapchainKHR
-        static VKAPI_ATTR void VKAPI_CALL DestroySwapchainKHR(
-            VkDevice device,
-            VkSwapchainKHR swapchain,
-            const VkAllocationCallbacks* pAllocator );
 
         // vkCreateShaderModule
         static VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(
@@ -99,13 +93,6 @@ namespace Profiler
         static VKAPI_ATTR VkResult VKAPI_CALL CreateRenderPass(
             VkDevice device,
             const VkRenderPassCreateInfo* pCreateInfo,
-            const VkAllocationCallbacks* pAllocator,
-            VkRenderPass* pRenderPass );
-
-        // vkCreateRenderPass2KHR
-        static VKAPI_ATTR VkResult VKAPI_CALL CreateRenderPass2KHR(
-            VkDevice device,
-            const VkRenderPassCreateInfo2KHR* pCreateInfo,
             const VkAllocationCallbacks* pAllocator,
             VkRenderPass* pRenderPass );
 

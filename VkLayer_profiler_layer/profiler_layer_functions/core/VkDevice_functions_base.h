@@ -1,8 +1,8 @@
 #pragma once
-#include "Dispatch.h"
 #include "profiler/profiler.h"
 #include "profiler_overlay/profiler_overlay.h"
 #include "profiler_layer_objects/VkDevice_object.h"
+#include "profiler_layer_functions/Dispatch.h"
 #include <vulkan/vk_layer.h>
 #include <vk_layer_dispatch_table.h>
 
@@ -28,7 +28,7 @@ namespace Profiler
             VkDevice_Object Device;
             DeviceProfiler Profiler;
 
-            ProfilerOverlayOutput* pOverlay;
+            ProfilerOverlayOutput Overlay;
         };
 
         static DispatchableMap<Dispatch> DeviceDispatch;

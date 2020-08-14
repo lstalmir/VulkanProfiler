@@ -1,5 +1,5 @@
 #include "VkLoader_functions.h"
-#include "Dispatch.h"
+#include "profiler_layer_functions/Dispatch.h"
 
 #ifdef WIN32
 #include <Windows.h>

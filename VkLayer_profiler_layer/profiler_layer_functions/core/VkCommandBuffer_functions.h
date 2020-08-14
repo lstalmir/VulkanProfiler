@@ -55,23 +55,6 @@ namespace Profiler
             const VkSubpassBeginInfo* pSubpassBeginInfo,
             const VkSubpassEndInfo* pSubpassEndInfo );
 
-        // vkCmdBeginRenderPass2KHR
-        static VKAPI_ATTR void VKAPI_CALL CmdBeginRenderPass2KHR(
-            VkCommandBuffer commandBuffer,
-            const VkRenderPassBeginInfo* pBeginInfo,
-            const VkSubpassBeginInfoKHR* pSubpassBeginInfo );
-
-        // vkCmdEndRenderPass2KHR
-        static VKAPI_ATTR void VKAPI_CALL CmdEndRenderPass2KHR(
-            VkCommandBuffer commandBuffer,
-            const VkSubpassEndInfoKHR* pSubpassEndInfo );
-
-        // vkCmdNextSubpass2KHR
-        static VKAPI_ATTR void VKAPI_CALL CmdNextSubpass2KHR(
-            VkCommandBuffer commandBuffer,
-            const VkSubpassBeginInfoKHR* pSubpassBeginInfo,
-            const VkSubpassEndInfoKHR* pSubpassEndInfo );
-
         // vkCmdBindPipeline
         static VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(
             VkCommandBuffer commandBuffer,
@@ -142,46 +125,6 @@ namespace Profiler
 
         // vkCmdDrawIndirectCount
         static VKAPI_ATTR void VKAPI_CALL CmdDrawIndexedIndirectCount(
-            VkCommandBuffer commandBuffer,
-            VkBuffer argsBuffer,
-            VkDeviceSize argsOffset,
-            VkBuffer countBuffer,
-            VkDeviceSize countOffset,
-            uint32_t maxDrawCount,
-            uint32_t stride );
-
-        // vkCmdDrawIndirectCountKHR
-        static VKAPI_ATTR void VKAPI_CALL CmdDrawIndirectCountKHR(
-            VkCommandBuffer commandBuffer,
-            VkBuffer argsBuffer,
-            VkDeviceSize argsOffset,
-            VkBuffer countBuffer,
-            VkDeviceSize countOffset,
-            uint32_t maxDrawCount,
-            uint32_t stride );
-
-        // vkCmdDrawIndirectCountKHR
-        static VKAPI_ATTR void VKAPI_CALL CmdDrawIndexedIndirectCountKHR(
-            VkCommandBuffer commandBuffer,
-            VkBuffer argsBuffer,
-            VkDeviceSize argsOffset,
-            VkBuffer countBuffer,
-            VkDeviceSize countOffset,
-            uint32_t maxDrawCount,
-            uint32_t stride );
-
-        // vkCmdDrawIndirectCountAMD
-        static VKAPI_ATTR void VKAPI_CALL CmdDrawIndirectCountAMD(
-            VkCommandBuffer commandBuffer,
-            VkBuffer argsBuffer,
-            VkDeviceSize argsOffset,
-            VkBuffer countBuffer,
-            VkDeviceSize countOffset,
-            uint32_t maxDrawCount,
-            uint32_t stride );
-
-        // vkCmdDrawIndirectCountAMD
-        static VKAPI_ATTR void VKAPI_CALL CmdDrawIndexedIndirectCountAMD(
             VkCommandBuffer commandBuffer,
             VkBuffer argsBuffer,
             VkDeviceSize argsOffset,

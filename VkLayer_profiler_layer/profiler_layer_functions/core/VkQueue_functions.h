@@ -14,11 +14,6 @@ namespace Profiler
     \***********************************************************************************/
     struct VkQueue_Functions : VkDevice_Functions_Base
     {
-        // vkQueuePresentKHR
-        static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(
-            VkQueue queue,
-            const VkPresentInfoKHR* pPresentInfo );
-
         // vkQueueSubmit
         static VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(
             VkQueue queue,

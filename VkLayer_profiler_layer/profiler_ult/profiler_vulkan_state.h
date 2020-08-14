@@ -5,8 +5,8 @@
 
 #include <vk_dispatch_table_helper.h>
 
-#include "profiler_layer_functions/VkInstance_functions.h"
-#include "profiler_layer_functions/VkDevice_functions.h"
+#include "profiler_layer_functions/core/VkInstance_functions.h"
+#include "profiler_layer_functions/core/VkDevice_functions.h"
 
 #define VERIFY_RESULT( VK, EXPR ) VK->VerifyResult( (EXPR), #EXPR )
 

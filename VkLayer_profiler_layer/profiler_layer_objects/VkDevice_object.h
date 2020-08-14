@@ -1,7 +1,7 @@
 #pragma once
 #include "VkInstance_object.h"
 #include "VkQueue_object.h"
-#include "VkSwapchainKHR_object.h"
+#include "VkSwapchainKhr_object.h"
 #include <map>
 #include <vector>
 #include <vulkan/vk_layer.h>
@@ -45,6 +45,6 @@ namespace Profiler
         std::unordered_map<VkQueue, VkQueue_Object> Queues;
 
         // Swapchains created with this device
-        std::unordered_map<VkSwapchainKHR, VkSwapchainKHR_Object> Swapchains;
+        std::unordered_map<VkSwapchainKHR, VkSwapchainKhr_Object> Swapchains;
     };
 }

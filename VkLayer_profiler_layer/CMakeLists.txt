@@ -69,28 +69,39 @@ set (json
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
     )
 
-set (headers
+set (helper_functions
     "profiler_layer_functions/Dispatch.h"
     "profiler_layer_functions/Helpers.h"
-    "profiler_layer_functions/VkCommandBuffer_functions.h"
-    "profiler_layer_functions/VkDebugMarkerExt_functions.h"
-    "profiler_layer_functions/VkDebugUtilsExt_functions.h"
-    "profiler_layer_functions/VkDevice_functions.h"
-    "profiler_layer_functions/VkDevice_functions_base.h"
-    "profiler_layer_functions/VkInstance_functions.h"
-    "profiler_layer_functions/VkLoader_functions.h"
-    "profiler_layer_functions/VkQueue_functions.h"
     )
 
-set (sources
-    "profiler_layer_functions/VkCommandBuffer_functions.cpp"
-    "profiler_layer_functions/VkDebugMarkerExt_functions.cpp"
-    "profiler_layer_functions/VkDebugUtilsExt_functions.cpp"
-    "profiler_layer_functions/VkDevice_functions.cpp"
-    "profiler_layer_functions/VkDevice_functions_base.cpp"
-    "profiler_layer_functions/VkInstance_functions.cpp"
-    "profiler_layer_functions/VkLoader_functions.cpp"
-    "profiler_layer_functions/VkQueue_functions.cpp"
+set (core_functions
+    "profiler_layer_functions/core/VkCommandBuffer_functions.cpp"
+    "profiler_layer_functions/core/VkCommandBuffer_functions.h"
+    "profiler_layer_functions/core/VkDevice_functions.cpp"
+    "profiler_layer_functions/core/VkDevice_functions.h"
+    "profiler_layer_functions/core/VkDevice_functions_base.cpp"
+    "profiler_layer_functions/core/VkDevice_functions_base.h"
+    "profiler_layer_functions/core/VkInstance_functions.cpp"
+    "profiler_layer_functions/core/VkInstance_functions.h"
+    "profiler_layer_functions/core/VkLoader_functions.cpp"
+    "profiler_layer_functions/core/VkLoader_functions.h"
+    "profiler_layer_functions/core/VkQueue_functions.cpp"
+    "profiler_layer_functions/core/VkQueue_functions.h"
+    )
+
+set (extension_functions
+    "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.cpp"
+    "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.h"
+    "profiler_layer_functions/extensions/VkDebugMarkerExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkDebugMarkerExt_functions.h"
+    "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.h"
+    "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.cpp"
+    "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
+    "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.h"
+    "profiler_layer_functions/extensions/VkSwapchainKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkSwapchainKhr_functions.h"
     )
 
 # Configure resources file
@@ -118,8 +129,9 @@ configure_file (
     @ONLY)
 
 add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
-    ${sources}
-    ${headers}
+    ${helper_functions}
+    ${core_functions}
+    ${extension_functions}
     ${utils}
     ${generated})
 

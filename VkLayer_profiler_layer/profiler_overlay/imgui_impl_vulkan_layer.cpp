@@ -161,7 +161,7 @@ static uint32_t __glsl_shader_frag_spv[] =
 // FUNCTIONS
 //-----------------------------------------------------------------------------
 
-ImGui_ImplVulkan_Context::ImGui_ImplVulkan_Context()
+ImGui_ImplVulkan_Context::ImGui_ImplVulkan_Context( ImGui_ImplVulkan_InitInfo* info, VkRenderPass render_pass )
     : m_InstanceDispatchTable()
     , m_DispatchTable()
     , m_VulkanInitInfo()
@@ -185,6 +185,32 @@ ImGui_ImplVulkan_Context::ImGui_ImplVulkan_Context()
     memset( &m_DispatchTable, 0, sizeof( m_DispatchTable ) );
     memset( &m_VulkanInitInfo, 0, sizeof( m_VulkanInitInfo ) );
     memset( &m_MainWindowRenderBuffers, 0, sizeof( m_MainWindowRenderBuffers ) );
+
+    // Setup back-end capabilities flags
+    ImGuiIO& io = ImGui::GetIO();
+    io.BackendRendererName = "imgui_impl_vulkan";
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+
+    IM_ASSERT( info->Instance != VK_NULL_HANDLE );
+    IM_ASSERT( info->PhysicalDevice != VK_NULL_HANDLE );
+    IM_ASSERT( info->Device != VK_NULL_HANDLE );
+    IM_ASSERT( info->Queue != VK_NULL_HANDLE );
+    IM_ASSERT( info->DescriptorPool != VK_NULL_HANDLE );
+    IM_ASSERT( info->MinImageCount >= 2 );
+    IM_ASSERT( info->ImageCount >= info->MinImageCount );
+    IM_ASSERT( render_pass != VK_NULL_HANDLE );
+
+    m_InstanceDispatchTable = *info->pInstanceDispatchTable;
+    m_DispatchTable = *info->pDispatchTable;
+
+    m_VulkanInitInfo = *info;
+    m_RenderPass = render_pass;
+    CreateDeviceObjects();
+}
+
+ImGui_ImplVulkan_Context::~ImGui_ImplVulkan_Context()
+{
+    DestroyDeviceObjects();
 }
 
 uint32_t ImGui_ImplVulkan_Context::MemoryType( VkMemoryPropertyFlags properties, uint32_t type_bits )
@@ -777,37 +803,6 @@ void ImGui_ImplVulkan_Context::DestroyDeviceObjects()
     if( m_DescriptorSetLayout ) { m_DispatchTable.DestroyDescriptorSetLayout( v->Device, m_DescriptorSetLayout, v->Allocator ); m_DescriptorSetLayout = VK_NULL_HANDLE; }
     if( m_PipelineLayout ) { m_DispatchTable.DestroyPipelineLayout( v->Device, m_PipelineLayout, v->Allocator ); m_PipelineLayout = VK_NULL_HANDLE; }
     if( m_Pipeline ) { m_DispatchTable.DestroyPipeline( v->Device, m_Pipeline, v->Allocator ); m_Pipeline = VK_NULL_HANDLE; }
-}
-
-bool ImGui_ImplVulkan_Context::Init( ImGui_ImplVulkan_InitInfo* info, VkRenderPass render_pass )
-{
-    // Setup back-end capabilities flags
-    ImGuiIO& io = ImGui::GetIO();
-    io.BackendRendererName = "imgui_impl_vulkan";
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
-
-    IM_ASSERT( info->Instance != VK_NULL_HANDLE );
-    IM_ASSERT( info->PhysicalDevice != VK_NULL_HANDLE );
-    IM_ASSERT( info->Device != VK_NULL_HANDLE );
-    IM_ASSERT( info->Queue != VK_NULL_HANDLE );
-    IM_ASSERT( info->DescriptorPool != VK_NULL_HANDLE );
-    IM_ASSERT( info->MinImageCount >= 2 );
-    IM_ASSERT( info->ImageCount >= info->MinImageCount );
-    IM_ASSERT( render_pass != VK_NULL_HANDLE );
-
-    m_InstanceDispatchTable = *info->pInstanceDispatchTable;
-    m_DispatchTable = *info->pDispatchTable;
-
-    m_VulkanInitInfo = *info;
-    m_RenderPass = render_pass;
-    CreateDeviceObjects();
-
-    return true;
-}
-
-void ImGui_ImplVulkan_Context::Shutdown()
-{
-    DestroyDeviceObjects();
 }
 
 void ImGui_ImplVulkan_Context::NewFrame()
