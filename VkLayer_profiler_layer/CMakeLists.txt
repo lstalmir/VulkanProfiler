@@ -73,6 +73,8 @@ set (headers
     "profiler_layer_functions/Dispatch.h"
     "profiler_layer_functions/Helpers.h"
     "profiler_layer_functions/VkCommandBuffer_functions.h"
+    "profiler_layer_functions/VkDebugMarkerExt_functions.h"
+    "profiler_layer_functions/VkDebugUtilsExt_functions.h"
     "profiler_layer_functions/VkDevice_functions.h"
     "profiler_layer_functions/VkDevice_functions_base.h"
     "profiler_layer_functions/VkInstance_functions.h"
@@ -82,6 +84,8 @@ set (headers
 
 set (sources
     "profiler_layer_functions/VkCommandBuffer_functions.cpp"
+    "profiler_layer_functions/VkDebugMarkerExt_functions.cpp"
+    "profiler_layer_functions/VkDebugUtilsExt_functions.cpp"
     "profiler_layer_functions/VkDevice_functions.cpp"
     "profiler_layer_functions/VkDevice_functions_base.cpp"
     "profiler_layer_functions/VkInstance_functions.cpp"

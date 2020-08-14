@@ -1,11 +1,9 @@
 #pragma once
-#include "profiler_allocator.h"
-#include "profiler_command_buffer.h"
 #include "profiler_counters.h"
 #include "profiler_data_aggregator.h"
 #include "profiler_debug_utils.h"
-#include "profiler_frame_stats.h"
 #include "profiler_helpers.h"
+#include "profiler_data.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include <unordered_map>
@@ -21,6 +19,8 @@
 
 namespace Profiler
 {
+    class ProfilerCommandBuffer;
+
     /***********************************************************************************\
 
     Structure:
@@ -50,28 +50,22 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        VkResult Initialize( VkDevice_Object* pDevice, const VkProfilerCreateInfoEXT* pCreateInfo );
+        VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
 
         void Destroy();
 
         // Public interface
-        VkResult SetMode( VkProfilerModeEXT mode );
-        VkResult SetSyncMode( VkProfilerSyncModeEXT syncMode );
-        ProfilerAggregatedData GetData() const;
+        VkResult SetMode( VkProfilerModeEXT );
+        VkResult SetSyncMode( VkProfilerSyncModeEXT );
+        DeviceProfilerFrameData GetData() const;
 
-        void RegisterCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
-        void UnregisterCommandBuffers( uint32_t, const VkCommandBuffer* );
-        void UnregisterCommandBuffers( VkCommandPool );
+        void AllocateCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
+        void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
+        void FreeCommandBuffers( VkCommandPool );
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer );
-        // TODO: Wrap render passes
-        ProfilerPipeline& GetPipeline( VkPipeline );
-
-        // Deprecate
-        void OnPipelineBarrier( VkCommandBuffer,
-            uint32_t, const VkMemoryBarrier*,
-            uint32_t, const VkBufferMemoryBarrier*,
-            uint32_t, const VkImageMemoryBarrier* );
+        DeviceProfilerPipeline& GetPipeline( VkPipeline );
+        DeviceProfilerRenderPass& GetRenderPass( VkRenderPass );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
@@ -79,6 +73,10 @@ namespace Profiler
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
         void DestroyShaderModule( VkShaderModule );
+
+        void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo* );
+        void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
+        void DestroyRenderPass( VkRenderPass );
 
         void PreSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
         void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
@@ -94,7 +92,7 @@ namespace Profiler
         ProfilerConfig          m_Config;
 
         mutable std::mutex      m_DataMutex;
-        ProfilerAggregatedData  m_Data;
+        DeviceProfilerFrameData m_Data;
 
         ProfilerDataAggregator  m_DataAggregator;
 
@@ -107,7 +105,9 @@ namespace Profiler
         VkPhysicalDeviceMemoryProperties m_MemoryProperties;
         VkPhysicalDeviceMemoryProperties2 m_MemoryProperties2;
 
-        ProfilerAggregatedSelfData m_SelfData;
+        uint64_t                m_CommandBufferLookupTimeNs;
+        uint64_t                m_PipelineLookupTimeNs;
+        uint64_t                m_RenderPassLookupTimeNs;
 
         std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         std::atomic_uint64_t    m_DeviceLocalAllocatedMemorySize;
@@ -120,7 +120,9 @@ namespace Profiler
         LockableUnorderedMap<VkCommandBuffer, ProfilerCommandBuffer> m_CommandBuffers;
 
         LockableUnorderedMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
-        LockableUnorderedMap<VkPipeline, ProfilerPipeline> m_Pipelines;
+        LockableUnorderedMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
+
+        LockableUnorderedMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
 
         VkFence                 m_SubmitFence;
 
@@ -133,7 +135,12 @@ namespace Profiler
 
         VkResult InitializeINTEL();
 
-        ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo );
-        ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo );
+        ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& );
+        ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& );
+
+        void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
+
+        decltype(m_CommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
+        decltype(m_CommandBuffers)::iterator FreeCommandBuffer( decltype(m_CommandBuffers)::iterator );
     };
 }

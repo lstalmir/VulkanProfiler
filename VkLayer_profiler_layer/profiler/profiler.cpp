@@ -1,4 +1,5 @@
 #include "profiler.h"
+#include "profiler_command_buffer.h"
 #include "profiler_helpers.h"
 #include "farmhash/src/farmhash.h"
 #include <sstream>
@@ -102,6 +103,21 @@ namespace Profiler
 
         // Initialize aggregator
         m_DataAggregator.Initialize( this );
+
+        // Initialize internal pipelines
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBuffer, "CopyBuffer" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBufferToImage, "CopyBufferToImage" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyImage, "CopyImage" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyImageToBuffer, "CopyImageToBuffer" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eClearAttachments, "ClearAttachments" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eClearColorImage, "ClearColorImage" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eClearDepthStencilImage, "ClearDepthStencilImage" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eResolveImage, "ResolveImage" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eBlitImage, "BlitImage" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eFillBuffer, "FillBuffer" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eUpdatBuffer, "UpdateBuffer" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eBeginRenderPass, "BeginRenderPass" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eEndRenderPass, "EndRenderPass" );
 
         return VK_SUCCESS;
     }
@@ -227,7 +243,7 @@ namespace Profiler
     /***********************************************************************************\
 
     \***********************************************************************************/
-    ProfilerAggregatedData DeviceProfiler::GetData() const
+    DeviceProfilerFrameData DeviceProfiler::GetData() const
     {
         // Hold aggregator updates to keep m_Data consistent
         std::scoped_lock lk( m_DataMutex );
@@ -243,7 +259,7 @@ namespace Profiler
         Create wrappers for VkCommandBuffer objects.
 
     \***********************************************************************************/
-    void DeviceProfiler::RegisterCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
+    void DeviceProfiler::AllocateCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
         std::scoped_lock lk( m_CommandBuffers );
 
@@ -268,13 +284,13 @@ namespace Profiler
         Destroy wrappers for VkCommandBuffer objects.
 
     \***********************************************************************************/
-    void DeviceProfiler::UnregisterCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
+    void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
         std::scoped_lock lk( m_CommandBuffers );
 
         for( uint32_t i = 0; i < count; ++i )
         {
-            m_CommandBuffers.erase( pCommandBuffers[ i ] );
+            FreeCommandBuffer( pCommandBuffers[ i ] );
         }
     }
 
@@ -287,14 +303,14 @@ namespace Profiler
         Destroy all command buffer wrappers allocated in the commandPool.
 
     \***********************************************************************************/
-    void DeviceProfiler::UnregisterCommandBuffers( VkCommandPool commandPool )
+    void DeviceProfiler::FreeCommandBuffers( VkCommandPool commandPool )
     {
         std::scoped_lock lk( m_CommandBuffers );
 
         for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
         {
             it = (it->second.GetCommandPool() == commandPool)
-                ? m_CommandBuffers.erase( it )
+                ? FreeCommandBuffer( it )
                 : std::next( it );
         }
     }
@@ -303,61 +319,24 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBuffer& DeviceProfiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_SelfData.m_CommandBufferLookupTimeNs );
+        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_CommandBufferLookupTimeNs );
         return m_CommandBuffers.interlocked_at( commandBuffer );
     }
 
     /***********************************************************************************\
     \***********************************************************************************/
-    ProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
+    DeviceProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_SelfData.m_PipelineLookupTimeNs );
+        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_PipelineLookupTimeNs );
         return m_Pipelines.interlocked_at( pipeline );
     }
 
     /***********************************************************************************\
-
-    Function:
-        PipelineBarrier
-
-    Description:
-        Collects barrier statistics.
-
     \***********************************************************************************/
-    void DeviceProfiler::OnPipelineBarrier( VkCommandBuffer commandBuffer,
-        uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers,
-        uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
-        uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
+    DeviceProfilerRenderPass& DeviceProfiler::GetRenderPass( VkRenderPass renderPass )
     {
-        CpuTimestampCounter commandBufferLookupTimeCounter;
-
-        commandBufferLookupTimeCounter.Begin();
-
-        // ProfilerCommandBuffer object should already be in the map
-        auto& profiledCommandBuffer = m_CommandBuffers.interlocked_at( commandBuffer );
-
-        commandBufferLookupTimeCounter.End();
-
-        // Aggregate command buffer lookup time
-        m_SelfData.m_CommandBufferLookupTimeNs +=
-            commandBufferLookupTimeCounter.GetValue<std::chrono::nanoseconds>().count();
-
-        profiledCommandBuffer.OnPipelineBarrier(
-            memoryBarrierCount, pMemoryBarriers,
-            bufferMemoryBarrierCount, pBufferMemoryBarriers,
-            imageMemoryBarrierCount, pImageMemoryBarriers );
-
-        // Transitions from undefined layout are slower than from other layouts
-        // BUT are required in some cases (e.g., texture is used for the first time)
-        for( uint32_t i = 0; i < imageMemoryBarrierCount; ++i )
-        {
-            const VkImageMemoryBarrier& barrier = pImageMemoryBarriers[ i ];
-
-            if( barrier.oldLayout == VK_IMAGE_LAYOUT_UNDEFINED )
-            {
-                // TODO: Message
-            }
-        }
+        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_RenderPassLookupTimeNs );
+        return m_RenderPasses.interlocked_at( renderPass );
     }
 
     /***********************************************************************************\
@@ -373,7 +352,7 @@ namespace Profiler
     {
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
-            ProfilerPipeline profilerPipeline;
+            DeviceProfilerPipeline profilerPipeline;
             profilerPipeline.m_Handle = pPipelines[i];
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -401,7 +380,7 @@ namespace Profiler
     {
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
-            ProfilerPipeline profilerPipeline;
+            DeviceProfilerPipeline profilerPipeline;
             profilerPipeline.m_Handle = pPipelines[ i ];
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
@@ -455,6 +434,157 @@ namespace Profiler
     void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
     {
         m_ShaderModuleHashes.interlocked_erase( module );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateRenderPass( VkRenderPass renderPass, const VkRenderPassCreateInfo* pCreateInfo )
+    {
+        DeviceProfilerRenderPass deviceProfilerRenderPass;
+        deviceProfilerRenderPass.m_Handle = renderPass;
+        
+        for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
+        {
+            const VkSubpassDescription& subpass = pCreateInfo->pSubpasses[ subpassIndex ];
+
+            DeviceProfilerSubpass deviceProfilerSubpass;
+            deviceProfilerSubpass.m_Index = subpassIndex;
+            
+            // Check if this subpass resolves any attachments at the end
+            if( subpass.pResolveAttachments )
+            {
+                for( uint32_t attachmentIndex = 0; attachmentIndex < subpass.colorAttachmentCount; ++attachmentIndex )
+                {
+                    // Attachments which are not resolved have VK_ATTACHMENT_UNUSED set
+                    if( subpass.pResolveAttachments[ attachmentIndex ].attachment != VK_ATTACHMENT_UNUSED )
+                    {
+                        deviceProfilerSubpass.m_ResolveCount++;
+                    }
+                }
+            }
+
+            deviceProfilerRenderPass.m_Subpasses.push_back( deviceProfilerSubpass );
+        }
+
+        // Copy attachment descriptions
+        deviceProfilerRenderPass.m_Attachments.resize( pCreateInfo->attachmentCount );
+
+        std::memcpy( deviceProfilerRenderPass.m_Attachments.data(),
+            pCreateInfo->pAttachments,
+            pCreateInfo->attachmentCount * sizeof( VkAttachmentDescription ) );
+
+        // Store render pass
+        m_RenderPasses.interlocked_emplace( renderPass, deviceProfilerRenderPass );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateRenderPass( VkRenderPass renderPass, const VkRenderPassCreateInfo2* pCreateInfo )
+    {
+        DeviceProfilerRenderPass deviceProfilerRenderPass;
+        deviceProfilerRenderPass.m_Handle = renderPass;
+
+        for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
+        {
+            const VkSubpassDescription2& subpass = pCreateInfo->pSubpasses[ subpassIndex ];
+
+            DeviceProfilerSubpass deviceProfilerSubpass;
+            deviceProfilerSubpass.m_Index = subpassIndex;
+
+            // Check if this subpass resolves any attachments at the end
+            if( subpass.pResolveAttachments )
+            {
+                for( uint32_t attachmentIndex = 0; attachmentIndex < subpass.colorAttachmentCount; ++attachmentIndex )
+                {
+                    // Attachments which are not resolved have VK_ATTACHMENT_UNUSED set
+                    if( subpass.pResolveAttachments[ attachmentIndex ].attachment != VK_ATTACHMENT_UNUSED )
+                    {
+                        deviceProfilerSubpass.m_ResolveCount++;
+                    }
+                }
+            }
+
+            // Check if this subpass resolves depth-stencil attachment
+            for( const auto& it : PNextIterator( subpass.pNext ) )
+            {
+                if( it.sType == VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_DEPTH_STENCIL_RESOLVE )
+                {
+                    const VkSubpassDescriptionDepthStencilResolve& depthStencilResolve =
+                        reinterpret_cast<const VkSubpassDescriptionDepthStencilResolve&>(it);
+
+                    // Check if depth-stencil resolve is actually enabled for this subpass
+                    if( (depthStencilResolve.pDepthStencilResolveAttachment) &&
+                        (depthStencilResolve.pDepthStencilResolveAttachment->attachment != VK_ATTACHMENT_UNUSED) )
+                    {
+                        if( (depthStencilResolve.depthResolveMode != VK_RESOLVE_MODE_NONE) ||
+                            (depthStencilResolve.stencilResolveMode != VK_RESOLVE_MODE_NONE) )
+                        {
+                            deviceProfilerSubpass.m_ResolveCount++;
+                        }
+
+                        // Check if independent resolve is used - it will count as 2 resolves
+                        if( (depthStencilResolve.depthResolveMode != VK_RESOLVE_MODE_NONE) &&
+                            (depthStencilResolve.stencilResolveMode != VK_RESOLVE_MODE_NONE) &&
+                            (depthStencilResolve.stencilResolveMode != depthStencilResolve.depthResolveMode) )
+                        {
+                            deviceProfilerSubpass.m_ResolveCount++;
+                        }
+                    }
+                }
+            }
+
+            deviceProfilerRenderPass.m_Subpasses.push_back( deviceProfilerSubpass );
+        }
+
+        // Copy attachment descriptions
+        deviceProfilerRenderPass.m_Attachments.reserve( pCreateInfo->attachmentCount );
+
+        for( uint32_t attachmentIndex = 0; attachmentIndex < pCreateInfo->attachmentCount; ++attachmentIndex )
+        {
+            const VkAttachmentDescription2& attachment = pCreateInfo->pAttachments[ attachmentIndex ];
+
+            // Convert VkAttachmentDescription2 back to VkAttachmentDescription
+            VkAttachmentDescription attachment_1_0 = {};
+            attachment_1_0.flags = attachment.flags;
+            attachment_1_0.format = attachment.format;
+            attachment_1_0.samples = attachment.samples;
+            attachment_1_0.initialLayout = attachment.initialLayout;
+            attachment_1_0.finalLayout = attachment.finalLayout;
+            attachment_1_0.loadOp = attachment.loadOp;
+            attachment_1_0.storeOp = attachment.storeOp;
+            attachment_1_0.stencilLoadOp = attachment.stencilLoadOp;
+            attachment_1_0.stencilStoreOp = attachment.stencilStoreOp;
+
+            deviceProfilerRenderPass.m_Attachments.push_back( attachment_1_0 );
+        }
+
+        // Store render pass
+        m_RenderPasses.interlocked_emplace( renderPass, deviceProfilerRenderPass );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyRenderPass( VkRenderPass renderPass )
+    {
+        m_RenderPasses.interlocked_erase( renderPass );
     }
 
     /***********************************************************************************\
@@ -517,12 +647,15 @@ namespace Profiler
         }
 
         // Store submitted command buffers and get results
+        DeviceProfilerSubmitBatch submitBatch;
+        submitBatch.m_Handle = queue;
+
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
             const VkSubmitInfo& submitInfo = pSubmitInfo[submitIdx];
 
             // Wrap submit info into our structure
-            ProfilerSubmit submit;
+            DeviceProfilerSubmit submit;
 
             for( uint32_t commandBufferIdx = 0; commandBufferIdx < submitInfo.commandBufferCount; ++commandBufferIdx )
             {
@@ -533,13 +666,11 @@ namespace Profiler
                 std::scoped_lock lk( m_CommandBuffers );
 
                 commandBufferLookupTimeCounter.Begin();
-
                 auto& profilerCommandBuffer = m_CommandBuffers.at( commandBuffer );
-
                 commandBufferLookupTimeCounter.End();
 
                 // Aggregate command buffer lookup time
-                m_SelfData.m_CommandBufferLookupTimeNs +=
+                m_CommandBufferLookupTimeNs +=
                     commandBufferLookupTimeCounter.GetValue<std::chrono::nanoseconds>().count();
 
                 // Dirty command buffer profiling data
@@ -549,8 +680,10 @@ namespace Profiler
             }
 
             // Store the submit wrapper
-            m_DataAggregator.AppendSubmit( submit );
+            submitBatch.m_Submits.push_back( submit );
         }
+
+        m_DataAggregator.AppendSubmit( submitBatch );
 
         // Release performance configuration
         if( m_PerformanceConfigurationINTEL )
@@ -606,14 +739,16 @@ namespace Profiler
         //    m_pDevice->PhysicalDevice,
         //    &m_MemoryProperties2 );
 
-        m_Data.m_Self = m_SelfData;
+        m_Data.m_CPU.m_CommandBufferLookupTimeNs += m_CommandBufferLookupTimeNs;
+        m_Data.m_CPU.m_PipelineLookupTimeNs += m_PipelineLookupTimeNs;
+        m_Data.m_CPU.m_RenderPassLookupTimeNs += m_RenderPassLookupTimeNs;
         
         // Reset self data for the next frame
-        std::memset( &m_SelfData, 0, sizeof( m_SelfData ) );
+        m_CommandBufferLookupTimeNs = 0;
+        m_PipelineLookupTimeNs = 0;
+        m_RenderPassLookupTimeNs = 0;
 
         m_CpuTimestampCounter.Begin();
-
-        m_LastFrameBeginTimestamp = m_Data.m_Stats.m_BeginTimestamp;
 
         // TMP
         m_DataAggregator.Reset();
@@ -754,5 +889,72 @@ namespace Profiler
         tuple.m_Hash = hash;
 
         return tuple;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateInternalPipeline
+
+    Description:
+        Create internal pipeline to track drawcalls which don't require any user-provided
+        pipelines but execude some tasks on the GPU.
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateInternalPipeline( DeviceProfilerPipelineType type, const char* pName )
+    {
+        DeviceProfilerPipeline internalPipeline;
+        internalPipeline.m_Handle = (VkPipeline)type;
+        internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
+
+        [[maybe_unused]]
+        auto result = m_pDevice->Debug.ObjectNames.emplace( (uint64_t)internalPipeline.m_Handle, pName );
+
+        // Check if new value has been created
+        assert( result.second && "Multiple initialization of internal pipeline - possible hash conflict" );
+
+        m_Pipelines.interlocked_emplace( internalPipeline.m_Handle, internalPipeline );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeCommandBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    decltype(DeviceProfiler::m_CommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( VkCommandBuffer commandBuffer )
+    {
+        // Assume m_CommandBuffers map is already locked
+        assert( !m_CommandBuffers.try_lock() );
+
+        auto& it = m_CommandBuffers.find( commandBuffer );
+        if( it != m_CommandBuffers.end() )
+        {
+            // Collect command buffer data now, command buffer won't be available later
+            m_DataAggregator.AppendData( &it->second, it->second.GetData() );
+        }
+
+        return m_CommandBuffers.erase( it );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeCommandBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    decltype(DeviceProfiler::m_CommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( decltype(m_CommandBuffers)::iterator it )
+    {
+        // Assume m_CommandBuffers map is already locked
+        assert( !m_CommandBuffers.try_lock() );
+
+        // Collect command buffer data now, command buffer won't be available later
+        m_DataAggregator.AppendData( &it->second, it->second.GetData() );
+
+        return m_CommandBuffers.erase( it );
     }
 }

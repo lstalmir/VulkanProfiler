@@ -8,6 +8,7 @@
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>
+#include <stack>
 #include <mutex>
 
 // Public interface
@@ -49,7 +50,7 @@ namespace Profiler
             const VkSwapchainCreateInfoKHR* pCreateInfo );
 
         void Present(
-            const ProfilerAggregatedData& data,
+            const DeviceProfilerFrameData& data,
             const VkQueue_Object& presentQueue,
             VkPresentInfoKHR* pPresentInfo );
 
@@ -103,6 +104,7 @@ namespace Profiler
 
         struct FrameBrowserTreeNodeIndex
         {
+            uint16_t SubmitBatchIndex;
             uint16_t SubmitIndex;
             uint16_t PrimaryCommandBufferIndex;
             uint16_t SecondaryCommandBufferIndex;
@@ -111,13 +113,14 @@ namespace Profiler
             uint16_t PipelineIndex;
         };
 
-        ProfilerAggregatedData m_Data;
+        DeviceProfilerFrameData m_Data;
         bool m_Pause;
+        bool m_ShowDebugLabels;
 
         void InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         void InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
-        void Update( const ProfilerAggregatedData& );
+        void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
         void UpdateStatisticsTab();
@@ -125,20 +128,22 @@ namespace Profiler
         void UpdateSettingsTab();
 
         // Frame browser helpers
-        void PrintCommandBuffer( const ProfilerCommandBufferData&, FrameBrowserTreeNodeIndex, uint64_t );
-        void PrintRenderPass( const ProfilerRenderPass&, FrameBrowserTreeNodeIndex, uint64_t );
-        void PrintSubpass( const ProfilerSubpass&, FrameBrowserTreeNodeIndex, uint64_t );
-        void PrintPipeline( const ProfilerPipeline&, FrameBrowserTreeNodeIndex, uint64_t );
+        void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );
+        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex );
+        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex, bool );
+        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
+        void PrintDrawcall( const DeviceProfilerDrawcall& );
 
         void TextAlignRight( float, const char*, ... );
         void TextAlignRight( const char*, ... );
         void DrawSignificanceRect( float );
+        void DrawDebugLabel( const char*, const float[ 4 ] );
 
         std::string GetDebugObjectName( VkObjectType, uint64_t ) const;
 
         // Sort frame browser data
         template<typename Data>
-        std::list<const Data*> SortFrameBrowserData( const std::vector<Data>& data ) const
+        std::list<const Data*> SortFrameBrowserData( const ContainerType<Data>& data ) const
         {
             std::list<const Data*> pSortedData;
 

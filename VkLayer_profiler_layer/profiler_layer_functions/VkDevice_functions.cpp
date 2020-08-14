@@ -69,17 +69,20 @@ namespace Profiler
         GETPROCADDR( DestroyDevice );
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
-        GETPROCADDR( SetDebugUtilsObjectNameEXT );
-        GETPROCADDR( DebugMarkerSetObjectNameEXT );
         GETPROCADDR( CreateSwapchainKHR );
         GETPROCADDR( DestroySwapchainKHR );
         GETPROCADDR( CreateShaderModule );
         GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
         GETPROCADDR( CreateComputePipelines );
+        GETPROCADDR( DestroyPipeline );
+        GETPROCADDR( CreateRenderPass );
+        GETPROCADDR( CreateRenderPass2KHR );
+        GETPROCADDR( CreateRenderPass2 );
+        GETPROCADDR( DestroyRenderPass );
         GETPROCADDR( DestroyCommandPool );
         GETPROCADDR( AllocateCommandBuffers );
-        //GETPROCADDR( FreeCommandBuffers );
+        GETPROCADDR( FreeCommandBuffers );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
 
@@ -117,10 +120,28 @@ namespace Profiler
         GETPROCADDR( CmdClearAttachments );
         GETPROCADDR( CmdClearColorImage );
         GETPROCADDR( CmdClearDepthStencilImage );
+        GETPROCADDR( CmdResolveImage );
+        GETPROCADDR( CmdBlitImage );
+        GETPROCADDR( CmdFillBuffer );
+        GETPROCADDR( CmdUpdateBuffer );
 
         // VkQueue_Functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueuePresentKHR );
+
+        // VK_EXT_debug_marker functions
+        GETPROCADDR( DebugMarkerSetObjectNameEXT );
+        GETPROCADDR( DebugMarkerSetObjectTagEXT );
+        GETPROCADDR( CmdDebugMarkerInsertEXT );
+        GETPROCADDR( CmdDebugMarkerBeginEXT );
+        GETPROCADDR( CmdDebugMarkerEndEXT );
+
+        // VK_EXT_debug_utils functions
+        GETPROCADDR( SetDebugUtilsObjectNameEXT );
+        GETPROCADDR( SetDebugUtilsObjectTagEXT );
+        GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
+        GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
+        GETPROCADDR( CmdEndDebugUtilsLabelEXT );
 
         // VK_EXT_profiler functions
         GETPROCADDR_EXT( vkSetProfilerModeEXT );
@@ -185,100 +206,58 @@ namespace Profiler
         uint32_t* pPropertyCount,
         VkExtensionProperties* pProperties )
     {
-        // Pass through any queries that aren't to us
-        if( !pLayerName || strcmp( pLayerName, VK_LAYER_profiler_name ) != 0 )
+        const bool queryThisLayerExtensionsOnly =
+            (pLayerName) &&
+            (strcmp( pLayerName, VK_LAYER_profiler_name ) != 0);
+
+        // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
+        // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
+        // vkEnumerateDeviceExtensionProperties implementation.
+        auto id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
+
+        VkResult result = VK_SUCCESS;
+
+        // SPEC: pPropertyCount MUST be valid uint32_t pointer
+        uint32_t propertyCount = *pPropertyCount;
+
+        if( !pLayerName || !queryThisLayerExtensionsOnly )
         {
-            if( physicalDevice == VK_NULL_HANDLE )
-                return VK_SUCCESS;
-
-            // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
-            // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
-            // vkEnumerateDeviceExtensionProperties implementation.
-            auto id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
-
-            return id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
+            result = id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
                 physicalDevice, pLayerName, pPropertyCount, pProperties );
+        }
+        else
+        {
+            // pPropertyCount now contains number of pProperties used
+            *pPropertyCount = 0;
         }
 
         static VkExtensionProperties layerExtensions[] = {
-            { VK_EXT_PROFILER_EXTENSION_NAME, VK_EXT_PROFILER_SPEC_VERSION } };
+            { VK_EXT_PROFILER_EXTENSION_NAME, VK_EXT_PROFILER_SPEC_VERSION },
+            { VK_EXT_DEBUG_MARKER_EXTENSION_NAME, VK_EXT_DEBUG_MARKER_SPEC_VERSION } };
 
-        if( pProperties )
+        if( !pLayerName || queryThisLayerExtensionsOnly )
         {
-            const size_t dstBufferSize = *pPropertyCount * sizeof( VkExtensionProperties );
+            if( pProperties )
+            {
+                const size_t dstBufferSize =
+                    (propertyCount - *pPropertyCount) * sizeof( VkExtensionProperties );
 
-            // Copy device extension properties to output ptr
-            std::memcpy( pProperties, layerExtensions,
-                std::min( dstBufferSize, sizeof( layerExtensions ) ) );
+                // Copy device extension properties to output ptr
+                std::memcpy( pProperties + (*pPropertyCount), layerExtensions,
+                    std::min( dstBufferSize, sizeof( layerExtensions ) ) );
 
-            if( dstBufferSize < sizeof( layerExtensions ) )
-                return VK_INCOMPLETE;
+                if( dstBufferSize < sizeof( layerExtensions ) )
+                {
+                    // Not enough space in the buffer
+                    result = VK_INCOMPLETE;
+                }
+            }
+
+            // Return number of extensions exported by this layer
+            *pPropertyCount += std::extent_v<decltype(layerExtensions)>;
         }
 
-        // SPEC: pPropertyCount MUST be valid uint32_t pointer
-        *pPropertyCount = std::extent_v<decltype( layerExtensions )>;
-
-        return VK_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        SetDebugUtilsObjectNameEXT
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::SetDebugUtilsObjectNameEXT(
-        VkDevice device,
-        const VkDebugUtilsObjectNameInfoEXT* pObjectInfo )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        // Set the object name
-        VkResult result = dd.Device.Callbacks.SetDebugUtilsObjectNameEXT( device, pObjectInfo );
-
-        if( result != VK_SUCCESS )
-        {
-            // Failed to set object name
-            return result;
-        }
-
-        dd.Device.Debug.ObjectNames.emplace(
-            pObjectInfo->objectHandle,
-            pObjectInfo->pObjectName );
-
-        return VK_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        DebugMarkerSetObjectNameEXT
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::DebugMarkerSetObjectNameEXT(
-        VkDevice device,
-        const VkDebugMarkerObjectNameInfoEXT* pObjectInfo )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        // Set the object name
-        VkResult result = dd.Device.Callbacks.DebugMarkerSetObjectNameEXT( device, pObjectInfo );
-
-        if( result != VK_SUCCESS )
-        {
-            // Failed to set object name
-            return result;
-        }
-
-        dd.Device.Debug.ObjectNames.emplace(
-            pObjectInfo->object,
-            pObjectInfo->pObjectName );
-
-        return VK_SUCCESS;
+        return result;
     }
 
     /***********************************************************************************\
@@ -557,6 +536,115 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreateRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateRenderPass(
+        VkDevice device,
+        const VkRenderPassCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkRenderPass* pRenderPass )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Create the render pass
+        VkResult result = dd.Device.Callbacks.CreateRenderPass(
+            device, pCreateInfo, pAllocator, pRenderPass );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register new render pass
+            dd.Profiler.CreateRenderPass( *pRenderPass, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateRenderPass2KHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateRenderPass2KHR(
+        VkDevice device,
+        const VkRenderPassCreateInfo2KHR* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkRenderPass* pRenderPass )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Create the render pass
+        VkResult result = dd.Device.Callbacks.CreateRenderPass2KHR(
+            device, pCreateInfo, pAllocator, pRenderPass );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register new render pass
+            dd.Profiler.CreateRenderPass( *pRenderPass, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateRenderPass2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateRenderPass2(
+        VkDevice device,
+        const VkRenderPassCreateInfo2* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkRenderPass* pRenderPass )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Create the render pass
+        VkResult result = dd.Device.Callbacks.CreateRenderPass2(
+            device, pCreateInfo, pAllocator, pRenderPass );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register new render pass
+            dd.Profiler.CreateRenderPass( *pRenderPass, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyRenderPass
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyRenderPass(
+        VkDevice device,
+        VkRenderPass renderPass,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Unregister the render pass
+        dd.Profiler.DestroyRenderPass( renderPass );
+
+        // Destroy the render pass
+        dd.Device.Callbacks.DestroyRenderPass( device, renderPass, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DestroyCommandPool
 
     Description:
@@ -570,7 +658,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Cleanup profiler resources associated with the command pool
-        dd.Profiler.UnregisterCommandBuffers( commandPool );
+        dd.Profiler.FreeCommandBuffers( commandPool );
 
         // Destroy the command pool
         dd.Device.Callbacks.DestroyCommandPool(
@@ -599,7 +687,7 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             // Begin profiling
-            dd.Profiler.RegisterCommandBuffers(
+            dd.Profiler.AllocateCommandBuffers(
                 pAllocateInfo->commandPool,
                 pAllocateInfo->level,
                 pAllocateInfo->commandBufferCount,
@@ -626,7 +714,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Cleanup profiler resources associated with freed command buffers
-        dd.Profiler.UnregisterCommandBuffers( commandBufferCount, pCommandBuffers );
+        dd.Profiler.FreeCommandBuffers( commandBufferCount, pCommandBuffers );
 
         // Free the command buffers
         dd.Device.Callbacks.FreeCommandBuffers(

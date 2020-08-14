@@ -1,71 +1,27 @@
 #pragma once
+#include "profiler_data.h"
 #include "profiler_command_buffer.h"
-#include "profiler_pipeline.h"
 #include <list>
 #include <map>
 #include <unordered_set>
+#include <unordered_map>
 // Import extension structures
 #include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
     class DeviceProfiler;
-    struct VkDevice_Object;
 
-    struct ProfilerAggregatedMemoryData
+    struct DeviceProfilerSubmit
     {
-        uint64_t m_TotalAllocationSize;
-        uint64_t m_TotalAllocationCount;
-        uint64_t m_DeviceLocalAllocationSize;
-        uint64_t m_HostVisibleAllocationSize;
+        std::list<ProfilerCommandBuffer*>   m_pCommandBuffers;
     };
 
-    struct ProfilerAggregatedCPUData
+    struct DeviceProfilerSubmitBatch
     {
-        uint64_t m_TimeNs;
+        VkQueue                             m_Handle = {};
+        std::list<DeviceProfilerSubmit>     m_Submits = {};
     };
-
-    struct ProfilerAggregatedSelfData
-    {
-        uint64_t m_CommandBufferLookupTimeNs;
-        uint64_t m_PipelineLookupTimeNs;
-    };
-
-    /***********************************************************************************\
-
-    Structure:
-        ProfilerAggregatedData
-
-    Description:
-
-    \***********************************************************************************/
-    struct ProfilerAggregatedData
-    {
-        std::vector<ProfilerSubmitData> m_Submits;
-        std::vector<ProfilerPipeline> m_TopPipelines;
-
-        ProfilerRangeStats m_Stats;
-
-        ProfilerAggregatedMemoryData m_Memory;
-        ProfilerAggregatedCPUData m_CPU;
-
-        std::vector<VkProfilerPerformanceCounterResultEXT> m_VendorMetrics;
-
-        // Self test
-        ProfilerAggregatedSelfData m_Self;
-    };
-
-    struct ProfilerSubmit
-    {
-        std::vector<ProfilerCommandBuffer*> m_pCommandBuffers;
-    };
-
-    static constexpr uint32_t COPY_TUPLE_HASH = 0xFFFFFFFE;
-    static constexpr uint32_t CLEAR_TUPLE_HASH = 0xFFFFFFFD;
-    static constexpr uint32_t BEGIN_RENDER_PASS_TUPLE_HASH = 0xFFFFFFFC;
-    static constexpr uint32_t END_RENDER_PASS_TUPLE_HASH = 0xFFFFFFFB;
-    static constexpr uint32_t PIPELINE_BARRIER_TUPLE_HASH = 0xFFFFFFFA;
-    static constexpr uint32_t RESOLVE_TUPLE_HASH = 0xFFFFFFF9;
 
     /***********************************************************************************\
 
@@ -81,40 +37,36 @@ namespace Profiler
     public:
         VkResult Initialize( DeviceProfiler* );
 
-        void AppendSubmit( const ProfilerSubmit& );
+        void AppendSubmit( const DeviceProfilerSubmitBatch& );
+        void AppendData( ProfilerCommandBuffer*, const DeviceProfilerCommandBufferData& );
         
         void Reset();
 
-        ProfilerAggregatedData GetAggregatedData();
+        DeviceProfilerFrameData GetAggregatedData();
 
     private:
         DeviceProfiler* m_pProfiler;
 
-        std::list<ProfilerSubmit> m_Submits;
+        std::list<DeviceProfilerSubmitBatch> m_Submits;
+        std::list<DeviceProfilerSubmitBatchData> m_AggregatedData;
 
-        std::list<ProfilerSubmitData> m_AggregatedData;
-
-        // Pipelines accumulating drawcall data
-        ProfilerPipeline m_CopyPipeline;
-        ProfilerPipeline m_ClearPipeline;
-        ProfilerPipeline m_BeginRenderPassPipeline;
-        ProfilerPipeline m_EndRenderPassPipeline;
-        ProfilerPipeline m_PipelineBarrierPipeline;
-        ProfilerPipeline m_ResolvePipeline;
+        std::unordered_map<ProfilerCommandBuffer*, DeviceProfilerCommandBufferData> m_Data;
 
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
-
-        void InitializePipeline( VkDevice_Object*, ProfilerPipeline&, uint32_t );
 
         void MergeCommandBuffers();
 
         std::vector<VkPerformanceCounterResultKHR> AggregateVendorMetrics() const;
 
-        std::list<ProfilerPipeline> CollectTopPipelines();
+        std::list<DeviceProfilerPipelineData> CollectTopPipelines();
 
-        void CollectTopPipelinesFromCommandBuffer(
-            const ProfilerCommandBufferData&,
-            std::unordered_set<ProfilerPipeline>& );
+        void CollectPipelinesFromCommandBuffer(
+            const DeviceProfilerCommandBufferData&,
+            std::unordered_set<DeviceProfilerPipelineData>& );
+
+        void CollectPipeline(
+            const DeviceProfilerPipelineData&,
+            std::unordered_set<DeviceProfilerPipelineData>& );
     };
 }

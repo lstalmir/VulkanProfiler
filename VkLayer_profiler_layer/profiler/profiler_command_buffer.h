@@ -1,98 +1,12 @@
 #pragma once
-#include "profiler_pipeline.h"
+#include "profiler_data.h"
+#include "profiler_counters.h"
 #include <vulkan/vk_layer.h>
 #include <vector>
 
 namespace Profiler
 {
     class DeviceProfiler;
-
-    /***********************************************************************************\
-
-    Structure:
-        ProfilerSubpass
-
-    Description:
-        Contains captured GPU timestamp data for render pass subpass.
-
-    \***********************************************************************************/
-    struct ProfilerSubpass
-    {
-        uint32_t                                        m_Index;
-        VkSubpassContents                               m_Contents;
-        ProfilerRangeStats                              m_Stats;
-
-        std::vector<struct ProfilerPipeline>            m_Pipelines;
-        std::vector<struct ProfilerCommandBufferData>   m_SecondaryCommandBuffers;
-
-        inline void Clear()
-        {
-            m_Stats.Clear();
-            m_Pipelines.clear();
-            m_SecondaryCommandBuffers.clear();
-        }
-
-        template<size_t Stat>
-        inline void IncrementStat( uint32_t count = 1 )
-        {
-            m_Stats.IncrementStat<Stat>( count );
-
-            // IncrementStat shouldn't be called within secondary command buffer subpass
-            // (only vkCmdExecuteCommands is allowed according to spec)
-            m_Pipelines.back().template IncrementStat<Stat>( count );
-        }
-    };
-
-    /***********************************************************************************\
-
-    Structure:
-        ProfilerRenderPass
-
-    Description:
-        Contains captured GPU timestamp data for single render pass.
-
-    \***********************************************************************************/
-    struct ProfilerRenderPass : ProfilerRangeStatsCollector<VkRenderPass, ProfilerSubpass>
-    {
-        uint64_t m_BeginTicks;
-        uint64_t m_EndTicks;
-
-        inline void Clear()
-        {
-            ProfilerRangeStatsCollector::Clear();
-
-            m_BeginTicks = 0;
-            m_EndTicks = 0;
-        }
-    };
-
-    /***********************************************************************************\
-
-    Structure:
-        ProfilerCommandBufferData
-
-    Description:
-        Contains captured GPU timestamp data for single command buffer.
-
-    \***********************************************************************************/
-    struct ProfilerCommandBufferData : ProfilerRangeStatsCollector<VkCommandBuffer, ProfilerRenderPass>
-    {
-        std::vector<char> m_PerformanceQueryReportINTEL;
-    };
-
-    /***********************************************************************************\
-
-    Structure:
-        ProfilerSubmitData
-
-    Description:
-        Contains captured command buffers data for single submit.
-
-    \***********************************************************************************/
-    struct ProfilerSubmitData
-    {
-        std::vector<ProfilerCommandBufferData> m_CommandBuffers;
-    };
 
     /***********************************************************************************\
 
@@ -122,30 +36,20 @@ namespace Profiler
         void PreEndRenderPass();
         void PostEndRenderPass();
 
-        void EndSubpass();
         void NextSubpass( VkSubpassContents );
 
-        void BindPipeline( VkPipelineBindPoint, ProfilerPipeline );
+        void BindPipeline( const DeviceProfilerPipeline& );
 
-        void PreDraw();
+        void PreDraw( const DeviceProfilerDrawcall& );
         void PostDraw();
-        void PreDrawIndirect();
-        void PostDrawIndirect();
-        void PreDispatch();
-        void PostDispatch();
-        void PreDispatchIndirect();
-        void PostDispatchIndirect();
-        void PreCopy();
-        void PostCopy();
-        void PreClear();
-        void PostClear( uint32_t );
+        void DebugLabel( const char*, const float[ 4 ] );
         void ExecuteCommands( uint32_t, const VkCommandBuffer* );
-        void OnPipelineBarrier(
+        void PipelineBarrier(
             uint32_t, const VkMemoryBarrier*,
             uint32_t, const VkBufferMemoryBarrier*,
             uint32_t, const VkImageMemoryBarrier* );
 
-        ProfilerCommandBufferData GetData();
+        DeviceProfilerCommandBufferData GetData();
 
     protected:
         DeviceProfiler& m_Profiler;
@@ -163,21 +67,27 @@ namespace Profiler
 
         VkQueryPool     m_PerformanceQueryPoolINTEL;
 
-        ProfilerCommandBufferData m_Data;
+        DeviceProfilerCommandBufferData m_Data;
 
-        uint32_t        m_CurrentSubpassIndex;
+        DeviceProfilerRenderPass* m_pCurrentRenderPass;
+        DeviceProfilerRenderPassData* m_pCurrentRenderPassData;
 
-        ProfilerPipeline m_CurrentGraphicsPipeline;
-        ProfilerPipeline m_CurrentComputePipeline;
+        uint32_t               m_CurrentSubpassIndex;
+
+        DeviceProfilerPipeline m_GraphicsPipeline;
+        DeviceProfilerPipeline m_ComputePipeline;
 
         void Reset();
         void AllocateQueryPool();
 
-        void SendTimestampQuery( VkPipelineStageFlagBits );
+        void EndSubpass();
 
-        void SetupCommandBufferForStatCounting();
-        void SetupCommandBufferForStatCounting( ProfilerPipeline );
+        void SendTimestampQuery( VkPipelineStageFlagBits stage );
+
+        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
         void SetupCommandBufferForSecondaryBuffers();
+
+        DeviceProfilerPipelineData& GetCurrentPipeline();
 
     };
 }

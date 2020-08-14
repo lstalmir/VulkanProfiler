@@ -7,6 +7,19 @@
         "api_version": "1.1.106",
         "implementation_version": "@PROFILER_LAYER_VER_IMPLEMENTATION@",
         "description": "Simple Vulkan Profiling Layer",
+        "instance_extensions": [
+            {
+                "name": "VK_EXT_debug_utils",
+                "spec_version": "2",
+                "entrypoints": [
+                    "vkCmdBeginDebugUtilsLabelEXT",
+                    "vkCmdEndDebugUtilsLabelEXT",
+                    "vkCmdInsertDebugUtilsLabelEXT",
+                    "vkSetDebugUtilsObjectNameEXT",
+                    "vkSetDebugUtilsObjectTagEXT"
+                ]
+            }
+        ],
         "device_extensions": [
             {
                 "name": "VK_EXT_profiler",
@@ -16,6 +29,17 @@
                     "vkSetProfilerSyncModeEXT",
                     "vkGetProfilerFrameDataEXT",
                     "vkGetProfilerCommandBufferDataEXT"
+                ]
+            },
+            {
+                "name": "VK_EXT_debug_marker",
+                "spec_version": "4",
+                "entrypoints": [
+                    "vkCmdDebugMarkerBeginEXT",
+                    "vkCmdDebugMarkerEndEXT",
+                    "vkCmdDebugMarkerInsertEXT",
+                    "vkDebugMarkerSetObjectNameEXT",
+                    "vkDebugMarkerSetObjectTagEXT"
                 ]
             }
         ]

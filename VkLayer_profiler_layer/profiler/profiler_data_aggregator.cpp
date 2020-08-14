@@ -8,16 +8,6 @@
 
 namespace Profiler
 {
-    static const std::map<uint32_t, const char*> _g_pInternalTupleDebugNames =
-    {
-        { COPY_TUPLE_HASH, "Copy" },
-        { CLEAR_TUPLE_HASH, "Clear" },
-        { BEGIN_RENDER_PASS_TUPLE_HASH, "BeginRenderPass" },
-        { END_RENDER_PASS_TUPLE_HASH, "EndRenderPass" },
-        { PIPELINE_BARRIER_TUPLE_HASH, "PipelineBarrier" },
-        { RESOLVE_TUPLE_HASH, "Resolve" }
-    };
-
     struct SumAggregator
     {
         template<typename T>
@@ -111,33 +101,21 @@ namespace Profiler
         m_pProfiler = pProfiler;
         m_VendorMetricProperties = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties();
 
-        InitializePipeline( m_pProfiler->m_pDevice, m_CopyPipeline, COPY_TUPLE_HASH );
-        InitializePipeline( m_pProfiler->m_pDevice, m_ClearPipeline, CLEAR_TUPLE_HASH );
-        InitializePipeline( m_pProfiler->m_pDevice, m_BeginRenderPassPipeline, BEGIN_RENDER_PASS_TUPLE_HASH );
-        InitializePipeline( m_pProfiler->m_pDevice, m_EndRenderPassPipeline, END_RENDER_PASS_TUPLE_HASH );
-        InitializePipeline( m_pProfiler->m_pDevice, m_PipelineBarrierPipeline, PIPELINE_BARRIER_TUPLE_HASH );
-        InitializePipeline( m_pProfiler->m_pDevice, m_ResolvePipeline, RESOLVE_TUPLE_HASH );
-
         return VK_SUCCESS;
     }
 
     /***********************************************************************************\
 
     Function:
-        InitializePipeline
+        AppendSubmit
 
     Description:
-        Assign internal hash to the pipeline.
+        Add submit data to the aggregator.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::InitializePipeline( VkDevice_Object* pDevice, ProfilerPipeline& pipeline, uint32_t hash )
+    void ProfilerDataAggregator::AppendSubmit( const DeviceProfilerSubmitBatch& submit )
     {
-        pipeline.m_Handle = (VkPipeline)hash;
-        pipeline.m_ShaderTuple.m_Hash = hash;
-
-        // Set debug name
-        pDevice->Debug.ObjectNames.emplace( (uint64_t)pipeline.m_Handle,
-            _g_pInternalTupleDebugNames.at( hash ) );
+        m_Submits.push_back( submit );
     }
 
     /***********************************************************************************\
@@ -146,51 +124,12 @@ namespace Profiler
         AppendData
 
     Description:
-        Add submit data to the aggregator. The data must be ready for reading.
+        Add command buffer data to the aggregator.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::AppendSubmit( const ProfilerSubmit& submit )
+    void ProfilerDataAggregator::AppendData( ProfilerCommandBuffer* pCommandBuffer, const DeviceProfilerCommandBufferData& data )
     {
-        #if 0
-        const auto submitTuples = CollectShaderTuples( submit );
-
-        ProfilerSubmitData* pBestMatch = nullptr;
-        float bestMatchPercentage = std::numeric_limits<float>::max();
-
-        // Find command buffer which uses the same pipelines
-        for( auto& existingSubmit : m_AggregatedData )
-        {
-            const auto existingSubmitTuples = CollectShaderTuples( existingSubmit );
-
-            // Find number of differences between sets
-            const float diffPercentage =
-                static_cast<float>((submitTuples - existingSubmitTuples).size()) /
-                static_cast<float>(existingSubmitTuples.size());
-
-            if( (diffPercentage / existingSubmitTuples.size()) < bestMatchPercentage )
-            {
-                // Update candidate
-                pBestMatch = &existingSubmit;
-                bestMatchPercentage = diffPercentage;
-            }
-        }
-
-        // Allow up to 10% difference between similar submits
-        if( pBestMatch && bestMatchPercentage < 0.1f )
-        {
-            for( const auto& commandBuffer : submit.m_CommandBuffers )
-            {
-                // Get tuples in current command buffer
-                const auto commandBufferTuples = CollectShaderTuples( commandBuffer );
-
-                // Find existing command buffer with the same tuples
-
-            }
-
-        }
-        #endif
-
-        m_Submits.push_back( submit );
+        m_Data.emplace( pCommandBuffer, data );
     }
 
     /***********************************************************************************\
@@ -206,6 +145,7 @@ namespace Profiler
     {
         m_Submits.clear();
         m_AggregatedData.clear();
+        m_Data.clear();
     }
 
     /***********************************************************************************\
@@ -218,7 +158,7 @@ namespace Profiler
         Prepare aggregator for the next profiling run.
 
     \***********************************************************************************/
-    ProfilerAggregatedData ProfilerDataAggregator::GetAggregatedData()
+    DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
     {
         // Application may use multiple command buffers to perform the same tasks
         MergeCommandBuffers();
@@ -227,28 +167,25 @@ namespace Profiler
         auto aggregatedPipelines = CollectTopPipelines();
         auto aggregatedVendorMetrics = AggregateVendorMetrics();
 
-        ProfilerAggregatedData aggregatedData;
-        aggregatedData.m_Stats.Clear();
+        DeviceProfilerFrameData aggregatedData;
         aggregatedData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
         aggregatedData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
         aggregatedData.m_VendorMetrics = aggregatedVendorMetrics;
 
-        for( const auto& submit : aggregatedData.m_Submits )
+        // Collect per-frame stats
+        for( const auto& submitBatch : m_AggregatedData )
         {
-            for( const auto& commandBuffer : submit.m_CommandBuffers )
+            for( const auto& submit : submitBatch.m_Submits )
             {
-                if( commandBuffer.m_Stats.m_BeginTimestamp != 0 )
+                for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
-                    aggregatedData.m_Stats.m_BeginTimestamp = commandBuffer.m_Stats.m_BeginTimestamp;
-                    break;
+                    aggregatedData.m_Stats.Add( commandBuffer.m_Stats );
+                    aggregatedData.m_Ticks += commandBuffer.m_Ticks;
+
+                    // Profiler CPU overhead stats
+                    aggregatedData.m_CPU.m_CommandBufferProfilerCPUOverheadNs += commandBuffer.m_ProfilerCPUOverheadNs;
                 }
             }
-        }
-
-        // Collect per-frame stats
-        for( const auto& pipeline : aggregatedPipelines )
-        {
-            aggregatedData.m_Stats.Add( pipeline.m_Stats );
         }
 
         return aggregatedData;
@@ -265,16 +202,35 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::MergeCommandBuffers()
     {
-        for( const ProfilerSubmit& submit : m_Submits )
+        for( const auto& submitBatch : m_Submits )
         {
-            ProfilerSubmitData submitData;
+            DeviceProfilerSubmitBatchData submitBatchData;
+            submitBatchData.m_Handle = submitBatch.m_Handle;
 
-            for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+            for( const auto& submit : submitBatch.m_Submits )
             {
-                submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
+                DeviceProfilerSubmitData submitData;
+
+                for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
+                {
+                    // Check if buffer was freed before present
+                    // In such case pCommandBuffer is pointer to freed memory and cannot be dereferenced
+                    auto it = m_Data.find( pCommandBuffer );
+                    if( it != m_Data.end() )
+                    {
+                        submitData.m_CommandBuffers.push_back( it->second );
+                    }
+                    else
+                    {
+                        // Collect command buffer data now
+                        submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
+                    }
+                }
+
+                submitBatchData.m_Submits.push_back( submitData );
             }
 
-            m_AggregatedData.push_back( submitData );
+            m_AggregatedData.push_back( submitBatchData );
         }
     }
 
@@ -304,59 +260,62 @@ namespace Profiler
 
         std::vector<__WeightedMetric> aggregatedVendorMetrics( metricCount );
 
-        for( const ProfilerSubmitData& submitData : m_AggregatedData )
+        for( const auto& submitBatchData : m_AggregatedData )
         {
-            for( const ProfilerCommandBufferData& commandBufferData : submitData.m_CommandBuffers )
+            for( const auto& submitData : submitBatchData.m_Submits )
             {
-                // Preprocess metrics for the command buffer
-                const std::vector<VkPerformanceCounterResultKHR> commandBufferVendorMetrics =
-                    m_pProfiler->m_MetricsApiINTEL.ParseReport(
-                        commandBufferData.m_PerformanceQueryReportINTEL.data(),
-                        commandBufferData.m_PerformanceQueryReportINTEL.size() );
-
-                assert( commandBufferVendorMetrics.size() == metricCount );
-
-                for( uint32_t i = 0; i < metricCount; ++i )
+                for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    // Get metric accumulator
-                    __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+                    // Preprocess metrics for the command buffer
+                    const std::vector<VkPerformanceCounterResultKHR> commandBufferVendorMetrics =
+                        m_pProfiler->m_MetricsApiINTEL.ParseReport(
+                            commandBufferData.m_PerformanceQueryReportINTEL.data(),
+                            commandBufferData.m_PerformanceQueryReportINTEL.size() );
 
-                    switch( m_VendorMetricProperties[ i ].unit )
+                    assert( commandBufferVendorMetrics.size() == metricCount );
+
+                    for( uint32_t i = 0; i < metricCount; ++i )
                     {
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_EXT:
-                    {
-                        // Metrics aggregated by sum
-                        Aggregate<SumAggregator>(
-                            weightedMetric.weight,
-                            weightedMetric.value,
-                            commandBufferData.m_Stats.m_TotalTicks,
-                            commandBufferVendorMetrics[ i ],
-                            m_VendorMetricProperties[ i ].storage );
+                        // Get metric accumulator
+                        __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
 
-                        break;
-                    }
+                        switch( m_VendorMetricProperties[ i ].unit )
+                        {
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_EXT:
+                        {
+                            // Metrics aggregated by sum
+                            Aggregate<SumAggregator>(
+                                weightedMetric.weight,
+                                weightedMetric.value,
+                                commandBufferData.m_Ticks,
+                                commandBufferVendorMetrics[ i ],
+                                m_VendorMetricProperties[ i ].storage );
 
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_AMPS_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_HERTZ_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_KELVIN_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_VOLTS_EXT:
-                    case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_WATTS_EXT:
-                    {
-                        // Metrics aggregated by average
-                        Aggregate<AvgAggregator>(
-                            weightedMetric.weight,
-                            weightedMetric.value,
-                            commandBufferData.m_Stats.m_TotalTicks,
-                            commandBufferVendorMetrics[ i ],
-                            m_VendorMetricProperties[ i ].storage );
+                            break;
+                        }
 
-                        break;
-                    }
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_AMPS_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_HERTZ_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_KELVIN_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_VOLTS_EXT:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_WATTS_EXT:
+                        {
+                            // Metrics aggregated by average
+                            Aggregate<AvgAggregator>(
+                                weightedMetric.weight,
+                                weightedMetric.value,
+                                commandBufferData.m_Ticks,
+                                commandBufferVendorMetrics[ i ],
+                                m_VendorMetricProperties[ i ].storage );
+
+                            break;
+                        }
+                        }
                     }
                 }
             }
@@ -407,93 +366,57 @@ namespace Profiler
     #endif
 
 
-    std::list<ProfilerPipeline> ProfilerDataAggregator::CollectTopPipelines()
+    std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines()
     {
-        std::unordered_set<ProfilerPipeline> aggregatedPipelines;
+        std::unordered_set<DeviceProfilerPipelineData> aggregatedPipelines;
 
-        // Clear drawcall pipelines
-        m_CopyPipeline.Clear();
-        m_ClearPipeline.Clear();
-        m_BeginRenderPassPipeline.Clear();
-        m_EndRenderPassPipeline.Clear();
-        m_PipelineBarrierPipeline.Clear();
-        m_ResolvePipeline.Clear();
-
-        for( const auto& submit : m_AggregatedData )
+        for( const auto& submitBatch : m_AggregatedData )
         {
-            for( const auto& commandBuffer : submit.m_CommandBuffers )
+            for( const auto& submit : submitBatch.m_Submits )
             {
-                CollectTopPipelinesFromCommandBuffer( commandBuffer, aggregatedPipelines );
+                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                {
+                    CollectPipelinesFromCommandBuffer( commandBuffer, aggregatedPipelines );
+                }
             }
         }
 
-        // Add artificial pipelines
-        if( m_CopyPipeline.m_Stats.m_TotalTicks > 0 )               aggregatedPipelines.emplace( m_CopyPipeline );
-        if( m_ClearPipeline.m_Stats.m_TotalTicks > 0 )              aggregatedPipelines.emplace( m_ClearPipeline );
-        if( m_BeginRenderPassPipeline.m_Stats.m_TotalTicks > 0 )    aggregatedPipelines.emplace( m_BeginRenderPassPipeline );
-        if( m_EndRenderPassPipeline.m_Stats.m_TotalTicks > 0 )      aggregatedPipelines.emplace( m_EndRenderPassPipeline );
-        if( m_PipelineBarrierPipeline.m_Stats.m_TotalTicks > 0 )    aggregatedPipelines.emplace( m_PipelineBarrierPipeline );
-        if( m_ResolvePipeline.m_Stats.m_TotalTicks > 0 )            aggregatedPipelines.emplace( m_ResolvePipeline );
-
         // Sort by time
-        std::list<ProfilerPipeline> pipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
+        std::list<DeviceProfilerPipelineData> pipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
 
-        pipelines.sort( []( const ProfilerPipeline& a, const ProfilerPipeline& b )
+        pipelines.sort( []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return a.m_Stats.m_TotalTicks > b.m_Stats.m_TotalTicks;
+                return a.m_Ticks > b.m_Ticks;
             } );
 
         return pipelines;
     }
 
 
-    void ProfilerDataAggregator::CollectTopPipelinesFromCommandBuffer(
-        const ProfilerCommandBufferData& commandBuffer,
-        std::unordered_set<ProfilerPipeline>& aggregatedPipelines )
+    void ProfilerDataAggregator::CollectPipelinesFromCommandBuffer(
+        const DeviceProfilerCommandBufferData& commandBuffer,
+        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines )
     {
-        for( const auto& renderPass : commandBuffer.m_Subregions )
+        // Include begin/end
+        DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
+            (VkPipeline)DeviceProfilerPipelineType::eBeginRenderPass );
+
+        DeviceProfilerPipelineData endRenderPassPipeline = m_pProfiler->GetPipeline(
+            (VkPipeline)DeviceProfilerPipelineType::eEndRenderPass );
+
+        for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
-            for( const auto& subpass : renderPass.m_Subregions )
+            // Aggregate begin/end render pass time
+            beginRenderPassPipeline.m_Ticks += renderPass.m_BeginTicks;
+            endRenderPassPipeline.m_Ticks += renderPass.m_EndTicks;
+
+            for( const auto& subpass : renderPass.m_Subpasses )
             {
                 if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                 {
                     for( const auto& pipeline : subpass.m_Pipelines )
                     {
-                        ProfilerPipeline aggregatedPipeline = pipeline;
-
-                        auto it = aggregatedPipelines.find( pipeline );
-                        if( it != aggregatedPipelines.end() )
-                        {
-                            aggregatedPipeline = *it;
-                            aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
-
-                            aggregatedPipelines.erase( it );
-                        }
-
-                        // Clear values which don't make sense after aggregation
-                        aggregatedPipeline.m_Handle = pipeline.m_Handle;
-                        aggregatedPipeline.m_Subregions.clear();
-
-                        aggregatedPipelines.insert( aggregatedPipeline );
-
-                        // Artificial pipelines for calls which doesn't need pipeline
-                        for( const auto& drawcall : pipeline.m_Subregions )
-                        {
-                            switch( drawcall.m_Type )
-                            {
-                            case ProfilerDrawcallType::eCopy:
-                                m_CopyPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                break;
-
-                            case ProfilerDrawcallType::eClear:
-                                m_ClearPipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                break;
-
-                            case ProfilerDrawcallType::eResolve:
-                                m_ResolvePipeline.m_Stats.m_TotalTicks += drawcall.m_Ticks;
-                                break;
-                            }
-                        }
+                        CollectPipeline( pipeline, aggregatedPipelines );
                     }
                 }
 
@@ -501,14 +424,39 @@ namespace Profiler
                 {
                     for( const auto& secondaryCommandBuffer : subpass.m_SecondaryCommandBuffers )
                     {
-                        CollectTopPipelinesFromCommandBuffer( secondaryCommandBuffer, aggregatedPipelines );
+                        CollectPipelinesFromCommandBuffer( secondaryCommandBuffer, aggregatedPipelines );
                     }
                 }
             }
-
-            // Artificial pipelines for render pass begin/ends
-            m_BeginRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_BeginTicks;
-            m_EndRenderPassPipeline.m_Stats.m_TotalTicks += renderPass.m_EndTicks;
         }
+
+        // Insert aggregated begin/end render pass pipelines
+        CollectPipeline( beginRenderPassPipeline, aggregatedPipelines );
+        CollectPipeline( endRenderPassPipeline, aggregatedPipelines );
+    }
+
+
+    void ProfilerDataAggregator::CollectPipeline(
+        const DeviceProfilerPipelineData& pipeline,
+        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines )
+    {
+        DeviceProfilerPipelineData aggregatedPipeline = pipeline;
+
+        auto it = aggregatedPipelines.find( pipeline );
+        if( it != aggregatedPipelines.end() )
+        {
+            aggregatedPipeline = *it;
+            aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
+            aggregatedPipeline.m_Ticks += pipeline.m_Ticks;
+
+            aggregatedPipelines.erase( it );
+        }
+
+        // Clear values which don't make sense after aggregation
+        aggregatedPipeline.m_Handle = pipeline.m_Handle;
+        aggregatedPipeline.m_Hash = pipeline.m_Hash;
+        aggregatedPipeline.m_Drawcalls.clear();
+
+        aggregatedPipelines.insert( aggregatedPipeline );
     }
 }

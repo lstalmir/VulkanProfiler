@@ -274,5 +274,32 @@ namespace Profiler
             VkImageLayout dstImageLayout,
             uint32_t regionCount,
             const VkImageResolve* pRegions );
+
+        // vkCmdBlitImage
+        static VKAPI_ATTR void VKAPI_CALL CmdBlitImage(
+            VkCommandBuffer commandBuffer,
+            VkImage srcImage,
+            VkImageLayout srcImageLayout,
+            VkImage dstImage,
+            VkImageLayout dstImageLayout,
+            uint32_t regionCount,
+            const VkImageBlit* pRegions,
+            VkFilter filter );
+
+        // vkCmdFillBuffer
+        static VKAPI_ATTR void VKAPI_CALL CmdFillBuffer(
+            VkCommandBuffer commandBuffer,
+            VkBuffer dstBuffer,
+            VkDeviceSize dstOffset,
+            VkDeviceSize size,
+            uint32_t data );
+
+        // vkCmdUpdateBuffer
+        static VKAPI_ATTR void VKAPI_CALL CmdUpdateBuffer(
+            VkCommandBuffer commandBuffer,
+            VkBuffer dstBuffer,
+            VkDeviceSize dstOffset,
+            VkDeviceSize size,
+            const void* pData );
     };
 }

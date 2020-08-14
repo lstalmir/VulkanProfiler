@@ -69,6 +69,7 @@ namespace Profiler
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
+        , m_ShowDebugLabels( true )
     {
         // Create internal descriptor pool
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
@@ -542,7 +543,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::Present(
-        const ProfilerAggregatedData& data,
+        const DeviceProfilerFrameData& data,
         const VkQueue_Object& queue,
         VkPresentInfoKHR* pPresentInfo )
     {
@@ -616,7 +617,7 @@ namespace Profiler
         Update overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::Update( const ProfilerAggregatedData& data )
+    void ProfilerOverlayOutput::Update( const DeviceProfilerFrameData& data )
     {
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
@@ -820,7 +821,7 @@ namespace Profiler
     {
         // Header
         {
-            const float gpuTime = m_Data.m_Stats.m_TotalTicks * m_TimestampPeriod;
+            const float gpuTime = m_Data.m_Ticks * m_TimestampPeriod;
             const float cpuTime = m_Data.m_CPU.m_TimeNs / 1000000.f;
 
             ImGui::Text( "GPU Time: %.2f ms", gpuTime );
@@ -866,53 +867,57 @@ namespace Profiler
                 }
             }
 
-            if( m_Data.m_Stats.m_TotalTicks > 0 )
+            if( m_Data.m_Ticks > 0 )
             {
-                // Enumerate submits in frame
-                for( const auto& submit : m_Data.m_Submits )
+                // Enumerate submits batches in frame
+                for( const auto& submitBatch : m_Data.m_Submits )
                 {
-                    // Enumerate command buffers in submit
-                    for( const auto& cmdBuffer : submit.m_CommandBuffers )
+                    // Enumerate submits in submit batch
+                    for( const auto& submit : submitBatch.m_Submits )
                     {
-                        // Enumerate render passes in command buffer
-                        for( const auto& renderPass : cmdBuffer.m_Subregions )
+                        // Enumerate command buffers in submit
+                        for( const auto& cmdBuffer : submit.m_CommandBuffers )
                         {
-                            if( m_HistogramGroupMode > HistogramGroupMode::eRenderPass )
+                            // Enumerate render passes in command buffer
+                            for( const auto& renderPass : cmdBuffer.m_RenderPasses )
                             {
-                                // Enumerate subpasses in render pass
-                                for( const auto& subpass : renderPass.m_Subregions )
+                                if( m_HistogramGroupMode > HistogramGroupMode::eRenderPass )
                                 {
-                                    if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+                                    // Enumerate subpasses in render pass
+                                    for( const auto& subpass : renderPass.m_Subpasses )
                                     {
-                                        // Enumerate pipelines in subpass
-                                        for( const auto& pipeline : subpass.m_Pipelines )
+                                        if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                                         {
-                                            if( m_HistogramGroupMode > HistogramGroupMode::ePipeline )
+                                            // Enumerate pipelines in subpass
+                                            for( const auto& pipeline : subpass.m_Pipelines )
                                             {
-                                                // Enumerate drawcalls in pipeline
-                                                for( const auto& drawcall : pipeline.m_Subregions )
+                                                if( m_HistogramGroupMode > HistogramGroupMode::ePipeline )
                                                 {
-                                                    // Insert drawcall cycle count to histogram
-                                                    contributions.push_back( drawcall.m_Ticks );
+                                                    // Enumerate drawcalls in pipeline
+                                                    for( const auto& drawcall : pipeline.m_Drawcalls )
+                                                    {
+                                                        // Insert drawcall cycle count to histogram
+                                                        contributions.push_back( drawcall.m_Ticks );
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    // Insert pipeline cycle count to histogram
+                                                    contributions.push_back( pipeline.m_Ticks );
                                                 }
                                             }
-                                            else
-                                            {
-                                                // Insert pipeline cycle count to histogram
-                                                contributions.push_back( pipeline.m_Stats.m_TotalTicks );
-                                            }
+                                        }
+                                        else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                                        {
+                                            // TODO
                                         }
                                     }
-                                    else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
-                                    {
-                                        // TODO
-                                    }
                                 }
-                            }
-                            else
-                            {
-                                // Insert render pass cycle count to histogram
-                                contributions.push_back( renderPass.m_Stats.m_TotalTicks );
+                                else
+                                {
+                                    // Insert render pass cycle count to histogram
+                                    contributions.push_back( renderPass.m_Ticks );
+                                }
                             }
                         }
                     }
@@ -944,8 +949,8 @@ namespace Profiler
                         GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
 
                     TextAlignRight( "(%.1f %%) %.2f ms",
-                        pipeline.m_Stats.m_TotalTicks * 100.f / m_Data.m_Stats.m_TotalTicks, 
-                        pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
+                        pipeline.m_Ticks * 100.f / m_Data.m_Ticks, 
+                        pipeline.m_Ticks * m_TimestampPeriod );
 
                     // Print up to 10 top pipelines
                     if( (++i) == 10 ) break;
@@ -1082,35 +1087,60 @@ namespace Profiler
                 }
             }
 
-            // Mark hotspots with color
-            const uint64_t frameTicks = m_Data.m_Stats.m_TotalTicks;
-
             FrameBrowserTreeNodeIndex index = {};
 
             // Enumerate submits in frame
-            for( const auto& submit : m_Data.m_Submits )
+            for( const auto& submitBatch : m_Data.m_Submits )
             {
+                const std::string queueName =
+                    GetDebugObjectName( VK_OBJECT_TYPE_QUEUE, (uint64_t)submitBatch.m_Handle );
+
+                index.SubmitIndex = 0;
+                index.PrimaryCommandBufferIndex = 0;
+
                 char indexStr[ 30 ] = {};
                 structtohex( indexStr, index );
 
-                if( ImGui::TreeNode( indexStr, "Submit #%u", index.SubmitIndex ) )
+                if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
+                    queueName.c_str(),
+                    static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
                 {
-                    // Sort frame browser data
-                    std::list<const ProfilerCommandBufferData*> pCommandBuffers =
-                        SortFrameBrowserData( submit.m_CommandBuffers );
-
-                    // Enumerate command buffers in submit
-                    for( const auto* pCommandBuffer : pCommandBuffers )
+                    for( const auto& submit : submitBatch.m_Submits )
                     {
-                        PrintCommandBuffer( *pCommandBuffer, index, frameTicks );
-                        index.PrimaryCommandBufferIndex++;
+                        structtohex( indexStr, index );
+
+                        const bool inSubmitSubtree =
+                            (submitBatch.m_Submits.size() > 1) &&
+                            (ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.SubmitIndex ));
+
+                        if( (inSubmitSubtree) || (submitBatch.m_Submits.size() == 1) )
+                        {
+                            // Sort frame browser data
+                            std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
+                                SortFrameBrowserData( submit.m_CommandBuffers );
+
+                            // Enumerate command buffers in submit
+                            for( const auto* pCommandBuffer : pCommandBuffers )
+                            {
+                                PrintCommandBuffer( *pCommandBuffer, index );
+                                index.PrimaryCommandBufferIndex++;
+                            }
+                        }
+
+                        if( inSubmitSubtree )
+                        {
+                            // Finish submit subtree
+                            ImGui::TreePop();
+                        }
+
+                        index.SubmitIndex++;
                     }
 
-                    // Finish submit subtree
+                    // Finish submit batch subtree
                     ImGui::TreePop();
                 }
 
-                index.SubmitIndex++;
+                index.SubmitBatchIndex++;
             }
         }
     }
@@ -1210,19 +1240,18 @@ namespace Profiler
     {
         // Draw count statistics
         {
-            ImGui::Text( "Draw calls:                       %u", m_Data.m_Stats.m_TotalDrawCount );
-            ImGui::Text( "Draw calls (indirect):            %u", m_Data.m_Stats.m_TotalDrawIndirectCount );
-            ImGui::Text( "Dispatch calls:                   %u", m_Data.m_Stats.m_TotalDispatchCount );
-            ImGui::Text( "Dispatch calls (indirect):        %u", m_Data.m_Stats.m_TotalDispatchIndirectCount );
-            ImGui::Text( "Copy calls:                       %u", m_Data.m_Stats.m_TotalCopyCount );
-            ImGui::Text( "Pipeline barriers:                %u", m_Data.m_Stats.m_TotalBarrierCount );
-            ImGui::Text( "Pipeline barriers (implicit):     %u", m_Data.m_Stats.m_TotalImplicitBarrierCount );
-            ImGui::Text( "Clear calls:                      %u", m_Data.m_Stats.m_TotalClearCount );
-            ImGui::Text( "Clear calls (implicit):           %u", m_Data.m_Stats.m_TotalClearImplicitCount );
-            ImGui::Text( "Resolve calls:                    %u", m_Data.m_Stats.m_TotalResolveCount );
-            ImGui::Text( "Resolve calls (implicit):         %u", m_Data.m_Stats.m_TotalResolveImplicitCount );
-            ImGui::Separator();
-            ImGui::Text( "Total calls:                      %u", m_Data.m_Stats.m_TotalDrawcallCount );
+            ImGui::Text( "Draw calls:                       %u", m_Data.m_Stats.m_DrawCount );
+            ImGui::Text( "Draw calls (indirect):            %u", m_Data.m_Stats.m_DispatchIndirectCount );
+            ImGui::Text( "Dispatch calls:                   %u", m_Data.m_Stats.m_DispatchCount );
+            ImGui::Text( "Dispatch calls (indirect):        %u", m_Data.m_Stats.m_DispatchIndirectCount );
+            ImGui::Text( "Copy buffer calls:                %u", m_Data.m_Stats.m_CopyBufferCount );
+            ImGui::Text( "Copy buffer-to-image calls:       %u", m_Data.m_Stats.m_CopyBufferToImageCount );
+            ImGui::Text( "Copy image calls:                 %u", m_Data.m_Stats.m_CopyImageCount );
+            ImGui::Text( "Copy image-to-buffer calls:       %u", m_Data.m_Stats.m_CopyImageToBufferCount );
+            ImGui::Text( "Pipeline barriers:                %u", m_Data.m_Stats.m_PipelineBarrierCount );
+            ImGui::Text( "Color clear calls:                %u", m_Data.m_Stats.m_ClearColorCount );
+            ImGui::Text( "Depth-stencil clear calls:        %u", m_Data.m_Stats.m_ClearDepthStencilCount );
+            ImGui::Text( "Resolve calls:                    %u", m_Data.m_Stats.m_ResolveCount );
         }
     }
 
@@ -1239,8 +1268,9 @@ namespace Profiler
     {
         // Print self test values
         {
-            ImGui::Text( "VkCommandBuffer lookup time:      %.2f ms", m_Data.m_Self.m_CommandBufferLookupTimeNs / 1000000.f );
-            ImGui::Text( "VkPipeline lookup time:           %.2f ms", m_Data.m_Self.m_PipelineLookupTimeNs / 1000000.f );
+            ImGui::Text( "VkCommandBuffer lookup time:      %.2f ms", m_Data.m_CPU.m_CommandBufferLookupTimeNs / 1000000.f );
+            ImGui::Text( "VkPipeline lookup time:           %.2f ms", m_Data.m_CPU.m_PipelineLookupTimeNs / 1000000.f );
+            ImGui::Text( "VkCommandBuffer profiling time:   %.2f ms", m_Data.m_CPU.m_CommandBufferProfilerCPUOverheadNs / 1000000.f );
         }
     }
 
@@ -1271,6 +1301,8 @@ namespace Profiler
             {
                 vkSetProfilerSyncModeEXT( m_Device.Handle, (VkProfilerSyncModeEXT)selectedOption );
             }
+
+            ImGui::Checkbox( "Show debug labels", &m_ShowDebugLabels );
 
             //if( ImGui::BeginCombo( "Sync mode", selectedOption ) )
             //{
@@ -1312,10 +1344,10 @@ namespace Profiler
         Writes command buffer data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintCommandBuffer( const ProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index )
     {
         // Mark hotspots with color
-        DrawSignificanceRect( (float)cmdBuffer.m_Stats.m_TotalTicks / frameTicks );
+        DrawSignificanceRect( (float)cmdBuffer.m_Ticks / m_Data.m_Ticks );
 
         const std::string cmdBufferName =
             GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle );
@@ -1337,16 +1369,16 @@ namespace Profiler
         if( ImGui::TreeNode( indexStr, cmdBufferName.c_str() ) )
         {
             // Command buffer opened
-            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", cmdBuffer.m_Ticks * m_TimestampPeriod );
 
             // Sort frame browser data
-            std::list<const ProfilerRenderPass*> pRenderPasses =
-                SortFrameBrowserData( cmdBuffer.m_Subregions );
+            std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
+                SortFrameBrowserData( cmdBuffer.m_RenderPasses );
 
             // Enumerate render passes in command buffer
-            for( const ProfilerRenderPass* pRenderPass : pRenderPasses )
+            for( const DeviceProfilerRenderPassData* pRenderPass : pRenderPasses )
             {
-                PrintRenderPass( *pRenderPass, index, frameTicks );
+                PrintRenderPass( *pRenderPass, index );
                 index.RenderPassIndex++;
             }
 
@@ -1355,7 +1387,7 @@ namespace Profiler
         else
         {
             // Command buffer collapsed
-            TextAlignRight( "%.2f ms", cmdBuffer.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", cmdBuffer.m_Ticks * m_TimestampPeriod );
         }
     }
 
@@ -1368,16 +1400,16 @@ namespace Profiler
         Writes render pass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintRenderPass( const ProfilerRenderPass& renderPass, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex index )
     {
         // Mark hotspots with color
-        DrawSignificanceRect( (float)renderPass.m_Stats.m_TotalTicks / frameTicks );
+        DrawSignificanceRect( (float)renderPass.m_Ticks / m_Data.m_Ticks );
 
         char indexStr[ 30 ] = {};
         structtohex( indexStr, index );
 
         // At least one subpass must be present
-        assert( !renderPass.m_Subregions.empty() );
+        assert( !renderPass.m_Subpasses.empty() );
 
         const bool inRenderPassSubtree =
             (renderPass.m_Handle != VK_NULL_HANDLE) &&
@@ -1387,37 +1419,37 @@ namespace Profiler
         if( inRenderPassSubtree )
         {
             // Render pass subtree opened
-            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPass.m_Ticks * m_TimestampPeriod );
 
-            if( renderPass.m_Handle != VK_NULL_HANDLE )
-            {
-                DrawSignificanceRect( (float)renderPass.m_BeginTicks / frameTicks );
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)renderPass.m_BeginTicks / m_Data.m_Ticks );
 
-                ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-                TextAlignRight( "%.2f ms", renderPass.m_BeginTicks * m_TimestampPeriod );
-            }
+            // Print BeginRenderPass pipeline
+            ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
+            TextAlignRight( "%.2f ms", renderPass.m_BeginTicks * m_TimestampPeriod );
         }
 
         if( inRenderPassSubtree ||
             (renderPass.m_Handle == VK_NULL_HANDLE) )
         {
             // Sort frame browser data
-            std::list<const ProfilerSubpass*> pSubpasses =
-                SortFrameBrowserData( renderPass.m_Subregions );
+            std::list<const DeviceProfilerSubpassData*> pSubpasses =
+                SortFrameBrowserData( renderPass.m_Subpasses );
 
             // Enumerate subpasses
-            for( const ProfilerSubpass* pSubpass : pSubpasses )
+            for( const DeviceProfilerSubpassData* pSubpass : pSubpasses )
             {
-                PrintSubpass( *pSubpass, index, frameTicks );
+                PrintSubpass( *pSubpass, index, (pSubpasses.size() == 1) );
                 index.SubpassIndex++;
             }
         }
 
         if( inRenderPassSubtree )
         {
-            DrawSignificanceRect( (float)renderPass.m_EndTicks / frameTicks );
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)renderPass.m_EndTicks / m_Data.m_Ticks );
 
-            // Finish render pass subtree
+            // Print EndRenderPass pipeline
             ImGui::TextUnformatted( "vkCmdEndRenderPass" );
             TextAlignRight( "%.2f ms", renderPass.m_EndTicks * m_TimestampPeriod );
 
@@ -1428,7 +1460,7 @@ namespace Profiler
             (renderPass.m_Handle != VK_NULL_HANDLE) )
         {
             // Render pass collapsed
-            TextAlignRight( "%.2f ms", renderPass.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPass.m_Ticks * m_TimestampPeriod );
         }
     }
 
@@ -1441,34 +1473,43 @@ namespace Profiler
         Writes subpass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintSubpass( const ProfilerSubpass& subpass, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex index, bool isOnlySubpass )
     {
-        char indexStr[ 30 ] = {};
-        structtohex( indexStr, index );
+        bool inSubpassSubtree = false;
 
-        const bool inSubpassSubtree =
-            (subpass.m_Index != -1) &&
-            (ImGui::TreeNode( indexStr, "Subpass #%u", subpass.m_Index ));
+        if( !isOnlySubpass )
+        {
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)subpass.m_Ticks / m_Data.m_Ticks );
+
+            char indexStr[ 30 ] = {};
+            structtohex( indexStr, index );
+
+            inSubpassSubtree =
+                (subpass.m_Index != -1) &&
+                (ImGui::TreeNode( indexStr, "Subpass #%u", subpass.m_Index ));
+        }
 
         if( inSubpassSubtree )
         {
             // Subpass subtree opened
-            TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", subpass.m_Ticks * m_TimestampPeriod );
         }
 
         if( inSubpassSubtree ||
+            isOnlySubpass ||
             (subpass.m_Index == -1) )
         {
             if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
             {
                 // Sort frame browser data
-                std::list<const ProfilerPipeline*> pPipelines =
+                std::list<const DeviceProfilerPipelineData*> pPipelines =
                     SortFrameBrowserData( subpass.m_Pipelines );
 
                 // Enumerate pipelines in subpass
-                for( const ProfilerPipeline* pPipeline : pPipelines )
+                for( const DeviceProfilerPipelineData* pPipeline : pPipelines )
                 {
-                    PrintPipeline( *pPipeline, index, frameTicks );
+                    PrintPipeline( *pPipeline, index );
                     index.PipelineIndex++;
                 }
             }
@@ -1476,13 +1517,13 @@ namespace Profiler
             else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
             {
                 // Sort command buffers
-                std::list<const ProfilerCommandBufferData*> pCommandBuffers =
+                std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
                     SortFrameBrowserData( subpass.m_SecondaryCommandBuffers );
 
                 // Enumerate command buffers in subpass
-                for( const ProfilerCommandBufferData* pCommandBuffer : pCommandBuffers )
+                for( const DeviceProfilerCommandBufferData* pCommandBuffer : pCommandBuffers )
                 {
-                    PrintCommandBuffer( *pCommandBuffer, index, frameTicks );
+                    PrintCommandBuffer( *pCommandBuffer, index );
                     index.SecondaryCommandBufferIndex++;
                 }
             }
@@ -1494,11 +1535,10 @@ namespace Profiler
             ImGui::TreePop();
         }
 
-        if( !inSubpassSubtree &&
-            (subpass.m_Index != -1) )
+        if( !inSubpassSubtree && !isOnlySubpass && (subpass.m_Index != -1) )
         {
             // Subpass collapsed
-            TextAlignRight( "%.2f ms", subpass.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", subpass.m_Ticks * m_TimestampPeriod );
         }
     }
 
@@ -1511,53 +1551,43 @@ namespace Profiler
         Writes pipeline data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintPipeline( const ProfilerPipeline& pipeline, FrameBrowserTreeNodeIndex index, uint64_t frameTicks )
+    void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex index )
     {
-        // Mark hotspots with color
-        DrawSignificanceRect( (float)pipeline.m_Stats.m_TotalTicks / frameTicks );
+        const bool printPipelineInline =
+            (pipeline.m_Handle == VK_NULL_HANDLE) ||
+            ((pipeline.m_Hash & 0xFFFF) == 0);
 
-        char indexStr[ 30 ] = {};
-        structtohex( indexStr, index );
+        bool inPipelineSubtree = false;
 
-        const bool inPipelineSubtree =
-            (pipeline.m_Handle != VK_NULL_HANDLE) &&
-            (ImGui::TreeNode( indexStr,
-                GetDebugObjectName( VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipeline.m_Handle ).c_str() ));
+        if( !printPipelineInline )
+        {
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)pipeline.m_Ticks / m_Data.m_Ticks );
+
+            char indexStr[ 30 ] = {};
+            structtohex( indexStr, index );
+
+            inPipelineSubtree =
+                (ImGui::TreeNode( indexStr,
+                    GetDebugObjectName( VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipeline.m_Handle ).c_str() ));
+        }
 
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
-            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", pipeline.m_Ticks * m_TimestampPeriod );
         }
 
-        if( inPipelineSubtree ||
-            (pipeline.m_Handle == VK_NULL_HANDLE) )
+        if( inPipelineSubtree || printPipelineInline )
         {
             // Sort frame browser data
-            std::list<const ProfilerDrawcall*> pDrawcalls =
-                SortFrameBrowserData( pipeline.m_Subregions );
+            std::list<const DeviceProfilerDrawcall*> pDrawcalls =
+                SortFrameBrowserData( pipeline.m_Drawcalls );
 
             // Enumerate drawcalls in pipeline
-            for( const ProfilerDrawcall* pDrawcall : pDrawcalls )
+            for( const DeviceProfilerDrawcall* pDrawcall : pDrawcalls )
             {
-                const char* pDrawcallCmd = "";
-                switch( pDrawcall->m_Type )
-                {
-                case ProfilerDrawcallType::eDraw:
-                    pDrawcallCmd = "vkCmdDraw"; break;
-                case ProfilerDrawcallType::eDispatch:
-                    pDrawcallCmd = "vkCmdDispatch"; break;
-                case ProfilerDrawcallType::eCopy:
-                    pDrawcallCmd = "vkCmdCopy"; break;
-                case ProfilerDrawcallType::eClear:
-                    pDrawcallCmd = "vkCmdClear"; break;
-                }
-
-                // Mark hotspots with color
-                DrawSignificanceRect( (float)pDrawcall->m_Ticks / frameTicks );
-
-                ImGui::Text( "%s", pDrawcallCmd );
-                TextAlignRight( "%.2f ms", pDrawcall->m_Ticks * m_TimestampPeriod );
+                PrintDrawcall( *pDrawcall );
             }
         }
 
@@ -1567,11 +1597,297 @@ namespace Profiler
             ImGui::TreePop();
         }
 
-        if( !inPipelineSubtree &&
-            (pipeline.m_Handle != VK_NULL_HANDLE) )
+        if( !inPipelineSubtree && !printPipelineInline )
         {
             // Pipeline collapsed
-            TextAlignRight( "%.2f ms", pipeline.m_Stats.m_TotalTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", pipeline.m_Ticks * m_TimestampPeriod );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintDrawcall
+
+    Description:
+        Writes drawcall data to the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall )
+    {
+        if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
+        {
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)drawcall.m_Ticks / m_Data.m_Ticks );
+        }
+
+        // Keep in sync with ProfilerDrawcallType enum
+        switch( drawcall.m_Type )
+        {
+        case DeviceProfilerDrawcallType::eUnknown:
+        {
+            ImGui::TextUnformatted( "Unknown" );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDebugLabel:
+        {
+            DrawDebugLabel(
+                drawcall.m_Payload.m_DebugLabel.m_pName,
+                drawcall.m_Payload.m_DebugLabel.m_Color );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDraw:
+        {
+            ImGui::Text( "vkCmdDraw(%u, %u, %u, %u)",
+                drawcall.m_Payload.m_Draw.m_VertexCount,
+                drawcall.m_Payload.m_Draw.m_InstanceCount,
+                drawcall.m_Payload.m_Draw.m_FirstVertex,
+                drawcall.m_Payload.m_Draw.m_FirstInstance );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndexed:
+        {
+            ImGui::Text( "vkCmdDrawIndexed(%u, %u, %d, %u, %u)",
+                drawcall.m_Payload.m_DrawIndexed.m_IndexCount,
+                drawcall.m_Payload.m_DrawIndexed.m_InstanceCount,
+                drawcall.m_Payload.m_DrawIndexed.m_FirstIndex,
+                drawcall.m_Payload.m_DrawIndexed.m_VertexOffset,
+                drawcall.m_Payload.m_DrawIndexed.m_FirstInstance );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndirect:
+        {
+            const std::string indirectArgsBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndirect.m_Buffer );
+
+            ImGui::Text( "vkCmdDrawIndirect(%s, %u, %u, %u)",
+                indirectArgsBufferName.c_str(),
+                drawcall.m_Payload.m_DrawIndirect.m_Offset,
+                drawcall.m_Payload.m_DrawIndirect.m_DrawCount,
+                drawcall.m_Payload.m_DrawIndirect.m_Stride );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+        {
+            const std::string indirectArgsBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer );
+
+            ImGui::Text( "vkCmdDrawIndexedIndirect(%s, %u, %u, %u)",
+                indirectArgsBufferName.c_str(),
+                drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset,
+                drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount,
+                drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndirectCount:
+        {
+            const std::string indirectArgsBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndirectCount.m_Buffer );
+
+            const std::string indirectCountBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer );
+
+            ImGui::Text( "vkCmdDrawIndirectCount(%s, %u, %s, %u, %u, %u)",
+                indirectArgsBufferName.c_str(),
+                drawcall.m_Payload.m_DrawIndirectCount.m_Offset,
+                indirectCountBufferName.c_str(),
+                drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset,
+                drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawIndirectCount.m_Stride );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+        {
+            const std::string indirectArgsBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer );
+
+            const std::string indirectCountBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer );
+
+            ImGui::Text( "vkCmdDrawIndexedIndirectCount(%s, %u, %s, %u, %u, %u)",
+                indirectArgsBufferName.c_str(),
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset,
+                indirectCountBufferName.c_str(),
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset,
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDispatch:
+        {
+            ImGui::Text( "vkCmdDispatch(%u, %u, %u)",
+                drawcall.m_Payload.m_Dispatch.m_GroupCountX,
+                drawcall.m_Payload.m_Dispatch.m_GroupCountY,
+                drawcall.m_Payload.m_Dispatch.m_GroupCountZ );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDispatchIndirect:
+        {
+            const std::string indirectArgsBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DispatchIndirect.m_Buffer );
+
+            ImGui::Text( "vkCmdDispatchIndirect(%s, %u)",
+                indirectArgsBufferName.c_str(),
+                drawcall.m_Payload.m_DispatchIndirect.m_Offset );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eCopyBuffer:
+        {
+            const std::string srcBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer );
+
+            const std::string dstBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_CopyBuffer.m_DstBuffer );
+
+            ImGui::Text( "vkCmdCopyBuffer(%s, %s)",
+                srcBufferName.c_str(),
+                dstBufferName.c_str() );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eCopyBufferToImage:
+        {
+            const std::string srcBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer );
+
+            const std::string dstImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_CopyBufferToImage.m_DstImage );
+
+            ImGui::Text( "vkCmdCopyBufferToImage(%s, %s)",
+                srcBufferName.c_str(),
+                dstImageName.c_str() );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eCopyImage:
+        {
+            const std::string srcImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_CopyImage.m_SrcImage );
+
+            const std::string dstImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_CopyImage.m_DstImage );
+
+            ImGui::Text( "vkCmdCopyImage(%s, %s)",
+                srcImageName.c_str(),
+                dstImageName.c_str() );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eCopyImageToBuffer:
+        {
+            const std::string srcImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage );
+
+            const std::string dstBufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer );
+
+            ImGui::Text( "vkCmdCopyImageToBuffer(%s, %s)",
+                srcImageName.c_str(),
+                dstBufferName.c_str() );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eClearAttachments:
+        {
+            ImGui::Text( "vkCmdClearAttachments(%u)",
+                drawcall.m_Payload.m_ClearAttachments.m_Count );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eClearColorImage:
+        {
+            const std::string imageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_ClearColorImage.m_Image );
+
+            ImGui::Text( "vkCmdClearColorImage(%s, { %f, %f, %f, %f })",
+                imageName.c_str(),
+                drawcall.m_Payload.m_ClearColorImage.m_Value.float32[ 0 ],
+                drawcall.m_Payload.m_ClearColorImage.m_Value.float32[ 1 ],
+                drawcall.m_Payload.m_ClearColorImage.m_Value.float32[ 2 ],
+                drawcall.m_Payload.m_ClearColorImage.m_Value.float32[ 3 ] );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eClearDepthStencilImage:
+        {
+            const std::string imageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_ClearDepthStencilImage.m_Image );
+
+            ImGui::Text( "vkCmdClearDepthStencilImage(%s, { %f, %hhu })",
+                drawcall.m_Payload.m_ClearDepthStencilImage.m_Value.depth,
+                drawcall.m_Payload.m_ClearDepthStencilImage.m_Value.stencil );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eResolveImage:
+        {
+            const std::string srcImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_ResolveImage.m_SrcImage );
+
+            const std::string dstImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_ResolveImage.m_DstImage );
+
+            ImGui::Text( "vkCmdResolveImage(%s, %s)",
+                srcImageName.c_str(),
+                dstImageName.c_str() );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eBlitImage:
+        {
+            const std::string srcImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_BlitImage.m_SrcImage );
+
+            const std::string dstImageName =
+                GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_BlitImage.m_DstImage );
+
+            ImGui::Text( "vkCmdBlitImage(%s, %s)",
+                srcImageName.c_str(),
+                dstImageName.c_str() );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eFillBuffer:
+        {
+            const std::string bufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_FillBuffer.m_Buffer );
+
+            ImGui::Text( "vkCmdFillBuffer(%s, %llu, %llu, %u)",
+                bufferName.c_str(),
+                drawcall.m_Payload.m_FillBuffer.m_Offset,
+                drawcall.m_Payload.m_FillBuffer.m_Size,
+                drawcall.m_Payload.m_FillBuffer.m_Data );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eUpdateBuffer:
+        {
+            const std::string bufferName =
+                GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_UpdateBuffer.m_Buffer );
+
+            ImGui::Text( "vkCmdFillBuffer(%s, %llu, %llu)",
+                bufferName.c_str(),
+                drawcall.m_Payload.m_UpdateBuffer.m_Offset,
+                drawcall.m_Payload.m_UpdateBuffer.m_Size );
+            break;
+        }
+
+        }
+
+        if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
+        {
+            // Print drawcall duration
+            TextAlignRight( "%.2f ms", drawcall.m_Ticks * m_TimestampPeriod );
         }
     }
 
@@ -1637,17 +1953,53 @@ namespace Profiler
     void ProfilerOverlayOutput::DrawSignificanceRect( float significance )
     {
         ImVec2 cursorPosition = ImGui::GetCursorScreenPos();
-        ImVec2 cmdBufferNameSize;
+        ImVec2 rectSize;
 
         cursorPosition.x = ImGui::GetWindowPos().x;
 
-        cmdBufferNameSize.x = cursorPosition.x + ImGui::GetWindowSize().x;
-        cmdBufferNameSize.y = cursorPosition.y + ImGui::GetTextLineHeight();
+        rectSize.x = cursorPosition.x + ImGui::GetWindowSize().x;
+        rectSize.y = cursorPosition.y + ImGui::GetTextLineHeight();
 
         ImU32 color = ImGui::GetColorU32( { 1, 0, 0, significance } );
 
         ImDrawList* pDrawList = ImGui::GetWindowDrawList();
-        pDrawList->AddRectFilled( cursorPosition, cmdBufferNameSize, color );
+        pDrawList->AddRectFilled( cursorPosition, rectSize, color );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawDebugLabel
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawDebugLabel( const char* pName, const float pColor[ 4 ] )
+    {
+        if( !(m_ShowDebugLabels) ||
+            (m_FrameBrowserSortMode != FrameBrowserSortMode::eSubmissionOrder) )
+        {
+            // Don't print debug labels if frame browser is sorted out of submission order
+            return;
+        }
+
+        ImVec2 cursorPosition = ImGui::GetCursorScreenPos();
+        ImVec2 rectSize;
+
+        rectSize.x = cursorPosition.x + 8;
+        rectSize.y = cursorPosition.y + ImGui::GetTextLineHeight();
+
+        // Resolve debug label color
+        ImU32 color = ImGui::GetColorU32( *reinterpret_cast<const ImVec4*>(pColor) );
+
+        ImDrawList* pDrawList = ImGui::GetWindowDrawList();
+        pDrawList->AddRectFilled( cursorPosition, rectSize, color );
+        pDrawList->AddRect( cursorPosition, rectSize, ImGui::GetColorU32( ImGuiCol_Border ) );
+
+        cursorPosition.x += 12;
+        ImGui::SetCursorScreenPos( cursorPosition );
+
+        ImGui::TextUnformatted( pName );
     }
 
     /***********************************************************************************\

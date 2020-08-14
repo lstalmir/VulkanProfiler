@@ -255,11 +255,24 @@ namespace Profiler
             return VK_ERROR_LAYER_NOT_PRESENT;
         }
 
-        // Don't expose any extensions
-        if( pPropertyCount )
+        // Report implemented instance extensions
+        static VkExtensionProperties layerExtensions[] = {
+            { VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_UTILS_SPEC_VERSION } };
+
+        if( pExtensionProperties )
         {
-            (*pPropertyCount) = 0;
+            const size_t dstBufferSize = *pPropertyCount * sizeof( VkExtensionProperties );
+
+            // Copy device extension properties to output ptr
+            std::memcpy( pExtensionProperties, layerExtensions,
+                std::min( dstBufferSize, sizeof( layerExtensions ) ) );
+
+            if( dstBufferSize < sizeof( layerExtensions ) )
+                return VK_INCOMPLETE;
         }
+
+        // SPEC: pPropertyCount MUST be valid uint32_t pointer
+        *pPropertyCount = std::extent_v<decltype(layerExtensions)>;
 
         return VK_SUCCESS;
     }

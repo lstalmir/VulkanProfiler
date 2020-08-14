@@ -179,6 +179,49 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        PNextIterator
+
+    Description:
+        Helper class for iterating over pNext structure chain.
+
+    \***********************************************************************************/
+    template<typename PNextType>
+    class PNextIterator
+    {
+    private:
+        // pNext can be either void* or const void*
+        template<typename T> struct PNextTypeTraits;
+        template<> struct PNextTypeTraits<void*> { using StructureType = VkBaseOutStructure*; };
+        template<> struct PNextTypeTraits<const void*> { using StructureType = const VkBaseInStructure*; };
+
+        using StructureType = typename PNextTypeTraits<PNextType>::StructureType;
+        using ReferenceType = std::add_lvalue_reference_t<std::remove_pointer_t<StructureType>>;
+
+        StructureType pNext;
+
+    public:
+        struct IteratorType
+        {
+            StructureType pStruct;
+
+            inline explicit IteratorType( StructureType pStruct_ ) : pStruct( pStruct_ ) {}
+
+            inline IteratorType operator++( int ) { pStruct = pStruct->pNext; return *this; }
+            inline IteratorType operator++() { IteratorType it( pStruct ); pStruct = pStruct->pNext; return it; }
+            inline ReferenceType operator*() { return *pStruct; }
+            inline bool operator==( const IteratorType& rh ) const { return pStruct == rh.pStruct; }
+            inline bool operator!=( const IteratorType& rh ) const { return pStruct != rh.pStruct; }
+        };
+
+        inline PNextIterator( PNextType pNext_ ) : pNext( reinterpret_cast<StructureType>(pNext_) ) {}
+
+        inline IteratorType begin() { return IteratorType( pNext ); }
+        inline IteratorType end()   { return IteratorType( nullptr ); }
+    };
+
+    /***********************************************************************************\
+
+    Class:
         ProfilerPlatformFunctions
 
     Description:

@@ -132,7 +132,7 @@ namespace Profiler
             DT.CmdEndRenderPass( commandBuffers[ 0 ] );
         }
         { // End primary command buffer
-            DT.EndCommandBuffer( commandBuffers[ 0 ] );
+            ASSERT_EQ( VK_SUCCESS, DT.EndCommandBuffer( commandBuffers[ 0 ] ) );
         }
         { // Submit primary command buffer
             VkSubmitInfo submitInfo = {};
@@ -145,80 +145,75 @@ namespace Profiler
 
             const auto& data = Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );
-            ASSERT_EQ( 1, data.m_Submits[ 0 ].m_CommandBuffers.size() );
 
-            const auto& cmdBufferData = data.m_Submits[ 0 ].m_CommandBuffers[ 0 ];
+            const auto& submit = data.m_Submits.front();
+            ASSERT_EQ( 1, submit.m_Submits.size() );
+            ASSERT_EQ( 1, submit.m_Submits.front().m_CommandBuffers.size() );
+
+            const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
             EXPECT_EQ( commandBuffers[ 0 ], cmdBufferData.m_Handle );
-            EXPECT_FALSE( cmdBufferData.m_Subregions.empty() );
+            EXPECT_FALSE( cmdBufferData.m_RenderPasses.empty() );
 
-            const auto& renderPassData = cmdBufferData.m_Subregions[ 1 ];
+            const auto& renderPassData = cmdBufferData.m_RenderPasses.front();
             EXPECT_EQ( simpleTriangle.RenderPass, renderPassData.m_Handle );
-            EXPECT_FALSE( renderPassData.m_Subregions.empty() );
+            EXPECT_FALSE( renderPassData.m_Subpasses.empty() );
 
-            const auto& subpassData = renderPassData.m_Subregions[ 1 ];
+            const auto& subpassData = renderPassData.m_Subpasses.front();
             EXPECT_EQ( 0, subpassData.m_Index );
             EXPECT_EQ( VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS, subpassData.m_Contents );
             EXPECT_EQ( 0, subpassData.m_Pipelines.size() );
             EXPECT_FALSE( subpassData.m_SecondaryCommandBuffers.empty() );
 
-            const auto& secondaryCmdBufferData = subpassData.m_SecondaryCommandBuffers[ 0 ];
+            const auto& secondaryCmdBufferData = subpassData.m_SecondaryCommandBuffers.front();
             EXPECT_EQ( commandBuffers[ 1 ], secondaryCmdBufferData.m_Handle );
-            EXPECT_FALSE( secondaryCmdBufferData.m_Subregions.empty() );
+            EXPECT_FALSE( secondaryCmdBufferData.m_RenderPasses.empty() );
 
-            const auto& inheritedRenderPassData = secondaryCmdBufferData.m_Subregions[ 0 ];
+            const auto& inheritedRenderPassData = secondaryCmdBufferData.m_RenderPasses.front();
             EXPECT_EQ( VK_NULL_HANDLE, inheritedRenderPassData.m_Handle );
-            EXPECT_FALSE( inheritedRenderPassData.m_Subregions.empty() );
+            EXPECT_FALSE( inheritedRenderPassData.m_Subpasses.empty() );
 
-            const auto& inheritedSubpassData = inheritedRenderPassData.m_Subregions[ 0 ];
+            const auto& inheritedSubpassData = inheritedRenderPassData.m_Subpasses.front();
             EXPECT_EQ( -1, inheritedSubpassData.m_Index );
             EXPECT_EQ( VK_SUBPASS_CONTENTS_INLINE, inheritedSubpassData.m_Contents );
             EXPECT_EQ( 0, inheritedSubpassData.m_SecondaryCommandBuffers.size() );
             EXPECT_FALSE( inheritedSubpassData.m_Pipelines.empty() );
 
-            const auto& pipelineData = inheritedSubpassData.m_Pipelines.at( 1 );
+            const auto& pipelineData = *std::next( inheritedSubpassData.m_Pipelines.begin() );
             EXPECT_EQ( simpleTriangle.Pipeline, pipelineData.m_Handle );
-            EXPECT_EQ( VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineData.m_BindPoint );
-            EXPECT_FALSE( pipelineData.m_Subregions.empty() );
+            EXPECT_FALSE( pipelineData.m_Drawcalls.empty() );
 
-            const auto& drawcallData = pipelineData.m_Subregions.at( 0 );
-            EXPECT_EQ( ProfilerDrawcallType::eDraw, drawcallData.m_Type );
+            const auto& drawcallData = pipelineData.m_Drawcalls.front();
+            EXPECT_EQ( DeviceProfilerDrawcallType::eDraw, drawcallData.m_Type );
             EXPECT_LT( 0, drawcallData.m_Ticks );
 
             // Validate that drawcall data propagates to pipeline stats
-            EXPECT_EQ( drawcallData.m_Ticks, pipelineData.m_Stats.m_TotalTicks );
-            EXPECT_EQ( 1, pipelineData.m_Stats.m_TotalDrawCount );
-            EXPECT_EQ( 1, pipelineData.m_Stats.m_TotalDrawcallCount );
+            EXPECT_EQ( drawcallData.m_Ticks, pipelineData.m_Ticks );
+            EXPECT_EQ( 1, pipelineData.m_Stats.m_DrawCount );
 
             // Validate that pipeline stats propagate to subpass stats
-            EXPECT_EQ( pipelineData.m_Stats.m_TotalTicks, inheritedSubpassData.m_Stats.m_TotalTicks );
-            EXPECT_EQ( pipelineData.m_Stats.m_TotalDrawCount, inheritedSubpassData.m_Stats.m_TotalDrawCount );
-            EXPECT_EQ( pipelineData.m_Stats.m_TotalDrawcallCount, inheritedSubpassData.m_Stats.m_TotalDrawcallCount );
+            EXPECT_EQ( pipelineData.m_Ticks, inheritedSubpassData.m_Ticks );
+            EXPECT_EQ( pipelineData.m_Stats.m_DrawCount, inheritedSubpassData.m_Stats.m_DrawCount );
 
             // Validate that subpass stats propagate to renderpass stats
-            EXPECT_EQ( inheritedSubpassData.m_Stats.m_TotalTicks, inheritedRenderPassData.m_Stats.m_TotalTicks );
-            EXPECT_EQ( inheritedSubpassData.m_Stats.m_TotalDrawCount, inheritedRenderPassData.m_Stats.m_TotalDrawCount );
-            EXPECT_EQ( inheritedSubpassData.m_Stats.m_TotalDrawcallCount, inheritedRenderPassData.m_Stats.m_TotalDrawcallCount );
+            EXPECT_EQ( inheritedSubpassData.m_Ticks, inheritedRenderPassData.m_Ticks );
+            EXPECT_EQ( inheritedSubpassData.m_Stats.m_DrawCount, inheritedRenderPassData.m_Stats.m_DrawCount );
 
             // Validate that renderpass stats propagate to secondary command buffer stats
-            EXPECT_EQ( inheritedRenderPassData.m_Stats.m_TotalTicks, secondaryCmdBufferData.m_Stats.m_TotalTicks );
-            EXPECT_EQ( inheritedRenderPassData.m_Stats.m_TotalDrawCount, secondaryCmdBufferData.m_Stats.m_TotalDrawCount );
-            EXPECT_EQ( inheritedRenderPassData.m_Stats.m_TotalDrawcallCount, secondaryCmdBufferData.m_Stats.m_TotalDrawcallCount );
+            EXPECT_EQ( inheritedRenderPassData.m_Ticks, secondaryCmdBufferData.m_Ticks );
+            EXPECT_EQ( inheritedRenderPassData.m_Stats.m_DrawCount, secondaryCmdBufferData.m_Stats.m_DrawCount );
 
             // Validate that secondary command buffer stats propagate to subpass stats
-            EXPECT_EQ( secondaryCmdBufferData.m_Stats.m_TotalTicks, subpassData.m_Stats.m_TotalTicks );
-            EXPECT_EQ( secondaryCmdBufferData.m_Stats.m_TotalDrawCount, subpassData.m_Stats.m_TotalDrawCount );
-            EXPECT_EQ( secondaryCmdBufferData.m_Stats.m_TotalDrawcallCount, subpassData.m_Stats.m_TotalDrawcallCount );
+            EXPECT_EQ( secondaryCmdBufferData.m_Ticks, subpassData.m_Ticks );
+            EXPECT_EQ( secondaryCmdBufferData.m_Stats.m_DrawCount, subpassData.m_Stats.m_DrawCount );
 
             // Validate that subpass stats propagate to renderpass stats
             // Render pass data includes begin/end ops, so expected time is greater than subpass time
-            EXPECT_LE( subpassData.m_Stats.m_TotalTicks, renderPassData.m_Stats.m_TotalTicks );
-            EXPECT_LE( subpassData.m_Stats.m_TotalDrawCount, renderPassData.m_Stats.m_TotalDrawCount );
-            EXPECT_LE( subpassData.m_Stats.m_TotalDrawcallCount, renderPassData.m_Stats.m_TotalDrawcallCount );
+            EXPECT_LE( subpassData.m_Ticks, renderPassData.m_Ticks );
+            EXPECT_LE( subpassData.m_Stats.m_DrawCount, renderPassData.m_Stats.m_DrawCount );
 
             // Validate that renderpass stats propagate to primary command buffer stats
-            EXPECT_EQ( renderPassData.m_Stats.m_TotalTicks, cmdBufferData.m_Stats.m_TotalTicks );
-            EXPECT_EQ( renderPassData.m_Stats.m_TotalDrawCount, cmdBufferData.m_Stats.m_TotalDrawCount );
-            EXPECT_EQ( renderPassData.m_Stats.m_TotalDrawcallCount, cmdBufferData.m_Stats.m_TotalDrawcallCount );
+            EXPECT_EQ( renderPassData.m_Ticks, cmdBufferData.m_Ticks );
+            EXPECT_EQ( renderPassData.m_Stats.m_DrawCount, cmdBufferData.m_Stats.m_DrawCount );
         }
     }
 }

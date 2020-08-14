@@ -2,6 +2,8 @@
 #include "Dispatch.h"
 #include "VkCommandBuffer_functions.h"
 #include "VkQueue_functions.h"
+#include "VkDebugMarkerExt_Functions.h"
+#include "VkDebugUtilsExt_functions.h"
 
 namespace Profiler
 {
@@ -17,6 +19,8 @@ namespace Profiler
     struct VkDevice_Functions
         : VkCommandBuffer_Functions
         , VkQueue_Functions
+        , VkDebugMarkerExt_Functions
+        , VkDebugUtilsExt_Functions
     {
         // vkGetDeviceProcAddr
         static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetDeviceProcAddr(
@@ -40,16 +44,6 @@ namespace Profiler
             const char* pLayerName,
             uint32_t* pPropertyCount,
             VkExtensionProperties* pProperties );
-
-        // vkSetDebugUtilsObjectNameEXT
-        static VKAPI_ATTR VkResult VKAPI_CALL SetDebugUtilsObjectNameEXT(
-            VkDevice device,
-            const VkDebugUtilsObjectNameInfoEXT* pObjectInfo );
-
-        // vkDebugMarkerSetObjectNameEXT
-        static VKAPI_ATTR VkResult VKAPI_CALL DebugMarkerSetObjectNameEXT(
-            VkDevice device,
-            const VkDebugMarkerObjectNameInfoEXT* pObjectInfo );
 
         // vkCreateSwapchainKHR
         static VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchainKHR(
@@ -99,6 +93,33 @@ namespace Profiler
         static VKAPI_ATTR void VKAPI_CALL DestroyPipeline(
             VkDevice device,
             VkPipeline pipeline,
+            const VkAllocationCallbacks* pAllocator );
+
+        // vkCreateRenderPass
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateRenderPass(
+            VkDevice device,
+            const VkRenderPassCreateInfo* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkRenderPass* pRenderPass );
+
+        // vkCreateRenderPass2KHR
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateRenderPass2KHR(
+            VkDevice device,
+            const VkRenderPassCreateInfo2KHR* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkRenderPass* pRenderPass );
+
+        // vkCreateRenderPass2
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateRenderPass2(
+            VkDevice device,
+            const VkRenderPassCreateInfo2* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkRenderPass* pRenderPass );
+
+        // vkDestroyRenderPass
+        static VKAPI_ATTR void VKAPI_CALL DestroyRenderPass(
+            VkDevice device,
+            VkRenderPass renderPass,
             const VkAllocationCallbacks* pAllocator );
 
         // vkDestroyCommandPool

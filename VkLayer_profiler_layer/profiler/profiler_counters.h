@@ -106,4 +106,8 @@ namespace Profiler
     private:
         uint64_t& m_ValueOut;
     };
+
+    // Convenience macros for profiler overhead measurements
+    #define PROFILER_CPU_OVERHEAD_COUNTER( COUNTER ) \
+        CpuScopedTimestampCounter<std::chrono::nanoseconds> _profilerCpuOverheadCounter( COUNTER )
 }

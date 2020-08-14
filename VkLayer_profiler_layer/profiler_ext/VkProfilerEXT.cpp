@@ -26,11 +26,11 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
     // Get latest data from profiler
-    ProfilerAggregatedData data = dd.Profiler.GetData();
+    DeviceProfilerFrameData data = dd.Profiler.GetData();
 
     // Translate internal data to VkProfilerRegionDataEXT
     pData->regionType = VK_PROFILER_REGION_TYPE_FRAME_EXT;
-    pData->duration = data.m_Stats.m_TotalTicks * (dd.Profiler.m_TimestampPeriod / 1000000.f);
+    pData->duration = data.m_Ticks * (dd.Profiler.m_TimestampPeriod / 1000000.f);
 
     // Describe the frame
     sprintf( pData->regionName, "Frame #%u", dd.Profiler.m_CurrentFrame );
@@ -46,19 +46,22 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerCommandBufferDataEXT(
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
     // Get latest data from profiler
-    ProfilerAggregatedData data = dd.Profiler.GetData();
+    DeviceProfilerFrameData data = dd.Profiler.GetData();
 
     uint64_t commandBufferTotalTicks = 0;
 
     // Find command buffer
-    for( const auto& submitData : data.m_Submits )
+    for( const auto& submitBatchData : data.m_Submits )
     {
-        for( const auto& commandBufferData : submitData.m_CommandBuffers )
+        for( const auto& submitData : submitBatchData.m_Submits )
         {
-            // Aggregate command buffer data
-            if( commandBufferData.m_Handle == commandBuffer )
+            for( const auto& commandBufferData : submitData.m_CommandBuffers )
             {
-                commandBufferTotalTicks += commandBufferData.m_Stats.m_TotalTicks;
+                // Aggregate command buffer data
+                if( commandBufferData.m_Handle == commandBuffer )
+                {
+                    commandBufferTotalTicks += commandBufferData.m_Ticks;
+                }
             }
         }
     }

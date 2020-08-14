@@ -7,15 +7,12 @@ project (profiler)
 
 set (headers
     "profiler.h"
-    "profiler_allocator.h"
     "profiler_command_buffer.h"
     "profiler_counters.h"
+    "profiler_data.h"
     "profiler_data_aggregator.h"
     "profiler_debug_utils.h"
-    "profiler_drawcall.h"
-    "profiler_frame_stats.h"
     "profiler_helpers.h"
-    "profiler_pipeline.h"
     "profiler_resources.h"
     "profiler_shader.h"
     "profiler_stat_comparators.h"
