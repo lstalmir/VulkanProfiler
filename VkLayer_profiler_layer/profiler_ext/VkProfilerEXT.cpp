@@ -1,5 +1,5 @@
 #include "VkProfilerEXT.h"
-#include "profiler_layer_functions/core/VkDevice_functions.h"
+#include "VkDevice_functions.h"
 
 using namespace Profiler;
 

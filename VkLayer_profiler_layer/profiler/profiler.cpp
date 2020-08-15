@@ -5,7 +5,87 @@
 #include <sstream>
 #include <fstream>
 
-#undef max
+namespace
+{
+    static inline VkImageAspectFlags GetImageAspectFlagsForFormat( VkFormat format )
+    {
+        // Assume color aspect except for depth-stencil formats
+        switch( format )
+        {
+        case VK_FORMAT_D16_UNORM:
+        case VK_FORMAT_D32_SFLOAT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+        case VK_FORMAT_S8_UINT:
+            return VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+
+        return VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    template<typename RenderPassCreateInfo>
+    static inline void CountRenderPassAttachmentClears(
+        Profiler::DeviceProfilerRenderPass& renderPass,
+        const RenderPassCreateInfo* pCreateInfo )
+    {
+        for( uint32_t attachmentIndex = 0; attachmentIndex < pCreateInfo->attachmentCount; ++attachmentIndex )
+        {
+            const auto& attachment = pCreateInfo->pAttachments[ attachmentIndex ];
+            const auto imageFormatAspectFlags = GetImageAspectFlagsForFormat( attachment.format );
+
+            // Color attachment clear
+            if( (imageFormatAspectFlags & VK_IMAGE_ASPECT_COLOR_BIT) &&
+                (attachment.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) )
+            {
+                renderPass.m_ClearColorAttachmentCount++;
+            }
+
+            bool hasDepthClear = false;
+
+            // Depth attachment clear
+            if( (imageFormatAspectFlags & VK_IMAGE_ASPECT_DEPTH_BIT) &&
+                (attachment.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) )
+            {
+                hasDepthClear = true;
+                renderPass.m_ClearDepthStencilAttachmentCount++;
+            }
+
+            // Stencil attachment clear
+            if( (imageFormatAspectFlags & VK_IMAGE_ASPECT_STENCIL_BIT) &&
+                (attachment.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) )
+            {
+                // Treat depth-stencil clear as one (just like vkCmdClearDepthStencilImage call)
+                if( !(hasDepthClear) )
+                {
+                    renderPass.m_ClearDepthStencilAttachmentCount++;
+                }
+            }
+        }
+    }
+
+    template<typename SubpassDescription>
+    static inline void CountSubpassAttachmentResolves(
+        Profiler::DeviceProfilerSubpass& subpass,
+        const SubpassDescription& subpassDescription )
+    {
+        if( subpassDescription.pResolveAttachments )
+        {
+            for( uint32_t attachmentIndex = 0; attachmentIndex < subpassDescription.colorAttachmentCount; ++attachmentIndex )
+            {
+                // Attachments which are not resolved have VK_ATTACHMENT_UNUSED set
+                if( subpassDescription.pResolveAttachments[ attachmentIndex ].attachment != VK_ATTACHMENT_UNUSED )
+                {
+                    subpass.m_ResolveCount++;
+                }
+            }
+        }
+    }
+}
 
 namespace Profiler
 {
@@ -357,11 +437,7 @@ namespace Profiler
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-            char pPipelineDebugName[ 24 ] = "VS=XXXXXXXX,PS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, profilerPipeline.m_ShaderTuple.m_Vert );
-            u32tohex( pPipelineDebugName + 15, profilerPipeline.m_ShaderTuple.m_Frag );
-
-            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)profilerPipeline.m_Handle, pPipelineDebugName );
+            SetDefaultPipelineObjectName( profilerPipeline );
 
             m_Pipelines.interlocked_emplace( pPipelines[i], profilerPipeline );
         }
@@ -385,10 +461,7 @@ namespace Profiler
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 
-            char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, profilerPipeline.m_ShaderTuple.m_Comp );
-
-            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)profilerPipeline.m_Handle, pPipelineDebugName );
+            SetDefaultPipelineObjectName( profilerPipeline );
 
             m_Pipelines.interlocked_emplace( pPipelines[ i ], profilerPipeline );
         }
@@ -457,27 +530,13 @@ namespace Profiler
             deviceProfilerSubpass.m_Index = subpassIndex;
             
             // Check if this subpass resolves any attachments at the end
-            if( subpass.pResolveAttachments )
-            {
-                for( uint32_t attachmentIndex = 0; attachmentIndex < subpass.colorAttachmentCount; ++attachmentIndex )
-                {
-                    // Attachments which are not resolved have VK_ATTACHMENT_UNUSED set
-                    if( subpass.pResolveAttachments[ attachmentIndex ].attachment != VK_ATTACHMENT_UNUSED )
-                    {
-                        deviceProfilerSubpass.m_ResolveCount++;
-                    }
-                }
-            }
+            CountSubpassAttachmentResolves( deviceProfilerSubpass, subpass );
 
             deviceProfilerRenderPass.m_Subpasses.push_back( deviceProfilerSubpass );
         }
 
-        // Copy attachment descriptions
-        deviceProfilerRenderPass.m_Attachments.resize( pCreateInfo->attachmentCount );
-
-        std::memcpy( deviceProfilerRenderPass.m_Attachments.data(),
-            pCreateInfo->pAttachments,
-            pCreateInfo->attachmentCount * sizeof( VkAttachmentDescription ) );
+        // Count clear attachments
+        CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
         // Store render pass
         m_RenderPasses.interlocked_emplace( renderPass, deviceProfilerRenderPass );
@@ -504,17 +563,7 @@ namespace Profiler
             deviceProfilerSubpass.m_Index = subpassIndex;
 
             // Check if this subpass resolves any attachments at the end
-            if( subpass.pResolveAttachments )
-            {
-                for( uint32_t attachmentIndex = 0; attachmentIndex < subpass.colorAttachmentCount; ++attachmentIndex )
-                {
-                    // Attachments which are not resolved have VK_ATTACHMENT_UNUSED set
-                    if( subpass.pResolveAttachments[ attachmentIndex ].attachment != VK_ATTACHMENT_UNUSED )
-                    {
-                        deviceProfilerSubpass.m_ResolveCount++;
-                    }
-                }
-            }
+            CountSubpassAttachmentResolves( deviceProfilerSubpass, subpass );
 
             // Check if this subpass resolves depth-stencil attachment
             for( const auto& it : PNextIterator( subpass.pNext ) )
@@ -548,27 +597,8 @@ namespace Profiler
             deviceProfilerRenderPass.m_Subpasses.push_back( deviceProfilerSubpass );
         }
 
-        // Copy attachment descriptions
-        deviceProfilerRenderPass.m_Attachments.reserve( pCreateInfo->attachmentCount );
-
-        for( uint32_t attachmentIndex = 0; attachmentIndex < pCreateInfo->attachmentCount; ++attachmentIndex )
-        {
-            const VkAttachmentDescription2& attachment = pCreateInfo->pAttachments[ attachmentIndex ];
-
-            // Convert VkAttachmentDescription2 back to VkAttachmentDescription
-            VkAttachmentDescription attachment_1_0 = {};
-            attachment_1_0.flags = attachment.flags;
-            attachment_1_0.format = attachment.format;
-            attachment_1_0.samples = attachment.samples;
-            attachment_1_0.initialLayout = attachment.initialLayout;
-            attachment_1_0.finalLayout = attachment.finalLayout;
-            attachment_1_0.loadOp = attachment.loadOp;
-            attachment_1_0.storeOp = attachment.storeOp;
-            attachment_1_0.stencilLoadOp = attachment.stencilLoadOp;
-            attachment_1_0.stencilStoreOp = attachment.stencilStoreOp;
-
-            deviceProfilerRenderPass.m_Attachments.push_back( attachment_1_0 );
-        }
+        // Count clear attachments
+        CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
         // Store render pass
         m_RenderPasses.interlocked_emplace( renderPass, deviceProfilerRenderPass );
@@ -889,6 +919,37 @@ namespace Profiler
         tuple.m_Hash = hash;
 
         return tuple;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDefaultPipelineObjectName
+
+    Description:
+        Set default pipeline name consisting of shader tuple hashes.
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetDefaultPipelineObjectName( const DeviceProfilerPipeline& pipeline )
+    {
+        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
+        {
+            // Vertex and pixel shader hashes
+            char pPipelineDebugName[ 24 ] = "VS=XXXXXXXX,PS=XXXXXXXX";
+            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Vert );
+            u32tohex( pPipelineDebugName + 15, pipeline.m_ShaderTuple.m_Frag );
+
+            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)pipeline.m_Handle, pPipelineDebugName );
+        }
+
+        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
+        {
+            // Compute shader hash
+            char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
+            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Comp );
+
+            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)pipeline.m_Handle, pPipelineDebugName );
+        }
     }
 
     /***********************************************************************************\

@@ -57,7 +57,7 @@ namespace Profiler
 
         void MergeCommandBuffers();
 
-        std::vector<VkPerformanceCounterResultKHR> AggregateVendorMetrics() const;
+        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
 
         std::list<DeviceProfilerPipelineData> CollectTopPipelines();
 

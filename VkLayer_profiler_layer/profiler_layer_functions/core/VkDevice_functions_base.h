@@ -11,7 +11,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
-        VkDevice_ProfiledFunctionsBase
+        VkDevice_Functions_Base
 
     Description:
         Base for all components of VkDevice containing functions, which will be profiled.
@@ -34,7 +34,7 @@ namespace Profiler
         static DispatchableMap<Dispatch> DeviceDispatch;
 
         // Invoked on vkCreateDevice
-        static VkResult OnDeviceCreate(
+        static VkResult CreateDeviceBase(
             VkPhysicalDevice physicalDevice,
             const VkDeviceCreateInfo* pCreateInfo,
             PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
@@ -43,7 +43,7 @@ namespace Profiler
             VkDevice device );
 
         // Invoked on vkDestroyDevice
-        static void OnDeviceDestroy( 
+        static void DestroyDeviceBase( 
             VkDevice device );
     };
 }

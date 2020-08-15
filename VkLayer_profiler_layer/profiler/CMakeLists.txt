@@ -11,7 +11,6 @@ set (headers
     "profiler_counters.h"
     "profiler_data.h"
     "profiler_data_aggregator.h"
-    "profiler_debug_utils.h"
     "profiler_helpers.h"
     "profiler_resources.h"
     "profiler_shader.h"
@@ -22,7 +21,6 @@ set (sources
     "profiler.cpp"
     "profiler_command_buffer.cpp"
     "profiler_data_aggregator.cpp"
-    "profiler_debug_utils.cpp"
     # Windows
     "profiler_helpers_windows.cpp"
     # Linux

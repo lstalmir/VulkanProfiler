@@ -27,7 +27,24 @@ namespace Profiler
         // Store object name
         if( result == VK_SUCCESS )
         {
-            dd.Device.Debug.ObjectNames.emplace( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
+            // Revision 2 (2020-04-03): pObjectName can be nullptr
+            if( (pObjectInfo->pObjectName) &&
+                (std::strlen( pObjectInfo->pObjectName ) > 0) )
+            {
+                dd.Device.Debug.ObjectNames.insert_or_assign( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
+            }
+            else
+            {
+                // Clear debug name
+                dd.Device.Debug.ObjectNames.erase( pObjectInfo->objectHandle );
+
+                // Restore pipeline hash as debug name
+                if( pObjectInfo->objectType == VK_OBJECT_TYPE_PIPELINE )
+                {
+                    dd.Profiler.SetDefaultPipelineObjectName(
+                        dd.Profiler.GetPipeline( (VkPipeline)pObjectInfo->objectHandle ) );
+                }
+            }
         }
 
         return result;

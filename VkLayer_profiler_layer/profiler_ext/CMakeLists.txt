@@ -23,6 +23,5 @@ target_include_directories (profiler_ext
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/core
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/extensions)

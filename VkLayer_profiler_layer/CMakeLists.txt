@@ -83,8 +83,12 @@ set (core_functions
     "profiler_layer_functions/core/VkDevice_functions_base.h"
     "profiler_layer_functions/core/VkInstance_functions.cpp"
     "profiler_layer_functions/core/VkInstance_functions.h"
+    "profiler_layer_functions/core/VkInstance_functions_base.cpp"
+    "profiler_layer_functions/core/VkInstance_functions_base.h"
     "profiler_layer_functions/core/VkLoader_functions.cpp"
     "profiler_layer_functions/core/VkLoader_functions.h"
+    "profiler_layer_functions/core/VkPhysicalDevice_functions.cpp"
+    "profiler_layer_functions/core/VkPhysicalDevice_functions.h"
     "profiler_layer_functions/core/VkQueue_functions.cpp"
     "profiler_layer_functions/core/VkQueue_functions.h"
     )
@@ -100,8 +104,16 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.h"
+    "profiler_layer_functions/extensions/VkSurfaceKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkSwapchainKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkSwapchainKhr_functions.h"
+    "profiler_layer_functions/extensions/VkWaylandSurfaceKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkWaylandSurfaceKhr_functions.h"
+    "profiler_layer_functions/extensions/VkWin32SurfaceKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkWin32SurfaceKhr_functions.h"
+    "profiler_layer_functions/extensions/VkXlibSurfaceKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkXlibSurfaceKhr_functions.h"
     )
 
 # Configure resources file
@@ -156,7 +168,9 @@ target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC ${VULKAN_HEADERS_INCLUDE_DIR}
     PUBLIC ${VULKAN_LOADER_INCLUDE_DIR}
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/core
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/extensions)
 
 # Install target
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}

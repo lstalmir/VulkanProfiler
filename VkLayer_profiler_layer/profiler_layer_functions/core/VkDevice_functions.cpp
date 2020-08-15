@@ -67,8 +67,6 @@ namespace Profiler
         // VkDevice core functions
         GETPROCADDR( GetDeviceProcAddr );
         GETPROCADDR( DestroyDevice );
-        GETPROCADDR( EnumerateDeviceLayerProperties );
-        GETPROCADDR( EnumerateDeviceExtensionProperties );
         GETPROCADDR( CreateShaderModule );
         GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
@@ -157,8 +155,14 @@ namespace Profiler
         GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
         GETPROCADDR_EXT( vkGetProfilerCommandBufferDataEXT );
 
-        // Get device dispatch table
-        return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
+        if( device )
+        {
+            // Get function address from the next layer
+            return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
+        }
+
+        // Function not overloaded
+        return nullptr;
     }
 
     /***********************************************************************************\
@@ -178,94 +182,10 @@ namespace Profiler
         auto pfnDestroyDevice = dd.Device.Callbacks.DestroyDevice;
 
         // Cleanup dispatch table and profiler
-        VkDevice_Functions_Base::OnDeviceDestroy( device );
+        VkDevice_Functions_Base::DestroyDeviceBase( device );
 
         // Destroy the device
         pfnDestroyDevice( device, pAllocator );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        EnumerateDeviceLayerProperties
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::EnumerateDeviceLayerProperties(
-        VkPhysicalDevice physicalDevice,
-        uint32_t* pPropertyCount,
-        VkLayerProperties* pLayerProperties )
-    {
-        return VkInstance_Functions::EnumerateInstanceLayerProperties( pPropertyCount, pLayerProperties );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        EnumerateDeviceExtensionProperties
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::EnumerateDeviceExtensionProperties(
-        VkPhysicalDevice physicalDevice,
-        const char* pLayerName,
-        uint32_t* pPropertyCount,
-        VkExtensionProperties* pProperties )
-    {
-        const bool queryThisLayerExtensionsOnly =
-            (pLayerName) &&
-            (strcmp( pLayerName, VK_LAYER_profiler_name ) != 0);
-
-        // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
-        // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
-        // vkEnumerateDeviceExtensionProperties implementation.
-        auto id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
-
-        VkResult result = VK_SUCCESS;
-
-        // SPEC: pPropertyCount MUST be valid uint32_t pointer
-        uint32_t propertyCount = *pPropertyCount;
-
-        if( !pLayerName || !queryThisLayerExtensionsOnly )
-        {
-            result = id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
-                physicalDevice, pLayerName, pPropertyCount, pProperties );
-        }
-        else
-        {
-            // pPropertyCount now contains number of pProperties used
-            *pPropertyCount = 0;
-        }
-
-        static VkExtensionProperties layerExtensions[] = {
-            { VK_EXT_PROFILER_EXTENSION_NAME, VK_EXT_PROFILER_SPEC_VERSION },
-            { VK_EXT_DEBUG_MARKER_EXTENSION_NAME, VK_EXT_DEBUG_MARKER_SPEC_VERSION } };
-
-        if( !pLayerName || queryThisLayerExtensionsOnly )
-        {
-            if( pProperties )
-            {
-                const size_t dstBufferSize =
-                    (propertyCount - *pPropertyCount) * sizeof( VkExtensionProperties );
-
-                // Copy device extension properties to output ptr
-                std::memcpy( pProperties + (*pPropertyCount), layerExtensions,
-                    std::min( dstBufferSize, sizeof( layerExtensions ) ) );
-
-                if( dstBufferSize < sizeof( layerExtensions ) )
-                {
-                    // Not enough space in the buffer
-                    result = VK_INCOMPLETE;
-                }
-            }
-
-            // Return number of extensions exported by this layer
-            *pPropertyCount += std::extent_v<decltype(layerExtensions)>;
-        }
-
-        return result;
     }
 
     /***********************************************************************************\

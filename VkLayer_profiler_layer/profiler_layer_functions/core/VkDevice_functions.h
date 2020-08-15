@@ -1,12 +1,12 @@
 #pragma once
 #include "VkCommandBuffer_functions.h"
 #include "VkQueue_functions.h"
-#include "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.h"
-#include "profiler_layer_functions/extensions/VkDebugMarkerExt_Functions.h"
-#include "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.h"
-#include "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
-#include "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.h"
-#include "profiler_layer_functions/extensions/VkSwapchainKhr_functions.h"
+#include "VkCreateRenderPass2Khr_functions.h"
+#include "VkDebugMarkerExt_functions.h"
+#include "VkDebugUtilsExt_functions.h"
+#include "VkDrawIndirectCountAmd_functions.h"
+#include "VkDrawIndirectCountKhr_functions.h"
+#include "VkSwapchainKhr_functions.h"
 
 namespace Profiler
 {
@@ -38,19 +38,6 @@ namespace Profiler
         static VKAPI_ATTR void VKAPI_CALL DestroyDevice(
             VkDevice device,
             const VkAllocationCallbacks* pAllocator );
-
-        // vkEnumerateDeviceLayerProperties
-        static VKAPI_ATTR VkResult VKAPI_CALL EnumerateDeviceLayerProperties(
-            VkPhysicalDevice physicalDevice,
-            uint32_t* pPropertyCount,
-            VkLayerProperties* pLayerProperties );
-
-        // vkEnumerateDeviceExtensionProperties
-        static VKAPI_ATTR VkResult VKAPI_CALL EnumerateDeviceExtensionProperties(
-            VkPhysicalDevice physicalDevice,
-            const char* pLayerName,
-            uint32_t* pPropertyCount,
-            VkExtensionProperties* pProperties );
 
         // vkCreateShaderModule
         static VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(

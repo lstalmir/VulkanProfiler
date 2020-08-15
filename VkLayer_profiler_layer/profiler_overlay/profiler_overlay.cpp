@@ -1364,6 +1364,9 @@ namespace Profiler
             ImGui::Text( "Color clear calls:                %u", m_Data.m_Stats.m_ClearColorCount );
             ImGui::Text( "Depth-stencil clear calls:        %u", m_Data.m_Stats.m_ClearDepthStencilCount );
             ImGui::Text( "Resolve calls:                    %u", m_Data.m_Stats.m_ResolveCount );
+            ImGui::Text( "Blit calls:                       %u", m_Data.m_Stats.m_BlitImageCount );
+            ImGui::Text( "Fill buffer calls:                %u", m_Data.m_Stats.m_FillBufferCount );
+            ImGui::Text( "Update buffer calls:              %u", m_Data.m_Stats.m_UpdateBufferCount );
         }
     }
 

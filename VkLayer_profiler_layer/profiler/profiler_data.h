@@ -338,6 +338,9 @@ namespace Profiler
         uint32_t m_ClearColorCount;
         uint32_t m_ClearDepthStencilCount;
         uint32_t m_ResolveCount;
+        uint32_t m_BlitImageCount;
+        uint32_t m_FillBufferCount;
+        uint32_t m_UpdateBufferCount;
         uint32_t m_PipelineBarrierCount;
 
         inline void Add( const DeviceProfilerDrawcallStats& rh )
@@ -353,6 +356,9 @@ namespace Profiler
             m_ClearColorCount += rh.m_ClearColorCount;
             m_ClearDepthStencilCount += rh.m_ClearDepthStencilCount;
             m_ResolveCount += rh.m_ResolveCount;
+            m_BlitImageCount += rh.m_BlitImageCount;
+            m_FillBufferCount += rh.m_FillBufferCount;
+            m_UpdateBufferCount += rh.m_UpdateBufferCount;
             m_PipelineBarrierCount += rh.m_PipelineBarrierCount;
         }
     };
@@ -446,6 +452,9 @@ namespace Profiler
             case DeviceProfilerDrawcallType::eClearColorImage:          m_Stats.m_ClearColorCount++; break;
             case DeviceProfilerDrawcallType::eClearDepthStencilImage:   m_Stats.m_ClearDepthStencilCount++; break;
             case DeviceProfilerDrawcallType::eResolveImage:             m_Stats.m_ResolveCount++; break;
+            case DeviceProfilerDrawcallType::eBlitImage:                m_Stats.m_BlitImageCount++; break;
+            case DeviceProfilerDrawcallType::eFillBuffer:               m_Stats.m_FillBufferCount++; break;
+            case DeviceProfilerDrawcallType::eUpdateBuffer:             m_Stats.m_UpdateBufferCount++; break;
             }
         }
     };
@@ -498,7 +507,8 @@ namespace Profiler
     {
         VkRenderPass                                        m_Handle = {};
         std::vector<struct DeviceProfilerSubpass>           m_Subpasses = {};
-        std::vector<VkAttachmentDescription>                m_Attachments = {};
+        uint32_t                                            m_ClearColorAttachmentCount = {};
+        uint32_t                                            m_ClearDepthStencilAttachmentCount = {};
     };
 
     /***********************************************************************************\

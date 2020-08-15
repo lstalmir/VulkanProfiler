@@ -1,8 +1,10 @@
 #pragma once
-#include "profiler_layer_functions/Dispatch.h"
-#include "profiler_layer_objects/VkInstance_object.h"
-#include <vulkan/vk_layer.h>
-#include <vk_layer_dispatch_table.h>
+#include "VkInstance_functions_base.h"
+#include "VkPhysicalDevice_functions.h"
+#include "VkSurfaceKhr_functions.h"
+#include "VkWin32SurfaceKhr_functions.h"
+#include "VkXlibSurfaceKhr_functions.h"
+#include "VkWaylandSurfaceKhr_functions.h"
 
 namespace Profiler
 {
@@ -16,14 +18,12 @@ namespace Profiler
 
     \***********************************************************************************/
     struct VkInstance_Functions
+        : VkPhysicalDevice_Functions
+        , VkSurfaceKhr_Functions
+        , VkWin32SurfaceKhr_Functions
+        , VkXlibSurfaceKhr_Functions
+        , VkWaylandSurfaceKhr_Functions
     {
-        struct Dispatch
-        {
-            VkInstance_Object Instance;
-        };
-
-        static DispatchableMap<Dispatch> InstanceDispatch;
-
         // vkGetInstanceProcAddr
         static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetInstanceProcAddr(
             VkInstance instance,
@@ -40,13 +40,6 @@ namespace Profiler
             VkInstance instance,
             const VkAllocationCallbacks* pAllocator );
 
-        // vkCreateDevice
-        static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(
-            VkPhysicalDevice physicalDevice,
-            const VkDeviceCreateInfo* pCreateInfo,
-            const VkAllocationCallbacks* pAllocator,
-            VkDevice* pDevice );
-
         // vkEnumerateInstanceLayerProperties
         static VKAPI_ATTR VkResult VKAPI_CALL EnumerateInstanceLayerProperties(
             uint32_t* pPropertyCount,
@@ -57,34 +50,5 @@ namespace Profiler
             const char* pLayerName,
             uint32_t* pPropertyCount,
             VkExtensionProperties* pExtensionProperties );
-
-        #ifdef VK_USE_PLATFORM_WIN32_KHR
-        // vkCreateWin32SurfaceKHR
-        static VKAPI_ATTR VkResult VKAPI_CALL CreateWin32SurfaceKHR(
-            VkInstance instance,
-            const VkWin32SurfaceCreateInfoKHR* pCreateInfo,
-            const VkAllocationCallbacks* pAllocator,
-            VkSurfaceKHR* pSurface );
-        #endif
-
-        #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-
-        #endif
-        
-        #ifdef VK_USE_PLATFORM_XLIB_KHR
-        // vkCreateXlibSurfaceKHR
-        static VKAPI_ATTR VkResult VKAPI_CALL CreateXlibSurfaceKHR(
-            VkInstance instance,
-            const VkXlibSurfaceCreateInfoKHR* pCreateInfo,
-            const VkAllocationCallbacks* pAllocator,
-            VkSurfaceKHR* pSurface );
-        #endif
-
-        // vkDestroySurfaceKHR
-        static VKAPI_ATTR void VKAPI_CALL DestroySurfaceKHR(
-            VkInstance instance,
-            VkSurfaceKHR surface,
-            const VkAllocationCallbacks* pAllocator );
     };
-
 }

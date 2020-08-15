@@ -12,13 +12,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        OnDeviceCreate
+        CreateDeviceBase
 
     Description:
         Initializes profiler for the device.
 
     \***********************************************************************************/
-    VkResult VkDevice_Functions_Base::OnDeviceCreate(
+    VkResult VkDevice_Functions_Base::CreateDeviceBase(
         VkPhysicalDevice physicalDevice,
         const VkDeviceCreateInfo* pCreateInfo,
         PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
@@ -87,19 +87,12 @@ namespace Profiler
         // Check if profiler create info was provided
         const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
 
+        for( const auto& it : PNextIterator( pCreateInfo->pNext ) )
         {
-            const VkBaseInStructure* pStructure =
-                reinterpret_cast<const VkBaseInStructure*>(pCreateInfo->pNext);
-
-            while( pStructure )
+            if( it.sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
             {
-                if( pStructure->sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
-                {
-                    pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>(pStructure);
-                    break;
-                }
-
-                pStructure = pStructure->pNext;
+                pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>(&it);
+                break;
             }
         }
 
@@ -120,13 +113,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        OnDeviceDestroy
+        DestroyDeviceBase
 
     Description:
         Destroys profiler for the device.
 
     \***********************************************************************************/
-    void VkDevice_Functions_Base::OnDeviceDestroy( VkDevice device )
+    void VkDevice_Functions_Base::DestroyDeviceBase( VkDevice device )
     {
         auto& dd = DeviceDispatch.Get( device );
 

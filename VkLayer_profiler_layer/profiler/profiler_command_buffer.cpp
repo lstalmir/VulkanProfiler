@@ -229,14 +229,8 @@ namespace Profiler
         profilerRenderPassData.m_Handle = pBeginInfo->renderPass;
 
         // Clears issued when render pass begins
-        for( const VkAttachmentDescription& attachment : m_pCurrentRenderPass->m_Attachments )
-        {
-            if( (attachment.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) ||
-                (attachment.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) )
-            {
-                profilerRenderPassData.m_Stats.m_ClearColorCount++;
-            }
-        }
+        profilerRenderPassData.m_Stats.m_ClearColorCount += m_pCurrentRenderPass->m_ClearColorAttachmentCount;
+        profilerRenderPassData.m_Stats.m_ClearDepthStencilCount += m_pCurrentRenderPass->m_ClearDepthStencilAttachmentCount;
 
         m_Data.m_RenderPasses.push_back( profilerRenderPassData );
 

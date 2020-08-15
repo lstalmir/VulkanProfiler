@@ -243,7 +243,7 @@ namespace Profiler
         Merge vendor metrics collected from different command buffers.
 
     \***********************************************************************************/
-    std::vector<VkPerformanceCounterResultKHR> ProfilerDataAggregator::AggregateVendorMetrics() const
+    std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerDataAggregator::AggregateVendorMetrics() const
     {
         const uint32_t metricCount = m_VendorMetricProperties.size();
 
@@ -267,7 +267,7 @@ namespace Profiler
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
                     // Preprocess metrics for the command buffer
-                    const std::vector<VkPerformanceCounterResultKHR> commandBufferVendorMetrics =
+                    const std::vector<VkProfilerPerformanceCounterResultEXT> commandBufferVendorMetrics =
                         m_pProfiler->m_MetricsApiINTEL.ParseReport(
                             commandBufferData.m_PerformanceQueryReportINTEL.data(),
                             commandBufferData.m_PerformanceQueryReportINTEL.size() );
@@ -322,7 +322,7 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        std::vector<VkPerformanceCounterResultKHR> normalizedAggregatedVendorMetrics( metricCount );
+        std::vector<VkProfilerPerformanceCounterResultEXT> normalizedAggregatedVendorMetrics( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
         {
@@ -337,35 +337,15 @@ namespace Profiler
         return normalizedAggregatedVendorMetrics;
     }
 
-    #if 0
     /***********************************************************************************\
 
     Function:
-        CollectShaderTuples
+        CollectTopPipelines
 
     Description:
-        Get all shader tuples referenced in the submit.
+        Enumerate and sort all pipelines by duration descending.
 
     \***********************************************************************************/
-    std::unordered_set<ProfilerShaderTuple> ProfilerDataAggregator::CollectShaderTuples( const ProfilerSubmitData& submit ) const
-    {
-        std::unordered_set<ProfilerShaderTuple> tuples;
-
-        // Assuming relatively low number of command buffers in single submit, we're O(n) here
-        for( const auto& commandBuffer : submit.m_CommandBuffers )
-        {
-            for( const auto& pipelineDrawCount : commandBuffer.m_PipelineDrawCount )
-            {
-                // tuples is a set so all duplicates will be removed here
-                tuples.insert( pipelineDrawCount.first.m_ShaderTuple );
-            }
-        }
-
-        return tuples;
-    }
-    #endif
-
-
     std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines()
     {
         std::unordered_set<DeviceProfilerPipelineData> aggregatedPipelines;
@@ -392,7 +372,15 @@ namespace Profiler
         return pipelines;
     }
 
+    /***********************************************************************************\
 
+    Function:
+        CollectPipelinesFromCommandBuffer
+
+    Description:
+        Enumerate and sort all pipelines in command buffer by duration descending.
+
+    \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipelinesFromCommandBuffer(
         const DeviceProfilerCommandBufferData& commandBuffer,
         std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines )
@@ -435,7 +423,15 @@ namespace Profiler
         CollectPipeline( endRenderPassPipeline, aggregatedPipelines );
     }
 
+    /***********************************************************************************\
 
+    Function:
+        CollectPipeline
+
+    Description:
+        Aggregate pipeline data for top pipelines enumeration.
+
+    \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipeline(
         const DeviceProfilerPipelineData& pipeline,
         std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines )

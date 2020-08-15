@@ -1,7 +1,6 @@
 #pragma once
 #include "profiler_counters.h"
 #include "profiler_data_aggregator.h"
-#include "profiler_debug_utils.h"
 #include "profiler_helpers.h"
 #include "profiler_data.h"
 #include "profiler_layer_objects/VkDevice_object.h"
@@ -137,6 +136,8 @@ namespace Profiler
 
         ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& );
         ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& );
+
+        void SetDefaultPipelineObjectName( const DeviceProfilerPipeline& );
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 
