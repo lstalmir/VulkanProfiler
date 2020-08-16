@@ -1,7 +1,6 @@
 #pragma once
+#include "vk_dispatch_tables.h"
 #include <assert.h>
-#include <vulkan/vk_layer.h>
-#include <vk_dispatch_table_helper.h>
 
 namespace Profiler
 {

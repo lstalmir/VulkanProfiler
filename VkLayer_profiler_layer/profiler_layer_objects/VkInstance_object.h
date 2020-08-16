@@ -1,7 +1,6 @@
 #pragma once
+#include "vk_dispatch_tables.h"
 #include "VkSurfaceKhr_object.h"
-#include <vulkan/vk_layer.h>
-#include <vk_dispatch_table_helper.h>
 #include <unordered_map>
 
 namespace Profiler

@@ -214,9 +214,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Destroy()
     {
-        m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
-
-        m_Window = OSWindowHandle();
+        if( m_pDevice )
+        {
+            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
+        }
 
         if( m_pImGuiVulkanContext )
         {
@@ -283,6 +284,9 @@ namespace Profiler
         }
 
         m_CommandSemaphores.clear();
+
+        m_Window = OSWindowHandle();
+        m_pDevice = nullptr;
     }
 
     /***********************************************************************************\

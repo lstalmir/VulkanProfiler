@@ -1,11 +1,10 @@
 #pragma once
+#include "vk_dispatch_tables.h"
 #include "VkInstance_object.h"
 #include "VkQueue_object.h"
 #include "VkSwapchainKhr_object.h"
 #include <map>
 #include <vector>
-#include <vulkan/vk_layer.h>
-#include <vk_dispatch_table_helper.h>
 
 namespace Profiler
 {
@@ -34,7 +33,7 @@ namespace Profiler
         VkDevice_Vendor_ID VendorID;
 
         // Dispatch tables
-        VkLayerDispatchTable Callbacks;
+        VkLayerDeviceDispatchTable Callbacks;
         PFN_vkSetDeviceLoaderData SetDeviceLoaderData;
 
         VkPhysicalDeviceProperties Properties;

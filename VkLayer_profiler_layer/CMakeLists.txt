@@ -3,6 +3,8 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
+find_package (Python3 REQUIRED)
+
 set (PROFILER_LAYER_VER_MAJOR 0)
 set (PROFILER_LAYER_VER_MINOR 1)
 set (PROFILER_LAYER_VER_PATCH 0)
@@ -43,6 +45,19 @@ elseif (UNIX)
 
 endif ()
 
+# Generate dispatch tables
+add_custom_command (
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py
+        ${VULKAN_HEADERS_INSTALL_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS Vulkan-Headers
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py)
+
+add_custom_target (profiler_pre_build
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
+
 # Generated files
 include_directories (${CMAKE_CURRENT_BINARY_DIR})
 
@@ -53,6 +68,10 @@ include_directories (utils)
 add_subdirectory (profiler)
 add_subdirectory (profiler_ext)
 add_subdirectory (profiler_overlay)
+
+add_dependencies (profiler profiler_pre_build)
+add_dependencies (profiler_ext profiler_pre_build)
+add_dependencies (profiler_overlay profiler_pre_build)
 
 # Enable tests
 if (BUILD_ULT)
@@ -143,6 +162,7 @@ configure_file (
     @ONLY)
 
 add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
+    ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
     ${helper_functions}
     ${core_functions}
     ${extension_functions}
@@ -168,7 +188,6 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME} PRIVATE ${PROFILER_LAYER_PR
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC ${VULKAN_HEADERS_INCLUDE_DIR}
-    PUBLIC ${VULKAN_LOADER_INCLUDE_DIR}
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/core

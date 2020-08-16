@@ -1,6 +1,6 @@
 #pragma once
+#include "vk_dispatch_tables.h"
 #include "VkSurfaceKhr_object.h"
-#include <vulkan/vulkan.h>
 #include <vector>
 
 namespace Profiler

@@ -32,8 +32,7 @@ namespace Profiler
         // Create new dispatch table for the device
         auto& dd = DeviceDispatch.Create( device );
 
-        layer_init_device_dispatch_table( device, &dd.Device.Callbacks,
-            pfnGetDeviceProcAddr );
+        init_layer_device_dispatch_table( device, pfnGetDeviceProcAddr, dd.Device.Callbacks );
 
         dd.Device.SetDeviceLoaderData = pfnSetDeviceLoaderData;
 

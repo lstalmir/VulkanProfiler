@@ -52,10 +52,6 @@ set (VK_EXT_PROFILER_INCLUDE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/VkLayer_profiler_layer/profiler_ext"
     )
 
-if (BUILD_SAMPLE)
-    add_subdirectory (Sample)
-endif ()
-
 set (VULKAN_HEADERS_INSTALL_DIR
     "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Headers"
     )
@@ -64,11 +60,10 @@ set (VULKAN_HEADERS_INCLUDE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Headers/include"
     )
 
-# Build loader
-add_subdirectory (Vulkan-Headers)
-add_subdirectory (Vulkan-Loader)
-
-set (VULKAN_LOADER_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Loader/loader/generated")
-
 # Include sub-projects
+add_subdirectory (Vulkan-Headers)
 add_subdirectory (VkLayer_profiler_layer)
+
+if (BUILD_SAMPLE)
+    add_subdirectory (Sample)
+endif ()

@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan/vk_layer.h>
+#include "vk_dispatch_tables.h"
 
 namespace Profiler
 {

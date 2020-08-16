@@ -94,6 +94,8 @@ namespace Profiler
     {
         #ifdef WIN32
         SetEnvironmentVariableA( "VK_INSTANCE_LAYERS", VK_LAYER_profiler_name );
+        #elif __linux__
+        setenv( "VK_INSTANCE_LAYERS", VK_LAYER_profiler_name, true );
         #endif
 
         // Create vulkan instance with profiler layer enabled externally
@@ -107,6 +109,8 @@ namespace Profiler
 
         #ifdef WIN32
         SetEnvironmentVariableA( "VK_INSTANCE_LAYERS", nullptr );
+        #elif __linux__
+        unsetenv( "VK_INSTANCE_LAYERS" );
         #endif
     }
 }

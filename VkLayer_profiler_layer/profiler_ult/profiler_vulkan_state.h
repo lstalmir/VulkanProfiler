@@ -3,7 +3,7 @@
 #include <vector>
 #include <string_view>
 
-#include <vk_dispatch_table_helper.h>
+#include "vk_dispatch_tables.h"
 
 #include "profiler_layer_functions/core/VkInstance_functions.h"
 #include "profiler_layer_functions/core/VkDevice_functions.h"
@@ -162,14 +162,14 @@ namespace Profiler
                 VkInstance_Functions::Dispatch& id = VkInstance_Functions::InstanceDispatch.Create( Instance );
                 id.Instance.Handle = Instance;
                 id.Instance.ApplicationInfo = ApplicationInfo;
-                layer_init_instance_dispatch_table( Instance, &id.Instance.Callbacks, vkGetInstanceProcAddr );
+                init_layer_instance_dispatch_table( Instance, vkGetInstanceProcAddr, id.Instance.Callbacks );
 
                 VkDevice_Functions::Dispatch& dd = VkDevice_Functions::DeviceDispatch.Create( Device );
                 dd.Device.Handle = Device;
                 dd.Device.PhysicalDevice = PhysicalDevice;
                 dd.Device.Properties = PhysicalDeviceProperties;
                 dd.Device.pInstance = &id.Instance;
-                layer_init_device_dispatch_table( Device, &dd.Device.Callbacks, vkGetDeviceProcAddr );
+                init_layer_device_dispatch_table( Device, vkGetDeviceProcAddr, dd.Device.Callbacks );
 
                 VkQueue_Object queue = {};
                 queue.Handle = Queue;
@@ -215,17 +215,17 @@ namespace Profiler
             ApplicationInfo = {};
         }
 
-        inline VkLayerDispatchTable GetLayerDispatchTable() const
+        inline VkLayerDeviceDispatchTable GetLayerDispatchTable() const
         {
-            VkLayerDispatchTable dispatchTable = {};
-            layer_init_device_dispatch_table( Device, &dispatchTable, VkDevice_Functions::GetDeviceProcAddr );
+            VkLayerDeviceDispatchTable dispatchTable = {};
+            init_layer_device_dispatch_table( Device, VkDevice_Functions::GetDeviceProcAddr, dispatchTable );
             return dispatchTable;
         }
 
         inline VkLayerInstanceDispatchTable GetLayerInstanceDispatchTable() const
         {
             VkLayerInstanceDispatchTable dispatchTable = {};
-            layer_init_instance_dispatch_table( Instance, &dispatchTable, VkInstance_Functions::GetInstanceProcAddr );
+            init_layer_instance_dispatch_table( Instance, VkInstance_Functions::GetInstanceProcAddr, dispatchTable );
             return dispatchTable;
         }
     };

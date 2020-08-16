@@ -22,8 +22,7 @@
 
 #pragma once
 #include "imgui.h"      // IMGUI_IMPL_API
-#include <vulkan/vulkan.h>
-#include <vk_dispatch_table_helper.h>
+#include "vk_dispatch_tables.h"
 
 // Initialization data, for ImGui_ImplVulkan_Init()
 // [Please zero-clear before use!]
