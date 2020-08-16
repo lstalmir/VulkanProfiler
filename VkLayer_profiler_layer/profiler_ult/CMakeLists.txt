@@ -2,8 +2,6 @@ cmake_minimum_required (VERSION 3.8)
 
 project (profiler_ult)
 
-find_package (Vulkan REQUIRED)
-
 # Prevent overriding the parent project's compiler/linker
 # settings on Windows
 set (gtest_force_shared_crt ON CACHE BOOL "" FORCE)

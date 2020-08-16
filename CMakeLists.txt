@@ -5,6 +5,22 @@ cmake_minimum_required (VERSION 3.8)
 
 project (VulkanProfiler CXX)
 
+# Options
+option (BUILD_SAMPLE "Build Sample project." ON)
+option (BUILD_ULT "Build ULT project." ON)
+
+# Find Vulkan SDK and glslangValidator
+# Linux:    install libvulkan-dev and glslang-tools
+# Windows:  install Vulkan SDK
+find_package (Vulkan)
+find_program (glslangvalidator glslangValidator)
+
+if (NOT Vulkan_FOUND OR NOT glslangvalidator)
+    message (WARNING "Vulkan SDK and/or glslangValidator not found. Samples and tests will be disabled.")
+    set (BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+    set (BUILD_ULT OFF CACHE BOOL "" FORCE)
+endif ()
+
 # Detect available libraries
 if (UNIX)
     find_package (Wayland)
@@ -36,7 +52,9 @@ set (VK_EXT_PROFILER_INCLUDE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/VkLayer_profiler_layer/profiler_ext"
     )
 
-add_subdirectory (Sample)
+if (BUILD_SAMPLE)
+    add_subdirectory (Sample)
+endif ()
 
 set (VULKAN_HEADERS_INSTALL_DIR
     "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Headers"

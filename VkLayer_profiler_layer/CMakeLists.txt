@@ -55,7 +55,9 @@ add_subdirectory (profiler_ext)
 add_subdirectory (profiler_overlay)
 
 # Enable tests
-add_subdirectory (profiler_ult)
+if (BUILD_ULT)
+    add_subdirectory (profiler_ult)
+endif ()
 
 set (resource
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc

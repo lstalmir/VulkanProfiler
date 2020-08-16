@@ -2,13 +2,6 @@ cmake_minimum_required (VERSION 3.8)
 
 project (profiler_ult_shaders)
 
-find_program (glslangvalidator glslangValidator)
-if (NOT glslangvalidator)
-    message (FATAL_ERROR "glslangvalidator not found")
-else ()
-    message ("-- Using glslangvalidator: ${glslangvalidator}")
-endif ()
-
 set (sources
     "simple_triangle.vert.hlsl"
     "simple_triangle.frag.hlsl"

@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <vector>
 #include <list>
-#include <string>
+#include <cstring>
 #include <vulkan/vulkan.h>
 // Import extension structures
 #include "profiler_ext/VkProfilerEXT.h"
