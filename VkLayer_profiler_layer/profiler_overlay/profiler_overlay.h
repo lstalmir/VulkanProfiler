@@ -4,7 +4,7 @@
 #include "profiler/profiler_stat_comparators.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
-#include "profiler_layer_objects/VkSwapchainKHR_object.h"
+#include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>

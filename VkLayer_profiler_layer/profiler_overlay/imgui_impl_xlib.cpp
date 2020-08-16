@@ -192,7 +192,7 @@ Description:
 \***********************************************************************************/
 void ImGui_ImplXlib_Context::InitError()
 {
-    ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context();
+    this->~ImGui_ImplXlib_Context();
     throw;
 }
 

@@ -990,7 +990,7 @@ namespace Profiler
         // Assume m_CommandBuffers map is already locked
         assert( !m_CommandBuffers.try_lock() );
 
-        auto& it = m_CommandBuffers.find( commandBuffer );
+        auto it = m_CommandBuffers.find( commandBuffer );
         if( it != m_CommandBuffers.end() )
         {
             // Collect command buffer data now, command buffer won't be available later

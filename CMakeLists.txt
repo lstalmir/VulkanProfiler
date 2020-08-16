@@ -12,15 +12,15 @@ if (UNIX)
     find_package (X11)
 
     if (NOT Wayland_FOUND)
-        set (BUILD_WSI_WAYLAND_SUPPORT OFF CACHE "" FORCE)
+        set (BUILD_WSI_WAYLAND_SUPPORT OFF CACHE BOOL "" FORCE)
     endif ()
 
     if (NOT XCB_FOUND)
-        set (BUILD_WSI_XCB_SUPPORT OFF CACHE "" FORCE)
+        set (BUILD_WSI_XCB_SUPPORT OFF CACHE BOOL "" FORCE)
     endif ()
 
     if (NOT X11_FOUND)
-        set (BUILD_WSI_XLIB_SUPPORT OFF CACHE "" FORCE)
+        set (BUILD_WSI_XLIB_SUPPORT OFF CACHE BOOL "" FORCE)
     endif ()
 
     if (NOT Wayland_FOUND AND NOT XCB_FOUND AND NOT X11_FOUND)

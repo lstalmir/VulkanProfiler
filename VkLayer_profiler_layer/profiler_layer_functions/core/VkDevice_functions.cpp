@@ -1,6 +1,6 @@
 #include "VkDevice_functions.h"
 #include "VkInstance_functions.h"
-#include "profiler_layer_objects/VkSwapchainKHR_object.h"
+#include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "VkLayer_profiler_layer.generated.h"
 #include "profiler_layer_functions/Helpers.h"
 

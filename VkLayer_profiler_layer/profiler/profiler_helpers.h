@@ -179,6 +179,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        __PNextTypeTraits
+
+    Description:
+        For internal use by PNextIterator.
+
+    \***********************************************************************************/
+    template<typename T> struct __PNextTypeTraits;
+    template<> struct __PNextTypeTraits<void*> { using StructureType = VkBaseOutStructure*; };
+    template<> struct __PNextTypeTraits<const void*> { using StructureType = const VkBaseInStructure*; };
+
+    /***********************************************************************************\
+
+    Class:
         PNextIterator
 
     Description:
@@ -189,12 +202,7 @@ namespace Profiler
     class PNextIterator
     {
     private:
-        // pNext can be either void* or const void*
-        template<typename T> struct PNextTypeTraits;
-        template<> struct PNextTypeTraits<void*> { using StructureType = VkBaseOutStructure*; };
-        template<> struct PNextTypeTraits<const void*> { using StructureType = const VkBaseInStructure*; };
-
-        using StructureType = typename PNextTypeTraits<PNextType>::StructureType;
+        using StructureType = typename __PNextTypeTraits<PNextType>::StructureType;
         using ReferenceType = std::add_lvalue_reference_t<std::remove_pointer_t<StructureType>>;
 
         StructureType pNext;

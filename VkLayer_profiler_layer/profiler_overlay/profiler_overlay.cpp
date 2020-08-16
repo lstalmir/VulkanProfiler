@@ -1481,7 +1481,7 @@ namespace Profiler
         char indexStr[ 30 ] = {};
         structtohex( indexStr, index );
 
-        if( ImGui::TreeNode( indexStr, cmdBufferName.c_str() ) )
+        if( ImGui::TreeNode( indexStr, "%s", cmdBufferName.c_str() ) )
         {
             // Command buffer opened
             TextAlignRight( "%.2f ms", cmdBuffer.m_Ticks * m_TimestampPeriod );
@@ -1528,7 +1528,7 @@ namespace Profiler
 
         const bool inRenderPassSubtree =
             (renderPass.m_Handle != VK_NULL_HANDLE) &&
-            (ImGui::TreeNode( indexStr,
+            (ImGui::TreeNode( indexStr, "%s",
                 GetDebugObjectName( VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)renderPass.m_Handle ).c_str() ));
 
         if( inRenderPassSubtree )
@@ -1683,7 +1683,7 @@ namespace Profiler
             structtohex( indexStr, index );
 
             inPipelineSubtree =
-                (ImGui::TreeNode( indexStr,
+                (ImGui::TreeNode( indexStr, "%s",
                     GetDebugObjectName( VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipeline.m_Handle ).c_str() ));
         }
 
@@ -1779,7 +1779,7 @@ namespace Profiler
             const std::string indirectArgsBufferName =
                 GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndirect.m_Buffer );
 
-            ImGui::Text( "vkCmdDrawIndirect(%s, %u, %u, %u)",
+            ImGui::Text( "vkCmdDrawIndirect(%s, %llu, %u, %u)",
                 indirectArgsBufferName.c_str(),
                 drawcall.m_Payload.m_DrawIndirect.m_Offset,
                 drawcall.m_Payload.m_DrawIndirect.m_DrawCount,
@@ -1792,7 +1792,7 @@ namespace Profiler
             const std::string indirectArgsBufferName =
                 GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer );
 
-            ImGui::Text( "vkCmdDrawIndexedIndirect(%s, %u, %u, %u)",
+            ImGui::Text( "vkCmdDrawIndexedIndirect(%s, %llu, %u, %u)",
                 indirectArgsBufferName.c_str(),
                 drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset,
                 drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount,
@@ -1808,7 +1808,7 @@ namespace Profiler
             const std::string indirectCountBufferName =
                 GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer );
 
-            ImGui::Text( "vkCmdDrawIndirectCount(%s, %u, %s, %u, %u, %u)",
+            ImGui::Text( "vkCmdDrawIndirectCount(%s, %llu, %s, %llu, %u, %u)",
                 indirectArgsBufferName.c_str(),
                 drawcall.m_Payload.m_DrawIndirectCount.m_Offset,
                 indirectCountBufferName.c_str(),
@@ -1826,7 +1826,7 @@ namespace Profiler
             const std::string indirectCountBufferName =
                 GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer );
 
-            ImGui::Text( "vkCmdDrawIndexedIndirectCount(%s, %u, %s, %u, %u, %u)",
+            ImGui::Text( "vkCmdDrawIndexedIndirectCount(%s, %llu, %s, %llu, %u, %u)",
                 indirectArgsBufferName.c_str(),
                 drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset,
                 indirectCountBufferName.c_str(),
@@ -1850,7 +1850,7 @@ namespace Profiler
             const std::string indirectArgsBufferName =
                 GetDebugObjectName( VK_OBJECT_TYPE_BUFFER, (uint64_t)drawcall.m_Payload.m_DispatchIndirect.m_Buffer );
 
-            ImGui::Text( "vkCmdDispatchIndirect(%s, %u)",
+            ImGui::Text( "vkCmdDispatchIndirect(%s, %llu)",
                 indirectArgsBufferName.c_str(),
                 drawcall.m_Payload.m_DispatchIndirect.m_Offset );
             break;
@@ -1939,6 +1939,7 @@ namespace Profiler
                 GetDebugObjectName( VK_OBJECT_TYPE_IMAGE, (uint64_t)drawcall.m_Payload.m_ClearDepthStencilImage.m_Image );
 
             ImGui::Text( "vkCmdClearDepthStencilImage(%s, { %f, %hhu })",
+                imageName.c_str(),
                 drawcall.m_Payload.m_ClearDepthStencilImage.m_Value.depth,
                 drawcall.m_Payload.m_ClearDepthStencilImage.m_Value.stencil );
             break;

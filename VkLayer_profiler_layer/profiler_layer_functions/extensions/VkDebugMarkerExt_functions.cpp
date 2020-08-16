@@ -1,4 +1,4 @@
-#include "VkDebugMarkerExt_Functions.h"
+#include "VkDebugMarkerExt_functions.h"
 
 namespace Profiler
 {
@@ -37,7 +37,7 @@ namespace Profiler
                 dd.Device.Debug.ObjectNames.erase( pObjectInfo->object );
 
                 // Restore pipeline hash as debug name
-                if( pObjectInfo->objectType == VK_OBJECT_TYPE_PIPELINE )
+                if( pObjectInfo->objectType == VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT )
                 {
                     dd.Profiler.SetDefaultPipelineObjectName(
                         dd.Profiler.GetPipeline( (VkPipeline)pObjectInfo->object ) );
