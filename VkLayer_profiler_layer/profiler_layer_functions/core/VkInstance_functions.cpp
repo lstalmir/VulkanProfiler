@@ -42,6 +42,10 @@ namespace Profiler
         // VK_KHR_wayland_surface functions
         GETPROCADDR( CreateWaylandSurfaceKHR );
         #endif
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+        // VK_KHR_xcb_surface functions
+        GETPROCADDR( CreateXcbSurfaceKHR );
+        #endif
         #ifdef VK_USE_PLATFORM_XLIB_KHR
         // VK_KHR_xlib_surface functions
         GETPROCADDR( CreateXlibSurfaceKHR );
@@ -50,11 +54,13 @@ namespace Profiler
         // vkGetInstanceProcAddr can be used to query device functions
         PFN_vkVoidFunction deviceFunction = VkDevice_Functions::GetDeviceProcAddr( nullptr, pName );
 
-        if( !deviceFunction )
+        if( deviceFunction )
         {
-            // Get address from the next layer
-            return InstanceDispatch.Get( instance ).Instance.Callbacks.GetInstanceProcAddr( instance, pName );
+            return deviceFunction;
         }
+
+        // Get address from the next layer
+        return InstanceDispatch.Get( instance ).Instance.Callbacks.GetInstanceProcAddr( instance, pName );
     }
 
     /***********************************************************************************\

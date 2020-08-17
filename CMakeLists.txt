@@ -23,26 +23,13 @@ endif ()
 
 # Detect available libraries
 if (UNIX)
-    find_package (Wayland)
-    find_package (XCB)
-    find_package (X11)
+    # ECM is required on Linux to find Wayland and XCB
+    find_package (ECM REQUIRED NO_MODULE)
+    set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
 
-    if (NOT Wayland_FOUND)
-        set (BUILD_WSI_WAYLAND_SUPPORT OFF CACHE BOOL "" FORCE)
-    endif ()
-
-    if (NOT XCB_FOUND)
-        set (BUILD_WSI_XCB_SUPPORT OFF CACHE BOOL "" FORCE)
-    endif ()
-
-    if (NOT X11_FOUND)
-        set (BUILD_WSI_XLIB_SUPPORT OFF CACHE BOOL "" FORCE)
-    endif ()
-
-    if (NOT Wayland_FOUND AND NOT XCB_FOUND AND NOT X11_FOUND)
-        message (FATAL_ERROR "No window library found")
-    endif ()
-
+    #find_package (Wayland)
+    find_package (XCB REQUIRED COMPONENTS XCB SHAPE)
+    find_package (X11 REQUIRED)
 endif ()
 
 # Build with C++17

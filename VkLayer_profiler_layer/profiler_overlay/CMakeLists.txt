@@ -32,10 +32,26 @@ set (imgui_platform
     "imgui_impl_win32.h"
     "imgui_impl_win32.cpp"
     )
-elseif (X11_FOUND)
-set (imgui_platform
+elseif (UNIX)
+if (X11_FOUND)
+set (imgui_platform_x11
     "imgui_impl_xlib.h"
-    "imgui_impl_xlib.cpp"
+    "imgui_impl_xlib.cpp")
+endif ()
+if (XCB_FOUND)
+set (imgui_platform_xcb
+    "imgui_impl_xcb.h"
+    "imgui_impl_xcb.cpp")
+endif ()
+if (Wayland_FOUND)
+set (imgui_platform_wayland
+    "imgui_impl_wayland.h"
+    "imgui_impl_wayland.cpp")
+endif ()
+set (imgui_platform
+    ${imgui_platform_x11}
+    ${imgui_platform_xcb}
+    #${imgui_platform_wayland}
     )
 endif ()
 
@@ -76,6 +92,7 @@ if (UNIX)
 
     if (XCB_FOUND)
         target_link_libraries (profiler_overlay ${XCB_LIBRARIES})
+        target_link_libraries (profiler_overlay XCB::SHAPE)
         target_include_directories (profiler_overlay
             PRIVATE ${XCB_INCLUDE_DIRS})
     endif () # XCB_FOUND

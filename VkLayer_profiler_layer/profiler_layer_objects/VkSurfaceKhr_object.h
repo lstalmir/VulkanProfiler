@@ -12,8 +12,11 @@ namespace Profiler
         #ifdef VK_USE_PLATFORM_WAYLAND_KHR
         eWayland = 2,
         #endif
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+        eXcb = 3,
+        #endif
         #ifdef VK_USE_PLATFORM_XLIB_KHR
-        eX11 = 3
+        eX11 = 4
         #endif
     };
 
@@ -28,6 +31,9 @@ namespace Profiler
             #ifdef VK_USE_PLATFORM_WAYLAND_KHR
             // TODO
             #endif
+            #ifdef VK_USE_PLATFORM_XCB_KHR
+            xcb_window_t XcbHandle;
+            #endif
             #ifdef VK_USE_PLATFORM_XLIB_KHR
             Window X11Handle;
             #endif
@@ -39,6 +45,10 @@ namespace Profiler
 
         #ifdef VK_USE_PLATFORM_WIN32_KHR
         inline OSWindowHandle( HWND handle ) : Type( OSWindowHandleType::eWin32 ) { Win32Handle = handle; }
+        #endif
+
+        #ifdef VK_USE_PLATFORM_XCB_KHR
+        inline OSWindowHandle( xcb_window_t handle ) : Type( OSWindowHandleType::eXcb ) { XcbHandle = handle; }
         #endif
 
         #ifdef VK_USE_PLATFORM_XLIB_KHR
@@ -55,6 +65,9 @@ namespace Profiler
                 #endif
                 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
                 #error Wayland not supported
+                #endif
+                #ifdef VK_USE_PLATFORM_XCB_KHR
+            case OSWindowHandleType::eXcb: return (XcbHandle == rh.XcbHandle);
                 #endif
                 #ifdef VK_USE_PLATFORM_XLIB_KHR
             case OSWindowHandleType::eX11: return (X11Handle == rh.X11Handle);

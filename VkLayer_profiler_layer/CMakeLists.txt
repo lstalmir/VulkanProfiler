@@ -27,20 +27,16 @@ elseif (UNIX)
 
     add_compile_options (-fPIC)
 
-    if (Wayland_FOUND)
-        add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
+    if (X11_FOUND)
+        add_definitions (-DVK_USE_PLATFORM_XLIB_KHR)
     endif ()
 
     if (XCB_FOUND)
         add_definitions (-DVK_USE_PLATFORM_XCB_KHR)
     endif ()
 
-    if (X11_FOUND)
-        add_definitions (-DVK_USE_PLATFORM_XLIB_KHR)
-    endif ()
-
-    if (X11_Xrandr_FOUND)
-        add_definitions (-DVK_USE_PLATFORM_XLIB_XRANDR_EXT)
+    if (Wayland_FOUND)
+        add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
     endif ()
 
 endif ()
@@ -133,6 +129,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkWaylandSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkWin32SurfaceKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkWin32SurfaceKhr_functions.h"
+    "profiler_layer_functions/extensions/VkXcbSurfaceKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkXcbSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkXlibSurfaceKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkXlibSurfaceKhr_functions.h"
     )

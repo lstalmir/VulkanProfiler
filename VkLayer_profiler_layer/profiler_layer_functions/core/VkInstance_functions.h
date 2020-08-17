@@ -3,6 +3,7 @@
 #include "VkPhysicalDevice_functions.h"
 #include "VkSurfaceKhr_functions.h"
 #include "VkWin32SurfaceKhr_functions.h"
+#include "VkXcbSurfaceKhr_functions.h"
 #include "VkXlibSurfaceKhr_functions.h"
 #include "VkWaylandSurfaceKhr_functions.h"
 
@@ -21,6 +22,7 @@ namespace Profiler
         : VkPhysicalDevice_Functions
         , VkSurfaceKhr_Functions
         , VkWin32SurfaceKhr_Functions
+        , VkXcbSurfaceKhr_Functions
         , VkXlibSurfaceKhr_Functions
         , VkWaylandSurfaceKhr_Functions
     {

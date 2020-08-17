@@ -16,7 +16,7 @@
 #endif
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
-#include <xcb/xcb.h>
+#include "imgui_impl_xcb.h"
 #endif
 
 #ifdef VK_USE_PLATFORM_XLIB_KHR
@@ -707,6 +707,9 @@ namespace Profiler
 
         ImGui::Begin( "VkProfiler" );
 
+        // Update input clipping rect
+        m_pImGuiWindowContext->UpdateWindowRect();
+
         // GPU properties
         ImGui::Text( "Device: %s", m_pDevice->Properties.deviceName );
 
@@ -798,7 +801,7 @@ namespace Profiler
             #endif // VK_USE_PLATFORM_WAYLAND_KHR
 
             #ifdef VK_USE_PLATFORM_XCB_KHR
-            if( window.Type == OSWindowHandleType::eXCB )
+            if( window.Type == OSWindowHandleType::eXcb )
             {
                 m_pImGuiWindowContext = new ImGui_ImplXcb_Context( window.XcbHandle );
             }
