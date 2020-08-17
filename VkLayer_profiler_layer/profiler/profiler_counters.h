@@ -73,4 +73,41 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point m_BeginValue;
         std::chrono::high_resolution_clock::time_point m_EndValue;
     };
+
+    template<typename Unit, bool Overwrite = false>
+    class CpuScopedTimestampCounter : private CpuTimestampCounter
+    {
+    public:
+        // Initialize new scoped CPU timestamp query counter
+        inline CpuScopedTimestampCounter( uint64_t& valueOut ) : m_ValueOut( valueOut )
+        {
+            Begin();
+        }
+
+        // Destroy scoped CPU timestamp query counter, write result to valueOut
+        inline ~CpuScopedTimestampCounter()
+        {
+            End();
+
+            const Unit result = this->template GetValue<Unit>();
+
+            if( Overwrite )
+            {
+                // Overwrite result of the query
+                m_ValueOut = result.count();
+            }
+            else
+            {
+                // Aggregate result of the query
+                m_ValueOut += result.count();
+            }
+        }
+
+    private:
+        uint64_t& m_ValueOut;
+    };
+
+    // Convenience macros for profiler overhead measurements
+    #define PROFILER_CPU_OVERHEAD_COUNTER( COUNTER ) \
+        CpuScopedTimestampCounter<std::chrono::nanoseconds> _profilerCpuOverheadCounter( COUNTER )
 }

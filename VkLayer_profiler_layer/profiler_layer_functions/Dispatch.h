@@ -4,9 +4,25 @@
 
 namespace Profiler
 {
+    // Compile-time function signature check
+    #define CHECKPROCSIGNATURE( NAME )                                                  \
+        {                                                                               \
+            using ActualProcT = std::remove_pointer_t<decltype(NAME)>;                  \
+            using ExpectedProcT = std::remove_pointer_t<PFN_vk##NAME>;                  \
+            static_assert(std::is_same_v<ExpectedProcT, ActualProcT>,                   \
+                #NAME " function signature mismatch (see vk" #NAME ")" );               \
+        }
+
     // Helper macro for getting address of function implementation
-#   define GETPROCADDR( NAME )                                                          \
+    #define GETPROCADDR( NAME )                                                         \
+        CHECKPROCSIGNATURE( NAME );                                                     \
         if( strcmp( pName, "vk" #NAME ) == 0 )                                          \
+        {                                                                               \
+            return reinterpret_cast<PFN_vkVoidFunction>(NAME);                          \
+        }
+
+    #define GETPROCADDR_EXT( NAME )                                                     \
+        if( strcmp( pName, #NAME ) == 0 )                                               \
         {                                                                               \
             return reinterpret_cast<PFN_vkVoidFunction>(NAME);                          \
         }
@@ -64,6 +80,7 @@ namespace Profiler
             Creates new layer dispatch table and stores it in the dispatcher object.
 
         \*******************************************************************************/
+        template<typename... Args>
         inline ValueType& Create( DispatchableHandle handle )
         {
             std::scoped_lock lk( m_DispatchMutex );

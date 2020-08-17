@@ -1,6 +1,6 @@
 #pragma once
-#include <vk_layer.h>
-#include <vk_dispatch_table_helper.h>
+#include "vk_dispatch_tables.h"
+#include <assert.h>
 
 namespace Profiler
 {
@@ -39,14 +39,14 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename LayerCreateInfo, typename CreateInfo>
-    inline LayerCreateInfo* GetLayerLinkInfo( const CreateInfo* pCreateInfo )
+    inline LayerCreateInfo* GetLayerLinkInfo( const CreateInfo* pCreateInfo, VkLayerFunction function )
     {
         auto pLayerCreateInfo = reinterpret_cast<const LayerCreateInfo*>(pCreateInfo->pNext);
 
         // Step through the chain of pNext until we get to the link info
         while( (pLayerCreateInfo)
             && (pLayerCreateInfo->sType != LayerCreateInfoTypeTraits<LayerCreateInfo>::sType ||
-                pLayerCreateInfo->function != VK_LAYER_LINK_INFO) )
+                pLayerCreateInfo->function != function) )
         {
             pLayerCreateInfo = reinterpret_cast<const LayerCreateInfo*>(pLayerCreateInfo->pNext);
         }
@@ -57,31 +57,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        CopyString
+        AppendPNext
 
     Description:
 
     \***********************************************************************************/
-    static inline void CopyString( char* dst, size_t dstSize, const char* src )
+    template<typename StructureType>
+    inline void AppendPNext( StructureType& structure, void* pNext )
     {
-#   ifdef WIN32
-        strcpy_s( dst, dstSize, src );
-#   else
-        strcpy( dst, src );
-#   endif
-    }
+        VkBaseOutStructure* pStruct = reinterpret_cast<VkBaseOutStructure*>(&structure);
 
-    /***********************************************************************************\
+        // Skip pNext pointers until we get to the end of chain
+        while( pStruct->pNext ) pStruct = pStruct->pNext;
 
-    Function:
-        CopyString
-
-    Description:
-
-    \***********************************************************************************/
-    template<size_t dstSize>
-    static inline void CopyString( char( &dst )[dstSize], const char* src )
-    {
-        return CopyString( dst, dstSize, src );
+        pStruct->pNext = reinterpret_cast<VkBaseOutStructure*>(pNext);
     }
 }

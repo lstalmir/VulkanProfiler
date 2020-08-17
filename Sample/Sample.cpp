@@ -37,7 +37,6 @@
 // Tell SDL not to mess with main()
 #define SDL_MAIN_HANDLED
 
-#include <glm.hpp>
 #include <SDL.h>
 #include <SDL_syswm.h>
 #include <SDL_vulkan.h>
@@ -66,130 +65,39 @@ std::vector<char> ReadFile( std::string filename )
     return content;
 }
 
-int main()
+struct SampleResources
 {
-    // Create an SDL window that supports Vulkan rendering.
-    if( SDL_Init( SDL_INIT_VIDEO ) != 0 )
-    {
-        std::cout << "Could not initialize SDL." << std::endl;
-        return 1;
-    }
-    SDL_Window* window = SDL_CreateWindow( "Vulkan Window", SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_VULKAN );
-    if( window == NULL )
-    {
-        std::cout << "Could not create SDL window." << std::endl;
-        return 1;
-    }
-
-    // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
-    unsigned extension_count;
-    if( !SDL_Vulkan_GetInstanceExtensions( window, &extension_count, NULL ) )
-    {
-        std::cout << "Could not get the number of required instance extensions from SDL." << std::endl;
-        return 1;
-    }
-    std::vector<const char*> extensions( extension_count );
-    if( !SDL_Vulkan_GetInstanceExtensions( window, &extension_count, extensions.data() ) )
-    {
-        std::cout << "Could not get the names of required instance extensions from SDL." << std::endl;
-        return 1;
-    }
-    extensions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
-
-    // Use validation layers if this is a debug build
-    std::vector<const char*> layers;
-#if defined(_DEBUG)
-    layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
-#endif
-    layers.push_back( "VK_LAYER_profiler" );
-
-    // vk::ApplicationInfo allows the programmer to specifiy some basic information about the
-    // program, which can be useful for layers and tools to provide more debug information.
-    vk::ApplicationInfo appInfo = vk::ApplicationInfo()
-        .setPApplicationName( "Vulkan C++ Windowed Program Template" )
-        .setApplicationVersion( 1 )
-        .setPEngineName( "LunarG SDK" )
-        .setEngineVersion( 1 )
-        .setApiVersion( VK_API_VERSION_1_0 );
-
-    // vk::InstanceCreateInfo is where the programmer specifies the layers and/or extensions that
-    // are needed.
-    vk::InstanceCreateInfo instInfo = vk::InstanceCreateInfo()
-        .setFlags( vk::InstanceCreateFlags() )
-        .setPApplicationInfo( &appInfo )
-        .setEnabledExtensionCount( static_cast<uint32_t>(extensions.size()) )
-        .setPpEnabledExtensionNames( extensions.data() )
-        .setEnabledLayerCount( static_cast<uint32_t>(layers.size()) )
-        .setPpEnabledLayerNames( layers.data() );
-
-    // Create the Vulkan instance.
     vk::Instance instance;
-    try
-    {
-        instance = vk::createInstance( instInfo );
-    }
-    catch( const std::exception & e )
-    {
-        std::cout << "Could not create a Vulkan instance: " << e.what() << std::endl;
-        return 1;
-    }
+    vk::SurfaceKHR surface;
+    std::unique_ptr<Sample::Device> pDevice;
+    std::unique_ptr<Sample::SwapChain> pSwapchain;
+    vk::CommandPool commandPool;
+    std::vector<vk::CommandBuffer> commandBuffers;
+    vk::RenderPass renderPass;
+    std::vector<vk::ImageView> imageViews;
+    std::vector<vk::Framebuffer> framebuffers;
+    vk::PipelineLayout pipelineLayout;
+    vk::Pipeline pipeline;
+    vk::Pipeline pipeline2;
+};
 
-    // Prepare dispatch for debug marker extension
-    struct DebugUtilsEXT_Dispatch
-    {
-        PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectNameEXT;
-        PFN_vkDebugMarkerSetObjectTagEXT vkDebugMarkerSetObjectTagEXT;
-        PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
-        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
-    };
+SampleResources R;
 
-    DebugUtilsEXT_Dispatch debugUtilsEXT;
-    debugUtilsEXT.vkDebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)instance.getProcAddr( "vkDebugMarkerSetObjectNameEXT" );
-    debugUtilsEXT.vkDebugMarkerSetObjectTagEXT = (PFN_vkDebugMarkerSetObjectTagEXT)instance.getProcAddr( "vkDebugMarkerSetObjectTagEXT" );
-    debugUtilsEXT.vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)instance.getProcAddr( "vkCreateDebugUtilsMessengerEXT" );
-    debugUtilsEXT.vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)instance.getProcAddr( "vkDestroyDebugUtilsMessengerEXT" );
-
-    // Create a debug messenger
-    vk::DebugUtilsMessengerEXT debugMessenger = instance.createDebugUtilsMessengerEXT(
-        vk::DebugUtilsMessengerCreateInfoEXT(
-            vk::DebugUtilsMessengerCreateFlagsEXT(),
-            vk::DebugUtilsMessageSeverityFlagBitsEXT::eError |
-            vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning,
-            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-            vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
-            DebugUtilsMessengerCallback ),
-        nullptr, debugUtilsEXT );
-
-    // Create a Vulkan surface for rendering
-    VkSurfaceKHR c_surface;
-    if( !SDL_Vulkan_CreateSurface( window, static_cast<VkInstance>(instance), &c_surface ) )
-    {
-        std::cout << "Could not create a Vulkan surface." << std::endl;
-        return 1;
-    }
-    vk::SurfaceKHR surface( c_surface );
-
-    // Create the Vulkan device
-    Sample::Device device( instance, surface, layers,
-        {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME
-        } );
-
-    Sample::SwapChain swapchain( device, surface, true );
+void CreateSwapchainDependentResources()
+{
+    R.pSwapchain = std::make_unique<Sample::SwapChain>( *R.pDevice, R.surface, true );
 
     std::vector<vk::AttachmentDescription> renderPassAttachments = {
         vk::AttachmentDescription(
             vk::AttachmentDescriptionFlags(),
-            swapchain.m_Format,
+            R.pSwapchain->m_Format,
             vk::SampleCountFlagBits::e1,
             vk::AttachmentLoadOp::eClear,
             vk::AttachmentStoreOp::eStore,
             vk::AttachmentLoadOp::eDontCare,
             vk::AttachmentStoreOp::eDontCare,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageLayout::eColorAttachmentOptimal ) };
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::ePresentSrcKHR ) };
 
     std::vector<vk::AttachmentReference> renderPassAttachmentReferences = {
         vk::AttachmentReference( 0, vk::ImageLayout::eColorAttachmentOptimal ) };
@@ -204,19 +112,16 @@ int main()
             nullptr,
             static_cast<uint32_t>(0), nullptr ) };
 
-    vk::RenderPass renderPass = device.m_Device.createRenderPass(
+    R.renderPass = R.pDevice->m_Device.createRenderPass(
         vk::RenderPassCreateInfo(
             vk::RenderPassCreateFlags(),
             static_cast<uint32_t>(renderPassAttachments.size()), renderPassAttachments.data(),
             static_cast<uint32_t>(renderPassSubpasses.size()), renderPassSubpasses.data(),
             static_cast<uint32_t>(0), nullptr ) );
 
-    std::vector<vk::ImageView> imageViews;
-    std::vector<vk::Framebuffer> framebuffers;
-
-    for( auto& image : swapchain.m_Images )
+    for( auto& image : R.pSwapchain->m_Images )
     {
-        imageViews.push_back( device.m_Device.createImageView( vk::ImageViewCreateInfo(
+        R.imageViews.push_back( R.pDevice->m_Device.createImageView( vk::ImageViewCreateInfo(
             vk::ImageViewCreateFlags(),
             image.m_Image,
             vk::ImageViewType::e2D,
@@ -224,29 +129,27 @@ int main()
             vk::ComponentMapping(),
             vk::ImageSubresourceRange( vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 ) ) ) );
 
-        framebuffers.push_back( device.m_Device.createFramebuffer( vk::FramebufferCreateInfo(
+        R.framebuffers.push_back( R.pDevice->m_Device.createFramebuffer( vk::FramebufferCreateInfo(
             vk::FramebufferCreateFlags(),
-            renderPass,
-            1, &imageViews.back(),
+            R.renderPass,
+            1, &R.imageViews.back(),
             image.m_Extent.width,
             image.m_Extent.height,
             1 ) ) );
     }
 
-    vk::ClearValue clearValue( std::array<float, 4>( { 0.f, 0.f, 0.f, 1.f } ) );
-
-    vk::CommandPool commandPool = device.m_Device.createCommandPool(
+    R.commandPool = R.pDevice->m_Device.createCommandPool(
         vk::CommandPoolCreateInfo(
             vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-            device.m_QueueFamilyIndices.m_GraphicsQueueFamilyIndex ) );
+            R.pDevice->m_QueueFamilyIndices.m_GraphicsQueueFamilyIndex ) );
 
-    vk::CommandBuffer commandBuffer = device.m_Device.allocateCommandBuffers(
+    R.commandBuffers = R.pDevice->m_Device.allocateCommandBuffers(
         vk::CommandBufferAllocateInfo(
-            commandPool,
+            R.commandPool,
             vk::CommandBufferLevel::ePrimary,
-            1 ) ).front();
+            R.pSwapchain->m_Images.size() ) );
 
-    vk::PipelineLayout pipelineLayout = device.m_Device.createPipelineLayout(
+    R.pipelineLayout = R.pDevice->m_Device.createPipelineLayout(
         vk::PipelineLayoutCreateInfo(
             vk::PipelineLayoutCreateFlags(),
             0, nullptr,
@@ -254,7 +157,7 @@ int main()
 
     std::vector<char> vertexShaderModuleBytecode = ReadFile( "VertexShader.vert.hlsl.spv" );
 
-    vk::ShaderModule vertexShaderModule = device.m_Device.createShaderModule(
+    vk::ShaderModule vertexShaderModule = R.pDevice->m_Device.createShaderModule(
         vk::ShaderModuleCreateInfo(
             vk::ShaderModuleCreateFlags(),
             vertexShaderModuleBytecode.size(),
@@ -262,7 +165,7 @@ int main()
 
     std::vector<char> pixelShaderModuleBytecode = ReadFile( "FragmentShader.frag.hlsl.spv" );
 
-    vk::ShaderModule pixelShaderModule = device.m_Device.createShaderModule(
+    vk::ShaderModule pixelShaderModule = R.pDevice->m_Device.createShaderModule(
         vk::ShaderModuleCreateInfo(
             vk::ShaderModuleCreateFlags(),
             pixelShaderModuleBytecode.size(),
@@ -286,88 +189,256 @@ int main()
                 vk::ColorComponentFlagBits::eG |
                 vk::ColorComponentFlagBits::eB ) };
 
-    vk::Pipeline pipeline = device.m_Device.createGraphicsPipeline(
-        nullptr,
-        vk::GraphicsPipelineCreateInfo(
-            vk::PipelineCreateFlags(),
-            static_cast<uint32_t>(shaderStages.size()), shaderStages.data(),
-            &vk::PipelineVertexInputStateCreateInfo(),
-            &vk::PipelineInputAssemblyStateCreateInfo(
-                vk::PipelineInputAssemblyStateCreateFlags(),
-                vk::PrimitiveTopology::eTriangleList ),
-            &vk::PipelineTessellationStateCreateInfo(),
-            &vk::PipelineViewportStateCreateInfo(
-                vk::PipelineViewportStateCreateFlags(),
-                1, &swapchain.m_Viewport,
-                1, &swapchain.m_ScissorRect ),
-            &vk::PipelineRasterizationStateCreateInfo(
-                vk::PipelineRasterizationStateCreateFlags(),
-                false,
-                false,
-                vk::PolygonMode::eFill,
-                vk::CullModeFlagBits::eBack,
-                vk::FrontFace::eCounterClockwise ),
-            &vk::PipelineMultisampleStateCreateInfo(),
-            &vk::PipelineDepthStencilStateCreateInfo(
-                vk::PipelineDepthStencilStateCreateFlags(),
-                false,
-                false,
-                vk::CompareOp::eAlways ),
-            &vk::PipelineColorBlendStateCreateInfo(
-                vk::PipelineColorBlendStateCreateFlags(),
-                false, vk::LogicOp::eClear,
-                static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
-                { { 1.f, 1.f, 1.f, 1.f } } ),
-            &vk::PipelineDynamicStateCreateInfo(),
-            pipelineLayout,
-            renderPass ) );
+    R.pipeline = R.pDevice->createGraphicsPipeline(
+        R.pipelineLayout,
+        R.renderPass,
+        shaderStages,
+        vk::PipelineVertexInputStateCreateInfo(),
+        vk::PipelineInputAssemblyStateCreateInfo(
+            vk::PipelineInputAssemblyStateCreateFlags(),
+            vk::PrimitiveTopology::eTriangleList ),
+        vk::PipelineViewportStateCreateInfo(
+            vk::PipelineViewportStateCreateFlags(),
+            1, &R.pSwapchain->m_Viewport,
+            1, &R.pSwapchain->m_ScissorRect ),
+        vk::PipelineRasterizationStateCreateInfo(
+            vk::PipelineRasterizationStateCreateFlags(),
+            false,
+            false,
+            vk::PolygonMode::eFill,
+            vk::CullModeFlagBits::eBack,
+            vk::FrontFace::eCounterClockwise,
+            false, 0, 0, 0, 1 ),
+        vk::PipelineMultisampleStateCreateInfo(),
+        vk::PipelineDepthStencilStateCreateInfo(
+            vk::PipelineDepthStencilStateCreateFlags(),
+            false,
+            false,
+            vk::CompareOp::eAlways ),
+        vk::PipelineColorBlendStateCreateInfo(
+            vk::PipelineColorBlendStateCreateFlags(),
+            false, vk::LogicOp::eClear,
+            static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
+            { { 1.f, 1.f, 1.f, 1.f } } ) );
 
-    vk::Viewport viewport = swapchain.m_Viewport;
+    vk::Viewport viewport = R.pSwapchain->m_Viewport;
     viewport.width /= 2;
     viewport.height /= 2;
 
-    vk::Rect2D scissor = swapchain.m_ScissorRect;
+    vk::Rect2D scissor = R.pSwapchain->m_ScissorRect;
     scissor.extent.width /= 2;
     scissor.extent.height /= 2;
 
-    vk::Pipeline pipeline2 = device.m_Device.createGraphicsPipeline(
-        nullptr,
-        vk::GraphicsPipelineCreateInfo(
-            vk::PipelineCreateFlags(),
-            static_cast<uint32_t>(shaderStages.size()), shaderStages.data(),
-            &vk::PipelineVertexInputStateCreateInfo(),
-            &vk::PipelineInputAssemblyStateCreateInfo(
-                vk::PipelineInputAssemblyStateCreateFlags(),
-                vk::PrimitiveTopology::eTriangleList ),
-            &vk::PipelineTessellationStateCreateInfo(),
-            &vk::PipelineViewportStateCreateInfo(
-                vk::PipelineViewportStateCreateFlags(),
-                1, &viewport,
-                1, &scissor ),
-            &vk::PipelineRasterizationStateCreateInfo(
-                vk::PipelineRasterizationStateCreateFlags(),
-                false,
-                false,
-                vk::PolygonMode::eFill,
-                vk::CullModeFlagBits::eBack,
-                vk::FrontFace::eCounterClockwise ),
-            &vk::PipelineMultisampleStateCreateInfo(),
-            &vk::PipelineDepthStencilStateCreateInfo(
-                vk::PipelineDepthStencilStateCreateFlags(),
-                false,
-                false,
-                vk::CompareOp::eAlways ),
-            &vk::PipelineColorBlendStateCreateInfo(
-                vk::PipelineColorBlendStateCreateFlags(),
-                false, vk::LogicOp::eClear,
-                static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
-                { { 1.f, 1.f, 1.f, 1.f } } ),
-            &vk::PipelineDynamicStateCreateInfo(),
-            pipelineLayout,
-            renderPass ) );
+    R.pipeline2 = R.pDevice->createGraphicsPipeline(
+        R.pipelineLayout,
+        R.renderPass,
+        shaderStages,
+        vk::PipelineVertexInputStateCreateInfo(),
+        vk::PipelineInputAssemblyStateCreateInfo(
+            vk::PipelineInputAssemblyStateCreateFlags(),
+            vk::PrimitiveTopology::eTriangleList ),
+        vk::PipelineViewportStateCreateInfo(
+            vk::PipelineViewportStateCreateFlags(),
+            1, &viewport,
+            1, &scissor ),
+        vk::PipelineRasterizationStateCreateInfo(
+            vk::PipelineRasterizationStateCreateFlags(),
+            false,
+            false,
+            vk::PolygonMode::eFill,
+            vk::CullModeFlagBits::eBack,
+            vk::FrontFace::eCounterClockwise,
+            false, 0, 0, 0, 1 ),
+        vk::PipelineMultisampleStateCreateInfo(),
+        vk::PipelineDepthStencilStateCreateInfo(
+            vk::PipelineDepthStencilStateCreateFlags(),
+            false,
+            false,
+            vk::CompareOp::eAlways ),
+        vk::PipelineColorBlendStateCreateInfo(
+            vk::PipelineColorBlendStateCreateFlags(),
+            false, vk::LogicOp::eClear,
+            static_cast<uint32_t>(colorBlendAttachments.size()), colorBlendAttachments.data(),
+            { { 1.f, 1.f, 1.f, 1.f } } ) );
 
-    // This is where most initializtion for a program should be performed
+    R.pDevice->m_Device.destroyShaderModule( vertexShaderModule );
+    R.pDevice->m_Device.destroyShaderModule( pixelShaderModule );
+}
 
+void RecordCommandBuffers()
+{
+    vk::ClearValue clearValue( std::array<float, 4>( { 0.f, 0.f, 0.f, 1.f } ) );
+
+    for( int i = 0; i < R.commandBuffers.size(); ++i )
+    {
+        R.commandBuffers[ i ].begin( vk::CommandBufferBeginInfo( vk::CommandBufferUsageFlagBits::eSimultaneousUse ) );
+        R.commandBuffers[ i ].beginRenderPass( vk::RenderPassBeginInfo(
+            R.renderPass,
+            R.framebuffers[ i ],
+            vk::Rect2D( vk::Offset2D(), R.pSwapchain->m_Extent ),
+            1, &clearValue ),
+            vk::SubpassContents::eInline );
+
+        R.commandBuffers[ i ].bindPipeline( vk::PipelineBindPoint::eGraphics, R.pipeline );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+
+        R.commandBuffers[ i ].bindPipeline( vk::PipelineBindPoint::eGraphics, R.pipeline2 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+
+        R.commandBuffers[ i ].endRenderPass();
+        R.commandBuffers[ i ].end();
+    }
+}
+
+void DestroySwapchainDependentResources()
+{
+    R.pDevice->m_Device.waitIdle();
+
+    R.pDevice->m_Device.destroyPipeline( R.pipeline2 );
+    R.pDevice->m_Device.destroyPipeline( R.pipeline );
+    R.pDevice->m_Device.destroyPipelineLayout( R.pipelineLayout );
+    
+    for( auto& framebuffer : R.framebuffers )
+        R.pDevice->m_Device.destroyFramebuffer( framebuffer );
+    R.framebuffers.clear();
+
+    for( auto& imageView : R.imageViews )
+        R.pDevice->m_Device.destroyImageView( imageView );
+    R.imageViews.clear();
+
+    R.pDevice->m_Device.destroyRenderPass( R.renderPass );
+
+    R.pDevice->m_Device.freeCommandBuffers( R.commandPool, R.commandBuffers );
+    R.commandBuffers.clear();
+
+    R.pDevice->m_Device.destroyCommandPool( R.commandPool );
+
+    R.pSwapchain.reset();
+}
+
+int main()
+{
+    // Create an SDL window that supports Vulkan rendering.
+    if( SDL_Init( SDL_INIT_VIDEO ) != 0 )
+    {
+        std::cout << "Could not initialize SDL." << std::endl;
+        return 1;
+    }
+    SDL_Window* window = SDL_CreateWindow( "Vulkan Window", SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE );
+    if( window == NULL )
+    {
+        std::cout << "Could not create SDL window." << std::endl;
+        return 1;
+    }
+
+    // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
+    unsigned extension_count;
+    if( !SDL_Vulkan_GetInstanceExtensions( window, &extension_count, NULL ) )
+    {
+        std::cout << "Could not get the number of required instance extensions from SDL." << std::endl;
+        return 1;
+    }
+    std::vector<const char*> extensions( extension_count );
+    if( !SDL_Vulkan_GetInstanceExtensions( window, &extension_count, extensions.data() ) )
+    {
+        std::cout << "Could not get the names of required instance extensions from SDL." << std::endl;
+        return 1;
+    }
+    extensions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+    extensions.push_back( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+
+    // Use validation layers if this is a debug build
+    std::vector<const char*> layers;
+    layers.push_back( "VK_LAYER_profiler" );
+    #if defined(_DEBUG)
+    layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
+    #endif
+
+    // vk::ApplicationInfo allows the programmer to specifiy some basic information about the
+    // program, which can be useful for layers and tools to provide more debug information.
+    vk::ApplicationInfo appInfo = vk::ApplicationInfo()
+        .setPApplicationName( "Vulkan C++ Windowed Program Template" )
+        .setApplicationVersion( 1 )
+        .setPEngineName( "LunarG SDK" )
+        .setEngineVersion( 1 )
+        .setApiVersion( VK_API_VERSION_1_1 );
+
+    // vk::InstanceCreateInfo is where the programmer specifies the layers and/or extensions that
+    // are needed.
+    vk::InstanceCreateInfo instInfo = vk::InstanceCreateInfo()
+        .setFlags( vk::InstanceCreateFlags() )
+        .setPApplicationInfo( &appInfo )
+        .setEnabledExtensionCount( static_cast<uint32_t>(extensions.size()) )
+        .setPpEnabledExtensionNames( extensions.data() )
+        .setEnabledLayerCount( static_cast<uint32_t>(layers.size()) )
+        .setPpEnabledLayerNames( layers.data() );
+
+    // Create the Vulkan instance.
+    try
+    {
+        R.instance = vk::createInstance( instInfo );
+    }
+    catch( const std::exception & e )
+    {
+        std::cout << "Could not create a Vulkan instance: " << e.what() << std::endl;
+        return 1;
+    }
+
+    // Prepare dispatch for debug marker extension
+    struct DebugUtilsEXT_Dispatch
+    {
+        PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectNameEXT;
+        PFN_vkDebugMarkerSetObjectTagEXT vkDebugMarkerSetObjectTagEXT;
+        PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
+        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
+    };
+
+    DebugUtilsEXT_Dispatch debugUtilsEXT;
+    debugUtilsEXT.vkDebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)R.instance.getProcAddr( "vkDebugMarkerSetObjectNameEXT" );
+    debugUtilsEXT.vkDebugMarkerSetObjectTagEXT = (PFN_vkDebugMarkerSetObjectTagEXT)R.instance.getProcAddr( "vkDebugMarkerSetObjectTagEXT" );
+    debugUtilsEXT.vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)R.instance.getProcAddr( "vkCreateDebugUtilsMessengerEXT" );
+    debugUtilsEXT.vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)R.instance.getProcAddr( "vkDestroyDebugUtilsMessengerEXT" );
+
+    // Create a debug messenger
+    vk::DebugUtilsMessengerEXT debugMessenger = R.instance.createDebugUtilsMessengerEXT(
+        vk::DebugUtilsMessengerCreateInfoEXT(
+            vk::DebugUtilsMessengerCreateFlagsEXT(),
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eError |
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning,
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+            DebugUtilsMessengerCallback ),
+        nullptr, debugUtilsEXT );
+
+    // Create a Vulkan surface for rendering
+    VkSurfaceKHR c_surface;
+    if( !SDL_Vulkan_CreateSurface( window, static_cast<VkInstance>(R.instance), &c_surface ) )
+    {
+        std::cout << "Could not create a Vulkan surface." << std::endl;
+        return 1;
+    }
+    R.surface = c_surface;
+
+    // Create the Vulkan device
+    R.pDevice = std::make_unique<Sample::Device>( R.instance, R.surface, layers,
+        std::vector<const char*>{
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_EXT_MEMORY_BUDGET_EXTENSION_NAME
+        } );
+
+    // Create swapchain-dependent resources
+    CreateSwapchainDependentResources();
+    RecordCommandBuffers();
 
     // Poll for user input.
     bool stillRunning = true;
@@ -391,70 +462,42 @@ int main()
             }
         }
 
-        swapchain.acquireNextImage();
-
-        commandBuffer.begin( vk::CommandBufferBeginInfo( vk::CommandBufferUsageFlagBits::eSimultaneousUse ) );
-        commandBuffer.beginRenderPass( vk::RenderPassBeginInfo(
-            renderPass,
-            framebuffers[swapchain.m_AcquiredImageIndex],
-            vk::Rect2D( vk::Offset2D(), swapchain.m_Extent ),
-            1, &clearValue ),
-            vk::SubpassContents::eInline );
-
-        commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-
-        commandBuffer.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline2 );
-        commandBuffer.draw( 3, 1, 0, 0 );
-
-        commandBuffer.endRenderPass();
-        commandBuffer.end();
+        R.pSwapchain->acquireNextImage();
 
         vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eTopOfPipe;
 
-        device.m_GraphicsQueue.submit( { vk::SubmitInfo( 
-            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
-            static_cast<uint32_t>(1), &commandBuffer,
-            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
+        R.pDevice->m_GraphicsQueue.submit( { vk::SubmitInfo(
+            1, &R.pSwapchain->m_NextImageAvailableSemaphore, &waitStage,
+            1, &R.commandBuffers[ R.pSwapchain->m_AcquiredImageIndex ],
+            1, &R.pSwapchain->m_ImageRenderedSemaphores[ R.pSwapchain->m_AcquiredImageIndex ] ) },
             nullptr );
 
-        device.m_GraphicsQueue.submit( { vk::SubmitInfo(
-            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
-            static_cast<uint32_t>(1), &commandBuffer,
-            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
-            nullptr );
-
-        device.m_GraphicsQueue.submit( { vk::SubmitInfo(
-            static_cast<uint32_t>(1), &swapchain.m_NextImageAvailableSemaphore, &waitStage,
-            static_cast<uint32_t>(1), &commandBuffer,
-            static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex] ) },
-            nullptr );
-
-        device.m_PresentQueue.presentKHR(
-            vk::PresentInfoKHR(
-                static_cast<uint32_t>(1), &swapchain.m_ImageRenderedSemaphores[swapchain.m_AcquiredImageIndex],
-                static_cast<uint32_t>(1), &swapchain.m_Swapchain,
-                &swapchain.m_AcquiredImageIndex ) );
+        try
+        {
+            R.pDevice->m_PresentQueue.presentKHR(
+                vk::PresentInfoKHR(
+                    1, &R.pSwapchain->m_ImageRenderedSemaphores[ R.pSwapchain->m_AcquiredImageIndex ],
+                    1, &R.pSwapchain->m_Swapchain,
+                    &R.pSwapchain->m_AcquiredImageIndex ) );
+        }
+        catch( vk::OutOfDateKHRError )
+        {
+            DestroySwapchainDependentResources();
+            CreateSwapchainDependentResources();
+            RecordCommandBuffers();
+        }
     }
 
     // Clean up.
-    for( auto& framebuffer : framebuffers ) device.m_Device.destroyFramebuffer( framebuffer );
-    for( auto& imageView : imageViews ) device.m_Device.destroyImageView( imageView );
-    swapchain.destroy();
-    instance.destroySurfaceKHR( surface );
+    DestroySwapchainDependentResources();
+
+    R.pDevice.reset();
+
+    R.instance.destroySurfaceKHR( R.surface );
     SDL_DestroyWindow( window );
     SDL_Quit();
-    device.destroy();
-    instance.destroyDebugUtilsMessengerEXT( debugMessenger, nullptr, debugUtilsEXT );
-    instance.destroy();
+    R.instance.destroyDebugUtilsMessengerEXT( debugMessenger, nullptr, debugUtilsEXT );
+    R.instance.destroy();
 
     return 0;
 }

@@ -19,3 +19,12 @@
 [submodule "Dep/farmhash"]
 	path = Dep/farmhash
 	url = https://github.com/google/farmhash
+[submodule "VkLayer_profiler_layer/profiler_overlay/imgui"]
+	path = VkLayer_profiler_layer/profiler_overlay/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "VkLayer_profiler_layer/profiler/intel/metrics-discovery"]
+	path = VkLayer_profiler_layer/profiler/intel/metrics-discovery
+	url = https://github.com/intel/metrics-discovery
+[submodule "VkLayer_profiler_layer/profiler_ult/googletest"]
+	path = VkLayer_profiler_layer/profiler_ult/googletest
+	url = https://github.com/google/googletest

@@ -1,8 +1,10 @@
 # Visual Studio cache files
 .vs/
+.vscode/
 
 # CMake output directory
 out/
+build/
 
 # User-defined files
 _*

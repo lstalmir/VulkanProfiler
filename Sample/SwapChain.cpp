@@ -86,11 +86,7 @@ namespace Sample
             }
 
             // Whatever, as long as it is supported...
-            if( presentMode != vk::PresentModeKHR::eMailbox &&
-                presentMode != vk::PresentModeKHR::eFifo )
-            {
-                presentMode = mode;
-            }
+            presentMode = mode;
         }
 
         // Get command queue index
@@ -146,22 +142,18 @@ namespace Sample
         destroy();
     }
 
-    void SwapChain::acquireNextImage()
+    vk::Result SwapChain::acquireNextImage()
     {
-        if( m_Acquired )
-        {
-            // Do not acquire next image if current one hasn't been used yet
-            return;
-        }
-
         // We don't know which image will be acquired beforehand, remember which semaphore
         // will be signalled next.
         m_NextImageAvailableSemaphore = m_ImageAvailableSemaphores[m_AcquiredImageIndex];
 
-        m_AcquiredImageIndex = m_Device.acquireNextImageKHR(
-            m_Swapchain, UINT64_MAX, m_NextImageAvailableSemaphore, nullptr ).value;
+        auto resultValue = m_Device.acquireNextImageKHR(
+            m_Swapchain, UINT64_MAX, m_NextImageAvailableSemaphore, nullptr );
 
-        m_Acquired = true;
+        m_AcquiredImageIndex = resultValue.value;
+
+        return resultValue.result;
     }
 
     void SwapChain::destroy()

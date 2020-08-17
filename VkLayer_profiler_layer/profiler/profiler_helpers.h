@@ -1,12 +1,15 @@
 #pragma once
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
-#include <vk_layer.h>
-#include <vulkan.hpp>
+#include <vulkan/vk_layer.h>
+#include <vulkan/vulkan.h>
 #include <vector>
+
+#include "VkLayer_profiler_layer.generated.h"
 
 // Helper macro for rolling-back to valid state
 #define DESTROYANDRETURNONFAIL( VKRESULT )  \
@@ -56,6 +59,100 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        u16tohex
+
+    Description:
+        Convert 16-bit unsigned number to hexadecimal string.
+
+    \***********************************************************************************/
+    inline void u16tohex( char* pBuffer, uint16_t value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert(sizeof( hexDigits ) == 16);
+
+        for( int i = 0; i < 4; ++i )
+        {
+            // Begin with most significant bit:
+            // out[0] = hex[ (V >> 28) & 0xF ]
+            // out[1] = hex[ (V >> 24) & 0xF ] ...
+            pBuffer[ i ] = hexDigits[ (value >> (16 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        u32tohex
+
+    Description:
+        Convert 32-bit unsigned number to hexadecimal string.
+
+    \***********************************************************************************/
+    inline void u32tohex( char* pBuffer, uint32_t value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert( sizeof( hexDigits ) == 16 );
+
+        for( int i = 0; i < 8; ++i )
+        {
+            // Begin with most significant bit:
+            // out[0] = hex[ (V >> 28) & 0xF ]
+            // out[1] = hex[ (V >> 24) & 0xF ] ...
+            pBuffer[ i ] = hexDigits[ (value >> (32 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        u64tohex
+
+    Description:
+        Convert 64-bit unsigned number to hexadecimal string.
+
+    \***********************************************************************************/
+    inline void u64tohex( char* pBuffer, uint64_t value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert( sizeof( hexDigits ) == 16 );
+
+        for( int i = 0; i < 16; ++i )
+        {
+            // Begin with most significant bit:
+            // out[0] = hex[ (V >> 60) & 0xF ]
+            // out[1] = hex[ (V >> 56) & 0xF ]
+            pBuffer[ i ] = hexDigits[ (value >> (64 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        structtohex
+
+    Description:
+        Convert structure to hexadecimal string.
+
+    \***********************************************************************************/
+    template<typename T, size_t Size>
+    inline void structtohex( char( &pBuffer )[ Size ], const T& value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert(sizeof( hexDigits ) == 16);
+        static_assert(sizeof( T ) <= (Size / 2));
+
+        for( int i = 0; i < sizeof( T ); ++i )
+        {
+            const int byte = reinterpret_cast<const char*>(&value)[ i ] & 0xFF;
+
+            pBuffer[ 2 * i ] = hexDigits[ byte >> 4 ];
+            pBuffer[ 2 * i + 1 ] = hexDigits[ byte & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DigitCount
 
     Description:
@@ -81,113 +178,53 @@ namespace Profiler
 
     /***********************************************************************************\
 
-    Function:
-        operator-
+    Class:
+        __PNextTypeTraits
 
     Description:
+        For internal use by PNextIterator.
 
     \***********************************************************************************/
-    template<typename T>
-    inline std::unordered_set<T> operator-( const std::unordered_set<T>& lh, const std::unordered_set<T>& rh )
-    {
-
-    }
+    template<typename T> struct __PNextTypeTraits;
+    template<> struct __PNextTypeTraits<void*> { using StructureType = VkBaseOutStructure*; };
+    template<> struct __PNextTypeTraits<const void*> { using StructureType = const VkBaseInStructure*; };
 
     /***********************************************************************************\
 
     Class:
-        LockableUnorderedMap
+        PNextIterator
 
     Description:
-        std::unordered_map with mutex
+        Helper class for iterating over pNext structure chain.
 
     \***********************************************************************************/
-    template<typename K, typename V,
-        typename HashFn = std::hash<K>,
-        typename EqualFn = std::equal_to<K>,
-        typename AllocFn = std::allocator<std::pair<const K, V>>>
-    class LockableUnorderedMap
-        : public std::unordered_map<K, V, HashFn, EqualFn, AllocFn>
+    template<typename PNextType>
+    class PNextIterator
     {
     private:
-        using BaseType = std::unordered_map<K, V, HashFn, EqualFn, AllocFn>;
+        using StructureType = typename __PNextTypeTraits<PNextType>::StructureType;
+        using ReferenceType = std::add_lvalue_reference_t<std::remove_pointer_t<StructureType>>;
 
-        // Helper struct for holding mutex in initializer lists
-        struct Locked
-        {
-        public:
-            Locked( LockableUnorderedMap& map ) : m_Map( map ) { m_Map.lock(); }
-            ~Locked() { m_Map.unlock(); }
-
-            operator LockableUnorderedMap& () { return m_Map; }
-
-        private:
-            LockableUnorderedMap& m_Map;
-        };
-
-        mutable std::mutex m_Mtx;
+        StructureType pNext;
 
     public:
-        // Construct empty lockable unordered_map
-        LockableUnorderedMap() : BaseType() {}
-
-        // Construct copy of non-lockable unordered_map
-        LockableUnorderedMap( const BaseType& o ) : BaseType( o ) {}
-
-        // Move non-lockable unordered_map
-        LockableUnorderedMap( BaseType&& o ) : BaseType( std::move( o ) ) {}
-
-        // Construct copy of lockable unordered_map
-        LockableUnorderedMap( const LockableUnorderedMap& o ) : BaseType( Locked( o ) ) {}
-
-        // Move lockable unordered_map
-        LockableUnorderedMap( LockableUnorderedMap&& o ) : BaseType( std::move( Locked( o ) ) ) {}
-
-        // Lock access to the map
-        void lock() { m_Mtx.lock(); }
-
-        // Unlock access to the map
-        void unlock() { m_Mtx.unlock(); }
-
-        // Try to lock access to the map
-        bool try_lock() { return m_Mtx.try_lock(); }
-
-        // Get map's element atomically
-        const V& interlocked_at( const key_type& key ) const
+        struct IteratorType
         {
-            std::scoped_lock lk( m_Mtx );
-            return BaseType::at( key );
-        }
+            StructureType pStruct;
 
-        // Get map's element atomically
-        V& interlocked_at( const key_type& key )
-        {
-            std::scoped_lock lk( m_Mtx );
-            return BaseType::at( key );
-        }
+            inline explicit IteratorType( StructureType pStruct_ ) : pStruct( pStruct_ ) {}
 
-        // Remove element from map atomically
-        size_t interlocked_erase( const key_type& key )
-        {
-            std::scoped_lock lk( m_Mtx );
-            return BaseType::erase( key );
-        }
+            inline IteratorType operator++( int ) { pStruct = pStruct->pNext; return *this; }
+            inline IteratorType operator++() { IteratorType it( pStruct ); pStruct = pStruct->pNext; return it; }
+            inline ReferenceType operator*() { return *pStruct; }
+            inline bool operator==( const IteratorType& rh ) const { return pStruct == rh.pStruct; }
+            inline bool operator!=( const IteratorType& rh ) const { return pStruct != rh.pStruct; }
+        };
 
-        // Try to insert new element to map atomically
-        template<typename... Args>
-        auto interlocked_try_emplace( const key_type& key, Args... arguments )
-        {
-            std::scoped_lock<std::mutex> lk( m_Mtx );
-            return BaseType::try_emplace( key, arguments... );
-        }
+        inline PNextIterator( PNextType pNext_ ) : pNext( reinterpret_cast<StructureType>(pNext_) ) {}
 
-        // Insert new element to map atomically
-        template<typename... Args>
-        auto interlocked_emplace( const key_type& key, Args... arguments )
-        {
-            std::scoped_lock<std::mutex> lk( m_Mtx );
-            return BaseType::emplace( key, arguments... );
-        }
+        inline IteratorType begin() { return IteratorType( pNext ); }
+        inline IteratorType end()   { return IteratorType( nullptr ); }
     };
 
     /***********************************************************************************\
@@ -231,6 +268,24 @@ namespace Profiler
         }
 
         static std::filesystem::path GetApplicationPath();
+
+        static bool IsPreemptionEnabled();
+
+        template<typename... Args>
+        inline static void WriteDebug( const char* fmt, Args... args )
+        {
+            // Include layer prefix to filter debug output
+            // Skip ' ' at the end and include string terminator instead
+            static constexpr size_t messagePrefixLength = sizeof( VK_LAYER_profiler_name ":" );
+
+            char debugMessageBuffer[ 256 ] = VK_LAYER_profiler_name ": ";
+            sprintf( debugMessageBuffer + messagePrefixLength, fmt, args... );
+
+            // Invoke OS-specific implementation
+            WriteDebugUnformatted( debugMessageBuffer );
+        }
+
+        static void WriteDebugUnformatted( const char* str );
 
     };
 }
