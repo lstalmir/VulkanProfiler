@@ -95,7 +95,6 @@ namespace Profiler
         ProfilerCommandBufferData m_Data;
 
         void Reset();
-        void AllocateQueryPool();
 
         void SendTimestampQuery( VkPipelineStageFlagBits );
 

@@ -148,12 +148,20 @@ namespace Sample
 
     void SwapChain::acquireNextImage()
     {
+        if( m_Acquired )
+        {
+            // Do not acquire next image if current one hasn't been used yet
+            return;
+        }
+
         // We don't know which image will be acquired beforehand, remember which semaphore
         // will be signalled next.
         m_NextImageAvailableSemaphore = m_ImageAvailableSemaphores[m_AcquiredImageIndex];
 
         m_AcquiredImageIndex = m_Device.acquireNextImageKHR(
             m_Swapchain, UINT64_MAX, m_NextImageAvailableSemaphore, nullptr ).value;
+
+        m_Acquired = true;
     }
 
     void SwapChain::destroy()

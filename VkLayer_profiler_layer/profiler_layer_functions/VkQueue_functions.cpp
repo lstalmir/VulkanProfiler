@@ -16,13 +16,14 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( queue );
 
-        // Create mutable copy of present info
-        VkPresentInfoKHR presentInfo = *pPresentInfo;
-
-        dd.Profiler.Present( &presentInfo );
+        dd.Profiler.PrePresent( queue );
 
         // Present the image
-        return dd.Device.Callbacks.QueuePresentKHR( queue, &presentInfo );
+        VkResult result = dd.DispatchTable.QueuePresentKHR( queue, pPresentInfo );
+
+        dd.Profiler.PostPresent( queue );
+
+        return result;
     }
 
     /***********************************************************************************\
@@ -44,7 +45,7 @@ namespace Profiler
         const VkSubmitInfo* pOriginalSubmits = pSubmits;
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.DispatchTable.QueueSubmit( queue, submitCount, pSubmits, fence );
 
         // Profile the submit
         dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits, fence );

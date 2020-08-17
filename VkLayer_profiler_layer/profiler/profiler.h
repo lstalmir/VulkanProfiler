@@ -8,9 +8,9 @@
 #include "profiler_frame_stats.h"
 #include "profiler_helpers.h"
 #include "profiler_mode.h"
-#include "profiler_overlay_output.h"
-#include "profiler_layer_objects/VkDevice_object.h"
 #include <unordered_map>
+#include <vk_layer.h>
+#include <vk_layer_dispatch_table.h>
 
 namespace Profiler
 {
@@ -43,14 +43,11 @@ namespace Profiler
     public:
         Profiler();
 
-        VkResult Initialize( VkDevice_Object* pDevice );
+        VkResult Initialize( const VkApplicationInfo*,
+            VkPhysicalDevice, const VkLayerInstanceDispatchTable*,
+            VkDevice, const VkLayerDispatchTable* );
 
         void Destroy();
-
-        VkResult SetMode( ProfilerMode mode );
-
-        void CreateSwapchain( const VkSwapchainCreateInfoKHR*, VkSwapchainKHR );
-        void DestroySwapchain( VkSwapchainKHR );
 
         void SetDebugObjectName( uint64_t, const char* );
 
@@ -73,8 +70,8 @@ namespace Profiler
 
         void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
 
-        void AcquireNextImage( uint32_t );
-        void Present( VkPresentInfoKHR* );
+        void PrePresent( VkQueue );
+        void PostPresent( VkQueue );
 
         void OnAllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void OnFreeMemory( VkDeviceMemory );
@@ -83,12 +80,12 @@ namespace Profiler
         const FrameStats& GetPreviousFrameStats() const;
 
     public:
-        VkDevice_Object*        m_pDevice;
+        VkDevice                m_Device;
+        VkLayerDispatchTable    m_Callbacks;
 
         ProfilerConfig          m_Config;
 
         ProfilerConsoleOutput   m_Output;
-        ProfilerOverlayOutput   m_Overlay;
         ProfilerDebugUtils      m_Debug;
 
         ProfilerDataAggregator  m_DataAggregator;
@@ -107,6 +104,10 @@ namespace Profiler
 
         LockableUnorderedMap<VkShaderModule, uint32_t> m_ProfiledShaderModules;
         LockableUnorderedMap<VkPipeline, ProfilerPipeline> m_ProfiledPipelines;
+
+        VkCommandPool           m_HelperCommandPool;
+        VkCommandBuffer         m_HelperCommandBuffer;
+        VkSemaphore             m_HelperCommandBufferExecutionSemaphore;
 
         VkFence                 m_SubmitFence;
 

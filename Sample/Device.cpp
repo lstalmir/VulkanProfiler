@@ -60,34 +60,6 @@ namespace Sample
         m_Device = nullptr;
     }
 
-    vk::Pipeline Device::createGraphicsPipeline(
-        vk::PipelineLayout layout,
-        vk::RenderPass renderPass,
-        const std::vector<vk::PipelineShaderStageCreateInfo>& shaderStages,
-        const vk::PipelineVertexInputStateCreateInfo& vertexState,
-        const vk::PipelineInputAssemblyStateCreateInfo& inputAssemblyState,
-        const vk::PipelineViewportStateCreateInfo& viewportState,
-        const vk::PipelineRasterizationStateCreateInfo& rasterizerState,
-        const vk::PipelineMultisampleStateCreateInfo& multisampleState,
-        const vk::PipelineDepthStencilStateCreateInfo& depthStencilState,
-        const vk::PipelineColorBlendStateCreateInfo& colorBlendState )
-    {
-        return m_Device.createGraphicsPipeline(
-            nullptr,
-            vk::GraphicsPipelineCreateInfo()
-            .setStageCount( shaderStages.size() )
-            .setPStages( shaderStages.data() )
-            .setPVertexInputState( &vertexState )
-            .setPInputAssemblyState( &inputAssemblyState )
-            .setPViewportState( &viewportState )
-            .setPRasterizationState( &rasterizerState )
-            .setPMultisampleState( &multisampleState )
-            .setPDepthStencilState( &depthStencilState )
-            .setPColorBlendState( &colorBlendState )
-            .setLayout( layout )
-            .setRenderPass( renderPass ) );
-    }
-
     float Device::getPhysicalDeviceSuitability(
         vk::PhysicalDevice device,
         vk::SurfaceKHR surface,

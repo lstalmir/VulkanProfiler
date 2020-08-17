@@ -1,7 +1,6 @@
 #pragma once
 #include "Dispatch.h"
 #include "profiler/profiler.h"
-#include "profiler_layer_objects/VkDevice_object.h"
 #include <vk_layer.h>
 #include <vk_layer_dispatch_table.h>
 
@@ -24,7 +23,7 @@ namespace Profiler
     {
         struct Dispatch
         {
-            VkDevice_Object Device;
+            VkLayerDispatchTable DispatchTable;
             Profiler Profiler;
         };
 
@@ -34,8 +33,7 @@ namespace Profiler
         static VkResult OnDeviceCreate(
             VkPhysicalDevice physicalDevice,
             const VkDeviceCreateInfo* pCreateInfo,
-            PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
-            const VkAllocationCallbacks* pAllocator,
+            VkAllocationCallbacks* pAllocator,
             VkDevice device );
 
         // Invoked on vkDestroyDevice

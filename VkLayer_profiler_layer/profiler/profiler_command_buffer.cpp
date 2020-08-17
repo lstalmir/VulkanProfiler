@@ -94,21 +94,16 @@ namespace Profiler
             Reset();
         }
 
-        if( m_QueryPools.empty() )
-        {
-            // Allocate initial query pool
-            AllocateQueryPool();
-        }
-        else
+        if( !m_QueryPools.empty() )
         {
             // Reset existing query pool to reuse the queries
-            m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
+            m_Profiler.m_Callbacks.CmdResetQueryPool(
                 m_CommandBuffer,
                 m_QueryPools.front(),
                 0, m_QueryPoolSize );
-        }
 
-        m_CurrentQueryPoolIndex++;
+            m_CurrentQueryPoolIndex++;
+        }
 
         // Reset statistics
         m_Data.m_CollectedTimestamps.clear();
@@ -163,13 +158,6 @@ namespace Profiler
         // NOT SUPPORTED YET
         // Some drawcalls may appear without binding any pipeline
         //m_Data.m_PipelineDrawCount.push_back( { VK_NULL_HANDLE, 0 } );
-
-        // Check if we're running out of current query pool
-        if( m_CurrentQueryPoolIndex + 1 == m_QueryPools.size() &&
-            m_CurrentQueryPoolIndex + 1 > m_QueryPoolSize * 0.85 )
-        {
-            AllocateQueryPool();
-        }
     }
 
     /***********************************************************************************\
@@ -314,12 +302,12 @@ namespace Profiler
             // Collect queried timestamps
             for( uint32_t i = 0; i < m_CurrentQueryPoolIndex + 1; ++i )
             {
-                const uint32_t numQueriesInPool = min( m_QueryPoolSize, numQueriesLeft );
+                const uint32_t numQueriesInPool = std::min( m_QueryPoolSize, numQueriesLeft );
                 const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
 
                 // Get results from next query pool
-                VkResult result = m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
-                    m_Profiler.m_pDevice->Handle,
+                VkResult result = m_Profiler.m_Callbacks.GetQueryPoolResults(
+                    m_Profiler.m_Device,
                     m_QueryPools[i],
                     0, numQueriesInPool,
                     dataSize,
@@ -352,45 +340,10 @@ namespace Profiler
         // Destroy allocated query pools
         for( auto& pool : m_QueryPools )
         {
-            m_Profiler.m_pDevice->Callbacks.DestroyQueryPool(
-                m_Profiler.m_pDevice->Handle, pool, nullptr );
+            m_Profiler.m_Callbacks.DestroyQueryPool( m_Profiler.m_Device, pool, nullptr );
         }
 
         m_QueryPools.clear();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        AllocateQueryPool
-
-    Description:
-
-    \***********************************************************************************/
-    void ProfilerCommandBuffer::AllocateQueryPool()
-    {
-        VkQueryPool queryPool = VK_NULL_HANDLE;
-
-        VkQueryPoolCreateInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-        info.queryType = VK_QUERY_TYPE_TIMESTAMP;
-        info.queryCount = m_QueryPoolSize;
-
-        // Allocate new query pool
-        VkResult result = m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
-            m_Profiler.m_pDevice->Handle, &info, nullptr, &queryPool );
-
-        if( result != VK_SUCCESS )
-        {
-            // Allocation failed
-            return;
-        }
-
-        // Pools must be reset before first use
-        m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
-            m_CommandBuffer, queryPool, 0, m_QueryPoolSize );
-
-        m_QueryPools.push_back( queryPool );
     }
 
     /***********************************************************************************\
@@ -415,12 +368,33 @@ namespace Profiler
 
             if( m_CurrentQueryPoolIndex == m_QueryPools.size() )
             {
-                __debugbreak();
+                // Allocate new query pool
+                VkQueryPool queryPool = VK_NULL_HANDLE;
+
+                VkQueryPoolCreateInfo queryPoolCreateInfo;
+                ClearStructure( &queryPoolCreateInfo, VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO );
+
+                queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                queryPoolCreateInfo.queryCount = m_QueryPoolSize;
+
+                VkResult result = m_Profiler.m_Callbacks.CreateQueryPool(
+                    m_Profiler.m_Device,
+                    &(VkQueryPoolCreateInfo)queryPoolCreateInfo,
+                    nullptr,
+                    &queryPool );
+
+                if( result != VK_SUCCESS )
+                {
+                    // Failed to allocate new query pool
+                    return;
+                }
+
+                m_QueryPools.push_back( queryPool );
             }
         }
 
         // Send the query
-        m_Profiler.m_pDevice->Callbacks.CmdWriteTimestamp(
+        m_Profiler.m_Callbacks.CmdWriteTimestamp(
             m_CommandBuffer,
             stage,
             m_QueryPools[m_CurrentQueryPoolIndex],

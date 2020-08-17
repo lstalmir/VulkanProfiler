@@ -27,18 +27,6 @@ namespace Sample
 
         void destroy();
 
-        vk::Pipeline createGraphicsPipeline(
-            vk::PipelineLayout layout,
-            vk::RenderPass renderPass,
-            const std::vector<vk::PipelineShaderStageCreateInfo>& shaderStages,
-            const vk::PipelineVertexInputStateCreateInfo& vertexState,
-            const vk::PipelineInputAssemblyStateCreateInfo& inputAssemblyState,
-            const vk::PipelineViewportStateCreateInfo& viewportState,
-            const vk::PipelineRasterizationStateCreateInfo& rasterizerState,
-            const vk::PipelineMultisampleStateCreateInfo& multisampleState,
-            const vk::PipelineDepthStencilStateCreateInfo& depthStencilState,
-            const vk::PipelineColorBlendStateCreateInfo& colorBlendState );
-
     private:
         float getPhysicalDeviceSuitability(
             vk::PhysicalDevice device,

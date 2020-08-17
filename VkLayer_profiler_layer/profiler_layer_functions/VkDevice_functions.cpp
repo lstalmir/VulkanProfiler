@@ -2,8 +2,6 @@
 #include "VkInstance_functions.h"
 #include "VkLayer_profiler_layer.generated.h"
 
-#include "profiler_ext/VkProfilerEXT.h"
-
 namespace Profiler
 {
     /***********************************************************************************\
@@ -24,15 +22,11 @@ namespace Profiler
         GETPROCADDR( DestroyDevice );
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
-        GETPROCADDR( SetDebugUtilsObjectNameEXT );
-        GETPROCADDR( CreateSwapchainKHR );
-        GETPROCADDR( DestroySwapchainKHR );
         GETPROCADDR( CreateShaderModule );
         GETPROCADDR( DestroyShaderModule );
         GETPROCADDR( CreateGraphicsPipelines );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
-        GETPROCADDR( AcquireNextImageKHR );
 
         // VkCommandBuffer_Functions
         GETPROCADDR( BeginCommandBuffer );
@@ -47,12 +41,8 @@ namespace Profiler
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueuePresentKHR );
 
-        // VK_EXT_profiler functions
-        GETPROCADDR_EXT( vkSetProfilerModeEXT );
-        GETPROCADDR_EXT( vkCmdDrawProfilerOverlayEXT );
-
         // Get device dispatch table
-        return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
+        return DeviceDispatch.Get( device ).DispatchTable.GetDeviceProcAddr( device, pName );
     }
 
     /***********************************************************************************\
@@ -66,10 +56,10 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyDevice(
         VkDevice device,
-        const VkAllocationCallbacks* pAllocator )
+        VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
-        auto pfnDestroyDevice = dd.Device.Callbacks.DestroyDevice;
+        auto pfnDestroyDevice = dd.DispatchTable.DestroyDevice;
 
         // Cleanup dispatch table and profiler
         VkDevice_Functions_Base::OnDeviceDestroy( device );
@@ -118,22 +108,14 @@ namespace Profiler
             // vkEnumerateDeviceExtensionProperties implementation.
             auto id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
 
-            return id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
+            return id.DispatchTable.EnumerateDeviceExtensionProperties(
                 physicalDevice, pLayerName, pPropertyCount, pProperties );
         }
 
+        // Don't expose any extensions
         if( pPropertyCount )
         {
-            (*pPropertyCount) = 1;
-        }
-
-        if( pProperties )
-        {
-            static VkExtensionProperties layerExtensions[] = {
-                { VK_EXT_PROFILER_EXTENSION_NAME, VK_EXT_PROFILER_SPEC_VERSION } };
-
-            // Copy device extension properties to output ptr
-            memcpy( pProperties, layerExtensions, sizeof( layerExtensions ) );
+            (*pPropertyCount) = 0;
         }
 
         return VK_SUCCESS;
@@ -154,7 +136,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Set the object name
-        VkResult result = dd.Device.Callbacks.SetDebugUtilsObjectNameEXT( device, pObjectInfo );
+        VkResult result = dd.DispatchTable.SetDebugUtilsObjectNameEXT( device, pObjectInfo );
 
         if( result != VK_SUCCESS )
         {
@@ -166,63 +148,6 @@ namespace Profiler
         dd.Profiler.SetDebugObjectName( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
 
         return VK_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        CreateSwapchainKHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateSwapchainKHR(
-        VkDevice device,
-        const VkSwapchainCreateInfoKHR* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
-        VkSwapchainKHR* pSwapchain )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        VkSwapchainCreateInfoKHR createInfo = *pCreateInfo;
-        createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-        // Create the swapchain
-        VkResult result = dd.Device.Callbacks.CreateSwapchainKHR(
-            device, &createInfo, pAllocator, pSwapchain );
-
-        if( result != VK_SUCCESS )
-        {
-            // Swapchain creation failed
-            return result;
-        }
-
-        // Register swapchain
-        dd.Profiler.CreateSwapchain( pCreateInfo, *pSwapchain );
-
-        return VK_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        DestroySwapchainKHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroySwapchainKHR(
-        VkDevice device,
-        VkSwapchainKHR swapchain,
-        const VkAllocationCallbacks* pAllocator )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        // Unregister the swapchain from the profiler
-        dd.Profiler.DestroySwapchain( swapchain );
-
-        // Destroy the swapchain
-        dd.Device.Callbacks.DestroySwapchainKHR( device, swapchain, pAllocator );
     }
 
     /***********************************************************************************\
@@ -242,7 +167,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Create the shader module
-        VkResult result = dd.Device.Callbacks.CreateShaderModule(
+        VkResult result = dd.DispatchTable.CreateShaderModule(
             device, pCreateInfo, pAllocator, pShaderModule );
 
         if( result != VK_SUCCESS )
@@ -276,7 +201,7 @@ namespace Profiler
         dd.Profiler.DestroyShaderModule( shaderModule );
 
         // Destroy the shader module
-        dd.Device.Callbacks.DestroyShaderModule( device, shaderModule, pAllocator );
+        dd.DispatchTable.DestroyShaderModule( device, shaderModule, pAllocator );
     }
 
     /***********************************************************************************\
@@ -298,7 +223,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Create the pipelines
-        VkResult result = dd.Device.Callbacks.CreateGraphicsPipelines(
+        VkResult result = dd.DispatchTable.CreateGraphicsPipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
         if( result != VK_SUCCESS )
@@ -332,7 +257,7 @@ namespace Profiler
         dd.Profiler.DestroyPipeline( pipeline );
 
         // Destroy the pipeline
-        dd.Device.Callbacks.DestroyPipeline( device, pipeline, pAllocator );
+        dd.DispatchTable.DestroyPipeline( device, pipeline, pAllocator );
     }
 
     /***********************************************************************************\
@@ -355,7 +280,7 @@ namespace Profiler
         dd.Profiler.FreeCommandBuffers( commandBufferCount, pCommandBuffers );
 
         // Free the command buffers
-        dd.Device.Callbacks.FreeCommandBuffers(
+        dd.DispatchTable.FreeCommandBuffers(
             device, commandPool, commandBufferCount, pCommandBuffers );
     }
 
@@ -376,7 +301,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Allocate the memory
-        VkResult result = dd.Device.Callbacks.AllocateMemory(
+        VkResult result = dd.DispatchTable.AllocateMemory(
             device, pAllocateInfo, pAllocator, pMemory );
 
         if( result != VK_SUCCESS )
@@ -407,41 +332,9 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Free the memory
-        dd.Device.Callbacks.FreeMemory( device, memory, pAllocator );
+        dd.DispatchTable.FreeMemory( device, memory, pAllocator );
 
         // Unregister allocation
         dd.Profiler.OnFreeMemory( memory );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        AcquireNextImageKHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::AcquireNextImageKHR(
-        VkDevice device,
-        VkSwapchainKHR swapchain,
-        uint64_t timeout,
-        VkSemaphore semaphore,
-        VkFence fence,
-        uint32_t* pImageIndex )
-    {
-        auto& dd = DeviceDispatch.Get( device );
-
-        VkResult result = dd.Device.Callbacks.AcquireNextImageKHR(
-            device, swapchain, timeout, semaphore, fence, pImageIndex );
-
-        // TODO: pImageIndex will contain valid value later (wait for fence)
-        if( result != VK_SUCCESS )
-        {
-            return result;
-        }
-
-        dd.Profiler.AcquireNextImage( *pImageIndex );
-
-        return VK_SUCCESS;
     }
 }

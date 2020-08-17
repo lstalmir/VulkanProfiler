@@ -32,15 +32,11 @@ namespace Profiler
         GETPROCADDR( EnumerateInstanceLayerProperties );
         GETPROCADDR( EnumerateInstanceExtensionProperties );
         GETPROCADDR( SetDebugUtilsObjectNameEXT );
-        #ifdef VK_USE_PLATFORM_WIN32_KHR
-        GETPROCADDR( CreateWin32SurfaceKHR );
-        #endif
-        GETPROCADDR( DestroySurfaceKHR );
 
         // Get address from the next layer
         auto& id = InstanceDispatch.Get( instance );
 
-        return id.Instance.Callbacks.GetInstanceProcAddr( instance, pName );
+        return id.DispatchTable.GetInstanceProcAddr( instance, pName );
     }
 
     /***********************************************************************************\
@@ -54,7 +50,7 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR VkResult VKAPI_CALL VkInstance_Functions::CreateInstance(
         const VkInstanceCreateInfo* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
+        VkAllocationCallbacks* pAllocator,
         VkInstance* pInstance )
     {
         auto* pLayerCreateInfo = GetLayerLinkInfo<VkLayerInstanceCreateInfo>(pCreateInfo);
@@ -82,14 +78,12 @@ namespace Profiler
         {
             auto& id = InstanceDispatch.Create( *pInstance );
 
-            id.Instance.Handle = *pInstance;
-            id.Instance.ApplicationInfo.apiVersion = pCreateInfo->pApplicationInfo->apiVersion;
+            id.ApiVersion = pCreateInfo->pApplicationInfo->apiVersion;
 
             // Get function addresses
-            layer_init_instance_dispatch_table(
-                *pInstance, &id.Instance.Callbacks, pfnGetInstanceProcAddr );
+            layer_init_instance_dispatch_table( *pInstance, &id.DispatchTable, pfnGetInstanceProcAddr );
 
-            id.Instance.Callbacks.CreateDevice = reinterpret_cast<PFN_vkCreateDevice>(
+            id.DispatchTable.CreateDevice = reinterpret_cast<PFN_vkCreateDevice>(
                 pfnGetInstanceProcAddr( *pInstance, "vkCreateDevice" ));
         }
 
@@ -107,12 +101,12 @@ namespace Profiler
     \***********************************************************************************/
     VKAPI_ATTR void VKAPI_CALL VkInstance_Functions::DestroyInstance(
         VkInstance instance,
-        const VkAllocationCallbacks* pAllocator )
+        VkAllocationCallbacks* pAllocator )
     {
         auto& id = InstanceDispatch.Get( instance );
 
         // Destroy the instance
-        id.Instance.Callbacks.DestroyInstance( instance, pAllocator );
+        id.DispatchTable.DestroyInstance( instance, pAllocator );
 
         InstanceDispatch.Erase( instance );
     }
@@ -129,7 +123,7 @@ namespace Profiler
     VKAPI_ATTR VkResult VKAPI_CALL VkInstance_Functions::CreateDevice(
         VkPhysicalDevice physicalDevice,
         const VkDeviceCreateInfo* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
+        VkAllocationCallbacks* pAllocator,
         VkDevice* pDevice )
     {
         auto& id = InstanceDispatch.Get( physicalDevice );
@@ -143,33 +137,36 @@ namespace Profiler
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
-        PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr =
-            pLayerLinkInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr;
+        // Further layers will alter the create info, store pointer to our link info
+        auto* pLayerInfo = pLayerLinkInfo->u.pLayerInfo;
 
         // Move chain on for next layer
-        pLayerLinkInfo->u.pLayerInfo = pLayerLinkInfo->u.pLayerInfo->pNext;
+        pLayerLinkInfo->u.pLayerInfo = pLayerInfo->pNext;
 
         // Create the device
-        VkResult result = id.Instance.Callbacks.CreateDevice(
+        VkResult result = id.DispatchTable.CreateDevice(
             physicalDevice, pCreateInfo, pAllocator, pDevice );
+
+        // Restore our layer info
+        pLayerLinkInfo->u.pLayerInfo = pLayerInfo;
 
         // Initialize dispatch for the created device object
         result = VkDevice_Functions::OnDeviceCreate(
-            physicalDevice, pCreateInfo, pfnGetDeviceProcAddr, pAllocator, *pDevice );
-        
+            physicalDevice, pCreateInfo, pAllocator, *pDevice );
+
         if( result != VK_SUCCESS )
         {
             // Initialization of the layer failed, destroy the device
             PFN_vkDestroyDevice pfnDestroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(
-                pfnGetDeviceProcAddr( *pDevice, "vkDestroyDevice" ));
-        
+                pLayerLinkInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr( *pDevice, "vkDestroyDevice" ));
+
             pfnDestroyDevice( *pDevice, pAllocator );
-        
+
             return result;
         }
 
         // Device created successfully
-        return result;
+        return VK_SUCCESS;
     }
 
     /***********************************************************************************\
@@ -226,60 +223,5 @@ namespace Profiler
         }
 
         return VK_SUCCESS;
-    }
-
-    #ifdef VK_USE_PLATFORM_WIN32_KHR
-    /***********************************************************************************\
-
-    Function:
-        CreateWin32SurfaceKHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkInstance_Functions::CreateWin32SurfaceKHR(
-        VkInstance instance,
-        const VkWin32SurfaceCreateInfoKHR* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
-        VkSurfaceKHR* pSurface )
-    {
-        auto& id = InstanceDispatch.Get( instance );
-
-        VkResult result = id.Instance.Callbacks.CreateWin32SurfaceKHR(
-            instance, pCreateInfo, pAllocator, pSurface );
-
-        if( result == VK_SUCCESS )
-        {
-            VkSurfaceKHR_Object surfaceObject = {};
-            surfaceObject.Handle = *pSurface;
-            surfaceObject.WindowHandle = pCreateInfo->hwnd;
-
-            id.Instance.Surfaces.emplace( *pSurface, surfaceObject );
-        }
-
-        return result;
-    }
-    #endif // VK_USE_PLATFORM_WIN32_KHR
-
-    /***********************************************************************************\
-
-    Function:
-        DestroySurfaceKHR
-
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR void VKAPI_CALL VkInstance_Functions::DestroySurfaceKHR(
-        VkInstance instance,
-        VkSurfaceKHR surface,
-        const VkAllocationCallbacks* pAllocator )
-    {
-        auto& id = InstanceDispatch.Get( instance );
-
-        // Remove surface entry
-        id.Instance.Surfaces.erase( surface );
-
-        id.Instance.Callbacks.DestroySurfaceKHR(
-            instance, surface, pAllocator );
     }
 }

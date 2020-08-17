@@ -21,59 +21,35 @@ namespace Profiler
     VkResult VkDevice_Functions_Base::OnDeviceCreate(
         VkPhysicalDevice physicalDevice,
         const VkDeviceCreateInfo* pCreateInfo,
-        PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
-        const VkAllocationCallbacks* pAllocator,
+        VkAllocationCallbacks* pAllocator,
         VkDevice device )
     {
-        // Get instance dispatch table
-        auto& id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
+        // Get address of vkGetDeviceProcAddr function
+        auto pLayerCreateInfo = GetLayerLinkInfo<VkLayerDeviceCreateInfo>( pCreateInfo );
+
+        if( !pLayerCreateInfo )
+        {
+            // No loader device create info
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
 
         // Create new dispatch table for the device
         auto& dd = DeviceDispatch.Create( device );
 
-        layer_init_device_dispatch_table( device, &dd.Device.Callbacks,
-            pfnGetDeviceProcAddr );
+        layer_init_device_dispatch_table( device, &dd.DispatchTable,
+            pLayerCreateInfo->u.pLayerInfo->pfnNextGetDeviceProcAddr );
 
-        dd.Device.Handle = device;
-        dd.Device.pInstance = &id.Instance;
-        dd.Device.PhysicalDevice = physicalDevice;
+        // Get instance dispatch table
+        auto& id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
 
-        // Enumerate queue families
-        uint32_t queueFamilyPropertyCount = 0;
-        id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(
-            physicalDevice, &queueFamilyPropertyCount, nullptr );
+        VkApplicationInfo applicationInfo;
+        ClearStructure( &applicationInfo, VK_STRUCTURE_TYPE_APPLICATION_INFO );
 
-        std::vector<VkQueueFamilyProperties> queueFamilyProperties( queueFamilyPropertyCount );
-        id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(
-            physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data() );
-
-        // Create wrapper for each device queue
-        for( uint32_t i = 0; i < pCreateInfo->queueCreateInfoCount; ++i )
-        {
-            const VkDeviceQueueCreateInfo& queueCreateInfo =
-                pCreateInfo->pQueueCreateInfos[ i ];
-
-            const VkQueueFamilyProperties& queueProperties =
-                queueFamilyProperties[ queueCreateInfo.queueFamilyIndex ];
-
-            for( uint32_t queueIndex = 0; queueIndex < queueCreateInfo.queueCount; ++queueIndex )
-            {
-                VkQueue_Object queueObject;
-
-                // Get queue handle
-                dd.Device.Callbacks.GetDeviceQueue(
-                    device, queueCreateInfo.queueFamilyIndex, queueIndex, &queueObject.Handle );
-
-                queueObject.Flags = queueProperties.queueFlags;
-                queueObject.Family = queueCreateInfo.queueFamilyIndex;
-                queueObject.Index = queueIndex;
-
-                dd.Device.Queues.push_back( queueObject );
-            }
-        }
+        applicationInfo.apiVersion = id.ApiVersion;
 
         // Initialize the profiler object
-        VkResult result = dd.Profiler.Initialize( &dd.Device );
+        VkResult result = dd.Profiler.Initialize( &applicationInfo,
+            physicalDevice, &id.DispatchTable, device, &dd.DispatchTable );
 
         if( result != VK_SUCCESS )
         {
