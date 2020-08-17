@@ -52,6 +52,26 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ResetCommandBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkCommandBuffer_Functions::ResetCommandBuffer(
+        VkCommandBuffer commandBuffer,
+        VkCommandBufferResetFlags flags )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.Reset( flags );
+
+        return dd.Device.Callbacks.ResetCommandBuffer( commandBuffer, flags );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CmdBeginRenderPass
 
     Description:

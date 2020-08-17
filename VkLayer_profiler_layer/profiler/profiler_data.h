@@ -328,28 +328,29 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerDrawcallStats
     {
-        uint32_t m_DrawCount;
-        uint32_t m_DrawIndirectCount;
-        uint32_t m_DispatchCount;
-        uint32_t m_DispatchIndirectCount;
-        uint32_t m_CopyBufferCount;
-        uint32_t m_CopyBufferToImageCount;
-        uint32_t m_CopyImageCount;
-        uint32_t m_CopyImageToBufferCount;
-        uint32_t m_ClearColorCount;
-        uint32_t m_ClearDepthStencilCount;
-        uint32_t m_ResolveCount;
-        uint32_t m_BlitImageCount;
-        uint32_t m_FillBufferCount;
-        uint32_t m_UpdateBufferCount;
-        uint32_t m_PipelineBarrierCount;
+        uint32_t m_DrawCount = {};
+        uint32_t m_DrawIndirectCount = {};
+        uint32_t m_DispatchCount = {};
+        uint32_t m_DispatchIndirectCount = {};
+        uint32_t m_CopyBufferCount = {};
+        uint32_t m_CopyBufferToImageCount = {};
+        uint32_t m_CopyImageCount = {};
+        uint32_t m_CopyImageToBufferCount = {};
+        uint32_t m_ClearColorCount = {};
+        uint32_t m_ClearDepthStencilCount = {};
+        uint32_t m_ResolveCount = {};
+        uint32_t m_BlitImageCount = {};
+        uint32_t m_FillBufferCount = {};
+        uint32_t m_UpdateBufferCount = {};
+        uint32_t m_PipelineBarrierCount = {};
 
-        inline void Add( const DeviceProfilerDrawcallStats& rh )
+        // Stat aggregation helper
+        inline DeviceProfilerDrawcallStats& operator+=( const DeviceProfilerDrawcallStats& rh )
         {
             m_DrawCount += rh.m_DrawCount;
             m_DrawIndirectCount += rh.m_DrawIndirectCount;
             m_DispatchCount += rh.m_DispatchCount;
-            m_DispatchIndirectCount = rh.m_DispatchIndirectCount;
+            m_DispatchIndirectCount += rh.m_DispatchIndirectCount;
             m_CopyBufferCount += rh.m_CopyBufferCount;
             m_CopyBufferToImageCount += rh.m_CopyBufferToImageCount;
             m_CopyImageCount += rh.m_CopyImageCount;
@@ -361,6 +362,7 @@ namespace Profiler
             m_FillBufferCount += rh.m_FillBufferCount;
             m_UpdateBufferCount += rh.m_UpdateBufferCount;
             m_PipelineBarrierCount += rh.m_PipelineBarrierCount;
+            return *this;
         }
     };
 
@@ -393,7 +395,6 @@ namespace Profiler
     {
         VkPipeline                                          m_Handle = {};
         uint32_t                                            m_Hash = {};
-        DeviceProfilerDrawcallStats                         m_Stats = {};
         uint64_t                                            m_Ticks = {};
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
 
@@ -405,58 +406,9 @@ namespace Profiler
         {
         }
 
-        template<bool Explicit = true>
-        inline void AppendDrawcall( const DeviceProfilerDrawcall& dc )
-        {
-            if( Explicit )
-            {
-                // Move drawcall descriptor to the subregions vector
-                m_Drawcalls.push_back( dc );
-            }
-            else
-            {
-                // Only subset of all drawcall types can be implicit
-                assert( dc.m_Type == DeviceProfilerDrawcallType::eResolveImage ||
-                    dc.m_Type == DeviceProfilerDrawcallType::eClearAttachments ||
-                    dc.m_Type == DeviceProfilerDrawcallType::eClearColorImage ||
-                    dc.m_Type == DeviceProfilerDrawcallType::eClearDepthStencilImage );
-            }
-
-            // Increment drawcall stats
-            IncrementStat( dc );
-        }
-
         inline bool operator==( const DeviceProfilerPipelineData& rh ) const
         {
             return m_Hash == rh.m_Hash;
-        }
-
-    private:
-
-        inline void IncrementStat( const DeviceProfilerDrawcall& dc )
-        {
-            switch( dc.m_Type )
-            {
-            case DeviceProfilerDrawcallType::eDraw:
-            case DeviceProfilerDrawcallType::eDrawIndexed:              m_Stats.m_DrawCount++; break;
-            case DeviceProfilerDrawcallType::eDrawIndirect:
-            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount: m_Stats.m_DrawIndirectCount++; break;
-            case DeviceProfilerDrawcallType::eDispatch:                 m_Stats.m_DispatchCount++; break;
-            case DeviceProfilerDrawcallType::eDispatchIndirect:         m_Stats.m_DispatchIndirectCount++; break;
-            case DeviceProfilerDrawcallType::eCopyBuffer:               m_Stats.m_CopyBufferCount++; break;
-            case DeviceProfilerDrawcallType::eCopyBufferToImage:        m_Stats.m_CopyBufferToImageCount++; break;
-            case DeviceProfilerDrawcallType::eCopyImage:                m_Stats.m_CopyImageCount++; break;
-            case DeviceProfilerDrawcallType::eCopyImageToBuffer:        m_Stats.m_CopyImageToBufferCount++; break;
-            case DeviceProfilerDrawcallType::eClearAttachments:         m_Stats.m_ClearColorCount += dc.m_Payload.m_ClearAttachments.m_Count; break;
-            case DeviceProfilerDrawcallType::eClearColorImage:          m_Stats.m_ClearColorCount++; break;
-            case DeviceProfilerDrawcallType::eClearDepthStencilImage:   m_Stats.m_ClearDepthStencilCount++; break;
-            case DeviceProfilerDrawcallType::eResolveImage:             m_Stats.m_ResolveCount++; break;
-            case DeviceProfilerDrawcallType::eBlitImage:                m_Stats.m_BlitImageCount++; break;
-            case DeviceProfilerDrawcallType::eFillBuffer:               m_Stats.m_FillBufferCount++; break;
-            case DeviceProfilerDrawcallType::eUpdateBuffer:             m_Stats.m_UpdateBufferCount++; break;
-            }
         }
     };
 
@@ -488,7 +440,6 @@ namespace Profiler
     {
         uint32_t                                            m_Index = {};
         VkSubpassContents                                   m_Contents = {};
-        DeviceProfilerDrawcallStats                         m_Stats = {};
         uint64_t                                            m_Ticks = {};
 
         ContainerType<struct DeviceProfilerPipelineData>    m_Pipelines = {};
@@ -524,7 +475,6 @@ namespace Profiler
     struct DeviceProfilerRenderPassData
     {
         VkRenderPass                                        m_Handle = {};
-        DeviceProfilerDrawcallStats                         m_Stats = {};
         uint64_t                                            m_Ticks = {};
         uint64_t                                            m_BeginTicks = {};
         uint64_t                                            m_EndTicks = {};
@@ -552,7 +502,7 @@ namespace Profiler
 
         std::vector<char>                                   m_PerformanceQueryReportINTEL = {};
 
-        uint64_t                                            m_ProfilerCPUOverheadNs = {};
+        uint64_t                                            m_ProfilerCpuOverheadNs = {};
     };
 
     /***********************************************************************************\
@@ -614,7 +564,7 @@ namespace Profiler
         uint64_t m_CommandBufferLookupTimeNs;
         uint64_t m_PipelineLookupTimeNs;
         uint64_t m_RenderPassLookupTimeNs;
-        uint64_t m_CommandBufferProfilerCPUOverheadNs;
+        uint64_t m_CommandBufferProfilerCpuOverheadNs;
     };
 
     /***********************************************************************************\

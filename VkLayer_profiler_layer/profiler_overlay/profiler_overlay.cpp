@@ -1392,7 +1392,7 @@ namespace Profiler
         {
             ImGui::Text( "VkCommandBuffer lookup time:      %.2f ms", m_Data.m_CPU.m_CommandBufferLookupTimeNs / 1000000.f );
             ImGui::Text( "VkPipeline lookup time:           %.2f ms", m_Data.m_CPU.m_PipelineLookupTimeNs / 1000000.f );
-            ImGui::Text( "VkCommandBuffer profiling time:   %.2f ms", m_Data.m_CPU.m_CommandBufferProfilerCPUOverheadNs / 1000000.f );
+            ImGui::Text( "VkCommandBuffer profiling time:   %.2f ms", m_Data.m_CPU.m_CommandBufferProfilerCpuOverheadNs / 1000000.f );
         }
     }
 

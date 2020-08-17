@@ -167,10 +167,10 @@ namespace Profiler
         auto aggregatedPipelines = CollectTopPipelines();
         auto aggregatedVendorMetrics = AggregateVendorMetrics();
 
-        DeviceProfilerFrameData aggregatedData;
-        aggregatedData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
-        aggregatedData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
-        aggregatedData.m_VendorMetrics = aggregatedVendorMetrics;
+        DeviceProfilerFrameData frameData;
+        frameData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
+        frameData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
+        frameData.m_VendorMetrics = aggregatedVendorMetrics;
 
         // Collect per-frame stats
         for( const auto& submitBatch : m_AggregatedData )
@@ -179,16 +179,16 @@ namespace Profiler
             {
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
-                    aggregatedData.m_Stats.Add( commandBuffer.m_Stats );
-                    aggregatedData.m_Ticks += commandBuffer.m_Ticks;
+                    frameData.m_Stats += commandBuffer.m_Stats;
+                    frameData.m_Ticks += commandBuffer.m_Ticks;
 
                     // Profiler CPU overhead stats
-                    aggregatedData.m_CPU.m_CommandBufferProfilerCPUOverheadNs += commandBuffer.m_ProfilerCPUOverheadNs;
+                    frameData.m_CPU.m_CommandBufferProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
                 }
             }
         }
 
-        return aggregatedData;
+        return frameData;
     }
 
     /***********************************************************************************\
@@ -442,7 +442,6 @@ namespace Profiler
         if( it != aggregatedPipelines.end() )
         {
             aggregatedPipeline = *it;
-            aggregatedPipeline.m_Stats.Add( pipeline.m_Stats );
             aggregatedPipeline.m_Ticks += pipeline.m_Ticks;
 
             aggregatedPipelines.erase( it );

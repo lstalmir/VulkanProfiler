@@ -23,6 +23,11 @@ namespace Profiler
         static VKAPI_ATTR VkResult VKAPI_CALL EndCommandBuffer(
             VkCommandBuffer commandBuffer );
 
+        // vkResetCommandBuffer
+        static VKAPI_ATTR VkResult VKAPI_CALL ResetCommandBuffer(
+            VkCommandBuffer commandBuffer,
+            VkCommandBufferResetFlags flags );
+
         // vkCmdBeginRenderPass
         static VKAPI_ATTR void VKAPI_CALL CmdBeginRenderPass(
             VkCommandBuffer commandBuffer,

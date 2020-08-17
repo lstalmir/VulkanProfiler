@@ -668,6 +668,9 @@ namespace Profiler
     {
         CpuTimestampCounter commandBufferLookupTimeCounter;
 
+        // Block access from other threads
+        std::scoped_lock lk( m_CommandBuffers );
+
         // Wait for the submitted command buffers to execute
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
         {
@@ -691,9 +694,6 @@ namespace Profiler
             {
                 // Get command buffer handle
                 VkCommandBuffer commandBuffer = submitInfo.pCommandBuffers[commandBufferIdx];
-
-                // Block access from other threads
-                std::scoped_lock lk( m_CommandBuffers );
 
                 commandBufferLookupTimeCounter.Begin();
                 auto& profilerCommandBuffer = m_CommandBuffers.at( commandBuffer );

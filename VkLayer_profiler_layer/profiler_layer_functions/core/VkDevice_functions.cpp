@@ -84,6 +84,7 @@ namespace Profiler
         // VkCommandBuffer core functions
         GETPROCADDR( BeginCommandBuffer );
         GETPROCADDR( EndCommandBuffer );
+        GETPROCADDR( ResetCommandBuffer );
         GETPROCADDR( CmdBeginRenderPass );
         GETPROCADDR( CmdEndRenderPass );
         GETPROCADDR( CmdNextSubpass );

@@ -188,32 +188,131 @@ namespace Profiler
 
             // Validate that drawcall data propagates to pipeline stats
             EXPECT_EQ( drawcallData.m_Ticks, pipelineData.m_Ticks );
-            EXPECT_EQ( 1, pipelineData.m_Stats.m_DrawCount );
 
             // Validate that pipeline stats propagate to subpass stats
             EXPECT_EQ( pipelineData.m_Ticks, inheritedSubpassData.m_Ticks );
-            EXPECT_EQ( pipelineData.m_Stats.m_DrawCount, inheritedSubpassData.m_Stats.m_DrawCount );
 
             // Validate that subpass stats propagate to renderpass stats
             EXPECT_EQ( inheritedSubpassData.m_Ticks, inheritedRenderPassData.m_Ticks );
-            EXPECT_EQ( inheritedSubpassData.m_Stats.m_DrawCount, inheritedRenderPassData.m_Stats.m_DrawCount );
 
             // Validate that renderpass stats propagate to secondary command buffer stats
             EXPECT_EQ( inheritedRenderPassData.m_Ticks, secondaryCmdBufferData.m_Ticks );
-            EXPECT_EQ( inheritedRenderPassData.m_Stats.m_DrawCount, secondaryCmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawCount );
 
             // Validate that secondary command buffer stats propagate to subpass stats
             EXPECT_EQ( secondaryCmdBufferData.m_Ticks, subpassData.m_Ticks );
-            EXPECT_EQ( secondaryCmdBufferData.m_Stats.m_DrawCount, subpassData.m_Stats.m_DrawCount );
 
             // Validate that subpass stats propagate to renderpass stats
             // Render pass data includes begin/end ops, so expected time is greater than subpass time
             EXPECT_LE( subpassData.m_Ticks, renderPassData.m_Ticks );
-            EXPECT_LE( subpassData.m_Stats.m_DrawCount, renderPassData.m_Stats.m_DrawCount );
 
             // Validate that renderpass stats propagate to primary command buffer stats
             EXPECT_EQ( renderPassData.m_Ticks, cmdBufferData.m_Ticks );
-            EXPECT_EQ( renderPassData.m_Stats.m_DrawCount, cmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
+        }
+    }
+
+    TEST_F( ProfilerCommandBufferULT, MultipleCommandBufferSubmission )
+    {
+        // Create simple triangle app
+        VulkanSimpleTriangle simpleTriangle( Vk, IDT, DT );
+        VkCommandBuffer commandBuffer = {};
+
+        { // Allocate command buffers
+            VkCommandBufferAllocateInfo allocateInfo = {};
+            allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocateInfo.commandBufferCount = 1;
+            allocateInfo.commandPool = Vk->CommandPool;
+            ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffer ) );
+        }
+        { // Begin command buffer
+            VkCommandBufferBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffer, &beginInfo ) );
+        }
+        { // Image layout transitions
+            VkImageMemoryBarrier barrier = {};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barrier.srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barrier.dstQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barrier.image = simpleTriangle.FramebufferImage;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+
+            DT.CmdPipelineBarrier( commandBuffer,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier );
+        }
+        { // Begin render pass
+            VkRenderPassBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            beginInfo.renderPass = simpleTriangle.RenderPass;
+            beginInfo.renderArea = simpleTriangle.RenderArea;
+            beginInfo.framebuffer = simpleTriangle.Framebuffer;
+            DT.CmdBeginRenderPass( commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
+        }
+        { // Record commands
+            DT.CmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            DT.CmdDraw( commandBuffer, 3, 1, 0, 0 );
+        }
+        { // End render pass
+            DT.CmdEndRenderPass( commandBuffer );
+        }
+        { // End command buffer
+            ASSERT_EQ( VK_SUCCESS, DT.EndCommandBuffer( commandBuffer ) );
+        }
+        { // Submit command buffer 2 times
+            VkSubmitInfo submitInfo = {};
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffer;
+            ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+        }
+        { // Validate first submit data
+            Prof->Present( {}, {} );
+
+            const auto& data = Prof->GetData();
+            ASSERT_EQ( 1, data.m_Submits.size() );
+
+            const auto& submit = data.m_Submits.front();
+            ASSERT_EQ( 1, submit.m_Submits.size() );
+            ASSERT_EQ( 1, submit.m_Submits.front().m_CommandBuffers.size() );
+
+            const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
+            EXPECT_EQ( commandBuffer, cmdBufferData.m_Handle );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_PipelineBarrierCount );
+        }
+        { // Submit command buffer again
+            VkSubmitInfo submitInfo = {};
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffer;
+            ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+        }
+        { // Validate second submit data
+            Prof->Present( {}, {} );
+
+            const auto& data = Prof->GetData();
+            ASSERT_EQ( 1, data.m_Submits.size() );
+
+            const auto& submit = data.m_Submits.front();
+            ASSERT_EQ( 1, submit.m_Submits.size() );
+            ASSERT_EQ( 1, submit.m_Submits.front().m_CommandBuffers.size() );
+
+            const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
+            EXPECT_EQ( commandBuffer, cmdBufferData.m_Handle );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_PipelineBarrierCount );
         }
     }
 }

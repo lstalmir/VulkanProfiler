@@ -3,6 +3,7 @@
 #include "profiler_counters.h"
 #include <vulkan/vk_layer.h>
 #include <vector>
+#include <unordered_set>
 
 namespace Profiler
 {
@@ -31,6 +32,8 @@ namespace Profiler
         void Begin( const VkCommandBufferBeginInfo* );
         void End();
 
+        void Reset( VkCommandBufferResetFlags );
+
         void PreBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents );
         void PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents );
         void PreEndRenderPass();
@@ -49,7 +52,7 @@ namespace Profiler
             uint32_t, const VkBufferMemoryBarrier*,
             uint32_t, const VkImageMemoryBarrier* );
 
-        DeviceProfilerCommandBufferData GetData();
+        const DeviceProfilerCommandBufferData& GetData();
 
     protected:
         DeviceProfiler& m_Profiler;
@@ -60,6 +63,8 @@ namespace Profiler
 
         bool            m_Dirty;
 
+        std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
+
         std::vector<VkQueryPool> m_QueryPools;
         uint32_t        m_QueryPoolSize;
         uint32_t        m_CurrentQueryPoolIndex;
@@ -67,6 +72,7 @@ namespace Profiler
 
         VkQueryPool     m_PerformanceQueryPoolINTEL;
 
+        DeviceProfilerDrawcallStats m_Stats;
         DeviceProfilerCommandBufferData m_Data;
 
         DeviceProfilerRenderPass* m_pCurrentRenderPass;
@@ -77,12 +83,16 @@ namespace Profiler
         DeviceProfilerPipeline m_GraphicsPipeline;
         DeviceProfilerPipeline m_ComputePipeline;
 
-        void Reset();
+        uint64_t        m_ProfilerCpuOverheadNs;
+        uint64_t        m_ProfilerGetDataCpuOverheadNs;
+
         void AllocateQueryPool();
 
         void EndSubpass();
 
-        void SendTimestampQuery( VkPipelineStageFlagBits stage );
+        void IncrementStat( const DeviceProfilerDrawcall& );
+
+        void SendTimestampQuery( VkPipelineStageFlagBits );
 
         void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
         void SetupCommandBufferForSecondaryBuffers();
