@@ -37,7 +37,6 @@
 // Tell SDL not to mess with main()
 #define SDL_MAIN_HANDLED
 
-#include <glm.hpp>
 #include <SDL.h>
 #include <SDL_syswm.h>
 #include <SDL_vulkan.h>
