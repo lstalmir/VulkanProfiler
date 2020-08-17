@@ -79,6 +79,19 @@ ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
 /***********************************************************************************\
 
 Function:
+    GetName
+
+Description:
+
+\***********************************************************************************/
+const char* ImGui_ImplXcb_Context::GetName() const
+{
+    return "XCB";
+}
+
+/***********************************************************************************\
+
+Function:
     NewFrame
 
 Description:

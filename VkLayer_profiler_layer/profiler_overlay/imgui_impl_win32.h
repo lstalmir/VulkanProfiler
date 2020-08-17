@@ -12,6 +12,8 @@ public:
     ImGui_ImplWin32_Context( ImGuiContext* pImGuiContext, HWND hWnd );
     ~ImGui_ImplWin32_Context();
 
+    const char* GetName() const override;
+
     void NewFrame() override;
 
 private:

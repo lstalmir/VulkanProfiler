@@ -8,6 +8,8 @@ public:
     ImGui_ImplXcb_Context( xcb_window_t window );
     ~ImGui_ImplXcb_Context();
 
+    const char* GetName() const override;
+
     void NewFrame() override;
     void UpdateWindowRect() override;
 

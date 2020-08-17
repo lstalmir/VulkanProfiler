@@ -94,6 +94,19 @@ ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 /***********************************************************************************\
 
 Function:
+    GetName
+
+Description:
+
+\***********************************************************************************/
+const char* ImGui_ImplXlib_Context::GetName() const
+{
+    return "Xlib";
+}
+
+/***********************************************************************************\
+
+Function:
     NewFrame
 
 Description:

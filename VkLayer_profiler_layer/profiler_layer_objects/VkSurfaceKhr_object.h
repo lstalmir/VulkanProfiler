@@ -16,7 +16,7 @@ namespace Profiler
         eXcb = 3,
         #endif
         #ifdef VK_USE_PLATFORM_XLIB_KHR
-        eX11 = 4
+        eXlib = 4
         #endif
     };
 
@@ -35,7 +35,7 @@ namespace Profiler
             xcb_window_t XcbHandle;
             #endif
             #ifdef VK_USE_PLATFORM_XLIB_KHR
-            Window X11Handle;
+            Window XlibHandle;
             #endif
         };
 
@@ -52,7 +52,7 @@ namespace Profiler
         #endif
 
         #ifdef VK_USE_PLATFORM_XLIB_KHR
-        inline OSWindowHandle( Window handle ) : Type( OSWindowHandleType::eX11 ) { X11Handle = handle; }
+        inline OSWindowHandle( Window handle ) : Type( OSWindowHandleType::eXlib ) { XlibHandle = handle; }
         #endif
 
         inline bool operator==( const OSWindowHandle& rh ) const
@@ -70,7 +70,7 @@ namespace Profiler
             case OSWindowHandleType::eXcb: return (XcbHandle == rh.XcbHandle);
                 #endif
                 #ifdef VK_USE_PLATFORM_XLIB_KHR
-            case OSWindowHandleType::eX11: return (X11Handle == rh.X11Handle);
+            case OSWindowHandleType::eXlib: return (XlibHandle == rh.XlibHandle);
                 #endif
             }
             return false;

@@ -808,9 +808,9 @@ namespace Profiler
             #endif // VK_USE_PLATFORM_XCB_KHR
 
             #ifdef VK_USE_PLATFORM_XLIB_KHR
-            if( window.Type == OSWindowHandleType::eX11 )
+            if( window.Type == OSWindowHandleType::eXlib )
             {
-                m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.X11Handle );
+                m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.XlibHandle );
             }
             #endif // VK_USE_PLATFORM_XLIB_KHR
         }
@@ -1393,6 +1393,7 @@ namespace Profiler
             ImGui::Text( "VkCommandBuffer lookup time:      %.2f ms", m_Data.m_CPU.m_CommandBufferLookupTimeNs / 1000000.f );
             ImGui::Text( "VkPipeline lookup time:           %.2f ms", m_Data.m_CPU.m_PipelineLookupTimeNs / 1000000.f );
             ImGui::Text( "VkCommandBuffer profiling time:   %.2f ms", m_Data.m_CPU.m_CommandBufferProfilerCpuOverheadNs / 1000000.f );
+            ImGui::Text( "Window:                           %s", m_pImGuiWindowContext->GetName() );
         }
     }
 

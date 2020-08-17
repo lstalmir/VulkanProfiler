@@ -63,6 +63,19 @@ ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
 /***********************************************************************************\
 
 Function:
+    GetName
+
+Description:
+
+\***********************************************************************************/
+const char* ImGui_ImplWin32_Context::GetName() const
+{
+    return "Win32";
+}
+
+/***********************************************************************************\
+
+Function:
     NewFrame
 
 Description:

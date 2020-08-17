@@ -8,6 +8,8 @@ public:
     ImGui_ImplXlib_Context( Window window );
     ~ImGui_ImplXlib_Context();
 
+    const char* GetName() const override;
+
     void NewFrame() override;
 
 private:
