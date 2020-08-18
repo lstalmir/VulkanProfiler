@@ -229,6 +229,8 @@ namespace Profiler
 
         m_CurrentQueryIndex = -1;
         m_CurrentQueryPoolIndex = -1;
+
+        m_Dirty = false;
     }
 
     /***********************************************************************************\

@@ -72,4 +72,17 @@ public:
         std::scoped_lock lk( m_Mtx );
         return BaseType::emplace( key, arguments... );
     }
+
+    // Try to get element
+    bool interlocked_find( const KeyType& key, ValueType* out )
+    {
+        std::scoped_lock lk( m_Mtx );
+        auto it = BaseType::find( key );
+        if( it != BaseType::end() )
+        {
+            (*out) = it->second;
+            return true;
+        }
+        return false;
+    }
 };

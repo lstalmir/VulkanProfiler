@@ -7,9 +7,6 @@ import xml.etree.ElementTree as etree
 VULKAN_HEADERS_DIR = os.path.abspath( sys.argv[ 1 ] )
 CMAKE_CURRENT_BINARY_DIR = os.path.abspath( sys.argv[ 2 ] )
 
-# Dispatchable handles defined by vk.xml
-VULKAN_DISPATCHABLE_HANDLES = []
-
 class DispatchTableCommand:
     def __init__( self, name, extension ):
         self.name = name[2:]
@@ -22,15 +19,18 @@ class DispatchTableGenerator:
         self.instance_dispatch_table = {}
         self.device_dispatch_table = {}
         # Parse vk.xml registry commands
+        types = vk_xml.getroot().find( "types" )
         commands = vk_xml.getroot().find( "commands" )
         extensions = vk_xml.getroot().find( "extensions" )
+        # Load defined handles
+        handles = [handle.text for handle in types.findall( "type[@category=\"handle\"][type=\"VK_DEFINE_HANDLE\"]/name" )]
         for cmd in commands.findall( "command" ):
             try:
                 cmd_handle = cmd.find( "param[1]/type" ).text
                 cmd_name = cmd.find( "proto/name" ).text
             except:
                 # Function alias
-                cmd_handle = commands.find( "command/proto[name=\"" + cmd.get( "alias" ) + "\"]/../param[1]/type" )
+                cmd_handle = commands.find( "command/proto[name=\"" + cmd.get( "alias" ) + "\"]/../param[1]/type" ).text
                 cmd_name = cmd.get( "name" )
             try:
                 cmd_extension = extensions.find( "extension/require/command[@name=\"" + cmd_name + "\"]/../.." ).get( "name" )
@@ -38,7 +38,7 @@ class DispatchTableGenerator:
                 cmd_extension = None
             command = DispatchTableCommand( cmd_name, cmd_extension )
             # Check which chain the command belongs to
-            if cmd_handle in ("VkInstance", "VkPhysicalDevice", None):
+            if cmd_handle in ("VkInstance", "VkPhysicalDevice") or (cmd_handle not in handles):
                 self.insert_or_append( self.instance_dispatch_table, command )
             else:
                 self.insert_or_append( self.device_dispatch_table, command )

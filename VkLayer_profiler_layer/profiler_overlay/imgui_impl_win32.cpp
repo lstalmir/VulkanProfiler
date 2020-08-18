@@ -1,10 +1,13 @@
 #include "imgui_impl_win32.h"
 #include "imgui/examples/imgui_impl_win32.h"
 
+#include "profiler/profiler_helpers.h"
+
+// Use implementation provided by the ImGui
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM, LPARAM );
 
-// Define static fields
-LockableUnorderedMap<HWND, ImGui_ImplWin32_Context*> ImGui_ImplWin32_Context::s_pWin32Contexts;
+static LockableUnorderedMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
+static HHOOK g_GetMessageHook;
 
 /***********************************************************************************\
 
@@ -15,25 +18,21 @@ Description:
     Constructor.
 
 \***********************************************************************************/
-ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( ImGuiContext* pImGuiContext, HWND hWnd )
-    : m_AppModule( nullptr )
-    , m_AppWindow( hWnd )
-    , m_AppWindowProc( nullptr )
-    , m_pImGuiContext( pImGuiContext )
+ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd )
+    : m_AppWindow( hWnd )
 {
-    // Get handle to the DLL module
-    m_AppModule = (HMODULE)GetWindowLongPtr( m_AppWindow, GWLP_HINSTANCE );
-
-    // Store default window procedure
-    m_AppWindowProc = (WNDPROC)GetWindowLongPtr( m_AppWindow, GWLP_WNDPROC );
-
-    s_pWin32Contexts.interlocked_try_emplace( m_AppWindow, this );
-
-    // Override window procedure
-    SetWindowLongPtr( m_AppWindow, GWLP_WNDPROC, (LONG_PTR)ImGui_ImplWin32_Context::WindowProc );
+    // Context is a kind of lock for processing - WindowProc will invoke ImGui implementation as long
+    // as this context resides in the map
+    g_pWin32Contexts.interlocked_try_emplace( m_AppWindow, this );
 
     if( !ImGui_ImplWin32_Init( m_AppWindow ) )
         InitError();
+
+    if( !g_GetMessageHook )
+    {
+        // Register window hook on GetMessage/PeekMessage function
+        g_GetMessageHook = SetWindowsHook( WH_GETMESSAGE, ImGui_ImplWin32_Context::GetMessageHook );
+    }
 }
 
 /***********************************************************************************\
@@ -47,17 +46,10 @@ Description:
 \***********************************************************************************/
 ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
 {
-    // Restore original window procedure
-    SetWindowLongPtr( m_AppWindow, GWLP_WNDPROC, (LONG_PTR)m_AppWindowProc );
+    // Erase context from map
+    g_pWin32Contexts.interlocked_erase( m_AppWindow );
 
     ImGui_ImplWin32_Shutdown();
-
-    // Erase from map
-    s_pWin32Contexts.interlocked_erase( m_AppWindow );
-
-    m_AppWindowProc = nullptr;
-    m_AppWindow = nullptr;
-    m_AppModule = nullptr;
 }
 
 /***********************************************************************************\
@@ -104,35 +96,56 @@ void ImGui_ImplWin32_Context::InitError()
 /***********************************************************************************\
 
 Function:
-    WindowProc
+    GetMessageHook
 
 Description:
 
 \***********************************************************************************/
-LRESULT CALLBACK ImGui_ImplWin32_Context::WindowProc( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam )
+LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wParam, LPARAM lParam )
 {
-    // Get default window procedure
-    ImGui_ImplWin32_Context* context = s_pWin32Contexts.interlocked_at( hWnd );
+    bool filterMessage = false;
 
-    // Switch ImGui context
-    ImGui::SetCurrentContext( context->m_pImGuiContext );
-
-    if( Msg >= WM_MOUSEFIRST &&
-        Msg <= WM_MOUSELAST )
+    // MSDN: GetMsgHook procedure must process messages when (nCode == HC_ACTION)
+    // https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/ms644981(v=vs.85)
+    if( (nCode == HC_ACTION) || (nCode > 0) )
     {
-        ImGui_ImplWin32_WndProcHandler( hWnd, Msg, wParam, lParam );
+        // Make local copy of MSG structure which will be passed to the application
+        MSG msg = *reinterpret_cast<const MSG*>(lParam);
 
-        // Don't pass captured mouse events to the application
-        if( ImGui::GetIO().WantCaptureMouse )
-            return 0;
+        if( msg.hwnd )
+        {
+            // Prepare message for processing
+            TranslateMessage( &msg );
+
+            // Process message in ImGui
+            ImGui_ImplWin32_Context* context = nullptr;
+
+            if( g_pWin32Contexts.interlocked_find( msg.hwnd, &context ) )
+            {
+                // Capture only mouse events
+                if( (msg.message >= WM_MOUSEFIRST) && (msg.message <= WM_MOUSELAST) )
+                {
+                    ImGui_ImplWin32_WndProcHandler( msg.hwnd, msg.message, msg.wParam, msg.lParam );
+
+                    // Don't pass captured events to the application
+                    if( ImGui::GetIO().WantCaptureMouse )
+                    {
+                        filterMessage = true;
+                    }
+                }
+            }
+        }
     }
 
-    if( Msg == WM_CHAR && wParam == '`' )
+    // Invoke next hook in chain
+    // Call this before modifying lParam (MSG) so that all hooks receive the same message
+    const LRESULT result = CallNextHookEx( nullptr, nCode, wParam, lParam );
+
+    if( filterMessage )
     {
-        // Toggle cursor
-        SetCursor( LoadCursorA( nullptr, IDC_ARROW ) );
-        // TODO
+        // Change message type to WM_NULL to ignore it in window procedure
+        reinterpret_cast<MSG*>(lParam)->message = WM_NULL;
     }
 
-    return CallWindowProc( context->m_AppWindowProc, hWnd, Msg, wParam, lParam );
+    return result;
 }

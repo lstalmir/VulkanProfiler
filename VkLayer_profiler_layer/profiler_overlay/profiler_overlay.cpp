@@ -524,19 +524,6 @@ namespace Profiler
                     // Command buffers are dispatchable handles, update pointers to parent's dispatch table
                     result = m_pDevice->SetDeviceLoaderData( m_pDevice->Handle, cmdBuffer );
                 }
-
-                #ifdef _DEBUG
-                {
-                    VkDebugMarkerObjectNameInfoEXT info = {};
-                    info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
-                    info.objectType = VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT;
-                    info.pObjectName = "ProfilerOverlayCommandBuffer";
-                    info.object = (uint64_t)cmdBuffer;
-
-                    // Setup debug names
-                    m_pDevice->Callbacks.DebugMarkerSetObjectNameEXT( m_pDevice->Handle, &info );
-                }
-                #endif
             }
 
             // Create additional per-command-buffer semaphores and fences
@@ -789,7 +776,7 @@ namespace Profiler
             #ifdef VK_USE_PLATFORM_WIN32_KHR
             if( window.Type == OSWindowHandleType::eWin32 )
             {
-                m_pImGuiWindowContext = new ImGui_ImplWin32_Context( m_pImGuiContext, window.Win32Handle );
+                m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
             }
             #endif // VK_USE_PLATFORM_WIN32_KHR
 
