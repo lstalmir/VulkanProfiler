@@ -99,6 +99,7 @@ namespace Profiler
         uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;
+        CpuEventFrequencyCounter m_CpuFpsCounter;
 
         VkPhysicalDeviceProperties m_DeviceProperties;
         VkPhysicalDeviceMemoryProperties m_MemoryProperties;

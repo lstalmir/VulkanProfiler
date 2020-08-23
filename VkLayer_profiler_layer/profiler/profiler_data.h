@@ -561,6 +561,7 @@ namespace Profiler
     struct DeviceProfilerCPUData
     {
         uint64_t m_TimeNs;
+        float    m_FramesPerSec;
         uint64_t m_CommandBufferLookupTimeNs;
         uint64_t m_PipelineLookupTimeNs;
         uint64_t m_RenderPassLookupTimeNs;

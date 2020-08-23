@@ -932,7 +932,7 @@ namespace Profiler
 
             ImGui::Text( "GPU Time: %.2f ms", gpuTime );
             ImGui::Text( "CPU Time: %.2f ms", cpuTime );
-            TextAlignRight( "%.0f fps", 1000.f / cpuTime );
+            TextAlignRight( "%.1f fps", m_Data.m_CPU.m_FramesPerSec );
         }
 
         // Histogram

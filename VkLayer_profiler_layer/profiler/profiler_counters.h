@@ -74,6 +74,15 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point m_EndValue;
     };
 
+    /***********************************************************************************\
+
+    Class:
+        CpuScopedTimestampCounter
+
+    Description:
+
+
+    \***********************************************************************************/
     template<typename Unit, bool Overwrite = false>
     class CpuScopedTimestampCounter : private CpuTimestampCounter
     {
@@ -107,7 +116,59 @@ namespace Profiler
         uint64_t& m_ValueOut;
     };
 
-    // Convenience macros for profiler overhead measurements
-    #define PROFILER_CPU_OVERHEAD_COUNTER( COUNTER ) \
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> _profilerCpuOverheadCounter( COUNTER )
+    /***********************************************************************************\
+
+    Class:
+        CpuEventFrequencyCounter
+
+    Description:
+        Special kind of counter that reads average number of generated events in given
+        timespan.
+
+    \***********************************************************************************/
+    class CpuEventFrequencyCounter
+    {
+        using TimePointType = typename std::chrono::high_resolution_clock::time_point;
+        using DurationType = typename TimePointType::duration;
+
+    public:
+        // Initialize event counter
+        template<typename Unit = std::chrono::seconds>
+        inline CpuEventFrequencyCounter( Unit refreshRate = std::chrono::seconds( 1 ) )
+            : m_RefreshRate( std::chrono::duration_cast<DurationType>(refreshRate) )
+        {
+            m_EventCount = 0;
+            m_EventFrequency = 0;
+            m_BeginTimestamp = std::chrono::high_resolution_clock::now();
+        }
+
+        // Update event counter
+        inline void Update()
+        {
+            m_EventCount++;
+
+            const TimePointType timestamp = std::chrono::high_resolution_clock::now();
+            const DurationType delta = (timestamp - m_BeginTimestamp);
+
+            if( delta > m_RefreshRate )
+            {
+                m_EventFrequency = (m_EventCount) / (delta.count() * REFRESH_RATE_TO_SEC);
+                m_EventCount = 0;
+                m_BeginTimestamp = timestamp;
+            }
+        }
+
+        // Get current event frequency
+        inline float GetValue() const { return m_EventFrequency; }
+
+    protected:
+        TimePointType m_BeginTimestamp;
+        const DurationType m_RefreshRate;
+        uint32_t m_EventCount;
+        float m_EventFrequency;
+
+        static constexpr float REFRESH_RATE_TO_SEC =
+            static_cast<float>(DurationType::period::num) /
+            static_cast<float>(DurationType::period::den);
+    };
 }

@@ -106,6 +106,7 @@ namespace Profiler
         , m_DataAggregator()
         , m_CurrentFrame( 0 )
         , m_CpuTimestampCounter()
+        , m_CpuFpsCounter()
         , m_Allocations()
         , m_DeviceLocalAllocatedMemorySize( 0 )
         , m_DeviceLocalAllocationCount( 0 )
@@ -740,6 +741,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Present( const VkQueue_Object& queue, VkPresentInfoKHR* pPresentInfo )
     {
+        m_CpuTimestampCounter.End();
+
+        // Update FPS counter
+        m_CpuFpsCounter.Update();
+
         m_CurrentFrame++;
 
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_PRESENT_EXT )
@@ -748,14 +754,13 @@ namespace Profiler
             m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
         }
 
-        m_CpuTimestampCounter.End();
-
         // TMP
         std::scoped_lock lk( m_DataMutex );
         m_Data = m_DataAggregator.GetAggregatedData();
 
         // TODO: Move to CPU tracker
         m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();
+        m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
 
         // TODO: Move to memory tracker
         m_Data.m_Memory.m_TotalAllocationCount = m_TotalAllocationCount;
@@ -778,10 +783,10 @@ namespace Profiler
         m_PipelineLookupTimeNs = 0;
         m_RenderPassLookupTimeNs = 0;
 
-        m_CpuTimestampCounter.Begin();
-
         // TMP
         m_DataAggregator.Reset();
+
+        m_CpuTimestampCounter.Begin();
     }
 
     /***********************************************************************************\
