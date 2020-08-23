@@ -11,6 +11,7 @@ public:
     const char* GetName() const override;
 
     void NewFrame() override;
+    void UpdateWindowRect() override;
 
 private:
     Display* m_Display;
@@ -19,7 +20,6 @@ private:
     Window m_InputWindow;
 
     void InitError();
-    bool IsChild( Window, Window ) const;
 
     void UpdateMousePos();
 };

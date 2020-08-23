@@ -1,5 +1,7 @@
 #include "imgui_impl_xlib.h"
 #include "imgui/imgui.h"
+#include <stdlib.h>
+#include <X11/extensions/shape.h>
 
 /***********************************************************************************\
 
@@ -126,15 +128,6 @@ void ImGui_ImplXlib_Context::NewFrame()
     XGetWindowAttributes( m_Display, m_AppWindow, &windowAttributes );
     io.DisplaySize = ImVec2((float)(windowAttributes.width), (float)(windowAttributes.height));
 
-    #if 0
-    // Read keyboard modifiers inputs
-    io.KeyCtrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
-    io.KeyShift = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
-    io.KeyAlt = (::GetKeyState(VK_MENU) & 0x8000) != 0;
-    io.KeySuper = false;
-    // io.KeysDown[], io.MousePos, io.MouseDown[], io.MouseWheel: filled by the WndProc handler below.
-    #endif
-
     // Update OS mouse position
     UpdateMousePos();
 
@@ -197,6 +190,39 @@ void ImGui_ImplXlib_Context::NewFrame()
 /***********************************************************************************\
 
 Function:
+    UpdateWindowRect
+
+Description:
+    X-platform implementations require setting input clipping rects to pass messages
+    to the parent window. This can be only done between ImGui::Begin and ImGui::End,
+    when g.CurrentWindow is set.
+
+\***********************************************************************************/
+void ImGui_ImplXlib_Context::UpdateWindowRect()
+{
+    // Set input clipping rectangle
+    ImVec2 pos = ImGui::GetWindowPos();
+    ImVec2 size = ImGui::GetWindowSize();
+
+    XRectangle inputRect = {};
+    inputRect.x = pos.x;
+    inputRect.y = pos.y;
+    inputRect.width = size.x;
+    inputRect.height = size.y;
+
+    XShapeCombineRectangles(
+        m_Display,
+        m_InputWindow,
+        ShapeInput,
+        0, 0,
+        &inputRect, 1,
+        ShapeSet,
+        Unsorted );
+}
+
+/***********************************************************************************\
+
+Function:
     InitError
 
 Description:
@@ -207,31 +233,6 @@ void ImGui_ImplXlib_Context::InitError()
 {
     this->~ImGui_ImplXlib_Context();
     throw;
-}
-
-/***********************************************************************************\
-
-Function:
-    IsChild
-
-Description:
-    Check if window a is child of window b
-
-\***********************************************************************************/
-bool ImGui_ImplXlib_Context::IsChild( Window a, Window b ) const
-{
-    Window root, parent, * pChildren;
-    unsigned int childrenCount;
-
-    // Traverse the tree bottom-up for faster lookup
-    if( !XQueryTree( m_Display, a, &root, &parent, &pChildren, &childrenCount ) )
-        return false;
-
-    if( pChildren ) XFree( pChildren );
-    if( parent == b ) return true;
-
-    // a is child of b if parent of a is child of b
-    return IsChild( parent, b );
 }
 
 /***********************************************************************************\
