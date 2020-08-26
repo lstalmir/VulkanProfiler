@@ -52,47 +52,44 @@ namespace Profiler
             dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
         }
 
-        if( createProfilerOverlay )
+        if( (result == VK_SUCCESS) && (createProfilerOverlay) )
         {
-            if( result == VK_SUCCESS )
+            if( !dd.Overlay.IsAvailable() )
             {
-                if( !dd.Overlay.IsAvailable() )
+                // Select graphics queue for the overlay draw commands
+                VkQueue graphicsQueue = nullptr;
+
+                for( auto& it : dd.Device.Queues )
                 {
-                    // Select graphics queue for the overlay draw commands
-                    VkQueue graphicsQueue = nullptr;
-
-                    for( auto& it : dd.Device.Queues )
+                    if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
                     {
-                        if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
-                        {
-                            graphicsQueue = it.second.Handle;
-                            break;
-                        }
-                    }
-
-                    if( !graphicsQueue )
-                    {
-                        // Could not find suitable queue
-                        result = VK_ERROR_INITIALIZATION_FAILED;
-                    }
-
-                    if( result == VK_SUCCESS )
-                    {
-                        // Initialize overlay for the first time
-                        result = dd.Overlay.Initialize(
-                            dd.Device,
-                            dd.Device.Queues.at( graphicsQueue ),
-                            dd.Device.Swapchains.at( *pSwapchain ),
-                            pCreateInfo );
+                        graphicsQueue = it.second.Handle;
+                        break;
                     }
                 }
-                else
+
+                if( !graphicsQueue )
                 {
-                    // Reinitialize overlay for the new swapchain
-                    result = dd.Overlay.ResetSwapchain(
+                    // Could not find suitable queue
+                    result = VK_ERROR_INITIALIZATION_FAILED;
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Initialize overlay for the first time
+                    result = dd.Overlay.Initialize(
+                        dd.Device,
+                        dd.Device.Queues.at( graphicsQueue ),
                         dd.Device.Swapchains.at( *pSwapchain ),
                         pCreateInfo );
                 }
+            }
+            else
+            {
+                // Reinitialize overlay for the new swapchain
+                result = dd.Overlay.ResetSwapchain(
+                    dd.Device.Swapchains.at( *pSwapchain ),
+                    pCreateInfo );
             }
         }
 

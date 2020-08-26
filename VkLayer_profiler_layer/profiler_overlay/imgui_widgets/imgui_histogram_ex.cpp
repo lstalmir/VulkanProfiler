@@ -165,10 +165,11 @@ namespace ImGuiX
         {
             const float range = scale_max - scale_min;
 
-            char scale[ 16 ];
+            char scale[ 16 ] = { 0 };
             if( range < 100000.f )
                 sprintf( scale, "%.0f", range );
-            else
+
+            else if( range < 10000000000000.f )
                 sprintf( scale, "%.0fk", ceilf( range / 1000.f ) );
 
             RenderText( inner_bb.Min, scale );

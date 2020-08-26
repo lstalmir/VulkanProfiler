@@ -259,7 +259,7 @@ namespace Profiler
 
         // Check if we're running out of current query pool
         if( m_CurrentQueryPoolIndex + 1 == m_QueryPools.size() &&
-            m_CurrentQueryPoolIndex + 1 > m_QueryPoolSize * 0.85 )
+            m_CurrentQueryIndex + 1 > m_QueryPoolSize * 0.85 )
         {
             AllocateQueryPool();
         }
@@ -567,7 +567,7 @@ namespace Profiler
                 const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
 
                 // Get results from next query pool
-                VkResult result = m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
+                m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
                     m_Profiler.m_pDevice->Handle,
                     m_QueryPools[i],
                     0, numQueriesInPool,
@@ -575,8 +575,6 @@ namespace Profiler
                     collectedQueries.data() + dataOffset,
                     sizeof( uint64_t ),
                     VK_QUERY_RESULT_64_BIT );
-
-                assert( result == VK_SUCCESS );
 
                 numQueriesLeft -= numQueriesInPool;
                 dataOffset += numQueriesInPool;
@@ -840,13 +838,20 @@ namespace Profiler
         // Allocate query from the pool
         m_CurrentQueryIndex++;
 
-        if( m_CurrentQueryIndex == m_QueryPoolSize || m_QueryPools.empty() )
+        if( m_CurrentQueryIndex == m_QueryPoolSize )
         {
             // Try to reuse next query pool
             m_CurrentQueryIndex = 0;
             m_CurrentQueryPoolIndex++;
 
-            assert( m_CurrentQueryPoolIndex < m_QueryPools.size() );
+            if( m_CurrentQueryPoolIndex == m_QueryPools.size() )
+            {
+                // If command buffer is not in render pass we must allocate next query pool now
+                // Otherwise something went wrong in PreBeginRenderPass
+                assert( !m_pCurrentRenderPass );
+
+                AllocateQueryPool();
+            }
         }
 
         // Send the query

@@ -741,6 +741,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Present( const VkQueue_Object& queue, VkPresentInfoKHR* pPresentInfo )
     {
+        std::scoped_lock lk( m_CommandBuffers, m_DataMutex );
+
         m_CpuTimestampCounter.End();
 
         // Update FPS counter
@@ -755,7 +757,6 @@ namespace Profiler
         }
 
         // TMP
-        std::scoped_lock lk( m_DataMutex );
         m_Data = m_DataAggregator.GetAggregatedData();
 
         // TODO: Move to CPU tracker
