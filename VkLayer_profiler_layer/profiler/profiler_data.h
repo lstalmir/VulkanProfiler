@@ -537,6 +537,34 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerHeapMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerMemoryHeapData
+    {
+        uint64_t m_AllocationSize = {};
+        uint64_t m_AllocationCount = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerHeapMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerMemoryTypeData
+    {
+        uint64_t m_AllocationSize = {};
+        uint64_t m_AllocationCount = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerMemoryData
 
     Description:
@@ -544,10 +572,11 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerMemoryData
     {
-        uint64_t m_TotalAllocationSize;
-        uint64_t m_TotalAllocationCount;
-        uint64_t m_DeviceLocalAllocationSize;
-        uint64_t m_HostVisibleAllocationSize;
+        uint64_t m_TotalAllocationSize = {};
+        uint64_t m_TotalAllocationCount = {};
+
+        std::vector<struct DeviceProfilerMemoryHeapData> m_Heaps = {};
+        std::vector<struct DeviceProfilerMemoryTypeData> m_Types = {};
     };
 
     /***********************************************************************************\
@@ -560,12 +589,12 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerCPUData
     {
-        uint64_t m_TimeNs;
-        float    m_FramesPerSec;
-        uint64_t m_CommandBufferLookupTimeNs;
-        uint64_t m_PipelineLookupTimeNs;
-        uint64_t m_RenderPassLookupTimeNs;
-        uint64_t m_CommandBufferProfilerCpuOverheadNs;
+        uint64_t m_TimeNs = {};
+        float    m_FramesPerSec = {};
+        uint64_t m_CommandBufferLookupTimeNs = {};
+        uint64_t m_PipelineLookupTimeNs = {};
+        uint64_t m_RenderPassLookupTimeNs = {};
+        uint64_t m_CommandBufferProfilerCpuOverheadNs = {};
     };
 
     /***********************************************************************************\

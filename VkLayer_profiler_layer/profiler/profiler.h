@@ -101,21 +101,12 @@ namespace Profiler
         CpuTimestampCounter     m_CpuTimestampCounter;
         CpuEventFrequencyCounter m_CpuFpsCounter;
 
-        VkPhysicalDeviceProperties m_DeviceProperties;
-        VkPhysicalDeviceMemoryProperties m_MemoryProperties;
-        VkPhysicalDeviceMemoryProperties2 m_MemoryProperties2;
-
         uint64_t                m_CommandBufferLookupTimeNs;
         uint64_t                m_PipelineLookupTimeNs;
         uint64_t                m_RenderPassLookupTimeNs;
 
-        std::unordered_map<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
-        std::atomic_uint64_t    m_DeviceLocalAllocatedMemorySize;
-        std::atomic_uint64_t    m_HostVisibleAllocatedMemorySize;
-        std::atomic_uint64_t    m_TotalAllocatedMemorySize;
-        std::atomic_uint64_t    m_DeviceLocalAllocationCount;
-        std::atomic_uint64_t    m_HostVisibleAllocationCount;
-        std::atomic_uint64_t    m_TotalAllocationCount;
+        LockableUnorderedMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
+        DeviceProfilerMemoryData m_MemoryData;
 
         LockableUnorderedMap<VkCommandBuffer, ProfilerCommandBuffer> m_CommandBuffers;
 
@@ -125,8 +116,6 @@ namespace Profiler
         LockableUnorderedMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
 
         VkFence                 m_SubmitFence;
-
-        float                   m_TimestampPeriod;
 
         VkPerformanceConfigurationINTEL m_PerformanceConfigurationINTEL;
 

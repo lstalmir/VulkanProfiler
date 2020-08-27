@@ -30,7 +30,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
 
     // Translate internal data to VkProfilerRegionDataEXT
     pData->regionType = VK_PROFILER_REGION_TYPE_FRAME_EXT;
-    pData->duration = data.m_Ticks * (dd.Profiler.m_TimestampPeriod / 1000000.f);
+    pData->duration = data.m_Ticks * (dd.Device.Properties.limits.timestampPeriod / 1000000.f);
 
     // Describe the frame
     sprintf( pData->regionName, "Frame #%u", dd.Profiler.m_CurrentFrame );
@@ -68,7 +68,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerCommandBufferDataEXT(
 
     // Translate internal data to VkProfilerRegionDataEXT
     pData->regionType = VK_PROFILER_REGION_TYPE_COMMAND_BUFFER_EXT;
-    pData->duration = commandBufferTotalTicks * (dd.Profiler.m_TimestampPeriod / 1000000.f);
+    pData->duration = commandBufferTotalTicks * (dd.Device.Properties.limits.timestampPeriod / 1000000.f);
 
     // Describe the command buffer
     auto it = dd.Device.Debug.ObjectNames.find( (uint64_t)commandBuffer );

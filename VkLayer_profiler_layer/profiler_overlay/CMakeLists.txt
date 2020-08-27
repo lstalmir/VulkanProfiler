@@ -56,6 +56,8 @@ set (imgui_platform
 endif ()
 
 set (imgui_widgets
+    "imgui_widgets/imgui_breakdown_ex.h"
+    "imgui_widgets/imgui_breakdown_ex.cpp"
     "imgui_widgets/imgui_histogram_ex.h"
     "imgui_widgets/imgui_histogram_ex.cpp"
     "imgui_widgets/imgui_table_ex.h"

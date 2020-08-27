@@ -108,12 +108,7 @@ namespace Profiler
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
         , m_Allocations()
-        , m_DeviceLocalAllocatedMemorySize( 0 )
-        , m_DeviceLocalAllocationCount( 0 )
-        , m_HostVisibleAllocatedMemorySize( 0 )
-        , m_HostVisibleAllocationCount( 0 )
         , m_CommandBuffers()
-        , m_TimestampPeriod( 0.0f )
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
     {
     }
@@ -159,18 +154,16 @@ namespace Profiler
         VkResult result = m_pDevice->Callbacks.CreateFence(
             m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence );
 
+        // Prepare for memory usage tracking
+        m_MemoryData.m_Heaps.resize( m_pDevice->MemoryProperties.memoryHeapCount );
+        m_MemoryData.m_Types.resize( m_pDevice->MemoryProperties.memoryTypeCount );
+
         if( result != VK_SUCCESS )
         {
             // Fence creation failed
             Destroy();
             return result;
         }
-
-        // Get GPU timestamp period
-        m_pDevice->pInstance->Callbacks.GetPhysicalDeviceProperties(
-            m_pDevice->PhysicalDevice, &m_DeviceProperties );
-
-        m_TimestampPeriod = m_DeviceProperties.limits.timestampPeriod;
 
         // Enable vendor-specific extensions
         switch( pDevice->VendorID )
@@ -759,21 +752,12 @@ namespace Profiler
         // TMP
         m_Data = m_DataAggregator.GetAggregatedData();
 
+        // TODO: Move to memory tracker
+        m_Data.m_Memory = m_MemoryData;
+
         // TODO: Move to CPU tracker
         m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
-
-        // TODO: Move to memory tracker
-        m_Data.m_Memory.m_TotalAllocationCount = m_TotalAllocationCount;
-        m_Data.m_Memory.m_TotalAllocationSize = m_TotalAllocatedMemorySize;
-        m_Data.m_Memory.m_DeviceLocalAllocationSize = m_DeviceLocalAllocatedMemorySize;
-        m_Data.m_Memory.m_HostVisibleAllocationSize = m_HostVisibleAllocatedMemorySize;
-
-        // TODO: Move to memory tracker
-        //ClearStructure( &m_MemoryProperties2, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2 );
-        //m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR(
-        //    m_pDevice->PhysicalDevice,
-        //    &m_MemoryProperties2 );
 
         m_Data.m_CPU.m_CommandBufferLookupTimeNs += m_CommandBufferLookupTimeNs;
         m_Data.m_CPU.m_PipelineLookupTimeNs += m_PipelineLookupTimeNs;
@@ -800,23 +784,21 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::OnAllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
+        std::scoped_lock lk( m_Allocations );
+
         // Insert allocation info to the map, it will be needed during deallocation.
         m_Allocations.emplace( allocatedMemory, *pAllocateInfo );
 
         const VkMemoryType& memoryType =
-            m_MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
+            m_pDevice->MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
 
-        if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
-        {
-            m_DeviceLocalAllocationCount++;
-            m_DeviceLocalAllocatedMemorySize += pAllocateInfo->allocationSize;
-        }
+        auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
+        heap.m_AllocationCount++;
+        heap.m_AllocationSize += pAllocateInfo->allocationSize;
 
-        if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-        {
-            m_HostVisibleAllocationCount++;
-            m_HostVisibleAllocatedMemorySize += pAllocateInfo->allocationSize;
-        }
+        auto& type = m_MemoryData.m_Types[ pAllocateInfo->memoryTypeIndex ];
+        type.m_AllocationCount++;
+        type.m_AllocationSize += pAllocateInfo->allocationSize;
     }
 
     /***********************************************************************************\
@@ -829,23 +811,21 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::OnFreeMemory( VkDeviceMemory allocatedMemory )
     {
+        std::scoped_lock lk( m_Allocations );
+
         auto it = m_Allocations.find( allocatedMemory );
         if( it != m_Allocations.end() )
         {
             const VkMemoryType& memoryType =
-                m_MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
+                m_pDevice->MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
 
-            if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
-            {
-                m_DeviceLocalAllocationCount--;
-                m_DeviceLocalAllocatedMemorySize -= it->second.allocationSize;
-            }
+            auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
+            heap.m_AllocationCount--;
+            heap.m_AllocationSize -= it->second.allocationSize;
 
-            if( memoryType.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-            {
-                m_HostVisibleAllocationCount--;
-                m_HostVisibleAllocatedMemorySize -= it->second.allocationSize;
-            }
+            auto& type = m_MemoryData.m_Types[ it->second.memoryTypeIndex ];
+            type.m_AllocationCount--;
+            type.m_AllocationSize -= it->second.allocationSize;
 
             // Remove allocation entry from the map
             m_Allocations.erase( it );

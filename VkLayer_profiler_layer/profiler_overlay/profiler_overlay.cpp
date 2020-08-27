@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stack>
 
+#include "imgui_widgets/imgui_breakdown_ex.h"
 #include "imgui_widgets/imgui_histogram_ex.h"
 #include "imgui_widgets/imgui_table_ex.h"
 
@@ -1265,72 +1266,120 @@ namespace Profiler
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pDevice->MemoryProperties;
 
-        const VkPhysicalDeviceMemoryBudgetPropertiesEXT* pMemoryBudgetProperties =
-            //(const VkPhysicalDeviceMemoryBudgetPropertiesEXT*)m_Profiler.m_MemoryProperties2.pNext;
-            nullptr; // TODO: Get MemoryProperties2 structure
-
-        while( pMemoryBudgetProperties &&
-            pMemoryBudgetProperties->sType != VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT )
-        {
-            pMemoryBudgetProperties =
-                (const VkPhysicalDeviceMemoryBudgetPropertiesEXT*)pMemoryBudgetProperties->pNext;
-        }
-
-        ImGui::TextUnformatted( "Memory heap usage" );
-
-        float totalMemoryUsage = 0.f;
-        if( pMemoryBudgetProperties )
+        if( ImGui::CollapsingHeader( "Memory heap usage" ) )
         {
             for( int i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
-                float usage = 0.f;
-                char usageStr[ 64 ] = {};
+                ImGui::Text( "Heap %u", i );
 
-                if( pMemoryBudgetProperties->heapBudget[ i ] != 0 )
-                {
-                    usage = (float)pMemoryBudgetProperties->heapUsage[ i ] /
-                        pMemoryBudgetProperties->heapBudget[ i ];
+                TextAlignRight( "%u allocations", m_Data.m_Memory.m_Heaps[ i ].m_AllocationCount );
 
-                    sprintf( usageStr, "%.2f/%.2f MB (%.1f%%)",
-                        pMemoryBudgetProperties->heapUsage[ i ] / 1048576.f,
-                        pMemoryBudgetProperties->heapBudget[ i ] / 1048576.f,
-                        usage * 100.f );
-                }
-
-                ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
-            }
-        }
-        else
-        {
-            for( int i = 0; i < memoryProperties.memoryHeapCount; ++i )
-            {
                 float usage = 0.f;
                 char usageStr[ 64 ] = {};
 
                 if( memoryProperties.memoryHeaps[ i ].size != 0 )
                 {
-                    uint64_t allocatedSize = 0;
-
-                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
-                    {
-                        allocatedSize = m_Data.m_Memory.m_DeviceLocalAllocationSize;
-                    }
-
-                    usage = (float)allocatedSize / memoryProperties.memoryHeaps[ i ].size;
+                    usage = (float)m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
 
                     sprintf( usageStr, "%.2f/%.2f MB (%.1f%%)",
-                        allocatedSize / 1048576.f,
+                        m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
                         memoryProperties.memoryHeaps[ i ].size / 1048576.f,
                         usage * 100.f );
                 }
 
                 ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
+
+                if( ImGui::IsItemHovered() && (memoryProperties.memoryHeaps[ i ].flags != 0) )
+                {
+                    ImGui::BeginTooltip();
+
+                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                    {
+                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
+                    }
+
+                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
+                    {
+                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
+                    }
+
+                    ImGui::EndTooltip();
+                }
+
+                std::vector<float> memoryTypeUsages( memoryProperties.memoryTypeCount );
+                std::vector<std::string> memoryTypeDescriptors( memoryProperties.memoryTypeCount );
+
+                for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
+                {
+                    if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
+                    {
+                        memoryTypeUsages[ typeIndex ] = m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationSize;
+
+                        // Prepare descriptor for memory type
+                        std::stringstream sstr;
+
+                        sstr << "Memory type index " << typeIndex << "\n"
+                            << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " allocations\n";
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT\n";
+                        }
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD\n";
+                        }
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD\n";
+                        }
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT\n";
+                        }
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT\n";
+                        }
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_HOST_CACHED_BIT\n";
+                        }
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_PROTECTED_BIT )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_PROTECTED_BIT\n";
+                        }
+
+                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT )
+                        {
+                            sstr << "VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT\n";
+                        }
+
+                        memoryTypeDescriptors[ typeIndex ] = sstr.str();
+                    }
+                }
+
+                // Get descriptor pointers
+                std::vector<const char*> memoryTypeDescriptorPointers( memoryProperties.memoryTypeCount );
+
+                for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
+                {
+                    memoryTypeDescriptorPointers[ typeIndex ] = memoryTypeDescriptors[ typeIndex ].c_str();
+                }
+
+                ImGuiX::PlotBreakdownEx(
+                    "HEAP_BREAKDOWN",
+                    memoryTypeUsages.data(),
+                    memoryProperties.memoryTypeCount, 0,
+                    memoryTypeDescriptorPointers.data() );
             }
         }
-
-        ImGui::TextUnformatted( "Memory allocations" );
-
-
     }
 
     /***********************************************************************************\
