@@ -3,6 +3,7 @@
 #include "VkDevice_functions.h"
 #include "VkLoader_functions.h"
 #include "profiler_layer_functions/Helpers.h"
+#include "profiler_layer_objects/VkDevice_object.h"
 
 namespace Profiler
 {
@@ -41,19 +42,65 @@ namespace Profiler
             ? pLoaderCallbacks->u.pfnSetDeviceLoaderData
             : VkLoader_Functions::SetDeviceLoaderData;
 
+        // Get physical device description
+        VkPhysicalDeviceProperties deviceProperties;
+        id.Instance.Callbacks.GetPhysicalDeviceProperties( physicalDevice, &deviceProperties );
+
+        // ppEnabledExtensionNames may change, create set to keep all needed extensions and avoid duplicates
+        std::unordered_set<std::string> deviceExtensions;
+
+        for( uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; ++i )
+        {
+            deviceExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
+        }
+
+        // Enumerate available device extensions
+        uint32_t availableExtensionCount = 0;
+        id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice, nullptr, &availableExtensionCount, nullptr );
+
+        VkExtensionProperties* pAvailableDeviceExtensions = new VkExtensionProperties[ availableExtensionCount ];
+        id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice, nullptr, &availableExtensionCount, pAvailableDeviceExtensions );
+
+        // Enable available optional device extensions
+        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions();
+
+        for( uint32_t i = 0; i < availableExtensionCount; ++i )
+        {
+            if( optionalDeviceExtensions.count( pAvailableDeviceExtensions[ i ].extensionName ) )
+            {
+                deviceExtensions.insert( pAvailableDeviceExtensions[ i ].extensionName );
+            }
+        }
+
+        // Convert to continuous memory block
+        std::vector<const char*> enabledDeviceExtensions;
+        enabledDeviceExtensions.reserve( deviceExtensions.size() );
+
+        for( const std::string& extensionName : deviceExtensions )
+        {
+            enabledDeviceExtensions.push_back( extensionName.c_str() );
+        }
+
+        // Override device create info
+        VkDeviceCreateInfo createInfo = (*pCreateInfo);
+        createInfo.enabledExtensionCount = enabledDeviceExtensions.size();
+        createInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
+
         // Move chain on for next layer
         pLayerLinkInfo->u.pLayerInfo = pLayerLinkInfo->u.pLayerInfo->pNext;
 
         // Create the device
         VkResult result = id.Instance.Callbacks.CreateDevice(
-            physicalDevice, pCreateInfo, pAllocator, pDevice );
+            physicalDevice, &createInfo, pAllocator, pDevice );
 
         // Initialize dispatch for the created device object
         if( result == VK_SUCCESS )
         {
             result = VkDevice_Functions::CreateDeviceBase(
                 physicalDevice,
-                pCreateInfo,
+                &createInfo,
                 pfnGetDeviceProcAddr,
                 pfnSetDeviceLoaderData,
                 pAllocator,

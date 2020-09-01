@@ -209,16 +209,13 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.CreateShaderModule(
             device, pCreateInfo, pAllocator, pShaderModule );
 
-        if( result != VK_SUCCESS )
+        if( result == VK_SUCCESS )
         {
-            // Shader module creation failed
-            return result;
+            // Register shader module
+            dd.Profiler.CreateShaderModule( *pShaderModule, pCreateInfo );
         }
 
-        // Register shader module
-        dd.Profiler.CreateShaderModule( *pShaderModule, pCreateInfo );
-
-        return VK_SUCCESS;
+        return result;
     }
 
     /***********************************************************************************\
@@ -265,16 +262,13 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.CreateGraphicsPipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
-        if( result != VK_SUCCESS )
+        if( result == VK_SUCCESS )
         {
-            // Pipeline creation failed
-            return result;
+            // Register pipelines
+            dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
 
-        // Register pipelines
-        dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
-
-        return VK_SUCCESS;
+        return result;
     }
 
     /***********************************************************************************\
@@ -299,16 +293,13 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.CreateComputePipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
-        if( result != VK_SUCCESS )
+        if( result == VK_SUCCESS )
         {
-            // Pipeline creation failed
-            return result;
+            // Register pipelines
+            dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
 
-        // Register pipelines
-        dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
-
-        return VK_SUCCESS;
+        return result;
     }
 
     /***********************************************************************************\
@@ -512,14 +503,11 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.AllocateMemory(
             device, pAllocateInfo, pAllocator, pMemory );
 
-        if( result != VK_SUCCESS )
+        if( result == VK_SUCCESS )
         {
-            // Allocation failed, do not profile
-            return result;
+            // Register allocation
+            dd.Profiler.AllocateMemory( *pMemory, pAllocateInfo );
         }
-
-        // Register allocation
-        dd.Profiler.OnAllocateMemory( *pMemory, pAllocateInfo );
 
         return result;
     }
@@ -539,10 +527,10 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
+        // Unregister allocation
+        dd.Profiler.FreeMemory( memory );
+
         // Free the memory
         dd.Device.Callbacks.FreeMemory( device, memory, pAllocator );
-
-        // Unregister allocation
-        dd.Profiler.OnFreeMemory( memory );
     }
 }

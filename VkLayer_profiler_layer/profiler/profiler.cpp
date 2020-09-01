@@ -116,6 +116,22 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        EnumerateOptionalDeviceExtensions
+
+    Description:
+        Get list of optional device extensions that may be utilized by the profiler.
+
+    \***********************************************************************************/
+    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions()
+    {
+        return {
+            VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME
+        };
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Initialize
 
     Description:
@@ -166,13 +182,9 @@ namespace Profiler
         }
 
         // Enable vendor-specific extensions
-        switch( pDevice->VendorID )
-        {
-        case VkDevice_Vendor_ID::eINTEL:
+        if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
             InitializeINTEL();
-            break;
-        }
         }
 
         // Initialize aggregator
@@ -325,6 +337,27 @@ namespace Profiler
     }
 
     /***********************************************************************************\
+    \***********************************************************************************/
+    ProfilerCommandBuffer& DeviceProfiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
+    {
+        return m_CommandBuffers.interlocked_at( commandBuffer );
+    }
+
+    /***********************************************************************************\
+    \***********************************************************************************/
+    DeviceProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
+    {
+        return m_Pipelines.interlocked_at( pipeline );
+    }
+
+    /***********************************************************************************\
+    \***********************************************************************************/
+    DeviceProfilerRenderPass& DeviceProfiler::GetRenderPass( VkRenderPass renderPass )
+    {
+        return m_RenderPasses.interlocked_at( renderPass );
+    }
+
+    /***********************************************************************************\
 
     Function:
         RegisterCommandBuffers
@@ -387,30 +420,6 @@ namespace Profiler
                 ? FreeCommandBuffer( it )
                 : std::next( it );
         }
-    }
-
-    /***********************************************************************************\
-    \***********************************************************************************/
-    ProfilerCommandBuffer& DeviceProfiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
-    {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_CommandBufferLookupTimeNs );
-        return m_CommandBuffers.interlocked_at( commandBuffer );
-    }
-
-    /***********************************************************************************\
-    \***********************************************************************************/
-    DeviceProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
-    {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_PipelineLookupTimeNs );
-        return m_Pipelines.interlocked_at( pipeline );
-    }
-
-    /***********************************************************************************\
-    \***********************************************************************************/
-    DeviceProfilerRenderPass& DeviceProfiler::GetRenderPass( VkRenderPass renderPass )
-    {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_RenderPassLookupTimeNs );
-        return m_RenderPasses.interlocked_at( renderPass );
     }
 
     /***********************************************************************************\
@@ -693,10 +702,6 @@ namespace Profiler
                 auto& profilerCommandBuffer = m_CommandBuffers.at( commandBuffer );
                 commandBufferLookupTimeCounter.End();
 
-                // Aggregate command buffer lookup time
-                m_CommandBufferLookupTimeNs +=
-                    commandBufferLookupTimeCounter.GetValue<std::chrono::nanoseconds>().count();
-
                 // Dirty command buffer profiling data
                 profilerCommandBuffer.Submit();
 
@@ -727,12 +732,12 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PostPresent
+        FinishFrame
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::Present( const VkQueue_Object& queue, VkPresentInfoKHR* pPresentInfo )
+    void DeviceProfiler::FinishFrame()
     {
         std::scoped_lock lk( m_CommandBuffers, m_DataMutex );
 
@@ -749,7 +754,7 @@ namespace Profiler
             m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
         }
 
-        // TMP
+        // Collect and aggregate data captured during the last frame
         m_Data = m_DataAggregator.GetAggregatedData();
 
         // TODO: Move to memory tracker
@@ -759,16 +764,7 @@ namespace Profiler
         m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
 
-        m_Data.m_CPU.m_CommandBufferLookupTimeNs += m_CommandBufferLookupTimeNs;
-        m_Data.m_CPU.m_PipelineLookupTimeNs += m_PipelineLookupTimeNs;
-        m_Data.m_CPU.m_RenderPassLookupTimeNs += m_RenderPassLookupTimeNs;
-        
-        // Reset self data for the next frame
-        m_CommandBufferLookupTimeNs = 0;
-        m_PipelineLookupTimeNs = 0;
-        m_RenderPassLookupTimeNs = 0;
-
-        // TMP
+        // Prepare aggregator for the next frame
         m_DataAggregator.Reset();
 
         m_CpuTimestampCounter.Begin();
@@ -782,7 +778,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::OnAllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
+    void DeviceProfiler::AllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
         std::scoped_lock lk( m_Allocations );
 
@@ -799,6 +795,9 @@ namespace Profiler
         auto& type = m_MemoryData.m_Types[ pAllocateInfo->memoryTypeIndex ];
         type.m_AllocationCount++;
         type.m_AllocationSize += pAllocateInfo->allocationSize;
+
+        m_MemoryData.m_TotalAllocationCount++;
+        m_MemoryData.m_TotalAllocationSize += pAllocateInfo->allocationSize;
     }
 
     /***********************************************************************************\
@@ -809,7 +808,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::OnFreeMemory( VkDeviceMemory allocatedMemory )
+    void DeviceProfiler::FreeMemory( VkDeviceMemory allocatedMemory )
     {
         std::scoped_lock lk( m_Allocations );
 
@@ -826,6 +825,9 @@ namespace Profiler
             auto& type = m_MemoryData.m_Types[ it->second.memoryTypeIndex ];
             type.m_AllocationCount--;
             type.m_AllocationSize -= it->second.allocationSize;
+
+            m_MemoryData.m_TotalAllocationCount--;
+            m_MemoryData.m_TotalAllocationSize -= it->second.allocationSize;
 
             // Remove allocation entry from the map
             m_Allocations.erase( it );

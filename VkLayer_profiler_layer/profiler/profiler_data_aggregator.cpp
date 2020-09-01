@@ -181,9 +181,6 @@ namespace Profiler
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
                     frameData.m_Ticks += commandBuffer.m_Ticks;
-
-                    // Profiler CPU overhead stats
-                    frameData.m_CPU.m_CommandBufferProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
                 }
             }
         }

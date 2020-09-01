@@ -731,11 +731,6 @@ namespace Profiler
             UpdateStatisticsTab();
             ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( "Self" ) )
-        {
-            UpdateSelfTab();
-            ImGui::EndTabItem();
-        }
         if( ImGui::BeginTabItem( "Settings" ) )
         {
             UpdateSettingsTab();
@@ -1410,26 +1405,6 @@ namespace Profiler
             ImGui::Text( "Blit calls:                       %u", m_Data.m_Stats.m_BlitImageCount );
             ImGui::Text( "Fill buffer calls:                %u", m_Data.m_Stats.m_FillBufferCount );
             ImGui::Text( "Update buffer calls:              %u", m_Data.m_Stats.m_UpdateBufferCount );
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        UpdateSelfTab
-
-    Description:
-        Updates "Self" tab.
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::UpdateSelfTab()
-    {
-        // Print self test values
-        {
-            ImGui::Text( "VkCommandBuffer lookup time:      %.2f ms", m_Data.m_CPU.m_CommandBufferLookupTimeNs / 1000000.f );
-            ImGui::Text( "VkPipeline lookup time:           %.2f ms", m_Data.m_CPU.m_PipelineLookupTimeNs / 1000000.f );
-            ImGui::Text( "VkCommandBuffer profiling time:   %.2f ms", m_Data.m_CPU.m_CommandBufferProfilerCpuOverheadNs / 1000000.f );
-            ImGui::Text( "Window:                           %s", m_pImGuiWindowContext->GetName() );
         }
     }
 

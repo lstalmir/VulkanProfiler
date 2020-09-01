@@ -128,7 +128,6 @@ namespace Profiler
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
         void UpdateStatisticsTab();
-        void UpdateSelfTab();
         void UpdateSettingsTab();
 
         // Frame browser helpers

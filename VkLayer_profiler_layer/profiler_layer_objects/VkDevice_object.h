@@ -43,6 +43,9 @@ namespace Profiler
 
         std::unordered_map<VkQueue, VkQueue_Object> Queues;
 
+        // Enabled extensions
+        std::unordered_set<std::string> EnabledExtensions;
+
         // Swapchains created with this device
         std::unordered_map<VkSwapchainKHR, VkSwapchainKhr_Object> Swapchains;
     };

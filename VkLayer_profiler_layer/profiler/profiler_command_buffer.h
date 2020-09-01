@@ -83,9 +83,6 @@ namespace Profiler
         DeviceProfilerPipeline m_GraphicsPipeline;
         DeviceProfilerPipeline m_ComputePipeline;
 
-        uint64_t        m_ProfilerCpuOverheadNs;
-        uint64_t        m_ProfilerGetDataCpuOverheadNs;
-
         void AllocateQueryPool();
 
         void EndSubpass();

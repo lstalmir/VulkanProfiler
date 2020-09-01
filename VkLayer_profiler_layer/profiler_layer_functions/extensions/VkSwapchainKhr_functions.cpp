@@ -144,7 +144,7 @@ namespace Profiler
         // Get present queue wrapper
         VkQueue_Object& presentQueue = dd.Device.Queues[ queue ];
 
-        dd.Profiler.Present( presentQueue, &presentInfo );
+        dd.Profiler.FinishFrame();
 
         if( (dd.Overlay.IsAvailable()) &&
             (dd.Overlay.GetSwapchain() == presentInfo.pSwapchains[ 0 ]) )

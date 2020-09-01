@@ -49,6 +49,12 @@ namespace Profiler
 
         dd.Device.VendorID = VkDevice_Vendor_ID( dd.Device.Properties.vendorID );
 
+        // Save enabled extensions
+        for( uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; ++i )
+        {
+            dd.Device.EnabledExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
+        }
+
         // Enumerate queue families
         uint32_t queueFamilyPropertyCount = 0;
         id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(

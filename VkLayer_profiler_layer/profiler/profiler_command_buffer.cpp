@@ -34,8 +34,6 @@ namespace Profiler
         , m_CurrentSubpassIndex( -1 )
         , m_GraphicsPipeline()
         , m_ComputePipeline()
-        , m_ProfilerCpuOverheadNs( 0 )
-        , m_ProfilerGetDataCpuOverheadNs( 0 )
     {
         m_Data.m_Handle = commandBuffer;
         m_Data.m_Level = level;
@@ -145,8 +143,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Begin( const VkCommandBufferBeginInfo* pBeginInfo )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds, true /*overwrite*/> counter( m_ProfilerCpuOverheadNs );
-
         // Restore initial state
         Reset( 0 /*flags*/ );
 
@@ -197,8 +193,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::End()
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         if( m_PerformanceQueryPoolINTEL )
         {
             m_Profiler.m_pDevice->Callbacks.CmdEndQuery(
@@ -244,8 +238,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPass( const VkRenderPassBeginInfo* pBeginInfo, VkSubpassContents )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         m_pCurrentRenderPass = &m_Profiler.GetRenderPass( pBeginInfo->renderPass );
 
         DeviceProfilerRenderPassData profilerRenderPassData;
@@ -279,14 +271,9 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents contents )
     {
-        {
-            // Keep overhead counter in separate block, NextSubpass has own counter
-            CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
+        SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
-            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
-
-            m_pCurrentRenderPassData = &m_Data.m_RenderPasses.back();
-        }
+        m_pCurrentRenderPassData = &m_Data.m_RenderPasses.back();
 
         // Begin first subpass
         NextSubpass( contents );
@@ -303,8 +290,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreEndRenderPass()
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         // End currently profiled subpass
         EndSubpass();
 
@@ -328,7 +313,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostEndRenderPass()
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
     }
 
@@ -343,8 +327,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::NextSubpass( VkSubpassContents contents )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         // End currently profiled subpass before beginning new one
         EndSubpass();
 
@@ -369,8 +351,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::BindPipeline( const DeviceProfilerPipeline& pipeline )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         switch( pipeline.m_BindPoint )
         {
         case VK_PIPELINE_BIND_POINT_GRAPHICS:
@@ -400,8 +380,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreDraw( const DeviceProfilerDrawcall& drawcall )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
 
         // Setup pipeline
@@ -445,7 +423,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostDraw()
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
     }
 
@@ -460,8 +437,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::DebugLabel( const char* pName, const float color[ 4 ] )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         // Ensure there is a render pass and subpass with VK_SUBPASS_CONTENTS_INLINE flag
         SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
 
@@ -487,8 +462,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::ExecuteCommands( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         // Secondary command buffers must be executed on primary command buffers
         assert( m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY );
 
@@ -521,8 +494,6 @@ namespace Profiler
         uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
         uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
     {
-        CpuScopedTimestampCounter<std::chrono::nanoseconds> counter( m_ProfilerCpuOverheadNs );
-
         // Pipeline barriers can occur only outside of the render pass, increment command buffer stats
         m_Stats.m_PipelineBarrierCount += memoryBarrierCount + bufferMemoryBarrierCount + imageMemoryBarrierCount;
     }
@@ -541,10 +512,6 @@ namespace Profiler
     {
         if( m_Dirty && !m_QueryPools.empty() )
         {
-            // GetData must use separate counter in cese the command buffer is submitted multiple times without resetting.
-            // In such case single counter would increase indifinitely because each GetData call would add its time.
-            CpuScopedTimestampCounter<std::chrono::nanoseconds, true /*overwrite*/> counter( m_ProfilerGetDataCpuOverheadNs );
-
             // Reset accumulated stats if buffer is being reused
             m_Data.m_Stats = m_Stats;
             m_Data.m_PerformanceQueryReportINTEL = {};
@@ -642,7 +609,7 @@ namespace Profiler
                             for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
                             {
                                 VkCommandBuffer handle = commandBuffer.m_Handle;
-                                ProfilerCommandBuffer& profilerCommandBuffer = m_Profiler.GetCommandBuffer( handle );
+                                ProfilerCommandBuffer& profilerCommandBuffer = m_Profiler.m_CommandBuffers.at( handle );
 
                                 // Collect secondary command buffer data
                                 commandBuffer = profilerCommandBuffer.GetData();
@@ -715,9 +682,6 @@ namespace Profiler
             // Subsequent calls to GetData will return the same results
             m_Dirty = false;
         }
-
-        // Add GetData time to command buffer profiling time
-        m_Data.m_ProfilerCpuOverheadNs = m_ProfilerCpuOverheadNs + m_ProfilerGetDataCpuOverheadNs;
 
         return m_Data;
     }

@@ -6,7 +6,9 @@
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <sstream>
+#include <string>
 
 #include "lockable_unordered_map.h"
 
@@ -49,6 +51,8 @@ namespace Profiler
     public:
         DeviceProfiler();
 
+        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions();
+
         VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
 
         void Destroy();
@@ -58,13 +62,13 @@ namespace Profiler
         VkResult SetSyncMode( VkProfilerSyncModeEXT );
         DeviceProfilerFrameData GetData() const;
 
+        ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
+        DeviceProfilerPipeline& GetPipeline( VkPipeline pipeline );
+        DeviceProfilerRenderPass& GetRenderPass( VkRenderPass renderPass );
+
         void AllocateCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
         void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
         void FreeCommandBuffers( VkCommandPool );
-
-        ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer );
-        DeviceProfilerPipeline& GetPipeline( VkPipeline );
-        DeviceProfilerRenderPass& GetRenderPass( VkRenderPass );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
@@ -80,10 +84,10 @@ namespace Profiler
         void PreSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
         void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
 
-        void Present( const VkQueue_Object&, VkPresentInfoKHR* );
+        void FinishFrame();
 
-        void OnAllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
-        void OnFreeMemory( VkDeviceMemory );
+        void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
+        void FreeMemory( VkDeviceMemory );
 
     public:
         VkDevice_Object*        m_pDevice;
@@ -100,10 +104,6 @@ namespace Profiler
 
         CpuTimestampCounter     m_CpuTimestampCounter;
         CpuEventFrequencyCounter m_CpuFpsCounter;
-
-        uint64_t                m_CommandBufferLookupTimeNs;
-        uint64_t                m_PipelineLookupTimeNs;
-        uint64_t                m_RenderPassLookupTimeNs;
 
         LockableUnorderedMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         DeviceProfilerMemoryData m_MemoryData;
