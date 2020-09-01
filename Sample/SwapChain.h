@@ -7,7 +7,7 @@ namespace Sample
 {
     struct SwapChain
     {
-        vk::Device                  m_Device;
+        Device*                     m_pDevice;
         vk::SwapchainKHR            m_Swapchain;
         vk::SurfaceKHR              m_Surface;
         vk::Extent2D                m_Extent;
@@ -18,6 +18,7 @@ namespace Sample
         vk::Semaphore               m_NextImageAvailableSemaphore;
         vk::Viewport                m_Viewport;
         vk::Rect2D                  m_ScissorRect;
+        bool                        m_VSync;
         bool                        m_Acquired;
         uint32_t                    m_AcquiredImageIndex;
         
@@ -26,6 +27,8 @@ namespace Sample
         ~SwapChain();
 
         vk::Result acquireNextImage();
+
+        void recreate();
 
         void destroy();
     };

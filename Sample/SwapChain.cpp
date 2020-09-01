@@ -4,15 +4,40 @@ namespace Sample
 {
     SwapChain::SwapChain( Device& device, vk::SurfaceKHR surface, bool vsync )
     {
-        m_Device = device.m_Device;
+        m_pDevice = &device;
+        m_Swapchain = nullptr;
         m_Surface = surface;
+        m_VSync = vsync;
         m_Acquired = false;
         m_AcquiredImageIndex = 0;
+        recreate();
+    }
 
+    SwapChain::~SwapChain()
+    {
+        destroy();
+    }
+
+    vk::Result SwapChain::acquireNextImage()
+    {
+        // We don't know which image will be acquired beforehand, remember which semaphore
+        // will be signalled next.
+        m_NextImageAvailableSemaphore = m_ImageAvailableSemaphores[m_AcquiredImageIndex];
+
+        auto resultValue = m_pDevice->m_Device.acquireNextImageKHR(
+            m_Swapchain, UINT64_MAX, m_NextImageAvailableSemaphore, nullptr );
+
+        m_AcquiredImageIndex = resultValue.value;
+
+        return resultValue.result;
+    }
+
+    void SwapChain::recreate()
+    {
         // Check if the device supports presentation
-        const bool presentSupported = device.m_PhysicalDevice.getSurfaceSupportKHR(
-            device.m_QueueFamilyIndices.m_PresentQueueFamilyIndex,
-            surface );
+        const bool presentSupported = m_pDevice->m_PhysicalDevice.getSurfaceSupportKHR(
+            m_pDevice->m_QueueFamilyIndices.m_PresentQueueFamilyIndex,
+            m_Surface );
 
         if( !presentSupported )
         {
@@ -20,7 +45,7 @@ namespace Sample
         }
 
         vk::SurfaceCapabilitiesKHR surfaceCapabilities =
-            device.m_PhysicalDevice.getSurfaceCapabilitiesKHR( surface );
+            m_pDevice->m_PhysicalDevice.getSurfaceCapabilitiesKHR( m_Surface );
 
         // Get the best supported image format
         const vk::SurfaceFormatKHR requrestedSurfaceFormat{
@@ -32,10 +57,10 @@ namespace Sample
             vk::ColorSpaceKHR::eSrgbNonlinear };
 
         std::vector<vk::SurfaceFormatKHR> surfaceFormats =
-            device.m_PhysicalDevice.getSurfaceFormatsKHR( surface );
+            m_pDevice->m_PhysicalDevice.getSurfaceFormatsKHR( m_Surface );
 
         if( surfaceFormats.size() == 1 &&
-            surfaceFormats[0].format == vk::Format::eUndefined )
+            surfaceFormats[ 0 ].format == vk::Format::eUndefined )
         {
             // All common image formats are supported
             surfaceFormat = requrestedSurfaceFormat;
@@ -45,7 +70,7 @@ namespace Sample
             // Fall back to the first supported format if the requested one is not supported
             if( surfaceFormats.size() > 0 )
             {
-                surfaceFormat = surfaceFormats[0];
+                surfaceFormat = surfaceFormats[ 0 ];
             }
 
             // Check if requested format is supported
@@ -68,11 +93,11 @@ namespace Sample
         // Get the best supported present mode
         vk::PresentModeKHR presentMode;
 
-        for( auto mode : device.m_PhysicalDevice.getSurfacePresentModesKHR( surface ) )
+        for( auto mode : m_pDevice->m_PhysicalDevice.getSurfacePresentModesKHR( m_Surface ) )
         {
             // Mailbox: inserts images until the queue is full, replaces the last image
             //  when it is full.
-            if( mode == vk::PresentModeKHR::eMailbox && !vsync )
+            if( mode == vk::PresentModeKHR::eMailbox && !m_VSync )
             {
                 presentMode = mode;
                 break;
@@ -91,13 +116,15 @@ namespace Sample
 
         // Get command queue index
         const std::vector<uint32_t> uniqueQueueFamilyIndices = {
-            device.m_QueueFamilyIndices.m_PresentQueueFamilyIndex };
+            m_pDevice->m_QueueFamilyIndices.m_PresentQueueFamilyIndex };
+
+        vk::SwapchainKHR oldSwapchain = m_Swapchain;
 
         // Create the swapchain
-        m_Swapchain = m_Device.createSwapchainKHR(
+        m_Swapchain = m_pDevice->m_Device.createSwapchainKHR(
             vk::SwapchainCreateInfoKHR(
                 vk::SwapchainCreateFlagsKHR(),
-                surface,
+                m_Surface,
                 surfaceCapabilities.minImageCount,
                 surfaceFormat.format,
                 surfaceFormat.colorSpace,
@@ -110,16 +137,42 @@ namespace Sample
                 surfaceCapabilities.currentTransform,
                 vk::CompositeAlphaFlagBitsKHR::eOpaque,
                 presentMode,
-                false ) );
+                false,
+                oldSwapchain ) );
+
+        if( !m_Swapchain && oldSwapchain )
+        {
+            m_Swapchain = oldSwapchain;
+            return;
+        }
+
+        if( oldSwapchain )
+        {
+            m_pDevice->m_Device.destroySwapchainKHR( oldSwapchain );
+
+            for( auto semaphore : m_ImageAvailableSemaphores )
+            {
+                m_pDevice->m_Device.destroySemaphore( semaphore );
+            }
+
+            for( auto semaphore : m_ImageRenderedSemaphores )
+            {
+                m_pDevice->m_Device.destroySemaphore( semaphore );
+            }
+
+            m_ImageAvailableSemaphores.clear();
+            m_ImageRenderedSemaphores.clear();
+            m_Images.clear();
+        }
 
         m_Format = surfaceFormat.format;
         m_Extent = surfaceCapabilities.currentExtent;
 
         // Prepare swapchain images for rendering
-        for( auto image : m_Device.getSwapchainImagesKHR( m_Swapchain ) )
+        for( auto image : m_pDevice->m_Device.getSwapchainImagesKHR( m_Swapchain ) )
         {
             m_Images.push_back( Image(
-                device,
+                *m_pDevice,
                 image,
                 vk::ImageLayout::eUndefined,
                 surfaceFormat.format,
@@ -127,33 +180,14 @@ namespace Sample
                 vk::SampleCountFlagBits::e1 ) );
 
             m_ImageAvailableSemaphores.push_back(
-                m_Device.createSemaphore( vk::SemaphoreCreateInfo() ) );
+                m_pDevice->m_Device.createSemaphore( vk::SemaphoreCreateInfo() ) );
 
             m_ImageRenderedSemaphores.push_back(
-                m_Device.createSemaphore( vk::SemaphoreCreateInfo() ) );
+                m_pDevice->m_Device.createSemaphore( vk::SemaphoreCreateInfo() ) );
         }
 
         m_Viewport = vk::Viewport( 0, 0, m_Extent.width, m_Extent.height, 0, 1 );
         m_ScissorRect = vk::Rect2D( vk::Offset2D(), m_Extent );
-    }
-
-    SwapChain::~SwapChain()
-    {
-        destroy();
-    }
-
-    vk::Result SwapChain::acquireNextImage()
-    {
-        // We don't know which image will be acquired beforehand, remember which semaphore
-        // will be signalled next.
-        m_NextImageAvailableSemaphore = m_ImageAvailableSemaphores[m_AcquiredImageIndex];
-
-        auto resultValue = m_Device.acquireNextImageKHR(
-            m_Swapchain, UINT64_MAX, m_NextImageAvailableSemaphore, nullptr );
-
-        m_AcquiredImageIndex = resultValue.value;
-
-        return resultValue.result;
     }
 
     void SwapChain::destroy()
@@ -164,17 +198,17 @@ namespace Sample
             return;
         }
 
-        m_Device.waitIdle();
+        m_pDevice->m_Device.waitIdle();
 
         for( auto semaphore : m_ImageAvailableSemaphores )
         {
-            m_Device.destroySemaphore( semaphore );
+            m_pDevice->m_Device.destroySemaphore( semaphore );
         }
         m_ImageAvailableSemaphores.clear();
 
         for( auto semaphore : m_ImageRenderedSemaphores )
         {
-            m_Device.destroySemaphore( semaphore );
+            m_pDevice->m_Device.destroySemaphore( semaphore );
         }
         m_ImageRenderedSemaphores.clear();
 
@@ -184,7 +218,7 @@ namespace Sample
         }
         m_Images.clear();
 
-        m_Device.destroySwapchainKHR( m_Swapchain );
+        m_pDevice->m_Device.destroySwapchainKHR( m_Swapchain );
         m_Swapchain = nullptr;
     }
 }

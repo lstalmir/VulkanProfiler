@@ -31,6 +31,7 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 
+#include "Args.h"
 #include "Device.h"
 #include "SwapChain.h"
 
@@ -45,6 +46,18 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+
+struct DebugUtilsEXT_Dispatch
+{
+    PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectNameEXT;
+    PFN_vkDebugMarkerSetObjectTagEXT vkDebugMarkerSetObjectTagEXT;
+    PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
+    PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
+    PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT;
+    PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT;
+};
+
+DebugUtilsEXT_Dispatch g_DebugUtilsEXT;
 
 VkBool32 VKAPI_PTR DebugUtilsMessengerCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -85,8 +98,6 @@ SampleResources R;
 
 void CreateSwapchainDependentResources()
 {
-    R.pSwapchain = std::make_unique<Sample::SwapChain>( *R.pDevice, R.surface, true );
-
     std::vector<vk::AttachmentDescription> renderPassAttachments = {
         vk::AttachmentDescription(
             vk::AttachmentDescriptionFlags(),
@@ -272,12 +283,19 @@ void RecordCommandBuffers()
     for( int i = 0; i < R.commandBuffers.size(); ++i )
     {
         R.commandBuffers[ i ].begin( vk::CommandBufferBeginInfo( vk::CommandBufferUsageFlagBits::eSimultaneousUse ) );
+
+        R.commandBuffers[ i ].beginDebugUtilsLabelEXT(
+            vk::DebugUtilsLabelEXT( "Frame", { 1, 1, 1, 1 } ), g_DebugUtilsEXT );
+
         R.commandBuffers[ i ].beginRenderPass( vk::RenderPassBeginInfo(
             R.renderPass,
             R.framebuffers[ i ],
             vk::Rect2D( vk::Offset2D(), R.pSwapchain->m_Extent ),
             1, &clearValue ),
             vk::SubpassContents::eInline );
+
+        R.commandBuffers[ i ].beginDebugUtilsLabelEXT(
+            vk::DebugUtilsLabelEXT( "Big triangle 10 times", { 1, 1, 1, 1 } ), g_DebugUtilsEXT );
 
         R.commandBuffers[ i ].bindPipeline( vk::PipelineBindPoint::eGraphics, R.pipeline );
         R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
@@ -289,13 +307,38 @@ void RecordCommandBuffers()
         R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
         R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
         R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+        R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
+
+        R.commandBuffers[ i ].endDebugUtilsLabelEXT( g_DebugUtilsEXT );
+
+        R.commandBuffers[ i ].beginDebugUtilsLabelEXT(
+            vk::DebugUtilsLabelEXT( "Small triangle", { 1, 1, 1, 1 } ), g_DebugUtilsEXT );
 
         R.commandBuffers[ i ].bindPipeline( vk::PipelineBindPoint::eGraphics, R.pipeline2 );
         R.commandBuffers[ i ].draw( 3, 1, 0, 0 );
 
+        R.commandBuffers[ i ].endDebugUtilsLabelEXT( g_DebugUtilsEXT );
         R.commandBuffers[ i ].endRenderPass();
+        R.commandBuffers[ i ].endDebugUtilsLabelEXT( g_DebugUtilsEXT );
         R.commandBuffers[ i ].end();
     }
+}
+
+void CreateSwapchain()
+{
+    if( !R.pSwapchain )
+    {
+        R.pSwapchain = std::make_unique<Sample::SwapChain>( *R.pDevice, R.surface, true );
+    }
+    else
+    {
+        R.pSwapchain->recreate();
+    }
+}
+
+void DestroySwapchain()
+{
+    R.pSwapchain.reset();
 }
 
 void DestroySwapchainDependentResources()
@@ -320,12 +363,12 @@ void DestroySwapchainDependentResources()
     R.commandBuffers.clear();
 
     R.pDevice->m_Device.destroyCommandPool( R.commandPool );
-
-    R.pSwapchain.reset();
 }
 
-int main()
+int main( int argc, const char** argv )
 {
+    const Sample::Args args( argc, argv );
+
     // Create an SDL window that supports Vulkan rendering.
     if( SDL_Init( SDL_INIT_VIDEO ) != 0 )
     {
@@ -354,14 +397,13 @@ int main()
         return 1;
     }
     extensions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
-    extensions.push_back( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
 
     // Use validation layers if this is a debug build
     std::vector<const char*> layers;
-    layers.push_back( "VK_LAYER_profiler" );
     #if defined(_DEBUG)
     layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
     #endif
+    //layers.push_back( "VK_LAYER_profiler" );
 
     // vk::ApplicationInfo allows the programmer to specifiy some basic information about the
     // program, which can be useful for layers and tools to provide more debug information.
@@ -394,19 +436,12 @@ int main()
     }
 
     // Prepare dispatch for debug marker extension
-    struct DebugUtilsEXT_Dispatch
-    {
-        PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectNameEXT;
-        PFN_vkDebugMarkerSetObjectTagEXT vkDebugMarkerSetObjectTagEXT;
-        PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
-        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
-    };
-
-    DebugUtilsEXT_Dispatch debugUtilsEXT;
-    debugUtilsEXT.vkDebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)R.instance.getProcAddr( "vkDebugMarkerSetObjectNameEXT" );
-    debugUtilsEXT.vkDebugMarkerSetObjectTagEXT = (PFN_vkDebugMarkerSetObjectTagEXT)R.instance.getProcAddr( "vkDebugMarkerSetObjectTagEXT" );
-    debugUtilsEXT.vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)R.instance.getProcAddr( "vkCreateDebugUtilsMessengerEXT" );
-    debugUtilsEXT.vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)R.instance.getProcAddr( "vkDestroyDebugUtilsMessengerEXT" );
+    g_DebugUtilsEXT.vkDebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)R.instance.getProcAddr( "vkDebugMarkerSetObjectNameEXT" );
+    g_DebugUtilsEXT.vkDebugMarkerSetObjectTagEXT = (PFN_vkDebugMarkerSetObjectTagEXT)R.instance.getProcAddr( "vkDebugMarkerSetObjectTagEXT" );
+    g_DebugUtilsEXT.vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)R.instance.getProcAddr( "vkCreateDebugUtilsMessengerEXT" );
+    g_DebugUtilsEXT.vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)R.instance.getProcAddr( "vkDestroyDebugUtilsMessengerEXT" );
+    g_DebugUtilsEXT.vkCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)R.instance.getProcAddr( "vkCmdBeginDebugUtilsLabelEXT" );
+    g_DebugUtilsEXT.vkCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)R.instance.getProcAddr( "vkCmdEndDebugUtilsLabelEXT" );
 
     // Create a debug messenger
     vk::DebugUtilsMessengerEXT debugMessenger = R.instance.createDebugUtilsMessengerEXT(
@@ -418,7 +453,7 @@ int main()
             vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
             vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
             DebugUtilsMessengerCallback ),
-        nullptr, debugUtilsEXT );
+        nullptr, g_DebugUtilsEXT );
 
     // Create a Vulkan surface for rendering
     VkSurfaceKHR c_surface;
@@ -432,11 +467,11 @@ int main()
     // Create the Vulkan device
     R.pDevice = std::make_unique<Sample::Device>( R.instance, R.surface, layers,
         std::vector<const char*>{
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_EXT_MEMORY_BUDGET_EXTENSION_NAME
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
         } );
 
     // Create swapchain-dependent resources
+    CreateSwapchain();
     CreateSwapchainDependentResources();
     RecordCommandBuffers();
 
@@ -474,15 +509,21 @@ int main()
 
         try
         {
-            R.pDevice->m_PresentQueue.presentKHR(
+            vk::Result result = R.pDevice->m_PresentQueue.presentKHR(
                 vk::PresentInfoKHR(
                     1, &R.pSwapchain->m_ImageRenderedSemaphores[ R.pSwapchain->m_AcquiredImageIndex ],
                     1, &R.pSwapchain->m_Swapchain,
                     &R.pSwapchain->m_AcquiredImageIndex ) );
+
+            if( result == vk::Result::eSuboptimalKHR )
+            {
+                throw vk::OutOfDateKHRError( "VK_SUBOPTIMAL_KHR" );
+            }
         }
         catch( vk::OutOfDateKHRError )
         {
             DestroySwapchainDependentResources();
+            CreateSwapchain();
             CreateSwapchainDependentResources();
             RecordCommandBuffers();
         }
@@ -490,13 +531,14 @@ int main()
 
     // Clean up.
     DestroySwapchainDependentResources();
+    DestroySwapchain();
 
     R.pDevice.reset();
 
     R.instance.destroySurfaceKHR( R.surface );
     SDL_DestroyWindow( window );
     SDL_Quit();
-    R.instance.destroyDebugUtilsMessengerEXT( debugMessenger, nullptr, debugUtilsEXT );
+    R.instance.destroyDebugUtilsMessengerEXT( debugMessenger, nullptr, g_DebugUtilsEXT );
     R.instance.destroy();
 
     return 0;

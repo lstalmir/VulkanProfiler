@@ -1,4 +1,5 @@
 #include "Device.h"
+#include "Args.h"
 #include <set>
 
 namespace Sample
@@ -8,23 +9,14 @@ namespace Sample
         const std::vector<const char*>& layers,
         const std::vector<const char*>& extensions )
     {
-        float bestSuitability = 0.f;
+        uint32_t gpu = 0;
 
-        for( auto physicalDevice : instance.enumeratePhysicalDevices() )
+        if( const char* pAdapterOpt = Args::Get( "-adapter" ) )
         {
-            float suitability = getPhysicalDeviceSuitability( physicalDevice, surface, layers, extensions );
-
-            if( suitability > bestSuitability )
-            {
-                bestSuitability = suitability;
-                m_PhysicalDevice = physicalDevice;
-            }
+            gpu = std::atoi( pAdapterOpt );
         }
 
-        if( !m_PhysicalDevice )
-        {
-            throw std::runtime_error( "Could not find suitable GPU device" );
-        }
+        m_PhysicalDevice = instance.enumeratePhysicalDevices().at( gpu );
 
         m_QueueFamilyIndices = getPhysicalDeviceQueueFamilyIndices( m_PhysicalDevice, surface );
         m_PhysicalDeviceProperties = m_PhysicalDevice.getProperties();
@@ -90,58 +82,6 @@ namespace Sample
             .value // Return type of createGraphicsPipeline has changed to (VkResult,VkPipeline) pair
             #endif
             ;
-    }
-
-    float Device::getPhysicalDeviceSuitability(
-        vk::PhysicalDevice device,
-        vk::SurfaceKHR surface,
-        const std::vector<const char*>& layers,
-        const std::vector<const char*>& extensions )
-    {
-        float suitability = 1.f;
-
-        // Find required queue family indices
-        auto queueFamilyIndices = getPhysicalDeviceQueueFamilyIndices( device, surface );
-
-        // Check if device supports required queue types
-        if( queueFamilyIndices.m_GraphicsQueueFamilyIndex == ~0 || queueFamilyIndices.m_PresentQueueFamilyIndex == ~0 )
-        {
-            suitability *= 0.f;
-        }
-
-        // Give bonus points for supporting both graphics and presentation commands in the same queue
-        if( queueFamilyIndices.m_GraphicsQueueFamilyIndex == queueFamilyIndices.m_PresentQueueFamilyIndex )
-        {
-            suitability *= 2.f;
-        }
-
-        // Give bonus points for GPU type
-        auto properties = device.getProperties();
-
-        switch( properties.deviceType )
-        {
-        case vk::PhysicalDeviceType::eDiscreteGpu: suitability *= 2.f; break;
-        case vk::PhysicalDeviceType::eIntegratedGpu: suitability *= 1.f; break;
-        case vk::PhysicalDeviceType::eVirtualGpu: suitability *= 0.8f; break;
-        case vk::PhysicalDeviceType::eCpu: suitability *= 0.5f; break;
-        case vk::PhysicalDeviceType::eOther: suitability *= 0.2f; break;
-        }
-
-        // Check support of required device extensions
-        std::set<std::string> _Extensions( extensions.cbegin(), extensions.cend() );
-
-        for( auto extensionProperties : device.enumerateDeviceExtensionProperties() )
-        {
-            _Extensions.erase( (const char*)extensionProperties.extensionName );
-        }
-
-        // Check if all extensions are available
-        if( !_Extensions.empty() )
-        {
-            suitability *= 0.f;
-        }
-
-        return suitability;
     }
 
     Device::QueueFamilyIndices Device::getPhysicalDeviceQueueFamilyIndices(

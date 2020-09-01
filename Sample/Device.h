@@ -40,12 +40,6 @@ namespace Sample
             const vk::PipelineColorBlendStateCreateInfo& colorBlendState );
 
     private:
-        float getPhysicalDeviceSuitability(
-            vk::PhysicalDevice device,
-            vk::SurfaceKHR surface,
-            const std::vector<const char*>& layers,
-            const std::vector<const char*>& extensions );
-
         QueueFamilyIndices getPhysicalDeviceQueueFamilyIndices(
             vk::PhysicalDevice device,
             vk::SurfaceKHR surface );

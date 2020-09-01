@@ -9,12 +9,14 @@ add_subdirectory (SDL)
 add_subdirectory (shaders)
 
 set (headers
+    "Args.h"
     "Device.h"
     "Image.h"
     "SwapChain.h"
     )
 
 set (sources
+    "Args.cpp"
     "Device.cpp"
     "Image.cpp"
     "Sample.cpp"
