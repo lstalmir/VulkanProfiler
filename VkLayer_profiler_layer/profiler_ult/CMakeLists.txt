@@ -12,6 +12,7 @@ add_subdirectory (shaders)
 set (tests
     "profiler_command_buffer_ult.cpp"
     "profiler_extensions_ult.cpp"
+    "profiler_memory_ult.cpp"
     )
 
 add_executable (profiler_ult

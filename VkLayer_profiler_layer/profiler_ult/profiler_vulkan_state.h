@@ -30,6 +30,7 @@ namespace Profiler
         VkInstance                  Instance;
         VkPhysicalDevice            PhysicalDevice;
         VkPhysicalDeviceProperties  PhysicalDeviceProperties;
+        VkPhysicalDeviceMemoryProperties PhysicalDeviceMemoryProperties;
         VkDevice                    Device;
         uint32_t                    QueueFamilyIndex;
         VkQueue                     Queue;
@@ -75,6 +76,7 @@ namespace Profiler
 
                 // Get selected physical device properties
                 vkGetPhysicalDeviceProperties( PhysicalDevice, &PhysicalDeviceProperties );
+                vkGetPhysicalDeviceMemoryProperties( PhysicalDevice, &PhysicalDeviceMemoryProperties );
             }
             
             // Select graphics queue
@@ -168,6 +170,7 @@ namespace Profiler
                 dd.Device.Handle = Device;
                 dd.Device.PhysicalDevice = PhysicalDevice;
                 dd.Device.Properties = PhysicalDeviceProperties;
+                dd.Device.MemoryProperties = PhysicalDeviceMemoryProperties;
                 dd.Device.pInstance = &id.Instance;
                 init_layer_device_dispatch_table( Device, vkGetDeviceProcAddr, dd.Device.Callbacks );
 

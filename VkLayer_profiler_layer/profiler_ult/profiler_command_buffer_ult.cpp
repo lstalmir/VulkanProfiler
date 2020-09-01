@@ -1,40 +1,10 @@
-#include "profiler/profiler.h"
-
-// Undefine names conflicting in gtest
-#undef None
-#undef Bool
-
-#include <gtest/gtest.h>
-
-#include "profiler_vulkan_state.h"
+#include "profiler_testing_common.h"
 #include "profiler_vulkan_simple_triangle.h"
 
 namespace Profiler
 {
-    class ProfilerCommandBufferULT : public testing::Test
+    class ProfilerCommandBufferULT : public ProfilerBaseULT
     {
-    protected:
-        VulkanState* Vk;
-
-        VkLayerDispatchTable DT;
-        VkLayerInstanceDispatchTable IDT;
-
-        DeviceProfiler* Prof;
-
-        void SetUp() override
-        {
-            Vk = new VulkanState;
-            DT = Vk->GetLayerDispatchTable();
-            IDT = Vk->GetLayerInstanceDispatchTable();
-
-            auto& dd = VkDevice_Functions::DeviceDispatch.Get( Vk->Device );
-            Prof = &dd.Profiler;
-        }
-
-        void TearDown() override
-        {
-            delete Vk;
-        }
     };
 
     TEST_F( ProfilerCommandBufferULT, AllocateCommandBuffer )
@@ -141,7 +111,7 @@ namespace Profiler
             ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
         { // Collect data
-            Prof->Present( {}, {} );
+            Prof->FinishFrame();
 
             const auto& data = Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );
@@ -279,7 +249,7 @@ namespace Profiler
             ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
         { // Validate first submit data
-            Prof->Present( {}, {} );
+            Prof->FinishFrame();
 
             const auto& data = Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );
@@ -300,7 +270,7 @@ namespace Profiler
             ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
         { // Validate second submit data
-            Prof->Present( {}, {} );
+            Prof->FinishFrame();
 
             const auto& data = Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );

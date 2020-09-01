@@ -1,38 +1,67 @@
-#include "VkLayer_profiler_layer.generated.h"
-#include "profiler_vulkan_state.h"
-
-#include "profiler_ext/VkProfilerEXT.h"
-
-#include <vulkan/vulkan.h>
-
-// Undefine names conflicting in gtest
-#undef None
-#undef Bool
-
-#include <gtest/gtest.h>
+#include "profiler_testing_common.h"
 
 #include <set>
 #include <string>
 
-namespace
-{
-    static inline std::set<std::string> Separate( const std::string& string, const char* pSeparators )
-    {
-        std::set<std::string> components;
-        size_t begin = 0;
-        while( begin < string.length() )
-        {
-            const size_t end = string.find_first_of( pSeparators, begin );
-            components.insert( string.substr( begin, end ) );
-            begin = end + 1;
-        }
-        return components;
-    }
-}
-
 namespace Profiler
 {
-    TEST( ProfilerExtensionsULT, EnumerateInstanceExtensionProperties )
+    class ProfilerExtensionsULT : public testing::Test
+    {
+    protected:
+        std::set<std::string> Variables;
+
+        // Helper functions for environment manipulation
+        inline void SetEnvironmentVariable( const char* pName, const char* pValue )
+        {
+            #if defined WIN32
+            SetEnvironmentVariableA( pName, pValue );
+            #elif defined __linux__
+            setenv( pName, pValue, true );
+            #else
+            #error SetEnvironmentVariable not implemented for this OS
+            #endif
+
+            Variables.insert( pName );
+        }
+
+        inline void ResetEnvironmentVariable( const char* pName )
+        {
+            #if defined WIN32
+            SetEnvironmentVariableA( pName, nullptr );
+            #elif defined __linux__
+            unsetenv( pName );
+            #else
+            #error ResetEnvironmentVariable not implemented for this OS
+            #endif
+
+            Variables.erase( pName );
+        }
+
+        inline void SetUp() override
+        {
+            Test::SetUp();
+
+            // Setup default environemnt for extension testing
+            // Assume tests are being run in default directory (VkLayer_profiler_layer/profiler_ult)
+            const std::filesystem::path layerPath = std::filesystem::current_path().parent_path();
+
+            SetEnvironmentVariable( "VK_INSTANCE_LAYERS", VK_LAYER_profiler_name );
+            SetEnvironmentVariable( "VK_LAYER_PATH", layerPath.string().c_str() );
+        }
+
+        inline void TearDown() override
+        {
+            std::set<std::string> variables = Variables;
+
+            // Cleanup environment before the next run
+            for( const std::string& variable : variables )
+            {
+                ResetEnvironmentVariable( variable.c_str() );
+            }
+        }
+    };
+
+    TEST_F( ProfilerExtensionsULT, EnumerateInstanceExtensionProperties )
     {
         uint32_t extensionCount = 0;
         vkEnumerateInstanceExtensionProperties( VK_LAYER_profiler_name, &extensionCount, nullptr );
@@ -59,7 +88,7 @@ namespace Profiler
         EXPECT_TRUE( unimplementedExtensions.empty() );
     }
 
-    TEST( ProfilerExtensionsULT, EnumerateDeviceExtensionProperties )
+    TEST_F( ProfilerExtensionsULT, EnumerateDeviceExtensionProperties )
     {
         // Create simple vulkan instance
         VulkanState Vk;
@@ -90,14 +119,8 @@ namespace Profiler
         EXPECT_TRUE( unimplementedExtensions.empty() );
     }
 
-    TEST( ProfilerExtensionsULT, DebugMarkerEXT )
+    TEST_F( ProfilerExtensionsULT, DebugMarkerEXT )
     {
-        #ifdef WIN32
-        SetEnvironmentVariableA( "VK_INSTANCE_LAYERS", VK_LAYER_profiler_name );
-        #elif __linux__
-        setenv( "VK_INSTANCE_LAYERS", VK_LAYER_profiler_name, true );
-        #endif
-
         // Create vulkan instance with profiler layer enabled externally
         VulkanState Vk;
 
@@ -106,11 +129,17 @@ namespace Profiler
         EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdDebugMarkerInsertEXT" ) );
         EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkDebugMarkerSetObjectNameEXT" ) );
         EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkDebugMarkerSetObjectTagEXT" ) );
+    }
 
-        #ifdef WIN32
-        SetEnvironmentVariableA( "VK_INSTANCE_LAYERS", nullptr );
-        #elif __linux__
-        unsetenv( "VK_INSTANCE_LAYERS" );
-        #endif
+    TEST_F( ProfilerExtensionsULT, DebugUtilsEXT )
+    {
+        // Create vulkan instance with profiler layer enabled externally
+        VulkanState Vk;
+
+        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdBeginDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdEndDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdInsertDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkSetDebugUtilsObjectNameEXT" ) );
+        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkSetDebugUtilsObjectTagEXT" ) );
     }
 }
