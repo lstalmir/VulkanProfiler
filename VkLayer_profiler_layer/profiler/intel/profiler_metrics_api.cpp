@@ -546,10 +546,10 @@ namespace Profiler
             std::strcmp( pUnit, "Hz" ) == 0 )
         {
             if( std::strcmp( pUnit, "MHz" ) == 0 )
-                factor = 1.0 / 1'000'000.0;
+                factor = 1'000'000.0;
 
             if( std::strcmp( pUnit, "kHz" ) == 0 )
-                factor = 1.0 / 1'000.0;
+                factor = 1'000.0;
 
             return VK_PROFILER_PERFORMANCE_COUNTER_UNIT_HERTZ_EXT;
         }
