@@ -6,7 +6,7 @@
 // Use implementation provided by the ImGui
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM, LPARAM );
 
-static LockableUnorderedMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
+static ConcurrentMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
 static HHOOK g_GetMessageHook;
 
 /***********************************************************************************\
@@ -23,7 +23,7 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd )
 {
     // Context is a kind of lock for processing - WindowProc will invoke ImGui implementation as long
     // as this context resides in the map
-    g_pWin32Contexts.interlocked_try_emplace( m_AppWindow, this );
+    g_pWin32Contexts.insert( m_AppWindow, this );
 
     if( !ImGui_ImplWin32_Init( m_AppWindow ) )
         InitError();
@@ -47,7 +47,7 @@ Description:
 ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
 {
     // Erase context from map
-    g_pWin32Contexts.interlocked_erase( m_AppWindow );
+    g_pWin32Contexts.remove( m_AppWindow );
 
     ImGui_ImplWin32_Shutdown();
 }
@@ -120,7 +120,7 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
             // Process message in ImGui
             ImGui_ImplWin32_Context* context = nullptr;
 
-            if( g_pWin32Contexts.interlocked_find( msg.hwnd, &context ) )
+            if( g_pWin32Contexts.find( msg.hwnd, &context ) )
             {
                 // Capture only mouse events
                 if( (msg.message >= WM_MOUSEFIRST) && (msg.message <= WM_MOUSELAST) )

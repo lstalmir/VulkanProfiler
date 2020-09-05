@@ -591,6 +591,11 @@ namespace Profiler
     {
         uint64_t m_TimeNs = {};
         float    m_FramesPerSec = {};
+
+        uint64_t m_CommandBufferAccessTimeNs = {};
+        uint64_t m_PipelineAccessTimeNs = {};
+        uint64_t m_RenderPassAccessTimeNs = {};
+        uint64_t m_ShaderModuleAccessTimeNs = {};
     };
 
     /***********************************************************************************\

@@ -23,6 +23,10 @@
         }                                   \
     }
 
+// Helper macro for converting non-string literals to C string literals
+#define PROFILER_MAKE_STRING_IMPL( LIT ) #LIT
+#define PROFILER_MAKE_STRING( LIT ) PROFILER_MAKE_STRING_IMPL( LIT )
+
 namespace Profiler
 {
     /***********************************************************************************\

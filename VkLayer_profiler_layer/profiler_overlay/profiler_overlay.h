@@ -124,6 +124,8 @@ namespace Profiler
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
+        void InitializeImGuiDefaultFont();
+
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
         void UpdateMemoryTab();

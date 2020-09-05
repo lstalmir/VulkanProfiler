@@ -7,6 +7,8 @@ project (profiler_overlay)
 
 set (headers
     "profiler_overlay.h"
+    "lang/en_us.h"
+    "lang/pl_pl.h"
     )
 
 set (sources

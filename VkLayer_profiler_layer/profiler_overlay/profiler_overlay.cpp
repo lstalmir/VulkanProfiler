@@ -8,8 +8,21 @@
 #include "imgui_widgets/imgui_histogram_ex.h"
 #include "imgui_widgets/imgui_table_ex.h"
 
+// Languages
+#include "lang/en_us.h"
+#include "lang/pl_pl.h"
+
+#if 1
+using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
+#else
+using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
+#endif
+
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "imgui_impl_win32.h"
+#endif
+#ifdef WIN32
+#include <ShlObj.h> // SHGetKnownFolderPath
 #endif
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
@@ -167,10 +180,7 @@ namespace Profiler
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_None;
 
-            // Build atlas
-            unsigned char* tex_pixels = NULL;
-            int tex_w, tex_h;
-            io.Fonts->GetTexDataAsRGBA32( &tex_pixels, &tex_w, &tex_h );
+            InitializeImGuiDefaultFont();
         }
 
         // Init window
@@ -692,21 +702,20 @@ namespace Profiler
         m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
-
-        ImGui::Begin( "VkProfiler" );
+        ImGui::Begin( Lang::WindowName );
 
         // Update input clipping rect
         m_pImGuiWindowContext->UpdateWindowRect();
 
         // GPU properties
-        ImGui::Text( "Device: %s", m_pDevice->Properties.deviceName );
+        ImGui::Text( "%s: %s", Lang::Device, m_pDevice->Properties.deviceName );
 
         TextAlignRight( "Vulkan %u.%u",
             VK_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
             VK_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
 
         // Keep results
-        ImGui::Checkbox( "Pause", &m_Pause );
+        ImGui::Checkbox( Lang::Pause, &m_Pause );
 
         if( !m_Pause )
         {
@@ -716,22 +725,22 @@ namespace Profiler
 
         ImGui::BeginTabBar( "" );
 
-        if( ImGui::BeginTabItem( "Performance" ) )
+        if( ImGui::BeginTabItem( Lang::Performance ) )
         {
             UpdatePerformanceTab();
             ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( "Memory" ) )
+        if( ImGui::BeginTabItem( Lang::Memory ) )
         {
             UpdateMemoryTab();
             ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( "Statistics" ) )
+        if( ImGui::BeginTabItem( Lang::Statistics ) )
         {
             UpdateStatisticsTab();
             ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( "Settings" ) )
+        if( ImGui::BeginTabItem( Lang::Settings ) )
         {
             UpdateSettingsTab();
             ImGui::EndTabItem();
@@ -814,6 +823,65 @@ namespace Profiler
         m_Window = window;
 
         return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InitializeImGuiDefaultFont
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::InitializeImGuiDefaultFont()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+
+        // Locate system fonts directory
+        std::filesystem::path fontsPath;
+
+        #ifdef WIN32
+        {
+            PWSTR pFontsDirectoryPath = nullptr;
+
+            if( SUCCEEDED( SHGetKnownFolderPath( FOLDERID_Fonts, KF_FLAG_DEFAULT, nullptr, &pFontsDirectoryPath ) ) )
+            {
+                fontsPath = pFontsDirectoryPath;
+                CoTaskMemFree( pFontsDirectoryPath );
+            }
+        }
+        #endif
+        #ifdef __linux__
+        {
+            #error Implement font directory path finder
+        }
+        #endif
+
+        std::filesystem::path fontPath;
+
+        // List of fonts to use (in this order)
+        const char* fonts[] = { "segoeui.ttf" };
+
+        for( const char* font : fonts )
+        {
+            fontPath = fontsPath / font;
+            if( std::filesystem::exists( fontPath ) )
+                break;
+            else fontPath = "";
+        }
+
+        if( !fontPath.empty() )
+        {
+            // Include all glyphs in the font to support non-latin letters
+            const ImWchar range[] = { 0x20, 0xFFFF, 0 };
+
+            io.Fonts->AddFontFromFileTTF( fontPath.string().c_str(), 16.f, nullptr, range );
+        }
+
+        // Build atlas
+        unsigned char* tex_pixels = NULL;
+        int tex_w, tex_h;
+        io.Fonts->GetTexDataAsRGBA32( &tex_pixels, &tex_w, &tex_h );
     }
 
     /***********************************************************************************\
@@ -926,9 +994,9 @@ namespace Profiler
             const float gpuTime = m_Data.m_Ticks * m_TimestampPeriod;
             const float cpuTime = m_Data.m_CPU.m_TimeNs / 1000000.f;
 
-            ImGui::Text( "GPU Time: %.2f ms", gpuTime );
-            ImGui::Text( "CPU Time: %.2f ms", cpuTime );
-            TextAlignRight( "%.1f fps", m_Data.m_CPU.m_FramesPerSec );
+            ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTime );
+            ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTime );
+            TextAlignRight( "%.1f %s", m_Data.m_CPU.m_FramesPerSec, Lang::FPS );
         }
 
         // Histogram
@@ -936,15 +1004,15 @@ namespace Profiler
             std::vector<float> contributions;
 
             static const char* groupOptions[] = {
-                "Render passes",
-                "Pipelines",
-                "Drawcalls" };
+                Lang::RenderPasses,
+                Lang::Pipelines,
+                Lang::Drawcalls };
 
             const char* selectedOption = groupOptions[ (size_t)m_HistogramGroupMode ];
 
             // Select group mode
             {
-                if( ImGui::BeginCombo( "Histogram groups", selectedOption, ImGuiComboFlags_NoPreview ) )
+                if( ImGui::BeginCombo( Lang::HistogramGroups, selectedOption, ImGuiComboFlags_NoPreview ) )
                 {
                     for( size_t i = 0; i < std::extent_v<decltype(groupOptions)>; ++i )
                     {
@@ -1027,7 +1095,7 @@ namespace Profiler
             }
 
             char pHistogramDescription[ 32 ];
-            sprintf( pHistogramDescription, "GPU Cycles (%s)", selectedOption );
+            sprintf( pHistogramDescription, "%s (%s)", Lang::GPUCycles, selectedOption );
 
             ImGui::PushItemWidth( -1 );
             ImGuiX::PlotHistogramEx(
@@ -1039,7 +1107,7 @@ namespace Profiler
         }
 
         // Top pipelines
-        if( ImGui::CollapsingHeader( "Top pipelines" ) )
+        if( ImGui::CollapsingHeader( Lang::TopPipelines ) )
         {
             uint32_t i = 0;
 
@@ -1062,7 +1130,7 @@ namespace Profiler
 
         // Vendor-specific
         if( !m_Data.m_VendorMetrics.empty() &&
-            ImGui::CollapsingHeader( "Performance counters" ) )
+            ImGui::CollapsingHeader( Lang::PerformanceCounters ) )
         {
             assert( m_Data.m_VendorMetrics.size() == m_VendorMetricProperties.size() );
 
@@ -1073,8 +1141,8 @@ namespace Profiler
                 ImGuiTableFlags_Borders );
 
             // Headers
-            ImGui::TableSetupColumn( "Metric", ImGuiTableColumnFlags_WidthAlwaysAutoResize );
-            ImGui::TableSetupColumn( "Frame", ImGuiTableColumnFlags_WidthStretch );
+            ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthAlwaysAutoResize );
+            ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
             ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthAlwaysAutoResize );
             ImGui::TableAutoHeaders();
 
@@ -1150,18 +1218,18 @@ namespace Profiler
         }
 
         // Frame browser
-        if( ImGui::CollapsingHeader( "Frame browser" ) )
+        if( ImGui::CollapsingHeader( Lang::FrameBrowser ) )
         {
             // Select sort mode
             {
                 static const char* sortOptions[] = {
-                    "Submission order",
-                    "Duration descending",
-                    "Duration ascending" };
+                    Lang::SubmissionOrder,
+                    Lang::DurationDescending,
+                    Lang::DurationAscending };
 
                 const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
 
-                ImGui::Text( "Sort" );
+                ImGui::Text( Lang::Sort );
                 ImGui::SameLine();
 
                 if( ImGui::BeginCombo( "FrameBrowserSortMode", selectedOption ) )
@@ -1245,6 +1313,26 @@ namespace Profiler
                 index.SubmitBatchIndex++;
             }
         }
+
+        #if PROFILER_MAP_PERF_COUNTERS
+        if( ImGui::CollapsingHeader( Lang::CustomStatistics ) )
+        {
+            ImGui::TextUnformatted( Lang::Container );
+            TextAlignRight( "%s", PROFILER_MAKE_STRING( PROFILER_MAP_BASE ) );
+
+            ImGui::TextUnformatted( "VkCommandBuffer" );
+            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_CommandBufferAccessTimeNs / 1000000.f );
+
+            ImGui::TextUnformatted( "VkPipeline" );
+            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_PipelineAccessTimeNs / 1000000.f );
+
+            ImGui::TextUnformatted( "VkRenderPass" );
+            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_RenderPassAccessTimeNs / 1000000.f );
+
+            ImGui::TextUnformatted( "VkShaderModule" );
+            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_ShaderModuleAccessTimeNs / 1000000.f );
+        }
+        #endif
     }
 
     /***********************************************************************************\
@@ -1261,13 +1349,13 @@ namespace Profiler
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pDevice->MemoryProperties;
 
-        if( ImGui::CollapsingHeader( "Memory heap usage" ) )
+        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
             for( int i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
-                ImGui::Text( "Heap %u", i );
+                ImGui::Text( "%s %u", Lang::MemoryHeap, i );
 
-                TextAlignRight( "%u allocations", m_Data.m_Memory.m_Heaps[ i ].m_AllocationCount );
+                TextAlignRight( "%u %s", m_Data.m_Memory.m_Heaps[ i ].m_AllocationCount, Lang::Allocations );
 
                 float usage = 0.f;
                 char usageStr[ 64 ] = {};
@@ -1313,8 +1401,8 @@ namespace Profiler
                         // Prepare descriptor for memory type
                         std::stringstream sstr;
 
-                        sstr << "Memory type index " << typeIndex << "\n"
-                            << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " allocations\n";
+                        sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
+                            << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
 
                         if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
                         {
@@ -1390,21 +1478,50 @@ namespace Profiler
     {
         // Draw count statistics
         {
-            ImGui::Text( "Draw calls:                       %u", m_Data.m_Stats.m_DrawCount );
-            ImGui::Text( "Draw calls (indirect):            %u", m_Data.m_Stats.m_DispatchIndirectCount );
-            ImGui::Text( "Dispatch calls:                   %u", m_Data.m_Stats.m_DispatchCount );
-            ImGui::Text( "Dispatch calls (indirect):        %u", m_Data.m_Stats.m_DispatchIndirectCount );
-            ImGui::Text( "Copy buffer calls:                %u", m_Data.m_Stats.m_CopyBufferCount );
-            ImGui::Text( "Copy buffer-to-image calls:       %u", m_Data.m_Stats.m_CopyBufferToImageCount );
-            ImGui::Text( "Copy image calls:                 %u", m_Data.m_Stats.m_CopyImageCount );
-            ImGui::Text( "Copy image-to-buffer calls:       %u", m_Data.m_Stats.m_CopyImageToBufferCount );
-            ImGui::Text( "Pipeline barriers:                %u", m_Data.m_Stats.m_PipelineBarrierCount );
-            ImGui::Text( "Color clear calls:                %u", m_Data.m_Stats.m_ClearColorCount );
-            ImGui::Text( "Depth-stencil clear calls:        %u", m_Data.m_Stats.m_ClearDepthStencilCount );
-            ImGui::Text( "Resolve calls:                    %u", m_Data.m_Stats.m_ResolveCount );
-            ImGui::Text( "Blit calls:                       %u", m_Data.m_Stats.m_BlitImageCount );
-            ImGui::Text( "Fill buffer calls:                %u", m_Data.m_Stats.m_FillBufferCount );
-            ImGui::Text( "Update buffer calls:              %u", m_Data.m_Stats.m_UpdateBufferCount );
+            ImGui::TextUnformatted( Lang::DrawCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_DrawCount );
+
+            ImGui::TextUnformatted( Lang::DrawCallsIndirect );
+            TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
+
+            ImGui::TextUnformatted( Lang::DispatchCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_DispatchCount );
+
+            ImGui::TextUnformatted( Lang::DispatchCallsIndirect );
+            TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
+
+            ImGui::TextUnformatted( Lang::CopyBufferCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferCount );
+
+            ImGui::TextUnformatted( Lang::CopyBufferToImageCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferToImageCount );
+
+            ImGui::TextUnformatted( Lang::CopyImageCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageCount );
+
+            ImGui::TextUnformatted( Lang::CopyImageToBufferCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageToBufferCount );
+
+            ImGui::TextUnformatted( Lang::PipelineBarriers );
+            TextAlignRight( "%u", m_Data.m_Stats.m_PipelineBarrierCount );
+
+            ImGui::TextUnformatted( Lang::ColorClearCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_ClearColorCount );
+
+            ImGui::TextUnformatted( Lang::DepthStencilClearCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_ClearDepthStencilCount );
+
+            ImGui::TextUnformatted( Lang::ResolveCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_ResolveCount );
+
+            ImGui::TextUnformatted( Lang::BlitCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_BlitImageCount );
+
+            ImGui::TextUnformatted( Lang::FillBufferCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_FillBufferCount );
+
+            ImGui::TextUnformatted( Lang::UpdateBufferCalls );
+            TextAlignRight( "%u", m_Data.m_Stats.m_UpdateBufferCount );
         }
     }
 
@@ -1422,21 +1539,21 @@ namespace Profiler
         // Select synchronization mode
         {
             static const char* groupOptions[] = {
-                "Present",
-                "Submit" };
+                Lang::Present,
+                Lang::Submit };
 
             // TMP
             static int selectedOption = 0;
             int previousSelectedOption = selectedOption;
 
-            ImGui::Combo( "Sync mode", &selectedOption, groupOptions, 2 );
+            ImGui::Combo( Lang::SyncMode, &selectedOption, groupOptions, 2 );
 
             if( selectedOption != previousSelectedOption )
             {
                 vkSetProfilerSyncModeEXT( m_pDevice->Handle, (VkProfilerSyncModeEXT)selectedOption );
             }
 
-            ImGui::Checkbox( "Show debug labels", &m_ShowDebugLabels );
+            ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
 
             //if( ImGui::BeginCombo( "Sync mode", selectedOption ) )
             //{

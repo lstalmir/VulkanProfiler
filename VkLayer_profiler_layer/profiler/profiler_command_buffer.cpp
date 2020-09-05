@@ -609,7 +609,7 @@ namespace Profiler
                             for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
                             {
                                 VkCommandBuffer handle = commandBuffer.m_Handle;
-                                ProfilerCommandBuffer& profilerCommandBuffer = m_Profiler.m_CommandBuffers.at( handle );
+                                ProfilerCommandBuffer& profilerCommandBuffer = m_Profiler.m_CommandBuffers.unsafe_at( handle );
 
                                 // Collect secondary command buffer data
                                 commandBuffer = profilerCommandBuffer.GetData();

@@ -94,6 +94,8 @@ namespace Profiler
 
         ProfilerConfig          m_Config;
 
+        mutable std::mutex      m_FreeCommandBuffersMutex;
+
         mutable std::mutex      m_DataMutex;
         DeviceProfilerFrameData m_Data;
 
@@ -105,15 +107,20 @@ namespace Profiler
         CpuTimestampCounter     m_CpuTimestampCounter;
         CpuEventFrequencyCounter m_CpuFpsCounter;
 
-        LockableUnorderedMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
+        uint64_t                m_CommandBufferAccessTimeNs;
+        uint64_t                m_PipelineAccessTimeNs;
+        uint64_t                m_RenderPassAccessTimeNs;
+        uint64_t                m_ShaderModuleAccessTimeNs;
+
+        ConcurrentMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         DeviceProfilerMemoryData m_MemoryData;
 
-        LockableUnorderedMap<VkCommandBuffer, ProfilerCommandBuffer> m_CommandBuffers;
+        ConcurrentMap<VkCommandBuffer, ProfilerCommandBuffer> m_CommandBuffers;
 
-        LockableUnorderedMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
-        LockableUnorderedMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
+        ConcurrentMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
+        ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
 
-        LockableUnorderedMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
+        ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
 
         VkFence                 m_SubmitFence;
 

@@ -143,7 +143,7 @@ namespace Profiler
         }
 
         // Update event counter
-        inline void Update()
+        inline bool Update()
         {
             m_EventCount++;
 
@@ -153,18 +153,26 @@ namespace Profiler
             if( delta > m_RefreshRate )
             {
                 m_EventFrequency = (m_EventCount) / (delta.count() * REFRESH_RATE_TO_SEC);
+                m_LastEventCount = m_EventCount;
                 m_EventCount = 0;
                 m_BeginTimestamp = timestamp;
+                return true;
             }
+
+            return false;
         }
 
         // Get current event frequency
         inline float GetValue() const { return m_EventFrequency; }
 
+        // Get last event count
+        inline uint32_t GetEventCount() const { return m_LastEventCount; }
+
     protected:
         TimePointType m_BeginTimestamp;
         const DurationType m_RefreshRate;
         uint32_t m_EventCount;
+        uint32_t m_LastEventCount;
         float m_EventFrequency;
 
         static constexpr float REFRESH_RATE_TO_SEC =

@@ -340,21 +340,21 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBuffer& DeviceProfiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
     {
-        return m_CommandBuffers.interlocked_at( commandBuffer );
+        return m_CommandBuffers.at( commandBuffer );
     }
 
     /***********************************************************************************\
     \***********************************************************************************/
     DeviceProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
     {
-        return m_Pipelines.interlocked_at( pipeline );
+        return m_Pipelines.at( pipeline );
     }
 
     /***********************************************************************************\
     \***********************************************************************************/
     DeviceProfilerRenderPass& DeviceProfiler::GetRenderPass( VkRenderPass renderPass )
     {
-        return m_RenderPasses.interlocked_at( renderPass );
+        return m_RenderPasses.at( renderPass );
     }
 
     /***********************************************************************************\
@@ -374,11 +374,8 @@ namespace Profiler
         {
             VkCommandBuffer commandBuffer = pCommandBuffers[ i ];
 
-            m_CommandBuffers.try_emplace( commandBuffer,
-                std::ref( *this ),
-                commandPool,
-                commandBuffer,
-                level );
+            m_CommandBuffers.unsafe_insert( commandBuffer,
+                ProfilerCommandBuffer( std::ref( *this ), commandPool, commandBuffer, level ) );
         }
     }
 
@@ -393,7 +390,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        std::scoped_lock lk( m_CommandBuffers );
+        std::scoped_lock lk( m_FreeCommandBuffersMutex, m_CommandBuffers );
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -412,7 +409,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( VkCommandPool commandPool )
     {
-        std::scoped_lock lk( m_CommandBuffers );
+        std::scoped_lock lk( m_FreeCommandBuffersMutex, m_CommandBuffers );
 
         for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
         {
@@ -442,7 +439,7 @@ namespace Profiler
 
             SetDefaultPipelineObjectName( profilerPipeline );
 
-            m_Pipelines.interlocked_emplace( pPipelines[i], profilerPipeline );
+            m_Pipelines.insert( pPipelines[i], profilerPipeline );
         }
     }
 
@@ -466,7 +463,7 @@ namespace Profiler
 
             SetDefaultPipelineObjectName( profilerPipeline );
 
-            m_Pipelines.interlocked_emplace( pPipelines[ i ], profilerPipeline );
+            m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
     }
 
@@ -480,7 +477,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyPipeline( VkPipeline pipeline )
     {
-        m_Pipelines.interlocked_erase( pipeline );
+        m_Pipelines.remove( pipeline );
     }
 
     /***********************************************************************************\
@@ -496,7 +493,7 @@ namespace Profiler
         // Compute shader code hash to use later
         const uint32_t hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
 
-        m_ShaderModuleHashes.interlocked_emplace( module, hash );
+        m_ShaderModuleHashes.insert( module, hash );
     }
 
     /***********************************************************************************\
@@ -509,7 +506,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
     {
-        m_ShaderModuleHashes.interlocked_erase( module );
+        m_ShaderModuleHashes.remove( module );
     }
 
     /***********************************************************************************\
@@ -542,7 +539,7 @@ namespace Profiler
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
         // Store render pass
-        m_RenderPasses.interlocked_emplace( renderPass, deviceProfilerRenderPass );
+        m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
     }
 
     /***********************************************************************************\
@@ -604,7 +601,7 @@ namespace Profiler
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
         // Store render pass
-        m_RenderPasses.interlocked_emplace( renderPass, deviceProfilerRenderPass );
+        m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
     }
 
     /***********************************************************************************\
@@ -617,7 +614,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyRenderPass( VkRenderPass renderPass )
     {
-        m_RenderPasses.interlocked_erase( renderPass );
+        m_RenderPasses.remove( renderPass );
     }
 
     /***********************************************************************************\
@@ -671,9 +668,6 @@ namespace Profiler
     {
         CpuTimestampCounter commandBufferLookupTimeCounter;
 
-        // Block access from other threads
-        std::scoped_lock lk( m_CommandBuffers );
-
         // Wait for the submitted command buffers to execute
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
         {
@@ -699,7 +693,7 @@ namespace Profiler
                 VkCommandBuffer commandBuffer = submitInfo.pCommandBuffers[commandBufferIdx];
 
                 commandBufferLookupTimeCounter.Begin();
-                auto& profilerCommandBuffer = m_CommandBuffers.at( commandBuffer );
+                auto& profilerCommandBuffer = GetCommandBuffer( commandBuffer );
                 commandBufferLookupTimeCounter.End();
 
                 // Dirty command buffer profiling data
@@ -739,12 +733,10 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame()
     {
-        std::scoped_lock lk( m_CommandBuffers, m_DataMutex );
-
-        m_CpuTimestampCounter.End();
+        std::scoped_lock lk( m_FreeCommandBuffersMutex, m_DataMutex );
 
         // Update FPS counter
-        m_CpuFpsCounter.Update();
+        const bool updatePerfCounters = m_CpuFpsCounter.Update();
 
         m_CurrentFrame++;
 
@@ -760,14 +752,40 @@ namespace Profiler
         // TODO: Move to memory tracker
         m_Data.m_Memory = m_MemoryData;
 
+        m_CpuTimestampCounter.End();
+
         // TODO: Move to CPU tracker
         m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
 
+        m_CpuTimestampCounter.Begin();
+
+        // Container performance counters
+        if( updatePerfCounters )
+        {
+            const uint32_t eventCount = std::max( 1U, m_CpuFpsCounter.GetEventCount() );
+
+            // Store average access time for future reports
+            m_CommandBufferAccessTimeNs = m_CommandBuffers.get_accumulated_access_time() / eventCount;
+            m_PipelineAccessTimeNs = m_Pipelines.get_accumulated_access_time() / eventCount;
+            m_RenderPassAccessTimeNs = m_RenderPasses.get_accumulated_access_time() / eventCount;
+            m_ShaderModuleAccessTimeNs = m_ShaderModuleHashes.get_accumulated_access_time() / eventCount;
+
+            // Prepare counters for the next profiling run
+            m_CommandBuffers.reset_perf_counters();
+            m_Pipelines.reset_perf_counters();
+            m_RenderPasses.reset_perf_counters();
+            m_ShaderModuleHashes.reset_perf_counters();
+        }
+
+        // Container performance counters
+        m_Data.m_CPU.m_CommandBufferAccessTimeNs = m_CommandBufferAccessTimeNs;
+        m_Data.m_CPU.m_PipelineAccessTimeNs = m_PipelineAccessTimeNs;
+        m_Data.m_CPU.m_RenderPassAccessTimeNs = m_RenderPassAccessTimeNs;
+        m_Data.m_CPU.m_ShaderModuleAccessTimeNs = m_ShaderModuleAccessTimeNs;
+
         // Prepare aggregator for the next frame
         m_DataAggregator.Reset();
-
-        m_CpuTimestampCounter.Begin();
     }
 
     /***********************************************************************************\
@@ -783,7 +801,7 @@ namespace Profiler
         std::scoped_lock lk( m_Allocations );
 
         // Insert allocation info to the map, it will be needed during deallocation.
-        m_Allocations.emplace( allocatedMemory, *pAllocateInfo );
+        m_Allocations.unsafe_insert( allocatedMemory, *pAllocateInfo );
 
         const VkMemoryType& memoryType =
             m_pDevice->MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
@@ -812,7 +830,7 @@ namespace Profiler
     {
         std::scoped_lock lk( m_Allocations );
 
-        auto it = m_Allocations.find( allocatedMemory );
+        auto it = m_Allocations.unsafe_find( allocatedMemory );
         if( it != m_Allocations.end() )
         {
             const VkMemoryType& memoryType =
@@ -830,7 +848,7 @@ namespace Profiler
             m_MemoryData.m_TotalAllocationSize -= it->second.allocationSize;
 
             // Remove allocation entry from the map
-            m_Allocations.erase( it );
+            m_Allocations.unsafe_remove( it );
         }
     }
 
@@ -849,7 +867,7 @@ namespace Profiler
         for( uint32_t i = 0; i < createInfo.stageCount; ++i )
         {
             // VkShaderModule entry should already be in the map
-            uint32_t hash = m_ShaderModuleHashes.interlocked_at( createInfo.pStages[i].module );
+            uint32_t hash = m_ShaderModuleHashes.at( createInfo.pStages[i].module );
 
             const char* entrypoint = createInfo.pStages[i].pName;
 
@@ -891,7 +909,7 @@ namespace Profiler
         ProfilerShaderTuple tuple;
 
         // VkShaderModule entry should already be in the map
-        uint32_t hash = m_ShaderModuleHashes.interlocked_at( createInfo.stage.module );
+        uint32_t hash = m_ShaderModuleHashes.at( createInfo.stage.module );
 
         const char* entrypoint = createInfo.stage.pName;
 
@@ -962,7 +980,7 @@ namespace Profiler
         // Check if new value has been created
         assert( result.second && "Multiple initialization of internal pipeline - possible hash conflict" );
 
-        m_Pipelines.interlocked_emplace( internalPipeline.m_Handle, internalPipeline );
+        m_Pipelines.insert( internalPipeline.m_Handle, internalPipeline );
     }
 
     /***********************************************************************************\
@@ -978,14 +996,12 @@ namespace Profiler
         // Assume m_CommandBuffers map is already locked
         assert( !m_CommandBuffers.try_lock() );
 
-        auto it = m_CommandBuffers.find( commandBuffer );
-        if( it != m_CommandBuffers.end() )
-        {
-            // Collect command buffer data now, command buffer won't be available later
-            m_DataAggregator.AppendData( &it->second, it->second.GetData() );
-        }
+        auto& it = m_CommandBuffers.unsafe_find( commandBuffer );
 
-        return m_CommandBuffers.erase( it );
+        // Collect command buffer data now, command buffer won't be available later
+        m_DataAggregator.AppendData( &it->second, it->second.GetData() );
+
+        return m_CommandBuffers.unsafe_remove( it );
     }
 
     /***********************************************************************************\
@@ -1004,6 +1020,6 @@ namespace Profiler
         // Collect command buffer data now, command buffer won't be available later
         m_DataAggregator.AppendData( &it->second, it->second.GetData() );
 
-        return m_CommandBuffers.erase( it );
+        return m_CommandBuffers.unsafe_remove( it );
     }
 }
