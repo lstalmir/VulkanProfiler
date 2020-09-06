@@ -1,4 +1,5 @@
 #include "Args.h"
+#include <cstring>
 
 namespace Sample
 {

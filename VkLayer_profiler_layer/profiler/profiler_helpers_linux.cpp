@@ -69,6 +69,46 @@ namespace Profiler
         printf( "%s", str );
     }
 
+    /***********************************************************************************\
+
+    Function:
+        FindFile
+
+    Description:
+        Find file in directory.
+
+    \***********************************************************************************/
+    std::filesystem::path ProfilerPlatformFunctions::FindFile(
+        const std::filesystem::path& directory,
+        const std::filesystem::path& filename,
+        const bool recurse )
+    {
+        if( std::filesystem::exists( directory ) )
+        {
+            // Enumerate all files in the directory
+            for( auto directoryEntry : std::filesystem::directory_iterator( directory ) )
+            {
+                if( directoryEntry.path().filename() == filename )
+                {
+                    return directoryEntry;
+                }
+
+                // Check in subdirectories
+                if( directoryEntry.is_directory() && recurse )
+                {
+                    std::filesystem::path result = FindFile( directoryEntry, filename, recurse );
+
+                    if( !result.empty() )
+                    {
+                        return result;
+                    }
+                }
+            }
+        }
+
+        return "";
+    }
+
 }
 
 #endif // __linux__

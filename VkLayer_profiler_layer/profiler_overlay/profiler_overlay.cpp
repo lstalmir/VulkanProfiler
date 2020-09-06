@@ -1,8 +1,12 @@
 #include "profiler_overlay.h"
+
 #include "imgui_impl_vulkan_layer.h"
 #include <string>
 #include <sstream>
 #include <stack>
+#include <fstream>
+
+#include "utils/lockable_unordered_map.h"
 
 #include "imgui_widgets/imgui_breakdown_ex.h"
 #include "imgui_widgets/imgui_histogram_ex.h"
@@ -837,11 +841,14 @@ namespace Profiler
     {
         ImGuiIO& io = ImGui::GetIO();
 
-        // Locate system fonts directory
-        std::filesystem::path fontsPath;
+        // Absolute path to the selected font
+        std::filesystem::path fontPath;
 
         #ifdef WIN32
         {
+            // Locate system fonts directory
+            std::filesystem::path fontsPath;
+
             PWSTR pFontsDirectoryPath = nullptr;
 
             if( SUCCEEDED( SHGetKnownFolderPath( FOLDERID_Fonts, KF_FLAG_DEFAULT, nullptr, &pFontsDirectoryPath ) ) )
@@ -849,26 +856,89 @@ namespace Profiler
                 fontsPath = pFontsDirectoryPath;
                 CoTaskMemFree( pFontsDirectoryPath );
             }
+
+            // List of fonts to use (in this order)
+            const char* fonts[] = {
+                "segoeui.ttf",
+                "tahoma.ttf" };
+
+            for( const char* font : fonts )
+            {
+                fontPath = fontsPath / font;
+                if( std::filesystem::exists( fontPath ) )
+                    break;
+                else fontPath = "";
+            }
         }
         #endif
         #ifdef __linux__
         {
-            #error Implement font directory path finder
+            // Linux distros use multiple font directories (or X server, TODO)
+            std::vector<std::filesystem::path> fontDirectories = {
+                "/usr/share/fonts",
+                "/usr/local/share/fonts",
+                "~/.fonts" };
+
+            // Some systems may have these directories specified in conf file
+            // https://stackoverflow.com/questions/3954223/platform-independent-way-to-get-font-directory
+            const char* fontConfigurationFiles[] = {
+                "/etc/fonts/fonts.conf",
+                "/etc/fonts/local.conf" };
+
+            std::vector<std::filesystem::path> configurationDirectories = {};
+
+            for( const char* fontConfigurationFile : fontConfigurationFiles )
+            {
+                if( std::filesystem::exists( fontConfigurationFile ) )
+                {
+                    // Try to open configuration file for reading
+                    std::ifstream conf( fontConfigurationFile );
+
+                    if( conf.is_open() )
+                    {
+                        std::string line;
+
+                        // conf is XML file, read line by line and find <dir> tag
+                        while( std::getline( conf, line ) )
+                        {
+                            const size_t dirTagOpen = line.find( "<dir>" );
+                            const size_t dirTagClose = line.find( "</dir>" );
+
+                            // TODO: tags can be in different lines
+                            if( (dirTagOpen != std::string::npos) && (dirTagClose != std::string::npos) )
+                            {
+                                configurationDirectories.push_back( line.substr( dirTagOpen + 5, dirTagClose - dirTagOpen - 5 ) );
+                            }
+                        }
+                    }
+                }
+            }
+
+            if( !configurationDirectories.empty() )
+            {
+                // Override predefined font directories
+                fontDirectories = configurationDirectories;
+            }
+
+            // List of fonts to use (in this order)
+            const char* fonts[] = {
+                "Ubuntu-R.ttf",
+                "LiberationSans-Regural.ttf",
+                "DejaVuSans.ttf" };
+
+            for( const char* font : fonts )
+            {
+                for( const std::filesystem::path& fontDirectory : fontDirectories )
+                {
+                    fontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
+                    if( !fontPath.empty() )
+                        break;
+                }
+                if( !fontPath.empty() )
+                    break;
+            }
         }
         #endif
-
-        std::filesystem::path fontPath;
-
-        // List of fonts to use (in this order)
-        const char* fonts[] = { "segoeui.ttf" };
-
-        for( const char* font : fonts )
-        {
-            fontPath = fontsPath / font;
-            if( std::filesystem::exists( fontPath ) )
-                break;
-            else fontPath = "";
-        }
 
         if( !fontPath.empty() )
         {

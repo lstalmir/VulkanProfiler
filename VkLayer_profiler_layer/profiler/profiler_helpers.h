@@ -291,5 +291,10 @@ namespace Profiler
 
         static void WriteDebugUnformatted( const char* str );
 
+        static std::filesystem::path FindFile(
+            const std::filesystem::path& directory,
+            const std::filesystem::path& filename,
+            const bool recurse = true );
+
     };
 }

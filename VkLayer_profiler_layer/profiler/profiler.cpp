@@ -996,7 +996,7 @@ namespace Profiler
         // Assume m_CommandBuffers map is already locked
         assert( !m_CommandBuffers.try_lock() );
 
-        auto& it = m_CommandBuffers.unsafe_find( commandBuffer );
+        auto it = m_CommandBuffers.unsafe_find( commandBuffer );
 
         // Collect command buffer data now, command buffer won't be available later
         m_DataAggregator.AppendData( &it->second, it->second.GetData() );
