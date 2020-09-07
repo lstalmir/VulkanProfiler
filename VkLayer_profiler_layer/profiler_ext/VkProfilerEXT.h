@@ -9,6 +9,9 @@
 enum VkProfilerStructureTypeEXT
 {
     VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT = 1000999000,
+    VK_STRUCTURE_TYPE_PROFILER_DATA_EXT = 1000999001,
+    VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT = 1000999002,
+    VK_STRUCTURE_TYPE_PROFILER_RENDER_PASS_DATA_EXT = 1000999003,
     VK_PROFILER_STRUCTURE_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
@@ -35,11 +38,38 @@ enum VkProfilerRegionTypeEXT
 {
     VK_PROFILER_REGION_TYPE_FRAME_EXT,
     VK_PROFILER_REGION_TYPE_SUBMIT_EXT,
+    VK_PROFILER_REGION_TYPE_SUBMIT_INFO_EXT,
     VK_PROFILER_REGION_TYPE_COMMAND_BUFFER_EXT,
-    VK_PROFILER_REGION_TYPE_DEBUG_MARKER_EXT,
     VK_PROFILER_REGION_TYPE_RENDER_PASS_EXT,
+    VK_PROFILER_REGION_TYPE_SUBPASS_EXT,
     VK_PROFILER_REGION_TYPE_PIPELINE_EXT,
+    VK_PROFILER_REGION_TYPE_COMMAND_EXT,
     VK_PROFILER_REGION_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
+};
+
+enum VkProfilerCommandTypeEXT
+{
+    VK_PROFILER_COMMAND_UNKNOWN_EXT,
+    VK_PROFILER_COMMAND_DRAW_EXT,
+    VK_PROFILER_COMMAND_DRAW_INDEXED_EXT,
+    VK_PROFILER_COMMAND_DRAW_INDIRECT_EXT,
+    VK_PROFILER_COMMAND_DRAW_INDEXED_INDIRECT_EXT,
+    VK_PROFILER_COMMAND_DRAW_INDIRECT_COUNT_EXT,
+    VK_PROFILER_COMMAND_DRAW_INDEXED_INDIRECT_COUNT_EXT,
+    VK_PROFILER_COMMAND_DISPATCH_EXT,
+    VK_PROFILER_COMMAND_DISPATCH_INDIRECT_EXT,
+    VK_PROFILER_COMMAND_COPY_BUFFER_EXT,
+    VK_PROFILER_COMMAND_COPY_BUFFER_TO_IMAGE_EXT,
+    VK_PROFILER_COMMAND_COPY_IMAGE_EXT,
+    VK_PROFILER_COMMAND_COPY_IMAGE_TO_BUFFER_EXT,
+    VK_PROFILER_COMMAND_CLEAR_ATTACHMENTS_EXT,
+    VK_PROFILER_COMMAND_CLEAR_COLOR_IMAGE_EXT,
+    VK_PROFILER_COMMAND_CLEAR_DEPTH_STENCIL_IMAGE_EXT,
+    VK_PROFILER_COMMAND_RESOLVE_IMAGE_EXT,
+    VK_PROFILER_COMMAND_BLIT_IMAGE_EXT,
+    VK_PROFILER_COMMAND_FILL_BUFFER_EXT,
+    VK_PROFILER_COMMAND_UPDATE_BUFFER_EXT,
+    VK_PROFILER_COMMAND_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
 enum VkProfilerSyncModeEXT
@@ -83,22 +113,82 @@ typedef struct VkProfilerCreateInfoEXT
     VkProfilerCreateFlagsEXT flags;
 } VkProfilerCreateInfoEXT;
 
+typedef struct VkProfilerCommandPropertiesEXT
+{
+    VkProfilerCommandTypeEXT type;
+} VkProfilerCommandPropertiesEXT;
+
+typedef struct VkProfilerPipelinePropertiesEXT
+{
+    VkPipeline handle;
+} VkProfilerPipelinePropertiesEXT;
+
+typedef struct VkProfilerSubpassPropertiesEXT
+{
+    uint32_t index;
+    VkSubpassContents contents;
+} VkProfilerSubpassPropertiesEXT;
+
+typedef struct VkProfilerRenderPassPropertiesEXT
+{
+    VkRenderPass handle;
+} VkProfilerRenderPassPropertiesEXT;
+
+typedef struct VkProfilerCommandBufferPropertiesEXT
+{
+    VkCommandBuffer handle;
+    VkCommandBufferLevel level;
+} VkProfilerCommandBufferPropertiesEXT;
+
+typedef struct VkProfilerSubmitInfoPropertiesEXT
+{
+} VkProfilerSubmitInfoPropertiesEXT;
+
+typedef struct VkProfilerSubmitPropertiesEXT
+{
+    VkQueue queue;
+} VkProfilerSubmitPropertiesEXT;
+
+typedef struct VkProfilerFramePropertiesEXT
+{
+} VkProfilerFramePropertiesEXT;
+
+typedef union VkProfilerRegionPropertiesEXT
+{
+    VkProfilerCommandPropertiesEXT command;
+    VkProfilerPipelinePropertiesEXT pipeline;
+    VkProfilerSubpassPropertiesEXT subpass;
+    VkProfilerRenderPassPropertiesEXT renderPass;
+    VkProfilerCommandBufferPropertiesEXT commandBuffer;
+    VkProfilerSubmitInfoPropertiesEXT submitInfo;
+    VkProfilerSubmitPropertiesEXT submit;
+    VkProfilerFramePropertiesEXT frame;
+} VkProfilerRegionPropertiesEXT;
+
 typedef struct VkProfilerRegionDataEXT
 {
+    VkProfilerStructureTypeEXT sType;
+    void* pNext;
     VkProfilerRegionTypeEXT regionType;
-    char regionName[ 256 ];
+    VkProfilerRegionPropertiesEXT properties;
     float duration;
+    uint32_t subregionCount;
+    struct VkProfilerRegionDataEXT* pSubregions;
 } VkProfilerRegionDataEXT;
 
-typedef struct VkProfilerMemoryDataEXT
+typedef struct VkProfilerRenderPassDataEXT
 {
-    uint64_t deviceLocalMemoryAllocated;
-} VkProfilerMemoryDataEXT;
+    VkProfilerStructureTypeEXT sType;
+    void* pNext;
+    float beginDuration;
+    float endDuration;
+} VkProfilerRenderPassDataEXT;
 
 typedef struct VkProfilerDataEXT
 {
+    VkProfilerStructureTypeEXT sType;
+    void* pNext;
     VkProfilerRegionDataEXT frame;
-    VkProfilerMemoryDataEXT memory;
 } VkProfilerDataEXT;
 
 typedef struct VkProfilerPerformanceCounterPropertiesEXT
@@ -113,9 +203,10 @@ typedef VkPerformanceCounterResultKHR VkProfilerPerformanceCounterResultEXT;
 
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerModeEXT )(VkDevice, VkProfilerModeEXT);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerRegionDataEXT*);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerCommandBufferDataEXT )(VkDevice, VkCommandBuffer, VkProfilerRegionDataEXT*);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
+typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkFreeProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerMetricPropertiesEXT )(VkDevice, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkFlushProfilerEXT )(VkDevice);
 
 #ifndef VK_NO_PROTOTYPES
 VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
@@ -128,16 +219,18 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
 
 VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
     VkDevice device,
-    VkProfilerRegionDataEXT* pData );
+    VkProfilerDataEXT* pData );
 
-VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerCommandBufferDataEXT(
+VKAPI_ATTR void VKAPI_CALL vkFreeProfilerFrameDataEXT(
     VkDevice device,
-    VkCommandBuffer commandBuffer,
-    VkProfilerRegionDataEXT* pData );
+    VkProfilerDataEXT* pData );
 
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEXT(
     VkDevice device,
     uint32_t* pProfilerMetricCount,
     VkProfilerPerformanceCounterPropertiesEXT* pProfilerMetricProperties );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
+    VkDevice device );
 #endif // VK_NO_PROTOTYPES
 #endif // VK_EXT_profiler

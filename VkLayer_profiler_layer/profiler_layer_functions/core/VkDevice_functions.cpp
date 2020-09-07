@@ -154,7 +154,8 @@ namespace Profiler
         GETPROCADDR_EXT( vkSetProfilerModeEXT );
         GETPROCADDR_EXT( vkSetProfilerSyncModeEXT );
         GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
-        GETPROCADDR_EXT( vkGetProfilerCommandBufferDataEXT );
+        GETPROCADDR_EXT( vkFreeProfilerFrameDataEXT );
+        GETPROCADDR_EXT( vkFlushProfilerEXT );
 
         if( device )
         {
