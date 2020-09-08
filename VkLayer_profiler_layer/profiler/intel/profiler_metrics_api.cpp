@@ -349,52 +349,7 @@ namespace Profiler
     std::filesystem::path ProfilerMetricsApi_INTEL::FindMetricsDiscoveryLibrary(
         const std::filesystem::path& searchDirectory )
     {
-        // Enumerate all files in the directory
-        const std::string query = searchDirectory.string() + "\\*";
-        std::filesystem::path path;
-
-        WIN32_FIND_DATAA file;
-        HANDLE searchHandle = FindFirstFileA( query.c_str(), &file );
-
-        bool hasNext = (searchHandle != INVALID_HANDLE_VALUE);
-
-        while( hasNext )
-        {
-            // Skip . and .. directories to avoid infinite recursion
-            if( file.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
-            {
-                if( strcmp( file.cFileName, "." ) == 0 ||
-                    strcmp( file.cFileName, ".." ) == 0 )
-                {
-                    hasNext = FindNextFileA( searchHandle, &file );
-                    continue;
-                }
-            }
-
-            // Check if this is the file we're looking for
-            if( strcmp( file.cFileName, PROFILER_METRICS_DLL_INTEL ) == 0 )
-            {
-                path = searchDirectory / PROFILER_METRICS_DLL_INTEL;
-                break;
-            }
-
-            // Search recursively in all subdirectories
-            if( file.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
-            {
-                path = FindMetricsDiscoveryLibrary( searchDirectory / file.cFileName );
-                if( !path.empty() )
-                    break;
-            }
-
-            hasNext = FindNextFileA( searchHandle, &file );
-        }
-
-        if( searchHandle != INVALID_HANDLE_VALUE )
-        {
-            FindClose( searchHandle );
-        }
-
-        return path;
+        return ProfilerPlatformFunctions::FindFile( searchDirectory, PROFILER_METRICS_DLL_INTEL );
     }
     #endif
 

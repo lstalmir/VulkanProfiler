@@ -7,7 +7,8 @@ namespace Sample
     Device::Device( vk::Instance instance,
         vk::SurfaceKHR surface,
         const std::vector<const char*>& layers,
-        const std::vector<const char*>& extensions )
+        const std::vector<const char*>& extensions,
+        const VkProfilerCreateInfoEXT* pProfilerCreateInfo )
     {
         uint32_t gpu = 0;
 
@@ -29,7 +30,8 @@ namespace Sample
                 static_cast<uint32_t>(queues.size()), queues.data(),
                 static_cast<uint32_t>(layers.size()), layers.data(),
                 static_cast<uint32_t>(extensions.size()), extensions.data(),
-                nullptr ) );
+                nullptr )
+            .setPNext( pProfilerCreateInfo ) );
 
         m_GraphicsQueue = m_Device.getQueue( m_QueueFamilyIndices.m_GraphicsQueueFamilyIndex, 0 );
         m_PresentQueue = m_Device.getQueue( m_QueueFamilyIndices.m_PresentQueueFamilyIndex, 0 );

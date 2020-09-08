@@ -22,7 +22,8 @@ namespace Profiler
 
         // TODO: Move to separate layer
         const bool createProfilerOverlay =
-            (dd.Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_DISABLE_OVERLAY_BIT_EXT) == 0;
+            (dd.Profiler.IsAvailable()) &&
+            (dd.Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) == 0;
 
         if( createProfilerOverlay )
         {
@@ -114,7 +115,7 @@ namespace Profiler
         // After recreating swapchain using CreateSwapchainKHR parent swapchain of the overlay has changed.
         // The old swapchain is then destroyed and will invalidate the overlay if we don't check which
         // swapchain is actually being destreoyed.
-        if( dd.Overlay.GetSwapchain() == swapchain )
+        if( (dd.Overlay.IsAvailable()) && (dd.Overlay.GetSwapchain() == swapchain) )
         {
             dd.Overlay.Destroy();
         }

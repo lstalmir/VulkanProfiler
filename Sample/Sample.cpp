@@ -328,7 +328,7 @@ void CreateSwapchain()
 {
     if( !R.pSwapchain )
     {
-        R.pSwapchain = std::make_unique<Sample::SwapChain>( *R.pDevice, R.surface, true );
+        R.pSwapchain = std::make_unique<Sample::SwapChain>( *R.pDevice, R.surface, false );
     }
     else
     {
@@ -400,10 +400,15 @@ int main( int argc, const char** argv )
 
     // Use validation layers if this is a debug build
     std::vector<const char*> layers;
-    #if defined(_DEBUG)
-    layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
-    #endif
-    layers.push_back( "VK_LAYER_profiler" );
+
+    if( Sample::Args::IsSet( "-validation" ) )
+    {
+        layers.push_back( "VK_LAYER_LUNARG_standard_validation" );
+    }
+    if( Sample::Args::IsSet( "-profile" ) )
+    {
+        layers.push_back( "VK_LAYER_profiler" );
+    }
 
     // vk::ApplicationInfo allows the programmer to specifiy some basic information about the
     // program, which can be useful for layers and tools to provide more debug information.
@@ -464,11 +469,24 @@ int main( int argc, const char** argv )
     }
     R.surface = c_surface;
 
+    // Setup profiler create info
+    VkProfilerCreateInfoEXT profilerCreateInfo = {};
+    profilerCreateInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT;
+
+    if( Sample::Args::IsSet( "-VK_PROFILER_CREATE_DISABLED_BIT" ) )
+    {
+        profilerCreateInfo.flags |= VK_PROFILER_CREATE_DISABLED_BIT_EXT;
+    }
+    if( Sample::Args::IsSet( "-VK_PROFILER_CREATE_NO_OVERLAY_BIT" ) )
+    {
+        profilerCreateInfo.flags |= VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT;
+    }
+
     // Create the Vulkan device
     R.pDevice = std::make_unique<Sample::Device>( R.instance, R.surface, layers,
         std::vector<const char*>{
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
-        } );
+        }, &profilerCreateInfo );
 
     // Create swapchain-dependent resources
     CreateSwapchain();

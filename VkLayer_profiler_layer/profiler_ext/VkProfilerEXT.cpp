@@ -267,8 +267,17 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
     VkDevice device,
     VkProfilerModeEXT mode )
 {
-    return VkDevice_Functions::DeviceDispatch.Get( device )
-        .Profiler.SetMode( mode );
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    VkResult result = (VkResult)VK_ERROR_NOT_AVAILABLE_EXT;
+
+    if( dd.Profiler.IsAvailable() )
+    {
+        // Set new mode
+        result = dd.Profiler.SetMode( mode );
+    }
+
+    return result;
 }
 
 /***************************************************************************************\
@@ -283,8 +292,17 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
     VkDevice device,
     VkProfilerSyncModeEXT syncMode )
 {
-    return VkDevice_Functions::DeviceDispatch.Get( device )
-        .Profiler.SetSyncMode( syncMode );
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    VkResult result = (VkResult)VK_ERROR_NOT_AVAILABLE_EXT;
+
+    if( dd.Profiler.IsAvailable() )
+    {
+        // Set new synchronization mode
+        result = dd.Profiler.SetSyncMode( syncMode );
+    }
+
+    return result;
 }
 
 /***************************************************************************************\
@@ -306,18 +324,28 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    // Get latest data from profiler
-    DeviceProfilerFrameData data = dd.Profiler.GetData();
+    VkResult result = (VkResult)VK_ERROR_NOT_AVAILABLE_EXT;
 
-    if( data.m_Submits.empty() )
+    if( dd.Profiler.IsAvailable() )
     {
-        // Data not ready yet
-        //  Check if application called vkQueuePresentKHR
-        return VK_NOT_READY;
+        // Get latest data from profiler
+        DeviceProfilerFrameData data = dd.Profiler.GetData();
+
+        if( !data.m_Submits.empty() )
+        {
+            // Serialize last frame
+            result = RegionBuilder( dd.Device.Properties.limits.timestampPeriod )
+                .SerializeFrame( data, pData->frame );
+        }
+        else
+        {
+            // Data not ready yet
+            //  Check if application called vkQueuePresentKHR
+            result = VK_NOT_READY;
+        }
     }
 
-    return RegionBuilder( dd.Device.Properties.limits.timestampPeriod )
-        .SerializeFrame( data, pData->frame );
+    return result;
 }
 
 /***************************************************************************************\
@@ -335,48 +363,56 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    bool hasSufficientSpace = true;
+    VkResult result = (VkResult)VK_ERROR_NOT_AVAILABLE_EXT;
 
-    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
+    if( dd.Profiler.IsAvailable() )
     {
-        if( (*pProfilerMetricCount) == 0 )
+        // If profiler is available and no metrics are collected its still quite a success
+        result = VK_SUCCESS;
+
+        bool hasSufficientSpace = true;
+
+        if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
         {
-            // Return number of reported metrics
-            (*pProfilerMetricCount) += dd.Profiler.m_MetricsApiINTEL.GetMetricsCount();
-        }
-        else
-        {
-            // Get reported metrics descriptions
-            const std::vector<VkProfilerPerformanceCounterPropertiesEXT> intelMetricsProperties =
-                dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties();
-
-            const uint32_t returnedMetricPropertyCount =
-                std::template min<uint32_t>( (*pProfilerMetricCount), intelMetricsProperties.size() );
-
-            std::memcpy( pProfilerMetricProperties,
-                intelMetricsProperties.data(),
-                returnedMetricPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
-
-            // There may be other metric sources that will be appended to the end
-            pProfilerMetricProperties += returnedMetricPropertyCount;
-            (*pProfilerMetricCount) -= returnedMetricPropertyCount;
-
-            if( returnedMetricPropertyCount < intelMetricsProperties.size() )
+            if( (*pProfilerMetricCount) == 0 )
             {
-                hasSufficientSpace = false;
+                // Return number of reported metrics
+                (*pProfilerMetricCount) += dd.Profiler.m_MetricsApiINTEL.GetMetricsCount();
+            }
+            else
+            {
+                // Get reported metrics descriptions
+                const std::vector<VkProfilerPerformanceCounterPropertiesEXT> intelMetricsProperties =
+                    dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties();
+
+                const uint32_t returnedMetricPropertyCount =
+                    std::template min<uint32_t>( (*pProfilerMetricCount), intelMetricsProperties.size() );
+
+                std::memcpy( pProfilerMetricProperties,
+                    intelMetricsProperties.data(),
+                    returnedMetricPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+
+                // There may be other metric sources that will be appended to the end
+                pProfilerMetricProperties += returnedMetricPropertyCount;
+                (*pProfilerMetricCount) -= returnedMetricPropertyCount;
+
+                if( returnedMetricPropertyCount < intelMetricsProperties.size() )
+                {
+                    hasSufficientSpace = false;
+                }
             }
         }
+
+        // TODO: Other metric sources (VK_KHR_performance_query)
+
+        if( (result == VK_SUCCESS) && !(hasSufficientSpace) )
+        {
+            // All vkEnumerate* functions return VK_INCOMPLETE when provided buffer was too small
+            result = VK_INCOMPLETE;
+        }
     }
 
-    // TODO: Other metric sources (VK_KHR_performance_query)
-
-    if( !hasSufficientSpace )
-    {
-        // All vkEnumerate* functions return VK_INCOMPLETE when provided buffer was too small
-        return VK_INCOMPLETE;
-    }
-
-    return VK_SUCCESS;
+    return result;
 }
 
 /***************************************************************************************\
@@ -407,6 +443,15 @@ Description:
 VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
     VkDevice device )
 {
-    VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.FinishFrame();
-    return VK_SUCCESS;
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    VkResult result = (VkResult)VK_ERROR_NOT_AVAILABLE_EXT;
+
+    if( dd.Profiler.IsAvailable() )
+    {
+        dd.Profiler.FinishFrame();
+        result = VK_SUCCESS;
+    }
+
+    return result;
 }

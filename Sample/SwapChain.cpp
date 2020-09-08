@@ -91,7 +91,7 @@ namespace Sample
         }
 
         // Get the best supported present mode
-        vk::PresentModeKHR presentMode;
+        vk::PresentModeKHR presentMode = vk::PresentModeKHR::eImmediate;
 
         for( auto mode : m_pDevice->m_PhysicalDevice.getSurfacePresentModesKHR( m_Surface ) )
         {
@@ -104,14 +104,11 @@ namespace Sample
             }
 
             // Fifo: inserts images until the queue is full, blocks when it is full.
-            if( mode == vk::PresentModeKHR::eFifo )
+            if( mode == vk::PresentModeKHR::eFifo && m_VSync )
             {
                 presentMode = mode;
-                continue;
+                break;
             }
-
-            // Whatever, as long as it is supported...
-            presentMode = mode;
         }
 
         // Get command queue index

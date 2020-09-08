@@ -1,6 +1,8 @@
 #pragma once
 #include <vulkan/vulkan.hpp>
 
+#include "VkProfilerEXT.h"
+
 namespace Sample
 {
     struct Device
@@ -21,7 +23,8 @@ namespace Sample
         Device( vk::Instance instance,
             vk::SurfaceKHR surface,
             const std::vector<const char*>& layers,
-            const std::vector<const char*>& extensions );
+            const std::vector<const char*>& extensions,
+            const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr );
 
         ~Device();
 

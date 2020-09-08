@@ -291,10 +291,35 @@ namespace Profiler
 
         static void WriteDebugUnformatted( const char* str );
 
-        static std::filesystem::path FindFile(
+        inline static std::filesystem::path FindFile(
             const std::filesystem::path& directory,
             const std::filesystem::path& filename,
-            const bool recurse = true );
+            const bool recurse = true )
+        {
+            if( std::filesystem::exists( directory ) )
+            {
+                // Enumerate all files in the directory
+                for( auto directoryEntry : std::filesystem::directory_iterator( directory ) )
+                {
+                    if( directoryEntry.path().filename() == filename )
+                    {
+                        return directoryEntry;
+                    }
+
+                    // Check in subdirectories
+                    if( directoryEntry.is_directory() && recurse )
+                    {
+                        std::filesystem::path result = FindFile( directoryEntry, filename, recurse );
+
+                        if( !result.empty() )
+                        {
+                            return result;
+                        }
+                    }
+                }
+            }
+            return "";
+        }
 
     };
 }
