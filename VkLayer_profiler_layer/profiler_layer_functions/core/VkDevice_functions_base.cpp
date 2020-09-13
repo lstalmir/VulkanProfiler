@@ -103,7 +103,7 @@ namespace Profiler
             }
         }
 
-        if( (pProfilerCreateInfo) && (pProfilerCreateInfo->flags & VK_PROFILER_CREATE_DISABLED_BIT_EXT) == 0 )
+        if( !(pProfilerCreateInfo) || (pProfilerCreateInfo->flags & VK_PROFILER_CREATE_DISABLED_BIT_EXT) == 0 )
         {
             // Initialize the profiler object
             result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
