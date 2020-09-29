@@ -1,8 +1,29 @@
+// Copyright (c) 2020 Lukasz Stalmirski
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #pragma once
 #include "profiler_data.h"
 #include "profiler_command_buffer.h"
 #include <list>
 #include <map>
+#include <mutex>
 #include <unordered_set>
 #include <unordered_map>
 // Import extension structures
@@ -14,13 +35,13 @@ namespace Profiler
 
     struct DeviceProfilerSubmit
     {
-        std::list<ProfilerCommandBuffer*>   m_pCommandBuffers;
+        ContainerType<ProfilerCommandBuffer*>   m_pCommandBuffers;
     };
 
     struct DeviceProfilerSubmitBatch
     {
-        VkQueue                             m_Handle = {};
-        std::list<DeviceProfilerSubmit>     m_Submits = {};
+        VkQueue                                 m_Handle = {};
+        ContainerType<DeviceProfilerSubmit>     m_Submits = {};
     };
 
     /***********************************************************************************\
@@ -40,9 +61,10 @@ namespace Profiler
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
         void AppendData( ProfilerCommandBuffer*, const DeviceProfilerCommandBufferData& );
         
+        void Aggregate();
         void Reset();
 
-        DeviceProfilerFrameData GetAggregatedData();
+        DeviceProfilerFrameData GetAggregatedData() const;
 
     private:
         DeviceProfiler* m_pProfiler;
@@ -52,21 +74,21 @@ namespace Profiler
 
         std::unordered_map<ProfilerCommandBuffer*, DeviceProfilerCommandBufferData> m_Data;
 
+        std::mutex m_Mutex;
+
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
 
-        void MergeCommandBuffers();
-
         std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
 
-        std::list<DeviceProfilerPipelineData> CollectTopPipelines();
+        std::list<DeviceProfilerPipelineData> CollectTopPipelines() const;
 
         void CollectPipelinesFromCommandBuffer(
             const DeviceProfilerCommandBufferData&,
-            std::unordered_set<DeviceProfilerPipelineData>& );
+            std::unordered_set<DeviceProfilerPipelineData>& ) const;
 
         void CollectPipeline(
             const DeviceProfilerPipelineData&,
-            std::unordered_set<DeviceProfilerPipelineData>& );
+            std::unordered_set<DeviceProfilerPipelineData>& ) const;
     };
 }

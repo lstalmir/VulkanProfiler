@@ -1,3 +1,23 @@
+// Copyright (c) 2020 Lukasz Stalmirski
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "profiler_data_aggregator.h"
 #include "profiler.h"
 #include "profiler_helpers.h"
@@ -115,6 +135,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::AppendSubmit( const DeviceProfilerSubmitBatch& submit )
     {
+        std::scoped_lock lk( m_Mutex );
         m_Submits.push_back( submit );
     }
 
@@ -129,7 +150,61 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::AppendData( ProfilerCommandBuffer* pCommandBuffer, const DeviceProfilerCommandBufferData& data )
     {
+        std::scoped_lock lk( m_Mutex );
         m_Data.emplace( pCommandBuffer, data );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Aggregate
+
+    Description:
+        Collect data from the submitted command buffers.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::Aggregate()
+    {
+        decltype(m_Submits) submits;
+        decltype(m_Data) data;
+
+        // Copy submits and data to local memory
+        {
+            std::scoped_lock lk( m_Mutex );
+            std::swap( m_Submits, submits );
+            std::swap( m_Data, data );
+        }
+
+        for( const auto& submitBatch : submits )
+        {
+            DeviceProfilerSubmitBatchData submitBatchData;
+            submitBatchData.m_Handle = submitBatch.m_Handle;
+
+            for( const auto& submit : submitBatch.m_Submits )
+            {
+                DeviceProfilerSubmitData submitData;
+
+                for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
+                {
+                    // Check if buffer was freed before present
+                    // In such case pCommandBuffer is pointer to freed memory and cannot be dereferenced
+                    auto it = data.find( pCommandBuffer );
+                    if( it != data.end() )
+                    {
+                        submitData.m_CommandBuffers.push_back( it->second );
+                    }
+                    else
+                    {
+                        // Collect command buffer data now
+                        submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
+                    }
+                }
+
+                submitBatchData.m_Submits.push_back( submitData );
+            }
+
+            m_AggregatedData.push_back( submitBatchData );
+        }
     }
 
     /***********************************************************************************\
@@ -143,6 +218,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Reset()
     {
+        std::scoped_lock lk( m_Mutex );
         m_Submits.clear();
         m_AggregatedData.clear();
         m_Data.clear();
@@ -158,11 +234,8 @@ namespace Profiler
         Prepare aggregator for the next profiling run.
 
     \***********************************************************************************/
-    DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
+    DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData() const
     {
-        // Application may use multiple command buffers to perform the same tasks
-        MergeCommandBuffers();
-
         auto aggregatedSubmits = m_AggregatedData;
         auto aggregatedPipelines = CollectTopPipelines();
         auto aggregatedVendorMetrics = AggregateVendorMetrics();
@@ -186,49 +259,6 @@ namespace Profiler
         }
 
         return frameData;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        MergeCommandBuffers
-
-    Description:
-        Find similar command buffers and merge results.
-
-    \***********************************************************************************/
-    void ProfilerDataAggregator::MergeCommandBuffers()
-    {
-        for( const auto& submitBatch : m_Submits )
-        {
-            DeviceProfilerSubmitBatchData submitBatchData;
-            submitBatchData.m_Handle = submitBatch.m_Handle;
-
-            for( const auto& submit : submitBatch.m_Submits )
-            {
-                DeviceProfilerSubmitData submitData;
-
-                for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
-                {
-                    // Check if buffer was freed before present
-                    // In such case pCommandBuffer is pointer to freed memory and cannot be dereferenced
-                    auto it = m_Data.find( pCommandBuffer );
-                    if( it != m_Data.end() )
-                    {
-                        submitData.m_CommandBuffers.push_back( it->second );
-                    }
-                    else
-                    {
-                        // Collect command buffer data now
-                        submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
-                    }
-                }
-
-                submitBatchData.m_Submits.push_back( submitData );
-            }
-
-            m_AggregatedData.push_back( submitBatchData );
-        }
     }
 
     /***********************************************************************************\
@@ -284,7 +314,7 @@ namespace Profiler
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_EXT:
                         {
                             // Metrics aggregated by sum
-                            Aggregate<SumAggregator>(
+                            Profiler::Aggregate<SumAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 commandBufferData.m_Ticks,
@@ -303,7 +333,7 @@ namespace Profiler
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_WATTS_EXT:
                         {
                             // Metrics aggregated by average
-                            Aggregate<AvgAggregator>(
+                            Profiler::Aggregate<AvgAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 commandBufferData.m_Ticks,
@@ -324,7 +354,7 @@ namespace Profiler
         for( uint32_t i = 0; i < metricCount; ++i )
         {
             const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
-            Aggregate<NormAggregator>(
+            Profiler::Aggregate<NormAggregator>(
                 normalizedAggregatedVendorMetrics[ i ],
                 weightedMetric.weight,
                 weightedMetric.value,
@@ -343,7 +373,7 @@ namespace Profiler
         Enumerate and sort all pipelines by duration descending.
 
     \***********************************************************************************/
-    std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines()
+    std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
     {
         std::unordered_set<DeviceProfilerPipelineData> aggregatedPipelines;
 
@@ -380,7 +410,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipelinesFromCommandBuffer(
         const DeviceProfilerCommandBufferData& commandBuffer,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines )
+        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
@@ -431,7 +461,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipeline(
         const DeviceProfilerPipelineData& pipeline,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines )
+        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
         DeviceProfilerPipelineData aggregatedPipeline = pipeline;
 

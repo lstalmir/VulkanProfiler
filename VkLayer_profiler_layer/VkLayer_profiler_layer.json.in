@@ -28,7 +28,9 @@
                     "vkSetProfilerModeEXT",
                     "vkSetProfilerSyncModeEXT",
                     "vkGetProfilerFrameDataEXT",
-                    "vkGetProfilerCommandBufferDataEXT"
+                    "vkFreeProfilerFrameDataEXT",
+                    "vkEnumerateProfilerMetricPropertiesEXT",
+                    "vkFlushProfilerEXT"
                 ]
             },
             {

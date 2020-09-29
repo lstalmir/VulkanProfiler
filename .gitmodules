@@ -28,3 +28,6 @@
 [submodule "VkLayer_profiler_layer/profiler_ult/googletest"]
 	path = VkLayer_profiler_layer/profiler_ult/googletest
 	url = https://github.com/google/googletest
+[submodule "VkLayer_profiler_layer/utils/ctrie"]
+	path = VkLayer_profiler_layer/utils/ctrie
+	url = https://github.com/mthom/unmanaged-ctrie

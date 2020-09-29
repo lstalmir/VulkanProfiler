@@ -1,3 +1,23 @@
+// Copyright (c) 2020 Lukasz Stalmirski
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "profiler.h"
 #include "profiler_command_buffer.h"
 #include "profiler_helpers.h"
@@ -101,7 +121,8 @@ namespace Profiler
     DeviceProfiler::DeviceProfiler()
         : m_pDevice( nullptr )
         , m_Config()
-        , m_DataMutex()
+        , m_PresentMutex()
+        , m_SubmitMutex()
         , m_Data()
         , m_DataAggregator()
         , m_CurrentFrame( 0 )
@@ -125,7 +146,25 @@ namespace Profiler
     std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions()
     {
         return {
-            VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME
+            VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME,
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+        };
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EnumerateOptionalInstanceExtensions
+
+    Description:
+        Get list of optional instance extensions that may be utilized by the profiler.
+
+    \***********************************************************************************/
+    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalInstanceExtensions()
+    {
+        return {
+            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME
         };
     }
 
@@ -346,7 +385,11 @@ namespace Profiler
     DeviceProfilerFrameData DeviceProfiler::GetData() const
     {
         // Hold aggregator updates to keep m_Data consistent
+        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
+        std::scoped_lock lk( m_CommandBuffers );
+        #else
         std::scoped_lock lk( m_DataMutex );
+        #endif
         return m_Data;
     }
 
@@ -382,7 +425,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
+        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
         std::scoped_lock lk( m_CommandBuffers );
+        #else
+        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
+        #endif
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -404,7 +451,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        std::scoped_lock lk( m_FreeCommandBuffersMutex, m_CommandBuffers );
+        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
+        std::scoped_lock lk( m_CommandBuffers );
+        #else
+        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
+        #endif
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -423,7 +474,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( VkCommandPool commandPool )
     {
-        std::scoped_lock lk( m_FreeCommandBuffersMutex, m_CommandBuffers );
+        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
+        std::scoped_lock lk( m_CommandBuffers );
+        #else
+        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
+        #endif
 
         for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
         {
@@ -680,7 +735,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
     {
-        CpuTimestampCounter commandBufferLookupTimeCounter;
+        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
+        std::scoped_lock lk( m_CommandBuffers );
+        #else
+        std::scoped_lock lk( m_SubmitMutex );
+        #endif
 
         // Wait for the submitted command buffers to execute
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
@@ -706,9 +765,11 @@ namespace Profiler
                 // Get command buffer handle
                 VkCommandBuffer commandBuffer = submitInfo.pCommandBuffers[commandBufferIdx];
 
-                commandBufferLookupTimeCounter.Begin();
+                #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
+                auto& profilerCommandBuffer = m_CommandBuffers.unsafe_at( commandBuffer );
+                #else
                 auto& profilerCommandBuffer = GetCommandBuffer( commandBuffer );
-                commandBufferLookupTimeCounter.End();
+                #endif
 
                 // Dirty command buffer profiling data
                 profilerCommandBuffer.Submit();
@@ -735,6 +796,12 @@ namespace Profiler
             // Reset object handle for the next submit
             m_PerformanceConfigurationINTEL = VK_NULL_HANDLE;
         }
+
+        if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
+        {
+            // Collect data from the submitted command buffers
+            m_DataAggregator.Aggregate();
+        }
     }
 
     /***********************************************************************************\
@@ -747,7 +814,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame()
     {
-        std::scoped_lock lk( m_FreeCommandBuffersMutex, m_DataMutex );
+        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
+        std::scoped_lock lk( m_CommandBuffers );
+        #else
+        std::scoped_lock lk( m_PresentMutex );
+        #endif
 
         // Update FPS counter
         const bool updatePerfCounters = m_CpuFpsCounter.Update();
@@ -758,10 +829,19 @@ namespace Profiler
         {
             // Doesn't introduce in-frame CPU overhead but may cause some image-count-related issues disappear
             m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
+
+            // Collect data from the submitted command buffers
+            m_DataAggregator.Aggregate();
         }
 
-        // Collect and aggregate data captured during the last frame
-        m_Data = m_DataAggregator.GetAggregatedData();
+        {
+            #if !PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
+            std::scoped_lock lk2( m_DataMutex );
+            #endif
+
+            // Get data captured during the last frame
+            m_Data = m_DataAggregator.GetAggregatedData();
+        }
 
         // TODO: Move to memory tracker
         m_Data.m_Memory = m_MemoryData;

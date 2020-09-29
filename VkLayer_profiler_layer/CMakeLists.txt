@@ -1,6 +1,23 @@
-﻿# CMakeList.txt : CMake project for VulkanProfiler, include source and define
-# project specific logic here.
-#
+﻿# Copyright (c) 2020 Lukasz Stalmirski
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 cmake_minimum_required (VERSION 3.8)
 
 find_package (Python3 REQUIRED)
@@ -170,6 +187,7 @@ add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
 # Add sources to this project's executable.
 add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.cpp"
+    "VkLayer_profiler_layer.def"
     ${resource})
 
 file (GENERATE
@@ -189,7 +207,8 @@ target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/core
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/extensions)
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/extensions
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/utils/ctrie/include)
 
 # Install target
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}

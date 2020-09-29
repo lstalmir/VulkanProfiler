@@ -1,3 +1,23 @@
+// Copyright (c) 2020 Lukasz Stalmirski
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "profiler_overlay.h"
 
 #include "imgui_impl_vulkan_layer.h"
@@ -16,7 +36,7 @@
 #include "lang/en_us.h"
 #include "lang/pl_pl.h"
 
-#if 1
+#if 0
 using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
 #else
 using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
@@ -67,14 +87,14 @@ namespace Profiler
         , m_pImGuiContext( nullptr )
         , m_pImGuiVulkanContext( nullptr )
         , m_pImGuiWindowContext( nullptr )
-        , m_DescriptorPool( nullptr )
-        , m_RenderPass( nullptr )
+        , m_DescriptorPool( VK_NULL_HANDLE )
+        , m_RenderPass( VK_NULL_HANDLE )
         , m_RenderArea( {} )
         , m_ImageFormat( VK_FORMAT_UNDEFINED )
         , m_Images()
         , m_ImageViews()
         , m_Framebuffers()
-        , m_CommandPool( nullptr )
+        , m_CommandPool( VK_NULL_HANDLE )
         , m_CommandBuffers()
         , m_CommandFences()
         , m_CommandSemaphores()
@@ -255,19 +275,19 @@ namespace Profiler
         if( m_DescriptorPool )
         {
             m_pDevice->Callbacks.DestroyDescriptorPool( m_pDevice->Handle, m_DescriptorPool, nullptr );
-            m_DescriptorPool = nullptr;
+            m_DescriptorPool = VK_NULL_HANDLE;
         }
 
         if( m_RenderPass )
         {
             m_pDevice->Callbacks.DestroyRenderPass( m_pDevice->Handle, m_RenderPass, nullptr );
-            m_RenderPass = nullptr;
+            m_RenderPass = VK_NULL_HANDLE;
         }
 
         if( m_CommandPool )
         {
             m_pDevice->Callbacks.DestroyCommandPool( m_pDevice->Handle, m_CommandPool, nullptr );
-            m_CommandPool = nullptr;
+            m_CommandPool = VK_NULL_HANDLE;
         }
 
         m_CommandBuffers.clear();
@@ -456,8 +476,8 @@ namespace Profiler
 
             for( uint32_t i = 0; i < swapchainImageCount; i++ )
             {
-                VkImageView imageView = nullptr;
-                VkFramebuffer framebuffer = nullptr;
+                VkImageView imageView = VK_NULL_HANDLE;
+                VkFramebuffer framebuffer = VK_NULL_HANDLE;
 
                 // Create swapchain image view
                 if( result == VK_SUCCESS )
@@ -985,7 +1005,7 @@ namespace Profiler
             imGuiInitInfo.pDispatchTable = &m_pDevice->Callbacks;
 
             imGuiInitInfo.Allocator = nullptr;
-            imGuiInitInfo.PipelineCache = nullptr;
+            imGuiInitInfo.PipelineCache = VK_NULL_HANDLE;
             imGuiInitInfo.CheckVkResultFn = nullptr;
 
             imGuiInitInfo.MinImageCount = pCreateInfo->minImageCount;
