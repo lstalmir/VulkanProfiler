@@ -134,9 +134,6 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
 
         if( msg.hwnd )
         {
-            // Prepare message for processing
-            TranslateMessage( &msg );
-
             // Process message in ImGui
             ImGui_ImplWin32_Context* context = nullptr;
 
