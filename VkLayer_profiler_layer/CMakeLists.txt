@@ -87,8 +87,8 @@ add_dependencies (profiler_ext profiler_pre_build)
 add_dependencies (profiler_overlay profiler_pre_build)
 
 # Enable tests
-if (BUILD_ULT)
-    add_subdirectory (profiler_ult)
+if (BUILD_TESTS)
+    add_subdirectory (profiler_tests)
 endif ()
 
 set (resource

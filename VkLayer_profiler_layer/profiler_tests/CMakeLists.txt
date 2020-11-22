@@ -20,32 +20,41 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler_ult_shaders)
+project (profiler_tests)
 
-set (sources
-    "simple_triangle.vert.hlsl"
-    "simple_triangle.frag.hlsl"
+# Prevent overriding the parent project's compiler/linker
+# settings on Windows
+set (gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+add_subdirectory (googletest)
+add_subdirectory (shaders)
+
+set (tests
+    "profiler_command_buffer_tests.cpp"
+    "profiler_extensions_tests.cpp"
+    "profiler_memory_tests.cpp"
+    )
+
+add_executable (profiler_tests
+    ${tests}
     )
     
-set (spirvs
+add_dependencies (profiler_tests profiler_tests_shaders)
+
+target_link_libraries (profiler_tests
+    PRIVATE ${Vulkan_LIBRARIES}
+    PRIVATE gtest_main
+    PRIVATE profiler
+    PRIVATE VkLayer_profiler_layer_lib
     )
 
-foreach (source ${sources})
-    set (in ${CMAKE_CURRENT_SOURCE_DIR}/${source})
-    set (out ${CMAKE_CURRENT_BINARY_DIR}/${source}.h)
-    string (REPLACE "." "_" var_name ${source})
-    add_custom_command (
-        OUTPUT ${out}
-        COMMAND ${glslangvalidator} ${in} -o ${out} -V -D -e main --vn ${var_name}
-        DEPENDS ${in}
-        COMMENT ${source}
-        )
-    set (spirvs ${spirvs} ${out})
-endforeach ()
+target_link_directories (profiler_tests
+    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../profiler"
+    )
 
-add_custom_target (profiler_ult_shaders ALL
-    DEPENDS ${spirvs})
-
-install (FILES
-    ${spirvs}
-    DESTINATION BIN ${CMAKE_OUTPUT_BINDIR})
+target_include_directories (profiler_tests
+    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    PRIVATE "${VULKAN_HEADERS_INCLUDE_DIR}"
+    PRIVATE "${VULKAN_LOADER_INCLUDE_DIR}"
+    )

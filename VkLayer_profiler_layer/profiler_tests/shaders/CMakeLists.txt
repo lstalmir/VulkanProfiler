@@ -20,29 +20,30 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (Sample-shaders)
+project (profiler_tests_shaders)
 
 set (sources
-    "FragmentShader.frag.hlsl"
-    "VertexShader.vert.hlsl"
+    "simple_triangle.vert.hlsl"
+    "simple_triangle.frag.hlsl"
     )
-
+    
 set (spirvs
     )
 
 foreach (source ${sources})
     set (in ${CMAKE_CURRENT_SOURCE_DIR}/${source})
-    set (out ${CMAKE_CURRENT_BINARY_DIR}/../${source}.spv)
+    set (out ${CMAKE_CURRENT_BINARY_DIR}/${source}.h)
+    string (REPLACE "." "_" var_name ${source})
     add_custom_command (
         OUTPUT ${out}
-        COMMAND ${glslangvalidator} ${in} -o ${out} -V -e main
+        COMMAND ${glslangvalidator} ${in} -o ${out} -V -D -e main --vn ${var_name}
         DEPENDS ${in}
         COMMENT ${source}
         )
     set (spirvs ${spirvs} ${out})
 endforeach ()
 
-add_custom_target (Sample-shaders ALL
+add_custom_target (profiler_tests_shaders ALL
     DEPENDS ${spirvs})
 
 install (FILES
