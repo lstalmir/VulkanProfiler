@@ -385,11 +385,7 @@ namespace Profiler
     DeviceProfilerFrameData DeviceProfiler::GetData() const
     {
         // Hold aggregator updates to keep m_Data consistent
-        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
-        std::scoped_lock lk( m_CommandBuffers );
-        #else
         std::scoped_lock lk( m_DataMutex );
-        #endif
         return m_Data;
     }
 
@@ -425,11 +421,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
-        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
-        std::scoped_lock lk( m_CommandBuffers );
-        #else
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
-        #endif
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -451,11 +443,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
-        std::scoped_lock lk( m_CommandBuffers );
-        #else
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
-        #endif
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -474,11 +462,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( VkCommandPool commandPool )
     {
-        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
-        std::scoped_lock lk( m_CommandBuffers );
-        #else
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
-        #endif
 
         for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
         {
@@ -764,12 +748,7 @@ namespace Profiler
             {
                 // Get command buffer handle
                 VkCommandBuffer commandBuffer = submitInfo.pCommandBuffers[commandBufferIdx];
-
-                #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
-                auto& profilerCommandBuffer = m_CommandBuffers.unsafe_at( commandBuffer );
-                #else
                 auto& profilerCommandBuffer = GetCommandBuffer( commandBuffer );
-                #endif
 
                 // Dirty command buffer profiling data
                 profilerCommandBuffer.Submit();
@@ -814,11 +793,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame()
     {
-        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
-        std::scoped_lock lk( m_CommandBuffers );
-        #else
         std::scoped_lock lk( m_PresentMutex );
-        #endif
 
         // Update FPS counter
         const bool updatePerfCounters = m_CpuFpsCounter.Update();
@@ -835,9 +810,7 @@ namespace Profiler
         }
 
         {
-            #if !PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
             std::scoped_lock lk2( m_DataMutex );
-            #endif
 
             // Get data captured during the last frame
             m_Data = m_DataAggregator.GetAggregatedData();
@@ -853,30 +826,6 @@ namespace Profiler
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
 
         m_CpuTimestampCounter.Begin();
-
-        // Container performance counters
-        if( updatePerfCounters )
-        {
-            const uint32_t eventCount = std::max( 1U, m_CpuFpsCounter.GetEventCount() );
-
-            // Store average access time for future reports
-            m_CommandBufferAccessTimeNs = m_CommandBuffers.get_accumulated_access_time() / eventCount;
-            m_PipelineAccessTimeNs = m_Pipelines.get_accumulated_access_time() / eventCount;
-            m_RenderPassAccessTimeNs = m_RenderPasses.get_accumulated_access_time() / eventCount;
-            m_ShaderModuleAccessTimeNs = m_ShaderModuleHashes.get_accumulated_access_time() / eventCount;
-
-            // Prepare counters for the next profiling run
-            m_CommandBuffers.reset_perf_counters();
-            m_Pipelines.reset_perf_counters();
-            m_RenderPasses.reset_perf_counters();
-            m_ShaderModuleHashes.reset_perf_counters();
-        }
-
-        // Container performance counters
-        m_Data.m_CPU.m_CommandBufferAccessTimeNs = m_CommandBufferAccessTimeNs;
-        m_Data.m_CPU.m_PipelineAccessTimeNs = m_PipelineAccessTimeNs;
-        m_Data.m_CPU.m_RenderPassAccessTimeNs = m_RenderPassAccessTimeNs;
-        m_Data.m_CPU.m_ShaderModuleAccessTimeNs = m_ShaderModuleAccessTimeNs;
 
         // Prepare aggregator for the next frame
         m_DataAggregator.Reset();

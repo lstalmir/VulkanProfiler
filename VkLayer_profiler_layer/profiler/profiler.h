@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 #pragma once
-#define PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION 0
 #include "profiler_counters.h"
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
@@ -130,11 +129,6 @@ namespace Profiler
 
         CpuTimestampCounter     m_CpuTimestampCounter;
         CpuEventFrequencyCounter m_CpuFpsCounter;
-
-        uint64_t                m_CommandBufferAccessTimeNs;
-        uint64_t                m_PipelineAccessTimeNs;
-        uint64_t                m_RenderPassAccessTimeNs;
-        uint64_t                m_ShaderModuleAccessTimeNs;
 
         ConcurrentMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         DeviceProfilerMemoryData m_MemoryData;

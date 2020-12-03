@@ -36,7 +36,7 @@
 #include "lang/en_us.h"
 #include "lang/pl_pl.h"
 
-#if 0
+#if 1
 using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
 #else
 using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
@@ -1185,7 +1185,10 @@ namespace Profiler
             }
 
             char pHistogramDescription[ 32 ];
-            sprintf( pHistogramDescription, "%s (%s)", Lang::GPUCycles, selectedOption );
+            snprintf( pHistogramDescription, sizeof( pHistogramDescription ),
+                "%s (%s)",
+                Lang::GPUCycles,
+                selectedOption );
 
             ImGui::PushItemWidth( -1 );
             ImGuiX::PlotHistogramEx(
@@ -1403,26 +1406,6 @@ namespace Profiler
                 index.SubmitBatchIndex++;
             }
         }
-
-        #if PROFILER_MAP_PERF_COUNTERS
-        if( ImGui::CollapsingHeader( Lang::CustomStatistics ) )
-        {
-            ImGui::TextUnformatted( Lang::Container );
-            TextAlignRight( "%s", PROFILER_MAKE_STRING( PROFILER_MAP_BASE ) );
-
-            ImGui::TextUnformatted( "VkCommandBuffer" );
-            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_CommandBufferAccessTimeNs / 1000000.f );
-
-            ImGui::TextUnformatted( "VkPipeline" );
-            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_PipelineAccessTimeNs / 1000000.f );
-
-            ImGui::TextUnformatted( "VkRenderPass" );
-            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_RenderPassAccessTimeNs / 1000000.f );
-
-            ImGui::TextUnformatted( "VkShaderModule" );
-            TextAlignRight( "%.2f ms", m_Data.m_CPU.m_ShaderModuleAccessTimeNs / 1000000.f );
-        }
-        #endif
     }
 
     /***********************************************************************************\
@@ -1441,7 +1424,7 @@ namespace Profiler
 
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
-            for( int i = 0; i < memoryProperties.memoryHeapCount; ++i )
+            for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
                 ImGui::Text( "%s %u", Lang::MemoryHeap, i );
 
@@ -1454,7 +1437,8 @@ namespace Profiler
                 {
                     usage = (float)m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
 
-                    sprintf( usageStr, "%.2f/%.2f MB (%.1f%%)",
+                    snprintf( usageStr, sizeof( usageStr ),
+                        "%.2f/%.2f MB (%.1f%%)",
                         m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
                         memoryProperties.memoryHeaps[ i ].size / 1048576.f,
                         usage * 100.f );
@@ -1644,35 +1628,6 @@ namespace Profiler
             }
 
             ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
-
-            //if( ImGui::BeginCombo( "Sync mode", selectedOption ) )
-            //{
-            //    for( size_t i = 0; i < std::extent_v<decltype(groupOptions)>; ++i )
-            //    {
-            //        bool isSelected = (selectedOption == groupOptions[ i ]);
-            //
-            //        if( ImGui::Selectable( groupOptions[ i ], isSelected ) )
-            //        {
-            //            // Selection changed
-            //            selectedOption = groupOptions[ i ];
-            //            isSelected = true;
-            //
-            //            vkSetProfilerSyncModeEXT( m_pDevice->Handle, (VkProfilerSyncModeEXT)i );
-            //        }
-            //
-            //        if( isSelected )
-            //        {
-            //            ImGui::SetItemDefaultFocus();
-            //        }
-            //    }
-            //
-            //    ImGui::EndCombo();
-            //}
-        }
-
-        // Draw profiler settings
-        {
-
         }
     }
 
@@ -2248,11 +2203,11 @@ namespace Profiler
         va_start( args, fmt );
 
         char text[ 128 ];
-        vsprintf( text, fmt, args );
+        vsnprintf( text, sizeof( text ), fmt, args );
 
         va_end( args );
 
-        uint32_t textSize = ImGui::CalcTextSize( text ).x;
+        uint32_t textSize = static_cast<uint32_t>(ImGui::CalcTextSize( text ).x);
 
         ImGui::SameLine( contentAreaWidth - textSize );
         ImGui::TextUnformatted( text );
@@ -2274,11 +2229,11 @@ namespace Profiler
         va_start( args, fmt );
 
         char text[ 128 ];
-        vsprintf( text, fmt, args );
+        vsnprintf( text, sizeof( text ), fmt, args );
 
         va_end( args );
 
-        uint32_t textSize = ImGui::CalcTextSize( text ).x;
+        uint32_t textSize = static_cast<uint32_t>(ImGui::CalcTextSize( text ).x);
 
         ImGui::SameLine( ImGui::GetWindowContentRegionMax().x - textSize );
         ImGui::TextUnformatted( text );
