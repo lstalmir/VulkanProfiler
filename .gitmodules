@@ -1,23 +1,8 @@
 [submodule "Vulkan-Headers"]
 	path = Vulkan-Headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers
-[submodule "Sample/glm"]
-	path = Sample/glm
-	url = https://github.com/g-truc/glm
-[submodule "Sample/SDL"]
-	path = Sample/SDL
-	url = https://github.com/SDL-mirror/SDL
-[submodule "Vulkan-Loader"]
-	path = Vulkan-Loader
-	url = https://github.com/KhronosGroup/Vulkan-Loader
 [submodule "VkLayer_profiler_layer/profiler/farmhash"]
 	path = VkLayer_profiler_layer/profiler/farmhash
-	url = https://github.com/google/farmhash
-[submodule "farmhash"]
-	path = farmhash
-	url = https://github.com/google/farmhash
-[submodule "Dep/farmhash"]
-	path = Dep/farmhash
 	url = https://github.com/google/farmhash
 [submodule "VkLayer_profiler_layer/profiler_overlay/imgui"]
 	path = VkLayer_profiler_layer/profiler_overlay/imgui
@@ -28,6 +13,3 @@
 [submodule "VkLayer_profiler_layer/profiler_tests/googletest"]
 	path = VkLayer_profiler_layer/profiler_tests/googletest
 	url = https://github.com/google/googletest
-[submodule "VkLayer_profiler_layer/utils/ctrie"]
-	path = VkLayer_profiler_layer/utils/ctrie
-	url = https://github.com/mthom/unmanaged-ctrie
