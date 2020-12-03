@@ -33,6 +33,13 @@ To install the layer copy `VkLayer_profiler_layer.so` and `VkLayer_profiler_laye
 ### Notes
 Installation of the layer can be avoided. To use the layer without installation set VK_LAYER_PATH environment variable to the directory containing layer files.
 
+## Tests
+A small set of unit tests is provided at VkLayer_profiler_layer/profiler_tests. To build and run the tests additional dependencies must be installed.
+
+On Windows, install [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/).
+
+On Linux (Debian-based systems), install libvulkan-dev and glslang-tools packages.
+
 ## Usage
 To enable the layer add `"VK_LAYER_PROFILER"` to the layer list in VkInstanceCreateInfo or to the VK_INSTANCE_LAYERS environment variable. The later method allows to profile applications without the need to modify the source code and is recommended for manual analysis.
 
