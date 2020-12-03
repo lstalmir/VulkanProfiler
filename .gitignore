@@ -25,6 +25,7 @@
 # CMake output directory
 out/
 build/
+cmake_build/
 
 # User-defined files
 _*
