@@ -22,6 +22,9 @@
 .vs/
 .vscode/
 
+# Visual Studio configuration files
+CMakeSettings.json
+
 # CMake output directory
 out/
 build/
