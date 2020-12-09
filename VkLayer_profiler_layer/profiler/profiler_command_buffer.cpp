@@ -24,6 +24,24 @@
 #include <algorithm>
 #include <assert.h>
 
+namespace
+{
+    template<typename T, typename U>
+    inline static void UpdateTimestamps( T& parent, const U& child )
+    {
+        // If parent begin timestamp is undefined, use first defined child begin timestamp
+        if( parent.m_BeginTimestamp == 0 )
+        {
+            parent.m_BeginTimestamp = child.m_BeginTimestamp;
+        }
+        // If child end timestamp is defined, it must be larger than current parent end timestamp
+        if( child.m_EndTimestamp > 0 )
+        {
+            parent.m_EndTimestamp = child.m_EndTimestamp;
+        }
+    }
+}
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -570,15 +588,19 @@ namespace Profiler
             // Update timestamp stats for each profiled entity
             if( collectedQueries.size() > 1 )
             {
-                size_t currentQueryIndex = 1;
+                size_t currentQueryIndex = 0;
 
                 // Reset accumulated cycle count if buffer is being reused
-                m_Data.m_Ticks = 0;
+                m_Data.m_BeginTimestamp = 0;
+                m_Data.m_EndTimestamp = 0;
 
                 for( auto& renderPass : m_Data.m_RenderPasses )
                 {
                     // Reset accumulated cycle count if buffer is being reused
-                    renderPass.m_Ticks = 0;
+                    renderPass.m_BeginTimestamp = 0;
+                    renderPass.m_EndTimestamp = 0;
+                    renderPass.m_CmdBeginEndTimestamp = 0;
+                    renderPass.m_CmdEndBeginTimestamp = 0;
 
                     if( renderPass.m_Handle != VK_NULL_HANDLE )
                     {
@@ -586,44 +608,51 @@ namespace Profiler
                         // 2 queries for initial transitions and clears.
                         assert( currentQueryIndex < collectedQueries.size() );
 
+                        // Update render pass begin timestamp
+                        renderPass.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
                         // Get vkCmdBeginRenderPass time
-                        renderPass.m_BeginTicks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
-                        currentQueryIndex += 2;
+                        renderPass.m_CmdBeginEndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                        // Include this time in total render pass time
-                        renderPass.m_Ticks += renderPass.m_BeginTicks;
+                        // Move to the next query
+                        currentQueryIndex += 2;
                     }
 
                     for( auto& subpass : renderPass.m_Subpasses )
                     {
                         // Reset accumulated cycle count if buffer is being reused
-                        subpass.m_Ticks = 0;
+                        subpass.m_BeginTimestamp = 0;
+                        subpass.m_EndTimestamp = 0;
 
                         if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                         {
                             for( auto& pipeline : subpass.m_Pipelines )
                             {
                                 // Reset accumulated cycle count if buffer is being reused
-                                pipeline.m_Ticks = 0;
+                                pipeline.m_BeginTimestamp = 0;
+                                pipeline.m_EndTimestamp = 0;
 
                                 for( auto& drawcall : pipeline.m_Drawcalls )
                                 {
                                     // Don't collect data for debug labels
                                     if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
                                     {
-                                        // Update drawcall time
-                                        drawcall.m_Ticks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
-                                        // Update pipeline time
-                                        pipeline.m_Ticks += drawcall.m_Ticks;
+                                        // Update drawcall timestamps
+                                        drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                        drawcall.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
+                                        // Propagate timestamps from drawcall to pipeline
+                                        UpdateTimestamps( pipeline, drawcall );
+
                                         // Each drawcall has begin and end query
                                         currentQueryIndex += 2;
                                     }
                                 }
 
-                                // Update subpass time
-                                subpass.m_Ticks += pipeline.m_Ticks;
+                                // Propagate timestamps from pipeline to subpass
+                                UpdateTimestamps( subpass, pipeline );
                             }
                         }
+
                         else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
                         {
                             for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
@@ -638,10 +667,11 @@ namespace Profiler
                                 // Include profiling time of the secondary command buffer
                                 m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
 
+                                // Propagate timestamps from command buffer to subpass
+                                UpdateTimestamps( subpass, commandBuffer );
+
                                 // Collect secondary command buffer stats
                                 m_Data.m_Stats += commandBuffer.m_Stats;
-                                // Update subpass time
-                                subpass.m_Ticks += commandBuffer.m_Ticks;
                             }
 
                             // Move to the next query
@@ -655,8 +685,8 @@ namespace Profiler
                                 subpass.m_Contents );
                         }
 
-                        // Update render pass time
-                        renderPass.m_Ticks += subpass.m_Ticks;
+                        // Propagate timestamps from subpass to render pass
+                        UpdateTimestamps( renderPass, subpass );
                     }
 
                     if( renderPass.m_Handle != VK_NULL_HANDLE )
@@ -666,15 +696,15 @@ namespace Profiler
                         assert( currentQueryIndex < collectedQueries.size() );
 
                         // Get vkCmdEndRenderPass time
-                        renderPass.m_EndTicks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
-                        currentQueryIndex += 2;
+                        renderPass.m_CmdEndBeginTimestamp = collectedQueries[ currentQueryIndex ];
+                        renderPass.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                        // Include this time in total render pass time
-                        renderPass.m_Ticks += renderPass.m_EndTicks;
+                        // Move to the next query
+                        currentQueryIndex += 2;
                     }
 
-                    // Update command buffer time
-                    m_Data.m_Ticks += renderPass.m_Ticks;
+                    // Propagate timestamps from render pass to command buffer
+                    UpdateTimestamps( m_Data, renderPass );
                 }
             }
 

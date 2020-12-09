@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "profiler_overlay.h"
+#include "profiler_trace/profiler_trace.h"
 
 #include "imgui_impl_vulkan_layer.h"
 #include <string>
@@ -741,6 +742,14 @@ namespace Profiler
         // Keep results
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
+        if( ImGui::Button( "Save" ) )
+        {
+            DeviceProfilerTraceSerializer(
+                0.000000001f,
+                m_TimestampPeriod * 0.001f
+            ).Serialize( data );
+        }
+
         if( !m_Pause )
         {
             // Update data
@@ -1157,13 +1166,13 @@ namespace Profiler
                                                     for( const auto& drawcall : pipeline.m_Drawcalls )
                                                     {
                                                         // Insert drawcall cycle count to histogram
-                                                        contributions.push_back( drawcall.m_Ticks );
+                                                        contributions.push_back( drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp );
                                                     }
                                                 }
                                                 else
                                                 {
                                                     // Insert pipeline cycle count to histogram
-                                                    contributions.push_back( pipeline.m_Ticks );
+                                                    contributions.push_back( pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp );
                                                 }
                                             }
                                         }
@@ -1176,7 +1185,7 @@ namespace Profiler
                                 else
                                 {
                                     // Insert render pass cycle count to histogram
-                                    contributions.push_back( renderPass.m_Ticks );
+                                    contributions.push_back( renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp );
                                 }
                             }
                         }
@@ -1208,12 +1217,14 @@ namespace Profiler
             {
                 if( pipeline.m_Handle != VK_NULL_HANDLE )
                 {
+                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+
                     ImGui::Text( "%2u. %s", i + 1,
                         GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
 
                     TextAlignRight( "(%.1f %%) %.2f ms",
-                        pipeline.m_Ticks * 100.f / m_Data.m_Ticks, 
-                        pipeline.m_Ticks * m_TimestampPeriod );
+                        pipelineTicks * 100.f / m_Data.m_Ticks, 
+                        pipelineTicks * m_TimestampPeriod );
 
                     // Print up to 10 top pipelines
                     if( (++i) == 10 ) break;
@@ -1642,8 +1653,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index )
     {
+        const uint64_t commandBufferTicks = (cmdBuffer.m_EndTimestamp - cmdBuffer.m_BeginTimestamp);
+
         // Mark hotspots with color
-        DrawSignificanceRect( (float)cmdBuffer.m_Ticks / m_Data.m_Ticks );
+        DrawSignificanceRect( (float)commandBufferTicks / m_Data.m_Ticks );
 
         const std::string cmdBufferName =
             GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle );
@@ -1665,7 +1678,7 @@ namespace Profiler
         if( ImGui::TreeNode( indexStr, "%s", cmdBufferName.c_str() ) )
         {
             // Command buffer opened
-            TextAlignRight( "%.2f ms", cmdBuffer.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod );
 
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
@@ -1683,7 +1696,7 @@ namespace Profiler
         else
         {
             // Command buffer collapsed
-            TextAlignRight( "%.2f ms", cmdBuffer.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod );
         }
     }
 
@@ -1698,8 +1711,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex index )
     {
+        const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp);
+
         // Mark hotspots with color
-        DrawSignificanceRect( (float)renderPass.m_Ticks / m_Data.m_Ticks );
+        DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks );
 
         char indexStr[ 30 ] = {};
         structtohex( indexStr, index );
@@ -1714,15 +1729,17 @@ namespace Profiler
 
         if( inRenderPassSubtree )
         {
+            const uint64_t renderPassBeginTicks = (renderPass.m_CmdBeginEndTimestamp - renderPass.m_BeginTimestamp);
+
             // Render pass subtree opened
-            TextAlignRight( "%.2f ms", renderPass.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod );
 
             // Mark hotspots with color
-            DrawSignificanceRect( (float)renderPass.m_BeginTicks / m_Data.m_Ticks );
+            DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks );
 
             // Print BeginRenderPass pipeline
             ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-            TextAlignRight( "%.2f ms", renderPass.m_BeginTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPassBeginTicks * m_TimestampPeriod );
         }
 
         if( inRenderPassSubtree ||
@@ -1742,12 +1759,14 @@ namespace Profiler
 
         if( inRenderPassSubtree )
         {
+            const uint64_t renderPassEndTicks = (renderPass.m_EndTimestamp - renderPass.m_CmdEndBeginTimestamp);
+
             // Mark hotspots with color
-            DrawSignificanceRect( (float)renderPass.m_EndTicks / m_Data.m_Ticks );
+            DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks );
 
             // Print EndRenderPass pipeline
             ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-            TextAlignRight( "%.2f ms", renderPass.m_EndTicks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPassEndTicks * m_TimestampPeriod );
 
             ImGui::TreePop();
         }
@@ -1756,7 +1775,7 @@ namespace Profiler
             (renderPass.m_Handle != VK_NULL_HANDLE) )
         {
             // Render pass collapsed
-            TextAlignRight( "%.2f ms", renderPass.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod );
         }
     }
 
@@ -1771,12 +1790,13 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex index, bool isOnlySubpass )
     {
+        const uint64_t subpassTicks = (subpass.m_EndTimestamp - subpass.m_BeginTimestamp);
         bool inSubpassSubtree = false;
 
         if( !isOnlySubpass )
         {
             // Mark hotspots with color
-            DrawSignificanceRect( (float)subpass.m_Ticks / m_Data.m_Ticks );
+            DrawSignificanceRect( (float)subpassTicks / m_Data.m_Ticks );
 
             char indexStr[ 30 ] = {};
             structtohex( indexStr, index );
@@ -1789,7 +1809,7 @@ namespace Profiler
         if( inSubpassSubtree )
         {
             // Subpass subtree opened
-            TextAlignRight( "%.2f ms", subpass.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod );
         }
 
         if( inSubpassSubtree ||
@@ -1834,7 +1854,7 @@ namespace Profiler
         if( !inSubpassSubtree && !isOnlySubpass && (subpass.m_Index != -1) )
         {
             // Subpass collapsed
-            TextAlignRight( "%.2f ms", subpass.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod );
         }
     }
 
@@ -1849,6 +1869,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex index )
     {
+        const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+
         const bool printPipelineInline =
             (pipeline.m_Handle == VK_NULL_HANDLE) ||
             ((pipeline.m_Hash & 0xFFFF) == 0);
@@ -1858,7 +1880,7 @@ namespace Profiler
         if( !printPipelineInline )
         {
             // Mark hotspots with color
-            DrawSignificanceRect( (float)pipeline.m_Ticks / m_Data.m_Ticks );
+            DrawSignificanceRect( (float)pipelineTicks / m_Data.m_Ticks );
 
             char indexStr[ 30 ] = {};
             structtohex( indexStr, index );
@@ -1871,7 +1893,7 @@ namespace Profiler
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
-            TextAlignRight( "%.2f ms", pipeline.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod );
         }
 
         if( inPipelineSubtree || printPipelineInline )
@@ -1896,7 +1918,7 @@ namespace Profiler
         if( !inPipelineSubtree && !printPipelineInline )
         {
             // Pipeline collapsed
-            TextAlignRight( "%.2f ms", pipeline.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod );
         }
     }
 
@@ -1911,10 +1933,12 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall )
     {
+        const uint64_t drawcallTicks = (drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp);
+
         if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
         {
             // Mark hotspots with color
-            DrawSignificanceRect( (float)drawcall.m_Ticks / m_Data.m_Ticks );
+            DrawSignificanceRect( (float)drawcallTicks / m_Data.m_Ticks );
         }
 
         // Keep in sync with ProfilerDrawcallType enum
@@ -2184,7 +2208,7 @@ namespace Profiler
         if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
         {
             // Print drawcall duration
-            TextAlignRight( "%.2f ms", drawcall.m_Ticks * m_TimestampPeriod );
+            TextAlignRight( "%.2f ms", drawcallTicks * m_TimestampPeriod );
         }
     }
 

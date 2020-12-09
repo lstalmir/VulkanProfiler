@@ -19,19 +19,49 @@
 // SOFTWARE.
 
 #pragma once
+#include <vulkan/vulkan.h>
+#include <nlohmann/json.hpp>
 
 namespace Profiler
 {
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
+    enum class TraceEventPhase
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+        eDurationBegin = 'B',
+        eDurationEnd = 'E',
+        eComplete = 'X',
+        eInstant = 'i',
+        eCounter = 'C',
+        eAsyncStart = 'b',
+        eAsyncInstant = 'n',
+        eAsyncEnd = 'e',
+        eFlowStart = 's',
+        eFlowStep = 't',
+        eFlowEnd = 'f',
+        eSample = 'P',
+        eObjectCreated = 'N',
+        eObjectSnapshot = 'O',
+        eObjectDestroyed = 'D',
+        eMetadata = 'M',
+        eMemoryDumpGlobal = 'V',
+        eMemoryDumpProcess = 'v',
+        eMark = 'R',
+        eClockSync = 'c',
+        eContextBegin = '(',
+        eContextEnd = ')'
+    };
 
-    template<typename Data>
-    inline bool DurationAsc( const Data& a, const Data& b )
+    // Intermediate types
+    struct TraceEvent
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+        std::string              m_Name;
+        std::string              m_Category;
+        TraceEventPhase          m_Phase;
+        double                   m_Timestamp;
+        VkQueue                  m_Queue;
+        VkCommandBuffer          m_CommandBuffer;
+        nlohmann::json::object_t m_Args;
+    };
+
+    // Conversion functions
+    void to_json( nlohmann::json& j, const TraceEvent& event );
 }

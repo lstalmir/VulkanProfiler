@@ -147,6 +147,7 @@ namespace Profiler
     {
         return {
             VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME,
+            VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
             VK_EXT_DEBUG_MARKER_EXTENSION_NAME
         };
     }
@@ -736,6 +737,7 @@ namespace Profiler
         // Store submitted command buffers and get results
         DeviceProfilerSubmitBatch submitBatch;
         submitBatch.m_Handle = queue;
+        submitBatch.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue().time_since_epoch().count();
 
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
@@ -814,6 +816,7 @@ namespace Profiler
 
             // Get data captured during the last frame
             m_Data = m_DataAggregator.GetAggregatedData();
+            m_Data.m_Timestamp = m_CpuTimestampCounter.GetBeginValue().time_since_epoch().count();
         }
 
         // TODO: Move to memory tracker

@@ -18,20 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#include "profiler_trace_event.h"
+#include "profiler/profiler_helpers.h"
 
 namespace Profiler
 {
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    /*************************************************************************\
 
-    template<typename Data>
-    inline bool DurationAsc( const Data& a, const Data& b )
+    Function:
+        to_json
+
+    Description:
+        Serialize TraceEvent to JSON object.
+
+    \*************************************************************************/
+    void to_json( nlohmann::json& jsonObject, const TraceEvent& event )
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
+        using namespace std::literals;
+
+        char queueHexHandle[ 32 ] = {};
+        Profiler::u64tohex( queueHexHandle, reinterpret_cast<uint64_t>(event.m_Queue) );
+
+        jsonObject = {
+            { "name", event.m_Name },
+            { "cat", event.m_Category },
+            { "ph", std::string( 1, static_cast<char>(event.m_Phase) ) },
+            { "ts", static_cast<uint64_t>(event.m_Timestamp * 1000000) },
+            { "pid", 0 },
+            { "tid", "VkQueue 0x"s + queueHexHandle },
+            { "args", event.m_Args } };
     }
 }

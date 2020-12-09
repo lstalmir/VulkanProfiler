@@ -274,7 +274,8 @@ namespace Profiler
     {
         DeviceProfilerDrawcallType                          m_Type = {};
         DeviceProfilerDrawcallPayload                       m_Payload = {};
-        uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         inline DeviceProfilerPipelineType GetPipelineType() const
         {
@@ -289,7 +290,8 @@ namespace Profiler
         inline DeviceProfilerDrawcall( const DeviceProfilerDrawcall& dc )
             : m_Type( dc.m_Type )
             , m_Payload( dc.m_Payload )
-            , m_Ticks( dc.m_Ticks )
+            , m_BeginTimestamp( dc.m_BeginTimestamp )
+            , m_EndTimestamp( dc.m_EndTimestamp )
         {
             if( dc.m_Type == DeviceProfilerDrawcallType::eDebugLabel )
             {
@@ -320,7 +322,8 @@ namespace Profiler
         {
             std::swap( m_Type, dc.m_Type );
             std::swap( m_Payload, dc.m_Payload );
-            std::swap( m_Ticks, dc.m_Ticks );
+            std::swap( m_BeginTimestamp, dc.m_BeginTimestamp );
+            std::swap( m_EndTimestamp, dc.m_EndTimestamp );
         }
 
         // Assignment operators
@@ -415,7 +418,8 @@ namespace Profiler
     {
         VkPipeline                                          m_Handle = {};
         uint32_t                                            m_Hash = {};
-        uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
 
         inline DeviceProfilerPipelineData() = default;
@@ -460,7 +464,8 @@ namespace Profiler
     {
         uint32_t                                            m_Index = {};
         VkSubpassContents                                   m_Contents = {};
-        uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         ContainerType<struct DeviceProfilerPipelineData>    m_Pipelines = {};
         ContainerType<struct DeviceProfilerCommandBufferData> m_SecondaryCommandBuffers = {};
@@ -495,9 +500,10 @@ namespace Profiler
     struct DeviceProfilerRenderPassData
     {
         VkRenderPass                                        m_Handle = {};
-        uint64_t                                            m_Ticks = {};
-        uint64_t                                            m_BeginTicks = {};
-        uint64_t                                            m_EndTicks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_CmdBeginEndTimestamp = {};
+        uint64_t                                            m_CmdEndBeginTimestamp = {};
 
         ContainerType<struct DeviceProfilerSubpassData>     m_Subpasses = {};
     };
@@ -516,7 +522,8 @@ namespace Profiler
         VkCommandBuffer                                     m_Handle = {};
         VkCommandBufferLevel                                m_Level = {};
         DeviceProfilerDrawcallStats                         m_Stats = {};
-        uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
@@ -552,6 +559,7 @@ namespace Profiler
     {
         VkQueue                                             m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
+        uint64_t                                            m_Timestamp = {};
     };
 
     /***********************************************************************************\
@@ -628,6 +636,7 @@ namespace Profiler
 
         DeviceProfilerDrawcallStats                         m_Stats = {};
 
+        uint64_t                                            m_Timestamp = {};
         uint64_t                                            m_Ticks = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};

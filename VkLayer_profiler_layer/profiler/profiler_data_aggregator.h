@@ -42,6 +42,7 @@ namespace Profiler
     {
         VkQueue                                 m_Handle = {};
         ContainerType<DeviceProfilerSubmit>     m_Submits = {};
+        uint64_t                                m_Timestamp = {};
     };
 
     /***********************************************************************************\

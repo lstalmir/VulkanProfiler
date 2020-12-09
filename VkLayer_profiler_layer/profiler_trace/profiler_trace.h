@@ -19,19 +19,38 @@
 // SOFTWARE.
 
 #pragma once
+#include <filesystem>
 
 namespace Profiler
 {
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    struct DeviceProfilerFrameData;
 
-    template<typename Data>
-    inline bool DurationAsc( const Data& a, const Data& b )
+    /*************************************************************************\
+
+    Class:
+        DeviceProfilerTraceSerializer
+
+    Description:
+        Serializes data collected by the profiler into Chrome-compatible JSON
+        format (Trace Event Format).
+
+    See:
+        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+
+    \*************************************************************************/
+    class DeviceProfilerTraceSerializer
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    public:
+        DeviceProfilerTraceSerializer(
+            float cpuTimestampPeriod,
+            float gpuTimestampPeriod );
+
+        void Serialize( const DeviceProfilerFrameData& data ) const;
+
+    private:
+        float m_CPUTimestampPeriod;
+        float m_GPUTimestampPeriod;
+
+        std::filesystem::path ConstructTraceFileName() const;
+    };
 }

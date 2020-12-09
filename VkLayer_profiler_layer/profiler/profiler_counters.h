@@ -89,6 +89,10 @@ namespace Profiler
         template<typename Unit>
         inline auto GetValue() const { return std::chrono::duration_cast<Unit>(m_EndValue - m_BeginValue); }
 
+        inline auto GetBeginValue() const { return m_BeginValue; }
+
+        inline auto GetCurrentValue() const { return std::chrono::high_resolution_clock::now(); }
+
     protected:
         std::chrono::high_resolution_clock::time_point m_BeginValue;
         std::chrono::high_resolution_clock::time_point m_EndValue;

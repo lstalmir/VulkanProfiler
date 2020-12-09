@@ -179,6 +179,7 @@ namespace Profiler
         {
             DeviceProfilerSubmitBatchData submitBatchData;
             submitBatchData.m_Handle = submitBatch.m_Handle;
+            submitBatchData.m_Timestamp = submitBatch.m_Timestamp;
 
             for( const auto& submit : submitBatch.m_Submits )
             {
@@ -253,7 +254,7 @@ namespace Profiler
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += commandBuffer.m_Ticks;
+                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp - commandBuffer.m_BeginTimestamp);
                 }
             }
         }
@@ -317,7 +318,7 @@ namespace Profiler
                             Profiler::Aggregate<SumAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                commandBufferData.m_Ticks,
+                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
                                 commandBufferVendorMetrics[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -336,7 +337,7 @@ namespace Profiler
                             Profiler::Aggregate<AvgAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                commandBufferData.m_Ticks,
+                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
                                 commandBufferVendorMetrics[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -393,7 +394,7 @@ namespace Profiler
 
         pipelines.sort( []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return a.m_Ticks > b.m_Ticks;
+                return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
             } );
 
         return pipelines;
@@ -422,8 +423,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_Ticks += renderPass.m_BeginTicks;
-            endRenderPassPipeline.m_Ticks += renderPass.m_EndTicks;
+            beginRenderPassPipeline.m_EndTimestamp += (renderPass.m_CmdBeginEndTimestamp - renderPass.m_BeginTimestamp);
+            endRenderPassPipeline.m_EndTimestamp += (renderPass.m_EndTimestamp - renderPass.m_CmdEndBeginTimestamp);
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -469,7 +470,7 @@ namespace Profiler
         if( it != aggregatedPipelines.end() )
         {
             aggregatedPipeline = *it;
-            aggregatedPipeline.m_Ticks += pipeline.m_Ticks;
+            aggregatedPipeline.m_EndTimestamp += (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
 
             aggregatedPipelines.erase( it );
         }
@@ -477,6 +478,7 @@ namespace Profiler
         // Clear values which don't make sense after aggregation
         aggregatedPipeline.m_Handle = pipeline.m_Handle;
         aggregatedPipeline.m_Hash = pipeline.m_Hash;
+        aggregatedPipeline.m_BeginTimestamp = 0;
         aggregatedPipeline.m_Drawcalls.clear();
 
         aggregatedPipelines.insert( aggregatedPipeline );

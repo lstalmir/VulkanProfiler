@@ -81,10 +81,12 @@ include_directories (utils)
 add_subdirectory (profiler)
 add_subdirectory (profiler_ext)
 add_subdirectory (profiler_overlay)
+add_subdirectory (profiler_trace)
 
 add_dependencies (profiler profiler_pre_build)
 add_dependencies (profiler_ext profiler_pre_build)
 add_dependencies (profiler_overlay profiler_pre_build)
+add_dependencies (profiler_trace profiler_pre_build)
 
 # Enable tests
 if (BUILD_TESTS)
@@ -195,9 +197,11 @@ file (GENERATE
     INPUT ${json}_configured)
 
 # Link against implementation
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib PUBLIC profiler)
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib PUBLIC profiler_ext)
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib PUBLIC profiler_overlay)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
+    PUBLIC profiler
+    PUBLIC profiler_ext
+    PUBLIC profiler_overlay
+    PUBLIC profiler_trace)
 
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
 
