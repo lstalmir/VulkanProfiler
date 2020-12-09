@@ -40,4 +40,6 @@ private:
     void InitError();
 
     static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
+
+    static bool IsMouseMessage( const MSG& );
 };

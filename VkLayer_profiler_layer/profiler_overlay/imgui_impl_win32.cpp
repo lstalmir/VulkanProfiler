@@ -140,15 +140,12 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
             if( g_pWin32Contexts.find( msg.hwnd, &context ) )
             {
                 // Capture only mouse events
-                if( (msg.message >= WM_MOUSEFIRST) && (msg.message <= WM_MOUSELAST) )
+                if( IsMouseMessage( msg ) && ImGui::GetIO().WantCaptureMouse )
                 {
                     ImGui_ImplWin32_WndProcHandler( msg.hwnd, msg.message, msg.wParam, msg.lParam );
 
                     // Don't pass captured events to the application
-                    if( ImGui::GetIO().WantCaptureMouse )
-                    {
-                        filterMessage = true;
-                    }
+                    filterMessage = true;
                 }
             }
         }
@@ -165,4 +162,18 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
     }
 
     return result;
+}
+
+/***********************************************************************************\
+
+Function:
+    IsMouseMessage
+
+Description:
+    Checks if MSG describes mouse message.
+
+\***********************************************************************************/
+bool ImGui_ImplWin32_Context::IsMouseMessage( const MSG& msg )
+{
+    return (msg.message >= WM_MOUSEFIRST) && (msg.message <= WM_MOUSELAST);
 }
