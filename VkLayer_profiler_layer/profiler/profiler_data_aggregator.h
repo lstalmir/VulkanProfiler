@@ -60,7 +60,7 @@ namespace Profiler
         VkResult Initialize( DeviceProfiler* );
 
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
-        void AppendData( ProfilerCommandBuffer*, const DeviceProfilerCommandBufferData& );
+        void AppendData( ProfilerCommandBuffer*, std::shared_ptr<const CommandBufferData> );
         
         void Aggregate();
         void Reset();
@@ -73,7 +73,7 @@ namespace Profiler
         std::list<DeviceProfilerSubmitBatch> m_Submits;
         std::list<DeviceProfilerSubmitBatchData> m_AggregatedData;
 
-        std::unordered_map<ProfilerCommandBuffer*, DeviceProfilerCommandBufferData> m_Data;
+        std::unordered_map<ProfilerCommandBuffer*, std::shared_ptr<const CommandBufferData>> m_Data;
 
         std::mutex m_Mutex;
 
@@ -82,14 +82,8 @@ namespace Profiler
 
         std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
 
-        std::list<DeviceProfilerPipelineData> CollectTopPipelines() const;
+        std::vector<AggregatedPipelineData> CollectTopPipelines() const;
 
-        void CollectPipelinesFromCommandBuffer(
-            const DeviceProfilerCommandBufferData&,
-            std::unordered_set<DeviceProfilerPipelineData>& ) const;
-
-        void CollectPipeline(
-            const DeviceProfilerPipelineData&,
-            std::unordered_set<DeviceProfilerPipelineData>& ) const;
+        std::vector<DeviceProfilerSubmitBatchData> ConstructFrameTree() const;
     };
 }

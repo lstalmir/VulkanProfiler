@@ -88,32 +88,32 @@ private:
         return result;
     }
 
-    inline VkProfilerCommandTypeEXT DrawcallTypeToCommandType( DeviceProfilerDrawcallType type ) const
+    inline VkProfilerCommandTypeEXT CommandIdToCommandType( CommandId commandId ) const
     {
-        static const std::unordered_map<DeviceProfilerDrawcallType, VkProfilerCommandTypeEXT> commandTypes =
+        static const std::unordered_map<CommandId, VkProfilerCommandTypeEXT> commandTypes =
         {
-            { DeviceProfilerDrawcallType::eDraw,                        VK_PROFILER_COMMAND_DRAW_EXT },
-            { DeviceProfilerDrawcallType::eDrawIndexed,                 VK_PROFILER_COMMAND_DRAW_INDEXED_EXT },
-            { DeviceProfilerDrawcallType::eDrawIndirect,                VK_PROFILER_COMMAND_DRAW_INDIRECT_EXT },
-            { DeviceProfilerDrawcallType::eDrawIndexedIndirect,         VK_PROFILER_COMMAND_DRAW_INDEXED_INDIRECT_EXT },
-            { DeviceProfilerDrawcallType::eDrawIndirectCount,           VK_PROFILER_COMMAND_DRAW_INDIRECT_COUNT_EXT },
-            { DeviceProfilerDrawcallType::eDrawIndexedIndirectCount,    VK_PROFILER_COMMAND_DRAW_INDEXED_INDIRECT_COUNT_EXT },
-            { DeviceProfilerDrawcallType::eDispatch,                    VK_PROFILER_COMMAND_DISPATCH_EXT },
-            { DeviceProfilerDrawcallType::eDispatchIndirect,            VK_PROFILER_COMMAND_DISPATCH_INDIRECT_EXT },
-            { DeviceProfilerDrawcallType::eCopyBuffer,                  VK_PROFILER_COMMAND_COPY_BUFFER_EXT },
-            { DeviceProfilerDrawcallType::eCopyBufferToImage,           VK_PROFILER_COMMAND_COPY_BUFFER_TO_IMAGE_EXT },
-            { DeviceProfilerDrawcallType::eCopyImage,                   VK_PROFILER_COMMAND_COPY_IMAGE_EXT },
-            { DeviceProfilerDrawcallType::eCopyImageToBuffer,           VK_PROFILER_COMMAND_COPY_IMAGE_TO_BUFFER_EXT },
-            { DeviceProfilerDrawcallType::eClearAttachments,            VK_PROFILER_COMMAND_CLEAR_ATTACHMENTS_EXT },
-            { DeviceProfilerDrawcallType::eClearColorImage,             VK_PROFILER_COMMAND_CLEAR_COLOR_IMAGE_EXT },
-            { DeviceProfilerDrawcallType::eClearDepthStencilImage,      VK_PROFILER_COMMAND_CLEAR_DEPTH_STENCIL_IMAGE_EXT },
-            { DeviceProfilerDrawcallType::eResolveImage,                VK_PROFILER_COMMAND_RESOLVE_IMAGE_EXT },
-            { DeviceProfilerDrawcallType::eBlitImage,                   VK_PROFILER_COMMAND_BLIT_IMAGE_EXT },
-            { DeviceProfilerDrawcallType::eFillBuffer,                  VK_PROFILER_COMMAND_FILL_BUFFER_EXT },
-            { DeviceProfilerDrawcallType::eUpdateBuffer,                VK_PROFILER_COMMAND_UPDATE_BUFFER_EXT }
+            { CommandId::eDraw,                        VK_PROFILER_COMMAND_DRAW_EXT },
+            { CommandId::eDrawIndexed,                 VK_PROFILER_COMMAND_DRAW_INDEXED_EXT },
+            { CommandId::eDrawIndirect,                VK_PROFILER_COMMAND_DRAW_INDIRECT_EXT },
+            { CommandId::eDrawIndexedIndirect,         VK_PROFILER_COMMAND_DRAW_INDEXED_INDIRECT_EXT },
+            { CommandId::eDrawIndirectCount,           VK_PROFILER_COMMAND_DRAW_INDIRECT_COUNT_EXT },
+            { CommandId::eDrawIndexedIndirectCount,    VK_PROFILER_COMMAND_DRAW_INDEXED_INDIRECT_COUNT_EXT },
+            { CommandId::eDispatch,                    VK_PROFILER_COMMAND_DISPATCH_EXT },
+            { CommandId::eDispatchIndirect,            VK_PROFILER_COMMAND_DISPATCH_INDIRECT_EXT },
+            { CommandId::eCopyBuffer,                  VK_PROFILER_COMMAND_COPY_BUFFER_EXT },
+            { CommandId::eCopyBufferToImage,           VK_PROFILER_COMMAND_COPY_BUFFER_TO_IMAGE_EXT },
+            { CommandId::eCopyImage,                   VK_PROFILER_COMMAND_COPY_IMAGE_EXT },
+            { CommandId::eCopyImageToBuffer,           VK_PROFILER_COMMAND_COPY_IMAGE_TO_BUFFER_EXT },
+            { CommandId::eClearAttachments,            VK_PROFILER_COMMAND_CLEAR_ATTACHMENTS_EXT },
+            { CommandId::eClearColorImage,             VK_PROFILER_COMMAND_CLEAR_COLOR_IMAGE_EXT },
+            { CommandId::eClearDepthStencilImage,      VK_PROFILER_COMMAND_CLEAR_DEPTH_STENCIL_IMAGE_EXT },
+            { CommandId::eResolveImage,                VK_PROFILER_COMMAND_RESOLVE_IMAGE_EXT },
+            { CommandId::eBlitImage,                   VK_PROFILER_COMMAND_BLIT_IMAGE_EXT },
+            { CommandId::eFillBuffer,                  VK_PROFILER_COMMAND_FILL_BUFFER_EXT },
+            { CommandId::eUpdateBuffer,                VK_PROFILER_COMMAND_UPDATE_BUFFER_EXT }
         };
 
-        auto it = commandTypes.find( type );
+        auto it = commandTypes.find( commandId );
         if( it != commandTypes.end() )
         {
             return it->second;
@@ -158,6 +158,7 @@ public:
         region.pNext = nullptr;
     }
 
+    #if 0
     // Drawcall serialization helper
     inline VkResult SerializeDrawcall( const DeviceProfilerDrawcall& data, VkProfilerRegionDataEXT& out )
     {
@@ -230,17 +231,21 @@ public:
 
         return result;
     }
+    #endif
 
     // VkCommandBuffer serialization helper
-    inline VkResult SerializeCommandBuffer( const DeviceProfilerCommandBufferData& data, VkProfilerRegionDataEXT& out )
+    inline VkResult SerializeCommandBuffer( std::shared_ptr<const CommandBufferData> data, VkProfilerRegionDataEXT& out )
     {
         out.sType = VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT;
         out.pNext = nullptr;
         out.regionType = VK_PROFILER_REGION_TYPE_COMMAND_BUFFER_EXT;
-        out.duration = (data.m_EndTimestamp - data.m_BeginTimestamp) * m_TimestampPeriodMs;
-        out.properties.commandBuffer.handle = data.m_Handle;
-        out.properties.commandBuffer.level = data.m_Level;
+        out.duration = (data->m_EndTimestamp - data->m_BeginTimestamp) * m_TimestampPeriodMs;
+        out.properties.commandBuffer.handle = data->m_Handle;
+        out.properties.commandBuffer.level = data->m_Level;
+        #if 0
         return SerializeSubregions( data.m_RenderPasses, &RegionBuilder::SerializeRenderPass, out );
+        #endif
+        return VK_SUCCESS;
     }
 
     // VkSubmitInfo serialization helper
@@ -250,7 +255,7 @@ public:
         out.pNext = nullptr;
         out.regionType = VK_PROFILER_REGION_TYPE_SUBMIT_INFO_EXT;
         out.duration = 0;
-        return SerializeSubregions( data.m_CommandBuffers, &RegionBuilder::SerializeCommandBuffer, out );
+        return SerializeSubregions( data.m_pCommandBuffers, &RegionBuilder::SerializeCommandBuffer, out );
     }
 
     // vkQueueSubmit serialization helper

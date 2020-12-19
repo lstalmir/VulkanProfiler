@@ -153,11 +153,13 @@ namespace Profiler
         void UpdateSettingsTab();
 
         // Frame browser helpers
-        void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );
+        void PrintCommandBuffer( const CommandBufferData&, FrameBrowserTreeNodeIndex );
+        #if 0
         void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex );
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex, bool );
         void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
         void PrintDrawcall( const DeviceProfilerDrawcall& );
+        #endif
 
         void TextAlignRight( float, const char*, ... );
         void TextAlignRight( const char*, ... );

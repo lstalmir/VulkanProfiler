@@ -24,10 +24,48 @@
 #include <vulkan/vk_layer.h>
 #include <vector>
 #include <unordered_set>
+#include <memory>
 
 namespace Profiler
 {
     class DeviceProfiler;
+
+    /***********************************************************************************\
+
+    Class:
+        TimestampQueryPool
+
+    Description:
+        Dynamically-resizable timestamp query pool.
+
+    \***********************************************************************************/
+    class TimestampQueryPool
+    {
+    public:
+        TimestampQueryPool( DeviceProfiler& profiler, VkCommandBuffer commandBuffer );
+        ~TimestampQueryPool();
+
+        bool IsEmpty() const;
+
+        void Reset();
+        void Begin();
+
+        void Allocate();
+        bool AllocateIfAlmostFull( float threshold );
+
+        void WriteTimestampQuery( VkPipelineStageFlagBits stage );
+
+        std::vector<uint64_t> GetData();
+
+    private:
+        DeviceProfiler& m_Profiler;
+        VkCommandBuffer m_CommandBuffer;
+
+        std::vector<VkQueryPool> m_QueryPools;
+        uint32_t m_QueryPoolSize;
+        uint32_t m_CurrentQueryPoolIndex;
+        uint32_t m_CurrentQueryIndex;
+    };
 
     /***********************************************************************************\
 
@@ -54,67 +92,31 @@ namespace Profiler
 
         void Reset( VkCommandBufferResetFlags );
 
-        void PreBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents );
-        void PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents );
-        void PreEndRenderPass();
-        void PostEndRenderPass();
+        void PreCommand( std::shared_ptr<Command> );
+        void PostCommand( std::shared_ptr<Command> );
 
-        void NextSubpass( VkSubpassContents );
-
-        void BindPipeline( const DeviceProfilerPipeline& );
-
-        void PreDraw( const DeviceProfilerDrawcall& );
-        void PostDraw();
-        void DebugLabel( const char*, const float[ 4 ] );
-        void ExecuteCommands( uint32_t, const VkCommandBuffer* );
-        void PipelineBarrier(
-            uint32_t, const VkMemoryBarrier*,
-            uint32_t, const VkBufferMemoryBarrier*,
-            uint32_t, const VkImageMemoryBarrier* );
-
-        const DeviceProfilerCommandBufferData& GetData();
+        std::shared_ptr<const CommandBufferData> GetData();
 
     protected:
-        DeviceProfiler& m_Profiler;
+        DeviceProfiler&       m_Profiler;
 
         const VkCommandPool   m_CommandPool;
         const VkCommandBuffer m_CommandBuffer;
         const VkCommandBufferLevel m_Level;
+        
+        std::shared_ptr<CommandBufferData> m_pData;
+        bool                  m_Dirty;
 
-        bool            m_Dirty;
+        std::unique_ptr<TimestampQueryPool> m_pTimestampQueryPool;
+
+        std::unique_ptr<CommandVisitor> m_pPreCommandQueryVisitor;
+        std::unique_ptr<CommandVisitor> m_pPostCommandQueryVisitor;
+        std::unique_ptr<CommandVisitor> m_pCommandTreeBuilder;
 
         std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
 
-        std::vector<VkQueryPool> m_QueryPools;
-        uint32_t        m_QueryPoolSize;
-        uint32_t        m_CurrentQueryPoolIndex;
-        uint32_t        m_CurrentQueryIndex;
-
         VkQueryPool     m_PerformanceQueryPoolINTEL;
 
-        DeviceProfilerDrawcallStats m_Stats;
-        DeviceProfilerCommandBufferData m_Data;
-
-        DeviceProfilerRenderPass* m_pCurrentRenderPass;
-        DeviceProfilerRenderPassData* m_pCurrentRenderPassData;
-
-        uint32_t               m_CurrentSubpassIndex;
-
-        DeviceProfilerPipeline m_GraphicsPipeline;
-        DeviceProfilerPipeline m_ComputePipeline;
-
-        void AllocateQueryPool();
-
-        void EndSubpass();
-
-        void IncrementStat( const DeviceProfilerDrawcall& );
-
-        void SendTimestampQuery( VkPipelineStageFlagBits );
-
-        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
-        void SetupCommandBufferForSecondaryBuffers();
-
-        DeviceProfilerPipelineData& GetCurrentPipeline();
-
+        std::vector<std::shared_ptr<Command>> m_pCommands;
     };
 }

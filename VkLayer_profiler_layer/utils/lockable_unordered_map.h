@@ -88,6 +88,21 @@ public:
         BaseType::insert( { key, value } );
     }
 
+    // Construct new value in the map
+    template<typename... Args>
+    void emplace( const KeyType& key, Args&&... args )
+    {
+        std::scoped_lock lk( m_Mtx );
+        BaseType::emplace( key, args... );
+    }
+
+    // Construct new value in the map
+    template<typename... Args>
+    void unsafe_emplace( const KeyType& key, Args&&... args )
+    {
+        BaseType::emplace( key, args... );
+    }
+
     // Remove value at key (thread-safe)
     void remove( const KeyType& key )
     {

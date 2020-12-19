@@ -112,13 +112,20 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.DebugLabel( pLabelInfo->pLabelName, pLabelInfo->color );
+        auto pCommand = DebugLabelCommand::Create(
+            CommandId::eInsertDebugLabel,
+            pLabelInfo->pLabelName,
+            pLabelInfo->color );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer (if available)
         if( dd.Device.Callbacks.CmdInsertDebugUtilsLabelEXT )
         {
             dd.Device.Callbacks.CmdInsertDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
         }
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -136,13 +143,20 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.DebugLabel( pLabelInfo->pLabelName, pLabelInfo->color );
+        auto pCommand = DebugLabelCommand::Create(
+            CommandId::eBeginDebugLabel,
+            pLabelInfo->pLabelName,
+            pLabelInfo->color );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer (if available)
         if( dd.Device.Callbacks.CmdBeginDebugUtilsLabelEXT )
         {
             dd.Device.Callbacks.CmdBeginDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
         }
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -157,12 +171,17 @@ namespace Profiler
         VkCommandBuffer commandBuffer )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Ranged debug labels not supported
+        auto pCommand = DebugLabelCommand::Create( CommandId::eEndDebugLabel );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         if( dd.Device.Callbacks.CmdEndDebugUtilsLabelEXT )
         {
             dd.Device.Callbacks.CmdEndDebugUtilsLabelEXT( commandBuffer );
         }
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 }

@@ -67,12 +67,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
+        auto pCommand = BeginRenderPassCommand::Create( pBeginInfo, pSubpassBeginInfo->contents );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Begin the render pass
         dd.Device.Callbacks.CmdBeginRenderPass2KHR( commandBuffer, pBeginInfo, pSubpassBeginInfo );
 
-        profiledCommandBuffer.PostBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -90,12 +92,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreEndRenderPass();
+        auto pCommand = EndRenderPassCommand::Create();
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // End the render pass
         dd.Device.Callbacks.CmdEndRenderPass2KHR( commandBuffer, pSubpassEndInfo );
 
-        profiledCommandBuffer.PostEndRenderPass();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -114,9 +118,13 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.NextSubpass( pSubpassBeginInfo->contents );
+        auto pCommand = NextSubpassCommand::Create( pSubpassBeginInfo->contents );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Begin next subpass
         dd.Device.Callbacks.CmdNextSubpass2KHR( commandBuffer, pSubpassBeginInfo, pSubpassEndInfo );
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 }

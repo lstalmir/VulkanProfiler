@@ -24,6 +24,9 @@ project (profiler)
 
 set (headers
     "profiler.h"
+    "profiler_checkpoints.h"
+    "profiler_commands.h"
+    "profiler_command_tree.h"
     "profiler_command_buffer.h"
     "profiler_counters.h"
     "profiler_data.h"

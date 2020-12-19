@@ -105,12 +105,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, subpassContents );
+        auto pCommand = BeginRenderPassCommand::Create( pBeginInfo, subpassContents );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Begin the render pass
         dd.Device.Callbacks.CmdBeginRenderPass( commandBuffer, pBeginInfo, subpassContents );
 
-        profiledCommandBuffer.PostBeginRenderPass( pBeginInfo, subpassContents );
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -127,12 +129,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreEndRenderPass();
+        auto pCommand = EndRenderPassCommand::Create();
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // End the render pass
         dd.Device.Callbacks.CmdEndRenderPass( commandBuffer );
 
-        profiledCommandBuffer.PostEndRenderPass();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -150,10 +154,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.NextSubpass( contents );
-        
+        auto pCommand = NextSubpassCommand::Create( contents );
+
+        profiledCommandBuffer.PreCommand( pCommand );
+
         // Begin next subpass
         dd.Device.Callbacks.CmdNextSubpass( commandBuffer, contents );
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -172,12 +180,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
+        auto pCommand = BeginRenderPassCommand::Create( pBeginInfo, pSubpassBeginInfo->contents );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Begin the render pass
         dd.Device.Callbacks.CmdBeginRenderPass2( commandBuffer, pBeginInfo, pSubpassBeginInfo );
 
-        profiledCommandBuffer.PostBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -195,12 +205,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.PreEndRenderPass();
+        auto pCommand = EndRenderPassCommand::Create();
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // End the render pass
         dd.Device.Callbacks.CmdEndRenderPass2( commandBuffer, pSubpassEndInfo );
 
-        profiledCommandBuffer.PostEndRenderPass();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -219,10 +231,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.NextSubpass( pSubpassBeginInfo->contents );
+        auto pCommand = NextSubpassCommand::Create( pSubpassBeginInfo->contents );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Begin next subpass
         dd.Device.Callbacks.CmdNextSubpass2( commandBuffer, pSubpassBeginInfo, pSubpassEndInfo );
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -240,13 +256,16 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
-        auto& profiledPipeline = dd.Profiler.GetPipeline( pipeline );
+
+        auto pCommand = BindPipelineCommand::Create( bindPoint, pipeline );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Bind the pipeline
         dd.Device.Callbacks.CmdBindPipeline( commandBuffer, bindPoint, pipeline );
 
         // Profile the pipeline time
-        profiledCommandBuffer.BindPipeline( profiledPipeline );
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -265,11 +284,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Record secondary command buffers
-        profiledCommandBuffer.ExecuteCommands( commandBufferCount, pCommandBuffers );
+        auto pCommand = ExecuteCommandsCommand::Create( commandBufferCount, pCommandBuffers );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Execute commands
         dd.Device.Callbacks.CmdExecuteCommands( commandBuffer, commandBufferCount, pCommandBuffers );
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -295,11 +317,18 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Record barrier statistics
-        profiledCommandBuffer.PipelineBarrier(
-            memoryBarrierCount, pMemoryBarriers,
-            bufferMemoryBarrierCount, pBufferMemoryBarriers,
-            imageMemoryBarrierCount, pImageMemoryBarriers );
+        auto pCommand = PipelineBarrierCommand::Create(
+            srcStageMask,
+            dstStageMask,
+            dependencyFlags,
+            memoryBarrierCount,
+            pMemoryBarriers,
+            bufferMemoryBarrierCount,
+            pBufferMemoryBarriers,
+            imageMemoryBarrierCount,
+            pImageMemoryBarriers );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Insert the barrier
         dd.Device.Callbacks.CmdPipelineBarrier( commandBuffer,
@@ -307,6 +336,8 @@ namespace Profiler
             memoryBarrierCount, pMemoryBarriers,
             bufferMemoryBarrierCount, pBufferMemoryBarriers,
             imageMemoryBarrierCount, pImageMemoryBarriers );
+
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -327,21 +358,19 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDraw;
-        drawcall.m_Payload.m_Draw.m_VertexCount = vertexCount;
-        drawcall.m_Payload.m_Draw.m_InstanceCount = instanceCount;
-        drawcall.m_Payload.m_Draw.m_FirstVertex = firstVertex;
-        drawcall.m_Payload.m_Draw.m_FirstInstance = firstInstance;
+        auto pCommand = DrawCommand::Create(
+            vertexCount,
+            instanceCount,
+            firstVertex,
+            firstInstance );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDraw(
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -362,21 +391,19 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndirect;
-        drawcall.m_Payload.m_DrawIndirect.m_Buffer = buffer;
-        drawcall.m_Payload.m_DrawIndirect.m_Offset = offset;
-        drawcall.m_Payload.m_DrawIndirect.m_DrawCount = drawCount;
-        drawcall.m_Payload.m_DrawIndirect.m_Stride = stride;
+        auto pCommand = DrawIndirectCommand::Create(
+            buffer,
+            offset,
+            drawCount,
+            stride );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndirect(
             commandBuffer, buffer, offset, drawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -398,22 +425,20 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndexed;
-        drawcall.m_Payload.m_DrawIndexed.m_IndexCount = indexCount;
-        drawcall.m_Payload.m_DrawIndexed.m_InstanceCount = instanceCount;
-        drawcall.m_Payload.m_DrawIndexed.m_FirstIndex = firstIndex;
-        drawcall.m_Payload.m_DrawIndexed.m_VertexOffset = vertexOffset;
-        drawcall.m_Payload.m_DrawIndexed.m_FirstInstance = firstInstance;
+        auto pCommand = DrawIndexedCommand::Create(
+            indexCount,
+            instanceCount,
+            firstIndex,
+            vertexOffset,
+            firstInstance );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexed(
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -434,21 +459,19 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndexedIndirect;
-        drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer = buffer;
-        drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset = offset;
-        drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount = drawCount;
-        drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride = stride;
+        auto pCommand = DrawIndexedIndirectCommand::Create(
+            buffer,
+            offset,
+            drawCount,
+            stride );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexedIndirect(
             commandBuffer, buffer, offset, drawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -471,23 +494,21 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndirectCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Buffer = argsBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Offset = argsOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer = countBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset = countOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
+        auto pCommand = DrawIndirectCountCommand::Create(
+            argsBuffer,
+            argsOffset,
+            countBuffer,
+            countOffset,
+            maxDrawCount,
+            stride );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndirectCount(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -509,24 +530,22 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
-        
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndexedIndirectCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Buffer = argsBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Offset = argsOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer = countBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset = countOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        auto pCommand = DrawIndexedIndirectCountCommand::Create(
+            argsBuffer,
+            argsOffset,
+            countBuffer,
+            countOffset,
+            maxDrawCount,
+            stride );
+
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexedIndirectCount(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -546,19 +565,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDispatch;
-        drawcall.m_Payload.m_Dispatch.m_GroupCountX = x;
-        drawcall.m_Payload.m_Dispatch.m_GroupCountY = y;
-        drawcall.m_Payload.m_Dispatch.m_GroupCountZ = z;
+        auto pCommand = DispatchCommand::Create( x, y, z );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDispatch( commandBuffer, x, y, z );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -577,18 +591,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDispatchIndirect;
-        drawcall.m_Payload.m_DispatchIndirect.m_Buffer = buffer;
-        drawcall.m_Payload.m_DispatchIndirect.m_Offset = offset;
+        auto pCommand = DispatchIndirectCommand::Create( buffer, offset );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDispatchIndirect( commandBuffer, buffer, offset );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -609,19 +619,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyBuffer;
-        drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer = srcBuffer;
-        drawcall.m_Payload.m_CopyBuffer.m_DstBuffer = dstBuffer;
+        auto pCommand = CopyBufferCommand::Create( srcBuffer, dstBuffer );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyBuffer(
             commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -643,19 +649,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyBufferToImage;
-        drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer = srcBuffer;
-        drawcall.m_Payload.m_CopyBufferToImage.m_DstImage = dstImage;
+        auto pCommand = CopyBufferToImageCommand::Create( srcBuffer, dstImage );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyBufferToImage(
             commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -678,18 +680,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyImage;
-        drawcall.m_Payload.m_CopyImage.m_SrcImage = srcImage;
-        drawcall.m_Payload.m_CopyImage.m_DstImage = dstImage;
+        auto pCommand = CopyImageCommand::Create( srcImage, dstImage );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyImage(
             commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -711,18 +710,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyImageToBuffer;
-        drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage = srcImage;
-        drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer = dstBuffer;
+        auto pCommand = CopyImageToBufferCommand::Create( srcImage, dstBuffer );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyImageToBuffer(
             commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -743,18 +739,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall clearDrawcall;
-        clearDrawcall.m_Type = DeviceProfilerDrawcallType::eClearAttachments;
-        clearDrawcall.m_Payload.m_ClearAttachments.m_Count = attachmentCount;
+        auto pCommand = ClearAttachmentsCommand::Create( attachmentCount, pAttachments, rectCount, pRects );
 
-        profiledCommandBuffer.PreDraw( clearDrawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdClearAttachments(
             commandBuffer, attachmentCount, pAttachments, rectCount, pRects );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -776,19 +769,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall clearDrawcall;
-        clearDrawcall.m_Type = DeviceProfilerDrawcallType::eClearColorImage;
-        clearDrawcall.m_Payload.m_ClearColorImage.m_Image = image;
-        clearDrawcall.m_Payload.m_ClearColorImage.m_Value = *pColor;
+        auto pCommand = ClearColorImageCommand::Create( image, imageLayout, pColor, rangeCount, pRanges );
 
-        profiledCommandBuffer.PreDraw( clearDrawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdClearColorImage(
             commandBuffer, image, imageLayout, pColor, rangeCount, pRanges );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -810,19 +799,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall clearDrawcall;
-        clearDrawcall.m_Type = DeviceProfilerDrawcallType::eClearDepthStencilImage;
-        clearDrawcall.m_Payload.m_ClearDepthStencilImage.m_Image = image;
-        clearDrawcall.m_Payload.m_ClearDepthStencilImage.m_Value = *pDepthStencil;
+        auto pCommand = ClearDepthStencilImageCommand::Create( image, imageLayout, pDepthStencil, rangeCount, pRanges );
 
-        profiledCommandBuffer.PreDraw( clearDrawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdClearDepthStencilImage(
             commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -845,19 +830,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall resolveDrawcall;
-        resolveDrawcall.m_Type = DeviceProfilerDrawcallType::eClearDepthStencilImage;
-        resolveDrawcall.m_Payload.m_ResolveImage.m_SrcImage = srcImage;
-        resolveDrawcall.m_Payload.m_ResolveImage.m_DstImage = dstImage;
+        auto pCommand = ResolveImageCommand::Create( srcImage, dstImage );
 
-        profiledCommandBuffer.PreDraw( resolveDrawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdResolveImage(
             commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -881,19 +862,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall blitDrawcall;
-        blitDrawcall.m_Type = DeviceProfilerDrawcallType::eBlitImage;
-        blitDrawcall.m_Payload.m_BlitImage.m_SrcImage = srcImage;
-        blitDrawcall.m_Payload.m_BlitImage.m_DstImage = dstImage;
+        auto pCommand = BlitImageCommand::Create( srcImage, dstImage );
 
-        profiledCommandBuffer.PreDraw( blitDrawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdBlitImage(
             commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -914,21 +891,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall fillDrawcall;
-        fillDrawcall.m_Type = DeviceProfilerDrawcallType::eFillBuffer;
-        fillDrawcall.m_Payload.m_FillBuffer.m_Buffer = dstBuffer;
-        fillDrawcall.m_Payload.m_FillBuffer.m_Offset = dstOffset;
-        fillDrawcall.m_Payload.m_FillBuffer.m_Size = size;
-        fillDrawcall.m_Payload.m_FillBuffer.m_Data = data;
+        auto pCommand = FillBufferCommand::Create( dstBuffer, dstOffset, size, data );
 
-        profiledCommandBuffer.PreDraw( fillDrawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdFillBuffer(
             commandBuffer, dstBuffer, dstOffset, size, data );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -949,19 +920,14 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall fillDrawcall;
-        fillDrawcall.m_Type = DeviceProfilerDrawcallType::eUpdateBuffer;
-        fillDrawcall.m_Payload.m_UpdateBuffer.m_Buffer = dstBuffer;
-        fillDrawcall.m_Payload.m_UpdateBuffer.m_Offset = dstOffset;
-        fillDrawcall.m_Payload.m_UpdateBuffer.m_Size = size;
+        auto pCommand = UpdateBufferCommand::Create( dstBuffer, dstOffset, size, pData );
 
-        profiledCommandBuffer.PreDraw( fillDrawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdUpdateBuffer(
             commandBuffer, dstBuffer, dstOffset, size, pData );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 }

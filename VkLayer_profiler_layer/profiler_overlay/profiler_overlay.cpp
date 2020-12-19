@@ -71,6 +71,115 @@ namespace Profiler
     // Define static members
     std::mutex ProfilerOverlayOutput::s_ImGuiMutex;
 
+    class OverlayOutputCommandVisitor : public CommandVisitor
+    {
+        VkDevice_debug_Object& m_Debug;
+
+        std::string GetDebugObjectName( uint64_t handle, VkObjectType type )
+        {
+            std::stringstream sstr;
+
+            // Object type to string
+            switch( type )
+            {
+            case VK_OBJECT_TYPE_COMMAND_BUFFER: sstr << "VkCommandBuffer "; break;
+            case VK_OBJECT_TYPE_RENDER_PASS: sstr << "VkRenderPass "; break;
+            case VK_OBJECT_TYPE_PIPELINE: sstr << "VkPipeline "; break;
+            }
+
+            auto it = m_Debug.ObjectNames.find( handle );
+            if( it != m_Debug.ObjectNames.end() )
+            {
+                sstr << it->second;
+            }
+            else
+            {
+                char unnamedObjectName[ 20 ] = "0x";
+                u64tohex( unnamedObjectName + 2, handle );
+
+                sstr << unnamedObjectName;
+            }
+
+            return sstr.str();
+        }
+
+        template<bool InlineTree = false, typename... Args>
+        void CreateCommandGroupTree( std::shared_ptr<CommandGroup> pCommandGroup, const char* fmt, Args&&... args )
+        {
+            bool commandGroupTreeExpanded = false;
+            if( !InlineTree )
+            {
+                const char* pIndexStr = nullptr;
+                commandGroupTreeExpanded = ImGui::TreeNode( pIndexStr, fmt, args... );
+            }
+
+            if( pCommandGroup->GetCommandData() )
+            {
+                const CommandTimestampData* pTimestampData = pCommandGroup->GetCommandData<CommandTimestampData>();
+
+
+            }
+
+            if( commandGroupTreeExpanded )
+            {
+                for( const auto& pCommand : *pCommandGroup )
+                {
+                    pCommand->Accept( *this );
+                }
+
+                if( !InlineTree )
+                {
+                    ImGui::TreePop();
+                }
+            }
+        }
+
+    public:
+        OverlayOutputCommandVisitor( VkDevice_debug_Object& debug )
+            : m_Debug( debug )
+        {
+        }
+
+        void Visit( std::shared_ptr<RenderPassCommandGroup> pCommandGroup ) override
+        {
+            VkRenderPass renderPass = pCommandGroup->GetRenderPassHandle();
+
+            CreateCommandGroupTree( pCommandGroup, "%s",
+                GetDebugObjectName( reinterpret_cast<uint64_t>(renderPass), VK_OBJECT_TYPE_RENDER_PASS ).c_str() );
+        }
+
+        void Visit( std::shared_ptr<SubpassCommandGroup> pCommandGroup ) override
+        {
+            if( std::static_pointer_cast<RenderPassCommandGroup>(pCommandGroup->GetParent())->GetSubpassCount() > 1 )
+            {
+                // Inline contents of the only subpass in the render pass
+                CreateCommandGroupTree<true /*inline*/>( pCommandGroup, nullptr );
+            }
+            else
+            {
+                CreateCommandGroupTree( pCommandGroup, "Subpass #%u", pCommandGroup->GetSubpassIndex() );
+            }
+        }
+
+        void Visit( std::shared_ptr<PipelineCommandGroup> pCommandGroup ) override
+        {
+            VkPipeline pipeline = pCommandGroup->GetBindPipelineCommand()->GetPipelineHandle();
+
+            CreateCommandGroupTree( pCommandGroup, "%s",
+                GetDebugObjectName( reinterpret_cast<uint64_t>(pipeline), VK_OBJECT_TYPE_PIPELINE ).c_str() );
+        }
+
+        void Visit( std::shared_ptr<ExecuteCommandsCommand> pCommand ) override
+        {
+
+        }
+
+        void Visit( std::shared_ptr<Command> pCommand ) override
+        {
+            ImGui::TextUnformatted( pCommand->ToString().c_str() );
+        }
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -744,10 +853,12 @@ namespace Profiler
 
         if( ImGui::Button( "Save" ) )
         {
+            #if 0
             DeviceProfilerTraceSerializer(
                 0.000000001f,
                 m_TimestampPeriod * 0.001f
             ).Serialize( data );
+            #endif
         }
 
         if( !m_Pause )
@@ -1145,8 +1256,9 @@ namespace Profiler
                     for( const auto& submit : submitBatch.m_Submits )
                     {
                         // Enumerate command buffers in submit
-                        for( const auto& cmdBuffer : submit.m_CommandBuffers )
+                        for( const auto& cmdBuffer : submit.m_pCommandBuffers )
                         {
+                            #if 0
                             // Enumerate render passes in command buffer
                             for( const auto& renderPass : cmdBuffer.m_RenderPasses )
                             {
@@ -1188,6 +1300,7 @@ namespace Profiler
                                     contributions.push_back( renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp );
                                 }
                             }
+                            #endif
                         }
                     }
                 }
@@ -1217,14 +1330,12 @@ namespace Profiler
             {
                 if( pipeline.m_Handle != VK_NULL_HANDLE )
                 {
-                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
-
                     ImGui::Text( "%2u. %s", i + 1,
                         GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
 
                     TextAlignRight( "(%.1f %%) %.2f ms",
-                        pipelineTicks * 100.f / m_Data.m_Ticks, 
-                        pipelineTicks * m_TimestampPeriod );
+                        pipeline.m_Ticks * 100.f / m_Data.m_Ticks, 
+                        pipeline.m_Ticks * m_TimestampPeriod );
 
                     // Print up to 10 top pipelines
                     if( (++i) == 10 ) break;
@@ -1390,11 +1501,11 @@ namespace Profiler
                         if( (inSubmitSubtree) || (submitBatch.m_Submits.size() == 1) )
                         {
                             // Sort frame browser data
-                            std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
-                                SortFrameBrowserData( submit.m_CommandBuffers );
+                            //std::list<const CommandBufferData*> pCommandBuffers =
+                            //    SortFrameBrowserData( submit.m_pCommandBuffers );
 
                             // Enumerate command buffers in submit
-                            for( const auto* pCommandBuffer : pCommandBuffers )
+                            for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
                             {
                                 PrintCommandBuffer( *pCommandBuffer, index );
                                 index.PrimaryCommandBufferIndex++;
@@ -1651,7 +1762,7 @@ namespace Profiler
         Writes command buffer data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index )
+    void ProfilerOverlayOutput::PrintCommandBuffer( const CommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index )
     {
         const uint64_t commandBufferTicks = (cmdBuffer.m_EndTimestamp - cmdBuffer.m_BeginTimestamp);
 
@@ -1680,6 +1791,14 @@ namespace Profiler
             // Command buffer opened
             TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod );
 
+            OverlayOutputCommandVisitor generator( m_pDevice->Debug );
+
+            for( const auto& pCommand : *cmdBuffer.m_pCommands )
+            {
+                pCommand->Accept( generator );
+            }
+
+            #if 0
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
                 SortFrameBrowserData( cmdBuffer.m_RenderPasses );
@@ -1690,6 +1809,7 @@ namespace Profiler
                 PrintRenderPass( *pRenderPass, index );
                 index.RenderPassIndex++;
             }
+            #endif
 
             ImGui::TreePop();
         }
@@ -1700,6 +1820,7 @@ namespace Profiler
         }
     }
 
+    #if 0
     /***********************************************************************************\
 
     Function:
@@ -1832,16 +1953,18 @@ namespace Profiler
 
             else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
             {
+                #if 0
                 // Sort command buffers
-                std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
+                std::list<const CommandBufferData*> pCommandBuffers =
                     SortFrameBrowserData( subpass.m_SecondaryCommandBuffers );
 
                 // Enumerate command buffers in subpass
-                for( const DeviceProfilerCommandBufferData* pCommandBuffer : pCommandBuffers )
+                for( const CommandBufferData* pCommandBuffer : pCommandBuffers )
                 {
                     PrintCommandBuffer( *pCommandBuffer, index );
                     index.SecondaryCommandBufferIndex++;
                 }
+                #endif
             }
         }
 
@@ -2211,6 +2334,7 @@ namespace Profiler
             TextAlignRight( "%.2f ms", drawcallTicks * m_TimestampPeriod );
         }
     }
+    #endif
 
     /***********************************************************************************\
 

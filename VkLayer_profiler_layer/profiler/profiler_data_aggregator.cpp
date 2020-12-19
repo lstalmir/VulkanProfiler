@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "profiler_data_aggregator.h"
+#include "profiler_command_tree.h"
 #include "profiler.h"
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
@@ -107,6 +108,81 @@ namespace Profiler
         Aggregate<AggregatorType>( dummy, acc, valueWeight, value, storage );
     }
 
+
+    class PipelineAggregator : public CommandVisitor
+    {
+        uint32_t m_CurrentGraphicsPipelineHash;
+        uint32_t m_CurrentComputePipelineHash;
+
+    public:
+        std::map<uint32_t, AggregatedPipelineData> m_AggregatedPipelines;
+
+        void Visit( std::shared_ptr<BindPipelineCommand> pCommand ) override
+        {
+            const BindPipelineCommandData* pCommandData = pCommand->GetCommandData();
+
+            switch( pCommand->GetPipelineBindPoint() )
+            {
+            case VK_PIPELINE_BIND_POINT_GRAPHICS:
+                m_CurrentGraphicsPipelineHash = pCommandData->m_ShaderTuple.m_Hash;
+                break;
+
+            case VK_PIPELINE_BIND_POINT_COMPUTE:
+                m_CurrentComputePipelineHash = pCommandData->m_ShaderTuple.m_Hash;
+                break;
+
+            case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+                assert( !"Ray-tracing not supported" );
+                break;
+            }
+
+            if( !m_AggregatedPipelines.count( pCommandData->m_ShaderTuple.m_Hash ) )
+            {
+                AggregatedPipelineData pipelineData = {};
+                pipelineData.m_Handle = pCommand->GetPipelineHandle();
+                pipelineData.m_BindPoint = pCommand->GetPipelineBindPoint();
+                pipelineData.m_Ticks = 0;
+
+                m_AggregatedPipelines.insert( { pCommandData->m_ShaderTuple.m_Hash, pipelineData } );
+            }
+        }
+
+        void Visit( std::shared_ptr<ExecuteCommandsCommand> pCommand ) override
+        {
+            const ExecuteCommandsCommandData* pCommandData = pCommand->GetCommandData();
+            const uint32_t commandBufferCount = pCommand->GetCommandBufferCount();
+
+            // Aggregate pipelines in each command buffer
+            for( uint32_t i = 0; i < commandBufferCount; ++i )
+            {
+                const auto& pCommandBufferData = pCommandData->m_pCommandBuffers[ i ];
+                for( const auto& pCommand : *pCommandBufferData->m_pCommands )
+                {
+                    // Invoke recursively
+                    pCommand->Accept( *this );
+                }
+            }
+        }
+
+        void Visit( std::shared_ptr<GraphicsCommand> pCommand ) override
+        {
+            m_AggregatedPipelines[ m_CurrentGraphicsPipelineHash ].m_Ticks +=
+                pCommand->GetCommandData<CommandTimestampData>()->GetTicks();
+        }
+
+        void Visit( std::shared_ptr<ComputeCommand> pCommand ) override
+        {
+            m_AggregatedPipelines[ m_CurrentComputePipelineHash ].m_Ticks +=
+                pCommand->GetCommandData<CommandTimestampData>()->GetTicks();
+        }
+
+        void Visit( std::shared_ptr<InternalPipelineCommand> pCommand ) override
+        {
+            m_AggregatedPipelines[ pCommand->GetInternalPipelineHash() ].m_Ticks +=
+                pCommand->GetCommandData<CommandTimestampData>()->GetTicks();
+        }
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -148,10 +224,10 @@ namespace Profiler
         Add command buffer data to the aggregator.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::AppendData( ProfilerCommandBuffer* pCommandBuffer, const DeviceProfilerCommandBufferData& data )
+    void ProfilerDataAggregator::AppendData( ProfilerCommandBuffer* pCommandBuffer, std::shared_ptr<const CommandBufferData> pData )
     {
         std::scoped_lock lk( m_Mutex );
-        m_Data.emplace( pCommandBuffer, data );
+        m_Data.emplace( pCommandBuffer, pData );
     }
 
     /***********************************************************************************\
@@ -192,12 +268,12 @@ namespace Profiler
                     auto it = data.find( pCommandBuffer );
                     if( it != data.end() )
                     {
-                        submitData.m_CommandBuffers.push_back( it->second );
+                        submitData.m_pCommandBuffers.push_back( it->second );
                     }
                     else
                     {
                         // Collect command buffer data now
-                        submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
+                        submitData.m_pCommandBuffers.push_back( pCommandBuffer->GetData() );
                     }
                 }
 
@@ -237,7 +313,7 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData() const
     {
-        auto aggregatedSubmits = m_AggregatedData;
+        auto aggregatedSubmits = ConstructFrameTree();
         auto aggregatedPipelines = CollectTopPipelines();
         auto aggregatedVendorMetrics = AggregateVendorMetrics();
 
@@ -251,10 +327,10 @@ namespace Profiler
         {
             for( const auto& submit : submitBatch.m_Submits )
             {
-                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                for( const auto& commandBuffer : submit.m_pCommandBuffers )
                 {
-                    frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp - commandBuffer.m_BeginTimestamp);
+                    frameData.m_Stats += commandBuffer->m_Stats;
+                    frameData.m_Ticks += (commandBuffer->m_EndTimestamp - commandBuffer->m_BeginTimestamp);
                 }
             }
         }
@@ -292,13 +368,13 @@ namespace Profiler
         {
             for( const auto& submitData : submitBatchData.m_Submits )
             {
-                for( const auto& commandBufferData : submitData.m_CommandBuffers )
+                for( const auto& commandBufferData : submitData.m_pCommandBuffers )
                 {
                     // Preprocess metrics for the command buffer
                     const std::vector<VkProfilerPerformanceCounterResultEXT> commandBufferVendorMetrics =
                         m_pProfiler->m_MetricsApiINTEL.ParseReport(
-                            commandBufferData.m_PerformanceQueryReportINTEL.data(),
-                            commandBufferData.m_PerformanceQueryReportINTEL.size() );
+                            commandBufferData->m_PerformanceQueryReportINTEL.data(),
+                            commandBufferData->m_PerformanceQueryReportINTEL.size() );
 
                     assert( commandBufferVendorMetrics.size() == metricCount );
 
@@ -318,7 +394,7 @@ namespace Profiler
                             Profiler::Aggregate<SumAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
+                                (commandBufferData->m_EndTimestamp - commandBufferData->m_BeginTimestamp),
                                 commandBufferVendorMetrics[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -337,7 +413,7 @@ namespace Profiler
                             Profiler::Aggregate<AvgAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
+                                (commandBufferData->m_EndTimestamp - commandBufferData->m_BeginTimestamp),
                                 commandBufferVendorMetrics[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -374,28 +450,31 @@ namespace Profiler
         Enumerate and sort all pipelines by duration descending.
 
     \***********************************************************************************/
-    std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
+    std::vector<AggregatedPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
     {
-        std::unordered_set<DeviceProfilerPipelineData> aggregatedPipelines;
+        PipelineAggregator aggregator;
 
         for( const auto& submitBatch : m_AggregatedData )
         {
             for( const auto& submit : submitBatch.m_Submits )
             {
-                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
                 {
-                    CollectPipelinesFromCommandBuffer( commandBuffer, aggregatedPipelines );
+                    for( const auto& pCommand : *pCommandBuffer->m_pCommands )
+                    {
+                        pCommand->Accept( aggregator );
+                    }
                 }
             }
         }
 
-        // Sort by time
-        std::list<DeviceProfilerPipelineData> pipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
+        std::vector<AggregatedPipelineData> pipelines;
+        pipelines.reserve( aggregator.m_AggregatedPipelines.size());
 
-        pipelines.sort( []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
-            {
-                return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-            } );
+        for( const auto& [hash, pipeline] : aggregator.m_AggregatedPipelines )
+        {
+            pipelines.push_back( pipeline );
+        }
 
         return pipelines;
     }
@@ -403,84 +482,46 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        CollectPipelinesFromCommandBuffer
+        ConstructFrameTree
 
     Description:
-        Enumerate and sort all pipelines in command buffer by duration descending.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::CollectPipelinesFromCommandBuffer(
-        const DeviceProfilerCommandBufferData& commandBuffer,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
+    std::vector<DeviceProfilerSubmitBatchData> ProfilerDataAggregator::ConstructFrameTree() const
     {
-        // Include begin/end
-        DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
-            (VkPipeline)DeviceProfilerPipelineType::eBeginRenderPass );
+        std::vector<DeviceProfilerSubmitBatchData> frame;
 
-        DeviceProfilerPipelineData endRenderPassPipeline = m_pProfiler->GetPipeline(
-            (VkPipeline)DeviceProfilerPipelineType::eEndRenderPass );
-
-        for( const auto& renderPass : commandBuffer.m_RenderPasses )
+        for( const auto& submitBatch : m_AggregatedData )
         {
-            // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_EndTimestamp += (renderPass.m_CmdBeginEndTimestamp - renderPass.m_BeginTimestamp);
-            endRenderPassPipeline.m_EndTimestamp += (renderPass.m_EndTimestamp - renderPass.m_CmdEndBeginTimestamp);
+            DeviceProfilerSubmitBatchData submitBatchData = {};
+            submitBatchData.m_Handle = submitBatch.m_Handle;
+            submitBatchData.m_Timestamp = submitBatch.m_Timestamp;
 
-            for( const auto& subpass : renderPass.m_Subpasses )
+            for( const auto& submit : submitBatch.m_Submits )
             {
-                if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
-                {
-                    for( const auto& pipeline : subpass.m_Pipelines )
-                    {
-                        CollectPipeline( pipeline, aggregatedPipelines );
-                    }
-                }
+                DeviceProfilerSubmitData submitData = {};
 
-                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
                 {
-                    for( const auto& secondaryCommandBuffer : subpass.m_SecondaryCommandBuffers )
+                    std::shared_ptr<CommandBufferData> pCommandBufferData = std::make_shared<CommandBufferData>();
+                    pCommandBufferData->m_Handle = pCommandBuffer->m_Handle;
+                    pCommandBufferData->m_Level = pCommandBuffer->m_Level;
+                    pCommandBufferData->m_Usage = pCommandBuffer->m_Usage;
+                    pCommandBufferData->m_Stats = pCommandBuffer->m_Stats;
+                    pCommandBufferData->m_BeginTimestamp = pCommandBuffer->m_BeginTimestamp;
+                    pCommandBufferData->m_EndTimestamp = pCommandBuffer->m_EndTimestamp;
+
+                    // Create command tree builder for current command buffer
+                    CommandTreeBuilder treeBuilder( pCommandBuffer->m_Usage, pCommandBuffer->m_Level );
+
+                    for( const auto& pCommand : *pCommandBuffer->m_pCommands )
                     {
-                        CollectPipelinesFromCommandBuffer( secondaryCommandBuffer, aggregatedPipelines );
+                        pCommand->Accept( treeBuilder );
                     }
+
+                    pCommandBufferData->m_pCommands = treeBuilder.GetCommands();
                 }
             }
         }
-
-        // Insert aggregated begin/end render pass pipelines
-        CollectPipeline( beginRenderPassPipeline, aggregatedPipelines );
-        CollectPipeline( endRenderPassPipeline, aggregatedPipelines );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        CollectPipeline
-
-    Description:
-        Aggregate pipeline data for top pipelines enumeration.
-
-    \***********************************************************************************/
-    void ProfilerDataAggregator::CollectPipeline(
-        const DeviceProfilerPipelineData& pipeline,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
-    {
-        DeviceProfilerPipelineData aggregatedPipeline = pipeline;
-
-        auto it = aggregatedPipelines.find( pipeline );
-        if( it != aggregatedPipelines.end() )
-        {
-            aggregatedPipeline = *it;
-            aggregatedPipeline.m_EndTimestamp += (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
-
-            aggregatedPipelines.erase( it );
-        }
-
-        // Clear values which don't make sense after aggregation
-        aggregatedPipeline.m_Handle = pipeline.m_Handle;
-        aggregatedPipeline.m_Hash = pipeline.m_Hash;
-        aggregatedPipeline.m_BeginTimestamp = 0;
-        aggregatedPipeline.m_Drawcalls.clear();
-
-        aggregatedPipelines.insert( aggregatedPipeline );
     }
 }

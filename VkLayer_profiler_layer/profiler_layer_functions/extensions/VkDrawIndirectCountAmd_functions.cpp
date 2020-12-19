@@ -42,23 +42,21 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndirectCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Buffer = argsBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Offset = argsOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer = countBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset = countOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
+        auto pCommand = DrawIndirectCountCommand::Create(
+            argsBuffer,
+            argsOffset,
+            countBuffer,
+            countOffset,
+            maxDrawCount,
+            stride );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndirectCountAMD(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 
     /***********************************************************************************\
@@ -81,22 +79,20 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Setup drawcall descriptor
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndexedIndirectCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Buffer = argsBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Offset = argsOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer = countBuffer;
-        drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset = countOffset;
-        drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
-        drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
+        auto pCommand = DrawIndexedIndirectCountCommand::Create(
+            argsBuffer,
+            argsOffset,
+            countBuffer,
+            countOffset,
+            maxDrawCount,
+            stride );
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( pCommand );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexedIndirectCountAMD(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( pCommand );
     }
 }
