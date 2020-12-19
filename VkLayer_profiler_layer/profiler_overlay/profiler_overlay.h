@@ -141,6 +141,8 @@ namespace Profiler
         bool m_Pause;
         bool m_ShowDebugLabels;
 
+        class DeviceProfilerStringSerializer* m_pStringSerializer;
+
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
@@ -159,8 +161,6 @@ namespace Profiler
         void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
         void PrintDrawcall( const DeviceProfilerDrawcall& );
 
-        void TextAlignRight( float, const char*, ... );
-        void TextAlignRight( const char*, ... );
         void DrawSignificanceRect( float );
         void DrawDebugLabel( const char*, const float[ 4 ] );
 

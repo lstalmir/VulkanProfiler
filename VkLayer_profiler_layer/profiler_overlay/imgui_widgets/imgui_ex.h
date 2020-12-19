@@ -19,42 +19,29 @@
 // SOFTWARE.
 
 #pragma once
-#include <filesystem>
+#include <imgui.h>
 
-namespace Profiler
+namespace ImGuiX
 {
-    class DeviceProfilerStringSerializer;
-    struct DeviceProfilerFrameData;
+    /*************************************************************************\
+
+    Function:
+        TextAlignRight
+
+    Description:
+        Print text aligned to the right.
+
+    \*************************************************************************/
+    void TextAlignRight( float contentAreaWidth, const char* fmt, ... );
 
     /*************************************************************************\
 
-    Class:
-        DeviceProfilerTraceSerializer
+    Function:
+        TextAlignRight
 
     Description:
-        Serializes data collected by the profiler into Chrome-compatible JSON
-        format (Trace Event Format).
-
-    See:
-        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+        Print text aligned to the right.
 
     \*************************************************************************/
-    class DeviceProfilerTraceSerializer
-    {
-    public:
-        DeviceProfilerTraceSerializer(
-            const DeviceProfilerStringSerializer* pStringSerializer,
-            float cpuTimestampPeriod,
-            float gpuTimestampPeriod );
-
-        void Serialize( const DeviceProfilerFrameData& data ) const;
-
-    private:
-        const DeviceProfilerStringSerializer* m_pStringSerializer;
-
-        float m_CPUTimestampPeriod;
-        float m_GPUTimestampPeriod;
-
-        std::filesystem::path ConstructTraceFileName() const;
-    };
+    void TextAlignRight( const char* fmt, ... );
 }

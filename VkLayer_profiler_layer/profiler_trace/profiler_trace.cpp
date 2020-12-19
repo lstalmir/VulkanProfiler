@@ -21,6 +21,7 @@
 #include "profiler_trace.h"
 #include "profiler_trace_event.h"
 #include "profiler/profiler_data.h"
+#include "profiler_helpers/profiler_data_helpers.h"
 
 #include "VkLayer_profiler_layer.generated.h"
 
@@ -45,8 +46,12 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerTraceSerializer::DeviceProfilerTraceSerializer( float cpuTimestampPeriod, float gpuTimestampPeriod )
-        : m_CPUTimestampPeriod( cpuTimestampPeriod )
+    DeviceProfilerTraceSerializer::DeviceProfilerTraceSerializer(
+        const DeviceProfilerStringSerializer* pStringSerializer,
+        float cpuTimestampPeriod,
+        float gpuTimestampPeriod )
+        : m_pStringSerializer( pStringSerializer )
+        , m_CPUTimestampPeriod( cpuTimestampPeriod )
         , m_GPUTimestampPeriod( gpuTimestampPeriod )
     {
     }
@@ -162,192 +167,12 @@ namespace Profiler
 
                                                     for( const auto& drawcallData : pipelineData.m_Drawcalls )
                                                     {
-                                                        std::stringstream stringBuilder;
+                                                        const std::string drawcallString = m_pStringSerializer->GetName( drawcallData );
 
-                                                        switch( drawcallData.m_Type )
-                                                        {
-
-                                                        case DeviceProfilerDrawcallType::eDraw:
-                                                        {
-                                                            stringBuilder << "vkCmdDraw("
-                                                                << drawcallData.m_Payload.m_Draw.m_VertexCount << ", "
-                                                                << drawcallData.m_Payload.m_Draw.m_InstanceCount << ", "
-                                                                << drawcallData.m_Payload.m_Draw.m_FirstVertex << ", "
-                                                                << drawcallData.m_Payload.m_Draw.m_FirstInstance << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eDrawIndexed:
-                                                        {
-                                                            stringBuilder << "vkCmdDrawIndexed("
-                                                                << drawcallData.m_Payload.m_DrawIndexed.m_IndexCount << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexed.m_InstanceCount << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexed.m_FirstIndex << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexed.m_VertexOffset << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexed.m_FirstInstance << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eDrawIndirect:
-                                                        {
-                                                            stringBuilder << "vkCmdDrawIndirect("
-                                                                << drawcallData.m_Payload.m_DrawIndirect.m_Buffer << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirect.m_Offset << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirect.m_DrawCount << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirect.m_Stride << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-                                                        {
-                                                            stringBuilder << "vkCmdDrawIndexedIndirect("
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirect.m_Buffer << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirect.m_Offset << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirect.m_DrawCount << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirect.m_Stride << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eDrawIndirectCount:
-                                                        {
-                                                            stringBuilder << "vkCmdDrawIndirectCount("
-                                                                << drawcallData.m_Payload.m_DrawIndirectCount.m_Buffer << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirectCount.m_Offset << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirectCount.m_CountBuffer << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirectCount.m_CountOffset << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirectCount.m_MaxDrawCount << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndirectCount.m_Stride << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-                                                        {
-                                                            stringBuilder << "vkCmdDrawIndexedIndirectCount("
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirectCount.m_Buffer << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirectCount.m_Offset << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount << ", "
-                                                                << drawcallData.m_Payload.m_DrawIndexedIndirectCount.m_Stride << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eDispatch:
-                                                        {
-                                                            stringBuilder << "vkCmdDispatch("
-                                                                << drawcallData.m_Payload.m_Dispatch.m_GroupCountX << ", "
-                                                                << drawcallData.m_Payload.m_Dispatch.m_GroupCountY << ", "
-                                                                << drawcallData.m_Payload.m_Dispatch.m_GroupCountZ << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eDispatchIndirect:
-                                                        {
-                                                            stringBuilder << "vkCmdDispatchIndirect("
-                                                                << drawcallData.m_Payload.m_DispatchIndirect.m_Buffer << ", "
-                                                                << drawcallData.m_Payload.m_DispatchIndirect.m_Offset << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eCopyBuffer:
-                                                        {
-                                                            stringBuilder << "vkCmdCopyBuffer("
-                                                                << drawcallData.m_Payload.m_CopyBuffer.m_SrcBuffer << ", "
-                                                                << drawcallData.m_Payload.m_CopyBuffer.m_DstBuffer << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eCopyBufferToImage:
-                                                        {
-                                                            stringBuilder << "vkCmdCopyBufferToImage("
-                                                                << drawcallData.m_Payload.m_CopyBufferToImage.m_SrcBuffer << ", "
-                                                                << drawcallData.m_Payload.m_CopyBufferToImage.m_DstImage << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eCopyImage:
-                                                        {
-                                                            stringBuilder << "vkCmdCopyImage("
-                                                                << drawcallData.m_Payload.m_CopyImage.m_SrcImage << ", "
-                                                                << drawcallData.m_Payload.m_CopyImage.m_DstImage << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-                                                        {
-                                                            stringBuilder << "vkCmdCopyImageToBuffer("
-                                                                << drawcallData.m_Payload.m_CopyImageToBuffer.m_SrcImage << ", "
-                                                                << drawcallData.m_Payload.m_CopyImageToBuffer.m_DstBuffer << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eClearAttachments:
-                                                        {
-                                                            stringBuilder << "vkCmdClearAttachments("
-                                                                << drawcallData.m_Payload.m_ClearAttachments.m_Count << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eClearColorImage:
-                                                        {
-                                                            stringBuilder << "vkCmdClearColorImage("
-                                                                << drawcallData.m_Payload.m_ClearColorImage.m_Image << ", { "
-                                                                << drawcallData.m_Payload.m_ClearColorImage.m_Value.float32[ 0 ] << ", "
-                                                                << drawcallData.m_Payload.m_ClearColorImage.m_Value.float32[ 1 ] << ", "
-                                                                << drawcallData.m_Payload.m_ClearColorImage.m_Value.float32[ 2 ] << ", "
-                                                                << drawcallData.m_Payload.m_ClearColorImage.m_Value.float32[ 3 ] << " })";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-                                                        {
-                                                            stringBuilder << "vkCmdClearDepthStencilImage("
-                                                                << drawcallData.m_Payload.m_ClearDepthStencilImage.m_Image << ", { "
-                                                                << drawcallData.m_Payload.m_ClearDepthStencilImage.m_Value.depth << ", "
-                                                                << drawcallData.m_Payload.m_ClearDepthStencilImage.m_Value.stencil << " })";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eResolveImage:
-                                                        {
-                                                            stringBuilder << "vkCmdResolveImage("
-                                                                << drawcallData.m_Payload.m_ResolveImage.m_SrcImage << ", "
-                                                                << drawcallData.m_Payload.m_ResolveImage.m_DstImage << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eBlitImage:
-                                                        {
-                                                            stringBuilder << "vkCmdBlitImage("
-                                                                << drawcallData.m_Payload.m_BlitImage.m_SrcImage << ", "
-                                                                << drawcallData.m_Payload.m_BlitImage.m_DstImage << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eFillBuffer:
-                                                        {
-                                                            stringBuilder << "vkCmdFillBuffer("
-                                                                << drawcallData.m_Payload.m_FillBuffer.m_Buffer << ", "
-                                                                << drawcallData.m_Payload.m_FillBuffer.m_Offset << ", "
-                                                                << drawcallData.m_Payload.m_FillBuffer.m_Size << ", "
-                                                                << drawcallData.m_Payload.m_FillBuffer.m_Data << ")";
-                                                            break;
-                                                        }
-
-                                                        case DeviceProfilerDrawcallType::eUpdateBuffer:
-                                                        {
-                                                            stringBuilder << "vkCmdFillBuffer("
-                                                                << drawcallData.m_Payload.m_UpdateBuffer.m_Buffer << ", "
-                                                                << drawcallData.m_Payload.m_UpdateBuffer.m_Offset << ", "
-                                                                << drawcallData.m_Payload.m_UpdateBuffer.m_Size << ")";
-                                                            break;
-                                                        }
-                                                        }
-
-                                                        events.push_back( { stringBuilder.str(), "Drawcalls,GPU,Performance", TraceEventPhase::eDurationBegin,
+                                                        events.push_back( { drawcallString, "Drawcalls,GPU,Performance", TraceEventPhase::eDurationBegin,
                                                             (commandQueueSubmissionTimestamp)+((drawcallData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
                                                             commandQueue, commandBuffer } );
-                                                        events.push_back( { stringBuilder.str(), "Drawcalls,GPU,Performance", TraceEventPhase::eDurationEnd,
+                                                        events.push_back( { drawcallString, "Drawcalls,GPU,Performance", TraceEventPhase::eDurationEnd,
                                                             (commandQueueSubmissionTimestamp)+((drawcallData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
                                                             commandQueue, commandBuffer } );
                                                     }

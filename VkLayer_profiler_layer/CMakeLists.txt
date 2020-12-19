@@ -80,10 +80,12 @@ include_directories (utils)
 # Include implementation of the layer
 add_subdirectory (profiler)
 add_subdirectory (profiler_ext)
+add_subdirectory (profiler_helpers)
 add_subdirectory (profiler_overlay)
 add_subdirectory (profiler_trace)
 
 add_dependencies (profiler profiler_pre_build)
+add_dependencies (profiler_helpers profiler_pre_build)
 add_dependencies (profiler_ext profiler_pre_build)
 add_dependencies (profiler_overlay profiler_pre_build)
 add_dependencies (profiler_trace profiler_pre_build)
@@ -199,6 +201,7 @@ file (GENERATE
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC profiler
+    PUBLIC profiler_helpers
     PUBLIC profiler_ext
     PUBLIC profiler_overlay
     PUBLIC profiler_trace)

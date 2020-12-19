@@ -158,8 +158,13 @@ namespace ImGuiX
                     tooltipDrawn == false &&
                     ImRect( pos0, pos1 ).Contains( g.IO.MousePos ) )
                 {
+                    // Number of cycles in hovered region
+                    const float cycleCount = v0;
+
+                    // TODO: Add region labels for identification
+
                     // Draw tooltip
-                    SetTooltip( "%d: %8.4g", v1_idx, v0 );
+                    SetTooltip( "%d: %8.0f", v1_idx, cycleCount );
                     window->DrawList->AddRectFilled( pos0, pos1, col_hovered );
                     // Don't check other blocks
                     tooltipDrawn = true;
@@ -169,6 +174,7 @@ namespace ImGuiX
                     window->DrawList->AddRectFilled( pos0, pos1, col_base );
                 }
 
+                v0 = v1;
                 t0 = t1;
                 tp0 = tp1;
             }
