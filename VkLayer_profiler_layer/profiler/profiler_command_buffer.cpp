@@ -559,35 +559,36 @@ namespace Profiler
                 (m_QueryPoolSize * m_CurrentQueryPoolIndex) +
                 (m_CurrentQueryIndex + 1);
 
-            std::vector<uint64_t> collectedQueries( numQueries );
-
-            // Count how many queries we need to get
-            uint32_t numQueriesLeft = numQueries;
-            uint32_t dataOffset = 0;
-
-            // Collect queried timestamps
-            for( uint32_t i = 0; i < m_CurrentQueryPoolIndex + 1; ++i )
+            if( numQueries > 0 )
             {
-                const uint32_t numQueriesInPool = std::min( m_QueryPoolSize, numQueriesLeft );
-                const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
+                std::vector<uint64_t> collectedQueries( numQueries );
 
-                // Get results from next query pool
-                m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
-                    m_Profiler.m_pDevice->Handle,
-                    m_QueryPools[i],
-                    0, numQueriesInPool,
-                    dataSize,
-                    collectedQueries.data() + dataOffset,
-                    sizeof( uint64_t ),
-                    VK_QUERY_RESULT_64_BIT );
+                // Count how many queries we need to get
+                uint32_t numQueriesLeft = numQueries;
+                uint32_t dataOffset = 0;
 
-                numQueriesLeft -= numQueriesInPool;
-                dataOffset += numQueriesInPool;
-            }
+                // Collect queried timestamps
+                for( uint32_t i = 0; i < m_CurrentQueryPoolIndex + 1; ++i )
+                {
+                    const uint32_t numQueriesInPool = std::min( m_QueryPoolSize, numQueriesLeft );
+                    const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
 
-            // Update timestamp stats for each profiled entity
-            if( collectedQueries.size() > 1 )
-            {
+                    assert( dataSize > 0 );
+
+                    // Get results from next query pool
+                    m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
+                        m_Profiler.m_pDevice->Handle,
+                        m_QueryPools[ i ],
+                        0, numQueriesInPool,
+                        dataSize,
+                        collectedQueries.data() + dataOffset,
+                        sizeof( uint64_t ),
+                        VK_QUERY_RESULT_64_BIT );
+
+                    numQueriesLeft -= numQueriesInPool;
+                    dataOffset += numQueriesInPool;
+                }
+
                 size_t currentQueryIndex = 0;
 
                 // Reset accumulated cycle count if buffer is being reused
@@ -599,8 +600,6 @@ namespace Profiler
                     // Reset accumulated cycle count if buffer is being reused
                     renderPass.m_BeginTimestamp = 0;
                     renderPass.m_EndTimestamp = 0;
-                    renderPass.m_CmdBeginEndTimestamp = 0;
-                    renderPass.m_CmdEndBeginTimestamp = 0;
 
                     if( renderPass.m_Handle != VK_NULL_HANDLE )
                     {
@@ -610,8 +609,10 @@ namespace Profiler
 
                         // Update render pass begin timestamp
                         renderPass.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+
                         // Get vkCmdBeginRenderPass time
-                        renderPass.m_CmdBeginEndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+                        renderPass.m_Begin.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                        renderPass.m_Begin.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
                         // Move to the next query
                         currentQueryIndex += 2;
@@ -696,7 +697,10 @@ namespace Profiler
                         assert( currentQueryIndex < collectedQueries.size() );
 
                         // Get vkCmdEndRenderPass time
-                        renderPass.m_CmdEndBeginTimestamp = collectedQueries[ currentQueryIndex ];
+                        renderPass.m_End.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                        renderPass.m_End.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
+                        // Update render pass end timestamp
                         renderPass.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
                         // Move to the next query

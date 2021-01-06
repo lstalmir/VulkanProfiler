@@ -221,8 +221,8 @@ public:
             // Fill additional render pass data
             pRenderPassData->sType = VK_STRUCTURE_TYPE_PROFILER_RENDER_PASS_DATA_EXT;
             pRenderPassData->pNext = nullptr;
-            pRenderPassData->beginDuration = (data.m_CmdBeginEndTimestamp - data.m_BeginTimestamp) * m_TimestampPeriodMs;
-            pRenderPassData->endDuration = (data.m_EndTimestamp - data.m_CmdEndBeginTimestamp) * m_TimestampPeriodMs;
+            pRenderPassData->beginDuration = (data.m_Begin.m_EndTimestamp - data.m_Begin.m_BeginTimestamp) * m_TimestampPeriodMs;
+            pRenderPassData->endDuration = (data.m_End.m_EndTimestamp - data.m_End.m_BeginTimestamp) * m_TimestampPeriodMs;
             out.pNext = pRenderPassData;
 
             result = SerializeSubregions( data.m_Subpasses, &RegionBuilder::SerializeSubpass, out );

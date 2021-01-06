@@ -181,7 +181,7 @@ namespace Profiler
         // Get timestamp query period
         if( result == VK_SUCCESS )
         {
-            m_TimestampPeriod = m_pDevice->Properties.limits.timestampPeriod / 1000000.f;
+            m_TimestampPeriod = Nanoseconds( m_pDevice->Properties.limits.timestampPeriod );
         }
 
         // Create swapchain-dependent resources
@@ -755,17 +755,19 @@ namespace Profiler
             VK_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
             VK_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
 
-        // Keep results
-        ImGui::Checkbox( Lang::Pause, &m_Pause );
-
-        if( ImGui::Button( "Save" ) )
+        // Save results to file
+        if( ImGui::Button( Lang::Save ) )
         {
-            DeviceProfilerTraceSerializer(
+            DeviceProfilerTraceSerializer serializer(
                 m_pStringSerializer,
-                0.000000001f,
-                m_TimestampPeriod * 0.001f
-            ).Serialize( data );
+                m_TimestampPeriod );
+
+            serializer.Serialize( data );
         }
+
+        // Keep results
+        ImGui::SameLine();
+        ImGui::Checkbox( Lang::Pause, &m_Pause );
 
         if( !m_Pause )
         {
@@ -1107,11 +1109,11 @@ namespace Profiler
     {
         // Header
         {
-            const float gpuTime = m_Data.m_Ticks * m_TimestampPeriod;
-            const float cpuTime = m_Data.m_CPU.m_TimeNs / 1000000.f;
+            const Milliseconds gpuTimeMs = m_Data.m_Ticks * m_TimestampPeriod;
+            const Milliseconds cpuTimeMs = m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp;
 
-            ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTime );
-            ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTime );
+            ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
+            ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
             ImGuiX::TextAlignRight( "%.1f %s", m_Data.m_CPU.m_FramesPerSec, Lang::FPS );
         }
 
@@ -1236,12 +1238,10 @@ namespace Profiler
                 {
                     const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
 
-                    ImGui::Text( "%2u. %s", i + 1,
-                        GetDebugObjectName( VK_OBJECT_TYPE_UNKNOWN, (uint64_t)pipeline.m_Handle ).c_str() );
-
+                    ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
                     ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
                         pipelineTicks * 100.f / m_Data.m_Ticks, 
-                        pipelineTicks * m_TimestampPeriod );
+                        pipelineTicks * m_TimestampPeriod.count() );
 
                     // Print up to 10 top pipelines
                     if( (++i) == 10 ) break;
@@ -1383,8 +1383,7 @@ namespace Profiler
             // Enumerate submits in frame
             for( const auto& submitBatch : m_Data.m_Submits )
             {
-                const std::string queueName =
-                    GetDebugObjectName( VK_OBJECT_TYPE_QUEUE, (uint64_t)submitBatch.m_Handle );
+                const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
 
                 index.SubmitIndex = 0;
                 index.PrimaryCommandBufferIndex = 0;
@@ -1675,8 +1674,7 @@ namespace Profiler
         // Mark hotspots with color
         DrawSignificanceRect( (float)commandBufferTicks / m_Data.m_Ticks );
 
-        const std::string cmdBufferName =
-            GetDebugObjectName( VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)cmdBuffer.m_Handle );
+        const std::string cmdBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
 
         #if 0
         // Disable empty command buffer expanding
@@ -1695,7 +1693,7 @@ namespace Profiler
         if( ImGui::TreeNode( indexStr, "%s", cmdBufferName.c_str() ) )
         {
             // Command buffer opened
-            ImGuiX::TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod.count() );
 
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
@@ -1713,7 +1711,7 @@ namespace Profiler
         else
         {
             // Command buffer collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod.count() );
         }
     }
 
@@ -1742,21 +1740,21 @@ namespace Profiler
         const bool inRenderPassSubtree =
             (renderPass.m_Handle != VK_NULL_HANDLE) &&
             (ImGui::TreeNode( indexStr, "%s",
-                GetDebugObjectName( VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)renderPass.m_Handle ).c_str() ));
+                m_pStringSerializer->GetName( renderPass.m_Handle ).c_str() ));
 
         if( inRenderPassSubtree )
         {
-            const uint64_t renderPassBeginTicks = (renderPass.m_CmdBeginEndTimestamp - renderPass.m_BeginTimestamp);
+            const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
 
             // Render pass subtree opened
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod.count() );
 
             // Mark hotspots with color
             DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks );
 
             // Print BeginRenderPass pipeline
             ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassBeginTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", renderPassBeginTicks * m_TimestampPeriod.count() );
         }
 
         if( inRenderPassSubtree ||
@@ -1776,14 +1774,14 @@ namespace Profiler
 
         if( inRenderPassSubtree )
         {
-            const uint64_t renderPassEndTicks = (renderPass.m_EndTimestamp - renderPass.m_CmdEndBeginTimestamp);
+            const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
 
             // Mark hotspots with color
             DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks );
 
             // Print EndRenderPass pipeline
             ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassEndTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", renderPassEndTicks * m_TimestampPeriod.count() );
 
             ImGui::TreePop();
         }
@@ -1792,7 +1790,7 @@ namespace Profiler
             (renderPass.m_Handle != VK_NULL_HANDLE) )
         {
             // Render pass collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod.count() );
         }
     }
 
@@ -1826,7 +1824,7 @@ namespace Profiler
         if( inSubpassSubtree )
         {
             // Subpass subtree opened
-            ImGuiX::TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod.count() );
         }
 
         if( inSubpassSubtree ||
@@ -1871,7 +1869,7 @@ namespace Profiler
         if( !inSubpassSubtree && !isOnlySubpass && (subpass.m_Index != -1) )
         {
             // Subpass collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod.count() );
         }
     }
 
@@ -1890,7 +1888,7 @@ namespace Profiler
 
         const bool printPipelineInline =
             (pipeline.m_Handle == VK_NULL_HANDLE) ||
-            ((pipeline.m_Hash & 0xFFFF) == 0);
+            ((pipeline.m_ShaderTuple.m_Hash & 0xFFFF) == 0);
 
         bool inPipelineSubtree = false;
 
@@ -1903,14 +1901,13 @@ namespace Profiler
             structtohex( indexStr, index );
 
             inPipelineSubtree =
-                (ImGui::TreeNode( indexStr, "%s",
-                    GetDebugObjectName( VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipeline.m_Handle ).c_str() ));
+                (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
         }
 
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
-            ImGuiX::TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod.count() );
         }
 
         if( inPipelineSubtree || printPipelineInline )
@@ -1935,7 +1932,7 @@ namespace Profiler
         if( !inPipelineSubtree && !printPipelineInline )
         {
             // Pipeline collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod.count() );
         }
     }
 
@@ -1961,12 +1958,12 @@ namespace Profiler
             ImGui::TextUnformatted( drawcallString.c_str() );
 
             // Print drawcall duration
-            ImGuiX::TextAlignRight( "%.2f ms", drawcallTicks * m_TimestampPeriod );
+            ImGuiX::TextAlignRight( "%.2f ms", drawcallTicks * m_TimestampPeriod.count() );
         }
         else
         {
             // Draw debug label
-            DrawDebugLabel( drawcall.m_Payload.m_DebugLabel.m_pName, drawcall.m_Payload.m_DebugLabel.m_Color );
+            PrintDebugLabel( drawcall.m_Payload.m_DebugLabel.m_pName, drawcall.m_Payload.m_DebugLabel.m_Color );
         }
     }
 
@@ -2002,7 +1999,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::DrawDebugLabel( const char* pName, const float pColor[ 4 ] )
+    void ProfilerOverlayOutput::PrintDebugLabel( const char* pName, const float pColor[ 4 ] )
     {
         if( !(m_ShowDebugLabels) ||
             (m_FrameBrowserSortMode != FrameBrowserSortMode::eSubmissionOrder) )
@@ -2028,42 +2025,5 @@ namespace Profiler
         ImGui::SetCursorScreenPos( cursorPosition );
 
         ImGui::TextUnformatted( pName );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetDebugObjectName
-
-    Description:
-        Returns string representation of vulkan handle.
-
-    \***********************************************************************************/
-    std::string ProfilerOverlayOutput::GetDebugObjectName( VkObjectType type, uint64_t handle ) const
-    {
-        std::stringstream sstr;
-
-        // Object type to string
-        switch( type )
-        {
-        case VK_OBJECT_TYPE_COMMAND_BUFFER: sstr << "VkCommandBuffer "; break;
-        case VK_OBJECT_TYPE_RENDER_PASS: sstr << "VkRenderPass "; break;
-        case VK_OBJECT_TYPE_PIPELINE: sstr << "VkPipeline "; break;
-        }
-
-        auto it = m_pDevice->Debug.ObjectNames.find( handle );
-        if( it != m_pDevice->Debug.ObjectNames.end() )
-        {
-            sstr << it->second;
-        }
-        else
-        {
-            char unnamedObjectName[ 20 ] = "0x";
-            u64tohex( unnamedObjectName + 2, handle );
-
-            sstr << unnamedObjectName;
-        }
-
-        return sstr.str();
     }
 }

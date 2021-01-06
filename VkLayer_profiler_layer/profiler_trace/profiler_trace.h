@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_helpers/profiler_time_helpers.h"
 #include <filesystem>
 
 namespace Profiler
@@ -42,18 +43,21 @@ namespace Profiler
     class DeviceProfilerTraceSerializer
     {
     public:
-        DeviceProfilerTraceSerializer(
+        template<typename GpuDurationType>
+        inline DeviceProfilerTraceSerializer(
             const DeviceProfilerStringSerializer* pStringSerializer,
-            float cpuTimestampPeriod,
-            float gpuTimestampPeriod );
+            GpuDurationType gpuTimestampPeriod )
+            : m_pStringSerializer( pStringSerializer )
+            , m_GpuTimestampPeriod( gpuTimestampPeriod )
+        {
+        }
 
         void Serialize( const DeviceProfilerFrameData& data ) const;
 
     private:
         const DeviceProfilerStringSerializer* m_pStringSerializer;
 
-        float m_CPUTimestampPeriod;
-        float m_GPUTimestampPeriod;
+        Milliseconds m_GpuTimestampPeriod;
 
         std::filesystem::path ConstructTraceFileName() const;
     };

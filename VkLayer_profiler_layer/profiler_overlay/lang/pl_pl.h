@@ -30,6 +30,7 @@ namespace Profiler
         inline static constexpr char Device[] = u8"Urządzenie";
         inline static constexpr char Instance[] = u8"Instancja";
         inline static constexpr char Pause[] = u8"Wstrzymaj";
+        inline static constexpr char Save[] = u8"Zapisz dane";
 
         // Tabs
         inline static constexpr char Performance[] = u8"Wydajność";

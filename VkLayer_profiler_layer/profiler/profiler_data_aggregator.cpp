@@ -376,7 +376,8 @@ namespace Profiler
     \***********************************************************************************/
     std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
     {
-        std::unordered_set<DeviceProfilerPipelineData> aggregatedPipelines;
+        // Identify pipelines by combined hash value
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData> aggregatedPipelines;
 
         for( const auto& submitBatch : m_AggregatedData )
         {
@@ -390,7 +391,12 @@ namespace Profiler
         }
 
         // Sort by time
-        std::list<DeviceProfilerPipelineData> pipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
+        std::list<DeviceProfilerPipelineData> pipelines;
+
+        for( const auto& [_, aggregatedPipeline] : aggregatedPipelines )
+        {
+            pipelines.push_back( aggregatedPipeline );
+        }
 
         pipelines.sort( []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
@@ -411,7 +417,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipelinesFromCommandBuffer(
         const DeviceProfilerCommandBufferData& commandBuffer,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
@@ -423,8 +429,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_EndTimestamp += (renderPass.m_CmdBeginEndTimestamp - renderPass.m_BeginTimestamp);
-            endRenderPassPipeline.m_EndTimestamp += (renderPass.m_EndTimestamp - renderPass.m_CmdEndBeginTimestamp);
+            beginRenderPassPipeline.m_EndTimestamp += (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+            endRenderPassPipeline.m_EndTimestamp += (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -462,25 +468,21 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipeline(
         const DeviceProfilerPipelineData& pipeline,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
-        DeviceProfilerPipelineData aggregatedPipeline = pipeline;
-
-        auto it = aggregatedPipelines.find( pipeline );
-        if( it != aggregatedPipelines.end() )
+        auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
+        if( it == aggregatedPipelines.end() )
         {
-            aggregatedPipeline = *it;
-            aggregatedPipeline.m_EndTimestamp += (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+            // Create aggregated data struct for this pipeline
+            DeviceProfilerPipelineData aggregatedPipelineData = {};
+            aggregatedPipelineData.m_Handle = pipeline.m_Handle;
+            aggregatedPipelineData.m_BindPoint = pipeline.m_BindPoint;
+            aggregatedPipelineData.m_ShaderTuple = pipeline.m_ShaderTuple;
 
-            aggregatedPipelines.erase( it );
+            it = aggregatedPipelines.emplace( pipeline.m_ShaderTuple.m_Hash, aggregatedPipelineData ).first;
         }
 
-        // Clear values which don't make sense after aggregation
-        aggregatedPipeline.m_Handle = pipeline.m_Handle;
-        aggregatedPipeline.m_Hash = pipeline.m_Hash;
-        aggregatedPipeline.m_BeginTimestamp = 0;
-        aggregatedPipeline.m_Drawcalls.clear();
-
-        aggregatedPipelines.insert( aggregatedPipeline );
+        // Increase total pipeline time
+        (*it).second.m_EndTimestamp += (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
     }
 }

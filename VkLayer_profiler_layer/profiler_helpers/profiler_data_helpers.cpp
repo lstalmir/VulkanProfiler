@@ -203,10 +203,24 @@ namespace Profiler
         GetName
 
     Description:
-        Returns name of the VkBuffer object.
+        Returns name of the pipeline.
 
     \***********************************************************************************/
-    std::string DeviceProfilerStringSerializer::GetName( const struct VkObject& object ) const
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline ) const
+    {
+        return GetName( pipeline.m_Handle );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the Vulkan API object.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName( const VkObject& object ) const
     {
         auto it = m_Device.Debug.ObjectNames.find( object );
         if( it != m_Device.Debug.ObjectNames.end() )

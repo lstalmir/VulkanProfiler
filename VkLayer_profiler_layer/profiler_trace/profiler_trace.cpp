@@ -40,25 +40,6 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        DeviceProfilerTraceSerializer
-
-    Description:
-        Constructor.
-
-    \*************************************************************************/
-    DeviceProfilerTraceSerializer::DeviceProfilerTraceSerializer(
-        const DeviceProfilerStringSerializer* pStringSerializer,
-        float cpuTimestampPeriod,
-        float gpuTimestampPeriod )
-        : m_pStringSerializer( pStringSerializer )
-        , m_CPUTimestampPeriod( cpuTimestampPeriod )
-        , m_GPUTimestampPeriod( gpuTimestampPeriod )
-    {
-    }
-
-    /*************************************************************************\
-
-    Function:
         Serialize
 
     Description:
@@ -81,8 +62,8 @@ namespace Profiler
             VkQueue commandQueue = submitBatchData.m_Handle;
 
             // Queue submission timestamp
-            double commandQueueSubmissionTimestamp =
-                (submitBatchData.m_Timestamp - data.m_Timestamp) * m_CPUTimestampPeriod;
+            float commandQueueSubmissionTimestamp =
+                Milliseconds( submitBatchData.m_Timestamp - data.m_CPU.m_BeginTimestamp ).count();
 
             // Insert queue submission event
             events.push_back( { "vkQueueSubmit", "API", TraceEventPhase::eInstant,
@@ -97,7 +78,8 @@ namespace Profiler
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    if( commandBufferData.m_BeginTimestamp > 0 )
+                    if( (commandBufferData.m_BeginTimestamp > 0) &&
+                        !(commandBufferData.m_RenderPasses.empty()) )
                     {
                         baseCommandBufferTimestampOffset = std::min(
                             baseCommandBufferTimestampOffset, commandBufferData.m_BeginTimestamp );
@@ -121,7 +103,7 @@ namespace Profiler
                     {
                         // Insert command buffer begin event
                         events.push_back( { "VkCommandBuffer", "Command Buffers,GPU,Performance", TraceEventPhase::eDurationBegin,
-                            (commandQueueSubmissionTimestamp)+((commandBufferData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                            (commandQueueSubmissionTimestamp)+((commandBufferData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                             commandQueue, commandBuffer } );
 
                         for( const auto& renderPassData : commandBufferData.m_RenderPasses )
@@ -131,13 +113,13 @@ namespace Profiler
                                 if( renderPassData.m_Handle )
                                 {
                                     events.push_back( { "VkRenderPass", "Render Passes,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                         commandQueue, commandBuffer } );
                                     events.push_back( { "vkCmdBeginRenderPass", "Performance", TraceEventPhase::eDurationBegin,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_Begin.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                         commandQueue, commandBuffer } );
                                     events.push_back( { "vkCmdBeginRenderPass", "Performance", TraceEventPhase::eDurationEnd,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_CmdBeginEndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_Begin.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                         commandQueue, commandBuffer } );
                                 }
 
@@ -148,7 +130,7 @@ namespace Profiler
                                         if( renderPassData.m_Subpasses.size() > 1 )
                                         {
                                             events.push_back( { "Subpass", "Subpasses,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                                (commandQueueSubmissionTimestamp)+((subpassData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                                (commandQueueSubmissionTimestamp)+((subpassData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                                 commandQueue, commandBuffer } );
                                         }
 
@@ -158,10 +140,10 @@ namespace Profiler
                                             {
                                                 if( pipelineData.m_BeginTimestamp != 0 )
                                                 {
-                                                    if( pipelineData.m_Handle && ((pipelineData.m_Hash & 0xFFFF) != 0) )
+                                                    if( pipelineData.m_Handle && ((pipelineData.m_ShaderTuple.m_Hash & 0xFFFF) != 0) )
                                                     {
                                                         events.push_back( { "VkPipeline", "Pipelines,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                                            (commandQueueSubmissionTimestamp)+((pipelineData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                                            (commandQueueSubmissionTimestamp)+((pipelineData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                                             commandQueue, commandBuffer } );
                                                     }
 
@@ -170,17 +152,17 @@ namespace Profiler
                                                         const std::string drawcallString = m_pStringSerializer->GetName( drawcallData );
 
                                                         events.push_back( { drawcallString, "Drawcalls,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                                            (commandQueueSubmissionTimestamp)+((drawcallData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                                            (commandQueueSubmissionTimestamp)+((drawcallData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                                             commandQueue, commandBuffer } );
                                                         events.push_back( { drawcallString, "Drawcalls,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                                            (commandQueueSubmissionTimestamp)+((drawcallData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                                            (commandQueueSubmissionTimestamp)+((drawcallData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                                             commandQueue, commandBuffer } );
                                                     }
 
-                                                    if( pipelineData.m_Handle && ((pipelineData.m_Hash & 0xFFFF) != 0) )
+                                                    if( pipelineData.m_Handle && ((pipelineData.m_ShaderTuple.m_Hash & 0xFFFF) != 0) )
                                                     {
                                                         events.push_back( { "VkPipeline", "Pipelines,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                                            (commandQueueSubmissionTimestamp)+((pipelineData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                                            (commandQueueSubmissionTimestamp)+((pipelineData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                                             commandQueue, commandBuffer } );
                                                     }
                                                 }
@@ -190,7 +172,7 @@ namespace Profiler
                                         if( renderPassData.m_Subpasses.size() > 1 )
                                         {
                                             events.push_back( { "Subpass", "Subpasses,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                                (commandQueueSubmissionTimestamp)+((subpassData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                                (commandQueueSubmissionTimestamp)+((subpassData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                                 commandQueue, commandBuffer } );
                                         }
                                     }
@@ -199,13 +181,13 @@ namespace Profiler
                                 if( renderPassData.m_Handle )
                                 {
                                     events.push_back( { "vkCmdEndRenderPass", "Performance", TraceEventPhase::eDurationBegin,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_CmdEndBeginTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_End.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                         commandQueue, commandBuffer } );
                                     events.push_back( { "vkCmdEndRenderPass", "Performance", TraceEventPhase::eDurationEnd,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_End.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                         commandQueue, commandBuffer } );
                                     events.push_back( { "VkRenderPass", "Render Passes,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                                         commandQueue, commandBuffer } );
                                 }
                             }
@@ -213,7 +195,7 @@ namespace Profiler
 
                         // Insert command buffer end event
                         events.push_back( { "VkCommandBuffer", "Command Buffers,GPU,Performance", TraceEventPhase::eDurationEnd,
-                            (commandQueueSubmissionTimestamp)+((commandBufferData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GPUTimestampPeriod),
+                            (commandQueueSubmissionTimestamp)+((commandBufferData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
                             commandQueue, commandBuffer } );
                     }
                 }

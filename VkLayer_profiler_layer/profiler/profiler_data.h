@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler_shader.h"
 #include <assert.h>
+#include <chrono>
 #include <vector>
 #include <list>
 #include <cstring>
@@ -417,7 +418,8 @@ namespace Profiler
     struct DeviceProfilerPipelineData
     {
         VkPipeline                                          m_Handle = {};
-        uint32_t                                            m_Hash = {};
+        VkPipelineBindPoint                                 m_BindPoint = {};
+        ProfilerShaderTuple                                 m_ShaderTuple = {};
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
@@ -426,13 +428,14 @@ namespace Profiler
 
         inline DeviceProfilerPipelineData( const DeviceProfilerPipeline& pipeline )
             : m_Handle( pipeline.m_Handle )
-            , m_Hash( pipeline.m_ShaderTuple.m_Hash )
+            , m_BindPoint( pipeline.m_BindPoint )
+            , m_ShaderTuple( pipeline.m_ShaderTuple )
         {
         }
 
         inline bool operator==( const DeviceProfilerPipelineData& rh ) const
         {
-            return m_Hash == rh.m_Hash;
+            return m_ShaderTuple == rh.m_ShaderTuple;
         }
     };
 
@@ -491,6 +494,42 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerRenderPassBeginData
+
+    Description:
+        Contains captured GPU timestamp data for vkCmdBeginRenderPass... command.
+
+    \***********************************************************************************/
+    struct DeviceProfilerRenderPassBeginData
+    {
+        VkAttachmentLoadOp                                  m_ColorAttachmentLoadOp = {};
+        VkAttachmentLoadOp                                  m_DepthAttachmentLoadOp = {};
+        VkAttachmentLoadOp                                  m_StencilAttachmentLoadOp = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerRenderPassEndData
+
+    Description:
+        Contains captured GPU timestamp data for vkCmdEndRenderPass... command.
+
+    \***********************************************************************************/
+    struct DeviceProfilerRenderPassEndData
+    {
+        VkAttachmentStoreOp                                 m_ColorAttachmentStoreOp = {};
+        VkAttachmentStoreOp                                 m_DepthAttachmentStoreOp = {};
+        VkAttachmentStoreOp                                 m_StencilAttachmentStoreOp = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerRenderPassData
 
     Description:
@@ -502,8 +541,9 @@ namespace Profiler
         VkRenderPass                                        m_Handle = {};
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
-        uint64_t                                            m_CmdBeginEndTimestamp = {};
-        uint64_t                                            m_CmdEndBeginTimestamp = {};
+
+        DeviceProfilerRenderPassBeginData                   m_Begin = {};
+        DeviceProfilerRenderPassEndData                     m_End = {};
 
         ContainerType<struct DeviceProfilerSubpassData>     m_Subpasses = {};
     };
@@ -559,7 +599,7 @@ namespace Profiler
     {
         VkQueue                                             m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
-        uint64_t                                            m_Timestamp = {};
+        std::chrono::high_resolution_clock::time_point      m_Timestamp = {};
     };
 
     /***********************************************************************************\
@@ -617,8 +657,9 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerCPUData
     {
-        uint64_t m_TimeNs = {};
-        float    m_FramesPerSec = {};
+        std::chrono::high_resolution_clock::time_point      m_BeginTimestamp = {};
+        std::chrono::high_resolution_clock::time_point      m_EndTimestamp = {};
+        float                                               m_FramesPerSec = {};
     };
 
     /***********************************************************************************\
@@ -636,7 +677,6 @@ namespace Profiler
 
         DeviceProfilerDrawcallStats                         m_Stats = {};
 
-        uint64_t                                            m_Timestamp = {};
         uint64_t                                            m_Ticks = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
@@ -662,7 +702,7 @@ namespace std
     {
         inline size_t operator()( const Profiler::DeviceProfilerPipelineData& pipeline ) const
         {
-            return pipeline.m_Hash;
+            return pipeline.m_ShaderTuple.m_Hash;
         }
     };
 }

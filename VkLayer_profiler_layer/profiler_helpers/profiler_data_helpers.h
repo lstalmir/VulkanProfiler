@@ -65,9 +65,9 @@ namespace Profiler
         std::string GetName( const struct DeviceProfilerRenderPassData& ) const;
         std::string GetName( const struct DeviceProfilerCommandBufferData& ) const;
 
-    private:
-        const class VkDevice_Object& m_Device;
-
         std::string GetName( const struct VkObject& object ) const;
+
+    private:
+        const struct VkDevice_Object& m_Device;
     };
 }

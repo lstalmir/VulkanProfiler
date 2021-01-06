@@ -26,6 +26,7 @@ add_subdirectory (fmt)
 
 set (headers
     "profiler_data_helpers.h"
+    "profiler_time_helpers.h"
     )
 
 set (sources

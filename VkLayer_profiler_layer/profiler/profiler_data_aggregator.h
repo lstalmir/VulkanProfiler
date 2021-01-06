@@ -35,14 +35,14 @@ namespace Profiler
 
     struct DeviceProfilerSubmit
     {
-        ContainerType<ProfilerCommandBuffer*>   m_pCommandBuffers;
+        ContainerType<ProfilerCommandBuffer*>           m_pCommandBuffers;
     };
 
     struct DeviceProfilerSubmitBatch
     {
-        VkQueue                                 m_Handle = {};
-        ContainerType<DeviceProfilerSubmit>     m_Submits = {};
-        uint64_t                                m_Timestamp = {};
+        VkQueue                                         m_Handle = {};
+        ContainerType<DeviceProfilerSubmit>             m_Submits = {};
+        std::chrono::high_resolution_clock::time_point  m_Timestamp = {};
     };
 
     /***********************************************************************************\
@@ -86,10 +86,10 @@ namespace Profiler
 
         void CollectPipelinesFromCommandBuffer(
             const DeviceProfilerCommandBufferData&,
-            std::unordered_set<DeviceProfilerPipelineData>& ) const;
+            std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
 
         void CollectPipeline(
             const DeviceProfilerPipelineData&,
-            std::unordered_set<DeviceProfilerPipelineData>& ) const;
+            std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
     };
 }
