@@ -26,21 +26,6 @@ namespace Profiler
 {
     /***********************************************************************************\
 
-    Structure:
-        DeviceProfilerSerializedStructure
-
-    Description:
-        Contains strings describing output object.
-
-    \***********************************************************************************/
-    struct DeviceProfilerSerializedStructure
-    {
-        std::string m_Name;
-        std::string m_Details;
-    };
-
-    /***********************************************************************************\
-
     Class:
         DeviceProfilerStringSerializer
 
@@ -52,12 +37,6 @@ namespace Profiler
     {
     public:
         DeviceProfilerStringSerializer( const struct VkDevice_Object& );
-
-        DeviceProfilerSerializedStructure Serialize( const struct DeviceProfilerDrawcall& ) const;
-        DeviceProfilerSerializedStructure Serialize( const struct DeviceProfilerPipelineData& ) const;
-        DeviceProfilerSerializedStructure Serialize( const struct DeviceProfilerSubpassData& ) const;
-        DeviceProfilerSerializedStructure Serialize( const struct DeviceProfilerRenderPassData& ) const;
-        DeviceProfilerSerializedStructure Serialize( const struct DeviceProfilerCommandBufferData& ) const;
 
         std::string GetName( const struct DeviceProfilerDrawcall& ) const;
         std::string GetName( const struct DeviceProfilerPipelineData& ) const;

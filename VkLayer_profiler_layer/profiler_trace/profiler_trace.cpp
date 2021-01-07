@@ -21,6 +21,7 @@
 #include "profiler_trace.h"
 #include "profiler_trace_event.h"
 #include "profiler/profiler_data.h"
+#include "profiler_layer_objects/VkObject.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 
 #include "VkLayer_profiler_layer.generated.h"
@@ -46,166 +47,346 @@ namespace Profiler
         Write collected results to the trace file.
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data ) const
+    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
     {
-        json traceJson = {
-            { "traceEvents", json::array() },
-            { "displayTimeUnit", "ms" },
-            { "otherData", json::object() } };
+        // Setup state for serialization
+        m_pData = &data;
 
-        // Setup array of events
-        std::vector<TraceEvent> events;
-
+        // Serialize the data
         for( const auto& submitBatchData : data.m_Submits )
         {
-            // Executing queue (thread)
-            VkQueue commandQueue = submitBatchData.m_Handle;
+            SetupTimestampNormalizationConstants( submitBatchData );
 
-            // Queue submission timestamp
-            float commandQueueSubmissionTimestamp =
-                Milliseconds( submitBatchData.m_Timestamp - data.m_CPU.m_BeginTimestamp ).count();
+            // Setup state for serialization
+            m_CommandQueue = submitBatchData.m_Handle;
 
             // Insert queue submission event
-            events.push_back( { "vkQueueSubmit", "API", TraceEventPhase::eInstant,
-                commandQueueSubmissionTimestamp,
-                commandQueue, VK_NULL_HANDLE } );
-
-            // Get base command buffer offset.
-            // Better CPU-GPU correlation could be achieved from ETLs
-            uint64_t baseCommandBufferTimestampOffset = -1;
-
-            for( const auto& submitData : submitBatchData.m_Submits )
-            {
-                for( const auto& commandBufferData : submitData.m_CommandBuffers )
-                {
-                    if( (commandBufferData.m_BeginTimestamp > 0) &&
-                        !(commandBufferData.m_RenderPasses.empty()) )
-                    {
-                        baseCommandBufferTimestampOffset = std::min(
-                            baseCommandBufferTimestampOffset, commandBufferData.m_BeginTimestamp );
-                    }
-                }
-            }
-
-            if( baseCommandBufferTimestampOffset == -1 )
-            {
-                baseCommandBufferTimestampOffset = 0;
-            }
+            m_pEvents.push_back( new TraceEvent(
+                TraceEventPhase::eInstant,
+                "vkQueueSubmit",
+                "API",
+                GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp ),
+                m_CommandQueue ) );
 
             for( const auto& submitData : submitBatchData.m_Submits )
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    // Executed command buffer
-                    VkCommandBuffer commandBuffer = commandBufferData.m_Handle;
-
-                    if( commandBufferData.m_BeginTimestamp != 0 )
-                    {
-                        // Insert command buffer begin event
-                        events.push_back( { "VkCommandBuffer", "Command Buffers,GPU,Performance", TraceEventPhase::eDurationBegin,
-                            (commandQueueSubmissionTimestamp)+((commandBufferData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                            commandQueue, commandBuffer } );
-
-                        for( const auto& renderPassData : commandBufferData.m_RenderPasses )
-                        {
-                            if( renderPassData.m_BeginTimestamp != 0 )
-                            {
-                                if( renderPassData.m_Handle )
-                                {
-                                    events.push_back( { "VkRenderPass", "Render Passes,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                        commandQueue, commandBuffer } );
-                                    events.push_back( { "vkCmdBeginRenderPass", "Performance", TraceEventPhase::eDurationBegin,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_Begin.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                        commandQueue, commandBuffer } );
-                                    events.push_back( { "vkCmdBeginRenderPass", "Performance", TraceEventPhase::eDurationEnd,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_Begin.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                        commandQueue, commandBuffer } );
-                                }
-
-                                for( const auto& subpassData : renderPassData.m_Subpasses )
-                                {
-                                    if( subpassData.m_BeginTimestamp != 0 )
-                                    {
-                                        if( renderPassData.m_Subpasses.size() > 1 )
-                                        {
-                                            events.push_back( { "Subpass", "Subpasses,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                                (commandQueueSubmissionTimestamp)+((subpassData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                                commandQueue, commandBuffer } );
-                                        }
-
-                                        if( subpassData.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
-                                        {
-                                            for( const auto& pipelineData : subpassData.m_Pipelines )
-                                            {
-                                                if( pipelineData.m_BeginTimestamp != 0 )
-                                                {
-                                                    if( pipelineData.m_Handle && ((pipelineData.m_ShaderTuple.m_Hash & 0xFFFF) != 0) )
-                                                    {
-                                                        events.push_back( { "VkPipeline", "Pipelines,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                                            (commandQueueSubmissionTimestamp)+((pipelineData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                                            commandQueue, commandBuffer } );
-                                                    }
-
-                                                    for( const auto& drawcallData : pipelineData.m_Drawcalls )
-                                                    {
-                                                        const std::string drawcallString = m_pStringSerializer->GetName( drawcallData );
-
-                                                        events.push_back( { drawcallString, "Drawcalls,GPU,Performance", TraceEventPhase::eDurationBegin,
-                                                            (commandQueueSubmissionTimestamp)+((drawcallData.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                                            commandQueue, commandBuffer } );
-                                                        events.push_back( { drawcallString, "Drawcalls,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                                            (commandQueueSubmissionTimestamp)+((drawcallData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                                            commandQueue, commandBuffer } );
-                                                    }
-
-                                                    if( pipelineData.m_Handle && ((pipelineData.m_ShaderTuple.m_Hash & 0xFFFF) != 0) )
-                                                    {
-                                                        events.push_back( { "VkPipeline", "Pipelines,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                                            (commandQueueSubmissionTimestamp)+((pipelineData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                                            commandQueue, commandBuffer } );
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        if( renderPassData.m_Subpasses.size() > 1 )
-                                        {
-                                            events.push_back( { "Subpass", "Subpasses,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                                (commandQueueSubmissionTimestamp)+((subpassData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                                commandQueue, commandBuffer } );
-                                        }
-                                    }
-                                }
-
-                                if( renderPassData.m_Handle )
-                                {
-                                    events.push_back( { "vkCmdEndRenderPass", "Performance", TraceEventPhase::eDurationBegin,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_End.m_BeginTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                        commandQueue, commandBuffer } );
-                                    events.push_back( { "vkCmdEndRenderPass", "Performance", TraceEventPhase::eDurationEnd,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_End.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                        commandQueue, commandBuffer } );
-                                    events.push_back( { "VkRenderPass", "Render Passes,GPU,Performance", TraceEventPhase::eDurationEnd,
-                                        (commandQueueSubmissionTimestamp)+((renderPassData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                                        commandQueue, commandBuffer } );
-                                }
-                            }
-                        }
-
-                        // Insert command buffer end event
-                        events.push_back( { "VkCommandBuffer", "Command Buffers,GPU,Performance", TraceEventPhase::eDurationEnd,
-                            (commandQueueSubmissionTimestamp)+((commandBufferData.m_EndTimestamp - baseCommandBufferTimestampOffset) * m_GpuTimestampPeriod.count()),
-                            commandQueue, commandBuffer } );
-                    }
+                    Serialize( commandBufferData );
                 }
             }
         }
 
-        traceJson[ "traceEvents" ] = events;
+        // Write JSON file
+        SaveEventsToFile();
 
-        // Write JSON to file
-        std::ofstream( ConstructTraceFileName() ) << traceJson;
+        // Cleanup serializer state
+        Cleanup();
+        
+    }
+
+    /*************************************************************************\
+
+    Function:
+        SetupTimestampNormalizationConstants
+
+    Description:
+        Setup constants used by GetNormalizedGpuTimestamp to determine approx
+        CPU timestamp relative to the beginning of the frame.
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::SetupTimestampNormalizationConstants( const DeviceProfilerSubmitBatchData& submitBatchData )
+    {
+        // Queue submission timestamp
+        m_CpuQueueSubmitTimestampOffset = GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp );
+
+        // Get base command buffer offset.
+        // Better CPU-GPU correlation could be achieved from ETLs
+        m_GpuQueueSubmitTimestampOffset = -1;
+
+        for( const auto& submitData : submitBatchData.m_Submits )
+        {
+            for( const auto& commandBufferData : submitData.m_CommandBuffers )
+            {
+                if( (commandBufferData.m_BeginTimestamp > 0) &&
+                    !(commandBufferData.m_RenderPasses.empty()) )
+                {
+                    m_GpuQueueSubmitTimestampOffset = std::min(
+                        m_GpuQueueSubmitTimestampOffset, commandBufferData.m_BeginTimestamp );
+                }
+            }
+        }
+
+        // If no timestamps were recorded in the command buffer, apply no offset
+        if( m_GpuQueueSubmitTimestampOffset == -1 )
+        {
+            m_GpuQueueSubmitTimestampOffset = 0;
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetNormalizedCpuTimestamp
+
+    Description:
+        Get CPU timestamp aligned to the frame begin CPU timestamp.
+
+    \*************************************************************************/
+    Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point timestamp ) const
+    {
+        assert( timestamp >= m_pData->m_CPU.m_BeginTimestamp );
+        assert( timestamp <= m_pData->m_CPU.m_EndTimestamp );
+        return timestamp - m_pData->m_CPU.m_BeginTimestamp;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetNormalizedGpuTimestamp
+
+    Description:
+        Get GPU timestamp aligned to the frame begin CPU timestamp.
+
+    \*************************************************************************/
+    Milliseconds DeviceProfilerTraceSerializer::GetNormalizedGpuTimestamp( uint64_t gpuTimestamp ) const
+    {
+        return m_CpuQueueSubmitTimestampOffset +
+            ((gpuTimestamp - m_GpuQueueSubmitTimestampOffset) * m_GpuTimestampPeriod);
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize command buffer data to list of TraceEvent structures.
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerCommandBufferData& data )
+    {
+        if( data.m_BeginTimestamp != 0 )
+        {
+            // Begin
+            m_pEvents.push_back( new TraceEvent(
+                TraceEventPhase::eDurationBegin,
+                m_pStringSerializer->GetName( data ),
+                "Performance",
+                GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                m_CommandQueue ) );
+
+            for( const auto& renderPassData : data.m_RenderPasses )
+            {
+                // Serialize the render pass
+                Serialize( renderPassData );
+            }
+
+            // End
+            m_pEvents.push_back( new TraceEvent(
+                TraceEventPhase::eDurationEnd,
+                m_pStringSerializer->GetName( data ),
+                "Performance",
+                GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                m_CommandQueue ) );
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize render pass data to list of TraceEvent structures.
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerRenderPassData& data )
+    {
+        if( data.m_BeginTimestamp != 0 )
+        {
+            if( data.m_Handle )
+            {
+                // Begin
+                m_pEvents.push_back( new TraceEvent(
+                    TraceEventPhase::eDurationBegin,
+                    m_pStringSerializer->GetName( data ),
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                    m_CommandQueue ) );
+
+                // vkCmdBeginRenderPass
+                m_pEvents.push_back( new TraceCompleteEvent(
+                    "vkCmdBeginRenderPass",
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp ),
+                    GetDuration( data.m_Begin ),
+                    m_CommandQueue ) );
+            }
+
+            for( const auto& subpassData : data.m_Subpasses )
+            {
+                // Serialize the subpass
+                Serialize( subpassData, (data.m_Subpasses.size() == 1) );
+            }
+
+            if( data.m_Handle )
+            {
+                // vkCmdEndRenderPass
+                m_pEvents.push_back( new TraceCompleteEvent(
+                    "vkCmdEndRenderPass",
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp ),
+                    GetDuration( data.m_End ),
+                    m_CommandQueue ) );
+
+                // End
+                m_pEvents.push_back( new TraceEvent(
+                    TraceEventPhase::eDurationEnd,
+                    m_pStringSerializer->GetName( data ),
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                    m_CommandQueue ) );
+            }
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize subpass data to list of TraceEvent structures.
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerSubpassData& data, bool isOnlySubpassInRenderPass )
+    {
+        if( data.m_BeginTimestamp != 0 )
+        {
+            if( !isOnlySubpassInRenderPass )
+            {
+                // Begin
+                m_pEvents.push_back( new TraceEvent(
+                    TraceEventPhase::eDurationBegin,
+                    m_pStringSerializer->GetName( data ),
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                    m_CommandQueue ) );
+            }
+
+            switch( data.m_Contents )
+            {
+            case VK_SUBPASS_CONTENTS_INLINE:
+            {
+                for( const auto& pipelineData : data.m_Pipelines )
+                {
+                    // Serialize the pipelines
+                    Serialize( pipelineData );
+                }
+                break;
+            }
+
+            case VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS:
+            {
+                for( const auto& commandBufferData : data.m_SecondaryCommandBuffers )
+                {
+                    // Serialize the command buffer
+                    Serialize( commandBufferData );
+                }
+                break;
+            }
+
+            default:
+            {
+                assert( !"Unsupported VkSubpassContents enum value" );
+                break;
+            }
+            }
+
+            if( !isOnlySubpassInRenderPass )
+            {
+                // End
+                m_pEvents.push_back( new TraceEvent(
+                    TraceEventPhase::eDurationEnd,
+                    m_pStringSerializer->GetName( data ),
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                    m_CommandQueue ) );
+            }
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize pipeline data to list of TraceEvent structures.
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerPipelineData& data )
+    {
+        if( data.m_BeginTimestamp != 0 )
+        {
+            const bool isValidPipeline =
+                (data.m_Handle) &&
+                ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0);
+
+            if( isValidPipeline )
+            {
+                // Begin
+                m_pEvents.push_back( new TraceEvent(
+                    TraceEventPhase::eDurationBegin,
+                    m_pStringSerializer->GetName( data ),
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                    m_CommandQueue ) );
+            }
+
+            for( const auto& drawcall : data.m_Drawcalls )
+            {
+                // Serialize the drawcall
+                Serialize( drawcall );
+            }
+
+            if( isValidPipeline )
+            {
+                // End
+                m_pEvents.push_back( new TraceEvent(
+                    TraceEventPhase::eDurationEnd,
+                    m_pStringSerializer->GetName( data ),
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                    m_CommandQueue ) );
+            }
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize drawcall to TraceEvent structure.
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerDrawcall& data )
+    {
+        if( data.m_BeginTimestamp != 0 )
+        {
+            if( data.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
+            {
+                m_pEvents.push_back( new TraceCompleteEvent(
+                    m_pStringSerializer->GetName( data ),
+                    "Performance",
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                    GetDuration( data ),
+                    m_CommandQueue ) );
+            }
+        }
     }
 
     /*************************************************************************\
@@ -234,5 +415,48 @@ namespace Profiler
         stringBuilder << ".json";
 
         return stringBuilder.str();
+    }
+
+    /*************************************************************************\
+
+    Function:
+        SaveEventsToFile
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::SaveEventsToFile()
+    {
+        json traceJson = {
+            { "traceEvents", json::array() },
+            { "displayTimeUnit", "ms" },
+            { "otherData", json::object() } };
+
+        // Create JSON objects
+        json& traceEvents = traceJson[ "traceEvents" ];
+
+        for( const TraceEvent* pEvent : m_pEvents )
+        {
+            traceEvents.push_back( *pEvent );
+        }
+
+        // Write JSON to file
+        std::ofstream( ConstructTraceFileName() ) << traceJson;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Cleanup
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::Cleanup()
+    {
+        // TODO: Check exception safety of allocations, raw pointers may lead to memory leaks
+        for( TraceEvent* pEvent : m_pEvents )
+        {
+            delete pEvent;
+        }
+
+        m_pEvents.clear();
+        m_pData = nullptr;
     }
 }

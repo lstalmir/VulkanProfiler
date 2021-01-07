@@ -42,23 +42,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Serialize
-
-    Description:
-        Serializes drawcall.
-
-    \***********************************************************************************/
-    DeviceProfilerSerializedStructure DeviceProfilerStringSerializer::Serialize( const DeviceProfilerDrawcall& drawcall ) const
-    {
-        DeviceProfilerSerializedStructure serialized = {};
-        serialized.m_Name = GetName( drawcall );
-
-        return serialized;
-    }
-
-    /***********************************************************************************\
-
-    Function:
         GetName
 
     Description:
@@ -209,6 +192,48 @@ namespace Profiler
     std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline ) const
     {
         return GetName( pipeline.m_Handle );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the subpass.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerSubpassData& subpass ) const
+    {
+        return fmt::format( "Subpass {}", subpass.m_Index );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the render pass.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerRenderPassData& renderPass ) const
+    {
+        return GetName( renderPass.m_Handle );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the command buffer.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerCommandBufferData& commandBuffer ) const
+    {
+        return GetName( commandBuffer.m_Handle );
     }
 
     /***********************************************************************************\

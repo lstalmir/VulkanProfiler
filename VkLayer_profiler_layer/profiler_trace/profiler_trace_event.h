@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <nlohmann/json.hpp>
 
@@ -50,16 +51,81 @@ namespace Profiler
         eContextEnd = ')'
     };
 
-    // Intermediate types
+    /*************************************************************************\
+
+    Structure:
+        TraceEvent
+
+    Description:
+        Contains data common for all trace event types.
+
+    See:
+        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+
+    \*************************************************************************/
     struct TraceEvent
     {
-        std::string              m_Name;
-        std::string              m_Category;
-        TraceEventPhase          m_Phase;
-        double                   m_Timestamp;
-        VkQueue                  m_Queue;
-        VkCommandBuffer          m_CommandBuffer;
-        nlohmann::json::object_t m_Args;
+        TraceEventPhase           m_Phase;
+        std::string               m_Name;
+        std::string               m_Category;
+        Microseconds              m_Timestamp;
+        VkQueue                   m_Queue;
+        nlohmann::json::object_t  m_Args;
+
+        TraceEvent() = default;
+
+        template<typename TimestampType>
+        inline TraceEvent(
+            TraceEventPhase phase,
+            std::string_view name,
+            std::string_view category,
+            TimestampType timestamp,
+            VkQueue queue,
+            nlohmann::json::object_t&& args = {} )
+            : m_Phase( phase )
+            , m_Name( name )
+            , m_Category( category )
+            , m_Timestamp( std::chrono::duration_cast<decltype(m_Timestamp)>(timestamp) )
+            , m_Queue( queue )
+            , m_Args( args )
+        {
+        }
+
+        virtual void Serialize( nlohmann::json& j ) const;
+    };
+
+    /*************************************************************************\
+
+    Structure:
+        TraceCompleteEvent
+
+    Description:
+        Complete events contain additional 'dur' field with duration of the event.
+
+    See:
+        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+
+    \*************************************************************************/
+    struct TraceCompleteEvent : TraceEvent
+    {
+        Microseconds m_Duration;
+
+        TraceCompleteEvent() = default;
+
+        template<typename TimestampType, typename DurationType>
+        inline TraceCompleteEvent(
+            std::string_view name,
+            std::string_view category,
+            TimestampType timestamp,
+            DurationType duration,
+            VkQueue queue,
+            nlohmann::json::object_t&& args = {} )
+            : TraceEvent( TraceEventPhase::eComplete, name, category, timestamp, queue, std::move( args ) )
+            , m_Duration( std::chrono::duration_cast<decltype(m_Duration)>(duration) )
+        {
+        }
+
+        void Serialize( nlohmann::json& j ) const override;
     };
 
     // Conversion functions

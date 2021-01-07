@@ -20,12 +20,19 @@
 
 #pragma once
 #include "profiler_helpers/profiler_time_helpers.h"
+#include <vulkan/vulkan.h>
 #include <filesystem>
 
 namespace Profiler
 {
     class DeviceProfilerStringSerializer;
     struct DeviceProfilerFrameData;
+    struct DeviceProfilerSubmitBatchData;
+    struct DeviceProfilerCommandBufferData;
+    struct DeviceProfilerRenderPassData;
+    struct DeviceProfilerSubpassData;
+    struct DeviceProfilerPipelineData;
+    struct DeviceProfilerDrawcall;
 
     /*************************************************************************\
 
@@ -35,6 +42,9 @@ namespace Profiler
     Description:
         Serializes data collected by the profiler into Chrome-compatible JSON
         format (Trace Event Format).
+
+        Serializer is not thread-safe. For multithreaded serialization, use
+        more serializers for the best performance.
 
     See:
         https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
@@ -52,13 +62,44 @@ namespace Profiler
         {
         }
 
-        void Serialize( const DeviceProfilerFrameData& data ) const;
+        void Serialize( const DeviceProfilerFrameData& data );
 
     private:
         const DeviceProfilerStringSerializer* m_pStringSerializer;
 
+        // Currently serialized frame data
+        const DeviceProfilerFrameData* m_pData;
+
+        // Target command queue for the current batch
+        VkQueue m_CommandQueue;
+
+        std::vector<struct TraceEvent*> m_pEvents;
+
+        // Timestamp normalization
+        Milliseconds m_CpuQueueSubmitTimestampOffset;
+        uint64_t     m_GpuQueueSubmitTimestampOffset;
         Milliseconds m_GpuTimestampPeriod;
 
+        void SetupTimestampNormalizationConstants( const DeviceProfilerSubmitBatchData& );
+        Milliseconds GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point ) const;
+        Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
+
+        template<typename DataStructType>
+        inline Milliseconds GetDuration( const DataStructType& data ) const
+        {
+            return (data.m_EndTimestamp - data.m_BeginTimestamp) * m_GpuTimestampPeriod;
+        }
+
+        // Serialization
+        void Serialize( const DeviceProfilerCommandBufferData& );
+        void Serialize( const DeviceProfilerRenderPassData& );
+        void Serialize( const DeviceProfilerSubpassData&, bool );
+        void Serialize( const DeviceProfilerPipelineData& );
+        void Serialize( const DeviceProfilerDrawcall& );
+
         std::filesystem::path ConstructTraceFileName() const;
+        void SaveEventsToFile();
+
+        void Cleanup();
     };
 }

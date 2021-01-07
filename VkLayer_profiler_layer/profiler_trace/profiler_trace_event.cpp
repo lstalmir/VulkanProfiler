@@ -26,6 +26,53 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
+        Serialize
+
+    Description:
+        Serialize TraceEvent to JSON object.
+
+    \*************************************************************************/
+    void TraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    {
+        using namespace std::literals;
+
+        char queueHexHandle[ 32 ] = {};
+        Profiler::u64tohex( queueHexHandle, reinterpret_cast<uint64_t>(m_Queue) );
+
+        jsonObject = {
+            { "name", m_Name },
+            { "cat", m_Category },
+            { "ph", std::string( 1, static_cast<char>(m_Phase) ) },
+            { "ts", m_Timestamp.count() },
+            { "pid", 0 },
+            { "tid", "VkQueue 0x"s + queueHexHandle } };
+
+        if( !m_Args.empty() )
+        {
+            jsonObject[ "args" ] = m_Args;
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize TraceCompleteEvent to JSON object.
+
+    \*************************************************************************/
+    void TraceCompleteEvent::Serialize( nlohmann::json& jsonObject ) const
+    {
+        TraceEvent::Serialize( jsonObject );
+
+        // Complete events contain additional 'dur' parameter
+        jsonObject[ "dur" ] = m_Duration.count();
+    }
+
+    /*************************************************************************\
+
+    Function:
         to_json
 
     Description:
@@ -34,18 +81,6 @@ namespace Profiler
     \*************************************************************************/
     void to_json( nlohmann::json& jsonObject, const TraceEvent& event )
     {
-        using namespace std::literals;
-
-        char queueHexHandle[ 32 ] = {};
-        Profiler::u64tohex( queueHexHandle, reinterpret_cast<uint64_t>(event.m_Queue) );
-
-        jsonObject = {
-            { "name", event.m_Name },
-            { "cat", event.m_Category },
-            { "ph", std::string( 1, static_cast<char>(event.m_Phase) ) },
-            { "ts", static_cast<uint64_t>(event.m_Timestamp * 1000000) },
-            { "pid", 0 },
-            { "tid", "VkQueue 0x"s + queueHexHandle },
-            { "args", event.m_Args } };
+        event.Serialize( jsonObject );
     }
 }
