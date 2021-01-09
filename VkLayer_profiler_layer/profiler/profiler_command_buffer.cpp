@@ -410,13 +410,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PreDraw
+        PreCommand
 
     Description:
-        Marks beginning of next 3d drawcall.
+        Marks beginning of next drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PreDraw( const DeviceProfilerDrawcall& drawcall )
+    void ProfilerCommandBuffer::PreCommand( const DeviceProfilerDrawcall& drawcall )
     {
         const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
 
@@ -424,6 +424,7 @@ namespace Profiler
         switch( pipelineType )
         {
         case DeviceProfilerPipelineType::eNone:
+        case DeviceProfilerPipelineType::eDebug:
             SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
             break;
 
@@ -453,40 +454,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PostDraw
+        PostCommand
 
     Description:
         Marks end of current drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PostDraw()
+    void ProfilerCommandBuffer::PostCommand( const DeviceProfilerDrawcall& drawcall )
     {
-        SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        DebugLabel
-
-    Description:
-        Inserts debug label into the command buffer.
-
-    \***********************************************************************************/
-    void ProfilerCommandBuffer::DebugLabel( const char* pName, const float color[ 4 ] )
-    {
-        // Ensure there is a render pass and subpass with VK_SUBPASS_CONTENTS_INLINE flag
-        SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
-
-        // Setup debug label drawcall
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDebugLabel;
-        // Extend lifetime of name string to be able to print it later
-        drawcall.m_Payload.m_DebugLabel.m_pName = strdup( pName );
-        // Copy label color
-        std::memcpy( drawcall.m_Payload.m_DebugLabel.m_Color, color, 16 );
-
-        GetCurrentPipeline().m_Drawcalls.push_back( std::move( drawcall ) );
+        // End timestamp query
+        // Debug labels have 0 duration, so there is no need for the second query
+        if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        }
     }
 
     /***********************************************************************************\
@@ -635,18 +616,27 @@ namespace Profiler
                                 for( auto& drawcall : pipeline.m_Drawcalls )
                                 {
                                     // Don't collect data for debug labels
-                                    if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
+                                    if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
                                     {
                                         // Update drawcall timestamps
                                         drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
                                         drawcall.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                                        // Propagate timestamps from drawcall to pipeline
-                                        UpdateTimestamps( pipeline, drawcall );
-
                                         // Each drawcall has begin and end query
                                         currentQueryIndex += 2;
                                     }
+                                    else
+                                    {
+                                        // Provide timestamps for debug commands
+                                        drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                        drawcall.m_EndTimestamp = drawcall.m_BeginTimestamp;
+
+                                        // Debug drawcalls have only begin query
+                                        currentQueryIndex += 1;
+                                    }
+
+                                    // Propagate timestamps from drawcall to pipeline
+                                    UpdateTimestamps( pipeline, drawcall );
                                 }
 
                                 // Propagate timestamps from pipeline to subpass

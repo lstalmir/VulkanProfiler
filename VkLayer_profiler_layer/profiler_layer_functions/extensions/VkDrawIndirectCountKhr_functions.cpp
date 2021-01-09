@@ -52,13 +52,13 @@ namespace Profiler
         drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
         drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndirectCountKHR(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -91,12 +91,12 @@ namespace Profiler
         drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
         drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexedIndirectCountKHR(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 }

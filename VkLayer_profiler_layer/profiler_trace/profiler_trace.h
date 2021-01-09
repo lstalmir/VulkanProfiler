@@ -80,7 +80,7 @@ namespace Profiler
         uint64_t     m_GpuQueueSubmitTimestampOffset;
         Milliseconds m_GpuTimestampPeriod;
 
-        void SetupTimestampNormalizationConstants( const DeviceProfilerSubmitBatchData& );
+        void SetupTimestampNormalizationConstants( VkQueue );
         Milliseconds GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 

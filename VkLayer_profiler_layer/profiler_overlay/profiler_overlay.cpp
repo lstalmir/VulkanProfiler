@@ -1947,7 +1947,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall )
     {
-        if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
+        if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
             const uint64_t drawcallTicks = (drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp);
 
@@ -2002,7 +2002,8 @@ namespace Profiler
     void ProfilerOverlayOutput::PrintDebugLabel( const char* pName, const float pColor[ 4 ] )
     {
         if( !(m_ShowDebugLabels) ||
-            (m_FrameBrowserSortMode != FrameBrowserSortMode::eSubmissionOrder) )
+            (m_FrameBrowserSortMode != FrameBrowserSortMode::eSubmissionOrder) ||
+            !(pName) )
         {
             // Don't print debug labels if frame browser is sorted out of submission order
             return;

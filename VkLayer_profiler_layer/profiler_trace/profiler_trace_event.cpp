@@ -47,10 +47,49 @@ namespace Profiler
             { "pid", 0 },
             { "tid", "VkQueue 0x"s + queueHexHandle } };
 
+        if( !m_Color.empty() )
+        {
+            jsonObject[ "cname" ] = m_Color;
+        }
+
         if( !m_Args.empty() )
         {
             jsonObject[ "args" ] = m_Args;
         }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize TraceInstantEvent to JSON object.
+
+    \*************************************************************************/
+    void TraceInstantEvent::Serialize( nlohmann::json& jsonObject ) const
+    {
+        TraceEvent::Serialize( jsonObject );
+
+        // Instant events contain additional 's' parameter
+        jsonObject[ "s" ] = std::string( 1, static_cast<char>(m_Scope));
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize TraceAsyncEvent to JSON object.
+
+    \*************************************************************************/
+    void TraceAsyncEvent::Serialize( nlohmann::json& jsonObject ) const
+    {
+        TraceEvent::Serialize( jsonObject );
+
+        // Async events contain additional 'id' parameter
+        jsonObject[ "id" ] = m_Id;
     }
 
     /*************************************************************************\
@@ -68,6 +107,23 @@ namespace Profiler
 
         // Complete events contain additional 'dur' parameter
         jsonObject[ "dur" ] = m_Duration.count();
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize ApiTraceEvent to JSON object.
+
+    \*************************************************************************/
+    void ApiTraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    {
+        TraceInstantEvent::Serialize( jsonObject );
+
+        // Set thread id
+        jsonObject[ "tid" ] = "Thread " + std::to_string( m_ThreadId );
     }
 
     /*************************************************************************\

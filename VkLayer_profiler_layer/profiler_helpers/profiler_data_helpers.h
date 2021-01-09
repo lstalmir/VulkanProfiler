@@ -21,6 +21,8 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include <string>
+#include <map>
+#include <any>
 
 namespace Profiler
 {
@@ -45,6 +47,10 @@ namespace Profiler
         std::string GetName( const struct DeviceProfilerCommandBufferData& ) const;
 
         std::string GetName( const struct VkObject& object ) const;
+
+        std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
+
+        std::string GetColorHex( const float* ) const;
 
     private:
         const struct VkDevice_Object& m_Device;

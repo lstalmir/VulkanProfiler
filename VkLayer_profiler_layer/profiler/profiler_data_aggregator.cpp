@@ -180,6 +180,7 @@ namespace Profiler
             DeviceProfilerSubmitBatchData submitBatchData;
             submitBatchData.m_Handle = submitBatch.m_Handle;
             submitBatchData.m_Timestamp = submitBatch.m_Timestamp;
+            submitBatchData.m_ThreadId = submitBatch.m_ThreadId;
 
             for( const auto& submit : submitBatch.m_Submits )
             {

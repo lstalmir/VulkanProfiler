@@ -20,6 +20,7 @@
 
 #include "profiler_data_helpers.h"
 #include "profiler/profiler_data.h"
+#include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include <fmt/format.h>
 
@@ -56,8 +57,12 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eUnknown:
             return fmt::format( "Unknown command ({})", drawcall.m_Type );
 
-        case DeviceProfilerDrawcallType::eDebugLabel:
+        case DeviceProfilerDrawcallType::eInsertDebugLabel:
+        case DeviceProfilerDrawcallType::eBeginDebugLabel:
             return drawcall.m_Payload.m_DebugLabel.m_pName;
+
+        case DeviceProfilerDrawcallType::eEndDebugLabel:
+            return "";
 
         case DeviceProfilerDrawcallType::eDraw:
             return fmt::format( "vkCmdDraw ({}, {}, {}, {})",
@@ -254,5 +259,104 @@ namespace Profiler
         }
 
         return fmt::format( "{} {:#018x}", object.m_pTypeName, object.m_Handle );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCommandName
+
+    Description:
+        Returns name of the Vulkan API function.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetCommandName( const DeviceProfilerDrawcall& drawcall ) const
+    {
+        switch( drawcall.m_Type )
+        {
+        default:
+        case DeviceProfilerDrawcallType::eUnknown:
+            return fmt::format( "Unknown command ({})", drawcall.m_Type );
+
+        case DeviceProfilerDrawcallType::eInsertDebugLabel:
+            return "vkCmdInsertDebugLabelEXT";
+
+        case DeviceProfilerDrawcallType::eBeginDebugLabel:
+            return "vkCmdBeginDebugLabelEXT";
+
+        case DeviceProfilerDrawcallType::eEndDebugLabel:
+            return "vkCmdEndDebugLabelEXT";
+
+        case DeviceProfilerDrawcallType::eDraw:
+            return "vkCmdDraw";
+
+        case DeviceProfilerDrawcallType::eDrawIndexed:
+            return "vkCmdDrawIndexed";
+
+        case DeviceProfilerDrawcallType::eDrawIndirect:
+            return "vkCmdDrawIndirect";
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+            return "vkCmdDrawIndexedIndirect";
+
+        case DeviceProfilerDrawcallType::eDrawIndirectCount:
+            return "vkCmdDrawIndirectCount";
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+            return "vkCmdDrawIndexedIndirectCount";
+
+        case DeviceProfilerDrawcallType::eDispatch:
+            return "vkCmdDispatch";
+
+        case DeviceProfilerDrawcallType::eDispatchIndirect:
+            return "vkCmdDispatchIndirect";
+
+        case DeviceProfilerDrawcallType::eCopyBuffer:
+            return "vkCmdCopyBuffer";
+
+        case DeviceProfilerDrawcallType::eCopyBufferToImage:
+            return "vkCmdCopyBufferToImage";
+
+        case DeviceProfilerDrawcallType::eCopyImage:
+            return "vkCmdCopyImage";
+
+        case DeviceProfilerDrawcallType::eCopyImageToBuffer:
+            return "vkCmdCopyImageToBuffer";
+
+        case DeviceProfilerDrawcallType::eClearAttachments:
+            return "vkCmdClearAttachments";
+
+        case DeviceProfilerDrawcallType::eClearColorImage:
+            return "vkCmdClearColorImage";
+
+        case DeviceProfilerDrawcallType::eClearDepthStencilImage:
+            return "vkCmdClearDepthStencilImage";
+
+        case DeviceProfilerDrawcallType::eResolveImage:
+            return "vkCmdResolveImage";
+
+        case DeviceProfilerDrawcallType::eBlitImage:
+            return "vkCmdBlitImage";
+
+        case DeviceProfilerDrawcallType::eFillBuffer:
+            return "vkCmdFillBuffer";
+
+        case DeviceProfilerDrawcallType::eUpdateBuffer:
+            return "vkCmdUpdateBuffer";
+        }
+    }
+
+    std::string DeviceProfilerStringSerializer::GetColorHex( const float* pColor ) const
+    {
+        const uint8_t R = static_cast<uint8_t>(pColor[ 0 ] * 255.f);
+        const uint8_t G = static_cast<uint8_t>(pColor[ 1 ] * 255.f);
+        const uint8_t B = static_cast<uint8_t>(pColor[ 2 ] * 255.f);
+
+        char color[ 8 ] = "#XXXXXX";
+        u8tohex( color + 1, R );
+        u8tohex( color + 3, G );
+        u8tohex( color + 5, B );
+
+        return color;
     }
 }

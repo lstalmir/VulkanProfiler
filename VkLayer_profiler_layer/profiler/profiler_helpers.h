@@ -83,6 +83,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        u8tohex
+
+    Description:
+        Convert 8-bit unsigned number to hexadecimal string.
+
+    \***********************************************************************************/
+    inline void u8tohex( char* pBuffer, uint8_t value )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert(sizeof( hexDigits ) == 16);
+
+        for( int i = 0; i < 2; ++i )
+        {
+            // Begin with most significant bit:
+            // out[0] = hex[ (V >> 28) & 0xF ]
+            // out[1] = hex[ (V >> 24) & 0xF ] ...
+            pBuffer[ i ] = hexDigits[ (value >> (8 - ((i + 1) << 2))) & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         u16tohex
 
     Description:
@@ -340,6 +363,8 @@ namespace Profiler
             }
             return "";
         }
+
+        static uint32_t GetCurrentThreadId();
 
     };
 }

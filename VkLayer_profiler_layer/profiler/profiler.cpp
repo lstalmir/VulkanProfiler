@@ -746,6 +746,7 @@ namespace Profiler
         DeviceProfilerSubmitBatch submitBatch;
         submitBatch.m_Handle = queue;
         submitBatch.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
+        submitBatch.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
@@ -835,6 +836,7 @@ namespace Profiler
         m_Data.m_CPU.m_BeginTimestamp = m_CpuTimestampCounter.GetBeginValue();
         m_Data.m_CPU.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
+        m_Data.m_CPU.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
         m_CpuTimestampCounter.Begin();
 

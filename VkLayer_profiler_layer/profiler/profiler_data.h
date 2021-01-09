@@ -46,7 +46,9 @@ namespace Profiler
     enum class DeviceProfilerDrawcallType : uint32_t
     {
         eUnknown = 0x00000000,
-        eDebugLabel = 0x00000001,
+        eInsertDebugLabel = 0xFFFF0001,
+        eBeginDebugLabel = 0xFFFF0002,
+        eEndDebugLabel = 0xFFFF0003,
         eDraw = 0x00010000,
         eDrawIndexed = 0x00010001,
         eDrawIndirect = 0x00010002,
@@ -79,6 +81,7 @@ namespace Profiler
     enum class DeviceProfilerPipelineType : uint32_t
     {
         eNone = 0x00000000,
+        eDebug = 0xFFFF0000,
         eGraphics = 0x00010000,
         eCompute = 0x00020000,
         eCopyBuffer = 0x00030000,
@@ -294,7 +297,7 @@ namespace Profiler
             , m_BeginTimestamp( dc.m_BeginTimestamp )
             , m_EndTimestamp( dc.m_EndTimestamp )
         {
-            if( dc.m_Type == DeviceProfilerDrawcallType::eDebugLabel )
+            if( dc.GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 // Create copy of already stored string
                 m_Payload.m_DebugLabel.m_pName = strdup( dc.m_Payload.m_DebugLabel.m_pName );
@@ -312,7 +315,7 @@ namespace Profiler
         // Destroy drawcall - in case of debug labels free its name
         inline ~DeviceProfilerDrawcall()
         {
-            if( m_Type == DeviceProfilerDrawcallType::eDebugLabel )
+            if( GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 free( m_Payload.m_DebugLabel.m_pName );
             }
@@ -600,6 +603,7 @@ namespace Profiler
         VkQueue                                             m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
         std::chrono::high_resolution_clock::time_point      m_Timestamp = {};
+        uint32_t                                            m_ThreadId = {};
     };
 
     /***********************************************************************************\
@@ -660,6 +664,7 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point      m_BeginTimestamp = {};
         std::chrono::high_resolution_clock::time_point      m_EndTimestamp = {};
         float                                               m_FramesPerSec = {};
+        uint32_t                                            m_ThreadId = {};
     };
 
     /***********************************************************************************\
