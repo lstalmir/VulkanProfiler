@@ -159,14 +159,10 @@ namespace Profiler
                 {
                     for( const auto& commandBufferData : submitData.m_CommandBuffers )
                     {
-                        if( (commandBufferData.m_BeginTimestamp > 0) &&
-                            !(commandBufferData.m_RenderPasses.empty()) )
+                        if( commandBufferData.m_BeginTimestamp < m_GpuQueueSubmitTimestampOffset )
                         {
-                            if( commandBufferData.m_BeginTimestamp < m_GpuQueueSubmitTimestampOffset )
-                            {
-                                m_GpuQueueSubmitTimestampOffset = commandBufferData.m_BeginTimestamp;
-                                updateCpuQueueSubmitTimestampOffset = true;
-                            }
+                            m_GpuQueueSubmitTimestampOffset = commandBufferData.m_BeginTimestamp;
+                            updateCpuQueueSubmitTimestampOffset = true;
                         }
                     }
                 }
@@ -227,32 +223,29 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerCommandBufferData& data )
     {
-        if( data.m_BeginTimestamp != 0 )
+        const std::string eventName = m_pStringSerializer->GetName( data );
+
+        // Begin
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationBegin,
+            eventName,
+            "Command buffers",
+            GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+            m_CommandQueue ) );
+
+        for( const auto& renderPassData : data.m_RenderPasses )
         {
-            const std::string eventName = m_pStringSerializer->GetName( data );
-
-            // Begin
-            m_pEvents.push_back( new TraceEvent(
-                TraceEvent::Phase::eDurationBegin,
-                eventName,
-                "Command buffers",
-                GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
-                m_CommandQueue ) );
-
-            for( const auto& renderPassData : data.m_RenderPasses )
-            {
-                // Serialize the render pass
-                Serialize( renderPassData );
-            }
-
-            // End
-            m_pEvents.push_back( new TraceEvent(
-                TraceEvent::Phase::eDurationEnd,
-                eventName,
-                "Command buffers",
-                GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
-                m_CommandQueue ) );
+            // Serialize the render pass
+            Serialize( renderPassData );
         }
+
+        // End
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationEnd,
+            eventName,
+            "Command buffers",
+            GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+            m_CommandQueue ) );
     }
 
     /*************************************************************************\

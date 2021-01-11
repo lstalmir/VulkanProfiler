@@ -218,6 +218,9 @@ namespace Profiler
                 m_CommandBuffer,
                 m_PerformanceQueryPoolINTEL, 0, 0 );
         }
+
+        // Send global timestamp query for the whole command buffer
+        SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
     }
 
     /***********************************************************************************\
@@ -231,6 +234,9 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::End()
     {
+        // Send global timestamp query for the whole command buffer
+        SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+
         if( m_PerformanceQueryPoolINTEL )
         {
             m_Profiler.m_pDevice->Callbacks.CmdEndQuery(
@@ -570,11 +576,11 @@ namespace Profiler
                     dataOffset += numQueriesInPool;
                 }
 
-                size_t currentQueryIndex = 0;
+                size_t currentQueryIndex = 1;
 
-                // Reset accumulated cycle count if buffer is being reused
-                m_Data.m_BeginTimestamp = 0;
-                m_Data.m_EndTimestamp = 0;
+                // Read global timestamp values
+                m_Data.m_BeginTimestamp = collectedQueries.front();
+                m_Data.m_EndTimestamp = collectedQueries.back();
 
                 for( auto& renderPass : m_Data.m_RenderPasses )
                 {
@@ -696,9 +702,6 @@ namespace Profiler
                         // Move to the next query
                         currentQueryIndex += 2;
                     }
-
-                    // Propagate timestamps from render pass to command buffer
-                    UpdateTimestamps( m_Data, renderPass );
                 }
             }
 
