@@ -36,7 +36,7 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
-        VkResult result = VK_SUCCESS; 
+        VkResult result = VK_SUCCESS;
 
         // Call next layer
         if( dd.Device.Callbacks.SetDebugUtilsObjectNameEXT )
@@ -47,24 +47,10 @@ namespace Profiler
         // Store object name
         if( result == VK_SUCCESS )
         {
-            // Revision 2 (2020-04-03): pObjectName can be nullptr
-            if( (pObjectInfo->pObjectName) &&
-                (std::strlen( pObjectInfo->pObjectName ) > 0) )
-            {
-                dd.Device.Debug.ObjectNames.insert_or_assign( pObjectInfo->objectHandle, pObjectInfo->pObjectName );
-            }
-            else
-            {
-                // Clear debug name
-                dd.Device.Debug.ObjectNames.erase( pObjectInfo->objectHandle );
-
-                // Restore pipeline hash as debug name
-                if( pObjectInfo->objectType == VK_OBJECT_TYPE_PIPELINE )
-                {
-                    dd.Profiler.SetDefaultPipelineObjectName(
-                        dd.Profiler.GetPipeline( (VkPipeline)pObjectInfo->objectHandle ) );
-                }
-            }
+            dd.Profiler.template SetObjectName<VkObjectType>(
+                pObjectInfo->objectHandle,
+                pObjectInfo->objectType,
+                pObjectInfo->pObjectName );
         }
 
         return result;
@@ -112,13 +98,24 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.DebugLabel( pLabelInfo->pLabelName, pLabelInfo->color );
+        // Setup debug label drawcall
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eInsertDebugLabel;
+        drawcall.m_Payload.m_DebugLabel.m_pName = strdup( pLabelInfo->pLabelName );
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 0 ] = pLabelInfo->color[ 0 ];
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 1 ] = pLabelInfo->color[ 1 ];
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 2 ] = pLabelInfo->color[ 2 ];
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 3 ] = pLabelInfo->color[ 3 ];
+
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer (if available)
         if( dd.Device.Callbacks.CmdInsertDebugUtilsLabelEXT )
         {
             dd.Device.Callbacks.CmdInsertDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
         }
+
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -136,13 +133,24 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        profiledCommandBuffer.DebugLabel( pLabelInfo->pLabelName, pLabelInfo->color );
+        // Setup debug label drawcall
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eBeginDebugLabel;
+        drawcall.m_Payload.m_DebugLabel.m_pName = strdup( pLabelInfo->pLabelName );
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 0 ] = pLabelInfo->color[ 0 ];
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 1 ] = pLabelInfo->color[ 1 ];
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 2 ] = pLabelInfo->color[ 2 ];
+        drawcall.m_Payload.m_DebugLabel.m_Color[ 3 ] = pLabelInfo->color[ 3 ];
+
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer (if available)
         if( dd.Device.Callbacks.CmdBeginDebugUtilsLabelEXT )
         {
             dd.Device.Callbacks.CmdBeginDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
         }
+
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -157,12 +165,20 @@ namespace Profiler
         VkCommandBuffer commandBuffer )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Ranged debug labels not supported
+        // Setup debug label drawcall
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eEndDebugLabel;
+        drawcall.m_Payload.m_DebugLabel.m_pName = nullptr;
+
+        profiledCommandBuffer.PreCommand( drawcall );
 
         if( dd.Device.Callbacks.CmdEndDebugUtilsLabelEXT )
         {
             dd.Device.Callbacks.CmdEndDebugUtilsLabelEXT( commandBuffer );
         }
+
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 }

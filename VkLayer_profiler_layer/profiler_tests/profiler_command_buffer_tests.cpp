@@ -174,30 +174,40 @@ namespace Profiler
 
             const auto& drawcallData = pipelineData.m_Drawcalls.front();
             EXPECT_EQ( DeviceProfilerDrawcallType::eDraw, drawcallData.m_Type );
-            EXPECT_LT( 0, drawcallData.m_Ticks );
+            EXPECT_NE( 0, drawcallData.m_BeginTimestamp );
+            EXPECT_NE( 0, drawcallData.m_EndTimestamp );
+            EXPECT_LT( drawcallData.m_BeginTimestamp, drawcallData.m_EndTimestamp );
+            EXPECT_LT( 0, (drawcallData.m_EndTimestamp - drawcallData.m_BeginTimestamp) );
 
             // Validate that drawcall data propagates to pipeline stats
-            EXPECT_EQ( drawcallData.m_Ticks, pipelineData.m_Ticks );
+            EXPECT_EQ( drawcallData.m_BeginTimestamp, pipelineData.m_BeginTimestamp );
+            EXPECT_EQ( drawcallData.m_EndTimestamp, pipelineData.m_EndTimestamp );
 
             // Validate that pipeline stats propagate to subpass stats
-            EXPECT_EQ( pipelineData.m_Ticks, inheritedSubpassData.m_Ticks );
+            EXPECT_EQ( pipelineData.m_BeginTimestamp, inheritedSubpassData.m_BeginTimestamp );
+            EXPECT_EQ( pipelineData.m_EndTimestamp, inheritedSubpassData.m_EndTimestamp );
 
             // Validate that subpass stats propagate to renderpass stats
-            EXPECT_EQ( inheritedSubpassData.m_Ticks, inheritedRenderPassData.m_Ticks );
+            EXPECT_EQ( inheritedSubpassData.m_BeginTimestamp, inheritedRenderPassData.m_BeginTimestamp );
+            EXPECT_EQ( inheritedSubpassData.m_EndTimestamp, inheritedRenderPassData.m_EndTimestamp );
 
             // Validate that renderpass stats propagate to secondary command buffer stats
-            EXPECT_EQ( inheritedRenderPassData.m_Ticks, secondaryCmdBufferData.m_Ticks );
+            EXPECT_EQ( inheritedRenderPassData.m_BeginTimestamp, secondaryCmdBufferData.m_BeginTimestamp );
+            EXPECT_EQ( inheritedRenderPassData.m_EndTimestamp, secondaryCmdBufferData.m_EndTimestamp );
             EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawCount );
 
             // Validate that secondary command buffer stats propagate to subpass stats
-            EXPECT_EQ( secondaryCmdBufferData.m_Ticks, subpassData.m_Ticks );
+            EXPECT_EQ( secondaryCmdBufferData.m_BeginTimestamp, subpassData.m_BeginTimestamp );
+            EXPECT_EQ( secondaryCmdBufferData.m_EndTimestamp, subpassData.m_EndTimestamp );
 
             // Validate that subpass stats propagate to renderpass stats
             // Render pass data includes begin/end ops, so expected time is greater than subpass time
-            EXPECT_LE( subpassData.m_Ticks, renderPassData.m_Ticks );
+            EXPECT_LE( (subpassData.m_EndTimestamp - subpassData.m_BeginTimestamp),
+                (renderPassData.m_EndTimestamp - renderPassData.m_BeginTimestamp) );
 
             // Validate that renderpass stats propagate to primary command buffer stats
-            EXPECT_EQ( renderPassData.m_Ticks, cmdBufferData.m_Ticks );
+            EXPECT_EQ( renderPassData.m_BeginTimestamp, cmdBufferData.m_BeginTimestamp );
+            EXPECT_EQ( renderPassData.m_EndTimestamp, cmdBufferData.m_EndTimestamp );
             EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
         }
     }

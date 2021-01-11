@@ -19,19 +19,38 @@
 // SOFTWARE.
 
 #pragma once
+#include <vulkan/vulkan.h>
+#include <string>
 
 namespace Profiler
 {
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    /***********************************************************************************\
 
-    template<typename Data>
-    inline bool DurationAsc( const Data& a, const Data& b )
+    Class:
+        DeviceProfilerStringSerializer
+
+    Description:
+        Serializes structures into human-readable strings.
+
+    \***********************************************************************************/
+    class DeviceProfilerStringSerializer
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    public:
+        DeviceProfilerStringSerializer( const struct VkDevice_Object& );
+
+        std::string GetName( const struct DeviceProfilerDrawcall& ) const;
+        std::string GetName( const struct DeviceProfilerPipelineData& ) const;
+        std::string GetName( const struct DeviceProfilerSubpassData& ) const;
+        std::string GetName( const struct DeviceProfilerRenderPassData& ) const;
+        std::string GetName( const struct DeviceProfilerCommandBufferData& ) const;
+
+        std::string GetName( const struct VkObject& object ) const;
+
+        std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
+
+        std::string GetColorHex( const float* ) const;
+
+    private:
+        const struct VkDevice_Object& m_Device;
+    };
 }

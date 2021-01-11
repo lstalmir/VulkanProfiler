@@ -19,19 +19,29 @@
 // SOFTWARE.
 
 #pragma once
+#include <imgui.h>
 
-namespace Profiler
+namespace ImGuiX
 {
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    /*************************************************************************\
 
-    template<typename Data>
-    inline bool DurationAsc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    Function:
+        TextAlignRight
+
+    Description:
+        Print text aligned to the right.
+
+    \*************************************************************************/
+    void TextAlignRight( float contentAreaWidth, const char* fmt, ... );
+
+    /*************************************************************************\
+
+    Function:
+        TextAlignRight
+
+    Description:
+        Print text aligned to the right.
+
+    \*************************************************************************/
+    void TextAlignRight( const char* fmt, ... );
 }

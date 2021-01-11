@@ -25,6 +25,7 @@
 
 #include <unistd.h>
 #include <limits.h>
+#include <sys/types.h>
 
 namespace Profiler
 {
@@ -87,6 +88,34 @@ namespace Profiler
 
         // Use standard output
         printf( "%s", str );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCurrentThreadId
+
+    Description:
+        Get unique identifier of the currently running thread.
+
+    \***********************************************************************************/
+    uint32_t ProfilerPlatformFunctions::GetCurrentThreadId()
+    {
+        return static_cast<uint32_t>(gettid());
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCurrentProcessId
+
+    Description:
+        Get unique identifier of the currently running process.
+
+    \***********************************************************************************/
+    uint32_t ProfilerPlatformFunctions::GetCurrentProcessId()
+    {
+        return static_cast<uint32_t>(getpid());
     }
 
 }

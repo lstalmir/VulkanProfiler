@@ -25,6 +25,7 @@
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
+#include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>
@@ -106,7 +107,7 @@ namespace Profiler
 
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
 
-        float m_TimestampPeriod;
+        Milliseconds m_TimestampPeriod;
 
         enum class FrameBrowserSortMode
         {
@@ -141,6 +142,8 @@ namespace Profiler
         bool m_Pause;
         bool m_ShowDebugLabels;
 
+        class DeviceProfilerStringSerializer* m_pStringSerializer;
+
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
@@ -158,13 +161,9 @@ namespace Profiler
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex, bool );
         void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
         void PrintDrawcall( const DeviceProfilerDrawcall& );
+        void PrintDebugLabel( const char*, const float[ 4 ] );
 
-        void TextAlignRight( float, const char*, ... );
-        void TextAlignRight( const char*, ... );
         void DrawSignificanceRect( float );
-        void DrawDebugLabel( const char*, const float[ 4 ] );
-
-        std::string GetDebugObjectName( VkObjectType, uint64_t ) const;
 
         // Sort frame browser data
         template<typename Data>

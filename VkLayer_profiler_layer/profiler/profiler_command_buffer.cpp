@@ -24,6 +24,24 @@
 #include <algorithm>
 #include <assert.h>
 
+namespace
+{
+    template<typename T, typename U>
+    inline static void UpdateTimestamps( T& parent, const U& child )
+    {
+        // If parent begin timestamp is undefined, use first defined child begin timestamp
+        if( parent.m_BeginTimestamp == 0 )
+        {
+            parent.m_BeginTimestamp = child.m_BeginTimestamp;
+        }
+        // If child end timestamp is defined, it must be larger than current parent end timestamp
+        if( child.m_EndTimestamp > 0 )
+        {
+            parent.m_EndTimestamp = child.m_EndTimestamp;
+        }
+    }
+}
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -200,6 +218,9 @@ namespace Profiler
                 m_CommandBuffer,
                 m_PerformanceQueryPoolINTEL, 0, 0 );
         }
+
+        // Send global timestamp query for the whole command buffer
+        SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
     }
 
     /***********************************************************************************\
@@ -213,6 +234,9 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::End()
     {
+        // Send global timestamp query for the whole command buffer
+        SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+
         if( m_PerformanceQueryPoolINTEL )
         {
             m_Profiler.m_pDevice->Callbacks.CmdEndQuery(
@@ -392,13 +416,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PreDraw
+        PreCommand
 
     Description:
-        Marks beginning of next 3d drawcall.
+        Marks beginning of next drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PreDraw( const DeviceProfilerDrawcall& drawcall )
+    void ProfilerCommandBuffer::PreCommand( const DeviceProfilerDrawcall& drawcall )
     {
         const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
 
@@ -406,6 +430,7 @@ namespace Profiler
         switch( pipelineType )
         {
         case DeviceProfilerPipelineType::eNone:
+        case DeviceProfilerPipelineType::eDebug:
             SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
             break;
 
@@ -435,40 +460,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PostDraw
+        PostCommand
 
     Description:
         Marks end of current drawcall.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PostDraw()
+    void ProfilerCommandBuffer::PostCommand( const DeviceProfilerDrawcall& drawcall )
     {
-        SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        DebugLabel
-
-    Description:
-        Inserts debug label into the command buffer.
-
-    \***********************************************************************************/
-    void ProfilerCommandBuffer::DebugLabel( const char* pName, const float color[ 4 ] )
-    {
-        // Ensure there is a render pass and subpass with VK_SUBPASS_CONTENTS_INLINE flag
-        SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
-
-        // Setup debug label drawcall
-        DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDebugLabel;
-        // Extend lifetime of name string to be able to print it later
-        drawcall.m_Payload.m_DebugLabel.m_pName = strdup( pName );
-        // Copy label color
-        std::memcpy( drawcall.m_Payload.m_DebugLabel.m_Color, color, 16 );
-
-        GetCurrentPipeline().m_Drawcalls.push_back( std::move( drawcall ) );
+        // End timestamp query
+        // Debug labels have 0 duration, so there is no need for the second query
+        if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
+        {
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        }
     }
 
     /***********************************************************************************\
@@ -541,44 +546,47 @@ namespace Profiler
                 (m_QueryPoolSize * m_CurrentQueryPoolIndex) +
                 (m_CurrentQueryIndex + 1);
 
-            std::vector<uint64_t> collectedQueries( numQueries );
-
-            // Count how many queries we need to get
-            uint32_t numQueriesLeft = numQueries;
-            uint32_t dataOffset = 0;
-
-            // Collect queried timestamps
-            for( uint32_t i = 0; i < m_CurrentQueryPoolIndex + 1; ++i )
+            if( numQueries > 0 )
             {
-                const uint32_t numQueriesInPool = std::min( m_QueryPoolSize, numQueriesLeft );
-                const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
+                std::vector<uint64_t> collectedQueries( numQueries );
 
-                // Get results from next query pool
-                m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
-                    m_Profiler.m_pDevice->Handle,
-                    m_QueryPools[i],
-                    0, numQueriesInPool,
-                    dataSize,
-                    collectedQueries.data() + dataOffset,
-                    sizeof( uint64_t ),
-                    VK_QUERY_RESULT_64_BIT );
+                // Count how many queries we need to get
+                uint32_t numQueriesLeft = numQueries;
+                uint32_t dataOffset = 0;
 
-                numQueriesLeft -= numQueriesInPool;
-                dataOffset += numQueriesInPool;
-            }
+                // Collect queried timestamps
+                for( uint32_t i = 0; i < m_CurrentQueryPoolIndex + 1; ++i )
+                {
+                    const uint32_t numQueriesInPool = std::min( m_QueryPoolSize, numQueriesLeft );
+                    const uint32_t dataSize = numQueriesInPool * sizeof( uint64_t );
 
-            // Update timestamp stats for each profiled entity
-            if( collectedQueries.size() > 1 )
-            {
+                    assert( dataSize > 0 );
+
+                    // Get results from next query pool
+                    m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
+                        m_Profiler.m_pDevice->Handle,
+                        m_QueryPools[ i ],
+                        0, numQueriesInPool,
+                        dataSize,
+                        collectedQueries.data() + dataOffset,
+                        sizeof( uint64_t ),
+                        VK_QUERY_RESULT_64_BIT );
+
+                    numQueriesLeft -= numQueriesInPool;
+                    dataOffset += numQueriesInPool;
+                }
+
                 size_t currentQueryIndex = 1;
 
-                // Reset accumulated cycle count if buffer is being reused
-                m_Data.m_Ticks = 0;
+                // Read global timestamp values
+                m_Data.m_BeginTimestamp = collectedQueries.front();
+                m_Data.m_EndTimestamp = collectedQueries.back();
 
                 for( auto& renderPass : m_Data.m_RenderPasses )
                 {
                     // Reset accumulated cycle count if buffer is being reused
-                    renderPass.m_Ticks = 0;
+                    renderPass.m_BeginTimestamp = 0;
+                    renderPass.m_EndTimestamp = 0;
 
                     if( renderPass.m_Handle != VK_NULL_HANDLE )
                     {
@@ -586,44 +594,62 @@ namespace Profiler
                         // 2 queries for initial transitions and clears.
                         assert( currentQueryIndex < collectedQueries.size() );
 
-                        // Get vkCmdBeginRenderPass time
-                        renderPass.m_BeginTicks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
-                        currentQueryIndex += 2;
+                        // Update render pass begin timestamp
+                        renderPass.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
 
-                        // Include this time in total render pass time
-                        renderPass.m_Ticks += renderPass.m_BeginTicks;
+                        // Get vkCmdBeginRenderPass time
+                        renderPass.m_Begin.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                        renderPass.m_Begin.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
+                        // Move to the next query
+                        currentQueryIndex += 2;
                     }
 
                     for( auto& subpass : renderPass.m_Subpasses )
                     {
                         // Reset accumulated cycle count if buffer is being reused
-                        subpass.m_Ticks = 0;
+                        subpass.m_BeginTimestamp = 0;
+                        subpass.m_EndTimestamp = 0;
 
                         if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                         {
                             for( auto& pipeline : subpass.m_Pipelines )
                             {
                                 // Reset accumulated cycle count if buffer is being reused
-                                pipeline.m_Ticks = 0;
+                                pipeline.m_BeginTimestamp = 0;
+                                pipeline.m_EndTimestamp = 0;
 
                                 for( auto& drawcall : pipeline.m_Drawcalls )
                                 {
                                     // Don't collect data for debug labels
-                                    if( drawcall.m_Type != DeviceProfilerDrawcallType::eDebugLabel )
+                                    if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
                                     {
-                                        // Update drawcall time
-                                        drawcall.m_Ticks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
-                                        // Update pipeline time
-                                        pipeline.m_Ticks += drawcall.m_Ticks;
+                                        // Update drawcall timestamps
+                                        drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                        drawcall.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
                                         // Each drawcall has begin and end query
                                         currentQueryIndex += 2;
                                     }
+                                    else
+                                    {
+                                        // Provide timestamps for debug commands
+                                        drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                        drawcall.m_EndTimestamp = drawcall.m_BeginTimestamp;
+
+                                        // Debug drawcalls have only begin query
+                                        currentQueryIndex += 1;
+                                    }
+
+                                    // Propagate timestamps from drawcall to pipeline
+                                    UpdateTimestamps( pipeline, drawcall );
                                 }
 
-                                // Update subpass time
-                                subpass.m_Ticks += pipeline.m_Ticks;
+                                // Propagate timestamps from pipeline to subpass
+                                UpdateTimestamps( subpass, pipeline );
                             }
                         }
+
                         else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
                         {
                             for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
@@ -638,10 +664,11 @@ namespace Profiler
                                 // Include profiling time of the secondary command buffer
                                 m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
 
+                                // Propagate timestamps from command buffer to subpass
+                                UpdateTimestamps( subpass, commandBuffer );
+
                                 // Collect secondary command buffer stats
                                 m_Data.m_Stats += commandBuffer.m_Stats;
-                                // Update subpass time
-                                subpass.m_Ticks += commandBuffer.m_Ticks;
                             }
 
                             // Move to the next query
@@ -655,8 +682,8 @@ namespace Profiler
                                 subpass.m_Contents );
                         }
 
-                        // Update render pass time
-                        renderPass.m_Ticks += subpass.m_Ticks;
+                        // Propagate timestamps from subpass to render pass
+                        UpdateTimestamps( renderPass, subpass );
                     }
 
                     if( renderPass.m_Handle != VK_NULL_HANDLE )
@@ -666,15 +693,15 @@ namespace Profiler
                         assert( currentQueryIndex < collectedQueries.size() );
 
                         // Get vkCmdEndRenderPass time
-                        renderPass.m_EndTicks = collectedQueries[ currentQueryIndex ] - collectedQueries[ currentQueryIndex - 1 ];
+                        renderPass.m_End.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                        renderPass.m_End.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
+                        // Update render pass end timestamp
+                        renderPass.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
+                        // Move to the next query
                         currentQueryIndex += 2;
-
-                        // Include this time in total render pass time
-                        renderPass.m_Ticks += renderPass.m_EndTicks;
                     }
-
-                    // Update command buffer time
-                    m_Data.m_Ticks += renderPass.m_Ticks;
                 }
             }
 

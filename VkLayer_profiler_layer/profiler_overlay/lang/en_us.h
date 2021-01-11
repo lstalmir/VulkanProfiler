@@ -30,6 +30,7 @@ namespace Profiler
         inline static constexpr char Device[] = "Device";
         inline static constexpr char Instance[] = "Instance";
         inline static constexpr char Pause[] = "Pause";
+        inline static constexpr char Save[] = "Save trace";
 
         // Tabs
         inline static constexpr char Performance[] = "Performance";

@@ -63,9 +63,8 @@ namespace Profiler
 
         void BindPipeline( const DeviceProfilerPipeline& );
 
-        void PreDraw( const DeviceProfilerDrawcall& );
-        void PostDraw();
-        void DebugLabel( const char*, const float[ 4 ] );
+        void PreCommand( const DeviceProfilerDrawcall& );
+        void PostCommand( const DeviceProfilerDrawcall& );
         void ExecuteCommands( uint32_t, const VkCommandBuffer* );
         void PipelineBarrier(
             uint32_t, const VkMemoryBarrier*,

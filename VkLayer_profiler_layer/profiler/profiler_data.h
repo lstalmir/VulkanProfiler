@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler_shader.h"
 #include <assert.h>
+#include <chrono>
 #include <vector>
 #include <list>
 #include <cstring>
@@ -45,7 +46,9 @@ namespace Profiler
     enum class DeviceProfilerDrawcallType : uint32_t
     {
         eUnknown = 0x00000000,
-        eDebugLabel = 0x00000001,
+        eInsertDebugLabel = 0xFFFF0001,
+        eBeginDebugLabel = 0xFFFF0002,
+        eEndDebugLabel = 0xFFFF0003,
         eDraw = 0x00010000,
         eDrawIndexed = 0x00010001,
         eDrawIndirect = 0x00010002,
@@ -78,6 +81,7 @@ namespace Profiler
     enum class DeviceProfilerPipelineType : uint32_t
     {
         eNone = 0x00000000,
+        eDebug = 0xFFFF0000,
         eGraphics = 0x00010000,
         eCompute = 0x00020000,
         eCopyBuffer = 0x00030000,
@@ -274,7 +278,8 @@ namespace Profiler
     {
         DeviceProfilerDrawcallType                          m_Type = {};
         DeviceProfilerDrawcallPayload                       m_Payload = {};
-        uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         inline DeviceProfilerPipelineType GetPipelineType() const
         {
@@ -289,9 +294,10 @@ namespace Profiler
         inline DeviceProfilerDrawcall( const DeviceProfilerDrawcall& dc )
             : m_Type( dc.m_Type )
             , m_Payload( dc.m_Payload )
-            , m_Ticks( dc.m_Ticks )
+            , m_BeginTimestamp( dc.m_BeginTimestamp )
+            , m_EndTimestamp( dc.m_EndTimestamp )
         {
-            if( dc.m_Type == DeviceProfilerDrawcallType::eDebugLabel )
+            if( dc.GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 // Create copy of already stored string
                 m_Payload.m_DebugLabel.m_pName = strdup( dc.m_Payload.m_DebugLabel.m_pName );
@@ -309,7 +315,7 @@ namespace Profiler
         // Destroy drawcall - in case of debug labels free its name
         inline ~DeviceProfilerDrawcall()
         {
-            if( m_Type == DeviceProfilerDrawcallType::eDebugLabel )
+            if( GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 free( m_Payload.m_DebugLabel.m_pName );
             }
@@ -320,7 +326,8 @@ namespace Profiler
         {
             std::swap( m_Type, dc.m_Type );
             std::swap( m_Payload, dc.m_Payload );
-            std::swap( m_Ticks, dc.m_Ticks );
+            std::swap( m_BeginTimestamp, dc.m_BeginTimestamp );
+            std::swap( m_EndTimestamp, dc.m_EndTimestamp );
         }
 
         // Assignment operators
@@ -414,21 +421,24 @@ namespace Profiler
     struct DeviceProfilerPipelineData
     {
         VkPipeline                                          m_Handle = {};
-        uint32_t                                            m_Hash = {};
-        uint64_t                                            m_Ticks = {};
+        VkPipelineBindPoint                                 m_BindPoint = {};
+        ProfilerShaderTuple                                 m_ShaderTuple = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
 
         inline DeviceProfilerPipelineData() = default;
 
         inline DeviceProfilerPipelineData( const DeviceProfilerPipeline& pipeline )
             : m_Handle( pipeline.m_Handle )
-            , m_Hash( pipeline.m_ShaderTuple.m_Hash )
+            , m_BindPoint( pipeline.m_BindPoint )
+            , m_ShaderTuple( pipeline.m_ShaderTuple )
         {
         }
 
         inline bool operator==( const DeviceProfilerPipelineData& rh ) const
         {
-            return m_Hash == rh.m_Hash;
+            return m_ShaderTuple == rh.m_ShaderTuple;
         }
     };
 
@@ -460,7 +470,8 @@ namespace Profiler
     {
         uint32_t                                            m_Index = {};
         VkSubpassContents                                   m_Contents = {};
-        uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         ContainerType<struct DeviceProfilerPipelineData>    m_Pipelines = {};
         ContainerType<struct DeviceProfilerCommandBufferData> m_SecondaryCommandBuffers = {};
@@ -486,6 +497,42 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerRenderPassBeginData
+
+    Description:
+        Contains captured GPU timestamp data for vkCmdBeginRenderPass... command.
+
+    \***********************************************************************************/
+    struct DeviceProfilerRenderPassBeginData
+    {
+        VkAttachmentLoadOp                                  m_ColorAttachmentLoadOp = {};
+        VkAttachmentLoadOp                                  m_DepthAttachmentLoadOp = {};
+        VkAttachmentLoadOp                                  m_StencilAttachmentLoadOp = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerRenderPassEndData
+
+    Description:
+        Contains captured GPU timestamp data for vkCmdEndRenderPass... command.
+
+    \***********************************************************************************/
+    struct DeviceProfilerRenderPassEndData
+    {
+        VkAttachmentStoreOp                                 m_ColorAttachmentStoreOp = {};
+        VkAttachmentStoreOp                                 m_DepthAttachmentStoreOp = {};
+        VkAttachmentStoreOp                                 m_StencilAttachmentStoreOp = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerRenderPassData
 
     Description:
@@ -495,9 +542,11 @@ namespace Profiler
     struct DeviceProfilerRenderPassData
     {
         VkRenderPass                                        m_Handle = {};
-        uint64_t                                            m_Ticks = {};
-        uint64_t                                            m_BeginTicks = {};
-        uint64_t                                            m_EndTicks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
+
+        DeviceProfilerRenderPassBeginData                   m_Begin = {};
+        DeviceProfilerRenderPassEndData                     m_End = {};
 
         ContainerType<struct DeviceProfilerSubpassData>     m_Subpasses = {};
     };
@@ -516,7 +565,8 @@ namespace Profiler
         VkCommandBuffer                                     m_Handle = {};
         VkCommandBufferLevel                                m_Level = {};
         DeviceProfilerDrawcallStats                         m_Stats = {};
-        uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
@@ -552,6 +602,8 @@ namespace Profiler
     {
         VkQueue                                             m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
+        std::chrono::high_resolution_clock::time_point      m_Timestamp = {};
+        uint32_t                                            m_ThreadId = {};
     };
 
     /***********************************************************************************\
@@ -609,8 +661,10 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerCPUData
     {
-        uint64_t m_TimeNs = {};
-        float    m_FramesPerSec = {};
+        std::chrono::high_resolution_clock::time_point      m_BeginTimestamp = {};
+        std::chrono::high_resolution_clock::time_point      m_EndTimestamp = {};
+        float                                               m_FramesPerSec = {};
+        uint32_t                                            m_ThreadId = {};
     };
 
     /***********************************************************************************\
@@ -653,7 +707,7 @@ namespace std
     {
         inline size_t operator()( const Profiler::DeviceProfilerPipelineData& pipeline ) const
         {
-            return pipeline.m_Hash;
+            return pipeline.m_ShaderTuple.m_Hash;
         }
     };
 }

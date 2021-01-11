@@ -23,6 +23,7 @@
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
 #include "profiler_data.h"
+#include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include <unordered_map>
@@ -112,6 +113,13 @@ namespace Profiler
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );
 
+        void SetObjectName( VkObject, const char* );
+        void SetDefaultObjectName( VkObject );
+        void SetDefaultObjectName( VkPipeline );
+
+        template<typename VkObjectTypeEnumT>
+        void SetObjectName( uint64_t, VkObjectTypeEnumT, const char* );
+
     public:
         VkDevice_Object*        m_pDevice;
 
@@ -152,11 +160,45 @@ namespace Profiler
         ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& );
         ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& );
 
-        void SetDefaultPipelineObjectName( const DeviceProfilerPipeline& );
-
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
+
+        void SetDefaultObjectName( const DeviceProfilerPipeline& pipeline );
 
         decltype(m_CommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
         decltype(m_CommandBuffers)::iterator FreeCommandBuffer( decltype(m_CommandBuffers)::iterator );
     };
+
+    /***********************************************************************************\
+
+    Function:
+        SetObjectName
+
+    Description:
+        Sets or restores default object name.
+
+    \***********************************************************************************/
+    template<typename VkObjectTypeEnumT>
+    inline void DeviceProfiler::SetObjectName( uint64_t objectHandle, VkObjectTypeEnumT objectType, const char* pObjectName )
+    {
+        const auto objectTypeTraits = VkObject_Runtime_Traits::FromObjectType( objectType );
+
+        // Don't waste memory for storing unnecessary debug names
+        if( objectTypeTraits.ShouldHaveDebugName )
+        {
+            VkObject object( objectHandle, objectTypeTraits );
+
+            // VK_EXT_debug_utils
+            // Revision 2 (2020-04-03): pObjectName can be nullptr
+            if( (pObjectName) && (std::strlen( pObjectName ) > 0) )
+            {
+                // Set custom object name
+                SetObjectName( object, pObjectName );
+            }
+            else
+            {
+                // Restore default debug name
+                SetDefaultObjectName( object );
+            }
+        }
+    }
 }

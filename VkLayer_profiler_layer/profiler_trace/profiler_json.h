@@ -19,19 +19,31 @@
 // SOFTWARE.
 
 #pragma once
+#include <vulkan/vulkan.h>
+#include <nlohmann/json.hpp>
 
 namespace Profiler
 {
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    /*************************************************************************\
 
-    template<typename Data>
-    inline bool DurationAsc( const Data& a, const Data& b )
+    Class:
+        DeviceProfilerJsonSerializer
+
+    Description:
+        Serializes data into JSON objects.
+
+    \*************************************************************************/
+    class DeviceProfilerJsonSerializer
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    public:
+        DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
+
+        nlohmann::json GetCommandArgs( const struct DeviceProfilerDrawcall& ) const;
+
+    private:
+        const class DeviceProfilerStringSerializer* m_pStringSerializer;
+
+        nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;
+        nlohmann::json GetDepthStencilClearValue( const VkClearDepthStencilValue& ) const;
+    };
 }

@@ -179,6 +179,8 @@ namespace Profiler
         {
             DeviceProfilerSubmitBatchData submitBatchData;
             submitBatchData.m_Handle = submitBatch.m_Handle;
+            submitBatchData.m_Timestamp = submitBatch.m_Timestamp;
+            submitBatchData.m_ThreadId = submitBatch.m_ThreadId;
 
             for( const auto& submit : submitBatch.m_Submits )
             {
@@ -253,7 +255,7 @@ namespace Profiler
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += commandBuffer.m_Ticks;
+                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp - commandBuffer.m_BeginTimestamp);
                 }
             }
         }
@@ -317,7 +319,7 @@ namespace Profiler
                             Profiler::Aggregate<SumAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                commandBufferData.m_Ticks,
+                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
                                 commandBufferVendorMetrics[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -336,7 +338,7 @@ namespace Profiler
                             Profiler::Aggregate<AvgAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                commandBufferData.m_Ticks,
+                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
                                 commandBufferVendorMetrics[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -375,7 +377,8 @@ namespace Profiler
     \***********************************************************************************/
     std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
     {
-        std::unordered_set<DeviceProfilerPipelineData> aggregatedPipelines;
+        // Identify pipelines by combined hash value
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData> aggregatedPipelines;
 
         for( const auto& submitBatch : m_AggregatedData )
         {
@@ -389,11 +392,16 @@ namespace Profiler
         }
 
         // Sort by time
-        std::list<DeviceProfilerPipelineData> pipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
+        std::list<DeviceProfilerPipelineData> pipelines;
+
+        for( const auto& [_, aggregatedPipeline] : aggregatedPipelines )
+        {
+            pipelines.push_back( aggregatedPipeline );
+        }
 
         pipelines.sort( []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return a.m_Ticks > b.m_Ticks;
+                return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
             } );
 
         return pipelines;
@@ -410,7 +418,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipelinesFromCommandBuffer(
         const DeviceProfilerCommandBufferData& commandBuffer,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
@@ -422,8 +430,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_Ticks += renderPass.m_BeginTicks;
-            endRenderPassPipeline.m_Ticks += renderPass.m_EndTicks;
+            beginRenderPassPipeline.m_EndTimestamp += (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+            endRenderPassPipeline.m_EndTimestamp += (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -461,24 +469,21 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipeline(
         const DeviceProfilerPipelineData& pipeline,
-        std::unordered_set<DeviceProfilerPipelineData>& aggregatedPipelines ) const
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
-        DeviceProfilerPipelineData aggregatedPipeline = pipeline;
-
-        auto it = aggregatedPipelines.find( pipeline );
-        if( it != aggregatedPipelines.end() )
+        auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
+        if( it == aggregatedPipelines.end() )
         {
-            aggregatedPipeline = *it;
-            aggregatedPipeline.m_Ticks += pipeline.m_Ticks;
+            // Create aggregated data struct for this pipeline
+            DeviceProfilerPipelineData aggregatedPipelineData = {};
+            aggregatedPipelineData.m_Handle = pipeline.m_Handle;
+            aggregatedPipelineData.m_BindPoint = pipeline.m_BindPoint;
+            aggregatedPipelineData.m_ShaderTuple = pipeline.m_ShaderTuple;
 
-            aggregatedPipelines.erase( it );
+            it = aggregatedPipelines.emplace( pipeline.m_ShaderTuple.m_Hash, aggregatedPipelineData ).first;
         }
 
-        // Clear values which don't make sense after aggregation
-        aggregatedPipeline.m_Handle = pipeline.m_Handle;
-        aggregatedPipeline.m_Hash = pipeline.m_Hash;
-        aggregatedPipeline.m_Drawcalls.clear();
-
-        aggregatedPipelines.insert( aggregatedPipeline );
+        // Increase total pipeline time
+        (*it).second.m_EndTimestamp += (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
     }
 }

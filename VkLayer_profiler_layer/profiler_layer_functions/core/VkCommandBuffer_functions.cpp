@@ -335,13 +335,13 @@ namespace Profiler
         drawcall.m_Payload.m_Draw.m_FirstVertex = firstVertex;
         drawcall.m_Payload.m_Draw.m_FirstInstance = firstInstance;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDraw(
             commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -370,13 +370,13 @@ namespace Profiler
         drawcall.m_Payload.m_DrawIndirect.m_DrawCount = drawCount;
         drawcall.m_Payload.m_DrawIndirect.m_Stride = stride;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndirect(
             commandBuffer, buffer, offset, drawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -407,13 +407,13 @@ namespace Profiler
         drawcall.m_Payload.m_DrawIndexed.m_VertexOffset = vertexOffset;
         drawcall.m_Payload.m_DrawIndexed.m_FirstInstance = firstInstance;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexed(
             commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -442,13 +442,13 @@ namespace Profiler
         drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount = drawCount;
         drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride = stride;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexedIndirect(
             commandBuffer, buffer, offset, drawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -481,13 +481,13 @@ namespace Profiler
         drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
         drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndirectCount(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -520,13 +520,13 @@ namespace Profiler
         drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount = maxDrawCount;
         drawcall.m_Payload.m_DrawIndirectCount.m_Stride = stride;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDrawIndexedIndirectCount(
             commandBuffer, argsBuffer, argsOffset, countBuffer, countOffset, maxDrawCount, stride );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -553,12 +553,12 @@ namespace Profiler
         drawcall.m_Payload.m_Dispatch.m_GroupCountY = y;
         drawcall.m_Payload.m_Dispatch.m_GroupCountZ = z;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDispatch( commandBuffer, x, y, z );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -583,12 +583,12 @@ namespace Profiler
         drawcall.m_Payload.m_DispatchIndirect.m_Buffer = buffer;
         drawcall.m_Payload.m_DispatchIndirect.m_Offset = offset;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdDispatchIndirect( commandBuffer, buffer, offset );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -615,13 +615,13 @@ namespace Profiler
         drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer = srcBuffer;
         drawcall.m_Payload.m_CopyBuffer.m_DstBuffer = dstBuffer;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyBuffer(
             commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -649,13 +649,13 @@ namespace Profiler
         drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer = srcBuffer;
         drawcall.m_Payload.m_CopyBufferToImage.m_DstImage = dstImage;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyBufferToImage(
             commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -683,13 +683,13 @@ namespace Profiler
         drawcall.m_Payload.m_CopyImage.m_SrcImage = srcImage;
         drawcall.m_Payload.m_CopyImage.m_DstImage = dstImage;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyImage(
             commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -716,13 +716,13 @@ namespace Profiler
         drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage = srcImage;
         drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer = dstBuffer;
 
-        profiledCommandBuffer.PreDraw( drawcall );
+        profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdCopyImageToBuffer(
             commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( drawcall );
     }
 
     /***********************************************************************************\
@@ -748,13 +748,13 @@ namespace Profiler
         clearDrawcall.m_Type = DeviceProfilerDrawcallType::eClearAttachments;
         clearDrawcall.m_Payload.m_ClearAttachments.m_Count = attachmentCount;
 
-        profiledCommandBuffer.PreDraw( clearDrawcall );
+        profiledCommandBuffer.PreCommand( clearDrawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdClearAttachments(
             commandBuffer, attachmentCount, pAttachments, rectCount, pRects );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( clearDrawcall );
     }
 
     /***********************************************************************************\
@@ -782,13 +782,13 @@ namespace Profiler
         clearDrawcall.m_Payload.m_ClearColorImage.m_Image = image;
         clearDrawcall.m_Payload.m_ClearColorImage.m_Value = *pColor;
 
-        profiledCommandBuffer.PreDraw( clearDrawcall );
+        profiledCommandBuffer.PreCommand( clearDrawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdClearColorImage(
             commandBuffer, image, imageLayout, pColor, rangeCount, pRanges );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( clearDrawcall );
     }
 
     /***********************************************************************************\
@@ -816,13 +816,13 @@ namespace Profiler
         clearDrawcall.m_Payload.m_ClearDepthStencilImage.m_Image = image;
         clearDrawcall.m_Payload.m_ClearDepthStencilImage.m_Value = *pDepthStencil;
 
-        profiledCommandBuffer.PreDraw( clearDrawcall );
+        profiledCommandBuffer.PreCommand( clearDrawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdClearDepthStencilImage(
             commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( clearDrawcall );
     }
 
     /***********************************************************************************\
@@ -851,13 +851,13 @@ namespace Profiler
         resolveDrawcall.m_Payload.m_ResolveImage.m_SrcImage = srcImage;
         resolveDrawcall.m_Payload.m_ResolveImage.m_DstImage = dstImage;
 
-        profiledCommandBuffer.PreDraw( resolveDrawcall );
+        profiledCommandBuffer.PreCommand( resolveDrawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdResolveImage(
             commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( resolveDrawcall );
     }
 
     /***********************************************************************************\
@@ -887,13 +887,13 @@ namespace Profiler
         blitDrawcall.m_Payload.m_BlitImage.m_SrcImage = srcImage;
         blitDrawcall.m_Payload.m_BlitImage.m_DstImage = dstImage;
 
-        profiledCommandBuffer.PreDraw( blitDrawcall );
+        profiledCommandBuffer.PreCommand( blitDrawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdBlitImage(
             commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( blitDrawcall );
     }
 
     /***********************************************************************************\
@@ -922,13 +922,13 @@ namespace Profiler
         fillDrawcall.m_Payload.m_FillBuffer.m_Size = size;
         fillDrawcall.m_Payload.m_FillBuffer.m_Data = data;
 
-        profiledCommandBuffer.PreDraw( fillDrawcall );
+        profiledCommandBuffer.PreCommand( fillDrawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdFillBuffer(
             commandBuffer, dstBuffer, dstOffset, size, data );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( fillDrawcall );
     }
 
     /***********************************************************************************\
@@ -950,18 +950,18 @@ namespace Profiler
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
-        DeviceProfilerDrawcall fillDrawcall;
-        fillDrawcall.m_Type = DeviceProfilerDrawcallType::eUpdateBuffer;
-        fillDrawcall.m_Payload.m_UpdateBuffer.m_Buffer = dstBuffer;
-        fillDrawcall.m_Payload.m_UpdateBuffer.m_Offset = dstOffset;
-        fillDrawcall.m_Payload.m_UpdateBuffer.m_Size = size;
+        DeviceProfilerDrawcall updateDrawcall;
+        updateDrawcall.m_Type = DeviceProfilerDrawcallType::eUpdateBuffer;
+        updateDrawcall.m_Payload.m_UpdateBuffer.m_Buffer = dstBuffer;
+        updateDrawcall.m_Payload.m_UpdateBuffer.m_Offset = dstOffset;
+        updateDrawcall.m_Payload.m_UpdateBuffer.m_Size = size;
 
-        profiledCommandBuffer.PreDraw( fillDrawcall );
+        profiledCommandBuffer.PreCommand( updateDrawcall );
 
         // Invoke next layer's implementation
         dd.Device.Callbacks.CmdUpdateBuffer(
             commandBuffer, dstBuffer, dstOffset, size, pData );
 
-        profiledCommandBuffer.PostDraw();
+        profiledCommandBuffer.PostCommand( updateDrawcall );
     }
 }

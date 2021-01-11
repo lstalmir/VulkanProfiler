@@ -19,19 +19,19 @@
 // SOFTWARE.
 
 #pragma once
+#include <chrono>
 
 namespace Profiler
 {
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    // Standard library defines these with long long storage, so we lose precision when
+    // storing nanosecond duration as milliseconds (to avoid unnecessary conversions in
+    // the runtime). Redefine common time units with floating-point storage to keep the
+    // precision.
 
-    template<typename Data>
-    inline bool DurationAsc( const Data& a, const Data& b )
-    {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
-    }
+    using Nanoseconds = std::chrono::duration<float, std::nano>;
+    using Microseconds = std::chrono::duration<float, std::micro>;
+    using Milliseconds = std::chrono::duration<float, std::milli>;
+    using Seconds = std::chrono::duration<float>;
+    using Minutes = std::chrono::duration<float, std::ratio<60>>;
+    using Hours = std::chrono::duration<float, std::ratio<3600>>;
 }

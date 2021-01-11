@@ -23,6 +23,7 @@
 #include "VkInstance_object.h"
 #include "VkQueue_object.h"
 #include "VkSwapchainKhr_object.h"
+#include "VkObject.h"
 #include <map>
 #include <vector>
 
@@ -40,7 +41,7 @@ namespace Profiler
 
     struct VkDevice_debug_Object
     {
-        std::map<uint64_t, std::string> ObjectNames;
+        std::unordered_map<VkObject, std::string> ObjectNames;
     };
 
     struct VkDevice_Object

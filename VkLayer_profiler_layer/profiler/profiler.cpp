@@ -147,6 +147,7 @@ namespace Profiler
     {
         return {
             VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME,
+            VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
             VK_EXT_DEBUG_MARKER_EXTENSION_NAME
         };
     }
@@ -427,6 +428,8 @@ namespace Profiler
         {
             VkCommandBuffer commandBuffer = pCommandBuffers[ i ];
 
+            SetDefaultObjectName( commandBuffer );
+
             m_CommandBuffers.unsafe_insert( commandBuffer,
                 ProfilerCommandBuffer( std::ref( *this ), commandPool, commandBuffer, level ) );
         }
@@ -490,7 +493,7 @@ namespace Profiler
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-            SetDefaultPipelineObjectName( profilerPipeline );
+            SetDefaultObjectName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[i], profilerPipeline );
         }
@@ -514,7 +517,7 @@ namespace Profiler
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 
-            SetDefaultPipelineObjectName( profilerPipeline );
+            SetDefaultObjectName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -591,6 +594,9 @@ namespace Profiler
         // Count clear attachments
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
+        // Assign default debug name for the render pass
+        SetDefaultObjectName( renderPass );
+
         // Store render pass
         m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
     }
@@ -652,6 +658,9 @@ namespace Profiler
 
         // Count clear attachments
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
+
+        // Assign default debug name for the render pass
+        SetDefaultObjectName( renderPass );
 
         // Store render pass
         m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
@@ -736,6 +745,8 @@ namespace Profiler
         // Store submitted command buffers and get results
         DeviceProfilerSubmitBatch submitBatch;
         submitBatch.m_Handle = queue;
+        submitBatch.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
+        submitBatch.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
@@ -822,8 +833,10 @@ namespace Profiler
         m_CpuTimestampCounter.End();
 
         // TODO: Move to CPU tracker
-        m_Data.m_CPU.m_TimeNs = m_CpuTimestampCounter.GetValue<std::chrono::nanoseconds>().count();
+        m_Data.m_CPU.m_BeginTimestamp = m_CpuTimestampCounter.GetBeginValue();
+        m_Data.m_CPU.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
+        m_Data.m_CPU.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
         m_CpuTimestampCounter.Begin();
 
@@ -973,22 +986,73 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SetDefaultPipelineObjectName
+        SetObjectName
+
+    Description:
+        Set custom object name.
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetObjectName( VkObject object, const char* pName )
+    {
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pName );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDefaultObjectName
+
+    Description:
+        Set default object name.
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetDefaultObjectName( VkObject object )
+    {
+        // There is special function for VkPipeline objects
+        if( object.m_Type == VK_OBJECT_TYPE_PIPELINE )
+        {
+            SetDefaultObjectName( VkObject_Traits<VkPipeline>::GetObjectHandleAsVulkanHandle( object.m_Handle ) );
+        }
+
+        char pObjectDebugName[ 64 ] = {};
+        sprintf_s( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
+
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pObjectDebugName );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDefaultObjectName
 
     Description:
         Set default pipeline name consisting of shader tuple hashes.
 
     \***********************************************************************************/
-    void DeviceProfiler::SetDefaultPipelineObjectName( const DeviceProfilerPipeline& pipeline )
+    void DeviceProfiler::SetDefaultObjectName( VkPipeline object )
+    {
+        SetDefaultObjectName( GetPipeline( object ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDefaultObjectName
+
+    Description:
+        Set default pipeline name consisting of shader tuple hashes.
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetDefaultObjectName( const DeviceProfilerPipeline& pipeline )
     {
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
             // Vertex and pixel shader hashes
-            char pPipelineDebugName[ 24 ] = "VS=XXXXXXXX,PS=XXXXXXXX";
+            char pPipelineDebugName[ 25 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
             u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Vert );
-            u32tohex( pPipelineDebugName + 15, pipeline.m_ShaderTuple.m_Frag );
+            u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Frag );
 
-            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, pPipelineDebugName );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
@@ -997,7 +1061,7 @@ namespace Profiler
             char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
             u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Comp );
 
-            m_pDevice->Debug.ObjectNames.emplace( (uint64_t)pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, pPipelineDebugName );
         }
     }
 
@@ -1017,11 +1081,8 @@ namespace Profiler
         internalPipeline.m_Handle = (VkPipeline)type;
         internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
 
-        [[maybe_unused]]
-        auto result = m_pDevice->Debug.ObjectNames.emplace( (uint64_t)internalPipeline.m_Handle, pName );
-
-        // Check if new value has been created
-        assert( result.second && "Multiple initialization of internal pipeline - possible hash conflict" );
+        // Assign name for the internal pipeline
+        SetObjectName( internalPipeline.m_Handle, pName );
 
         m_Pipelines.insert( internalPipeline.m_Handle, internalPipeline );
     }
