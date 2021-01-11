@@ -20,7 +20,9 @@
 
 #include "profiler_trace.h"
 #include "profiler_trace_event.h"
+#include "profiler_json.h"
 #include "profiler/profiler_data.h"
+#include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 
@@ -38,97 +40,44 @@ using json = nlohmann::json;
 
 namespace Profiler
 {
-    /***********************************************************************************\
+    /*************************************************************************\
 
     Function:
-        GetCommandArgs
+        DeviceProfilerTraceSerializer
 
     Description:
-        Returns arguments passed to the Vulkan API function.
+        Constructor.
 
-    \***********************************************************************************/
-    static json GetCommandArgs( const DeviceProfilerDrawcall& drawcall )
+    \*************************************************************************/
+    DeviceProfilerTraceSerializer::DeviceProfilerTraceSerializer( const DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod )
+        : m_pStringSerializer( pStringSerializer )
+        , m_pJsonSerializer( nullptr )
+        , m_pData( nullptr )
+        , m_CommandQueue( VK_NULL_HANDLE )
+        , m_pEvents()
+        , m_DebugLabelStackDepth( 0 )
+        , m_CpuQueueSubmitTimestampOffset( 0 )
+        , m_GpuQueueSubmitTimestampOffset( 0 )
+        , m_GpuTimestampPeriod( gpuTimestampPeriod )
     {
-        switch( drawcall.m_Type )
-        {
-        default:
-        case DeviceProfilerDrawcallType::eUnknown:
-        case DeviceProfilerDrawcallType::eInsertDebugLabel:
-        case DeviceProfilerDrawcallType::eBeginDebugLabel:
-        case DeviceProfilerDrawcallType::eEndDebugLabel:
-            return {};
-
-        case DeviceProfilerDrawcallType::eDraw:
-            return {
-                { "vertexCount", drawcall.m_Payload.m_Draw.m_VertexCount },
-                { "instanceCount", drawcall.m_Payload.m_Draw.m_InstanceCount },
-                { "firstVertex", drawcall.m_Payload.m_Draw.m_FirstVertex },
-                { "firstInstance", drawcall.m_Payload.m_Draw.m_FirstInstance } };
-
-        case DeviceProfilerDrawcallType::eDrawIndexed:
-            return {
-                { "indexCount", drawcall.m_Payload.m_DrawIndexed.m_IndexCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawIndexed.m_InstanceCount },
-                { "firstIndex", drawcall.m_Payload.m_DrawIndexed.m_FirstIndex },
-                { "vertexOffset", drawcall.m_Payload.m_DrawIndexed.m_VertexOffset },
-                { "firstInstance", drawcall.m_Payload.m_DrawIndexed.m_FirstInstance } };
-
-        case DeviceProfilerDrawcallType::eDrawIndirect:
-            return "vkCmdDrawIndirect";
-
-        case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            return "vkCmdDrawIndexedIndirect";
-
-        case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            return "vkCmdDrawIndirectCount";
-
-        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            return "vkCmdDrawIndexedIndirectCount";
-
-        case DeviceProfilerDrawcallType::eDispatch:
-            return "vkCmdDispatch";
-
-        case DeviceProfilerDrawcallType::eDispatchIndirect:
-            return "vkCmdDispatchIndirect";
-
-        case DeviceProfilerDrawcallType::eCopyBuffer:
-            return "vkCmdCopyBuffer";
-
-        case DeviceProfilerDrawcallType::eCopyBufferToImage:
-            return "vkCmdCopyBufferToImage";
-
-        case DeviceProfilerDrawcallType::eCopyImage:
-            return "vkCmdCopyImage";
-
-        case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-            return "vkCmdCopyImageToBuffer";
-
-        case DeviceProfilerDrawcallType::eClearAttachments:
-            return "vkCmdClearAttachments";
-
-        case DeviceProfilerDrawcallType::eClearColorImage:
-            return "vkCmdClearColorImage";
-
-        case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-            return "vkCmdClearDepthStencilImage";
-
-        case DeviceProfilerDrawcallType::eResolveImage:
-            return "vkCmdResolveImage";
-
-        case DeviceProfilerDrawcallType::eBlitImage:
-            return "vkCmdBlitImage";
-
-        case DeviceProfilerDrawcallType::eFillBuffer:
-            return "vkCmdFillBuffer";
-
-        case DeviceProfilerDrawcallType::eUpdateBuffer:
-            return "vkCmdUpdateBuffer";
-        }
+        // Initialize JSON serializer
+        m_pJsonSerializer = new DeviceProfilerJsonSerializer( m_pStringSerializer );
     }
-}
 
-namespace Profiler
-{
+    /*************************************************************************\
+
+    Function:
+        ~DeviceProfilerTraceSerializer
+
+    Description:
+        Destructor.
+
+    \*************************************************************************/
+    DeviceProfilerTraceSerializer::~DeviceProfilerTraceSerializer()
+    {
+        delete m_pJsonSerializer;
+    }
+
     /*************************************************************************\
 
     Function:
@@ -487,7 +436,7 @@ namespace Profiler
         if( data.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
             const std::string eventName = m_pStringSerializer->GetCommandName( data );
-            const nlohmann::json eventArgs = GetCommandArgs( data );
+            const nlohmann::json eventArgs = m_pJsonSerializer->GetCommandArgs( data );
 
             // Cannot use complete events due to loss of precision
             m_pEvents.push_back( new TraceEvent(
@@ -512,32 +461,34 @@ namespace Profiler
             if( data.m_Type == DeviceProfilerDrawcallType::eInsertDebugLabel )
             {
                 // Insert debug labels as instant events
-                m_pEvents.push_back( new TraceInstantEvent(
-                    TraceInstantEvent::Scope::eGlobal,
+                m_pEvents.push_back( new DebugTraceEvent(
+                    TraceEvent::Phase::eInstant,
                     data.m_Payload.m_DebugLabel.m_pName,
-                    "Debug",
-                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
-                    m_CommandQueue ) );
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ) ) );
             }
 
             if( data.m_Type == DeviceProfilerDrawcallType::eBeginDebugLabel )
             {
-                m_pEvents.push_back( new TraceEvent(
+                m_pEvents.push_back( new DebugTraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     data.m_Payload.m_DebugLabel.m_pName,
-                    "Debug",
-                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
-                    m_CommandQueue ) );
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ) ) );
+
+                m_DebugLabelStackDepth++;
             }
 
             if( data.m_Type == DeviceProfilerDrawcallType::eEndDebugLabel )
             {
-                m_pEvents.push_back( new TraceEvent(
-                    TraceEvent::Phase::eDurationEnd,
-                    "",
-                    "Debug",
-                    GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
-                    m_CommandQueue ) );
+                // End only events that started in current frame
+                if( m_DebugLabelStackDepth > 0 )
+                {
+                    m_pEvents.push_back( new DebugTraceEvent(
+                        TraceEvent::Phase::eDurationEnd,
+                        "",
+                        GetNormalizedGpuTimestamp( data.m_EndTimestamp ) ) );
+
+                    m_DebugLabelStackDepth--;
+                }
             }
         }
     }
@@ -563,7 +514,8 @@ namespace Profiler
 
         // Construct output file name
         std::stringstream stringBuilder;
-        stringBuilder << "ProcessName_PID_";
+        stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
+        stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
         stringBuilder << std::put_time( tm, "%Y-%m-%d_%H-%M-%S" ) << "_" << ms.count();
         stringBuilder << ".json";
 

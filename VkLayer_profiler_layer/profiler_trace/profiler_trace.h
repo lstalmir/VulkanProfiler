@@ -25,15 +25,6 @@
 
 namespace Profiler
 {
-    class DeviceProfilerStringSerializer;
-    struct DeviceProfilerFrameData;
-    struct DeviceProfilerSubmitBatchData;
-    struct DeviceProfilerCommandBufferData;
-    struct DeviceProfilerRenderPassData;
-    struct DeviceProfilerSubpassData;
-    struct DeviceProfilerPipelineData;
-    struct DeviceProfilerDrawcall;
-
     /*************************************************************************\
 
     Class:
@@ -54,26 +45,33 @@ namespace Profiler
     {
     public:
         template<typename GpuDurationType>
-        inline DeviceProfilerTraceSerializer(
-            const DeviceProfilerStringSerializer* pStringSerializer,
-            GpuDurationType gpuTimestampPeriod )
-            : m_pStringSerializer( pStringSerializer )
-            , m_GpuTimestampPeriod( gpuTimestampPeriod )
+        inline DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, GpuDurationType gpuTimestampPeriod )
+            : DeviceProfilerTraceSerializer(
+                pStringSerializer,
+                std::chrono::duration_cast<Milliseconds>(gpuTimestampPeriod) )
         {
         }
 
-        void Serialize( const DeviceProfilerFrameData& data );
+        DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
+        ~DeviceProfilerTraceSerializer();
+
+        void Serialize( const struct DeviceProfilerFrameData& data );
 
     private:
-        const DeviceProfilerStringSerializer* m_pStringSerializer;
+        const class DeviceProfilerStringSerializer* m_pStringSerializer;
+        const class DeviceProfilerJsonSerializer* m_pJsonSerializer;
 
         // Currently serialized frame data
-        const DeviceProfilerFrameData* m_pData;
+        const struct DeviceProfilerFrameData* m_pData;
 
         // Target command queue for the current batch
-        VkQueue m_CommandQueue;
+        VkQueue      m_CommandQueue;
 
         std::vector<struct TraceEvent*> m_pEvents;
+
+        // Debug labels can cross command buffer and frame boundaries
+        // Tracking depth of the stack to detect labels which begin in one frame and end in the next
+        uint32_t     m_DebugLabelStackDepth;
 
         // Timestamp normalization
         Milliseconds m_CpuQueueSubmitTimestampOffset;
@@ -91,11 +89,11 @@ namespace Profiler
         }
 
         // Serialization
-        void Serialize( const DeviceProfilerCommandBufferData& );
-        void Serialize( const DeviceProfilerRenderPassData& );
-        void Serialize( const DeviceProfilerSubpassData&, bool );
-        void Serialize( const DeviceProfilerPipelineData& );
-        void Serialize( const DeviceProfilerDrawcall& );
+        void Serialize( const struct DeviceProfilerCommandBufferData& );
+        void Serialize( const struct DeviceProfilerRenderPassData& );
+        void Serialize( const struct DeviceProfilerSubpassData&, bool );
+        void Serialize( const struct DeviceProfilerPipelineData& );
+        void Serialize( const struct DeviceProfilerDrawcall& );
 
         std::filesystem::path ConstructTraceFileName() const;
         void SaveEventsToFile();

@@ -30,11 +30,13 @@ add_subdirectory (json)
 set (headers
     "profiler_trace.h"
     "profiler_trace_event.h"
+    "profiler_json.h"
     )
 
 set (sources
     "profiler_trace.cpp"
     "profiler_trace_event.cpp"
+    "profiler_json.cpp"
     )
 
 # Link intermediate static library

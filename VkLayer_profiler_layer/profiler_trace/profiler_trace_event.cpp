@@ -115,6 +115,28 @@ namespace Profiler
         Serialize
 
     Description:
+        Serialize DebugTraceEvent to JSON object.
+
+    \*************************************************************************/
+    void DebugTraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    {
+        TraceEvent::Serialize( jsonObject );
+
+        // Set thread id
+        jsonObject[ "tid" ] = "Debug labels";
+
+        if( m_Phase == Phase::eInstant )
+        {
+            jsonObject[ "s" ] = std::string( 1, static_cast<char>(TraceInstantEvent::Scope::eThread) );
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
         Serialize ApiTraceEvent to JSON object.
 
     \*************************************************************************/

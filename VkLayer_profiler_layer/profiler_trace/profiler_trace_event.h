@@ -216,6 +216,34 @@ namespace Profiler
     /*************************************************************************\
 
     Structure:
+        DebugTraceEvent
+
+    Description:
+        Debug trace events are debug labels inserted into queues and command
+        buffers.
+
+    \*************************************************************************/
+    struct DebugTraceEvent : TraceEvent
+    {
+        DebugTraceEvent() = default;
+
+        template<typename TimestampType>
+        inline DebugTraceEvent(
+            Phase phase,
+            std::string_view name,
+            TimestampType timestamp,
+            const nlohmann::json& color = {},
+            const nlohmann::json& args = {} )
+            : TraceEvent( phase, name, "Debug", timestamp, VK_NULL_HANDLE, color, args )
+        {
+        }
+
+        void Serialize( nlohmann::json& j ) const override;
+    };
+
+    /*************************************************************************\
+
+    Structure:
         ApiTraceEvent
 
     Description:
