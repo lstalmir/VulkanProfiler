@@ -104,6 +104,20 @@ namespace Profiler
         return static_cast<uint32_t>(gettid());
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetCurrentProcessId
+
+    Description:
+        Get unique identifier of the currently running process.
+
+    \***********************************************************************************/
+    uint32_t ProfilerPlatformFunctions::GetCurrentProcessId()
+    {
+        return static_cast<uint32_t>(getpid());
+    }
+
 }
 
 #endif // __linux__

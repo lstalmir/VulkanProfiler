@@ -364,7 +364,14 @@ namespace Profiler
             return "";
         }
 
+        inline static std::string GetProcessName()
+        {
+            // Extract filename component from the path
+            return GetApplicationPath().filename().u8string().c_str();
+        }
+
         static uint32_t GetCurrentThreadId();
+        static uint32_t GetCurrentProcessId();
 
     };
 }

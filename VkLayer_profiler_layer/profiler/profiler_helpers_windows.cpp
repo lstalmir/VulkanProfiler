@@ -139,6 +139,20 @@ namespace Profiler
         return ::GetCurrentThreadId();
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetCurrentProcessId
+
+    Description:
+        Get unique identifier of the currently running process.
+
+    \***********************************************************************************/
+    uint32_t ProfilerPlatformFunctions::GetCurrentProcessId()
+    {
+        return ::GetCurrentProcessId();
+    }
+
 }
 
 #endif // WIN32
