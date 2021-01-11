@@ -21,8 +21,6 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include <string>
-#include <map>
-#include <any>
 
 namespace Profiler
 {

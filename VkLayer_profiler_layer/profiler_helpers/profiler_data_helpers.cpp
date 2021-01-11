@@ -346,6 +346,15 @@ namespace Profiler
         }
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetColorHex
+
+    Description:
+        Returns hexadecimal 24-bit color representation (in #RRGGBB format).
+
+    \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetColorHex( const float* pColor ) const
     {
         const uint8_t R = static_cast<uint8_t>(pColor[ 0 ] * 255.f);
