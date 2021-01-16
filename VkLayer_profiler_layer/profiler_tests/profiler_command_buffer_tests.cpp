@@ -41,8 +41,8 @@ namespace Profiler
         ASSERT_EQ( 1, Prof->m_CommandBuffers.size() );
         const auto it = Prof->m_CommandBuffers.cbegin();
         EXPECT_EQ( commandBuffer, it->first );
-        EXPECT_EQ( commandBuffer, it->second.GetCommandBuffer() );
-        EXPECT_EQ( Vk->CommandPool, it->second.GetCommandPool() );
+        EXPECT_EQ( commandBuffer, it->second.GetHandle() );
+        EXPECT_EQ( Vk->CommandPool, it->second.GetCommandPool().GetHandle() );
     }
 
     TEST_F( ProfilerCommandBufferULT, ProfileSecondaryCommandBuffer )

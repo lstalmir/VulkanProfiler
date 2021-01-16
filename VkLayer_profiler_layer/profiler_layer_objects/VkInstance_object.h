@@ -20,6 +20,7 @@
 
 #pragma once
 #include "vk_dispatch_tables.h"
+#include "VkPhysicalDevice_object.h"
 #include "VkSurfaceKhr_object.h"
 #include <unordered_map>
 #include <unordered_set>
@@ -41,6 +42,9 @@ namespace Profiler
 
         // Enabled extensions
         std::unordered_set<std::string> EnabledExtensions;
+
+        // Physical devices enumerated by this instance
+        std::unordered_map<VkPhysicalDevice, VkPhysicalDevice_Object> PhysicalDevices;
 
         // Surfaces created with this instance
         std::unordered_map<VkSurfaceKHR, VkSurfaceKhr_Object> Surfaces;

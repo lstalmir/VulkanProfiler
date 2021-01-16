@@ -130,6 +130,7 @@ namespace Profiler
         , m_CpuFpsCounter()
         , m_Allocations()
         , m_CommandBuffers()
+        , m_CommandPools()
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
     {
     }
@@ -211,8 +212,8 @@ namespace Profiler
             m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence );
 
         // Prepare for memory usage tracking
-        m_MemoryData.m_Heaps.resize( m_pDevice->MemoryProperties.memoryHeapCount );
-        m_MemoryData.m_Types.resize( m_pDevice->MemoryProperties.memoryTypeCount );
+        m_MemoryData.m_Heaps.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeapCount );
+        m_MemoryData.m_Types.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypeCount );
 
         if( result != VK_SUCCESS )
         {
@@ -241,7 +242,7 @@ namespace Profiler
         CreateInternalPipeline( DeviceProfilerPipelineType::eResolveImage, "ResolveImage" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eBlitImage, "BlitImage" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eFillBuffer, "FillBuffer" );
-        CreateInternalPipeline( DeviceProfilerPipelineType::eUpdatBuffer, "UpdateBuffer" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eUpdateBuffer, "UpdateBuffer" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eBeginRenderPass, "BeginRenderPass" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eEndRenderPass, "EndRenderPass" );
 
@@ -399,6 +400,13 @@ namespace Profiler
 
     /***********************************************************************************\
     \***********************************************************************************/
+    DeviceProfilerCommandPool& DeviceProfiler::GetCommandPool( VkCommandPool commandPool )
+    {
+        return m_CommandPools.at( commandPool );
+    }
+
+    /***********************************************************************************\
+    \***********************************************************************************/
     DeviceProfilerPipeline& DeviceProfiler::GetPipeline( VkPipeline pipeline )
     {
         return m_Pipelines.at( pipeline );
@@ -414,6 +422,35 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreateCommandPool
+
+    Description:
+        Create wrapper for VkCommandPool object.
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateCommandPool( VkCommandPool commandPool, const VkCommandPoolCreateInfo* pCreateInfo )
+    {
+        m_CommandPools.insert( commandPool,
+            DeviceProfilerCommandPool( *this, commandPool, *pCreateInfo ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyCommandPool
+
+    Description:
+        Destroy wrapper for VkCommandPool object.
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyCommandPool( VkCommandPool commandPool )
+    {
+        m_CommandPools.remove( commandPool );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         RegisterCommandBuffers
 
     Description:
@@ -424,6 +461,8 @@ namespace Profiler
     {
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
 
+        DeviceProfilerCommandPool& profilerCommandPool = GetCommandPool( commandPool );
+
         for( uint32_t i = 0; i < count; ++i )
         {
             VkCommandBuffer commandBuffer = pCommandBuffers[ i ];
@@ -431,7 +470,7 @@ namespace Profiler
             SetDefaultObjectName( commandBuffer );
 
             m_CommandBuffers.unsafe_insert( commandBuffer,
-                ProfilerCommandBuffer( std::ref( *this ), commandPool, commandBuffer, level ) );
+                ProfilerCommandBuffer( *this, profilerCommandPool, commandBuffer, level ) );
         }
     }
 
@@ -469,7 +508,7 @@ namespace Profiler
 
         for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
         {
-            it = (it->second.GetCommandPool() == commandPool)
+            it = (it->second.GetCommandPool().GetHandle() == commandPool)
                 ? FreeCommandBuffer( it )
                 : std::next( it );
         }
@@ -860,7 +899,7 @@ namespace Profiler
         m_Allocations.unsafe_insert( allocatedMemory, *pAllocateInfo );
 
         const VkMemoryType& memoryType =
-            m_pDevice->MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
+            m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
 
         auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
         heap.m_AllocationCount++;
@@ -890,7 +929,7 @@ namespace Profiler
         if( it != m_Allocations.end() )
         {
             const VkMemoryType& memoryType =
-                m_pDevice->MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
+                m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
 
             auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
             heap.m_AllocationCount--;

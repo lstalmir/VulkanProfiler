@@ -28,6 +28,7 @@
 namespace Profiler
 {
     class DeviceProfiler;
+    class DeviceProfilerCommandPool;
 
     /***********************************************************************************\
 
@@ -41,11 +42,11 @@ namespace Profiler
     class ProfilerCommandBuffer
     {
     public:
-        ProfilerCommandBuffer( DeviceProfiler&, VkCommandPool, VkCommandBuffer, VkCommandBufferLevel );
+        ProfilerCommandBuffer( DeviceProfiler&, DeviceProfilerCommandPool&, VkCommandBuffer, VkCommandBufferLevel );
         ~ProfilerCommandBuffer();
 
-        VkCommandPool GetCommandPool() const;
-        VkCommandBuffer GetCommandBuffer() const;
+        DeviceProfilerCommandPool& GetCommandPool() const;
+        VkCommandBuffer GetHandle() const;
 
         void Submit();
 
@@ -75,11 +76,12 @@ namespace Profiler
 
     protected:
         DeviceProfiler& m_Profiler;
+        DeviceProfilerCommandPool& m_CommandPool;
 
-        const VkCommandPool   m_CommandPool;
         const VkCommandBuffer m_CommandBuffer;
         const VkCommandBufferLevel m_Level;
 
+        bool            m_ProfilingEnabled;
         bool            m_Dirty;
 
         std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;

@@ -116,6 +116,13 @@ namespace Profiler
             VkRenderPass renderPass,
             const VkAllocationCallbacks* pAllocator );
 
+        // vkCreateCommandPool
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateCommandPool(
+            VkDevice device,
+            const VkCommandPoolCreateInfo* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkCommandPool* pCommandPool );
+
         // vkDestroyCommandPool
         static VKAPI_ATTR void VKAPI_CALL DestroyCommandPool(
             VkDevice device,

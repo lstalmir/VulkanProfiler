@@ -62,9 +62,30 @@ namespace Profiler
             ? pLoaderCallbacks->u.pfnSetDeviceLoaderData
             : VkLoader_Functions::SetDeviceLoaderData;
 
-        // Get physical device description
-        VkPhysicalDeviceProperties deviceProperties;
-        id.Instance.Callbacks.GetPhysicalDeviceProperties( physicalDevice, &deviceProperties );
+        // Get or create new physical device wrapper object
+        VkPhysicalDevice_Object& dev = id.Instance.PhysicalDevices[ physicalDevice ];
+
+        if( !dev.Handle )
+        {
+            dev.Handle = physicalDevice;
+
+            // Enumerate queue families
+            uint32_t queueFamilyPropertyCount = 0;
+            id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(
+                physicalDevice, &queueFamilyPropertyCount, nullptr );
+
+            dev.QueueFamilyProperties.resize( queueFamilyPropertyCount );
+            id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(
+                physicalDevice, &queueFamilyPropertyCount, dev.QueueFamilyProperties.data() );
+
+            // Get physical device description
+            id.Instance.Callbacks.GetPhysicalDeviceProperties( physicalDevice, &dev.Properties );
+
+            // Get physical device memory properties
+            id.Instance.Callbacks.GetPhysicalDeviceMemoryProperties( physicalDevice, &dev.MemoryProperties );
+
+            dev.VendorID = static_cast<VkPhysicalDevice_Vendor_ID>(dev.Properties.vendorID);
+        }
 
         // ppEnabledExtensionNames may change, create set to keep all needed extensions and avoid duplicates
         std::unordered_set<std::string> deviceExtensions;

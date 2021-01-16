@@ -20,40 +20,29 @@
 
 #pragma once
 #include "vk_dispatch_tables.h"
-#include "VkInstance_object.h"
-#include "VkPhysicalDevice_object.h"
-#include "VkQueue_object.h"
-#include "VkSwapchainKhr_object.h"
-#include "VkObject.h"
-#include <map>
 #include <vector>
 
 namespace Profiler
 {
-    struct VkDevice_debug_Object
+    enum class VkPhysicalDevice_Vendor_ID
     {
-        std::unordered_map<VkObject, std::string> ObjectNames;
+        eUnknown = 0,
+        eAMD = 0x1002,
+        eARM = 0x13B3,
+        eINTEL = 0x8086,
+        eNV = 0x10DE,
+        eQualcomm = 0x5143
     };
 
-    struct VkDevice_Object
+    struct VkPhysicalDevice_Object
     {
-        VkDevice Handle;
+        VkPhysicalDevice Handle = VK_NULL_HANDLE;
 
-        VkInstance_Object* pInstance;
-        VkPhysicalDevice_Object* pPhysicalDevice;
+        VkPhysicalDeviceProperties Properties;
+        VkPhysicalDeviceMemoryProperties MemoryProperties;
 
-        // Dispatch tables
-        VkLayerDeviceDispatchTable Callbacks;
-        PFN_vkSetDeviceLoaderData SetDeviceLoaderData;
+        VkPhysicalDevice_Vendor_ID VendorID;
 
-        VkDevice_debug_Object Debug;
-
-        std::unordered_map<VkQueue, VkQueue_Object> Queues;
-
-        // Enabled extensions
-        std::unordered_set<std::string> EnabledExtensions;
-
-        // Swapchains created with this device
-        std::unordered_map<VkSwapchainKHR, VkSwapchainKhr_Object> Swapchains;
+        std::vector<VkQueueFamilyProperties> QueueFamilyProperties;
     };
 }

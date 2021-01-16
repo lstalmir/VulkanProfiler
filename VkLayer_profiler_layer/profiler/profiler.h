@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler_counters.h"
+#include "profiler_command_pool.h"
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
 #include "profiler_data.h"
@@ -87,8 +88,12 @@ namespace Profiler
         DeviceProfilerFrameData GetData() const;
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
+        DeviceProfilerCommandPool& GetCommandPool( VkCommandPool commandPool );
         DeviceProfilerPipeline& GetPipeline( VkPipeline pipeline );
         DeviceProfilerRenderPass& GetRenderPass( VkRenderPass renderPass );
+
+        void CreateCommandPool( VkCommandPool, const VkCommandPoolCreateInfo* );
+        void DestroyCommandPool( VkCommandPool );
 
         void AllocateCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
         void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
@@ -142,6 +147,7 @@ namespace Profiler
         DeviceProfilerMemoryData m_MemoryData;
 
         ConcurrentMap<VkCommandBuffer, ProfilerCommandBuffer> m_CommandBuffers;
+        ConcurrentMap<VkCommandPool, DeviceProfilerCommandPool> m_CommandPools;
 
         ConcurrentMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
