@@ -831,6 +831,9 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eBlitImage:                m_Stats.m_BlitImageCount++; break;
         case DeviceProfilerDrawcallType::eFillBuffer:               m_Stats.m_FillBufferCount++; break;
         case DeviceProfilerDrawcallType::eUpdateBuffer:             m_Stats.m_UpdateBufferCount++; break;
+        case DeviceProfilerDrawcallType::eBeginDebugLabel:
+        case DeviceProfilerDrawcallType::eEndDebugLabel:
+        case DeviceProfilerDrawcallType::eInsertDebugLabel:         break;
         default: assert( !"IncrementStat(...) called with unknown drawcall type" );
         }
     }
