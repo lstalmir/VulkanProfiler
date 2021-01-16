@@ -33,14 +33,63 @@ namespace Profiler
 
     \***********************************************************************************/
     DeviceProfilerCommandPool::DeviceProfilerCommandPool( DeviceProfiler& profiler, VkCommandPool commandPool, const VkCommandPoolCreateInfo& createInfo )
-        : m_CommandPool( commandPool )
+        : m_Profiler( profiler )
+        , m_CommandPool( commandPool )
         , m_CommandQueueFlags( 0 )
+        , m_InternalCommandPool( VK_NULL_HANDLE )
     {
         // Get target command queue family properties
         const VkQueueFamilyProperties& queueFamilyProperties =
-            profiler.m_pDevice->pPhysicalDevice->QueueFamilyProperties[ createInfo.queueFamilyIndex ];
+            m_Profiler.m_pDevice->pPhysicalDevice->QueueFamilyProperties[ createInfo.queueFamilyIndex ];
 
         m_CommandQueueFlags = queueFamilyProperties.queueFlags;
+
+        // Create additional command pool for internal usage
+        VkCommandPoolCreateInfo internalCommandPoolCreateInfo = {};
+        internalCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        internalCommandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        internalCommandPoolCreateInfo.queueFamilyIndex = -1;
+        
+        // Find queue family index with graphics or compute bit
+        for( const auto& queue : m_Profiler.m_pDevice->Queues )
+        {
+            if( (queue.second.Flags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) != 0 )
+            {
+                internalCommandPoolCreateInfo.queueFamilyIndex = queue.second.Family;
+                break;
+            }
+        }
+
+        // Application should create at least one queue with graphics or compute bit
+        // (it doesn't have to, but it should)
+        assert( internalCommandPoolCreateInfo.queueFamilyIndex != -1 );
+
+        VkResult result = m_Profiler.m_pDevice->Callbacks.CreateCommandPool(
+            m_Profiler.m_pDevice->Handle,
+            &internalCommandPoolCreateInfo,
+            nullptr,
+            &m_InternalCommandPool );
+
+        assert( result == VK_SUCCESS );
+        assert( m_InternalCommandPool != VK_NULL_HANDLE );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ~DeviceProfilerCommandPool
+
+    Description:
+        Destructor.
+
+    \***********************************************************************************/
+    DeviceProfilerCommandPool::~DeviceProfilerCommandPool()
+    {
+        // Destroy the internal command pool
+        m_Profiler.m_pDevice->Callbacks.DestroyCommandPool(
+            m_Profiler.m_pDevice->Handle,
+            m_InternalCommandPool,
+            nullptr );
     }
 
     /***********************************************************************************\
@@ -69,5 +118,19 @@ namespace Profiler
     VkQueueFlags DeviceProfilerCommandPool::GetCommandQueueFlags() const
     {
         return m_CommandQueueFlags;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetInternalHandle
+
+    Description:
+        Get internal command pool associated with the application's command pool.
+
+    \***********************************************************************************/
+    VkCommandPool DeviceProfilerCommandPool::GetInternalHandle() const
+    {
+        return m_InternalCommandPool;
     }
 }

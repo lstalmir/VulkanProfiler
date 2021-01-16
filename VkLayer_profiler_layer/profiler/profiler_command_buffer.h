@@ -45,6 +45,8 @@ namespace Profiler
         ProfilerCommandBuffer( DeviceProfiler&, DeviceProfilerCommandPool&, VkCommandBuffer, VkCommandBufferLevel );
         ~ProfilerCommandBuffer();
 
+        ProfilerCommandBuffer( const ProfilerCommandBuffer& ) = delete;
+
         DeviceProfilerCommandPool& GetCommandPool() const;
         VkCommandBuffer GetHandle() const;
 
@@ -81,7 +83,9 @@ namespace Profiler
         const VkCommandBuffer m_CommandBuffer;
         const VkCommandBufferLevel m_Level;
 
-        bool            m_ProfilingEnabled;
+        VkCommandPool   m_InternalCommandPool;
+        VkCommandBuffer m_InternalCommandBuffer;
+
         bool            m_Dirty;
 
         std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
@@ -105,6 +109,7 @@ namespace Profiler
         DeviceProfilerPipeline m_ComputePipeline;
 
         void AllocateQueryPool();
+        void ResetQueryPool( VkQueryPool, uint32_t );
 
         void EndSubpass();
 

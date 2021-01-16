@@ -58,8 +58,8 @@ namespace Profiler
         , m_CommandPool( commandPool )
         , m_CommandBuffer( commandBuffer )
         , m_Level( level )
+        , m_InternalCommandBuffer( VK_NULL_HANDLE )
         , m_Dirty( false )
-        , m_ProfilingEnabled( true )
         , m_SecondaryCommandBuffers()
         , m_QueryPools()
         , m_QueryPoolSize( 4096 )
@@ -81,13 +81,34 @@ namespace Profiler
         // This is requirement of vkCmdResetQueryPool (VUID-vkCmdResetQueryPool-commandBuffer-cmdpool)
         if( (m_CommandPool.GetCommandQueueFlags() & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) == 0 )
         {
-            m_ProfilingEnabled = false;
+            // Get command pool for execution on graphics or compute queue
+            m_InternalCommandPool = m_CommandPool.GetInternalHandle();
+
+            VkCommandBufferAllocateInfo internalCommandBufferAllocateInfo = {};
+            internalCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            internalCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            internalCommandBufferAllocateInfo.commandBufferCount = 1;
+            internalCommandBufferAllocateInfo.commandPool = m_InternalCommandPool;
+
+            // Create internal command buffer for resetting query pools
+            VkResult result = m_Profiler.m_pDevice->Callbacks.AllocateCommandBuffers(
+                m_Profiler.m_pDevice->Handle,
+                &internalCommandBufferAllocateInfo,
+                &m_InternalCommandBuffer );
+
+            assert( result == VK_SUCCESS );
+            assert( m_InternalCommandBuffer != VK_NULL_HANDLE );
+
+            // Setup object
+            result = m_Profiler.m_pDevice->SetDeviceLoaderData(
+                m_Profiler.m_pDevice->Handle,
+                m_InternalCommandBuffer );
+
+            assert( result == VK_SUCCESS );
         }
 
         // Initialize performance query once
-        if( (m_ProfilingEnabled) &&
-            (m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) &&
-            (m_Profiler.m_MetricsApiINTEL.IsAvailable()) )
+        if( (m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) && (m_Profiler.m_MetricsApiINTEL.IsAvailable()) )
         {
             VkQueryPoolCreateInfoINTEL intelCreateInfo = {};
             intelCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO_INTEL;
@@ -120,6 +141,15 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBuffer::~ProfilerCommandBuffer()
     {
+        // Destroy internal command buffer
+        if( m_InternalCommandBuffer )
+        {
+            m_Profiler.m_pDevice->Callbacks.FreeCommandBuffers(
+                m_Profiler.m_pDevice->Handle,
+                m_InternalCommandPool,
+                1, &m_InternalCommandBuffer );
+        }
+
         // Destroy performance query pool
         if( m_PerformanceQueryPoolINTEL )
         {
@@ -176,17 +206,14 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Submit()
     {
-        if( m_ProfilingEnabled )
-        {
-            // Contents of the command buffer did not change, but all queries will be executed again
-            m_Dirty = true;
-        }
+        // Contents of the command buffer did not change, but all queries will be executed again
+        m_Dirty = true;
 
         // Secondary command buffers will be executed as well
         for( VkCommandBuffer commandBuffer : m_SecondaryCommandBuffers )
         {
             // Use direct access - m_CommandBuffers map is already locked
-            m_Profiler.m_CommandBuffers.at( commandBuffer ).Submit();
+            m_Profiler.m_pCommandBuffers.at( commandBuffer )->Submit();
         }
     }
 
@@ -204,6 +231,21 @@ namespace Profiler
         // Restore initial state
         Reset( 0 /*flags*/ );
 
+        // Begin internal command pool
+        if( m_InternalCommandBuffer )
+        {
+            VkCommandBufferBeginInfo internalCommandBufferBeginInfo = {};
+            internalCommandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            internalCommandBufferBeginInfo.flags = pBeginInfo->flags;
+
+            // Clear render pass continue bit, it can be used only on secondary command buffers
+            internalCommandBufferBeginInfo.flags &= ~VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+
+            m_Profiler.m_pDevice->Callbacks.BeginCommandBuffer(
+                m_InternalCommandBuffer,
+                &internalCommandBufferBeginInfo );
+        }
+
         if( m_QueryPools.empty() )
         {
             // Allocate initial query pool
@@ -211,14 +253,8 @@ namespace Profiler
         }
         else
         {
-            if( m_ProfilingEnabled )
-            {
-                // Reset existing query pool to reuse the queries
-                m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
-                    m_CommandBuffer,
-                    m_QueryPools.front(),
-                    0, m_QueryPoolSize );
-            }
+            // Reset existing query pool to reuse the queries
+            ResetQueryPool( m_QueryPools.front(), m_QueryPoolSize );
         }
 
         // Move to the first query pool
@@ -233,11 +269,7 @@ namespace Profiler
         // Begin collection of vendor metrics
         if( m_PerformanceQueryPoolINTEL )
         {
-            assert( m_ProfilingEnabled );
-
-            m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
-                m_CommandBuffer,
-                m_PerformanceQueryPoolINTEL, 0, 1 );
+            ResetQueryPool( m_PerformanceQueryPoolINTEL, 1 );
 
             m_Profiler.m_pDevice->Callbacks.CmdBeginQuery(
                 m_CommandBuffer,
@@ -264,11 +296,16 @@ namespace Profiler
 
         if( m_PerformanceQueryPoolINTEL )
         {
-            assert( m_ProfilingEnabled );
-
             m_Profiler.m_pDevice->Callbacks.CmdEndQuery(
                 m_CommandBuffer,
                 m_PerformanceQueryPoolINTEL, 0 );
+        }
+
+        // End internal command buffer
+        if( m_InternalCommandBuffer )
+        {
+            m_Profiler.m_pDevice->Callbacks.EndCommandBuffer(
+                m_InternalCommandBuffer );
         }
     }
 
@@ -296,6 +333,13 @@ namespace Profiler
         m_CurrentQueryPoolIndex = -1;
 
         m_Dirty = false;
+
+        // Reset internal command buffer
+        if( m_InternalCommandBuffer )
+        {
+            m_Profiler.m_pDevice->Callbacks.ResetCommandBuffer(
+                m_InternalCommandBuffer, flags );
+        }
     }
 
     /***********************************************************************************\
@@ -682,7 +726,7 @@ namespace Profiler
                             for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
                             {
                                 VkCommandBuffer handle = commandBuffer.m_Handle;
-                                ProfilerCommandBuffer& profilerCommandBuffer = m_Profiler.m_CommandBuffers.unsafe_at( handle );
+                                ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
 
                                 // Collect secondary command buffer data
                                 commandBuffer = profilerCommandBuffer.GetData();
@@ -770,33 +814,47 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::AllocateQueryPool()
     {
-        // Allocate new query pool only if the command buffer can reset it
-        // (see VUID-vkCmdResetQueryPool-commandBuffer-cmdpool)
-        if( m_ProfilingEnabled )
+        VkQueryPool queryPool = VK_NULL_HANDLE;
+
+        VkQueryPoolCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        info.queryCount = m_QueryPoolSize;
+
+        // Allocate new query pool
+        VkResult result = m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
+            m_Profiler.m_pDevice->Handle, &info, nullptr, &queryPool );
+
+        if( result != VK_SUCCESS )
         {
-            VkQueryPool queryPool = VK_NULL_HANDLE;
-
-            VkQueryPoolCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-            info.queryType = VK_QUERY_TYPE_TIMESTAMP;
-            info.queryCount = m_QueryPoolSize;
-
-            // Allocate new query pool
-            VkResult result = m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
-                m_Profiler.m_pDevice->Handle, &info, nullptr, &queryPool );
-
-            if( result != VK_SUCCESS )
-            {
-                // Allocation failed
-                return;
-            }
-
-            // Pools must be reset before first use
-            m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
-                m_CommandBuffer, queryPool, 0, m_QueryPoolSize );
-
-            m_QueryPools.push_back( queryPool );
+            // Allocation failed
+            return;
         }
+
+        // Pools must be reset before first use
+        ResetQueryPool( queryPool, m_QueryPoolSize );
+
+        m_QueryPools.push_back( queryPool );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetQueryPool
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ResetQueryPool( VkQueryPool queryPool, uint32_t size )
+    {
+        // Command buffer used for resetting query pools.
+        // If profiled command buffer will be executed on transfer queue we need to use internal command buffer
+        // for resetting the pools.
+        const VkCommandBuffer resetCommandBuffer =
+            (m_InternalCommandBuffer == VK_NULL_HANDLE) ? m_CommandBuffer : m_InternalCommandBuffer;
+
+        m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
+            resetCommandBuffer, queryPool, 0, size );
     }
 
     /***********************************************************************************\
@@ -878,35 +936,31 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::SendTimestampQuery( VkPipelineStageFlagBits stage )
     {
-        // Send timestamp queries only if profiling has been enabled for this command buffer
-        if( m_ProfilingEnabled )
+        // Allocate query from the pool
+        m_CurrentQueryIndex++;
+
+        if( m_CurrentQueryIndex == m_QueryPoolSize )
         {
-            // Allocate query from the pool
-            m_CurrentQueryIndex++;
+            // Try to reuse next query pool
+            m_CurrentQueryIndex = 0;
+            m_CurrentQueryPoolIndex++;
 
-            if( m_CurrentQueryIndex == m_QueryPoolSize )
+            if( m_CurrentQueryPoolIndex == m_QueryPools.size() )
             {
-                // Try to reuse next query pool
-                m_CurrentQueryIndex = 0;
-                m_CurrentQueryPoolIndex++;
+                // If command buffer is not in render pass we must allocate next query pool now
+                // Otherwise something went wrong in PreBeginRenderPass
+                assert( !m_pCurrentRenderPass );
 
-                if( m_CurrentQueryPoolIndex == m_QueryPools.size() )
-                {
-                    // If command buffer is not in render pass we must allocate next query pool now
-                    // Otherwise something went wrong in PreBeginRenderPass
-                    assert( !m_pCurrentRenderPass );
-
-                    AllocateQueryPool();
-                }
+                AllocateQueryPool();
             }
-
-            // Send the query
-            m_Profiler.m_pDevice->Callbacks.CmdWriteTimestamp(
-                m_CommandBuffer,
-                stage,
-                m_QueryPools[ m_CurrentQueryPoolIndex ],
-                m_CurrentQueryIndex );
         }
+
+        // Send the query
+        m_Profiler.m_pDevice->Callbacks.CmdWriteTimestamp(
+            m_CommandBuffer,
+            stage,
+            m_QueryPools[ m_CurrentQueryPoolIndex ],
+            m_CurrentQueryIndex );
     }
 
     /***********************************************************************************\

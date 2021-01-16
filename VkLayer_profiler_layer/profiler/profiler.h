@@ -145,8 +145,8 @@ namespace Profiler
         ConcurrentMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
         DeviceProfilerMemoryData m_MemoryData;
 
-        ConcurrentMap<VkCommandBuffer, ProfilerCommandBuffer> m_CommandBuffers;
-        ConcurrentMap<VkCommandPool, DeviceProfilerCommandPool> m_CommandPools;
+        ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
+        ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;
 
         ConcurrentMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
@@ -169,8 +169,8 @@ namespace Profiler
 
         void SetDefaultObjectName( const DeviceProfilerPipeline& pipeline );
 
-        decltype(m_CommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
-        decltype(m_CommandBuffers)::iterator FreeCommandBuffer( decltype(m_CommandBuffers)::iterator );
+        decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
+        decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
     };
 
     /***********************************************************************************\

@@ -19,40 +19,28 @@
 // SOFTWARE.
 
 #pragma once
-#include <vulkan/vulkan.h>
+#ifdef WIN32
+// ETW Logging is available only on Windows
+
+#include "profiler_layer_objects/VkDevice_object.h"
+#include <evntrace.h>
 
 namespace Profiler
 {
-    class DeviceProfiler;
-
-    /***********************************************************************************\
-
-    Class:
-        DeviceProfilerCommandPool
-
-    Description:
-        Wrapper for VkCommandPool object.
-
-    \***********************************************************************************/
-    class DeviceProfilerCommandPool
+    class DeviceProfilerEtwLogger
     {
     public:
-        DeviceProfilerCommandPool( DeviceProfiler&, VkCommandPool, const VkCommandPoolCreateInfo& );
-        ~DeviceProfilerCommandPool();
-
-        DeviceProfilerCommandPool( const DeviceProfilerCommandPool& ) = delete;
-
-        VkCommandPool GetHandle() const;
-        VkQueueFlags GetCommandQueueFlags() const;
-
-        VkCommandPool GetInternalHandle() const;
+        VkResult Initialize( VkDevice_Object* );
+        void Destroy();
 
     private:
-        DeviceProfiler& m_Profiler;
+        TRACEHANDLE m_hSession;
+        TRACEHANDLE m_hTrace;
 
-        VkCommandPool m_CommandPool;
-        VkQueueFlags  m_CommandQueueFlags;
+        ULONG m_ProcessId;
 
-        VkCommandPool m_InternalCommandPool;
+        static void CALLBACK EventRecordCallback( EVENT_RECORD* );
     };
 }
+
+#endif // WIN32
