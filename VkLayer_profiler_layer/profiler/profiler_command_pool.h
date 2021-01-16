@@ -37,6 +37,8 @@ namespace Profiler
     public:
         DeviceProfilerCommandPool( class DeviceProfiler&, VkCommandPool, const VkCommandPoolCreateInfo& );
 
+        DeviceProfilerCommandPool( const DeviceProfilerCommandPool& ) = delete;
+
         VkCommandPool GetHandle() const;
         VkQueueFlags GetCommandQueueFlags() const;
 

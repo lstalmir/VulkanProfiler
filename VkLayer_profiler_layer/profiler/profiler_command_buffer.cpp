@@ -186,7 +186,7 @@ namespace Profiler
         for( VkCommandBuffer commandBuffer : m_SecondaryCommandBuffers )
         {
             // Use direct access - m_CommandBuffers map is already locked
-            m_Profiler.m_CommandBuffers.at( commandBuffer ).Submit();
+            m_Profiler.m_pCommandBuffers.at( commandBuffer )->Submit();
         }
     }
 
@@ -682,7 +682,7 @@ namespace Profiler
                             for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
                             {
                                 VkCommandBuffer handle = commandBuffer.m_Handle;
-                                ProfilerCommandBuffer& profilerCommandBuffer = m_Profiler.m_CommandBuffers.unsafe_at( handle );
+                                ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
 
                                 // Collect secondary command buffer data
                                 commandBuffer = profilerCommandBuffer.GetData();

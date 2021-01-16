@@ -45,6 +45,8 @@ namespace Profiler
         ProfilerCommandBuffer( DeviceProfiler&, DeviceProfilerCommandPool&, VkCommandBuffer, VkCommandBufferLevel );
         ~ProfilerCommandBuffer();
 
+        ProfilerCommandBuffer( const ProfilerCommandBuffer& ) = delete;
+
         DeviceProfilerCommandPool& GetCommandPool() const;
         VkCommandBuffer GetHandle() const;
 

@@ -79,13 +79,26 @@ public:
     void insert( const KeyType& key, const ValueType& value )
     {
         std::scoped_lock lk( m_Mtx );
-        BaseType::insert( { key, value } );
+        BaseType::emplace( key, value );
+    }
+
+    // Insert new value into map (thread-safe)
+    void insert( const KeyType& key, ValueType&& value )
+    {
+        std::scoped_lock lk( m_Mtx );
+        BaseType::emplace( key, std::move( value ) );
     }
 
     // Insert new value into map
     void unsafe_insert( const KeyType& key, const ValueType& value )
     {
-        BaseType::insert( { key, value } );
+        BaseType::emplace( key, value );
+    }
+
+    // Insert new value into map
+    void unsafe_insert( const KeyType& key, ValueType&& value )
+    {
+        BaseType::emplace( key, std::move( value ) );
     }
 
     // Remove value at key (thread-safe)

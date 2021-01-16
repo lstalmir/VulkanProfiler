@@ -129,8 +129,8 @@ namespace Profiler
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
         , m_Allocations()
-        , m_CommandBuffers()
-        , m_CommandPools()
+        , m_pCommandBuffers()
+        , m_pCommandPools()
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
     {
     }
@@ -317,7 +317,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Destroy()
     {
-        m_CommandBuffers.clear();
+        m_pCommandBuffers.clear();
+        m_pCommandPools.clear();
 
         m_Allocations.clear();
 
@@ -395,14 +396,14 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBuffer& DeviceProfiler::GetCommandBuffer( VkCommandBuffer commandBuffer )
     {
-        return m_CommandBuffers.at( commandBuffer );
+        return *m_pCommandBuffers.at( commandBuffer );
     }
 
     /***********************************************************************************\
     \***********************************************************************************/
     DeviceProfilerCommandPool& DeviceProfiler::GetCommandPool( VkCommandPool commandPool )
     {
-        return m_CommandPools.at( commandPool );
+        return *m_pCommandPools.at( commandPool );
     }
 
     /***********************************************************************************\
@@ -430,8 +431,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateCommandPool( VkCommandPool commandPool, const VkCommandPoolCreateInfo* pCreateInfo )
     {
-        m_CommandPools.insert( commandPool,
-            DeviceProfilerCommandPool( *this, commandPool, *pCreateInfo ) );
+        m_pCommandPools.insert( commandPool,
+            std::make_unique<DeviceProfilerCommandPool>( *this, commandPool, *pCreateInfo ) );
     }
 
     /***********************************************************************************\
@@ -446,16 +447,16 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyCommandPool( VkCommandPool commandPool )
     {
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
+        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
-        for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
+        for( auto it = m_pCommandBuffers.begin(); it != m_pCommandBuffers.end(); )
         {
-            it = (it->second.GetCommandPool().GetHandle() == commandPool)
+            it = (it->second->GetCommandPool().GetHandle() == commandPool)
                 ? FreeCommandBuffer( it )
                 : std::next( it );
         }
 
-        m_CommandPools.remove( commandPool );
+        m_pCommandPools.remove( commandPool );
     }
 
     /***********************************************************************************\
@@ -469,7 +470,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
+        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
         DeviceProfilerCommandPool& profilerCommandPool = GetCommandPool( commandPool );
 
@@ -479,8 +480,8 @@ namespace Profiler
 
             SetDefaultObjectName( commandBuffer );
 
-            m_CommandBuffers.unsafe_insert( commandBuffer,
-                ProfilerCommandBuffer( *this, profilerCommandPool, commandBuffer, level ) );
+            m_pCommandBuffers.unsafe_insert( commandBuffer,
+                std::make_unique<ProfilerCommandBuffer>( *this, profilerCommandPool, commandBuffer, level ) );
         }
     }
 
@@ -495,7 +496,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
+        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -1123,17 +1124,17 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    decltype(DeviceProfiler::m_CommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( VkCommandBuffer commandBuffer )
+    decltype(DeviceProfiler::m_pCommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( VkCommandBuffer commandBuffer )
     {
         // Assume m_CommandBuffers map is already locked
-        assert( !m_CommandBuffers.try_lock() );
+        assert( !m_pCommandBuffers.try_lock() );
 
-        auto it = m_CommandBuffers.unsafe_find( commandBuffer );
+        auto it = m_pCommandBuffers.unsafe_find( commandBuffer );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.AppendData( &it->second, it->second.GetData() );
+        m_DataAggregator.AppendData( it->second.get(), it->second->GetData() );
 
-        return m_CommandBuffers.unsafe_remove( it );
+        return m_pCommandBuffers.unsafe_remove( it );
     }
 
     /***********************************************************************************\
@@ -1144,14 +1145,14 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    decltype(DeviceProfiler::m_CommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( decltype(m_CommandBuffers)::iterator it )
+    decltype(DeviceProfiler::m_pCommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator it )
     {
         // Assume m_CommandBuffers map is already locked
-        assert( !m_CommandBuffers.try_lock() );
+        assert( !m_pCommandBuffers.try_lock() );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.AppendData( &it->second, it->second.GetData() );
+        m_DataAggregator.AppendData( it->second.get(), it->second->GetData() );
 
-        return m_CommandBuffers.unsafe_remove( it );
+        return m_pCommandBuffers.unsafe_remove( it );
     }
 }
