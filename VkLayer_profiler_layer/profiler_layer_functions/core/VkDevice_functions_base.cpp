@@ -58,31 +58,13 @@ namespace Profiler
 
         dd.Device.Handle = device;
         dd.Device.pInstance = &id.Instance;
-        dd.Device.PhysicalDevice = physicalDevice;
-
-        // Get device properties
-        id.Instance.Callbacks.GetPhysicalDeviceProperties(
-            physicalDevice, &dd.Device.Properties );
-
-        id.Instance.Callbacks.GetPhysicalDeviceMemoryProperties(
-            physicalDevice, &dd.Device.MemoryProperties );
-
-        dd.Device.VendorID = VkDevice_Vendor_ID( dd.Device.Properties.vendorID );
+        dd.Device.pPhysicalDevice = &id.Instance.PhysicalDevices[ physicalDevice ];
 
         // Save enabled extensions
         for( uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; ++i )
         {
             dd.Device.EnabledExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
         }
-
-        // Enumerate queue families
-        uint32_t queueFamilyPropertyCount = 0;
-        id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(
-            physicalDevice, &queueFamilyPropertyCount, nullptr );
-
-        std::vector<VkQueueFamilyProperties> queueFamilyProperties( queueFamilyPropertyCount );
-        id.Instance.Callbacks.GetPhysicalDeviceQueueFamilyProperties(
-            physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data() );
 
         // Create wrapper for each device queue
         for( uint32_t i = 0; i < pCreateInfo->queueCreateInfoCount; ++i )
@@ -91,7 +73,7 @@ namespace Profiler
                 pCreateInfo->pQueueCreateInfos[ i ];
 
             const VkQueueFamilyProperties& queueProperties =
-                queueFamilyProperties[ queueCreateInfo.queueFamilyIndex ];
+                dd.Device.pPhysicalDevice->QueueFamilyProperties[ queueCreateInfo.queueFamilyIndex ];
 
             for( uint32_t queueIndex = 0; queueIndex < queueCreateInfo.queueCount; ++queueIndex )
             {

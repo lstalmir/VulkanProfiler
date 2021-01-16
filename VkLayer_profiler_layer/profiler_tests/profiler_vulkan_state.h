@@ -186,11 +186,13 @@ namespace Profiler
                 id.Instance.ApplicationInfo = ApplicationInfo;
                 init_layer_instance_dispatch_table( Instance, vkGetInstanceProcAddr, id.Instance.Callbacks );
 
+                VkPhysicalDevice_Object& dev = id.Instance.PhysicalDevices[ PhysicalDevice ];
+                dev.Properties = PhysicalDeviceProperties;
+                dev.MemoryProperties = PhysicalDeviceMemoryProperties;
+
                 VkDevice_Functions::Dispatch& dd = VkDevice_Functions::DeviceDispatch.Create( Device );
                 dd.Device.Handle = Device;
-                dd.Device.PhysicalDevice = PhysicalDevice;
-                dd.Device.Properties = PhysicalDeviceProperties;
-                dd.Device.MemoryProperties = PhysicalDeviceMemoryProperties;
+                dd.Device.pPhysicalDevice = &dev;
                 dd.Device.pInstance = &id.Instance;
                 init_layer_device_dispatch_table( Device, vkGetDeviceProcAddr, dd.Device.Callbacks );
 

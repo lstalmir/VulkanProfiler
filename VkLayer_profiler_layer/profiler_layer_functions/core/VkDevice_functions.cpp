@@ -60,6 +60,7 @@ namespace Profiler
                 GETPROCADDR( CreateRenderPass );
                 GETPROCADDR( CreateRenderPass2 );
                 GETPROCADDR( DestroyRenderPass );
+                GETPROCADDR( CreateCommandPool );
                 GETPROCADDR( DestroyCommandPool );
                 GETPROCADDR( AllocateCommandBuffers );
                 GETPROCADDR( FreeCommandBuffers );
@@ -392,6 +393,35 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreateCommandPool
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateCommandPool(
+        VkDevice device,
+        const VkCommandPoolCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkCommandPool* pCommandPool )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Create the command pool
+        VkResult result = dd.Device.Callbacks.CreateCommandPool(
+            device, pCreateInfo, pAllocator, pCommandPool );
+
+        if( result == VK_SUCCESS )
+        {
+            // Create command pool wrapper
+            dd.Profiler.CreateCommandPool( *pCommandPool, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DestroyCommandPool
 
     Description:
@@ -405,7 +435,7 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Cleanup profiler resources associated with the command pool
-        dd.Profiler.FreeCommandBuffers( commandPool );
+        dd.Profiler.DestroyCommandPool( commandPool );
 
         // Destroy the command pool
         dd.Device.Callbacks.DestroyCommandPool(

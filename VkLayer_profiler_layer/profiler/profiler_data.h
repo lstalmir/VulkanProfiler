@@ -94,7 +94,7 @@ namespace Profiler
         eResolveImage = 0x000A0000,
         eBlitImage = 0x000B0000,
         eFillBuffer = 0x000C0000,
-        eUpdatBuffer = 0x000D0000,
+        eUpdateBuffer = 0x000D0000,
         eBeginRenderPass = 0x000BFFFF,
         eEndRenderPass = 0x000EFFFF
     };

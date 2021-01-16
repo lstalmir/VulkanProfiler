@@ -19,41 +19,31 @@
 // SOFTWARE.
 
 #pragma once
-#include "vk_dispatch_tables.h"
-#include "VkInstance_object.h"
-#include "VkPhysicalDevice_object.h"
-#include "VkQueue_object.h"
-#include "VkSwapchainKhr_object.h"
-#include "VkObject.h"
-#include <map>
-#include <vector>
+#include <vulkan/vulkan.h>
 
 namespace Profiler
 {
-    struct VkDevice_debug_Object
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerCommandPool
+
+    Description:
+        Wrapper for VkCommandPool object.
+
+    \***********************************************************************************/
+    class DeviceProfilerCommandPool
     {
-        std::unordered_map<VkObject, std::string> ObjectNames;
-    };
+    public:
+        DeviceProfilerCommandPool( class DeviceProfiler&, VkCommandPool, const VkCommandPoolCreateInfo& );
 
-    struct VkDevice_Object
-    {
-        VkDevice Handle;
+        DeviceProfilerCommandPool( const DeviceProfilerCommandPool& ) = delete;
 
-        VkInstance_Object* pInstance;
-        VkPhysicalDevice_Object* pPhysicalDevice;
+        VkCommandPool GetHandle() const;
+        VkQueueFlags GetCommandQueueFlags() const;
 
-        // Dispatch tables
-        VkLayerDeviceDispatchTable Callbacks;
-        PFN_vkSetDeviceLoaderData SetDeviceLoaderData;
-
-        VkDevice_debug_Object Debug;
-
-        std::unordered_map<VkQueue, VkQueue_Object> Queues;
-
-        // Enabled extensions
-        std::unordered_set<std::string> EnabledExtensions;
-
-        // Swapchains created with this device
-        std::unordered_map<VkSwapchainKHR, VkSwapchainKhr_Object> Swapchains;
+    private:
+        VkCommandPool m_CommandPool;
+        VkQueueFlags  m_CommandQueueFlags;
     };
 }

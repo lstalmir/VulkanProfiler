@@ -354,7 +354,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
         if( !data.m_Submits.empty() )
         {
             // Serialize last frame
-            result = RegionBuilder( dd.Device.Properties.limits.timestampPeriod )
+            result = RegionBuilder( dd.Device.pPhysicalDevice->Properties.limits.timestampPeriod )
                 .SerializeFrame( data, pData->frame );
         }
         else

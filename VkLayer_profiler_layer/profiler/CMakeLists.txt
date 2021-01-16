@@ -25,6 +25,7 @@ project (profiler)
 set (headers
     "profiler.h"
     "profiler_command_buffer.h"
+    "profiler_command_pool.h"
     "profiler_counters.h"
     "profiler_data.h"
     "profiler_data_aggregator.h"
@@ -37,6 +38,7 @@ set (headers
 set (sources
     "profiler.cpp"
     "profiler_command_buffer.cpp"
+    "profiler_command_pool.cpp"
     "profiler_data_aggregator.cpp"
     # Windows
     "profiler_helpers_windows.cpp"

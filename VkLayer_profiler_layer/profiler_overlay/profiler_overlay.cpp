@@ -181,7 +181,7 @@ namespace Profiler
         // Get timestamp query period
         if( result == VK_SUCCESS )
         {
-            m_TimestampPeriod = Nanoseconds( m_pDevice->Properties.limits.timestampPeriod );
+            m_TimestampPeriod = Nanoseconds( m_pDevice->pPhysicalDevice->Properties.limits.timestampPeriod );
         }
 
         // Create swapchain-dependent resources
@@ -749,7 +749,7 @@ namespace Profiler
         m_pImGuiWindowContext->UpdateWindowRect();
 
         // GPU properties
-        ImGui::Text( "%s: %s", Lang::Device, m_pDevice->Properties.deviceName );
+        ImGui::Text( "%s: %s", Lang::Device, m_pDevice->pPhysicalDevice->Properties.deviceName );
 
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
             VK_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
@@ -1026,7 +1026,7 @@ namespace Profiler
             imGuiInitInfo.QueueFamily = m_pGraphicsQueue->Family;
 
             imGuiInitInfo.Instance = m_pDevice->pInstance->Handle;
-            imGuiInitInfo.PhysicalDevice = m_pDevice->PhysicalDevice;
+            imGuiInitInfo.PhysicalDevice = m_pDevice->pPhysicalDevice->Handle;
             imGuiInitInfo.Device = m_pDevice->Handle;
 
             imGuiInitInfo.pInstanceDispatchTable = &m_pDevice->pInstance->Callbacks;
@@ -1447,7 +1447,7 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
-            m_pDevice->MemoryProperties;
+            m_pDevice->pPhysicalDevice->MemoryProperties;
 
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
@@ -1583,7 +1583,7 @@ namespace Profiler
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawCount );
 
             ImGui::TextUnformatted( Lang::DrawCallsIndirect );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawIndirectCount );
 
             ImGui::TextUnformatted( Lang::DispatchCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchCount );
