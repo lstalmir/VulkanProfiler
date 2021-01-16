@@ -440,11 +440,21 @@ namespace Profiler
         DestroyCommandPool
 
     Description:
-        Destroy wrapper for VkCommandPool object.
+        Destroy wrapper for VkCommandPool object and all command buffers allocated from
+        that pool.
 
     \***********************************************************************************/
     void DeviceProfiler::DestroyCommandPool( VkCommandPool commandPool )
     {
+        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
+
+        for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
+        {
+            it = (it->second.GetCommandPool().GetHandle() == commandPool)
+                ? FreeCommandBuffer( it )
+                : std::next( it );
+        }
+
         m_CommandPools.remove( commandPool );
     }
 
@@ -490,27 +500,6 @@ namespace Profiler
         for( uint32_t i = 0; i < count; ++i )
         {
             FreeCommandBuffer( pCommandBuffers[ i ] );
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        UnregisterCommandBuffers
-
-    Description:
-        Destroy all command buffer wrappers allocated in the commandPool.
-
-    \***********************************************************************************/
-    void DeviceProfiler::FreeCommandBuffers( VkCommandPool commandPool )
-    {
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_CommandBuffers );
-
-        for( auto it = m_CommandBuffers.begin(); it != m_CommandBuffers.end(); )
-        {
-            it = (it->second.GetCommandPool().GetHandle() == commandPool)
-                ? FreeCommandBuffer( it )
-                : std::next( it );
         }
     }
 

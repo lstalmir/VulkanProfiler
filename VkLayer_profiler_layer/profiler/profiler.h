@@ -97,7 +97,6 @@ namespace Profiler
 
         void AllocateCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
         void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
-        void FreeCommandBuffers( VkCommandPool );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );

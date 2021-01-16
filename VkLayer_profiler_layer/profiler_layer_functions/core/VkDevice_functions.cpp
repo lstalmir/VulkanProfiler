@@ -435,7 +435,6 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
 
         // Cleanup profiler resources associated with the command pool
-        dd.Profiler.FreeCommandBuffers( commandPool );
         dd.Profiler.DestroyCommandPool( commandPool );
 
         // Destroy the command pool
