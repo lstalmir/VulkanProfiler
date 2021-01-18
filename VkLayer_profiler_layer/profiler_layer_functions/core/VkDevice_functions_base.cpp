@@ -91,8 +91,6 @@ namespace Profiler
             }
         }
 
-        VkResult result = VK_SUCCESS;
-
         // Check if profiler create info was provided
         const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
 
@@ -105,11 +103,8 @@ namespace Profiler
             }
         }
 
-        if( !(pProfilerCreateInfo) || (pProfilerCreateInfo->flags & VK_PROFILER_CREATE_DISABLED_BIT_EXT) == 0 )
-        {
-            // Initialize the profiler object
-            result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
-        }
+        // Initialize the profiler object
+        VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
 
         if( result != VK_SUCCESS )
         {

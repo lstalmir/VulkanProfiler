@@ -28,7 +28,6 @@
 
 enum VkProfilerResultEXT
 {
-    VK_ERROR_NOT_AVAILABLE_EXT = -1000999001
 };
 
 enum VkProfilerStructureTypeEXT
@@ -42,8 +41,7 @@ enum VkProfilerStructureTypeEXT
 
 enum VkProfilerCreateFlagBitsEXT
 {
-    VK_PROFILER_CREATE_DISABLED_BIT_EXT = 1,
-    VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT = 2,
+    VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT = 1,
     VK_PROFILER_CREATE_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
