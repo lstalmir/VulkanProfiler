@@ -36,15 +36,14 @@ namespace ImGuiX
     \*************************************************************************/
     void PlotHistogramEx(
         const char* label,
-        const float* values_x,
-        const float* values_y,
+        const HistogramColumnData* values,
         int values_count,
         int values_offset,
         const char* overlay_text,
         float scale_min,
         float scale_max,
         ImVec2 graph_size,
-        int stride )
+        std::function<HistogramColumnHoverCallback> hover_cb )
     {
         // Implementation is based on ImGui::PlotEx function (which is called by PlotHistogram).
 
@@ -80,7 +79,7 @@ namespace ImGuiX
             float y_max = -FLT_MAX;
             for( int i = 0; i < values_count; i++ )
             {
-                const float y = values_y[ i ];
+                const float y = values[ i ].y;
                 if( y != y ) // Ignore NaN values
                     continue;
                 y_min = ImMin( y_min, y );
@@ -101,7 +100,7 @@ namespace ImGuiX
         // Determine horizontal scale from values
         float x_size = 0.f;
         for( int i = 0; i < values_count; i++ )
-            x_size += values_x[ i ];
+            x_size += values[ i ].x;
 
         //RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
 
@@ -130,7 +129,7 @@ namespace ImGuiX
             const float t_step = 1.0f / (float)x_size;
             const float inv_scale = (scale_min == scale_max) ? 0.0f : (1.0f / (scale_max - scale_min));
 
-            float v0 = values_y[ (0 + values_offset) % values_count ];
+            float v0 = values[ (0 + values_offset) % values_count ].y;
             float t0 = 0.0f;
             ImVec2 tp0 = ImVec2( t0, 1.0f - ImSaturate( (v0 - scale_min) * inv_scale ) );                       // Point in the normalized space of our target rectangle
             float histogram_zero_line_t = (scale_min * scale_max < 0.0f) ? (-scale_min * inv_scale) : (scale_min < 0.0f ? 0.0f : 1.0f);   // Where does the zero line stands
@@ -144,8 +143,8 @@ namespace ImGuiX
             {
                 const int v1_idx = n * v_step;
                 IM_ASSERT( v1_idx >= 0 && v1_idx < values_count );
-                const float t1 = t0 + t_step * ImMax( 1.f, values_x[ (v1_idx + values_offset) % values_count ] );
-                const float v1 = values_y[ (v1_idx + values_offset + 1) % values_count ];
+                const float t1 = t0 + t_step * ImMax( 1.f, values[ (v1_idx + values_offset) % values_count ].x );
+                const float v1 = values[ (v1_idx + values_offset + 1) % values_count ].y;
                 const ImVec2 tp1 = ImVec2( t1, 1.0f - ImSaturate( (v1 - scale_min) * inv_scale ) );
 
                 // NB: Draw calls are merged together by the DrawList system. Still, we should render our batch are lower level to save a bit of CPU.
@@ -154,17 +153,14 @@ namespace ImGuiX
                 if( pos1.x >= pos0.x + 2.0f )
                     pos1.x -= 1.0f;
 
-                if( hovered &&
+                if( hover_cb &&
+                    hovered &&
                     tooltipDrawn == false &&
                     ImRect( pos0, pos1 ).Contains( g.IO.MousePos ) )
                 {
-                    // Number of cycles in hovered region
-                    const float cycleCount = v0;
+                    // Invoke hover callback
+                    hover_cb( values[ v1_idx ] );
 
-                    // TODO: Add region labels for identification
-
-                    // Draw tooltip
-                    SetTooltip( "%d: %8.0f", v1_idx, cycleCount );
                     window->DrawList->AddRectFilled( pos0, pos1, col_hovered );
                     // Don't check other blocks
                     tooltipDrawn = true;

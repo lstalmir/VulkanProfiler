@@ -1119,8 +1119,6 @@ namespace Profiler
 
         // Histogram
         {
-            std::vector<float> contributions;
-
             static const char* groupOptions[] = {
                 Lang::RenderPasses,
                 Lang::Pipelines,
@@ -1155,6 +1153,8 @@ namespace Profiler
                 }
             }
 
+            std::vector<ImGuiX::HistogramColumnData> contributions;
+
             if( m_Data.m_Ticks > 0 )
             {
                 // Enumerate submits batches in frame
@@ -1166,32 +1166,66 @@ namespace Profiler
                         // Enumerate command buffers in submit
                         for( const auto& cmdBuffer : submit.m_CommandBuffers )
                         {
-                            // Enumerate render passes in command buffer
-                            for( const auto& renderPass : cmdBuffer.m_RenderPasses )
+                            if( m_HistogramGroupMode == HistogramGroupMode::eRenderPass )
                             {
-                                if( m_HistogramGroupMode > HistogramGroupMode::eRenderPass )
+                                // Enumerate render passes in command buffer
+                                for( const auto& renderPass : cmdBuffer.m_RenderPasses )
+                                {
+                                    const float cycleCount = renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp;
+
+                                    ImGuiX::HistogramColumnData column = {};
+                                    column.x = cycleCount;
+                                    column.y = cycleCount;
+                                    column.userData = &renderPass;
+
+                                    // Insert render pass cycle count to histogram
+                                    contributions.push_back( column );
+                                }
+                            }
+                            else
+                            {
+                                // Enumerate render passes in command buffer
+                                for( const auto& renderPass : cmdBuffer.m_RenderPasses )
                                 {
                                     // Enumerate subpasses in render pass
                                     for( const auto& subpass : renderPass.m_Subpasses )
                                     {
                                         if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                                         {
-                                            // Enumerate pipelines in subpass
-                                            for( const auto& pipeline : subpass.m_Pipelines )
+                                            if( m_HistogramGroupMode == HistogramGroupMode::ePipeline )
                                             {
-                                                if( m_HistogramGroupMode > HistogramGroupMode::ePipeline )
+                                                // Enumerate pipelines in subpass
+                                                for( const auto& pipeline : subpass.m_Pipelines )
+                                                {
+                                                    const float cycleCount = pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp;
+
+                                                    ImGuiX::HistogramColumnData column = {};
+                                                    column.x = cycleCount;
+                                                    column.y = cycleCount;
+                                                    column.userData = &pipeline;
+
+                                                    // Insert pipeline cycle count to histogram
+                                                    contributions.push_back( column );
+                                                }
+                                            }
+                                            else
+                                            {
+                                                // Enumerate pipelines in subpass
+                                                for( const auto& pipeline : subpass.m_Pipelines )
                                                 {
                                                     // Enumerate drawcalls in pipeline
                                                     for( const auto& drawcall : pipeline.m_Drawcalls )
                                                     {
+                                                        const float cycleCount = drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp;
+
+                                                        ImGuiX::HistogramColumnData column = {};
+                                                        column.x = cycleCount;
+                                                        column.y = cycleCount;
+                                                        column.userData = &drawcall;
+
                                                         // Insert drawcall cycle count to histogram
-                                                        contributions.push_back( drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp );
+                                                        contributions.push_back( column );
                                                     }
-                                                }
-                                                else
-                                                {
-                                                    // Insert pipeline cycle count to histogram
-                                                    contributions.push_back( pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp );
                                                 }
                                             }
                                         }
@@ -1200,11 +1234,6 @@ namespace Profiler
                                             // TODO
                                         }
                                     }
-                                }
-                                else
-                                {
-                                    // Insert render pass cycle count to histogram
-                                    contributions.push_back( renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp );
                                 }
                             }
                         }
@@ -1221,10 +1250,51 @@ namespace Profiler
             ImGui::PushItemWidth( -1 );
             ImGuiX::PlotHistogramEx(
                 "",
-                contributions.data(), // Scale x with y
                 contributions.data(),
                 contributions.size(),
-                0, pHistogramDescription, 0, FLT_MAX, { 0, 100 } );
+                0, pHistogramDescription, 0, FLT_MAX, { 0, 100 },
+                [&]( const ImGuiX::HistogramColumnData& data )
+                {
+                    std::string regionName = "";
+                    uint64_t regionCycleCount = 0;
+
+                    switch( m_HistogramGroupMode )
+                    {
+                    case HistogramGroupMode::eRenderPass:
+                    {
+                        const DeviceProfilerRenderPassData& renderPassData =
+                            *reinterpret_cast<const DeviceProfilerRenderPassData*>(data.userData);
+
+                        regionName = m_pStringSerializer->GetName( renderPassData );
+                        regionCycleCount = renderPassData.m_EndTimestamp - renderPassData.m_BeginTimestamp;
+                        break;
+                    }
+
+                    case HistogramGroupMode::ePipeline:
+                    {
+                        const DeviceProfilerPipelineData& pipelineData =
+                            *reinterpret_cast<const DeviceProfilerPipelineData*>(data.userData);
+
+                        regionName = m_pStringSerializer->GetName( pipelineData );
+                        regionCycleCount = pipelineData.m_EndTimestamp - pipelineData.m_BeginTimestamp;
+                        break;
+                    }
+
+                    case HistogramGroupMode::eDrawcall:
+                    {
+                        const DeviceProfilerDrawcall& pipelineData =
+                            *reinterpret_cast<const DeviceProfilerDrawcall*>(data.userData);
+
+                        regionName = m_pStringSerializer->GetName( pipelineData );
+                        regionCycleCount = pipelineData.m_EndTimestamp - pipelineData.m_BeginTimestamp;
+                        break;
+                    }
+                    }
+
+                    ImGui::SetTooltip( "%s\n%.2f ms",
+                        regionName.c_str(),
+                        regionCycleCount * m_TimestampPeriod.count() );
+                } );
         }
 
         // Top pipelines
