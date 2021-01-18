@@ -41,111 +41,106 @@ namespace Profiler
         VkDevice device,
         const char* pName )
     {
+        // VkDevice core functions
+        GETPROCADDR( GetDeviceProcAddr );
+        GETPROCADDR( DestroyDevice );
+        GETPROCADDR( CreateShaderModule );
+        GETPROCADDR( DestroyShaderModule );
+        GETPROCADDR( CreateGraphicsPipelines );
+        GETPROCADDR( CreateComputePipelines );
+        GETPROCADDR( DestroyPipeline );
+        GETPROCADDR( CreateRenderPass );
+        GETPROCADDR( CreateRenderPass2 );
+        GETPROCADDR( DestroyRenderPass );
+        GETPROCADDR( CreateCommandPool );
+        GETPROCADDR( DestroyCommandPool );
+        GETPROCADDR( AllocateCommandBuffers );
+        GETPROCADDR( FreeCommandBuffers );
+        GETPROCADDR( AllocateMemory );
+        GETPROCADDR( FreeMemory );
+
+        // VkCommandBuffer core functions
+        GETPROCADDR( BeginCommandBuffer );
+        GETPROCADDR( EndCommandBuffer );
+        GETPROCADDR( ResetCommandBuffer );
+        GETPROCADDR( CmdBeginRenderPass );
+        GETPROCADDR( CmdEndRenderPass );
+        GETPROCADDR( CmdNextSubpass );
+        GETPROCADDR( CmdBeginRenderPass2 );
+        GETPROCADDR( CmdEndRenderPass2 );
+        GETPROCADDR( CmdNextSubpass2 );
+        GETPROCADDR( CmdBindPipeline );
+        GETPROCADDR( CmdExecuteCommands );
+        GETPROCADDR( CmdPipelineBarrier );
+        GETPROCADDR( CmdDraw );
+        GETPROCADDR( CmdDrawIndirect );
+        GETPROCADDR( CmdDrawIndexed );
+        GETPROCADDR( CmdDrawIndexedIndirect );
+        GETPROCADDR( CmdDrawIndirectCount );
+        GETPROCADDR( CmdDrawIndexedIndirectCount );
+        GETPROCADDR( CmdDispatch );
+        GETPROCADDR( CmdDispatchIndirect );
+        GETPROCADDR( CmdCopyBuffer );
+        GETPROCADDR( CmdCopyBufferToImage );
+        GETPROCADDR( CmdCopyImage );
+        GETPROCADDR( CmdCopyImageToBuffer );
+        GETPROCADDR( CmdClearAttachments );
+        GETPROCADDR( CmdClearColorImage );
+        GETPROCADDR( CmdClearDepthStencilImage );
+        GETPROCADDR( CmdResolveImage );
+        GETPROCADDR( CmdBlitImage );
+        GETPROCADDR( CmdFillBuffer );
+        GETPROCADDR( CmdUpdateBuffer );
+
+        // VkQueue core functions
+        GETPROCADDR( QueueSubmit );
+
+        // VK_KHR_create_renderpass2 functions
+        GETPROCADDR( CreateRenderPass2KHR );
+        GETPROCADDR( CmdBeginRenderPass2KHR );
+        GETPROCADDR( CmdEndRenderPass2KHR );
+        GETPROCADDR( CmdNextSubpass2KHR );
+
+        // VK_EXT_debug_marker functions
+        GETPROCADDR( DebugMarkerSetObjectNameEXT );
+        GETPROCADDR( DebugMarkerSetObjectTagEXT );
+        GETPROCADDR( CmdDebugMarkerInsertEXT );
+        GETPROCADDR( CmdDebugMarkerBeginEXT );
+        GETPROCADDR( CmdDebugMarkerEndEXT );
+
+        // VK_EXT_debug_utils functions
+        GETPROCADDR( SetDebugUtilsObjectNameEXT );
+        GETPROCADDR( SetDebugUtilsObjectTagEXT );
+        GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
+        GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
+        GETPROCADDR( CmdEndDebugUtilsLabelEXT );
+
+        // VK_AMD_draw_indirect_count functions
+        GETPROCADDR( CmdDrawIndirectCountAMD );
+        GETPROCADDR( CmdDrawIndexedIndirectCountAMD );
+
+        // VK_KHR_draw_indirect_count functions
+        GETPROCADDR( CmdDrawIndirectCountKHR );
+        GETPROCADDR( CmdDrawIndexedIndirectCountKHR );
+
+        // VK_KHR_swapchain functions
+        GETPROCADDR( QueuePresentKHR );
+        GETPROCADDR( CreateSwapchainKHR );
+        GETPROCADDR( DestroySwapchainKHR );
+
+        // VK_EXT_profiler functions
+        GETPROCADDR_EXT( vkSetProfilerModeEXT );
+        GETPROCADDR_EXT( vkSetProfilerSyncModeEXT );
+        GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
+        GETPROCADDR_EXT( vkFreeProfilerFrameDataEXT );
+        GETPROCADDR_EXT( vkFlushProfilerEXT );
+
         if( device )
         {
             auto& dd = DeviceDispatch.Get( device );
 
-            // Check if profiler has been enabled for this device
-            // TODO: What about device functions returned by vkGetInstanceProcAddr
-            if( dd.Profiler.IsAvailable() )
-            {
-                // VkDevice core functions
-                GETPROCADDR( GetDeviceProcAddr );
-                GETPROCADDR( DestroyDevice );
-                GETPROCADDR( CreateShaderModule );
-                GETPROCADDR( DestroyShaderModule );
-                GETPROCADDR( CreateGraphicsPipelines );
-                GETPROCADDR( CreateComputePipelines );
-                GETPROCADDR( DestroyPipeline );
-                GETPROCADDR( CreateRenderPass );
-                GETPROCADDR( CreateRenderPass2 );
-                GETPROCADDR( DestroyRenderPass );
-                GETPROCADDR( CreateCommandPool );
-                GETPROCADDR( DestroyCommandPool );
-                GETPROCADDR( AllocateCommandBuffers );
-                GETPROCADDR( FreeCommandBuffers );
-                GETPROCADDR( AllocateMemory );
-                GETPROCADDR( FreeMemory );
-
-                // VkCommandBuffer core functions
-                GETPROCADDR( BeginCommandBuffer );
-                GETPROCADDR( EndCommandBuffer );
-                GETPROCADDR( ResetCommandBuffer );
-                GETPROCADDR( CmdBeginRenderPass );
-                GETPROCADDR( CmdEndRenderPass );
-                GETPROCADDR( CmdNextSubpass );
-                GETPROCADDR( CmdBeginRenderPass2 );
-                GETPROCADDR( CmdEndRenderPass2 );
-                GETPROCADDR( CmdNextSubpass2 );
-                GETPROCADDR( CmdBindPipeline );
-                GETPROCADDR( CmdExecuteCommands );
-                GETPROCADDR( CmdPipelineBarrier );
-                GETPROCADDR( CmdDraw );
-                GETPROCADDR( CmdDrawIndirect );
-                GETPROCADDR( CmdDrawIndexed );
-                GETPROCADDR( CmdDrawIndexedIndirect );
-                GETPROCADDR( CmdDrawIndirectCount );
-                GETPROCADDR( CmdDrawIndexedIndirectCount );
-                GETPROCADDR( CmdDispatch );
-                GETPROCADDR( CmdDispatchIndirect );
-                GETPROCADDR( CmdCopyBuffer );
-                GETPROCADDR( CmdCopyBufferToImage );
-                GETPROCADDR( CmdCopyImage );
-                GETPROCADDR( CmdCopyImageToBuffer );
-                GETPROCADDR( CmdClearAttachments );
-                GETPROCADDR( CmdClearColorImage );
-                GETPROCADDR( CmdClearDepthStencilImage );
-                GETPROCADDR( CmdResolveImage );
-                GETPROCADDR( CmdBlitImage );
-                GETPROCADDR( CmdFillBuffer );
-                GETPROCADDR( CmdUpdateBuffer );
-
-                // VkQueue core functions
-                GETPROCADDR( QueueSubmit );
-
-                // VK_KHR_create_renderpass2 functions
-                GETPROCADDR( CreateRenderPass2KHR );
-                GETPROCADDR( CmdBeginRenderPass2KHR );
-                GETPROCADDR( CmdEndRenderPass2KHR );
-                GETPROCADDR( CmdNextSubpass2KHR );
-
-                // VK_EXT_debug_marker functions
-                GETPROCADDR( DebugMarkerSetObjectNameEXT );
-                GETPROCADDR( DebugMarkerSetObjectTagEXT );
-                GETPROCADDR( CmdDebugMarkerInsertEXT );
-                GETPROCADDR( CmdDebugMarkerBeginEXT );
-                GETPROCADDR( CmdDebugMarkerEndEXT );
-
-                // VK_EXT_debug_utils functions
-                GETPROCADDR( SetDebugUtilsObjectNameEXT );
-                GETPROCADDR( SetDebugUtilsObjectTagEXT );
-                GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
-                GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
-                GETPROCADDR( CmdEndDebugUtilsLabelEXT );
-
-                // VK_AMD_draw_indirect_count functions
-                GETPROCADDR( CmdDrawIndirectCountAMD );
-                GETPROCADDR( CmdDrawIndexedIndirectCountAMD );
-
-                // VK_KHR_draw_indirect_count functions
-                GETPROCADDR( CmdDrawIndirectCountKHR );
-                GETPROCADDR( CmdDrawIndexedIndirectCountKHR );
-
-                // VK_KHR_swapchain functions
-                GETPROCADDR( QueuePresentKHR );
-                GETPROCADDR( CreateSwapchainKHR );
-                GETPROCADDR( DestroySwapchainKHR );
-
-                // VK_EXT_profiler functions
-                GETPROCADDR_EXT( vkSetProfilerModeEXT );
-                GETPROCADDR_EXT( vkSetProfilerSyncModeEXT );
-                GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
-                GETPROCADDR_EXT( vkFreeProfilerFrameDataEXT );
-                GETPROCADDR_EXT( vkFlushProfilerEXT );
-            }
-
             // Get function address from the next layer
-            return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
+            return dd.Device.Callbacks.GetDeviceProcAddr( device, pName );
         }
 
         // Undefined behaviour according to spec - VkDevice handle cannot be null

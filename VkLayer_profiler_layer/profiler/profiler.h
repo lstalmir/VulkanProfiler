@@ -80,8 +80,6 @@ namespace Profiler
 
         void Destroy();
 
-        bool IsAvailable() const;
-
         // Public interface
         VkResult SetMode( VkProfilerModeEXT );
         VkResult SetSyncMode( VkProfilerSyncModeEXT );

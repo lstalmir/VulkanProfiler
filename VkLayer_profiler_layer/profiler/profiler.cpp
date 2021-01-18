@@ -334,20 +334,6 @@ namespace Profiler
 
     /***********************************************************************************\
 
-    Function:
-        IsAvailable
-
-    Description:
-        Check if profiler has been initialized for this device.
-
-    \***********************************************************************************/
-    bool DeviceProfiler::IsAvailable() const
-    {
-        return m_pDevice != nullptr;
-    }
-
-    /***********************************************************************************\
-
     \***********************************************************************************/
     VkResult DeviceProfiler::SetMode( VkProfilerModeEXT mode )
     {

@@ -42,7 +42,6 @@ namespace Profiler
 
         // TODO: Move to separate layer
         const bool createProfilerOverlay =
-            (dd.Profiler.IsAvailable()) &&
             (dd.Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) == 0;
 
         if( createProfilerOverlay )
