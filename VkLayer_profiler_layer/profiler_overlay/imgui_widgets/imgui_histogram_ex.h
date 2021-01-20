@@ -45,7 +45,8 @@ namespace ImGuiX
         const void* userData;
     };
 
-    typedef void(HistogramColumnHoverCallback)(const HistogramColumnData& data);
+    typedef void(HistogramColumnHoverCallback)( const HistogramColumnData& data );
+    typedef void(HistogramColumnClickCallback)( const HistogramColumnData& data );
 
     /*************************************************************************\
 
@@ -74,9 +75,11 @@ namespace ImGuiX
         const HistogramColumnData* values,
         int values_count,
         int values_offset = 0,
+        int values_stride = sizeof( HistogramColumnData ),
         const char* overlay_text = NULL,
         float scale_min = FLT_MAX,
         float scale_max = FLT_MAX,
         ImVec2 graph_size = ImVec2( 0, 0 ),
-        std::function<HistogramColumnHoverCallback> hover_cb = NULL );
+        std::function<HistogramColumnHoverCallback> hover_cb = NULL,
+        std::function<HistogramColumnClickCallback> click_cb = NULL );
 }

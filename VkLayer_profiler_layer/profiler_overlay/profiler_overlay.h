@@ -39,6 +39,11 @@ struct ImGuiContext;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
 
+namespace ImGuiX
+{
+    struct HistogramColumnData;
+}
+
 namespace Profiler
 {
     class DeviceProfiler;
@@ -136,11 +141,32 @@ namespace Profiler
             uint16_t RenderPassIndex;
             uint16_t SubpassIndex;
             uint16_t PipelineIndex;
+            uint16_t DrawcallIndex;
+
+            inline bool operator==( const FrameBrowserTreeNodeIndex& index ) const
+            {
+                return SubmitBatchIndex == index.SubmitBatchIndex
+                    && SubmitIndex == index.SubmitIndex
+                    && PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex
+                    && SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex
+                    && RenderPassIndex == index.RenderPassIndex
+                    && SubpassIndex == index.SubpassIndex
+                    && PipelineIndex == index.PipelineIndex
+                    && DrawcallIndex == index.DrawcallIndex;
+            }
+
+            inline bool operator!=( const FrameBrowserTreeNodeIndex& index ) const
+            {
+                return !operator==( index );
+            }
         };
 
         DeviceProfilerFrameData m_Data;
         bool m_Pause;
         bool m_ShowDebugLabels;
+
+        FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
+        bool m_ScrollToSelectedFrameBrowserNode;
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
@@ -155,15 +181,21 @@ namespace Profiler
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
 
+        // Performance graph helpers
+        struct PerformanceGraphColumn;
+        std::vector<PerformanceGraphColumn> GetPerformanceGraphCollumns() const;
+        void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
+        void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
+
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );
         void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex );
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex, bool );
         void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
-        void PrintDrawcall( const DeviceProfilerDrawcall& );
+        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
-        void DrawSignificanceRect( float );
+        void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
 
         // Sort frame browser data
         template<typename Data>

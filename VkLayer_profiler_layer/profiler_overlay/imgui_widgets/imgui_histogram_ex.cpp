@@ -31,6 +31,24 @@ namespace ImGuiX
 
     /*************************************************************************\
 
+    Function:
+        GetHistogramColumnData
+
+    Description:
+        Index values with specified stride.
+
+    \*************************************************************************/
+    inline static const HistogramColumnData& GetHistogramColumnData(
+        const HistogramColumnData* values,
+        int values_stride,
+        int index )
+    {
+        const ImU8* ptr = reinterpret_cast<const ImU8*>(values);
+        return *reinterpret_cast<const HistogramColumnData*>(ptr + (index * values_stride));
+    }
+
+    /*************************************************************************\
+
         PlotHistogramEx
 
     \*************************************************************************/
@@ -39,11 +57,13 @@ namespace ImGuiX
         const HistogramColumnData* values,
         int values_count,
         int values_offset,
+        int values_stride,
         const char* overlay_text,
         float scale_min,
         float scale_max,
         ImVec2 graph_size,
-        std::function<HistogramColumnHoverCallback> hover_cb )
+        std::function<HistogramColumnHoverCallback> hover_cb,
+        std::function<HistogramColumnClickCallback> click_cb )
     {
         // Implementation is based on ImGui::PlotEx function (which is called by PlotHistogram).
 
@@ -79,7 +99,7 @@ namespace ImGuiX
             float y_max = -FLT_MAX;
             for( int i = 0; i < values_count; i++ )
             {
-                const float y = values[ i ].y;
+                const float y = GetHistogramColumnData( values, values_stride, i ).y;
                 if( y != y ) // Ignore NaN values
                     continue;
                 y_min = ImMin( y_min, y );
@@ -100,7 +120,7 @@ namespace ImGuiX
         // Determine horizontal scale from values
         float x_size = 0.f;
         for( int i = 0; i < values_count; i++ )
-            x_size += values[ i ].x;
+            x_size += GetHistogramColumnData( values, values_stride, i ).x;
 
         //RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
 
@@ -129,7 +149,7 @@ namespace ImGuiX
             const float t_step = 1.0f / (float)x_size;
             const float inv_scale = (scale_min == scale_max) ? 0.0f : (1.0f / (scale_max - scale_min));
 
-            float v0 = values[ (0 + values_offset) % values_count ].y;
+            float v0 = GetHistogramColumnData( values, values_stride, (0 + values_offset) % values_count ).y;
             float t0 = 0.0f;
             ImVec2 tp0 = ImVec2( t0, 1.0f - ImSaturate( (v0 - scale_min) * inv_scale ) );                       // Point in the normalized space of our target rectangle
             float histogram_zero_line_t = (scale_min * scale_max < 0.0f) ? (-scale_min * inv_scale) : (scale_min < 0.0f ? 0.0f : 1.0f);   // Where does the zero line stands
@@ -143,8 +163,8 @@ namespace ImGuiX
             {
                 const int v1_idx = n * v_step;
                 IM_ASSERT( v1_idx >= 0 && v1_idx < values_count );
-                const float t1 = t0 + t_step * ImMax( 1.f, values[ (v1_idx + values_offset) % values_count ].x );
-                const float v1 = values[ (v1_idx + values_offset + 1) % values_count ].y;
+                const float t1 = t0 + t_step * ImMax( 1.f, GetHistogramColumnData( values, values_stride, (v1_idx + values_offset) % values_count ).x );
+                const float v1 = GetHistogramColumnData( values, values_stride, (v1_idx + values_offset + 1) % values_count ).y;
                 const ImVec2 tp1 = ImVec2( t1, 1.0f - ImSaturate( (v1 - scale_min) * inv_scale ) );
 
                 // NB: Draw calls are merged together by the DrawList system. Still, we should render our batch are lower level to save a bit of CPU.
@@ -153,13 +173,22 @@ namespace ImGuiX
                 if( pos1.x >= pos0.x + 2.0f )
                     pos1.x -= 1.0f;
 
+                ImRect posbb = ImRect( pos0, pos1 );
+
                 if( hover_cb &&
                     hovered &&
                     tooltipDrawn == false &&
-                    ImRect( pos0, pos1 ).Contains( g.IO.MousePos ) )
+                    posbb.Contains( g.IO.MousePos ) )
                 {
                     // Invoke hover callback
-                    hover_cb( values[ v1_idx ] );
+                    hover_cb( GetHistogramColumnData( values, values_stride, v1_idx ) );
+
+                    if( click_cb &&
+                        GetIO().MouseClicked[ ImGuiMouseButton_Left ] )
+                    {
+                        // Invoke click callback
+                        click_cb( GetHistogramColumnData( values, values_stride, v1_idx ) );
+                    }
 
                     window->DrawList->AddRectFilled( pos0, pos1, col_hovered );
                     // Don't check other blocks
