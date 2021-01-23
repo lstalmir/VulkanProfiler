@@ -1020,10 +1020,10 @@ namespace Profiler
     void ProfilerOverlayOutput::InitializeImGuiColors()
     {
         // Performance graph colors
-        m_RenderPassColumnColor = ImGui::GetColorU32( { 1.0f, 0.80f, 0.19f, 1.0f } ); // #ffcb30
-        m_GraphicsPipelineColumnColor = ImGui::GetColorU32( { 1.0f, 0.80f, 0.19f, 1.0f } ); // #ffcb30
-        m_ComputePipelineColumnColor = ImGui::GetColorU32( { 1.0f, 0.64f, 0.16f, 1.0f } ); // #ffba42
-        m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.62f, 0.19f, 1.0f, 1.0f } ); // #9e30ff
+        m_RenderPassColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
+        m_GraphicsPipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
+        m_ComputePipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.55f, 0.0f, 1.0f } ); // #ffba42
+        m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
     }
 
     /***********************************************************************************\
