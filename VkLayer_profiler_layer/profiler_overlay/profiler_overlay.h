@@ -192,7 +192,11 @@ namespace Profiler
 
         // Performance graph helpers
         struct PerformanceGraphColumn;
-        std::vector<PerformanceGraphColumn> GetPerformanceGraphCollumns() const;
+        void GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
         void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 

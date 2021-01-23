@@ -1178,7 +1178,8 @@ namespace Profiler
             }
 
             // Enumerate columns for selected group mode
-            const auto columns = GetPerformanceGraphCollumns();
+            std::vector<PerformanceGraphColumn> columns;
+            GetPerformanceGraphColumns( columns );
 
             char pHistogramDescription[ 32 ];
             snprintf( pHistogramDescription, sizeof( pHistogramDescription ),
@@ -1669,185 +1670,254 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetPerformanceGraphCollumns
+        GetPerformanceGraphColumns
 
     Description:
         Enumerate performance graph columns.
 
     \***********************************************************************************/
-    std::vector<ProfilerOverlayOutput::PerformanceGraphColumn> ProfilerOverlayOutput::GetPerformanceGraphCollumns() const
+    void ProfilerOverlayOutput::GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& columns ) const
     {
-        std::vector<PerformanceGraphColumn> columns;
+        FrameBrowserTreeNodeIndex index = {
+            0x0,
+            0xFFFF,
+            0xFFFF,
+            0xFFFF,
+            0xFFFF,
+            0xFFFF,
+            0xFFFF,
+            0xFFFF };
 
-        if( m_Data.m_Ticks > 0 )
+        // Enumerate submits batches in frame
+        for( const auto& submitBatch : m_Data.m_Submits )
         {
-            FrameBrowserTreeNodeIndex index = {
-                0x0,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF };
+            index.SubmitIndex = 0;
 
-            // Enumerate submits batches in frame
-            for( const auto& submitBatch : m_Data.m_Submits )
+            // Enumerate submits in submit batch
+            for( const auto& submit : submitBatch.m_Submits )
             {
-                index.SubmitIndex = 0;
+                index.PrimaryCommandBufferIndex = 0;
 
-                // Enumerate submits in submit batch
-                for( const auto& submit : submitBatch.m_Submits )
+                // Enumerate command buffers in submit
+                for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
-                    index.PrimaryCommandBufferIndex = 0;
-
-                    // Enumerate command buffers in submit
-                    for( const auto& cmdBuffer : submit.m_CommandBuffers )
-                    {
-                        index.RenderPassIndex = 0;
-
-                        // Enumerate render passes in command buffer
-                        for( const auto& renderPass : cmdBuffer.m_RenderPasses )
-                        {
-                            if( (m_HistogramGroupMode == HistogramGroupMode::eRenderPass) &&
-                                (renderPass.m_Handle != VK_NULL_HANDLE) )
-                            {
-                                const float cycleCount = renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp;
-
-                                PerformanceGraphColumn column = {};
-                                column.x = cycleCount;
-                                column.y = cycleCount;
-                                column.color = m_RenderPassColumnColor;
-                                column.userData = &renderPass;
-                                column.groupMode = HistogramGroupMode::eRenderPass;
-                                column.nodeIndex = index;
-
-                                // Insert render pass cycle count to histogram
-                                columns.push_back( column );
-                            }
-                            else
-                            {
-                                index.SubpassIndex = 0;
-
-                                // Enumerate subpasses in render pass
-                                for( const auto& subpass : renderPass.m_Subpasses )
-                                {
-                                    if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
-                                    {
-                                        index.PipelineIndex = 0;
-
-                                        // Enumerate pipelines in subpass
-                                        for( const auto& pipeline : subpass.m_Pipelines )
-                                        {
-                                            if( ((pipeline.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
-                                                (((m_HistogramGroupMode == HistogramGroupMode::ePipeline) &&
-                                                    (pipeline.m_Handle != VK_NULL_HANDLE)) ||
-                                                ((m_HistogramGroupMode == HistogramGroupMode::eRenderPass) &&
-                                                    (renderPass.m_Handle == VK_NULL_HANDLE))) )
-                                            {
-                                                const float cycleCount = pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp;
-
-                                                PerformanceGraphColumn column = {};
-                                                column.x = cycleCount;
-                                                column.y = cycleCount;
-                                                column.userData = &pipeline;
-                                                column.groupMode = HistogramGroupMode::ePipeline;
-                                                column.nodeIndex = index;
-
-                                                switch( pipeline.m_BindPoint )
-                                                {
-                                                case VK_PIPELINE_BIND_POINT_GRAPHICS:
-                                                    column.color = m_GraphicsPipelineColumnColor;
-                                                    break;
-
-                                                case VK_PIPELINE_BIND_POINT_COMPUTE:
-                                                    column.color = m_ComputePipelineColumnColor;
-                                                    break;
-
-                                                default:
-                                                    assert( !"Unsupported pipeline type" );
-                                                    break;
-                                                }
-
-                                                // Insert pipeline cycle count to histogram
-                                                columns.push_back( column );
-                                            }
-                                            else
-                                            {
-                                                index.DrawcallIndex = 0;
-
-                                                // Enumerate drawcalls in pipeline
-                                                for( const auto& drawcall : pipeline.m_Drawcalls )
-                                                {
-                                                    const float cycleCount = drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp;
-
-                                                    PerformanceGraphColumn column = {};
-                                                    column.x = cycleCount;
-                                                    column.y = cycleCount;
-                                                    column.userData = &drawcall;
-                                                    column.groupMode = HistogramGroupMode::eDrawcall;
-                                                    column.nodeIndex = index;
-
-                                                    switch( drawcall.GetPipelineType() )
-                                                    {
-                                                    case DeviceProfilerPipelineType::eGraphics:
-                                                        column.color = m_GraphicsPipelineColumnColor;
-                                                        break;
-
-                                                    case DeviceProfilerPipelineType::eCompute:
-                                                        column.color = m_ComputePipelineColumnColor;
-                                                        break;
-
-                                                    default:
-                                                        column.color = m_InternalPipelineColumnColor;
-                                                        break;
-                                                    }
-
-                                                    // Insert drawcall cycle count to histogram
-                                                    columns.push_back( column );
-
-                                                    index.DrawcallIndex++;
-                                                }
-                                            }
-
-                                            index.DrawcallIndex = 0xFFFF;
-                                            index.PipelineIndex++;
-                                        }
-
-                                        index.PipelineIndex = 0xFFFF;
-                                    }
-
-                                    else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
-                                    {
-                                        index.SecondaryCommandBufferIndex = 0;
-
-                                        // TODO
-
-                                        index.SecondaryCommandBufferIndex = 0xFFFF;
-                                    }
-
-                                    index.SubpassIndex++;
-                                }
-                            }
-
-                            index.SubpassIndex = 0xFFFF;
-                            index.RenderPassIndex++;
-                        }
-
-                        index.RenderPassIndex = 0xFFFF;
-                        index.PrimaryCommandBufferIndex++;
-                    }
-
-                    index.PrimaryCommandBufferIndex = 0xFFFF;
-                    index.SubmitIndex++;
+                    GetPerformanceGraphColumns( commandBuffer, index, columns );
+                    index.PrimaryCommandBufferIndex++;
                 }
 
-                index.SubmitIndex = 0xFFFF;
-                index.SubmitBatchIndex++;
+                index.PrimaryCommandBufferIndex = 0xFFFF;
+                index.SubmitIndex++;
             }
+
+            index.SubmitIndex = 0xFFFF;
+            index.SubmitBatchIndex++;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceGraphColumns
+
+    Description:
+        Enumerate performance graph columns.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::GetPerformanceGraphColumns(
+        const DeviceProfilerCommandBufferData& data,
+        FrameBrowserTreeNodeIndex index,
+        std::vector<PerformanceGraphColumn>& columns ) const
+    {
+        // RenderPassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
+        const bool renderPassContinue = (index.RenderPassIndex != 0xFFFF);
+
+        if( !renderPassContinue )
+        {
+            index.RenderPassIndex = 0;
         }
 
-        return columns;
+        // Enumerate render passes in command buffer
+        for( const auto& renderPass : data.m_RenderPasses )
+        {
+            GetPerformanceGraphColumns( renderPass, index, columns );
+            index.RenderPassIndex++;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceGraphColumns
+
+    Description:
+        Enumerate performance graph columns.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::GetPerformanceGraphColumns(
+        const DeviceProfilerRenderPassData& data,
+        FrameBrowserTreeNodeIndex index,
+        std::vector<PerformanceGraphColumn>& columns ) const
+    {
+        // RenderPassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
+        const bool renderPassContinue = (index.SubpassIndex != 0xFFFF);
+
+        if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
+            (data.m_Handle != VK_NULL_HANDLE) )
+        {
+            const float cycleCount = data.m_EndTimestamp - data.m_BeginTimestamp;
+
+            PerformanceGraphColumn column = {};
+            column.x = cycleCount;
+            column.y = cycleCount;
+            column.color = m_RenderPassColumnColor;
+            column.userData = &data;
+            column.groupMode = HistogramGroupMode::eRenderPass;
+            column.nodeIndex = index;
+
+            // Insert render pass cycle count to histogram
+            columns.push_back( column );
+        }
+        else
+        {
+            if( !renderPassContinue )
+            {
+                index.SubpassIndex = 0;
+            }
+
+            // Enumerate subpasses in render pass
+            for( const auto& subpass : data.m_Subpasses )
+            {
+                if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+                {
+                    index.PipelineIndex = 0;
+
+                    // Enumerate pipelines in subpass
+                    for( const auto& pipeline : subpass.m_Pipelines )
+                    {
+                        GetPerformanceGraphColumns( pipeline, index, columns );
+                        index.PipelineIndex++;
+                    }
+
+                    index.PipelineIndex = 0xFFFF;
+                }
+
+                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                {
+                    index.SecondaryCommandBufferIndex = 0;
+
+                    // Enumerate secondary command buffers
+                    for( const auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
+                    {
+                        GetPerformanceGraphColumns( commandBuffer, index, columns );
+                        index.SecondaryCommandBufferIndex++;
+                    }
+
+                    index.SecondaryCommandBufferIndex = 0xFFFF;
+                }
+
+                index.SubpassIndex++;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceGraphColumns
+
+    Description:
+        Enumerate performance graph columns.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::GetPerformanceGraphColumns(
+        const DeviceProfilerPipelineData& data,
+        FrameBrowserTreeNodeIndex index,
+        std::vector<PerformanceGraphColumn>& columns ) const
+    {
+        if( (m_HistogramGroupMode <= HistogramGroupMode::ePipeline) &&
+            ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
+            (data.m_Handle != VK_NULL_HANDLE) )
+        {
+            const float cycleCount = data.m_EndTimestamp - data.m_BeginTimestamp;
+
+            PerformanceGraphColumn column = {};
+            column.x = cycleCount;
+            column.y = cycleCount;
+            column.userData = &data;
+            column.groupMode = HistogramGroupMode::ePipeline;
+            column.nodeIndex = index;
+
+            switch( data.m_BindPoint )
+            {
+            case VK_PIPELINE_BIND_POINT_GRAPHICS:
+                column.color = m_GraphicsPipelineColumnColor;
+                break;
+
+            case VK_PIPELINE_BIND_POINT_COMPUTE:
+                column.color = m_ComputePipelineColumnColor;
+                break;
+
+            default:
+                assert( !"Unsupported pipeline type" );
+                break;
+            }
+
+            // Insert pipeline cycle count to histogram
+            columns.push_back( column );
+        }
+        else
+        {
+            index.DrawcallIndex = 0;
+
+            // Enumerate drawcalls in pipeline
+            for( const auto& drawcall : data.m_Drawcalls )
+            {
+                GetPerformanceGraphColumns( drawcall, index, columns );
+                index.DrawcallIndex++;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceGraphColumns
+
+    Description:
+        Enumerate performance graph columns.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::GetPerformanceGraphColumns(
+        const DeviceProfilerDrawcall& data,
+        FrameBrowserTreeNodeIndex index,
+        std::vector<PerformanceGraphColumn>& columns ) const
+    {
+        const float cycleCount = data.m_EndTimestamp - data.m_BeginTimestamp;
+
+        PerformanceGraphColumn column = {};
+        column.x = cycleCount;
+        column.y = cycleCount;
+        column.userData = &data;
+        column.groupMode = HistogramGroupMode::eDrawcall;
+        column.nodeIndex = index;
+
+        switch( data.GetPipelineType() )
+        {
+        case DeviceProfilerPipelineType::eGraphics:
+            column.color = m_GraphicsPipelineColumnColor;
+            break;
+
+        case DeviceProfilerPipelineType::eCompute:
+            column.color = m_ComputePipelineColumnColor;
+            break;
+
+        default:
+            column.color = m_InternalPipelineColumnColor;
+            break;
+        }
+
+        // Insert drawcall cycle count to histogram
+        columns.push_back( column );
     }
 
     /***********************************************************************************\
@@ -1945,8 +2015,13 @@ namespace Profiler
         if( (m_ScrollToSelectedFrameBrowserNode) &&
             (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
             (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex) )
+            (((cmdBuffer.m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) &&
+                (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex)) ||
+            ((cmdBuffer.m_Level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) &&
+                (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
+                (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
+                (m_SelectedFrameBrowserNodeIndex.SubpassIndex == index.SubpassIndex) &&
+                (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex))) )
         {
             // Tree contains selected node
             ImGui::SetNextItemOpen( true );
@@ -1962,7 +2037,13 @@ namespace Profiler
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
                 SortFrameBrowserData( cmdBuffer.m_RenderPasses );
 
-            index.RenderPassIndex = 0;
+            // RenderPassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
+            const bool renderPassContinue = (index.RenderPassIndex != 0xFFFF);
+
+            if( !renderPassContinue )
+            {
+                index.RenderPassIndex = 0;
+            }
 
             // Enumerate render passes in command buffer
             for( const DeviceProfilerRenderPassData* pRenderPass : pRenderPasses )
@@ -2006,8 +2087,9 @@ namespace Profiler
             (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
             (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) &&
             (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) )
+            (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
+            ((index.SecondaryCommandBufferIndex == 0xFFFF) ||
+                (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex)) )
         {
             // Tree contains selected node
             ImGui::SetNextItemOpen( true );
@@ -2051,7 +2133,13 @@ namespace Profiler
             std::list<const DeviceProfilerSubpassData*> pSubpasses =
                 SortFrameBrowserData( renderPass.m_Subpasses );
 
-            index.SubpassIndex = 0;
+            // SubpassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
+            const bool renderPassContinue = (index.SubpassIndex != 0xFFFF);
+
+            if( !renderPassContinue )
+            {
+                index.SubpassIndex = 0;
+            }
 
             // Enumerate subpasses
             for( const DeviceProfilerSubpassData* pSubpass : pSubpasses )
@@ -2060,7 +2148,10 @@ namespace Profiler
                 index.SubpassIndex++;
             }
 
-            index.SubpassIndex = 0xFFFF;
+            if( !renderPassContinue )
+            {
+                index.SubpassIndex = 0xFFFF;
+            }
         }
 
         if( inRenderPassSubtree )
