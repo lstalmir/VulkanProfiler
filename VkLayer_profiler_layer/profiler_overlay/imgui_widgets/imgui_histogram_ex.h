@@ -20,9 +20,35 @@
 
 #pragma once
 #include <imgui.h>
+#include <functional>
 
 namespace ImGuiX
 {
+    /*************************************************************************\
+
+    Structure:
+        HistogramColumnData
+
+    Description:
+        Contains single histogram column data.
+
+    Members:
+        x              Width of the bar
+        y              Height of the bar
+        userData       Pointer to the custom data associated with the bar
+
+    \*************************************************************************/
+    struct HistogramColumnData
+    {
+        float x;
+        float y;
+        ImU32 color;
+        const void* userData;
+    };
+
+    typedef void(HistogramColumnHoverCallback)( const HistogramColumnData& data );
+    typedef void(HistogramColumnClickCallback)( const HistogramColumnData& data );
+
     /*************************************************************************\
 
     Function:
@@ -47,13 +73,14 @@ namespace ImGuiX
     \*************************************************************************/
     void PlotHistogramEx(
         const char* label,
-        const float* values_x,
-        const float* values_y,
+        const HistogramColumnData* values,
         int values_count,
         int values_offset = 0,
+        int values_stride = sizeof( HistogramColumnData ),
         const char* overlay_text = NULL,
         float scale_min = FLT_MAX,
         float scale_max = FLT_MAX,
         ImVec2 graph_size = ImVec2( 0, 0 ),
-        int stride = sizeof( float ) );
+        std::function<HistogramColumnHoverCallback> hover_cb = NULL,
+        std::function<HistogramColumnClickCallback> click_cb = NULL );
 }

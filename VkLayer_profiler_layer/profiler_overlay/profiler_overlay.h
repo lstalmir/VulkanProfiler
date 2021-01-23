@@ -39,6 +39,11 @@ struct ImGuiContext;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
 
+namespace ImGuiX
+{
+    struct HistogramColumnData;
+}
+
 namespace Profiler
 {
     class DeviceProfiler;
@@ -136,11 +141,40 @@ namespace Profiler
             uint16_t RenderPassIndex;
             uint16_t SubpassIndex;
             uint16_t PipelineIndex;
+            uint16_t DrawcallIndex;
+
+            inline bool operator==( const FrameBrowserTreeNodeIndex& index ) const
+            {
+                return SubmitBatchIndex == index.SubmitBatchIndex
+                    && SubmitIndex == index.SubmitIndex
+                    && PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex
+                    && SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex
+                    && RenderPassIndex == index.RenderPassIndex
+                    && SubpassIndex == index.SubpassIndex
+                    && PipelineIndex == index.PipelineIndex
+                    && DrawcallIndex == index.DrawcallIndex;
+            }
+
+            inline bool operator!=( const FrameBrowserTreeNodeIndex& index ) const
+            {
+                return !operator==( index );
+            }
         };
 
         DeviceProfilerFrameData m_Data;
         bool m_Pause;
         bool m_ShowDebugLabels;
+
+        FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
+        bool m_ScrollToSelectedFrameBrowserNode;
+
+        std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
+
+        // Performance graph colors
+        uint32_t m_RenderPassColumnColor;
+        uint32_t m_GraphicsPipelineColumnColor;
+        uint32_t m_ComputePipelineColumnColor;
+        uint32_t m_InternalPipelineColumnColor;
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
@@ -148,6 +182,7 @@ namespace Profiler
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
         void InitializeImGuiDefaultFont();
+        void InitializeImGuiColors();
 
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
@@ -155,15 +190,25 @@ namespace Profiler
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
 
+        // Performance graph helpers
+        struct PerformanceGraphColumn;
+        void GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
+        void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
+
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );
         void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex );
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex, bool );
         void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
-        void PrintDrawcall( const DeviceProfilerDrawcall& );
+        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
-        void DrawSignificanceRect( float );
+        void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
 
         // Sort frame browser data
         template<typename Data>

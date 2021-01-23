@@ -23,6 +23,14 @@
 #include <stdio.h>
 #include <stdint.h>
 
+namespace
+{
+    ImU8 ComponentLerp( ImU8 a, ImU8 b, float s )
+    {
+        return (a * (1 - s)) + (b * s);
+    }
+}
+
 namespace ImGuiX
 {
     /***********************************************************************************\
@@ -73,5 +81,23 @@ namespace ImGuiX
 
         ImGui::SameLine( ImGui::GetWindowContentRegionMax().x - textSize );
         ImGui::TextUnformatted( text );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ColorLerp
+
+    Description:
+        Interpolate colors.
+
+    \*************************************************************************/
+    ImU32 ColorLerp( ImU32 a, ImU32 b, float s )
+    {
+        const ImU8 o0 = ComponentLerp( (a >> 0) & 0xFF, (b >> 0) & 0xFF, s );
+        const ImU8 o1 = ComponentLerp( (a >> 8) & 0xFF, (b >> 8) & 0xFF, s );
+        const ImU8 o2 = ComponentLerp( (a >> 16) & 0xFF, (b >> 16) & 0xFF, s );
+        const ImU8 o3 = ComponentLerp( (a >> 24) & 0xFF, (b >> 24) & 0xFF, s );
+        return o0 | (o1 << 8) | (o2 << 16) | (o3 << 24);
     }
 }
