@@ -42,6 +42,7 @@ namespace ImGuiX
     {
         float x;
         float y;
+        ImU32 color;
         const void* userData;
     };
 

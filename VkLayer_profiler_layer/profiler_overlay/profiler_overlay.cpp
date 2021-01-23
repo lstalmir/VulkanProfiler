@@ -75,6 +75,7 @@ namespace Profiler
 
     struct ProfilerOverlayOutput::PerformanceGraphColumn : ImGuiX::HistogramColumnData
     {
+        HistogramGroupMode groupMode;
         FrameBrowserTreeNodeIndex nodeIndex;
     };
 
@@ -213,6 +214,7 @@ namespace Profiler
             io.ConfigFlags = ImGuiConfigFlags_None;
 
             InitializeImGuiDefaultFont();
+            InitializeImGuiColors();
         }
 
         // Init window
@@ -1010,6 +1012,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        InitializeImGuiColors
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::InitializeImGuiColors()
+    {
+        // Performance graph colors
+        m_RenderPassColumnColor = ImGui::GetColorU32( { 1.0f, 0.80f, 0.19f, 1.0f } ); // #ffcb30
+        m_GraphicsPipelineColumnColor = ImGui::GetColorU32( { 1.0f, 0.80f, 0.19f, 1.0f } ); // #ffcb30
+        m_ComputePipelineColumnColor = ImGui::GetColorU32( { 1.0f, 0.64f, 0.16f, 1.0f } ); // #ffba42
+        m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.62f, 0.19f, 1.0f, 1.0f } ); // #9e30ff
+    }
+
+    /***********************************************************************************\
+
+    Function:
         InitializeImGuiVulkanContext
 
     Description:
@@ -1687,29 +1706,26 @@ namespace Profiler
                     {
                         index.RenderPassIndex = 0;
 
-                        if( m_HistogramGroupMode == HistogramGroupMode::eRenderPass )
+                        // Enumerate render passes in command buffer
+                        for( const auto& renderPass : cmdBuffer.m_RenderPasses )
                         {
-                            // Enumerate render passes in command buffer
-                            for( const auto& renderPass : cmdBuffer.m_RenderPasses )
+                            if( (m_HistogramGroupMode == HistogramGroupMode::eRenderPass) &&
+                                (renderPass.m_Handle != VK_NULL_HANDLE) )
                             {
                                 const float cycleCount = renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp;
 
                                 PerformanceGraphColumn column = {};
                                 column.x = cycleCount;
                                 column.y = cycleCount;
+                                column.color = m_RenderPassColumnColor;
                                 column.userData = &renderPass;
+                                column.groupMode = HistogramGroupMode::eRenderPass;
                                 column.nodeIndex = index;
 
                                 // Insert render pass cycle count to histogram
                                 columns.push_back( column );
-
-                                index.RenderPassIndex++;
                             }
-                        }
-                        else
-                        {
-                            // Enumerate render passes in command buffer
-                            for( const auto& renderPass : cmdBuffer.m_RenderPasses )
+                            else
                             {
                                 index.SubpassIndex = 0;
 
@@ -1720,10 +1736,14 @@ namespace Profiler
                                     {
                                         index.PipelineIndex = 0;
 
-                                        if( m_HistogramGroupMode == HistogramGroupMode::ePipeline )
+                                        // Enumerate pipelines in subpass
+                                        for( const auto& pipeline : subpass.m_Pipelines )
                                         {
-                                            // Enumerate pipelines in subpass
-                                            for( const auto& pipeline : subpass.m_Pipelines )
+                                            if( ((pipeline.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
+                                                (((m_HistogramGroupMode == HistogramGroupMode::ePipeline) &&
+                                                    (pipeline.m_Handle != VK_NULL_HANDLE)) ||
+                                                ((m_HistogramGroupMode == HistogramGroupMode::eRenderPass) &&
+                                                    (renderPass.m_Handle == VK_NULL_HANDLE))) )
                                             {
                                                 const float cycleCount = pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp;
 
@@ -1731,18 +1751,28 @@ namespace Profiler
                                                 column.x = cycleCount;
                                                 column.y = cycleCount;
                                                 column.userData = &pipeline;
+                                                column.groupMode = HistogramGroupMode::ePipeline;
                                                 column.nodeIndex = index;
+
+                                                switch( pipeline.m_BindPoint )
+                                                {
+                                                case VK_PIPELINE_BIND_POINT_GRAPHICS:
+                                                    column.color = m_GraphicsPipelineColumnColor;
+                                                    break;
+
+                                                case VK_PIPELINE_BIND_POINT_COMPUTE:
+                                                    column.color = m_ComputePipelineColumnColor;
+                                                    break;
+
+                                                default:
+                                                    assert( !"Unsupported pipeline type" );
+                                                    break;
+                                                }
 
                                                 // Insert pipeline cycle count to histogram
                                                 columns.push_back( column );
-
-                                                index.PipelineIndex++;
                                             }
-                                        }
-                                        else
-                                        {
-                                            // Enumerate pipelines in subpass
-                                            for( const auto& pipeline : subpass.m_Pipelines )
+                                            else
                                             {
                                                 index.DrawcallIndex = 0;
 
@@ -1755,21 +1785,38 @@ namespace Profiler
                                                     column.x = cycleCount;
                                                     column.y = cycleCount;
                                                     column.userData = &drawcall;
+                                                    column.groupMode = HistogramGroupMode::eDrawcall;
                                                     column.nodeIndex = index;
+
+                                                    switch( drawcall.GetPipelineType() )
+                                                    {
+                                                    case DeviceProfilerPipelineType::eGraphics:
+                                                        column.color = m_GraphicsPipelineColumnColor;
+                                                        break;
+
+                                                    case DeviceProfilerPipelineType::eCompute:
+                                                        column.color = m_ComputePipelineColumnColor;
+                                                        break;
+
+                                                    default:
+                                                        column.color = m_InternalPipelineColumnColor;
+                                                        break;
+                                                    }
 
                                                     // Insert drawcall cycle count to histogram
                                                     columns.push_back( column );
 
                                                     index.DrawcallIndex++;
                                                 }
-
-                                                index.DrawcallIndex = 0xFFFF;
-                                                index.PipelineIndex++;
                                             }
+
+                                            index.DrawcallIndex = 0xFFFF;
+                                            index.PipelineIndex++;
                                         }
 
                                         index.PipelineIndex = 0xFFFF;
                                     }
+
                                     else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
                                     {
                                         index.SecondaryCommandBufferIndex = 0;
@@ -1781,10 +1828,10 @@ namespace Profiler
 
                                     index.SubpassIndex++;
                                 }
-
-                                index.SubpassIndex = 0xFFFF;
-                                index.RenderPassIndex++;
                             }
+
+                            index.SubpassIndex = 0xFFFF;
+                            index.RenderPassIndex++;
                         }
 
                         index.RenderPassIndex = 0xFFFF;
@@ -1819,7 +1866,7 @@ namespace Profiler
         std::string regionName = "";
         uint64_t regionCycleCount = 0;
 
-        switch( m_HistogramGroupMode )
+        switch( data.groupMode )
         {
         case HistogramGroupMode::eRenderPass:
         {

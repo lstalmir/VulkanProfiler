@@ -170,12 +170,19 @@ namespace Profiler
 
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
 
+        // Performance graph colors
+        uint32_t m_RenderPassColumnColor;
+        uint32_t m_GraphicsPipelineColumnColor;
+        uint32_t m_ComputePipelineColumnColor;
+        uint32_t m_InternalPipelineColumnColor;
+
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
         void InitializeImGuiDefaultFont();
+        void InitializeImGuiColors();
 
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
