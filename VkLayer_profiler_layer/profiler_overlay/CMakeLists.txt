@@ -37,6 +37,7 @@ set (imgui
     "imgui/imgui.cpp"
     "imgui/imgui_demo.cpp"
     "imgui/imgui_draw.cpp"
+    "imgui/imgui_tables.cpp"
     "imgui/imgui_widgets.cpp"
     "imgui_impl_vulkan_layer.h"
     "imgui_impl_vulkan_layer.cpp"
@@ -46,8 +47,8 @@ set (imgui
 # Platform-dependent implementation
 if (WIN32)
 set (imgui_platform
-    "imgui/examples/imgui_impl_win32.h"
-    "imgui/examples/imgui_impl_win32.cpp"
+    "imgui/backends/imgui_impl_win32.h"
+    "imgui/backends/imgui_impl_win32.cpp"
     "imgui_impl_win32.h"
     "imgui_impl_win32.cpp"
     )

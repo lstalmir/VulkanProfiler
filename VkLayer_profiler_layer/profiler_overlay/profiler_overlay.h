@@ -182,7 +182,7 @@ namespace Profiler
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
         void InitializeImGuiDefaultFont();
-        void InitializeImGuiColors();
+        void InitializeImGuiStyle();
 
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();

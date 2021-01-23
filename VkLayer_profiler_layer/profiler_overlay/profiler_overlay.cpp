@@ -205,7 +205,6 @@ namespace Profiler
             m_pImGuiContext = ImGui::CreateContext();
 
             ImGui::SetCurrentContext( m_pImGuiContext );
-            ImGui::StyleColorsDark();
 
             ImGuiIO& io = ImGui::GetIO();
             io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
@@ -214,7 +213,7 @@ namespace Profiler
             io.ConfigFlags = ImGuiConfigFlags_None;
 
             InitializeImGuiDefaultFont();
-            InitializeImGuiColors();
+            InitializeImGuiStyle();
         }
 
         // Init window
@@ -1017,8 +1016,14 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::InitializeImGuiColors()
+    void ProfilerOverlayOutput::InitializeImGuiStyle()
     {
+        ImGui::StyleColorsDark();
+
+        ImGuiStyle& style = ImGui::GetStyle();
+        // Round window corners
+        style.WindowRounding = 7.f;
+
         // Performance graph colors
         m_RenderPassColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
         m_GraphicsPipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
@@ -1230,21 +1235,21 @@ namespace Profiler
             ImGui::BeginTable( "Performance counters table",
                 /* columns_count */ 3,
                 ImGuiTableFlags_Resizable |
-                ImGuiTableFlags_NoClipX |
+                ImGuiTableFlags_NoClip |
                 ImGuiTableFlags_Borders );
 
             // Headers
-            ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthAlwaysAutoResize );
+            ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
             ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthAlwaysAutoResize );
-            ImGui::TableAutoHeaders();
+            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableHeadersRow();
 
             for( uint32_t i = 0; i < m_Data.m_VendorMetrics.size(); ++i )
             {
                 const VkProfilerPerformanceCounterResultEXT& metric = m_Data.m_VendorMetrics[ i ];
                 const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = m_VendorMetricProperties[ i ];
 
-                ImGui::TableNextCell();
+                ImGui::TableNextColumn();
                 {
                     ImGui::Text( "%s", metricProperties.shortName );
 
@@ -1259,7 +1264,7 @@ namespace Profiler
                     }
                 }
 
-                ImGui::TableNextCell();
+                ImGui::TableNextColumn();
                 {
                     const float columnWidth = ImGuiX::TableGetColumnWidth();
                     switch( metricProperties.storage )
@@ -1278,7 +1283,7 @@ namespace Profiler
                     }
                 }
 
-                ImGui::TableNextCell();
+                ImGui::TableNextColumn();
                 {
                     const char* pUnitString = "???";
 
