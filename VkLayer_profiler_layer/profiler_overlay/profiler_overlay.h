@@ -168,6 +168,8 @@ namespace Profiler
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
 
+        std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
+
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );

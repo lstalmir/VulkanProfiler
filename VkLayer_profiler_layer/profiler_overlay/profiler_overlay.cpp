@@ -113,8 +113,6 @@ namespace Profiler
         , m_Pause( false )
         , m_ShowDebugLabels( true )
     {
-        m_SelectedFrameBrowserNodeIndex = { 1, 0, 0, 0xFFFF, 1, 0xFFFF, 0xFFFF, 0 };
-        m_ScrollToSelectedFrameBrowserNode = true;
     }
 
     /***********************************************************************************\
@@ -1733,6 +1731,7 @@ namespace Profiler
                                                 column.x = cycleCount;
                                                 column.y = cycleCount;
                                                 column.userData = &pipeline;
+                                                column.nodeIndex = index;
 
                                                 // Insert pipeline cycle count to histogram
                                                 columns.push_back( column );
@@ -1756,6 +1755,7 @@ namespace Profiler
                                                     column.x = cycleCount;
                                                     column.y = cycleCount;
                                                     column.userData = &drawcall;
+                                                    column.nodeIndex = index;
 
                                                     // Insert drawcall cycle count to histogram
                                                     columns.push_back( column );
@@ -1872,6 +1872,8 @@ namespace Profiler
 
         m_SelectedFrameBrowserNodeIndex = data.nodeIndex;
         m_ScrollToSelectedFrameBrowserNode = true;
+
+        m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
     }
 
     /***********************************************************************************\
@@ -2277,17 +2279,23 @@ namespace Profiler
         rectSize.x = cursorPosition.x + ImGui::GetWindowSize().x;
         rectSize.y = cursorPosition.y + ImGui::GetTextLineHeight();
 
-        ImU32 color = 0;
+        ImU32 color = ImGui::GetColorU32( { 1, 0, 0, significance } );
 
-        if( index != m_SelectedFrameBrowserNodeIndex )
+        if( index == m_SelectedFrameBrowserNodeIndex )
         {
-            // Mark significance by default
-            color = ImGui::GetColorU32( { 1, 0, 0, significance } );
-        }
-        else
-        {
+            using namespace std::chrono;
+            using namespace std::chrono_literals;
+
             // Node is selected
-            color = ImGui::GetColorU32( ImGuiCol_TabHovered );
+            ImU32 selectionColor = ImGui::GetColorU32( ImGuiCol_TabHovered );
+
+            // Interpolate color
+            auto now = std::chrono::high_resolution_clock::now();
+            float step = std::max( 0.0f, std::min( 1.0f,
+                duration_cast<Milliseconds>((now - m_SelectionUpdateTimestamp) - 0.3s).count() / 1000.0f ) );
+
+            // Linear interpolation
+            color = ImGuiX::ColorLerp( selectionColor, color, step );
         }
 
         ImDrawList* pDrawList = ImGui::GetWindowDrawList();
