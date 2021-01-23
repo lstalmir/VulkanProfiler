@@ -87,10 +87,13 @@ namespace Profiler
         Write collected results to the trace file.
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
+    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
     {
         // Setup state for serialization
         m_pData = &data;
+
+        DeviceProfilerTraceSerializationResult result = {};
+        result.m_Succeeded = true;
 
         // Serialize the data
         for( const auto& submitBatchData : data.m_Submits )
@@ -121,11 +124,12 @@ namespace Profiler
             GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
 
         // Write JSON file
-        SaveEventsToFile();
+        SaveEventsToFile( result );
 
         // Cleanup serializer state
         Cleanup();
         
+        return result;
     }
 
     /*************************************************************************\
@@ -512,7 +516,7 @@ namespace Profiler
         stringBuilder << std::put_time( tm, "%Y-%m-%d_%H-%M-%S" ) << "_" << ms.count();
         stringBuilder << ".json";
 
-        return stringBuilder.str();
+        return std::filesystem::absolute( stringBuilder.str() );
     }
 
     /*************************************************************************\
@@ -521,23 +525,51 @@ namespace Profiler
         SaveEventsToFile
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::SaveEventsToFile()
+    void DeviceProfilerTraceSerializer::SaveEventsToFile( DeviceProfilerTraceSerializationResult& result )
     {
-        json traceJson = {
-            { "traceEvents", json::array() },
-            { "displayTimeUnit", "ns" },
-            { "otherData", json::object() } };
-
-        // Create JSON objects
-        json& traceEvents = traceJson[ "traceEvents" ];
-
-        for( const TraceEvent* pEvent : m_pEvents )
+        if( result.m_Succeeded )
         {
-            traceEvents.push_back( *pEvent );
-        }
+            json traceJson = {
+                { "traceEvents", json::array() },
+                { "displayTimeUnit", "ns" },
+                { "otherData", json::object() } };
 
-        // Write JSON to file
-        std::ofstream( ConstructTraceFileName() ) << traceJson;
+            // Create JSON objects
+            json& traceEvents = traceJson[ "traceEvents" ];
+
+            for( const TraceEvent* pEvent : m_pEvents )
+            {
+                traceEvents.push_back( *pEvent );
+            }
+
+            // Open output file
+            std::filesystem::path filename = ConstructTraceFileName();
+            std::ofstream out( filename );
+
+            if( !out.is_open() )
+            {
+                // Failed to open file for writing
+                result.m_Succeeded = false;
+                result.m_Message = "Failed to open file\n" + filename.string();
+                return;
+            }
+
+            // Write JSON to file
+            out << traceJson;
+            out.flush();
+
+            if( out.bad() )
+            {
+                // Failed to write data
+                result.m_Succeeded = false;
+                result.m_Message = "Failed to write file\n" + filename.string();
+                return;
+            }
+
+            // Success
+            result.m_Succeeded = true;
+            result.m_Message = "Saved trace to\n" + filename.string();
+        }
     }
 
     /*************************************************************************\

@@ -27,6 +27,21 @@ namespace Profiler
 {
     /*************************************************************************\
 
+    Structure:
+        DeviceProfilerTraceSerializationResult
+
+    Description:
+        Provides feedback to the callee.
+
+    \*************************************************************************/
+    struct DeviceProfilerTraceSerializationResult
+    {
+        bool m_Succeeded;
+        std::string m_Message;
+    };
+
+    /*************************************************************************\
+
     Class:
         DeviceProfilerTraceSerializer
 
@@ -55,7 +70,7 @@ namespace Profiler
         DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
         ~DeviceProfilerTraceSerializer();
 
-        void Serialize( const struct DeviceProfilerFrameData& data );
+        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
@@ -96,7 +111,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
 
         std::filesystem::path ConstructTraceFileName() const;
-        void SaveEventsToFile();
+        void SaveEventsToFile( DeviceProfilerTraceSerializationResult& );
 
         void Cleanup();
     };

@@ -113,6 +113,20 @@ namespace Profiler
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
         , m_ShowDebugLabels( true )
+        , m_SelectedFrameBrowserNodeIndex( { 0xFFFF } )
+        , m_ScrollToSelectedFrameBrowserNode( false )
+        , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
+        , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
+        , m_SerializationSucceeded( false )
+        , m_SerializationMessage()
+        , m_SerializationOutputWindowSize( { 0, 0 } )
+        , m_SerializationOutputWindowDuration( std::chrono::seconds( 4 ) )
+        , m_SerializationOutputWindowFadeOutDuration( std::chrono::seconds( 1 ) )
+        , m_RenderPassColumnColor( 0 )
+        , m_GraphicsPipelineColumnColor( 0 )
+        , m_ComputePipelineColumnColor( 0 )
+        , m_InternalPipelineColumnColor( 0 )
+        , m_pStringSerializer( nullptr )
     {
     }
 
@@ -764,11 +778,15 @@ namespace Profiler
         // Save results to file
         if( ImGui::Button( Lang::Save ) )
         {
-            DeviceProfilerTraceSerializer serializer(
-                m_pStringSerializer,
-                m_TimestampPeriod );
+            DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
+            DeviceProfilerTraceSerializationResult result = serializer.Serialize( data );
 
-            serializer.Serialize( data );
+            m_SerializationSucceeded = result.m_Succeeded;
+            m_SerializationMessage = result.m_Message;
+
+            // Display message box
+            m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+            m_SerializationOutputWindowSize = { 0, 0 };
         }
 
         // Keep results
@@ -805,6 +823,9 @@ namespace Profiler
         }
 
         ImGui::EndTabBar();
+
+        // Draw other windows
+        DrawTraceSerializationOutputWindow();
 
         ImGui::End();
         ImGui::Render();
@@ -1996,6 +2017,68 @@ namespace Profiler
         m_ScrollToSelectedFrameBrowserNode = true;
 
         m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawTraceSerializationOutputWindow
+
+    Description:
+        Display window with serialization output.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawTraceSerializationOutputWindow()
+    {
+        using namespace std::chrono;
+        using namespace std::chrono_literals;
+
+        const auto& now = std::chrono::high_resolution_clock::now();
+
+        if( (now - m_SerializationFinishTimestamp) < 4s )
+        {
+            const ImVec2 windowPos = {
+                static_cast<float>(m_RenderArea.width - m_SerializationOutputWindowSize.width),
+                static_cast<float>(m_RenderArea.height - m_SerializationOutputWindowSize.height) };
+
+            const float fadeOutStep =
+                1.f - std::max( 0.f, std::min( 1.f,
+                    duration_cast<milliseconds>(now - (m_SerializationFinishTimestamp + 3s)).count() / 1000.f ) );
+
+            ImGui::PushStyleVar( ImGuiStyleVar_Alpha, fadeOutStep );
+
+            if( !m_SerializationSucceeded )
+            {
+                ImGui::PushStyleColor( ImGuiCol_WindowBg, { 1, 0, 0, 1 } );
+            }
+
+            ImGui::SetNextWindowPos( windowPos );
+            ImGui::Begin( "Trace Export", nullptr,
+                ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoTitleBar |
+                ImGuiWindowFlags_NoCollapse |
+                ImGuiWindowFlags_NoSavedSettings |
+                ImGuiWindowFlags_AlwaysAutoResize );
+
+            ImGui::Text( "%s", m_SerializationMessage.c_str() );
+
+            // Save final size of the window
+            if( m_SerializationOutputWindowSize.width == 0 )
+            {
+                const ImVec2 windowSize = ImGui::GetWindowSize();
+                m_SerializationOutputWindowSize.width = static_cast<uint32_t>(windowSize.x);
+                m_SerializationOutputWindowSize.height = static_cast<uint32_t>(windowSize.y);
+            }
+
+            ImGui::End();
+            ImGui::PopStyleVar();
+
+            if( !m_SerializationSucceeded )
+            {
+                ImGui::PopStyleColor();
+            }
+        }
     }
 
     /***********************************************************************************\

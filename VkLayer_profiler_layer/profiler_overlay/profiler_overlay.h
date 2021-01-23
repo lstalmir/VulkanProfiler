@@ -169,6 +169,14 @@ namespace Profiler
         bool m_ScrollToSelectedFrameBrowserNode;
 
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
+        std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
+
+        // Trace serialization output
+        bool m_SerializationSucceeded;
+        std::string m_SerializationMessage;
+        VkExtent2D m_SerializationOutputWindowSize;
+        std::chrono::milliseconds m_SerializationOutputWindowDuration;
+        std::chrono::milliseconds m_SerializationOutputWindowFadeOutDuration;
 
         // Performance graph colors
         uint32_t m_RenderPassColumnColor;
@@ -199,6 +207,9 @@ namespace Profiler
         void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
         void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
+
+        // Trace serialization helpers
+        void DrawTraceSerializationOutputWindow();
 
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );
