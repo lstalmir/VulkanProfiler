@@ -22,6 +22,7 @@
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <filesystem>
+#include <unordered_map>
 
 namespace Profiler
 {
@@ -89,11 +90,20 @@ namespace Profiler
         uint32_t     m_DebugLabelStackDepth;
 
         // Timestamp normalization
-        Milliseconds m_CpuQueueSubmitTimestampOffset;
-        uint64_t     m_GpuQueueSubmitTimestampOffset;
+        struct NormalizationConstants
+        {
+            Milliseconds m_CpuQueueSubmitTimestampOffset;
+            uint64_t     m_GpuQueueSubmitTimestampOffset;
+            Milliseconds m_GpuTimestampPeriod;
+
+            Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
+        };
+        NormalizationConstants m_NormalizationConstants;
         Milliseconds m_GpuTimestampPeriod;
 
-        void SetupTimestampNormalizationConstants( VkQueue );
+        std::unordered_map<VkQueue, NormalizationConstants> m_CommandQueueNormalizationConstants;
+
+        NormalizationConstants GetTimestampNormalizationConstants( VkQueue );
         Milliseconds GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 

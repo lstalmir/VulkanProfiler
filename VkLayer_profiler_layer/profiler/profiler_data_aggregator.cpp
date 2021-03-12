@@ -202,6 +202,10 @@ namespace Profiler
                     }
                 }
 
+                // Move semaphores associated with the batch
+                submitData.m_WaitSemaphores = std::move( submit.m_WaitSemaphores );
+                submitData.m_SignalSemaphores = std::move( submit.m_SignalSemaphores );
+
                 submitBatchData.m_Submits.push_back( submitData );
             }
 

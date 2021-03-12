@@ -769,6 +769,9 @@ namespace Profiler
 
             // Wrap submit info into our structure
             DeviceProfilerSubmit submit;
+            submit.m_pCommandBuffers.reserve( submitInfo.commandBufferCount );
+            submit.m_WaitSemaphores.reserve( submitInfo.waitSemaphoreCount );
+            submit.m_SignalSemaphores.reserve( submitInfo.signalSemaphoreCount );
 
             for( uint32_t commandBufferIdx = 0; commandBufferIdx < submitInfo.commandBufferCount; ++commandBufferIdx )
             {
@@ -780,6 +783,19 @@ namespace Profiler
                 profilerCommandBuffer.Submit();
 
                 submit.m_pCommandBuffers.push_back( &profilerCommandBuffer );
+            }
+
+            // Save semaphores to determine dependencies between queues
+            for( uint32_t semaphoreIdx = 0; semaphoreIdx < submitInfo.waitSemaphoreCount; ++semaphoreIdx )
+            {
+                VkSemaphore semaphore = submitInfo.pWaitSemaphores[semaphoreIdx];
+                submit.m_WaitSemaphores.push_back( semaphore );
+            }
+
+            for( uint32_t semaphoreIdx = 0; semaphoreIdx < submitInfo.signalSemaphoreCount; ++semaphoreIdx )
+            {
+                VkSemaphore semaphore = submitInfo.pSignalSemaphores[semaphoreIdx];
+                submit.m_SignalSemaphores.push_back( semaphore );
             }
 
             // Store the submit wrapper

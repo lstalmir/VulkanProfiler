@@ -35,13 +35,15 @@ namespace Profiler
 
     struct DeviceProfilerSubmit
     {
-        ContainerType<ProfilerCommandBuffer*>           m_pCommandBuffers;
+        std::vector<ProfilerCommandBuffer*>             m_pCommandBuffers;
+        std::vector<VkSemaphore>                        m_WaitSemaphores;
+        std::vector<VkSemaphore>                        m_SignalSemaphores;
     };
 
     struct DeviceProfilerSubmitBatch
     {
         VkQueue                                         m_Handle = {};
-        ContainerType<DeviceProfilerSubmit>             m_Submits = {};
+        std::vector<DeviceProfilerSubmit>               m_Submits = {};
         std::chrono::high_resolution_clock::time_point  m_Timestamp = {};
         uint32_t                                        m_ThreadId = {};
     };
