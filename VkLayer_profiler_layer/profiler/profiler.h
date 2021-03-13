@@ -24,6 +24,7 @@
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
 #include "profiler_data.h"
+#include "profiler_sync.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
@@ -156,6 +157,8 @@ namespace Profiler
         VkPerformanceConfigurationINTEL m_PerformanceConfigurationINTEL;
 
         ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
+
+        DeviceProfilerSynchronization m_Synchronization;
 
 
         VkResult InitializeINTEL();

@@ -31,6 +31,16 @@
 
 #include "VkLayer_profiler_layer.generated.h"
 
+// Exit current function without fixing the state
+#define RETURNONFAIL( VKRESULT )            \
+    {                                       \
+        VkResult result = (VKRESULT);       \
+        if( result != VK_SUCCESS )          \
+        {                                   \
+            return result;                  \
+        }                                   \
+    }
+
 // Helper macro for rolling-back to valid state
 #define DESTROYANDRETURNONFAIL( VKRESULT )  \
     {                                       \

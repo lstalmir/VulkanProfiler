@@ -208,25 +208,21 @@ namespace Profiler
         VkFenceCreateInfo fenceCreateInfo;
         ClearStructure( &fenceCreateInfo, VK_STRUCTURE_TYPE_FENCE_CREATE_INFO );
 
-        VkResult result = m_pDevice->Callbacks.CreateFence(
-            m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence );
+        DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateFence(
+            m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence ) );
 
         // Prepare for memory usage tracking
         m_MemoryData.m_Heaps.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeapCount );
         m_MemoryData.m_Types.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypeCount );
-
-        if( result != VK_SUCCESS )
-        {
-            // Fence creation failed
-            Destroy();
-            return result;
-        }
 
         // Enable vendor-specific extensions
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
             InitializeINTEL();
         }
+
+        // Initialize synchroniation manager
+        DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
 
         // Initialize aggregator
         m_DataAggregator.Initialize( this );
@@ -321,6 +317,8 @@ namespace Profiler
         m_pCommandPools.clear();
 
         m_Allocations.clear();
+
+        m_Synchronization.Destroy();
 
         if( m_SubmitFence != VK_NULL_HANDLE )
         {
@@ -829,7 +827,7 @@ namespace Profiler
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_PRESENT_EXT )
         {
             // Doesn't introduce in-frame CPU overhead but may cause some image-count-related issues disappear
-            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
+            m_Synchronization.WaitForDevice();
 
             // Collect data from the submitted command buffers
             m_DataAggregator.Aggregate();
@@ -841,6 +839,8 @@ namespace Profiler
             // Get data captured during the last frame
             m_Data = m_DataAggregator.GetAggregatedData();
         }
+
+        m_Data.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
 
         // TODO: Move to memory tracker
         m_Data.m_Memory = m_MemoryData;
@@ -857,6 +857,9 @@ namespace Profiler
 
         // Prepare aggregator for the next frame
         m_DataAggregator.Reset();
+
+        // Send synchronization timestamps
+        m_Synchronization.SendSynchronizationTimestamps();
     }
 
     /***********************************************************************************\

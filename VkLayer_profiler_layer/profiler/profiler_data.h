@@ -24,6 +24,7 @@
 #include <chrono>
 #include <vector>
 #include <list>
+#include <unordered_map>
 #include <cstring>
 #include <vulkan/vulkan.h>
 // Import extension structures
@@ -688,6 +689,8 @@ namespace Profiler
         DeviceProfilerCPUData                               m_CPU = {};
 
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
+
+        std::unordered_map<VkQueue, uint64_t>               m_SyncTimestamps = {};
     };
 }
 
