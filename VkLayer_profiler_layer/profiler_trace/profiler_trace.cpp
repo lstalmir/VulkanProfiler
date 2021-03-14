@@ -109,10 +109,34 @@ namespace Profiler
 
             for( const auto& submitData : submitBatchData.m_Submits )
             {
+                #if ENABLE_FLOW_EVENTS
+                for( const auto& waitSemaphore : submitData.m_WaitSemaphores )
+                {
+                    m_pEvents.push_back( new TraceEvent(
+                        TraceEvent::Phase::eFlowEnd,
+                        m_pStringSerializer->GetName( waitSemaphore ),
+                        "Synchronization",
+                        GetNormalizedGpuTimestamp( submitData.m_BeginTimestamp ),
+                        m_CommandQueue ) );
+                }
+                #endif
+
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
                     Serialize( commandBufferData );
                 }
+
+                #if ENABLE_FLOW_EVENTS
+                for( const auto& signalSemaphpre : submitData.m_SignalSemaphores )
+                {
+                    m_pEvents.push_back( new TraceEvent(
+                        TraceEvent::Phase::eFlowStart,
+                        m_pStringSerializer->GetName( signalSemaphpre ),
+                        "Synchronization",
+                        GetNormalizedGpuTimestamp( submitData.m_EndTimestamp ),
+                        m_CommandQueue ) );
+                }
+                #endif
             }
         }
 
@@ -150,31 +174,14 @@ namespace Profiler
 
         // Get base command buffer offset.
         // Better CPU-GPU correlation could be achieved from ETLs
-        m_GpuQueueSubmitTimestampOffset = -1;
+        m_GpuQueueSubmitTimestampOffset = m_pData->m_SyncTimestamps.at( queue );
 
-        // Take all command buffers submitted to this queue into account
         for( const auto& submitBatchData : m_pData->m_Submits )
         {
             if( submitBatchData.m_Handle == queue )
             {
-                bool updateCpuQueueSubmitTimestampOffset = false;
-
-                for( const auto& submitData : submitBatchData.m_Submits )
-                {
-                    for( const auto& commandBufferData : submitData.m_CommandBuffers )
-                    {
-                        if( commandBufferData.m_BeginTimestamp < m_GpuQueueSubmitTimestampOffset )
-                        {
-                            m_GpuQueueSubmitTimestampOffset = commandBufferData.m_BeginTimestamp;
-                            updateCpuQueueSubmitTimestampOffset = true;
-                        }
-                    }
-                }
-
-                if( updateCpuQueueSubmitTimestampOffset )
-                {
-                    m_CpuQueueSubmitTimestampOffset = GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp );
-                }
+                m_CpuQueueSubmitTimestampOffset = GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp );
+                break;
             }
         }
 

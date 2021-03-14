@@ -185,6 +185,11 @@ namespace Profiler
             for( const auto& submit : submitBatch.m_Submits )
             {
                 DeviceProfilerSubmitData submitData;
+                submitData.m_SignalSemaphores = submit.m_SignalSemaphores;
+                submitData.m_WaitSemaphores = submit.m_WaitSemaphores;
+
+                submitData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
+                submitData.m_EndTimestamp = 0;
 
                 for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
                 {
@@ -200,6 +205,11 @@ namespace Profiler
                         // Collect command buffer data now
                         submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
                     }
+
+                    submitData.m_BeginTimestamp = std::min(
+                        submitData.m_BeginTimestamp, submitData.m_CommandBuffers.back().m_BeginTimestamp );
+                    submitData.m_EndTimestamp = std::max(
+                        submitData.m_EndTimestamp, submitData.m_CommandBuffers.back().m_EndTimestamp );
                 }
 
                 submitBatchData.m_Submits.push_back( submitData );

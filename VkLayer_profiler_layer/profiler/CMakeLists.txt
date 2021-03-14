@@ -33,6 +33,7 @@ set (headers
     "profiler_resources.h"
     "profiler_shader.h"
     "profiler_stat_comparators.h"
+    "profiler_sync.h"
     )
 
 set (sources
@@ -40,6 +41,7 @@ set (sources
     "profiler_command_buffer.cpp"
     "profiler_command_pool.cpp"
     "profiler_data_aggregator.cpp"
+    "profiler_sync.cpp"
     # Windows
     "profiler_helpers_windows.cpp"
     # Linux
