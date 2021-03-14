@@ -109,10 +109,34 @@ namespace Profiler
 
             for( const auto& submitData : submitBatchData.m_Submits )
             {
+                #if ENABLE_FLOW_EVENTS
+                for( const auto& waitSemaphore : submitData.m_WaitSemaphores )
+                {
+                    m_pEvents.push_back( new TraceEvent(
+                        TraceEvent::Phase::eFlowEnd,
+                        m_pStringSerializer->GetName( waitSemaphore ),
+                        "Synchronization",
+                        GetNormalizedGpuTimestamp( submitData.m_BeginTimestamp ),
+                        m_CommandQueue ) );
+                }
+                #endif
+
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
                     Serialize( commandBufferData );
                 }
+
+                #if ENABLE_FLOW_EVENTS
+                for( const auto& signalSemaphpre : submitData.m_SignalSemaphores )
+                {
+                    m_pEvents.push_back( new TraceEvent(
+                        TraceEvent::Phase::eFlowStart,
+                        m_pStringSerializer->GetName( signalSemaphpre ),
+                        "Synchronization",
+                        GetNormalizedGpuTimestamp( submitData.m_EndTimestamp ),
+                        m_CommandQueue ) );
+                }
+                #endif
             }
         }
 

@@ -35,7 +35,9 @@ namespace Profiler
 
     struct DeviceProfilerSubmit
     {
-        ContainerType<ProfilerCommandBuffer*>           m_pCommandBuffers;
+        std::vector<ProfilerCommandBuffer*>             m_pCommandBuffers;
+        std::vector<VkSemaphore>                        m_SignalSemaphores = {};
+        std::vector<VkSemaphore>                        m_WaitSemaphores = {};
     };
 
     struct DeviceProfilerSubmitBatch

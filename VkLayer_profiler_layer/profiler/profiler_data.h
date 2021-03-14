@@ -588,6 +588,11 @@ namespace Profiler
     struct DeviceProfilerSubmitData
     {
         ContainerType<struct DeviceProfilerCommandBufferData> m_CommandBuffers = {};
+        std::vector<VkSemaphore>                            m_SignalSemaphores = {};
+        std::vector<VkSemaphore>                            m_WaitSemaphores = {};
+
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
     };
 
     /***********************************************************************************\
