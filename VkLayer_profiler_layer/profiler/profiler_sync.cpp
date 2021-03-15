@@ -136,6 +136,9 @@ namespace Profiler
         DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.AllocateCommandBuffers(
             m_pDevice->Handle, &commandBufferAllocateInfo, &m_TimestampQueryPoolResetCommandBuffer ) );
 
+        DESTROYANDRETURNONFAIL( m_pDevice->SetDeviceLoaderData(
+            m_pDevice->Handle, m_TimestampQueryPoolResetCommandBuffer ) );
+
         DESTROYANDRETURNONFAIL( RecordTimestmapQueryCommandBuffers() );
 
         // Create semaphore for synchronization between queues
