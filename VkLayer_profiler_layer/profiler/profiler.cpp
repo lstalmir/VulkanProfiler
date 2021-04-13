@@ -146,11 +146,21 @@ namespace Profiler
     \***********************************************************************************/
     std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions()
     {
-        return {
-            VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME,
+        std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
             VK_EXT_DEBUG_MARKER_EXTENSION_NAME
         };
+
+        const char* pDisableIntelPerformanceQueryExtension =
+            std::getenv( "VKPROF_DISABLE_INTEL_PERFORMANCE_QUERY_EXTENSION" );
+
+        if( !pDisableIntelPerformanceQueryExtension )
+        {
+            // Enable MDAPI data collection on Intel GPUs
+            deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+        }
+
+        return deviceExtensions;
     }
 
     /***********************************************************************************\
