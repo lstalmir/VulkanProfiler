@@ -275,11 +275,10 @@ namespace Profiler
         submitInfo.signalSemaphoreCount = 0;
         submitInfo.pSignalSemaphores = nullptr;
 
-        for( const auto& commandBuffer : m_CommandBuffers )
+        for( const auto& [commandQueue, commandBuffer] : m_CommandBuffers )
         {
-            submitInfo.pCommandBuffers = &commandBuffer.second;
-            m_pDevice->Callbacks.QueueSubmit(
-                m_TimestampQueryPoolResetQueue, 1, &submitInfo, VK_NULL_HANDLE );
+            submitInfo.pCommandBuffers = &commandBuffer;
+            m_pDevice->Callbacks.QueueSubmit( commandQueue, 1, &submitInfo, VK_NULL_HANDLE );
         }
 
         m_SynchronizationTimestampsSent = true;
