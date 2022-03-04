@@ -173,6 +173,7 @@ namespace Profiler
 
         // Trace serialization output
         bool m_SerializationSucceeded;
+        bool m_SerializationWindowVisible;
         std::string m_SerializationMessage;
         VkExtent2D m_SerializationOutputWindowSize;
         std::chrono::milliseconds m_SerializationOutputWindowDuration;

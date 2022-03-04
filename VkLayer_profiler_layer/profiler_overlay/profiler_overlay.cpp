@@ -787,6 +787,7 @@ namespace Profiler
             // Display message box
             m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
             m_SerializationOutputWindowSize = { 0, 0 };
+            m_SerializationWindowVisible = false;
         }
 
         // Keep results
@@ -2064,7 +2065,8 @@ namespace Profiler
             ImGui::Text( "%s", m_SerializationMessage.c_str() );
 
             // Save final size of the window
-            if( m_SerializationOutputWindowSize.width == 0 )
+            if ( m_SerializationWindowVisible &&
+                (m_SerializationOutputWindowSize.width == 0) )
             {
                 const ImVec2 windowSize = ImGui::GetWindowSize();
                 m_SerializationOutputWindowSize.width = static_cast<uint32_t>(windowSize.x);
@@ -2078,6 +2080,8 @@ namespace Profiler
             {
                 ImGui::PopStyleColor();
             }
+
+            m_SerializationWindowVisible = true;
         }
     }
 
