@@ -202,6 +202,23 @@ namespace Profiler
             m_Config.m_Flags = pCreateInfo->flags;
         }
 
+        // Configure the profiler from the environment.
+        if (const char* pSamplingMode = std::getenv("VKPROF_SAMPLING_MODE"))
+        {
+            if (std::strcmp(pSamplingMode, "DRAW") == 0)
+                m_Config.m_Mode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
+            if (std::strcmp(pSamplingMode, "PIPELINE") == 0)
+                m_Config.m_Mode = VK_PROFILER_MODE_PER_PIPELINE_EXT;
+            if (std::strcmp(pSamplingMode, "RENDERPASS") == 0)
+                m_Config.m_Mode = VK_PROFILER_MODE_PER_RENDER_PASS_EXT;
+            if (std::strcmp(pSamplingMode, "COMMANDBUFFER") == 0)
+                m_Config.m_Mode = VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT;
+            if (std::strcmp(pSamplingMode, "SUBMIT") == 0)
+                m_Config.m_Mode = VK_PROFILER_MODE_PER_SUBMIT_EXT;
+            if (std::strcmp(pSamplingMode, "FRAME") == 0)
+                m_Config.m_Mode = VK_PROFILER_MODE_PER_FRAME_EXT;
+        }
+
         // Check if preemption is enabled
         // It may break the results
         if( ProfilerPlatformFunctions::IsPreemptionEnabled() )
@@ -515,6 +532,7 @@ namespace Profiler
             profilerPipeline.m_Handle = pPipelines[i];
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+            profilerPipeline.m_Type = DeviceProfilerPipelineType::eGraphics;
 
             SetDefaultObjectName( profilerPipeline );
 
@@ -539,6 +557,7 @@ namespace Profiler
             profilerPipeline.m_Handle = pPipelines[ i ];
             profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+            profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
 
             SetDefaultObjectName( profilerPipeline );
 
@@ -1122,6 +1141,7 @@ namespace Profiler
         DeviceProfilerPipeline internalPipeline;
         internalPipeline.m_Handle = (VkPipeline)type;
         internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
+        internalPipeline.m_Type = type;
 
         // Assign name for the internal pipeline
         SetObjectName( internalPipeline.m_Handle, pName );

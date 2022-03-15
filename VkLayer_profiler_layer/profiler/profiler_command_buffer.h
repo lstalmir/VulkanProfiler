@@ -114,7 +114,7 @@ namespace Profiler
 
         void SendTimestampQuery( VkPipelineStageFlagBits );
 
-        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
+        bool SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
         void SetupCommandBufferForSecondaryBuffers();
 
         DeviceProfilerPipelineData& GetCurrentPipeline();

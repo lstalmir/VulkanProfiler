@@ -327,8 +327,11 @@ namespace Profiler
             AllocateQueryPool();
         }
 
-        // Record initial transitions and clears
-        SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        {
+            // Record initial transitions and clears
+            SendTimestampQuery(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        }
     }
 
     /***********************************************************************************\
@@ -342,7 +345,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents contents )
     {
-        SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        {
+            SendTimestampQuery(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+        }
 
         m_pCurrentRenderPassData = &m_Data.m_RenderPasses.back();
 
@@ -369,8 +375,11 @@ namespace Profiler
         m_pCurrentRenderPass = nullptr;
         m_pCurrentRenderPassData = nullptr;
 
-        // Record final transitions and resolves
-        SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        {
+            // Record final transitions and resolves
+            SendTimestampQuery(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        }
     }
 
     /***********************************************************************************\
@@ -384,7 +393,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostEndRenderPass()
     {
-        SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        {
+            SendTimestampQuery(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+        }
     }
 
     /***********************************************************************************\
@@ -453,6 +465,8 @@ namespace Profiler
     {
         const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
 
+        bool pipelineChanged = false;
+
         // Setup pipeline
         switch( pipelineType )
         {
@@ -462,15 +476,15 @@ namespace Profiler
             break;
 
         case DeviceProfilerPipelineType::eGraphics:
-            SetupCommandBufferForStatCounting( m_GraphicsPipeline );
+            pipelineChanged = SetupCommandBufferForStatCounting( m_GraphicsPipeline );
             break;
 
         case DeviceProfilerPipelineType::eCompute:
-            SetupCommandBufferForStatCounting( m_ComputePipeline );
+            pipelineChanged = SetupCommandBufferForStatCounting( m_ComputePipeline );
             break;
 
         default: // Internal pipelines
-            SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ) );
+            pipelineChanged = SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ) );
             break;
         }
 
@@ -480,8 +494,12 @@ namespace Profiler
         // Increment drawcall stats
         IncrementStat( drawcall );
 
-        // Begin timestamp query
-        SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        if ((m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) ||
+            ((m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_PIPELINE_EXT) && pipelineChanged))
+        {
+            // Begin timestamp query
+            SendTimestampQuery(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        }
     }
 
     /***********************************************************************************\
@@ -497,7 +515,8 @@ namespace Profiler
     {
         // End timestamp query
         // Debug labels have 0 duration, so there is no need for the second query
-        if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
+        if( (m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
+            (drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug) )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
@@ -646,30 +665,44 @@ namespace Profiler
                                 pipeline.m_BeginTimestamp = 0;
                                 pipeline.m_EndTimestamp = 0;
 
-                                for( auto& drawcall : pipeline.m_Drawcalls )
+                                if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
                                 {
-                                    // Don't collect data for debug labels
-                                    if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
+                                    for( auto& drawcall : pipeline.m_Drawcalls )
                                     {
-                                        // Update drawcall timestamps
-                                        drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
-                                        drawcall.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+                                        // Don't collect data for debug labels
+                                        if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
+                                        {
+                                            // Update drawcall timestamps
+                                            drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                            drawcall.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                                        // Each drawcall has begin and end query
-                                        currentQueryIndex += 2;
+                                            // Each drawcall has begin and end query
+                                            currentQueryIndex += 2;
+                                        }
+                                        else
+                                        {
+                                            // Provide timestamps for debug commands
+                                            drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                            drawcall.m_EndTimestamp = drawcall.m_BeginTimestamp;
+
+                                            // Debug drawcalls have only begin query
+                                            currentQueryIndex += 1;
+                                        }
+
+                                        // Propagate timestamps from drawcall to pipeline
+                                        UpdateTimestamps( pipeline, drawcall );
                                     }
-                                    else
-                                    {
-                                        // Provide timestamps for debug commands
-                                        drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
-                                        drawcall.m_EndTimestamp = drawcall.m_BeginTimestamp;
+                                }
+                                else if (
+                                    (pipeline.m_Type != DeviceProfilerPipelineType::eNone) &&
+                                    (pipeline.m_Type != DeviceProfilerPipelineType::eDebug) )
+                                {
+                                    // Update drawcall timestamps
+                                    pipeline.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                    pipeline.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                                        // Debug drawcalls have only begin query
-                                        currentQueryIndex += 1;
-                                    }
-
-                                    // Propagate timestamps from drawcall to pipeline
-                                    UpdateTimestamps( pipeline, drawcall );
+                                    // Each pipeline has begin and end query
+                                    currentQueryIndex += 1;
                                 }
 
                                 // Propagate timestamps from pipeline to subpass
@@ -825,7 +858,8 @@ namespace Profiler
         // Send new timestamp query after secondary command buffer subpass to subtract
         // time spent in the command buffer from the next subpass
         if( !currentRenderPassData.m_Subpasses.empty() &&
-            currentRenderPassData.m_Subpasses.back().m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+            currentRenderPassData.m_Subpasses.back().m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS &&
+            m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -919,8 +953,11 @@ namespace Profiler
 
     Description:
 
+    Returns:
+        True, if the pipeline has changed.
+
     \***********************************************************************************/
-    void ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline )
+    bool ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline )
     {
         // Check if we're in render pass
         if( !m_pCurrentRenderPassData )
@@ -943,7 +980,10 @@ namespace Profiler
             (currentSubpass.m_Pipelines.back().m_Handle != pipeline.m_Handle) )
         {
             currentSubpass.m_Pipelines.push_back( pipeline );
+            return true;
         }
+
+        return false;
     }
 
     /***********************************************************************************\

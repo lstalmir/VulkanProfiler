@@ -408,6 +408,7 @@ namespace Profiler
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
+        DeviceProfilerPipelineType                          m_Type = {};
     };
 
     /***********************************************************************************\
@@ -424,6 +425,7 @@ namespace Profiler
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
+        DeviceProfilerPipelineType                          m_Type = {};
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
@@ -434,6 +436,7 @@ namespace Profiler
             : m_Handle( pipeline.m_Handle )
             , m_BindPoint( pipeline.m_BindPoint )
             , m_ShaderTuple( pipeline.m_ShaderTuple )
+            , m_Type( pipeline.m_Type )
         {
         }
 
