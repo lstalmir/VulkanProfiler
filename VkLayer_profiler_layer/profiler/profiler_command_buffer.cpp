@@ -1,15 +1,15 @@
 // Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -259,6 +259,17 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::End()
     {
+        if( m_pCurrentRenderPassData != nullptr )
+        {
+            // Insert an ending timestamp for the previous render pass.
+            if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+            {
+                SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+            }
+
+            m_pCurrentRenderPassData = nullptr;
+        }
+
         // Send global timestamp query for the whole command buffer
         SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
@@ -309,10 +320,22 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPass( const VkRenderPassBeginInfo* pBeginInfo, VkSubpassContents )
     {
+        if( m_pCurrentRenderPassData != nullptr )
+        {
+            // Insert an ending timestamp for the previous render pass.
+            if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+            {
+                SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+            }
+
+            m_pCurrentRenderPassData = nullptr;
+        }
+
         m_pCurrentRenderPass = &m_Profiler.GetRenderPass( pBeginInfo->renderPass );
 
         DeviceProfilerRenderPassData profilerRenderPassData;
         profilerRenderPassData.m_Handle = pBeginInfo->renderPass;
+        profilerRenderPassData.m_Type = m_pCurrentRenderPass->m_Type;
 
         m_Data.m_RenderPasses.push_back( profilerRenderPassData );
 
@@ -327,10 +350,10 @@ namespace Profiler
             AllocateQueryPool();
         }
 
-        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
         {
             // Record initial transitions and clears
-            SendTimestampQuery(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
     }
 
@@ -345,9 +368,9 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents contents )
     {
-        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
         {
-            SendTimestampQuery(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
 
         m_pCurrentRenderPassData = &m_Data.m_RenderPasses.back();
@@ -375,10 +398,10 @@ namespace Profiler
         m_pCurrentRenderPass = nullptr;
         m_pCurrentRenderPassData = nullptr;
 
-        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
         {
             // Record final transitions and resolves
-            SendTimestampQuery(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
     }
 
@@ -393,9 +416,9 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostEndRenderPass()
     {
-        if (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT)
+        if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
         {
-            SendTimestampQuery(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+            SendTimestampQuery( VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
     }
 
@@ -467,6 +490,10 @@ namespace Profiler
 
         bool pipelineChanged = false;
 
+        // Insert a timestamp in per-render pass mode if command is recorded outside of the render pass
+        // and the internal render pass has changed.
+        DeviceProfilerRenderPassData* pPreviousRenderPassData = m_pCurrentRenderPassData;
+
         // Setup pipeline
         switch( pipelineType )
         {
@@ -494,11 +521,14 @@ namespace Profiler
         // Increment drawcall stats
         IncrementStat( drawcall );
 
-        if ((m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) ||
-            ((m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_PIPELINE_EXT) && pipelineChanged))
+        if( (m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) ||
+            ((m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+                (pipelineChanged)) ||
+            ((m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
+                (pPreviousRenderPassData != m_pCurrentRenderPassData)) )
         {
             // Begin timestamp query
-            SendTimestampQuery(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+            SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
     }
 
@@ -628,139 +658,156 @@ namespace Profiler
                 m_Data.m_BeginTimestamp = collectedQueries.front();
                 m_Data.m_EndTimestamp = collectedQueries.back();
 
-                for( auto& renderPass : m_Data.m_RenderPasses )
+                if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
                 {
-                    // Reset accumulated cycle count if buffer is being reused
-                    renderPass.m_BeginTimestamp = 0;
-                    renderPass.m_EndTimestamp = 0;
-
-                    if( renderPass.m_Handle != VK_NULL_HANDLE )
+                    for( auto& renderPass : m_Data.m_RenderPasses )
                     {
-                        // Valid render pass begins with vkCmdBeginRenderPass, which should have
-                        // 2 queries for initial transitions and clears.
-                        assert( currentQueryIndex < collectedQueries.size() );
+                        // Reset accumulated cycle count if buffer is being reused
+                        renderPass.m_BeginTimestamp = 0;
+                        renderPass.m_EndTimestamp = 0;
 
                         // Update render pass begin timestamp
                         renderPass.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
 
-                        // Get vkCmdBeginRenderPass time
-                        renderPass.m_Begin.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
-                        renderPass.m_Begin.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
-
-                        // Move to the next query
-                        currentQueryIndex += 2;
-                    }
-
-                    for( auto& subpass : renderPass.m_Subpasses )
-                    {
-                        // Reset accumulated cycle count if buffer is being reused
-                        subpass.m_BeginTimestamp = 0;
-                        subpass.m_EndTimestamp = 0;
-
-                        if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+                        if( (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+                            (renderPass.m_Handle != VK_NULL_HANDLE) )
                         {
-                            for( auto& pipeline : subpass.m_Pipelines )
+                            // Get vkCmdBeginRenderPass time
+                            renderPass.m_Begin.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                            renderPass.m_Begin.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
+                            // Move to the next query
+                            currentQueryIndex += 2;
+                        }
+
+                        for( auto& subpass : renderPass.m_Subpasses )
+                        {
+                            // Reset accumulated cycle count if buffer is being reused
+                            subpass.m_BeginTimestamp = 0;
+                            subpass.m_EndTimestamp = 0;
+
+                            if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                             {
-                                // Reset accumulated cycle count if buffer is being reused
-                                pipeline.m_BeginTimestamp = 0;
-                                pipeline.m_EndTimestamp = 0;
-
-                                if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+                                if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
                                 {
-                                    for( auto& drawcall : pipeline.m_Drawcalls )
+                                    for( auto& pipeline : subpass.m_Pipelines )
                                     {
-                                        // Don't collect data for debug labels
-                                        if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
-                                        {
-                                            // Update drawcall timestamps
-                                            drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
-                                            drawcall.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+                                        // Reset accumulated cycle count if buffer is being reused
+                                        pipeline.m_BeginTimestamp = 0;
+                                        pipeline.m_EndTimestamp = 0;
 
-                                            // Each drawcall has begin and end query
-                                            currentQueryIndex += 2;
+                                        if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+                                        {
+                                            for( auto& drawcall : pipeline.m_Drawcalls )
+                                            {
+                                                // Don't collect data for debug labels
+                                                if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
+                                                {
+                                                    // Update drawcall timestamps
+                                                    drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                                    drawcall.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+
+                                                    // Each drawcall has begin and end query
+                                                    currentQueryIndex += 2;
+                                                }
+                                                else
+                                                {
+                                                    // Provide timestamps for debug commands
+                                                    drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                                    drawcall.m_EndTimestamp = drawcall.m_BeginTimestamp;
+
+                                                    // Debug drawcalls have only begin query
+                                                    currentQueryIndex += 1;
+                                                }
+
+                                                // Propagate timestamps from drawcall to pipeline
+                                                UpdateTimestamps( pipeline, drawcall );
+                                            }
                                         }
-                                        else
+                                        else if(
+                                            (pipeline.m_Type != DeviceProfilerPipelineType::eNone) &&
+                                            (pipeline.m_Type != DeviceProfilerPipelineType::eDebug) )
                                         {
-                                            // Provide timestamps for debug commands
-                                            drawcall.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
-                                            drawcall.m_EndTimestamp = drawcall.m_BeginTimestamp;
+                                            // Update pipeline timestamps
+                                            pipeline.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                            pipeline.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                                            // Debug drawcalls have only begin query
+                                            // Each pipeline has only begin query
                                             currentQueryIndex += 1;
                                         }
 
-                                        // Propagate timestamps from drawcall to pipeline
-                                        UpdateTimestamps( pipeline, drawcall );
+                                        // Propagate timestamps from pipeline to subpass
+                                        UpdateTimestamps( subpass, pipeline );
                                     }
                                 }
-                                else if (
-                                    (pipeline.m_Type != DeviceProfilerPipelineType::eNone) &&
-                                    (pipeline.m_Type != DeviceProfilerPipelineType::eDebug) )
+                                else
                                 {
-                                    // Update drawcall timestamps
-                                    pipeline.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
-                                    pipeline.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
+                                    // Update subpass timestamps
+                                    subpass.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                                    subpass.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                                    // Each pipeline has begin and end query
+                                    // Each subpass has only begin query
                                     currentQueryIndex += 1;
                                 }
-
-                                // Propagate timestamps from pipeline to subpass
-                                UpdateTimestamps( subpass, pipeline );
                             }
+
+                            else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                            {
+                                for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
+                                {
+                                    VkCommandBuffer handle = commandBuffer.m_Handle;
+                                    ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
+
+                                    // Collect secondary command buffer data
+                                    commandBuffer = profilerCommandBuffer.GetData();
+                                    assert( commandBuffer.m_Handle == handle );
+
+                                    // Include profiling time of the secondary command buffer
+                                    m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
+
+                                    // Propagate timestamps from command buffer to subpass
+                                    UpdateTimestamps( subpass, commandBuffer );
+
+                                    // Collect secondary command buffer stats
+                                    m_Data.m_Stats += commandBuffer.m_Stats;
+                                }
+
+                                // Move to the next query
+                                currentQueryIndex++;
+                            }
+                            else
+                            {
+                                ProfilerPlatformFunctions::WriteDebug(
+                                    "%s - Unsupported VkSubpassContents enum value (%u)\n",
+                                    __FUNCTION__,
+                                    subpass.m_Contents );
+                            }
+
+                            // Propagate timestamps from subpass to render pass
+                            UpdateTimestamps( renderPass, subpass );
                         }
 
-                        else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                        if( (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+                            (renderPass.m_Handle != VK_NULL_HANDLE) )
                         {
-                            for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
-                            {
-                                VkCommandBuffer handle = commandBuffer.m_Handle;
-                                ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
+                            // Get vkCmdEndRenderPass time
+                            renderPass.m_End.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
+                            renderPass.m_End.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
-                                // Collect secondary command buffer data
-                                commandBuffer = profilerCommandBuffer.GetData();
-                                assert( commandBuffer.m_Handle == handle );
-
-                                // Include profiling time of the secondary command buffer
-                                m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
-
-                                // Propagate timestamps from command buffer to subpass
-                                UpdateTimestamps( subpass, commandBuffer );
-
-                                // Collect secondary command buffer stats
-                                m_Data.m_Stats += commandBuffer.m_Stats;
-                            }
+                            // Update render pass end timestamp
+                            renderPass.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
 
                             // Move to the next query
-                            currentQueryIndex++;
+                            currentQueryIndex += 2;
                         }
                         else
                         {
-                            ProfilerPlatformFunctions::WriteDebug(
-                                "%s - Unsupported VkSubpassContents enum value (%u)\n",
-                                __FUNCTION__,
-                                subpass.m_Contents );
+                            // Update render pass end timestamp
+                            renderPass.m_EndTimestamp = collectedQueries[ currentQueryIndex ];
+
+                            // Move to the next query
+                            currentQueryIndex += 1;
                         }
-
-                        // Propagate timestamps from subpass to render pass
-                        UpdateTimestamps( renderPass, subpass );
-                    }
-
-                    if( renderPass.m_Handle != VK_NULL_HANDLE )
-                    {
-                        // Valid render pass ends with vkCmdEndRenderPass, which should have
-                        // 2 queries for final transitions and resolves.
-                        assert( currentQueryIndex < collectedQueries.size() );
-
-                        // Get vkCmdEndRenderPass time
-                        renderPass.m_End.m_BeginTimestamp = collectedQueries[ currentQueryIndex ];
-                        renderPass.m_End.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
-
-                        // Update render pass end timestamp
-                        renderPass.m_EndTimestamp = collectedQueries[ currentQueryIndex + 1 ];
-
-                        // Move to the next query
-                        currentQueryIndex += 2;
                     }
                 }
             }
@@ -857,9 +904,10 @@ namespace Profiler
 
         // Send new timestamp query after secondary command buffer subpass to subtract
         // time spent in the command buffer from the next subpass
-        if( !currentRenderPassData.m_Subpasses.empty() &&
-            currentRenderPassData.m_Subpasses.back().m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS &&
-            m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+        if( currentRenderPassData.m_Subpasses.empty() ||
+            (m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) ||
+            (m_Profiler.m_Config.m_Mode < VK_PROFILER_MODE_PER_RENDER_PASS_EXT &&
+                currentRenderPassData.m_Subpasses.back().m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS) )
         {
             SendTimestampQuery( VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
@@ -879,28 +927,60 @@ namespace Profiler
         switch( drawcall.m_Type )
         {
         case DeviceProfilerDrawcallType::eDraw:
-        case DeviceProfilerDrawcallType::eDrawIndexed:              m_Stats.m_DrawCount++; break;
+        case DeviceProfilerDrawcallType::eDrawIndexed:
+            m_Stats.m_DrawCount++;
+            break;
         case DeviceProfilerDrawcallType::eDrawIndirect:
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
-        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount: m_Stats.m_DrawIndirectCount++; break;
-        case DeviceProfilerDrawcallType::eDispatch:                 m_Stats.m_DispatchCount++; break;
-        case DeviceProfilerDrawcallType::eDispatchIndirect:         m_Stats.m_DispatchIndirectCount++; break;
-        case DeviceProfilerDrawcallType::eCopyBuffer:               m_Stats.m_CopyBufferCount++; break;
-        case DeviceProfilerDrawcallType::eCopyBufferToImage:        m_Stats.m_CopyBufferToImageCount++; break;
-        case DeviceProfilerDrawcallType::eCopyImage:                m_Stats.m_CopyImageCount++; break;
-        case DeviceProfilerDrawcallType::eCopyImageToBuffer:        m_Stats.m_CopyImageToBufferCount++; break;
-        case DeviceProfilerDrawcallType::eClearAttachments:         m_Stats.m_ClearColorCount += drawcall.m_Payload.m_ClearAttachments.m_Count; break;
-        case DeviceProfilerDrawcallType::eClearColorImage:          m_Stats.m_ClearColorCount++; break;
-        case DeviceProfilerDrawcallType::eClearDepthStencilImage:   m_Stats.m_ClearDepthStencilCount++; break;
-        case DeviceProfilerDrawcallType::eResolveImage:             m_Stats.m_ResolveCount++; break;
-        case DeviceProfilerDrawcallType::eBlitImage:                m_Stats.m_BlitImageCount++; break;
-        case DeviceProfilerDrawcallType::eFillBuffer:               m_Stats.m_FillBufferCount++; break;
-        case DeviceProfilerDrawcallType::eUpdateBuffer:             m_Stats.m_UpdateBufferCount++; break;
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+            m_Stats.m_DrawIndirectCount++;
+            break;
+        case DeviceProfilerDrawcallType::eDispatch:
+            m_Stats.m_DispatchCount++;
+            break;
+        case DeviceProfilerDrawcallType::eDispatchIndirect:
+            m_Stats.m_DispatchIndirectCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyBuffer:
+            m_Stats.m_CopyBufferCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyBufferToImage:
+            m_Stats.m_CopyBufferToImageCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyImage:
+            m_Stats.m_CopyImageCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyImageToBuffer:
+            m_Stats.m_CopyImageToBufferCount++;
+            break;
+        case DeviceProfilerDrawcallType::eClearAttachments:
+            m_Stats.m_ClearColorCount += drawcall.m_Payload.m_ClearAttachments.m_Count;
+            break;
+        case DeviceProfilerDrawcallType::eClearColorImage:
+            m_Stats.m_ClearColorCount++;
+            break;
+        case DeviceProfilerDrawcallType::eClearDepthStencilImage:
+            m_Stats.m_ClearDepthStencilCount++;
+            break;
+        case DeviceProfilerDrawcallType::eResolveImage:
+            m_Stats.m_ResolveCount++;
+            break;
+        case DeviceProfilerDrawcallType::eBlitImage:
+            m_Stats.m_BlitImageCount++;
+            break;
+        case DeviceProfilerDrawcallType::eFillBuffer:
+            m_Stats.m_FillBufferCount++;
+            break;
+        case DeviceProfilerDrawcallType::eUpdateBuffer:
+            m_Stats.m_UpdateBufferCount++;
+            break;
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
         case DeviceProfilerDrawcallType::eEndDebugLabel:
-        case DeviceProfilerDrawcallType::eInsertDebugLabel:         break;
-        default: assert( !"IncrementStat(...) called with unknown drawcall type" );
+        case DeviceProfilerDrawcallType::eInsertDebugLabel:
+            break;
+        default:
+            assert( !"IncrementStat(...) called with unknown drawcall type" );
         }
     }
 
@@ -959,11 +1039,15 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline )
     {
+        const DeviceProfilerRenderPassType renderPassType = GetRenderPassTypeFromPipelineType( pipeline.m_Type );
+
         // Check if we're in render pass
-        if( !m_pCurrentRenderPassData )
+        if( !m_pCurrentRenderPassData ||
+            m_pCurrentRenderPassData->m_Type != renderPassType )
         {
-            m_Data.m_RenderPasses.push_back( { VK_NULL_HANDLE } );
-            m_pCurrentRenderPassData = &m_Data.m_RenderPasses.back();
+            m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
+            m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
+            m_pCurrentRenderPassData->m_Type = renderPassType;
         }
 
         // Check if current subpass allows inline commands
@@ -1008,6 +1092,28 @@ namespace Profiler
             m_pCurrentRenderPassData->m_Subpasses.back().m_Contents != VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
         {
             m_pCurrentRenderPassData->m_Subpasses.push_back( { m_CurrentSubpassIndex, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS } );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetRenderPassTypeFromPipelineType
+
+    Description:
+
+    \***********************************************************************************/
+    DeviceProfilerRenderPassType ProfilerCommandBuffer::GetRenderPassTypeFromPipelineType(
+        DeviceProfilerPipelineType pipelineType ) const
+    {
+        switch( pipelineType )
+        {
+        case DeviceProfilerPipelineType::eGraphics:
+            return DeviceProfilerRenderPassType::eGraphics;
+        case DeviceProfilerPipelineType::eCompute:
+            return DeviceProfilerRenderPassType::eCompute;
+        default:
+            return DeviceProfilerRenderPassType::eCopy;
         }
     }
 

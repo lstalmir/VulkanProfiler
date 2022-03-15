@@ -117,6 +117,8 @@ namespace Profiler
         bool SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
         void SetupCommandBufferForSecondaryBuffers();
 
+        DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;
+
         DeviceProfilerPipelineData& GetCurrentPipeline();
 
     };

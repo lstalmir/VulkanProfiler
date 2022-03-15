@@ -619,6 +619,7 @@ namespace Profiler
     {
         DeviceProfilerRenderPass deviceProfilerRenderPass;
         deviceProfilerRenderPass.m_Handle = renderPass;
+        deviceProfilerRenderPass.m_Type = DeviceProfilerRenderPassType::eGraphics;
         
         for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
         {
@@ -655,6 +656,7 @@ namespace Profiler
     {
         DeviceProfilerRenderPass deviceProfilerRenderPass;
         deviceProfilerRenderPass.m_Handle = renderPass;
+        deviceProfilerRenderPass.m_Type = DeviceProfilerRenderPassType::eGraphics;
 
         for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
         {

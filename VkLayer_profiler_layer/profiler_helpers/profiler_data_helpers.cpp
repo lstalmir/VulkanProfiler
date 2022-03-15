@@ -224,7 +224,22 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerRenderPassData& renderPass ) const
     {
-        return GetName( renderPass.m_Handle );
+        if( renderPass.m_Handle != VK_NULL_HANDLE )
+        {
+            return GetName( renderPass.m_Handle );
+        }
+
+        switch (renderPass.m_Type)
+        {
+        case DeviceProfilerRenderPassType::eGraphics:
+            return "Graphics Pass";
+        case DeviceProfilerRenderPassType::eCompute:
+            return "Compute Pass";
+        case DeviceProfilerRenderPassType::eCopy:
+            return "Copy Pass";
+        }
+
+        return "Unknown Pass";
     }
 
     /***********************************************************************************\

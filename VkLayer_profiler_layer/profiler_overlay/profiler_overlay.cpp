@@ -1,15 +1,15 @@
 // Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -256,8 +256,8 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             result = (m_pStringSerializer = new (std::nothrow) DeviceProfilerStringSerializer( device ))
-                ? VK_SUCCESS
-                : VK_ERROR_OUT_OF_HOST_MEMORY;
+                         ? VK_SUCCESS
+                         : VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
         // Don't leave object in partly-initialized state if something went wrong
@@ -372,12 +372,12 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerOverlayOutput::IsAvailable() const
     {
-        #ifndef _DEBUG
+#ifndef _DEBUG
         // There are many other objects that could be checked here, but we're keeping
         // object quite consistent in case of any errors during initialization, so
         // checking just one should be sufficient.
         return (m_pSwapchain);
-        #else
+#else
         // Check object state to confirm the note above
         return (m_pSwapchain)
             && (m_pDevice)
@@ -387,7 +387,7 @@ namespace Profiler
             && (m_pImGuiWindowContext)
             && (m_RenderPass)
             && (!m_CommandBuffers.empty());
-        #endif
+#endif
     }
 
     /***********************************************************************************\
@@ -418,8 +418,8 @@ namespace Profiler
         const VkSwapchainCreateInfoKHR* pCreateInfo )
     {
         assert( m_pSwapchain == nullptr ||
-            pCreateInfo->oldSwapchain == m_pSwapchain->Handle ||
-            pCreateInfo->oldSwapchain == VK_NULL_HANDLE );
+                pCreateInfo->oldSwapchain == m_pSwapchain->Handle ||
+                pCreateInfo->oldSwapchain == VK_NULL_HANDLE );
 
         VkResult result = VK_SUCCESS;
 
@@ -636,7 +636,7 @@ namespace Profiler
                 }
             }
         }
-        
+
         // Update objects
         if( result == VK_SUCCESS )
         {
@@ -858,33 +858,33 @@ namespace Profiler
 
         try
         {
-            #ifdef VK_USE_PLATFORM_WIN32_KHR
+#ifdef VK_USE_PLATFORM_WIN32_KHR
             if( window.Type == OSWindowHandleType::eWin32 )
             {
                 m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
             }
-            #endif // VK_USE_PLATFORM_WIN32_KHR
+#endif // VK_USE_PLATFORM_WIN32_KHR
 
-            #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
             if( window.Type == OSWindowHandleType::eWayland )
             {
                 m_pImGuiWindowContext = new ImGui_ImplWayland_Context( window.WaylandHandle );
             }
-            #endif // VK_USE_PLATFORM_WAYLAND_KHR
+#endif // VK_USE_PLATFORM_WAYLAND_KHR
 
-            #ifdef VK_USE_PLATFORM_XCB_KHR
+#ifdef VK_USE_PLATFORM_XCB_KHR
             if( window.Type == OSWindowHandleType::eXcb )
             {
                 m_pImGuiWindowContext = new ImGui_ImplXcb_Context( window.XcbHandle );
             }
-            #endif // VK_USE_PLATFORM_XCB_KHR
+#endif // VK_USE_PLATFORM_XCB_KHR
 
-            #ifdef VK_USE_PLATFORM_XLIB_KHR
+#ifdef VK_USE_PLATFORM_XLIB_KHR
             if( window.Type == OSWindowHandleType::eXlib )
             {
                 m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.XlibHandle );
             }
-            #endif // VK_USE_PLATFORM_XLIB_KHR
+#endif // VK_USE_PLATFORM_XLIB_KHR
         }
         catch( ... )
         {
@@ -920,7 +920,7 @@ namespace Profiler
         // Absolute path to the selected font
         std::filesystem::path fontPath;
 
-        #ifdef WIN32
+#ifdef WIN32
         {
             // Locate system fonts directory
             std::filesystem::path fontsPath;
@@ -946,8 +946,8 @@ namespace Profiler
                 else fontPath = "";
             }
         }
-        #endif
-        #ifdef __linux__
+#endif
+#ifdef __linux__
         {
             // Linux distros use multiple font directories (or X server, TODO)
             std::vector<std::filesystem::path> fontDirectories = {
@@ -1014,7 +1014,7 @@ namespace Profiler
                     break;
             }
         }
-        #endif
+#endif
 
         if( !fontPath.empty() )
         {
@@ -1239,7 +1239,7 @@ namespace Profiler
 
                     ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
                     ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
-                        pipelineTicks * 100.f / m_Data.m_Ticks, 
+                        pipelineTicks * 100.f / m_Data.m_Ticks,
                         pipelineTicks * m_TimestampPeriod.count() );
 
                     // Print up to 10 top pipelines
@@ -1257,8 +1257,8 @@ namespace Profiler
             ImGui::BeginTable( "Performance counters table",
                 /* columns_count */ 3,
                 ImGuiTableFlags_Resizable |
-                ImGuiTableFlags_NoClip |
-                ImGuiTableFlags_Borders );
+                    ImGuiTableFlags_NoClip |
+                    ImGuiTableFlags_Borders );
 
             // Headers
             ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
@@ -1411,8 +1411,8 @@ namespace Profiler
                 }
 
                 if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
-                    queueName.c_str(),
-                    static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
+                        queueName.c_str(),
+                        static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
                 {
                     for( const auto& submit : submitBatch.m_Submits )
                     {
@@ -1539,7 +1539,7 @@ namespace Profiler
                         std::stringstream sstr;
 
                         sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                            << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
+                             << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
 
                         if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
                         {
@@ -2044,7 +2044,7 @@ namespace Profiler
 
             const float fadeOutStep =
                 1.f - std::max( 0.f, std::min( 1.f,
-                    duration_cast<milliseconds>(now - (m_SerializationFinishTimestamp + 3s)).count() / 1000.f ) );
+                                         duration_cast<milliseconds>(now - (m_SerializationFinishTimestamp + 3s)).count() / 1000.f ) );
 
             ImGui::PushStyleVar( ImGuiStyleVar_Alpha, fadeOutStep );
 
@@ -2056,11 +2056,11 @@ namespace Profiler
             ImGui::SetNextWindowPos( windowPos );
             ImGui::Begin( "Trace Export", nullptr,
                 ImGuiWindowFlags_NoMove |
-                ImGuiWindowFlags_NoResize |
-                ImGuiWindowFlags_NoTitleBar |
-                ImGuiWindowFlags_NoCollapse |
-                ImGuiWindowFlags_NoSavedSettings |
-                ImGuiWindowFlags_AlwaysAutoResize );
+                    ImGuiWindowFlags_NoResize |
+                    ImGuiWindowFlags_NoTitleBar |
+                    ImGuiWindowFlags_NoCollapse |
+                    ImGuiWindowFlags_NoSavedSettings |
+                    ImGuiWindowFlags_AlwaysAutoResize );
 
             ImGui::Text( "%s", m_SerializationMessage.c_str() );
 
@@ -2108,12 +2108,12 @@ namespace Profiler
             (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
             (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) &&
             (((cmdBuffer.m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) &&
-                (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex)) ||
-            ((cmdBuffer.m_Level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) &&
-                (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SubpassIndex == index.SubpassIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex))) )
+                  (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex)) ||
+                ((cmdBuffer.m_Level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) &&
+                    (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
+                    (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
+                    (m_SelectedFrameBrowserNodeIndex.SubpassIndex == index.SubpassIndex) &&
+                    (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex))) )
         {
             // Tree contains selected node
             ImGui::SetNextItemOpen( true );
@@ -2123,7 +2123,7 @@ namespace Profiler
         if( ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( cmdBuffer.m_Handle ).c_str() ) )
         {
             // Command buffer opened
-            ImGuiX::TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod.count() );
+            PrintDuration( commandBufferTicks, VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT );
 
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
@@ -2149,7 +2149,7 @@ namespace Profiler
         else
         {
             // Command buffer collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", commandBufferTicks * m_TimestampPeriod.count() );
+            PrintDuration( commandBufferTicks, VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT );
         }
     }
 
@@ -2164,7 +2164,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp);
+        const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp );
 
         // Mark hotspots with color
         DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
@@ -2189,38 +2189,37 @@ namespace Profiler
         }
 
         const bool inRenderPassSubtree =
-            (renderPass.m_Handle != VK_NULL_HANDLE) &&
-            (ImGui::TreeNode( indexStr, "%s",
-                m_pStringSerializer->GetName( renderPass.m_Handle ).c_str() ));
+            ImGui::TreeNode( indexStr, "%s",
+                m_pStringSerializer->GetName( renderPass ).c_str() );
 
         if( inRenderPassSubtree )
         {
-            const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
-
             // Render pass subtree opened
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod.count() );
+            PrintDuration( renderPassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
 
-            index.DrawcallIndex = 0;
-
-            if( (m_ScrollToSelectedFrameBrowserNode) &&
-                (m_SelectedFrameBrowserNodeIndex == index) )
+            if( renderPass.m_Handle != VK_NULL_HANDLE )
             {
-                ImGui::SetScrollHereY();
+                const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+
+                index.DrawcallIndex = 0;
+
+                if( (m_ScrollToSelectedFrameBrowserNode) &&
+                    (m_SelectedFrameBrowserNodeIndex == index) )
+                {
+                    ImGui::SetScrollHereY();
+                }
+
+                // Mark hotspots with color
+                DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
+
+                index.DrawcallIndex = 0xFFFF;
+
+                // Print BeginRenderPass pipeline
+                ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
+
+                PrintDuration( renderPassBeginTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
             }
 
-            // Mark hotspots with color
-            DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
-
-            index.DrawcallIndex = 0xFFFF;
-
-            // Print BeginRenderPass pipeline
-            ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassBeginTicks * m_TimestampPeriod.count() );
-        }
-
-        if( inRenderPassSubtree ||
-            (renderPass.m_Handle == VK_NULL_HANDLE) )
-        {
             // Sort frame browser data
             std::list<const DeviceProfilerSubpassData*> pSubpasses =
                 SortFrameBrowserData( renderPass.m_Subpasses );
@@ -2244,37 +2243,37 @@ namespace Profiler
             {
                 index.SubpassIndex = 0xFFFF;
             }
-        }
 
-        if( inRenderPassSubtree )
-        {
-            const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
-
-            index.DrawcallIndex = 1;
-
-            if( (m_ScrollToSelectedFrameBrowserNode) &&
-                (m_SelectedFrameBrowserNodeIndex == index) )
+            if( renderPass.m_Handle != VK_NULL_HANDLE )
             {
-                ImGui::SetScrollHereY();
+                const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
+
+                index.DrawcallIndex = 1;
+
+                if( (m_ScrollToSelectedFrameBrowserNode) &&
+                    (m_SelectedFrameBrowserNodeIndex == index) )
+                {
+                    ImGui::SetScrollHereY();
+                }
+
+                // Mark hotspots with color
+                DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
+
+                index.DrawcallIndex = 0xFFFF;
+
+                // Print EndRenderPass pipeline
+                ImGui::TextUnformatted( "vkCmdEndRenderPass" );
+
+                PrintDuration( renderPassEndTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
             }
-
-            // Mark hotspots with color
-            DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
-
-            index.DrawcallIndex = 0xFFFF;
-
-            // Print EndRenderPass pipeline
-            ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassEndTicks * m_TimestampPeriod.count() );
 
             ImGui::TreePop();
         }
 
-        if( !inRenderPassSubtree &&
-            (renderPass.m_Handle != VK_NULL_HANDLE) )
+        if( !inRenderPassSubtree )
         {
             // Render pass collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", renderPassTicks * m_TimestampPeriod.count() );
+            PrintDuration( renderPassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
         }
     }
 
@@ -2321,7 +2320,7 @@ namespace Profiler
         if( inSubpassSubtree )
         {
             // Subpass subtree opened
-            ImGuiX::TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod.count() );
+            PrintDuration( subpassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
         }
 
         if( inSubpassSubtree ||
@@ -2370,7 +2369,7 @@ namespace Profiler
         if( !inSubpassSubtree && !isOnlySubpass && (subpass.m_Index != -1) )
         {
             // Subpass collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", subpassTicks * m_TimestampPeriod.count() );
+            PrintDuration( subpassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
         }
     }
 
@@ -2422,7 +2421,7 @@ namespace Profiler
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
-            ImGuiX::TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod.count() );
+            PrintDuration( pipelineTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
         }
 
         if( inPipelineSubtree || printPipelineInline )
@@ -2450,7 +2449,7 @@ namespace Profiler
         if( !inPipelineSubtree && !printPipelineInline )
         {
             // Pipeline collapsed
-            ImGuiX::TextAlignRight( "%.2f ms", pipelineTicks * m_TimestampPeriod.count() );
+            PrintDuration( pipelineTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
         }
     }
 
@@ -2481,13 +2480,36 @@ namespace Profiler
             const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
             ImGui::TextUnformatted( drawcallString.c_str() );
 
-            // Print drawcall duration
-            ImGuiX::TextAlignRight( "%.2f ms", drawcallTicks * m_TimestampPeriod.count() );
+            PrintDuration( drawcallTicks, VK_PROFILER_MODE_PER_DRAWCALL_EXT );
         }
         else
         {
             // Draw debug label
             PrintDebugLabel( drawcall.m_Payload.m_DebugLabel.m_pName, drawcall.m_Payload.m_DebugLabel.m_Color );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintDuration
+
+    Description:
+        Writes a duration label.
+        The label is written only if current sampling mode is at least minRequiredMode.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintDuration( uint64_t ticks, VkProfilerModeEXT minRequiredMode )
+    {
+        if( m_Data.m_SamplingMode <= minRequiredMode )
+        {
+            // Print the duration
+            ImGuiX::TextAlignRight( "%.2f ms", ticks * m_TimestampPeriod.count() );
+        }
+        else
+        {
+            // No data collected in this mode
+            ImGuiX::TextAlignRight( "- ms" );
         }
     }
 
@@ -2522,7 +2544,7 @@ namespace Profiler
             // Interpolate color
             auto now = std::chrono::high_resolution_clock::now();
             float step = std::max( 0.0f, std::min( 1.0f,
-                duration_cast<Milliseconds>((now - m_SelectionUpdateTimestamp) - 0.3s).count() / 1000.0f ) );
+                                             duration_cast<Milliseconds>((now - m_SelectionUpdateTimestamp) - 0.3s).count() / 1000.0f ) );
 
             // Linear interpolation
             color = ImGuiX::ColorLerp( selectionColor, color, step );

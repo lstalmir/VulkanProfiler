@@ -102,6 +102,21 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Enumeration:
+        DeviceProfilerRenderPassType
+
+    Description:
+
+    \***********************************************************************************/
+    enum class DeviceProfilerRenderPassType : uint32_t
+    {
+        eGraphics,
+        eCompute,
+        eCopy
+    };
+
+    /***********************************************************************************\
+
     Drawcall-specific playloads
 
     \***********************************************************************************/
@@ -493,6 +508,7 @@ namespace Profiler
     struct DeviceProfilerRenderPass
     {
         VkRenderPass                                        m_Handle = {};
+        DeviceProfilerRenderPassType                        m_Type = {};
         std::vector<struct DeviceProfilerSubpass>           m_Subpasses = {};
         uint32_t                                            m_ClearColorAttachmentCount = {};
         uint32_t                                            m_ClearDepthStencilAttachmentCount = {};
@@ -548,6 +564,8 @@ namespace Profiler
         VkRenderPass                                        m_Handle = {};
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
+
+        DeviceProfilerRenderPassType                        m_Type = {};
 
         DeviceProfilerRenderPassBeginData                   m_Begin = {};
         DeviceProfilerRenderPassEndData                     m_End = {};
@@ -692,6 +710,8 @@ namespace Profiler
         DeviceProfilerDrawcallStats                         m_Stats = {};
 
         uint64_t                                            m_Ticks = {};
+
+        VkProfilerModeEXT                                   m_SamplingMode = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};

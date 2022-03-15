@@ -121,9 +121,12 @@ namespace Profiler
                 }
                 #endif
 
-                for( const auto& commandBufferData : submitData.m_CommandBuffers )
+                if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT )
                 {
-                    Serialize( commandBufferData );
+                    for( const auto& commandBufferData : submitData.m_CommandBuffers )
+                    {
+                        Serialize( commandBufferData );
+                    }
                 }
 
                 #if ENABLE_FLOW_EVENTS
@@ -244,10 +247,13 @@ namespace Profiler
             GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
             m_CommandQueue ) );
 
-        for( const auto& renderPassData : data.m_RenderPasses )
+        if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
         {
-            // Serialize the render pass
-            Serialize( renderPassData );
+            for( const auto& renderPassData : data.m_RenderPasses )
+            {
+                // Serialize the render pass
+                Serialize( renderPassData );
+            }
         }
 
         // End
@@ -272,16 +278,17 @@ namespace Profiler
     {
         const std::string eventName = m_pStringSerializer->GetName( data );
 
-        if( data.m_Handle )
-        {
-            // Begin
-            m_pEvents.push_back( new TraceEvent(
-                TraceEvent::Phase::eDurationBegin,
-                eventName,
-                "Render passes",
-                GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
-                m_CommandQueue ) );
+        // Begin
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationBegin,
+            eventName,
+            "Render passes",
+            GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+            m_CommandQueue ) );
 
+        if( (m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+            (data.m_Handle != VK_NULL_HANDLE) )
+        {
             // vkCmdBeginRenderPass
             m_pEvents.push_back( new TraceCompleteEvent(
                 "vkCmdBeginRenderPass",
@@ -294,10 +301,11 @@ namespace Profiler
         for( const auto& subpassData : data.m_Subpasses )
         {
             // Serialize the subpass
-            Serialize( subpassData, (data.m_Subpasses.size() == 1) );
+            Serialize( subpassData, ( data.m_Subpasses.size() == 1 ) );
         }
 
-        if( data.m_Handle )
+        if( (m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+            (data.m_Handle != VK_NULL_HANDLE) )
         {
             // vkCmdEndRenderPass
             m_pEvents.push_back( new TraceCompleteEvent(
@@ -306,15 +314,15 @@ namespace Profiler
                 GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp ),
                 GetDuration( data.m_End ),
                 m_CommandQueue ) );
-
-            // End
-            m_pEvents.push_back( new TraceEvent(
-                TraceEvent::Phase::eDurationEnd,
-                eventName,
-                "Render passes",
-                GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
-                m_CommandQueue ) );
         }
+
+        // End
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationEnd,
+            eventName,
+            "Render passes",
+            GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+            m_CommandQueue ) );
     }
 
     /*************************************************************************\
@@ -344,10 +352,13 @@ namespace Profiler
         {
         case VK_SUBPASS_CONTENTS_INLINE:
         {
-            for( const auto& pipelineData : data.m_Pipelines )
+            if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
             {
-                // Serialize the pipelines
-                Serialize( pipelineData );
+                for( const auto& pipelineData : data.m_Pipelines )
+                {
+                    // Serialize the pipelines
+                    Serialize( pipelineData );
+                }
             }
             break;
         }
@@ -408,10 +419,13 @@ namespace Profiler
                 m_CommandQueue ) );
         }
 
-        for( const auto& drawcall : data.m_Drawcalls )
+        if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
-            // Serialize the drawcall
-            Serialize( drawcall );
+            for( const auto& drawcall : data.m_Drawcalls )
+            {
+                // Serialize the drawcall
+                Serialize( drawcall );
+            }
         }
 
         if( isValidPipeline )

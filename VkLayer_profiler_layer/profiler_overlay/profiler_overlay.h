@@ -219,6 +219,7 @@ namespace Profiler
         void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
         void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex );
         void PrintDebugLabel( const char*, const float[ 4 ] );
+        void PrintDuration( uint64_t, VkProfilerModeEXT );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
 

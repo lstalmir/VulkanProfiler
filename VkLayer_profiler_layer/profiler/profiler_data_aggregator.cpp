@@ -253,6 +253,7 @@ namespace Profiler
         auto aggregatedVendorMetrics = AggregateVendorMetrics();
 
         DeviceProfilerFrameData frameData;
+        frameData.m_SamplingMode = m_pProfiler->m_Config.m_Mode;
         frameData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
         frameData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
         frameData.m_VendorMetrics = aggregatedVendorMetrics;
