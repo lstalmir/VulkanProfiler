@@ -57,9 +57,9 @@ private:
         delete[] ptr;
     }
 
-    template<typename DataType, typename CallbackType>
+    template<typename DataContainer, typename CallbackType>
     inline VkResult SerializeSubregions(
-        const ContainerType<DataType>& data,
+        const DataContainer& data,
         CallbackType callback,
         VkProfilerRegionDataEXT& out )
     {

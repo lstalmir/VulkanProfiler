@@ -124,6 +124,7 @@ namespace Profiler
         , m_PresentMutex()
         , m_SubmitMutex()
         , m_Data()
+        , m_MemoryManager()
         , m_DataAggregator()
         , m_CurrentFrame( 0 )
         , m_CpuTimestampCounter()
@@ -251,8 +252,11 @@ namespace Profiler
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
 
+        // Initialize memory manager
+        DESTROYANDRETURNONFAIL( m_MemoryManager.Initialize( m_pDevice ) );
+
         // Initialize aggregator
-        m_DataAggregator.Initialize( this );
+        DESTROYANDRETURNONFAIL( m_DataAggregator.Initialize( this ) );
 
         // Initialize internal pipelines
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBuffer, "CopyBuffer" );
@@ -346,6 +350,7 @@ namespace Profiler
         m_Allocations.clear();
 
         m_Synchronization.Destroy();
+        m_MemoryManager.Destroy();
 
         if( m_SubmitFence != VK_NULL_HANDLE )
         {

@@ -23,6 +23,7 @@
 #include "profiler_command_pool.h"
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
+#include "profiler_memory_manager.h"
 #include "profiler_data.h"
 #include "profiler_sync.h"
 #include "profiler_layer_objects/VkObject.h"
@@ -133,6 +134,7 @@ namespace Profiler
         mutable std::mutex      m_DataMutex;
         DeviceProfilerFrameData m_Data;
 
+        DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
         uint32_t                m_CurrentFrame;

@@ -24,6 +24,7 @@
 #include <chrono>
 #include <vector>
 #include <list>
+#include <deque>
 #include <unordered_map>
 #include <cstring>
 #include <vulkan/vulkan.h>
@@ -32,7 +33,7 @@
 
 namespace Profiler
 {
-    template<typename T> using ContainerType = std::list<T>;
+    template<typename T> using ContainerType = std::deque<T>;
 
     /***********************************************************************************\
 
@@ -110,6 +111,7 @@ namespace Profiler
     \***********************************************************************************/
     enum class DeviceProfilerRenderPassType : uint32_t
     {
+        eNone,
         eGraphics,
         eCompute,
         eCopy
@@ -294,8 +296,8 @@ namespace Profiler
     {
         DeviceProfilerDrawcallType                          m_Type = {};
         DeviceProfilerDrawcallPayload                       m_Payload = {};
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
 
         inline DeviceProfilerPipelineType GetPipelineType() const
         {
@@ -316,7 +318,7 @@ namespace Profiler
             if( dc.GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 // Create copy of already stored string
-                m_Payload.m_DebugLabel.m_pName = strdup( dc.m_Payload.m_DebugLabel.m_pName );
+                m_Payload.m_DebugLabel.m_pName = _strdup( dc.m_Payload.m_DebugLabel.m_pName );
             }
         }
 
@@ -441,8 +443,8 @@ namespace Profiler
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
 
         inline DeviceProfilerPipelineData() = default;
@@ -489,11 +491,11 @@ namespace Profiler
     {
         uint32_t                                            m_Index = {};
         VkSubpassContents                                   m_Contents = {};
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
 
         ContainerType<struct DeviceProfilerPipelineData>    m_Pipelines = {};
-        ContainerType<struct DeviceProfilerCommandBufferData> m_SecondaryCommandBuffers = {};
+        std::list<struct DeviceProfilerCommandBufferData>   m_SecondaryCommandBuffers = {};
     };
 
     /***********************************************************************************\
@@ -528,8 +530,8 @@ namespace Profiler
         VkAttachmentLoadOp                                  m_ColorAttachmentLoadOp = {};
         VkAttachmentLoadOp                                  m_DepthAttachmentLoadOp = {};
         VkAttachmentLoadOp                                  m_StencilAttachmentLoadOp = {};
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
     };
 
     /***********************************************************************************\
@@ -546,8 +548,8 @@ namespace Profiler
         VkAttachmentStoreOp                                 m_ColorAttachmentStoreOp = {};
         VkAttachmentStoreOp                                 m_DepthAttachmentStoreOp = {};
         VkAttachmentStoreOp                                 m_StencilAttachmentStoreOp = {};
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
     };
 
     /***********************************************************************************\
@@ -562,8 +564,8 @@ namespace Profiler
     struct DeviceProfilerRenderPassData
     {
         VkRenderPass                                        m_Handle = {};
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
 
         DeviceProfilerRenderPassType                        m_Type = {};
 
@@ -587,8 +589,8 @@ namespace Profiler
         VkCommandBuffer                                     m_Handle = {};
         VkCommandBufferLevel                                m_Level = {};
         DeviceProfilerDrawcallStats                         m_Stats = {};
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
@@ -612,8 +614,8 @@ namespace Profiler
         std::vector<VkSemaphore>                            m_SignalSemaphores = {};
         std::vector<VkSemaphore>                            m_WaitSemaphores = {};
 
-        uint64_t                                            m_BeginTimestamp = {};
-        uint64_t                                            m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
+        uint64_t                                            m_EndTimestamp = UINT64_MAX;
     };
 
     /***********************************************************************************\
@@ -710,8 +712,6 @@ namespace Profiler
         DeviceProfilerDrawcallStats                         m_Stats = {};
 
         uint64_t                                            m_Ticks = {};
-
-        VkProfilerModeEXT                                   m_SamplingMode = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};

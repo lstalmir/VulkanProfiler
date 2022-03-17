@@ -121,12 +121,9 @@ namespace Profiler
                 }
                 #endif
 
-                if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT )
+                for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    for( const auto& commandBufferData : submitData.m_CommandBuffers )
-                    {
-                        Serialize( commandBufferData );
-                    }
+                    Serialize( commandBufferData );
                 }
 
                 #if ENABLE_FLOW_EVENTS
@@ -247,9 +244,9 @@ namespace Profiler
             GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
             m_CommandQueue ) );
 
-        if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+        for( const auto& renderPassData : data.m_RenderPasses )
         {
-            for( const auto& renderPassData : data.m_RenderPasses )
+            if( renderPassData.m_BeginTimestamp != UINT64_MAX )
             {
                 // Serialize the render pass
                 Serialize( renderPassData );
@@ -286,8 +283,8 @@ namespace Profiler
             GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
             m_CommandQueue ) );
 
-        if( (m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-            (data.m_Handle != VK_NULL_HANDLE) )
+        if( (data.m_Handle != VK_NULL_HANDLE) &&
+            (data.m_Begin.m_BeginTimestamp != UINT64_MAX) )
         {
             // vkCmdBeginRenderPass
             m_pEvents.push_back( new TraceCompleteEvent(
@@ -304,8 +301,8 @@ namespace Profiler
             Serialize( subpassData, ( data.m_Subpasses.size() == 1 ) );
         }
 
-        if( (m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-            (data.m_Handle != VK_NULL_HANDLE) )
+        if( (data.m_Handle != VK_NULL_HANDLE) &&
+            (data.m_End.m_BeginTimestamp != UINT64_MAX) )
         {
             // vkCmdEndRenderPass
             m_pEvents.push_back( new TraceCompleteEvent(
@@ -352,9 +349,9 @@ namespace Profiler
         {
         case VK_SUBPASS_CONTENTS_INLINE:
         {
-            if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
+            for( const auto& pipelineData : data.m_Pipelines )
             {
-                for( const auto& pipelineData : data.m_Pipelines )
+                if( pipelineData.m_BeginTimestamp != UINT64_MAX )
                 {
                     // Serialize the pipelines
                     Serialize( pipelineData );
@@ -419,9 +416,9 @@ namespace Profiler
                 m_CommandQueue ) );
         }
 
-        if( m_pData->m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+        for( const auto& drawcall : data.m_Drawcalls )
         {
-            for( const auto& drawcall : data.m_Drawcalls )
+            if( drawcall.m_BeginTimestamp != UINT64_MAX )
             {
                 // Serialize the drawcall
                 Serialize( drawcall );
@@ -503,7 +500,7 @@ namespace Profiler
                     m_pEvents.push_back( new DebugTraceEvent(
                         TraceEvent::Phase::eDurationEnd,
                         "",
-                        GetNormalizedGpuTimestamp( data.m_EndTimestamp ) ) );
+                        GetNormalizedGpuTimestamp( data.m_BeginTimestamp ) ) );
 
                     m_DebugLabelStackDepth--;
                 }

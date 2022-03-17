@@ -177,14 +177,14 @@ namespace Profiler
 
         for( const auto& submitBatch : submits )
         {
-            DeviceProfilerSubmitBatchData submitBatchData;
+            DeviceProfilerSubmitBatchData& submitBatchData = m_AggregatedData.emplace_back();
             submitBatchData.m_Handle = submitBatch.m_Handle;
             submitBatchData.m_Timestamp = submitBatch.m_Timestamp;
             submitBatchData.m_ThreadId = submitBatch.m_ThreadId;
 
             for( const auto& submit : submitBatch.m_Submits )
             {
-                DeviceProfilerSubmitData submitData;
+                DeviceProfilerSubmitData& submitData = submitBatchData.m_Submits.emplace_back();
                 submitData.m_SignalSemaphores = submit.m_SignalSemaphores;
                 submitData.m_WaitSemaphores = submit.m_WaitSemaphores;
 
@@ -211,11 +211,7 @@ namespace Profiler
                     submitData.m_EndTimestamp = std::max(
                         submitData.m_EndTimestamp, submitData.m_CommandBuffers.back().m_EndTimestamp );
                 }
-
-                submitBatchData.m_Submits.push_back( submitData );
             }
-
-            m_AggregatedData.push_back( submitBatchData );
         }
     }
 
@@ -246,17 +242,11 @@ namespace Profiler
         Prepare aggregator for the next profiling run.
 
     \***********************************************************************************/
-    DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData() const
+    DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
     {
-        auto aggregatedSubmits = m_AggregatedData;
-        auto aggregatedPipelines = CollectTopPipelines();
-        auto aggregatedVendorMetrics = AggregateVendorMetrics();
-
         DeviceProfilerFrameData frameData;
-        frameData.m_SamplingMode = m_pProfiler->m_Config.m_Mode;
-        frameData.m_Submits = { aggregatedSubmits.begin(), aggregatedSubmits.end() };
-        frameData.m_TopPipelines = { aggregatedPipelines.begin(), aggregatedPipelines.end() };
-        frameData.m_VendorMetrics = aggregatedVendorMetrics;
+        frameData.m_TopPipelines = CollectTopPipelines();
+        frameData.m_VendorMetrics = AggregateVendorMetrics();
 
         // Collect per-frame stats
         for( const auto& submitBatch : m_AggregatedData )
@@ -270,6 +260,8 @@ namespace Profiler
                 }
             }
         }
+
+        frameData.m_Submits = std::move( m_AggregatedData );
 
         return frameData;
     }
@@ -386,7 +378,7 @@ namespace Profiler
         Enumerate and sort all pipelines by duration descending.
 
     \***********************************************************************************/
-    std::list<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
+    ContainerType<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
     {
         // Identify pipelines by combined hash value
         std::unordered_map<uint32_t, DeviceProfilerPipelineData> aggregatedPipelines;
@@ -403,14 +395,15 @@ namespace Profiler
         }
 
         // Sort by time
-        std::list<DeviceProfilerPipelineData> pipelines;
+        ContainerType<DeviceProfilerPipelineData> pipelines;
 
         for( const auto& [_, aggregatedPipeline] : aggregatedPipelines )
         {
             pipelines.push_back( aggregatedPipeline );
         }
 
-        pipelines.sort( []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
+        std::sort( pipelines.begin(), pipelines.end(),
+            []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
                 return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
             } );

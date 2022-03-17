@@ -2123,7 +2123,7 @@ namespace Profiler
         if( ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( cmdBuffer.m_Handle ).c_str() ) )
         {
             // Command buffer opened
-            PrintDuration( commandBufferTicks, VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT );
+            PrintDuration( cmdBuffer );
 
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
@@ -2149,7 +2149,7 @@ namespace Profiler
         else
         {
             // Command buffer collapsed
-            PrintDuration( commandBufferTicks, VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT );
+            PrintDuration( cmdBuffer );
         }
     }
 
@@ -2195,7 +2195,7 @@ namespace Profiler
         if( inRenderPassSubtree )
         {
             // Render pass subtree opened
-            PrintDuration( renderPassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
+            PrintDuration( renderPass );
 
             if( renderPass.m_Handle != VK_NULL_HANDLE )
             {
@@ -2217,7 +2217,7 @@ namespace Profiler
                 // Print BeginRenderPass pipeline
                 ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
 
-                PrintDuration( renderPassBeginTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
+                PrintDuration( renderPass.m_Begin );
             }
 
             // Sort frame browser data
@@ -2264,7 +2264,7 @@ namespace Profiler
                 // Print EndRenderPass pipeline
                 ImGui::TextUnformatted( "vkCmdEndRenderPass" );
 
-                PrintDuration( renderPassEndTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
+                PrintDuration( renderPass.m_End );
             }
 
             ImGui::TreePop();
@@ -2273,7 +2273,7 @@ namespace Profiler
         if( !inRenderPassSubtree )
         {
             // Render pass collapsed
-            PrintDuration( renderPassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
+            PrintDuration( renderPass );
         }
     }
 
@@ -2320,7 +2320,7 @@ namespace Profiler
         if( inSubpassSubtree )
         {
             // Subpass subtree opened
-            PrintDuration( subpassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
+            PrintDuration( subpass );
         }
 
         if( inSubpassSubtree ||
@@ -2369,7 +2369,7 @@ namespace Profiler
         if( !inSubpassSubtree && !isOnlySubpass && (subpass.m_Index != -1) )
         {
             // Subpass collapsed
-            PrintDuration( subpassTicks, VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
+            PrintDuration( subpass );
         }
     }
 
@@ -2421,7 +2421,7 @@ namespace Profiler
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
-            PrintDuration( pipelineTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
+            PrintDuration( pipeline );
         }
 
         if( inPipelineSubtree || printPipelineInline )
@@ -2449,7 +2449,7 @@ namespace Profiler
         if( !inPipelineSubtree && !printPipelineInline )
         {
             // Pipeline collapsed
-            PrintDuration( pipelineTicks, VK_PROFILER_MODE_PER_PIPELINE_EXT );
+            PrintDuration( pipeline );
         }
     }
 
@@ -2480,36 +2480,12 @@ namespace Profiler
             const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
             ImGui::TextUnformatted( drawcallString.c_str() );
 
-            PrintDuration( drawcallTicks, VK_PROFILER_MODE_PER_DRAWCALL_EXT );
+            PrintDuration( drawcall );
         }
         else
         {
             // Draw debug label
             PrintDebugLabel( drawcall.m_Payload.m_DebugLabel.m_pName, drawcall.m_Payload.m_DebugLabel.m_Color );
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PrintDuration
-
-    Description:
-        Writes a duration label.
-        The label is written only if current sampling mode is at least minRequiredMode.
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintDuration( uint64_t ticks, VkProfilerModeEXT minRequiredMode )
-    {
-        if( m_Data.m_SamplingMode <= minRequiredMode )
-        {
-            // Print the duration
-            ImGuiX::TextAlignRight( "%.2f ms", ticks * m_TimestampPeriod.count() );
-        }
-        else
-        {
-            // No data collected in this mode
-            ImGuiX::TextAlignRight( "- ms" );
         }
     }
 
