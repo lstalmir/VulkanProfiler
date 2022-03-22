@@ -222,13 +222,31 @@ namespace Profiler
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
 
+        template<typename Data>
+        void PrintDuration( const Data& data )
+        {
+            if( (data.m_BeginTimestamp != UINT64_MAX) && (data.m_EndTimestamp != UINT64_MAX) )
+            {
+                const uint64_t ticks = data.m_EndTimestamp - data.m_BeginTimestamp;
+
+                // Print the duration
+                ImGuiX::TextAlignRight( "%.2f ms", ticks * m_TimestampPeriod.count() );
+            }
+            else
+            {
+                // No data collected in this mode
+                ImGuiX::TextAlignRight( "- ms" );
+            }
+        }
+
         // Sort frame browser data
         template<typename Data>
-        std::list<const Data*> SortFrameBrowserData( const ContainerType<Data>& data ) const
+        auto SortFrameBrowserData( const Data& data ) const
         {
-            std::list<const Data*> pSortedData;
+            using Subdata = typename Data::value_type;
+            std::list<const Subdata*> pSortedData;
 
-            for( const Data& subdata : data )
+            for( const auto& subdata : data )
                 pSortedData.push_back( &subdata );
 
             switch( m_FrameBrowserSortMode )
@@ -237,11 +255,11 @@ namespace Profiler
                 break; // No sorting in submission order view
 
             case FrameBrowserSortMode::eDurationDescending:
-                pSortedData.sort( []( const Data* a, const Data* b )
+                pSortedData.sort( []( const Subdata* a, const Subdata* b )
                     { return DurationDesc( *a, *b ); } ); break;
 
             case FrameBrowserSortMode::eDurationAscending:
-                pSortedData.sort( []( const Data* a, const Data* b )
+                pSortedData.sort( []( const Subdata* a, const Subdata* b )
                     { return DurationAsc( *a, *b ); } ); break;
             }
 

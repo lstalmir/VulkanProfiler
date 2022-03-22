@@ -25,11 +25,14 @@ project (profiler)
 set (headers
     "profiler.h"
     "profiler_command_buffer.h"
+    "profiler_command_buffer_query_pool.h"
     "profiler_command_pool.h"
     "profiler_counters.h"
     "profiler_data.h"
     "profiler_data_aggregator.h"
     "profiler_helpers.h"
+    "profiler_memory_manager.h"
+    "profiler_query_pool.h"
     "profiler_resources.h"
     "profiler_shader.h"
     "profiler_stat_comparators.h"
@@ -39,8 +42,11 @@ set (headers
 set (sources
     "profiler.cpp"
     "profiler_command_buffer.cpp"
+    "profiler_command_buffer_query_pool.cpp"
     "profiler_command_pool.cpp"
     "profiler_data_aggregator.cpp"
+    "profiler_memory_manager.cpp"
+    "profiler_query_pool.cpp"
     "profiler_sync.cpp"
     # Windows
     "profiler_helpers_windows.cpp"

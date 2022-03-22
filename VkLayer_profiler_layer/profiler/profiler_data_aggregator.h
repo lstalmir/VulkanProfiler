@@ -68,13 +68,13 @@ namespace Profiler
         void Aggregate();
         void Reset();
 
-        DeviceProfilerFrameData GetAggregatedData() const;
+        DeviceProfilerFrameData GetAggregatedData();
 
     private:
         DeviceProfiler* m_pProfiler;
 
-        std::list<DeviceProfilerSubmitBatch> m_Submits;
-        std::list<DeviceProfilerSubmitBatchData> m_AggregatedData;
+        ContainerType<DeviceProfilerSubmitBatch> m_Submits;
+        ContainerType<DeviceProfilerSubmitBatchData> m_AggregatedData;
 
         std::unordered_map<ProfilerCommandBuffer*, DeviceProfilerCommandBufferData> m_Data;
 
@@ -85,7 +85,7 @@ namespace Profiler
 
         std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
 
-        std::list<DeviceProfilerPipelineData> CollectTopPipelines() const;
+        ContainerType<DeviceProfilerPipelineData> CollectTopPipelines() const;
 
         void CollectPipelinesFromCommandBuffer(
             const DeviceProfilerCommandBufferData&,

@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_command_buffer_query_pool.h"
 #include "profiler_data.h"
 #include "profiler_counters.h"
 #include <vulkan/vk_layer.h>
@@ -77,45 +78,41 @@ namespace Profiler
         const DeviceProfilerCommandBufferData& GetData();
 
     protected:
-        DeviceProfiler& m_Profiler;
-        DeviceProfilerCommandPool& m_CommandPool;
+        DeviceProfiler&                     m_Profiler;
+        DeviceProfilerCommandPool&          m_CommandPool;
 
-        const VkCommandBuffer m_CommandBuffer;
-        const VkCommandBufferLevel m_Level;
+        const VkCommandBuffer               m_CommandBuffer;
+        const VkCommandBufferLevel          m_Level;
 
-        bool            m_ProfilingEnabled;
-        bool            m_Dirty;
+        bool                                m_ProfilingEnabled;
+        bool                                m_Dirty;
 
         std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
 
-        std::vector<VkQueryPool> m_QueryPools;
-        uint32_t        m_QueryPoolSize;
-        uint32_t        m_CurrentQueryPoolIndex;
-        uint32_t        m_CurrentQueryIndex;
+        CommandBufferQueryPool*             m_pQueryPool;
 
-        VkQueryPool     m_PerformanceQueryPoolINTEL;
+        DeviceProfilerDrawcallStats         m_Stats;
+        DeviceProfilerCommandBufferData     m_Data;
 
-        DeviceProfilerDrawcallStats m_Stats;
-        DeviceProfilerCommandBufferData m_Data;
+        DeviceProfilerRenderPass*           m_pCurrentRenderPass;
+        DeviceProfilerRenderPassData*       m_pCurrentRenderPassData;
+        DeviceProfilerSubpassData*          m_pCurrentSubpassData;
+        DeviceProfilerPipelineData*         m_pCurrentPipelineData;
+        DeviceProfilerDrawcall*             m_pCurrentDrawcallData;
 
-        DeviceProfilerRenderPass* m_pCurrentRenderPass;
-        DeviceProfilerRenderPassData* m_pCurrentRenderPassData;
+        uint32_t                            m_CurrentSubpassIndex;
 
-        uint32_t               m_CurrentSubpassIndex;
-
-        DeviceProfilerPipeline m_GraphicsPipeline;
-        DeviceProfilerPipeline m_ComputePipeline;
-
-        void AllocateQueryPool();
+        DeviceProfilerPipeline              m_GraphicsPipeline;
+        DeviceProfilerPipeline              m_ComputePipeline;
 
         void EndSubpass();
 
         void IncrementStat( const DeviceProfilerDrawcall& );
 
-        void SendTimestampQuery( VkPipelineStageFlagBits );
-
-        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
+        bool SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
         void SetupCommandBufferForSecondaryBuffers();
+
+        DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;
 
         DeviceProfilerPipelineData& GetCurrentPipeline();
 
