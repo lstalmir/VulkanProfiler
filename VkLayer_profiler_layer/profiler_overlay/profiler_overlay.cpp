@@ -109,6 +109,8 @@ namespace Profiler
         , m_CommandSemaphores()
         , m_VendorMetricProperties()
         , m_TimestampPeriod( 0 )
+        , m_TimestampDisplayUnit( 1.0f )
+        , m_pTimestampDisplayUnitStr( Lang::Milliseconds )
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
@@ -1675,23 +1677,48 @@ namespace Profiler
     {
         // Select synchronization mode
         {
-            static const char* groupOptions[] = {
+            static const char* syncGroupOptions[] = {
                 Lang::Present,
                 Lang::Submit };
 
-            // TMP
-            static int selectedOption = 0;
-            int previousSelectedOption = selectedOption;
+            static int syncModeSelectedOption = 0;
+            int previousSyncModeSelectedOption = syncModeSelectedOption;
 
-            ImGui::Combo( Lang::SyncMode, &selectedOption, groupOptions, 2 );
+            ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 );
 
-            if( selectedOption != previousSelectedOption )
+            if( syncModeSelectedOption != previousSyncModeSelectedOption )
             {
-                vkSetProfilerSyncModeEXT( m_pDevice->Handle, (VkProfilerSyncModeEXT)selectedOption );
+                vkSetProfilerSyncModeEXT( m_pDevice->Handle, (VkProfilerSyncModeEXT)syncModeSelectedOption );
             }
-
-            ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
         }
+
+        // Select time display unit.
+        {
+            static const char* timeUnitGroupOptions[] = {
+                Lang::Milliseconds,
+                Lang::Microseconds,
+                Lang::Nanoseconds };
+
+            static int timeUnitSelectedOption = 0;
+            int previousTimeUnitSelectedOption = timeUnitSelectedOption;
+
+            ImGui::Combo( Lang::TimeUnit, &timeUnitSelectedOption, timeUnitGroupOptions, 3 );
+
+            if( timeUnitSelectedOption != previousTimeUnitSelectedOption )
+            {
+                static float timeUnitFactors[] = {
+                    1.0f,
+                    1'000.0f,
+                    1'000'000.0f
+                };
+
+                m_TimestampDisplayUnit = timeUnitFactors[ timeUnitSelectedOption ];
+                m_pTimestampDisplayUnitStr = timeUnitGroupOptions[ timeUnitSelectedOption ];
+            }
+        }
+
+        // Display debug labels in frame browser.
+        ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
     }
 
     /***********************************************************************************\

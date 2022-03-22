@@ -87,6 +87,11 @@ namespace Profiler
         inline static constexpr char Submit[] = "Submit";
         inline static constexpr char SyncMode[] = "Sync mode";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
+        inline static constexpr char TimeUnit[] = "Time unit";
+
+        inline static constexpr char Milliseconds[] = "ms";
+        inline static constexpr char Microseconds[] = "us";
+        inline static constexpr char Nanoseconds[] = "ns";
 
         inline static constexpr char Unknown[] = "Unknown";
     };

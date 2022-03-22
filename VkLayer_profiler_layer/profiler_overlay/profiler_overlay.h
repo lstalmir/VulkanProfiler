@@ -113,6 +113,8 @@ namespace Profiler
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
 
         Milliseconds m_TimestampPeriod;
+        float m_TimestampDisplayUnit;
+        const char* m_pTimestampDisplayUnitStr;
 
         enum class FrameBrowserSortMode
         {
@@ -230,12 +232,15 @@ namespace Profiler
                 const uint64_t ticks = data.m_EndTimestamp - data.m_BeginTimestamp;
 
                 // Print the duration
-                ImGuiX::TextAlignRight( "%.2f ms", ticks * m_TimestampPeriod.count() );
+                ImGuiX::TextAlignRight( "%.2f %s",
+                    m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
+                    m_pTimestampDisplayUnitStr );
             }
             else
             {
                 // No data collected in this mode
-                ImGuiX::TextAlignRight( "- ms" );
+                ImGuiX::TextAlignRight( "- %s",
+                    m_pTimestampDisplayUnitStr );
             }
         }
 
