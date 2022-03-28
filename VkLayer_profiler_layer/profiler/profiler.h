@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler_counters.h"
 #include "profiler_command_pool.h"
+#include "profiler_config.h"
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
 #include "profiler_memory_manager.h"
@@ -48,22 +49,6 @@ namespace Profiler
 
     /***********************************************************************************\
 
-    Structure:
-        ProfilerConfig
-
-    Description:
-        Profiler configuration
-
-    \***********************************************************************************/
-    struct ProfilerConfig
-    {
-        VkProfilerCreateFlagsEXT  m_Flags;
-        VkProfilerModeEXT         m_Mode;
-        VkProfilerSyncModeEXT     m_SyncMode;
-    };
-
-    /***********************************************************************************\
-
     Class:
         DeviceProfiler
 
@@ -75,8 +60,10 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions();
+        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const VkProfilerCreateInfoEXT* );
         static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
+
+        static void LoadConfiguration( const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
         VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
 
@@ -127,7 +114,7 @@ namespace Profiler
     public:
         VkDevice_Object*        m_pDevice;
 
-        ProfilerConfig          m_Config;
+        DeviceProfilerConfig    m_Config;
 
         mutable std::mutex      m_SubmitMutex;
         mutable std::mutex      m_PresentMutex;

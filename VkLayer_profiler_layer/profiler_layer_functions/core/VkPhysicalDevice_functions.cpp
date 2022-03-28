@@ -104,8 +104,20 @@ namespace Profiler
         id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
             physicalDevice, nullptr, &availableExtensionCount, pAvailableDeviceExtensions );
 
+        // Check if profiler create info was provided
+        const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
+
+        for( const auto& it : PNextIterator( pCreateInfo->pNext ) )
+        {
+            if( it.sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
+            {
+                pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>( &it );
+                break;
+            }
+        }
+
         // Enable available optional device extensions
-        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions();
+        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions( pProfilerCreateInfo );
 
         for( uint32_t i = 0; i < availableExtensionCount; ++i )
         {
