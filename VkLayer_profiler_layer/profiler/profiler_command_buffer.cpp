@@ -448,11 +448,8 @@ namespace Profiler
             m_pCurrentSubpassData->m_Contents = contents;
 
             // Write begin timestamp of the subpass.
-            if( m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
-            {
-                m_pCurrentSubpassData->m_BeginTimestamp =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
-            }
+            m_pCurrentSubpassData->m_BeginTimestamp =
+                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
     }
 
@@ -876,6 +873,7 @@ namespace Profiler
 
             // Send timestamp query at the end of the subpass.
             if( (m_Profiler.m_Config.m_Mode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
+                (m_pCurrentPipelineData) &&
                 !(m_pCurrentPipelineData->m_Drawcalls.empty()) )
             {
                 m_pCurrentSubpassData->m_EndTimestamp =
@@ -888,7 +886,8 @@ namespace Profiler
             }
 
             // Update timestamp of the last pipeline in the subpass.
-            if( m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
+            if( (m_Profiler.m_Config.m_Mode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+                (m_pCurrentPipelineData) )
             {
                 m_pCurrentPipelineData->m_EndTimestamp = m_pCurrentSubpassData->m_EndTimestamp;
             }
