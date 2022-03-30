@@ -22,23 +22,22 @@
 
 #include <fstream>
 
-#define VKPROF_DISABLE_OVERLAY_CVAR_NAME "disable_overlay"
-#define VKPROF_DISABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME "disable_performance_query_ext"
+#define VKPROF_ENABLE_OVERLAY_CVAR_NAME "enable_overlay"
+#define VKPROF_ENABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME "enable_performance_query_ext"
 #define VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING_CVAR_NAME "enable_render_pass_begin_end_profiling"
 #define VKPROF_SAMPLING_MODE_CVAR_NAME "sampling_mode"
 #define VKPROF_SYNC_MODE_CVAR_NAME "sync_mode"
+
+#define VKPROF_GET_ENV_CVAR_NAME(cvar) "VKPROF_" cvar
 
 namespace Profiler
 {
     void DeviceProfilerConfig::SaveToFile( const std::filesystem::path& filename ) const
     {
         std::ofstream out( filename );
-        out << VKPROF_DISABLE_OVERLAY_CVAR_NAME " " <<
-            static_cast<int>( (m_Flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) != 0 ) << "\n";
-        out << VKPROF_DISABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME " " <<
-            static_cast<int>( (m_Flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) != 0 ) << "\n";
-        out << VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING_CVAR_NAME " " <<
-            static_cast<int>( (m_Flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0 ) << "\n";
+        out << VKPROF_ENABLE_OVERLAY_CVAR_NAME " " << m_EnableOverlay << "\n";
+        out << VKPROF_ENABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME " " << m_EnablePerformanceQueryExtension << "\n";
+        out << VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING_CVAR_NAME " " << m_EnableRenderPassBeginEndProfiling << "\n";
         out << VKPROF_SAMPLING_MODE_CVAR_NAME " " << static_cast<int>( m_SamplingMode ) << "\n";
         out << VKPROF_SYNC_MODE_CVAR_NAME " " << static_cast<int>( m_SyncMode ) << "\n";
     }
@@ -54,30 +53,21 @@ namespace Profiler
 
             if( !name.empty() )
             {
-                if( strcmp( name.c_str(), VKPROF_DISABLE_OVERLAY_CVAR_NAME ) == 0 )
+                if( strcmp( name.c_str(), VKPROF_ENABLE_OVERLAY_CVAR_NAME ) == 0 )
                 {
-                    if( atoi( value.c_str() ) != 0 )
-                    {
-                        m_Flags |= VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT;
-                    }
+                    m_EnableOverlay = atoi( value.c_str() );
                     continue;
                 }
 
-                if( strcmp( name.c_str(), VKPROF_DISABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME ) == 0 )
+                if( strcmp( name.c_str(), VKPROF_ENABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME ) == 0 )
                 {
-                    if( atoi( value.c_str() ) != 0 )
-                    {
-                        m_Flags |= VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT;
-                    }
+                    m_EnablePerformanceQueryExtension = atoi( value.c_str() );
                     continue;
                 }
 
                 if( strcmp( name.c_str(), VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING_CVAR_NAME ) == 0 )
                 {
-                    if( atoi( value.c_str() ) != 0 )
-                    {
-                        m_Flags |= VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT;
-                    }
+                    m_EnableRenderPassBeginEndProfiling = atoi( value.c_str() );
                     continue;
                 }
 
@@ -98,55 +88,36 @@ namespace Profiler
 
     void DeviceProfilerConfig::LoadFromCreateInfo( const VkProfilerCreateInfoEXT* pCreateInfo )
     {
-        m_Flags = pCreateInfo->flags;
+        m_EnableOverlay = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) == 0;
+        m_EnablePerformanceQueryExtension = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) == 0;
+        m_EnableRenderPassBeginEndProfiling = (pCreateInfo->flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0;
         m_SamplingMode = pCreateInfo->samplingMode;
         m_SyncMode = pCreateInfo->syncMode;
     }
 
     void DeviceProfilerConfig::LoadFromEnvironment()
     {
-        if( const char* pDisableOverlay = getenv( "VKPROF_DISABLE_OVERLAY" ) )
+        if( const char* pEnableOverlay = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_OVERLAY_CVAR_NAME ) ) )
         {
-            if( atoi( pDisableOverlay ) )
-            {
-                m_Flags |= VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT;
-            }
-            else
-            {
-                m_Flags &= ~VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT;
-            }
+            m_EnableOverlay = atoi( pEnableOverlay );
         }
 
-        if( const char* pDisablePerformanceQueryExt = getenv( "VKPROF_DISABLE_PERFORMANCE_QUERY_EXT" ) )
+        if( const char* pEnablePerformanceQueryExt = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME ) ) )
         {
-            if( atoi( pDisablePerformanceQueryExt ) )
-            {
-                m_Flags |= VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT;
-            }
-            else
-            {
-                m_Flags &= ~VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT;
-            }
+            m_EnablePerformanceQueryExtension = atoi( pEnablePerformanceQueryExt );
         }
 
-        if( const char* pEnableRenderPassBeginEndProfiling = getenv( "VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING" ) )
+        if( const char* pEnableRenderPassBeginEndProfiling = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING_CVAR_NAME ) ) )
         {
-            if( atoi( pEnableRenderPassBeginEndProfiling ) )
-            {
-                m_Flags |= VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT;
-            }
-            else
-            {
-                m_Flags &= ~VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT;
-            }
+            m_EnableRenderPassBeginEndProfiling = atoi( pEnableRenderPassBeginEndProfiling );
         }
 
-        if( const char* pSamplingMode = getenv( "VKPROF_SAMPLING_MODE" ) )
+        if( const char* pSamplingMode = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_SAMPLING_MODE_CVAR_NAME ) ) )
         {
             m_SamplingMode = static_cast<VkProfilerModeEXT>( atoi( pSamplingMode ) );
         }
 
-        if( const char* pSyncMode = getenv( "VKPROF_SYNC_MODE" ) )
+        if( const char* pSyncMode = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_SYNC_MODE_CVAR_NAME ) ) )
         {
             m_SyncMode = static_cast<VkProfilerSyncModeEXT>( atoi( pSyncMode ) );
         }

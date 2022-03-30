@@ -332,7 +332,7 @@ namespace Profiler
             // Record initial transitions and clears.
             if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    ((m_Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0)) )
+                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
                 m_pCurrentRenderPassData->m_Begin.m_BeginTimestamp = m_pCurrentRenderPassData->m_BeginTimestamp;
             }
@@ -355,7 +355,7 @@ namespace Profiler
         {
             if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    ((m_Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0)) )
+                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
                 m_pCurrentRenderPassData->m_Begin.m_EndTimestamp =
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
@@ -386,7 +386,7 @@ namespace Profiler
             // Record final transitions and resolves
             if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    ((m_Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0)) )
+                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
                 m_pCurrentRenderPassData->m_End.m_BeginTimestamp =
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
@@ -410,7 +410,7 @@ namespace Profiler
         {
             if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    ((m_Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0)) )
+                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
                 m_pCurrentRenderPassData->m_End.m_EndTimestamp =
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
@@ -735,7 +735,7 @@ namespace Profiler
 
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                            ((m_Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0))) &&
+                            m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) &&
                         (renderPass.m_Handle != VK_NULL_HANDLE) )
                     {
                         // Get vkCmdBeginRenderPass time
@@ -815,7 +815,7 @@ namespace Profiler
 
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                            ((m_Profiler.m_Config.m_Flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0))) &&
+                            m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) &&
                         (renderPass.m_Handle != VK_NULL_HANDLE) )
                     {
                         // Get vkCmdEndRenderPass time

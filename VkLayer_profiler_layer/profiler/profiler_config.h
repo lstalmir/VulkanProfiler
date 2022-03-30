@@ -28,8 +28,14 @@ namespace Profiler
     class DeviceProfilerConfig
     {
     public:
-        // Flags that control more specific aspects of the profiler.
-        VkProfilerCreateFlagsEXT m_Flags = 0;
+        // Whether to display the interactive overlay on the application's window.
+        bool m_EnableOverlay = true;
+
+        // Whether to enable VK_INTEL_performance_query extension.
+        bool m_EnablePerformanceQueryExtension = true;
+
+        // Whether to enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode.
+        bool m_EnableRenderPassBeginEndProfiling = false;
 
         // Frequency of sending timestamp queries in command buffers recorded by the application.
         VkProfilerModeEXT m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;

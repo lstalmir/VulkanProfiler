@@ -156,7 +156,7 @@ namespace Profiler
         DeviceProfilerConfig config;
         DeviceProfiler::LoadConfiguration( pCreateInfo, &config );
 
-        if( (config.m_Flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) == 0 )
+        if( config.m_EnablePerformanceQueryExtension )
         {
             // Enable MDAPI data collection on Intel GPUs
             deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
