@@ -65,3 +65,30 @@ VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
 {
     return Profiler::VkDevice_Functions::GetDeviceProcAddr( device, name );
 }
+
+#ifdef WIN32
+HINSTANCE g_hProfilerDllInstance;
+
+/***************************************************************************************\
+
+Function:
+    DllMain
+
+Description:
+    Called when the DLL is (un)loaded.
+
+\***************************************************************************************/
+BOOL APIENTRY DllMain(
+    HINSTANCE hDllInstance,
+    DWORD dwReason,
+    LPVOID lpReserved )
+{
+    if( dwReason == DLL_PROCESS_ATTACH )
+    {
+        // Save the profiler's DLL instance handle for window message hooking.
+        g_hProfilerDllInstance = hDllInstance;
+    }
+
+    return TRUE;
+}
+#endif
