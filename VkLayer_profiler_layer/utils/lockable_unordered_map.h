@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #pragma once
-#include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 
 /***********************************************************************************\
@@ -37,7 +37,7 @@ class ConcurrentMap : std::unordered_map<KeyType, ValueType>
 private:
     using BaseType = std::unordered_map<KeyType, ValueType>;
 
-    mutable std::mutex m_Mtx;
+    mutable std::shared_mutex m_Mtx;
 
 public:
     // Inherit constructors and types
@@ -54,6 +54,15 @@ public:
     // Try to lock access to the map
     bool try_lock() const { return m_Mtx.try_lock(); }
 
+    // Acquire a non-exclusive lock to the map
+    void lock_shared() const { m_Mtx.lock_shared(); }
+
+    // Release a non-exclusive lock
+    void unlock_shared() const { m_Mtx.unlock_shared(); }
+
+    // Try to acquire a non-exclusive lock to the map
+    bool try_lock_shared() const { return m_Mtx.try_lock_shared(); }
+
     // Remove all elements from the map (thread-safe)
     void clear()
     {
@@ -64,14 +73,14 @@ public:
     // Check if collection contains any elements
     bool empty() const
     {
-        std::scoped_lock lk( m_Mtx );
+        std::shared_lock lk( m_Mtx );
         return BaseType::empty();
     }
 
     // Get number of elements in the collection
     size_t size() const
     {
-        std::scoped_lock lk( m_Mtx );
+        std::shared_lock lk( m_Mtx );
         return BaseType::size();
     }
 
@@ -102,35 +111,24 @@ public:
     }
 
     // Remove value at key (thread-safe)
-    void remove( const KeyType& key )
+    template <typename Where>
+    auto remove(Where&& where)
     {
         std::scoped_lock lk( m_Mtx );
-        BaseType::erase( key );
-    }
-
-    // Remove value at key
-    void unsafe_remove( const KeyType& key )
-    {
-        BaseType::erase( key );
-    }
-
-    // Remove value at key (thread-safe)
-    iterator remove( const iterator& it )
-    {
-        std::scoped_lock lk( m_Mtx );
-        return BaseType::erase( it );
+        return BaseType::erase(where);
     }
 
     // Remove value at iterator
-    iterator unsafe_remove( const iterator& it )
+    template <typename Where>
+    auto unsafe_remove(Where&& where)
     {
-        return BaseType::erase( it );
+        return BaseType::erase( where );
     }
 
     // Get value at key (thread-safe)
     ValueType& at( const KeyType& key )
     {
-        std::scoped_lock lk( m_Mtx );
+        std::shared_lock lk( m_Mtx );
         return BaseType::at( key );
     }
 
@@ -143,7 +141,7 @@ public:
     // Get value at key (thread-safe)
     const ValueType& at( const KeyType& key ) const
     {
-        std::scoped_lock lk( m_Mtx );
+        std::shared_lock lk( m_Mtx );
         return BaseType::at( key );
     }
 
@@ -154,9 +152,9 @@ public:
     }
 
     // Check if map contains value at key, return that value (thread-safe)
-    bool find( const KeyType& key, ValueType* out )
+    bool find( const KeyType& key, ValueType* out ) const
     {
-        std::scoped_lock lk( m_Mtx );
+        std::shared_lock lk( m_Mtx );
         auto it = BaseType::find( key );
         if( it != BaseType::end() )
         {
@@ -167,7 +165,7 @@ public:
     }
 
     // Check if map contains value at key, return that value
-    auto unsafe_find( const KeyType& key )
+    auto unsafe_find( const KeyType& key ) const
     {
         return BaseType::find( key );
     }
