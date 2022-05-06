@@ -28,11 +28,13 @@
 #include <map>
 #include <vector>
 
+#include "../utils/lockable_unordered_map.h"
+
 namespace Profiler
 {
     struct VkDevice_debug_Object
     {
-        std::unordered_map<VkObject, std::string> ObjectNames;
+        ConcurrentMap<VkObject, std::string> ObjectNames;
     };
 
     struct VkDevice_Object

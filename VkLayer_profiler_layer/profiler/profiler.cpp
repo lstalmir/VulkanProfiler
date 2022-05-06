@@ -1062,7 +1062,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetObjectName( VkObject object, const char* pName )
     {
-        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pName );
+        m_pDevice->Debug.ObjectNames.insert( object, pName );
     }
 
     /***********************************************************************************\
@@ -1085,7 +1085,7 @@ namespace Profiler
         char pObjectDebugName[ 64 ] = {};
         sprintf_s( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
 
-        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pObjectDebugName );
+        m_pDevice->Debug.ObjectNames.insert( object, pObjectDebugName );
     }
 
     /***********************************************************************************\
@@ -1120,7 +1120,7 @@ namespace Profiler
             u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Vert );
             u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Frag );
 
-            m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
@@ -1129,7 +1129,7 @@ namespace Profiler
             char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
             u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Comp );
 
-            m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }
     }
 
