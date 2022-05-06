@@ -19,8 +19,10 @@
 // SOFTWARE.
 
 #include "profiler_config.h"
+#include "profiler_helpers.h"
 
 #include <fstream>
+#include <string>
 
 #define VKPROF_ENABLE_OVERLAY_CVAR_NAME "enable_overlay"
 #define VKPROF_ENABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME "enable_performance_query_ext"
@@ -97,29 +99,29 @@ namespace Profiler
 
     void DeviceProfilerConfig::LoadFromEnvironment()
     {
-        if( const char* pEnableOverlay = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_OVERLAY_CVAR_NAME ) ) )
+        if( auto enableOverlay = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_OVERLAY_CVAR_NAME ) ) )
         {
-            m_EnableOverlay = atoi( pEnableOverlay );
+            m_EnableOverlay = std::stoi( enableOverlay.value() );
         }
 
-        if( const char* pEnablePerformanceQueryExt = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME ) ) )
+        if( auto enablePerformanceQueryExt = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_PERFORMANCE_QUERY_EXT_CVAR_NAME ) ) )
         {
-            m_EnablePerformanceQueryExtension = atoi( pEnablePerformanceQueryExt );
+            m_EnablePerformanceQueryExtension = std::stoi( enablePerformanceQueryExt.value() );
         }
 
-        if( const char* pEnableRenderPassBeginEndProfiling = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING_CVAR_NAME ) ) )
+        if( auto enableRenderPassBeginEndProfiling = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_ENABLE_RENDER_PASS_BEGIN_END_PROFILING_CVAR_NAME ) ) )
         {
-            m_EnableRenderPassBeginEndProfiling = atoi( pEnableRenderPassBeginEndProfiling );
+            m_EnableRenderPassBeginEndProfiling = std::stoi( enableRenderPassBeginEndProfiling.value() );
         }
 
-        if( const char* pSamplingMode = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_SAMPLING_MODE_CVAR_NAME ) ) )
+        if( auto samplingMode = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_SAMPLING_MODE_CVAR_NAME ) ) )
         {
-            m_SamplingMode = static_cast<VkProfilerModeEXT>( atoi( pSamplingMode ) );
+            m_SamplingMode = static_cast<VkProfilerModeEXT>( std::stoi( samplingMode.value() ) );
         }
 
-        if( const char* pSyncMode = getenv( VKPROF_GET_ENV_CVAR_NAME( VKPROF_SYNC_MODE_CVAR_NAME ) ) )
+        if( auto syncMode = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_SYNC_MODE_CVAR_NAME ) ) )
         {
-            m_SyncMode = static_cast<VkProfilerSyncModeEXT>( atoi( pSyncMode ) );
+            m_SyncMode = static_cast<VkProfilerSyncModeEXT>( std::stoi( syncMode.value() ) );
         }
     }
 }
