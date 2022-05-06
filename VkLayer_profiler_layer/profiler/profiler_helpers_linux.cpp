@@ -118,6 +118,27 @@ namespace Profiler
         return static_cast<uint32_t>(getpid());
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetEnvironmentVar
+
+    Description:
+        Get environment variable.
+
+    \***********************************************************************************/
+    std::optional<std::string> ProfilerPlatformFunctions::GetEnvironmentVar( const char* pVariableName )
+    {
+        const char* pVariable = std::getenv( pVariableName );
+
+        if( !pVariable )
+        {
+            return std::nullopt;
+        }
+
+        return std::string( pVariable );
+    }
+
 }
 
 #endif // __linux__

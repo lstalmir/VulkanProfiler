@@ -56,7 +56,7 @@ namespace Profiler
                 // Increase size of the buffer a bit
                 buffer.resize( buffer.size() + MAX_PATH );
 
-                GetModuleFileNameA( hCurrentModule, buffer.data(), buffer.size() );
+                GetModuleFileNameA( hCurrentModule, buffer.data(), static_cast<uint32_t>(buffer.size()) );
 
                 // Update last error value
                 lastError = GetLastError();
@@ -151,6 +151,31 @@ namespace Profiler
     uint32_t ProfilerPlatformFunctions::GetCurrentProcessId()
     {
         return ::GetCurrentProcessId();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetEnvironmentVar
+
+    Description:
+        Get environment variable.
+
+    \***********************************************************************************/
+    std::optional<std::string> ProfilerPlatformFunctions::GetEnvironmentVar( const char* pVariableName )
+    {
+        DWORD variableLength = GetEnvironmentVariableA( pVariableName, nullptr, 0 );
+
+        if( variableLength == 0 )
+        {
+            assert( GetLastError() == ERROR_ENVVAR_NOT_FOUND );
+            return std::nullopt;
+        }
+
+        std::string variable( variableLength + 1, '\0' );
+        GetEnvironmentVariableA( pVariableName, variable.data(), variableLength + 1 );
+
+        return variable;
     }
 
 }

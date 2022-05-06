@@ -570,7 +570,8 @@ namespace Profiler
                     // Update end timestamp of the previous pipeline.
                     if( pPreviousPipelineData != nullptr )
                     {
-                        if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+                        if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
+                            !(pPreviousPipelineData->m_Drawcalls.empty()) )
                         {
                             pPreviousPipelineData->m_EndTimestamp =
                                 pPreviousPipelineData->m_Drawcalls.back().m_EndTimestamp;
@@ -634,13 +635,23 @@ namespace Profiler
         if( m_ProfilingEnabled )
         {
             // End timestamp query
-            // Debug labels have 0 duration, so there is no need for the second query
-            if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
-                (drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug) )
+            if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
             {
                 assert( m_pCurrentDrawcallData );
-                m_pCurrentDrawcallData->m_EndTimestamp =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+
+                if (drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug)
+                {
+                    // Send a timestamp query at the end of the command.
+                    m_pCurrentDrawcallData->m_EndTimestamp =
+                        m_pQueryPool->WriteTimestamp(m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+                }
+                else
+                {
+                    // Debug labels have 0 duration, so there is no need for the second query.
+                    m_pCurrentDrawcallData->m_EndTimestamp = m_pCurrentDrawcallData->m_BeginTimestamp;
+                }
+
+                m_pCurrentDrawcallData = nullptr;
             }
         }
     }
@@ -998,7 +1009,8 @@ namespace Profiler
 
         // Check if we're in render pass
         if( !m_pCurrentRenderPassData ||
-            (m_pCurrentRenderPassData->m_Type != renderPassType) )
+            ((m_pCurrentRenderPassData->m_Handle == VK_NULL_HANDLE) &&
+                (m_pCurrentRenderPassData->m_Type != renderPassType)) )
         {
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
             m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
@@ -1015,11 +1027,16 @@ namespace Profiler
             m_pCurrentSubpassData = &m_pCurrentRenderPassData->m_Subpasses.emplace_back();
             m_pCurrentSubpassData->m_Index = m_CurrentSubpassIndex;
             m_pCurrentSubpassData->m_Contents = VK_SUBPASS_CONTENTS_INLINE;
+
+            // Invalidate pipeline pointer after chainging the subpass.
+            m_pCurrentPipelineData = nullptr;
         }
 
         // Check if we're in pipeline
         if( !m_pCurrentPipelineData ||
-            (m_pCurrentPipelineData->m_Handle != pipeline.m_Handle) )
+            (m_pCurrentPipelineData->m_Handle != pipeline.m_Handle) ||
+            ((m_pCurrentPipelineData->m_Handle == VK_NULL_HANDLE) &&
+                (m_pCurrentPipelineData->m_Type != pipeline.m_Type)) )
         {
             m_pCurrentPipelineData = &m_pCurrentSubpassData->m_Pipelines.emplace_back( pipeline );
             return true;
@@ -1070,9 +1087,12 @@ namespace Profiler
         switch( pipelineType )
         {
         case DeviceProfilerPipelineType::eGraphics:
+        case DeviceProfilerPipelineType::eClearAttachments:
             return DeviceProfilerRenderPassType::eGraphics;
+
         case DeviceProfilerPipelineType::eCompute:
             return DeviceProfilerRenderPassType::eCompute;
+
         default:
             return DeviceProfilerRenderPassType::eCopy;
         }
