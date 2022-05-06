@@ -29,6 +29,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM
 static ConcurrentMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
 static HHOOK g_GetMessageHook;
 
+extern HINSTANCE g_hProfilerDllInstance;
+
 /***********************************************************************************\
 
 Function:
@@ -46,12 +48,24 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd )
     g_pWin32Contexts.insert( m_AppWindow, this );
 
     if( !ImGui_ImplWin32_Init( m_AppWindow ) )
+    {
         InitError();
+    }
 
     if( !g_GetMessageHook )
     {
-        // Register window hook on GetMessage/PeekMessage function
-        g_GetMessageHook = SetWindowsHook( WH_GETMESSAGE, ImGui_ImplWin32_Context::GetMessageHook );
+        // Register a global window hook on GetMessage/PeekMessage function.
+        g_GetMessageHook = SetWindowsHookEx(
+            WH_GETMESSAGE,
+            ImGui_ImplWin32_Context::GetMessageHook,
+            g_hProfilerDllInstance,
+            0 /*dwThreadId*/ );
+
+        if( !g_GetMessageHook )
+        {
+            // Failed to register hook on GetMessage.
+            InitError();
+        }
     }
 }
 
