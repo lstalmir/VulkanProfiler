@@ -28,6 +28,7 @@
 #include <vulkan/vk_layer.h>
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <optional>
 
 #include "VkLayer_profiler_layer.generated.h"
 
@@ -297,14 +298,20 @@ namespace Profiler
     public:
         inline static std::filesystem::path GetCustomConfigPath()
         {
+            static bool customConfigPathInitialized = false;
             std::filesystem::path customConfigPath = "";
 
-            // Check environment variable
-            const char* pEnvProfilerConfigPath = std::getenv( "PROFILER_CONFIG_PATH" );
-
-            if( pEnvProfilerConfigPath )
+            if( !customConfigPathInitialized )
             {
-                customConfigPath = pEnvProfilerConfigPath;
+                // Check environment variable
+                const auto envProfilerConfigPath = GetEnvironmentVar( "PROFILER_CONFIG_PATH" );
+
+                if( envProfilerConfigPath.has_value() )
+                {
+                    customConfigPath = envProfilerConfigPath.value();
+                }
+
+                customConfigPathInitialized = true;
             }
 
             // Returns empty if custom config path not defined
@@ -382,6 +389,8 @@ namespace Profiler
 
         static uint32_t GetCurrentThreadId();
         static uint32_t GetCurrentProcessId();
+
+        static std::optional<std::string> GetEnvironmentVar(const char* pVariableName);
 
     };
 }
