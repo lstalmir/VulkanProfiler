@@ -267,10 +267,11 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetName( const VkObject& object ) const
     {
-        auto it = m_Device.Debug.ObjectNames.find( object );
-        if( it != m_Device.Debug.ObjectNames.end() )
+        std::string objectName;
+
+        if( m_Device.Debug.ObjectNames.find( object, &objectName ) )
         {
-            return it->second;
+            return objectName;
         }
 
         return fmt::format( "{} {:#018x}", object.m_pTypeName, object.m_Handle );
