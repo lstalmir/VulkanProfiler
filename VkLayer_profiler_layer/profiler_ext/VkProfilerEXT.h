@@ -42,6 +42,8 @@ enum VkProfilerStructureTypeEXT
 enum VkProfilerCreateFlagBitsEXT
 {
     VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT = 1,
+    VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT = 2,
+    VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT = 4,
     VK_PROFILER_CREATE_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
@@ -135,6 +137,8 @@ typedef struct VkProfilerCreateInfoEXT
     VkProfilerStructureTypeEXT sType;
     const void* pNext;
     VkProfilerCreateFlagsEXT flags;
+    VkProfilerModeEXT samplingMode;
+    VkProfilerSyncModeEXT syncMode;
 } VkProfilerCreateInfoEXT;
 
 typedef struct VkProfilerCommandPropertiesEXT

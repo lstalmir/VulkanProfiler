@@ -145,17 +145,18 @@ namespace Profiler
         Get list of optional device extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions()
+    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const VkProfilerCreateInfoEXT* pCreateInfo )
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
             VK_EXT_DEBUG_MARKER_EXTENSION_NAME
         };
 
-        const char* pDisableIntelPerformanceQueryExtension =
-            std::getenv( "VKPROF_DISABLE_INTEL_PERFORMANCE_QUERY_EXTENSION" );
+        // Load configuration that will be used by the profiler.
+        DeviceProfilerConfig config;
+        DeviceProfiler::LoadConfiguration( pCreateInfo, &config );
 
-        if( !pDisableIntelPerformanceQueryExtension )
+        if( config.m_EnablePerformanceQueryExtension )
         {
             // Enable MDAPI data collection on Intel GPUs
             deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
@@ -184,6 +185,36 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        LoadConfiguration
+
+    Description:
+        Loads the configuration structure from all available sources.
+
+    \***********************************************************************************/
+    void DeviceProfiler::LoadConfiguration( const VkProfilerCreateInfoEXT* pCreateInfo, DeviceProfilerConfig* pConfig )
+    {
+        // Load configuration from file (if exists).
+        const std::filesystem::path& configFilename =
+            ProfilerPlatformFunctions::GetApplicationDir() / "VK_LAYER_profiler_config.ini";
+
+        if( std::filesystem::exists( configFilename ) )
+        {
+            pConfig->LoadFromFile( configFilename );
+        }
+
+        // Check if application provided create info
+        if( pCreateInfo )
+        {
+            pConfig->LoadFromCreateInfo( pCreateInfo );
+        }
+
+        // Configure the profiler from the environment.
+        pConfig->LoadFromEnvironment();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Initialize
 
     Description:
@@ -195,30 +226,8 @@ namespace Profiler
         m_pDevice = pDevice;
         m_CurrentFrame = 0;
 
-        std::memset( &m_Config, 0, sizeof( m_Config ) );
-
-        // Check if application provided create info
-        if( pCreateInfo )
-        {
-            m_Config.m_Flags = pCreateInfo->flags;
-        }
-
-        // Configure the profiler from the environment.
-        if (const char* pSamplingMode = std::getenv("VKPROF_SAMPLING_MODE"))
-        {
-            if (std::strcmp(pSamplingMode, "DRAW") == 0)
-                m_Config.m_Mode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
-            if (std::strcmp(pSamplingMode, "PIPELINE") == 0)
-                m_Config.m_Mode = VK_PROFILER_MODE_PER_PIPELINE_EXT;
-            if (std::strcmp(pSamplingMode, "RENDERPASS") == 0)
-                m_Config.m_Mode = VK_PROFILER_MODE_PER_RENDER_PASS_EXT;
-            if (std::strcmp(pSamplingMode, "COMMANDBUFFER") == 0)
-                m_Config.m_Mode = VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT;
-            if (std::strcmp(pSamplingMode, "SUBMIT") == 0)
-                m_Config.m_Mode = VK_PROFILER_MODE_PER_SUBMIT_EXT;
-            if (std::strcmp(pSamplingMode, "FRAME") == 0)
-                m_Config.m_Mode = VK_PROFILER_MODE_PER_FRAME_EXT;
-        }
+        // Configure the profiler.
+        DeviceProfiler::LoadConfiguration( pCreateInfo, &m_Config );
 
         // Check if preemption is enabled
         // It may break the results
@@ -368,7 +377,7 @@ namespace Profiler
     VkResult DeviceProfiler::SetMode( VkProfilerModeEXT mode )
     {
         // TODO: Invalidate all command buffers
-        m_Config.m_Mode = mode;
+        m_Config.m_SamplingMode = mode;
 
         return VK_SUCCESS;
     }
