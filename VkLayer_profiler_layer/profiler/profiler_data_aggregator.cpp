@@ -43,7 +43,7 @@ namespace Profiler
         inline void operator()( uint64_t& accWeight, T& acc, uint64_t valueWeight, const T& value ) const
         {
             accWeight += valueWeight;
-            acc += valueWeight * value;
+            acc += static_cast<T>( valueWeight * value );
         }
     };
 
@@ -277,7 +277,7 @@ namespace Profiler
     \***********************************************************************************/
     std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerDataAggregator::AggregateVendorMetrics() const
     {
-        const uint32_t metricCount = m_VendorMetricProperties.size();
+        const uint32_t metricCount = static_cast<uint32_t>( m_VendorMetricProperties.size() );
 
         // No vendor metrics available
         if( metricCount == 0 )

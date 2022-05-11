@@ -575,7 +575,7 @@ namespace Profiler
             allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocInfo.commandPool = m_CommandPool;
-            allocInfo.commandBufferCount = swapchainImageCount - m_Images.size();
+            allocInfo.commandBufferCount = swapchainImageCount - static_cast<uint32_t>( m_Images.size() );
 
             std::vector<VkCommandBuffer> commandBuffers( swapchainImageCount );
 
@@ -601,7 +601,7 @@ namespace Profiler
             }
 
             // Create additional per-command-buffer semaphores and fences
-            for( int i = m_Images.size(); i < swapchainImageCount; ++i )
+            for( size_t i = m_Images.size(); i < swapchainImageCount; ++i )
             {
                 VkFence fence;
                 VkSemaphore semaphore;
@@ -1090,7 +1090,7 @@ namespace Profiler
             imGuiInitInfo.CheckVkResultFn = nullptr;
 
             imGuiInitInfo.MinImageCount = pCreateInfo->minImageCount;
-            imGuiInitInfo.ImageCount = m_Images.size();
+            imGuiInitInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
             imGuiInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
             imGuiInitInfo.DescriptorPool = m_DescriptorPool;
@@ -1220,7 +1220,7 @@ namespace Profiler
             ImGuiX::PlotHistogramEx(
                 "",
                 columns.data(),
-                columns.size(),
+                static_cast<int>( columns.size() ),
                 0,
                 sizeof( columns.front() ),
                 pHistogramDescription, 0, FLT_MAX, { 0, 100 },
@@ -1535,7 +1535,7 @@ namespace Profiler
                 {
                     if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
                     {
-                        memoryTypeUsages[ typeIndex ] = m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationSize;
+                        memoryTypeUsages[ typeIndex ] = static_cast<float>( m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationSize );
 
                         // Prepare descriptor for memory type
                         std::stringstream sstr;
@@ -1818,7 +1818,7 @@ namespace Profiler
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             (data.m_Handle != VK_NULL_HANDLE) )
         {
-            const float cycleCount = data.m_EndTimestamp - data.m_BeginTimestamp;
+            const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -1892,7 +1892,7 @@ namespace Profiler
             ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
             (data.m_Handle != VK_NULL_HANDLE) )
         {
-            const float cycleCount = data.m_EndTimestamp - data.m_BeginTimestamp;
+            const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -1946,7 +1946,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        const float cycleCount = data.m_EndTimestamp - data.m_BeginTimestamp;
+        const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
 
         PerformanceGraphColumn column = {};
         column.x = cycleCount;

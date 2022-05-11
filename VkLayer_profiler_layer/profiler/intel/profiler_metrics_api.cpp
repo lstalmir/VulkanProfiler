@@ -21,8 +21,10 @@
 #include "profiler_metrics_api.h"
 #include "profiler/profiler_helpers.h"
 
+#ifndef NDEBUG
 #ifndef _DEBUG
 #define NDEBUG
+#endif
 #endif
 #include <assert.h>
 
@@ -168,8 +170,8 @@ namespace Profiler
             MD::TMetricParams_1_0* pMetricParams = pMetric->GetParams();
 
             VkProfilerPerformanceCounterPropertiesEXT counterProperties = {};
-            std::strcpy( counterProperties.shortName, pMetricParams->ShortName );
-            std::strcpy( counterProperties.description, pMetricParams->LongName );
+            ProfilerStringFunctions::CopyString( counterProperties.shortName, pMetricParams->ShortName, -1 );
+            ProfilerStringFunctions::CopyString( counterProperties.description, pMetricParams->LongName, -1 );
 
             switch( pMetricParams->ResultType )
             {
@@ -303,17 +305,17 @@ namespace Profiler
         {
             // Calculate normalized metrics from raw query data
             MD::ECompletionCode cc = m_pActiveMetricSet->CalculateMetrics(
-                (const unsigned char*)pQueryReportData,
-                queryReportSize,
+                reinterpret_cast<const unsigned char*>( pQueryReportData ),
+                static_cast<uint32_t>( queryReportSize ),
                 metrics.data(),
-                metrics.size() * sizeof( MD::TTypedValue_1_0 ),
+                static_cast<uint32_t>( metrics.size() * sizeof( MD::TTypedValue_1_0 ) ),
                 &reportCount,
                 false );
 
             assert( cc == MD::CC_OK );
         }
 
-        for( int i = 0; i < m_pActiveMetricSetParams->MetricsCount; ++i )
+        for( uint32_t i = 0; i < m_pActiveMetricSetParams->MetricsCount; ++i )
         {
             // Metric type information is stored in metric properties to reduce memory transaction overhead
             VkProfilerPerformanceCounterResultEXT parsedMetric = {};
@@ -388,10 +390,9 @@ namespace Profiler
         char pSystemDirectory[ MAX_PATH ];
         GetSystemDirectoryA( pSystemDirectory, MAX_PATH );
 
-        strcat( pSystemDirectory, "\\DriverStore\\FileRepository" );
-
         // Find location of igdmdX.dll
-        const std::filesystem::path mdDllPath = FindMetricsDiscoveryLibrary( pSystemDirectory );
+        const std::filesystem::path mdDllPath = FindMetricsDiscoveryLibrary(
+            std::filesystem::path( pSystemDirectory ) / "DriverStore" / "FileRepository" );
 
         if( !mdDllPath.empty() )
         {
