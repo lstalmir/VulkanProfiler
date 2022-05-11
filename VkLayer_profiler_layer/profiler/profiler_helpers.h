@@ -393,4 +393,56 @@ namespace Profiler
         static std::optional<std::string> GetEnvironmentVar(const char* pVariableName);
 
     };
+
+    struct ProfilerStringFunctions
+    {
+        static void CopyString( char* pDst, size_t dstSize, const char* pSrc, size_t srcSize )
+        {
+            if( dstSize > 0 )
+            {
+                // Avoid buffer overruns.
+                const size_t maxCopySize = std::min( dstSize, srcSize );
+
+                size_t copySize = 0;
+                while( (*pSrc) && (copySize < maxCopySize) )
+                {
+                    *(pDst++) = *(pSrc++);
+                    copySize++;
+                }
+
+                // Write null terminator at the end of the copied string.
+                if( (maxCopySize == dstSize) && (copySize == maxCopySize) )
+                {
+                    // If the source string did not fit in the destination buffer,
+                    // the null terminator must be inserted in the place of the last copied character,
+                    // because currently pDst points at the end of the available memory.
+                    pDst[-1] = 0;
+                }
+                else
+                {
+                    // If there is still place in the destination buffer,
+                    // insert the null terminator after the last copied character.
+                    *pDst = 0;
+                }
+            }
+        }
+
+        template<size_t dstSize, size_t srcSize>
+        static void CopyString( char( &dst )[ dstSize ], const char( &src )[ srcSize ] )
+        {
+            CopyString( dst, dstSize, src, srcSize );
+        }
+
+        template<size_t dstSize>
+        static void CopyString( char( &dst )[ dstSize ], const char* pSrc, size_t srcSize )
+        {
+            CopyString( dst, dstSize, pSrc, srcSize );
+        }
+
+        template<size_t srcSize>
+        static void CopyString( char* pDst, size_t dstSize, const char( &src )[ srcSize ] )
+        {
+            CopyString( pDst, dstSize, src, srcSize );
+        }
+    };
 }
