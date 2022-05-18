@@ -32,6 +32,8 @@
 #include <stack>
 #include <mutex>
 
+#include "tabs/profiler_shader_inspector_tab.h"
+
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -188,6 +190,9 @@ namespace Profiler
         uint32_t m_InternalPipelineColumnColor;
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
+
+        // Shader inspector tabs
+        std::vector<ProfilerShaderInspectorTab*> m_pTabs;
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );

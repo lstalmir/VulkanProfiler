@@ -149,7 +149,8 @@ namespace Profiler
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+            VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME
         };
 
         // Load configuration that will be used by the profiler.
@@ -603,9 +604,12 @@ namespace Profiler
     void DeviceProfiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
     {
         // Compute shader code hash to use later
-        const uint32_t hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+        DeviceProfilerShaderModule shaderModule = {};
+        shaderModule.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+        shaderModule.m_Bytecode.resize( pCreateInfo->codeSize / sizeof( uint32_t ) );
+        memcpy( shaderModule.m_Bytecode.data(), pCreateInfo->pCode, pCreateInfo->codeSize );
 
-        m_ShaderModuleHashes.insert( module, hash );
+        m_ShaderModules.insert( module, std::move( shaderModule ) );
     }
 
     /***********************************************************************************\
@@ -616,9 +620,9 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
+    void DeviceProfiler::DestroyShaderModule( VkShaderModule )
     {
-        m_ShaderModuleHashes.remove( module );
+        // Don't remove the shader module entry from the map so that the pipelines are not invalidated.
     }
 
     /***********************************************************************************\
@@ -993,38 +997,35 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    ProfilerShaderTuple DeviceProfiler::CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo )
+    DeviceProfilerPipelineShaderTuple DeviceProfiler::CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo )
     {
-        ProfilerShaderTuple tuple;
+        DeviceProfilerPipelineShaderTuple tuple;
+
+        // Array of shader hashes used in the pipeline
+        BitsetArray<VkShaderStageFlagBits, uint32_t, 32> shaderHashes = {};
 
         for( uint32_t i = 0; i < createInfo.stageCount; ++i )
         {
             // VkShaderModule entry should already be in the map
-            uint32_t hash = m_ShaderModuleHashes.at( createInfo.pStages[i].module );
+            DeviceProfilerShaderModule& shaderModule = m_ShaderModules.at( createInfo.pStages[i].module );
 
             const char* entrypoint = createInfo.pStages[i].pName;
 
             // Hash the entrypoint and append it to the final hash
+            uint32_t hash = shaderModule.m_Hash;
             hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
 
-            switch( createInfo.pStages[i].stage )
-            {
-            case VK_SHADER_STAGE_VERTEX_BIT: tuple.m_Vert = hash; break;
-            case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT: tuple.m_Tesc = hash; break;
-            case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT: tuple.m_Tese = hash; break;
-            case VK_SHADER_STAGE_GEOMETRY_BIT: tuple.m_Geom = hash; break;
-            case VK_SHADER_STAGE_FRAGMENT_BIT: tuple.m_Frag = hash; break;
+            DeviceProfilerPipelineShader& shader = tuple.m_Shaders[ createInfo.pStages[i].stage ];
+            shader.m_Hash = hash;
+            shader.m_EntryPoint = entrypoint;
+            shader.m_pShaderModule = &shaderModule;
 
-            default:
-            {
-                // Break in debug builds
-                assert( !"Usupported graphics shader stage" );
-            }
-            }
+            // Store the shader hash in the array for global hash computation
+            shaderHashes[ createInfo.pStages[i].stage ] = hash;
         }
 
         // Compute aggregated tuple hash for fast comparison
-        tuple.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(&tuple), sizeof( tuple ) );
+        tuple.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>( &shaderHashes ), sizeof( shaderHashes ) );
 
         return tuple;
     }
@@ -1037,22 +1038,26 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    ProfilerShaderTuple DeviceProfiler::CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo )
+    DeviceProfilerPipelineShaderTuple DeviceProfiler::CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo )
     {
-        ProfilerShaderTuple tuple;
+        DeviceProfilerPipelineShaderTuple tuple;
 
         // VkShaderModule entry should already be in the map
-        uint32_t hash = m_ShaderModuleHashes.at( createInfo.stage.module );
+        DeviceProfilerShaderModule& shaderModule = m_ShaderModules.at( createInfo.stage.module );
 
         const char* entrypoint = createInfo.stage.pName;
 
         // Hash the entrypoint and append it to the final hash
-        hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
+        uint32_t hash = shaderModule.m_Hash;
+        hash ^= Hash::Fingerprint32( entrypoint, ProfilerStringFunctions::GetLength( entrypoint ) );
 
         // This should be checked in validation layers
         assert( createInfo.stage.stage == VK_SHADER_STAGE_COMPUTE_BIT );
 
-        tuple.m_Comp = hash;
+        DeviceProfilerPipelineShader& shader = tuple.m_Shaders[ createInfo.stage.stage ];
+        shader.m_Hash = hash;
+        shader.m_EntryPoint = entrypoint;
+        shader.m_pShaderModule = &shaderModule;
 
         // Aggregated tuple hash for fast comparison
         tuple.m_Hash = hash;
@@ -1126,8 +1131,8 @@ namespace Profiler
         {
             // Vertex and pixel shader hashes
             char pPipelineDebugName[ 25 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Vert );
-            u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Frag );
+            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_VERTEX_BIT ].m_Hash );
+            u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_FRAGMENT_BIT ].m_Hash );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }
@@ -1136,7 +1141,7 @@ namespace Profiler
         {
             // Compute shader hash
             char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Comp );
+            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_COMPUTE_BIT ].m_Hash );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }

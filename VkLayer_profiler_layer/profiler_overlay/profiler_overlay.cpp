@@ -824,6 +824,10 @@ namespace Profiler
             UpdateSettingsTab();
             ImGui::EndTabItem();
         }
+        for( auto& tab : m_pTabs )
+        {
+            tab->Draw();
+        }
 
         ImGui::EndTabBar();
 
@@ -2443,6 +2447,29 @@ namespace Profiler
 
             inPipelineSubtree =
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
+
+            if( ImGui::BeginPopupContextItem() )
+            {
+                if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_VERTEX_BIT ].m_pShaderModule != nullptr) &&
+                    ImGui::MenuItem( "Show vertex shader", nullptr, nullptr ) )
+                {
+                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_VERTEX_BIT ) );
+                }
+                
+                if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_FRAGMENT_BIT ].m_pShaderModule != nullptr) &&
+                    ImGui::MenuItem( "Show pixel shader", nullptr, nullptr ) )
+                {
+                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT ) );
+                }
+                
+                if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_COMPUTE_BIT ].m_pShaderModule != nullptr) &&
+                    ImGui::MenuItem( "Show compute shader", nullptr, nullptr ) )
+                {
+                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_COMPUTE_BIT ) );
+                }
+
+                ImGui::EndPopup();
+            }
         }
 
         if( inPipelineSubtree )

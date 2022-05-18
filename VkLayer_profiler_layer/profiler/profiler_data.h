@@ -424,7 +424,7 @@ namespace Profiler
     {
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
-        ProfilerShaderTuple                                 m_ShaderTuple = {};
+        DeviceProfilerPipelineShaderTuple                   m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
     };
 
@@ -441,7 +441,7 @@ namespace Profiler
     {
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
-        ProfilerShaderTuple                                 m_ShaderTuple = {};
+        DeviceProfilerPipelineShaderTuple                   m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
         uint64_t                                            m_BeginTimestamp = UINT64_MAX;
         uint64_t                                            m_EndTimestamp = UINT64_MAX;

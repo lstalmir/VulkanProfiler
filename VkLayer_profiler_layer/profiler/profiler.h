@@ -136,7 +136,7 @@ namespace Profiler
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;
 
-        ConcurrentMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
+        ConcurrentMap<VkShaderModule, DeviceProfilerShaderModule> m_ShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
 
         ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
@@ -152,8 +152,8 @@ namespace Profiler
 
         VkResult InitializeINTEL();
 
-        ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& );
-        ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& );
+        DeviceProfilerPipelineShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& );
+        DeviceProfilerPipelineShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& );
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 
