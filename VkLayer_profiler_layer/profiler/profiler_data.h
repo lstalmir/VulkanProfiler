@@ -69,7 +69,9 @@ namespace Profiler
         eResolveImage = 0x000A0000,
         eBlitImage = 0x000B0000,
         eFillBuffer = 0x000C0000,
-        eUpdateBuffer = 0x000D0000
+        eUpdateBuffer = 0x000D0000,
+        eTraceRaysKHR = 0x000E0000,
+        eTraceRaysIndirectKHR = 0x000E0001
     };
 
     /***********************************************************************************\
@@ -98,7 +100,8 @@ namespace Profiler
         eFillBuffer = 0x000C0000,
         eUpdateBuffer = 0x000D0000,
         eBeginRenderPass = 0x000BFFFF,
-        eEndRenderPass = 0x000EFFFF
+        eEndRenderPass = 0x000EFFFF,
+        eRayTracingKHR = 0x000E0000,
     };
 
     /***********************************************************************************\
@@ -114,6 +117,7 @@ namespace Profiler
         eNone,
         eGraphics,
         eCompute,
+        eRayTracing,
         eCopy
     };
 
@@ -250,6 +254,13 @@ namespace Profiler
         VkDeviceSize m_Size;
     };
 
+    struct DeviceProfilerDrawcallTraceRaysPayload
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_Depth;
+    };
+
     /***********************************************************************************\
 
     Structure:
@@ -281,6 +292,7 @@ namespace Profiler
         DeviceProfilerDrawcallBlitImagePayload m_BlitImage;
         DeviceProfilerDrawcallFillBufferPayload m_FillBuffer;
         DeviceProfilerDrawcallUpdateBufferPayload m_UpdateBuffer;
+        DeviceProfilerDrawcallTraceRaysPayload m_TraceRays;
     };
 
     /***********************************************************************************\
@@ -387,6 +399,8 @@ namespace Profiler
         uint32_t m_BlitImageCount = {};
         uint32_t m_FillBufferCount = {};
         uint32_t m_UpdateBufferCount = {};
+        uint32_t m_TraceRaysCount = {};
+        uint32_t m_TraceRaysIndirectCount = {};
         uint32_t m_PipelineBarrierCount = {};
 
         // Stat aggregation helper
@@ -406,6 +420,8 @@ namespace Profiler
             m_BlitImageCount += rh.m_BlitImageCount;
             m_FillBufferCount += rh.m_FillBufferCount;
             m_UpdateBufferCount += rh.m_UpdateBufferCount;
+            m_TraceRaysCount += rh.m_TraceRaysCount;
+            m_TraceRaysIndirectCount += rh.m_TraceRaysIndirectCount;
             m_PipelineBarrierCount += rh.m_PipelineBarrierCount;
             return *this;
         }

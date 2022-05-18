@@ -582,6 +582,31 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreatePipelines
+
+    Description:
+        Register ray-tracing pipelines.
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines )
+    {
+        for( uint32_t i = 0; i < pipelineCount; ++i )
+        {
+            DeviceProfilerPipeline profilerPipeline;
+            profilerPipeline.m_Handle = pPipelines[ i ];
+            profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
+            profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
+            profilerPipeline.m_Type = DeviceProfilerPipelineType::eRayTracingKHR;
+
+            SetDefaultObjectName( profilerPipeline );
+
+            m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DestroyPipeline
 
     Description:
@@ -1056,6 +1081,41 @@ namespace Profiler
 
         // Aggregated tuple hash for fast comparison
         tuple.m_Hash = hash;
+
+        return tuple;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateShaderTuple
+
+    Description:
+
+    \***********************************************************************************/
+    ProfilerShaderTuple DeviceProfiler::CreateShaderTuple( const VkRayTracingPipelineCreateInfoKHR& createInfo )
+    {
+        // TODO: How to define a shader tuple for a ray-tracing pipeline?
+        std::unordered_set<uint32_t> shaderHashes;
+
+        for( uint32_t i = 0; i < createInfo.stageCount; ++i )
+        {
+            // VkShaderModule entry should already be in the map
+            uint32_t hash = m_ShaderModuleHashes.at( createInfo.pStages[ i ].module );
+
+            const char* entrypoint = createInfo.pStages[ i ].pName;
+
+            // Hash the entrypoint and append it to the final hash
+            hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
+
+            shaderHashes.insert( hash );
+        }
+
+        std::vector<uint32_t> data( shaderHashes.begin(), shaderHashes.end() );
+
+        // Compute aggregated tuple hash for fast comparison
+        ProfilerShaderTuple tuple;
+        tuple.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>( &data ), sizeof( data ) );
 
         return tuple;
     }

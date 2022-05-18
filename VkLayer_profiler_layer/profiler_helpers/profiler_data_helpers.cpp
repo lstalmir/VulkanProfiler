@@ -1,15 +1,15 @@
 // Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -121,7 +121,7 @@ namespace Profiler
             return fmt::format( "vkCmdDispatchIndirect ({}, {})",
                 GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ),
                 drawcall.m_Payload.m_DispatchIndirect.m_Offset );
-            
+
         case DeviceProfilerDrawcallType::eCopyBuffer:
             return fmt::format( "vkCmdCopyBuffer ({}, {})",
                 GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ),
@@ -178,10 +178,16 @@ namespace Profiler
                 drawcall.m_Payload.m_FillBuffer.m_Data );
 
         case DeviceProfilerDrawcallType::eUpdateBuffer:
-            return fmt::format( "vkCmdUpdateBuffer ({}, {}, {}, {})",
+            return fmt::format( "vkCmdUpdateBuffer ({}, {}, {})",
                 GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ),
                 drawcall.m_Payload.m_UpdateBuffer.m_Offset,
                 drawcall.m_Payload.m_UpdateBuffer.m_Size );
+
+        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+            return fmt::format( "vkCmdTraceRaysKHR ({}, {}, {})",
+                drawcall.m_Payload.m_TraceRays.m_Width,
+                drawcall.m_Payload.m_TraceRays.m_Height,
+                drawcall.m_Payload.m_TraceRays.m_Depth );
         }
     }
 
@@ -229,12 +235,14 @@ namespace Profiler
             return GetName( renderPass.m_Handle );
         }
 
-        switch (renderPass.m_Type)
+        switch( renderPass.m_Type )
         {
         case DeviceProfilerRenderPassType::eGraphics:
             return "Graphics Pass";
         case DeviceProfilerRenderPassType::eCompute:
             return "Compute Pass";
+        case DeviceProfilerRenderPassType::eRayTracing:
+            return "Ray Tracing Pass";
         case DeviceProfilerRenderPassType::eCopy:
             return "Copy Pass";
         }
@@ -373,9 +381,9 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetColorHex( const float* pColor ) const
     {
-        const uint8_t R = static_cast<uint8_t>(pColor[ 0 ] * 255.f);
-        const uint8_t G = static_cast<uint8_t>(pColor[ 1 ] * 255.f);
-        const uint8_t B = static_cast<uint8_t>(pColor[ 2 ] * 255.f);
+        const uint8_t R = static_cast<uint8_t>( pColor[ 0 ] * 255.f );
+        const uint8_t G = static_cast<uint8_t>( pColor[ 1 ] * 255.f );
+        const uint8_t B = static_cast<uint8_t>( pColor[ 2 ] * 255.f );
 
         char color[ 8 ] = "#XXXXXX";
         u8tohex( color + 1, R );

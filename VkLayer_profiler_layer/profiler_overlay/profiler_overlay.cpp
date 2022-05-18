@@ -1052,6 +1052,7 @@ namespace Profiler
         m_RenderPassColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
         m_GraphicsPipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
         m_ComputePipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.55f, 0.0f, 1.0f } ); // #ffba42
+        m_RayTracingPipelineColumnColor = ImGui::GetColorU32( { 0.2f, 0.73f, 0.92f, 1.0f } ); // #34baeb
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
     }
 
@@ -1909,6 +1910,10 @@ namespace Profiler
 
             case VK_PIPELINE_BIND_POINT_COMPUTE:
                 column.color = m_ComputePipelineColumnColor;
+                break;
+
+            case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+                column.color = m_RayTracingPipelineColumnColor;
                 break;
 
             default:

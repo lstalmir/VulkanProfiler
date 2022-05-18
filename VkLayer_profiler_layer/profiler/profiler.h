@@ -87,6 +87,7 @@ namespace Profiler
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
+        void CreatePipelines( uint32_t, const VkRayTracingPipelineCreateInfoKHR*, VkPipeline* );
         void DestroyPipeline( VkPipeline );
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
@@ -154,6 +155,7 @@ namespace Profiler
 
         ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& );
         ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& );
+        ProfilerShaderTuple CreateShaderTuple( const VkRayTracingPipelineCreateInfoKHR& );
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 

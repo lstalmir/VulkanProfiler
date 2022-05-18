@@ -26,6 +26,7 @@
 #include "VkDebugUtilsExt_functions.h"
 #include "VkDrawIndirectCountAmd_functions.h"
 #include "VkDrawIndirectCountKhr_functions.h"
+#include "VkRayTracingPipelineKhr_functions.h"
 #include "VkSwapchainKhr_functions.h"
 
 namespace Profiler
@@ -47,6 +48,7 @@ namespace Profiler
         , VkDebugUtilsExt_Functions
         , VkDrawIndirectCountAmd_Functions
         , VkDrawIndirectCountKhr_Functions
+        , VkRayTracingPipelineKhr_Functions
         , VkSwapchainKhr_Functions
     {
         // vkGetDeviceProcAddr

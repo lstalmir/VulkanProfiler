@@ -185,6 +185,7 @@ namespace Profiler
         uint32_t m_RenderPassColumnColor;
         uint32_t m_GraphicsPipelineColumnColor;
         uint32_t m_ComputePipelineColumnColor;
+        uint32_t m_RayTracingPipelineColumnColor;
         uint32_t m_InternalPipelineColumnColor;
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
