@@ -179,8 +179,8 @@ namespace Profiler
 
         if( pLayerProperties )
         {
-            strcpy( pLayerProperties->layerName, VK_LAYER_profiler_name );
-            strcpy( pLayerProperties->description, VK_LAYER_profiler_desc );
+            ProfilerStringFunctions::CopyString( pLayerProperties->layerName, VK_LAYER_profiler_name );
+            ProfilerStringFunctions::CopyString( pLayerProperties->description, VK_LAYER_profiler_desc );
 
             pLayerProperties->implementationVersion = VK_LAYER_profiler_impl_ver;
             pLayerProperties->specVersion = VK_API_VERSION_1_0;

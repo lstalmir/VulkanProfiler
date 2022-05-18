@@ -394,9 +394,19 @@ namespace Profiler
 
     };
 
+    /***********************************************************************************\
+
+    Class:
+        ProfilerStringFunctions
+
+    Description:
+        Common operations on strings of characters.
+
+    \***********************************************************************************/
     struct ProfilerStringFunctions
     {
-        static void CopyString( char* pDst, size_t dstSize, const char* pSrc, size_t srcSize )
+        template<typename CharT>
+        static void CopyString( CharT* pDst, size_t dstSize, const CharT* pSrc, size_t srcSize )
         {
             if( dstSize > 0 )
             {
@@ -427,22 +437,70 @@ namespace Profiler
             }
         }
 
-        template<size_t dstSize, size_t srcSize>
-        static void CopyString( char( &dst )[ dstSize ], const char( &src )[ srcSize ] )
+        template<typename CharT, size_t dstSize, size_t srcSize>
+        static void CopyString( CharT( &dst )[ dstSize ], const CharT( &src )[ srcSize ] )
         {
+            static_assert( dstSize >= srcSize,
+                "The destination buffer is insufficient to receive a full copy of the string. "
+                "The resulting string would be truncated." );
+
             CopyString( dst, dstSize, src, srcSize );
         }
 
-        template<size_t dstSize>
-        static void CopyString( char( &dst )[ dstSize ], const char* pSrc, size_t srcSize )
+        template<typename CharT, size_t dstSize>
+        static void CopyString( CharT( &dst )[ dstSize ], const CharT* pSrc, size_t srcSize )
         {
             CopyString( dst, dstSize, pSrc, srcSize );
         }
 
-        template<size_t srcSize>
-        static void CopyString( char* pDst, size_t dstSize, const char( &src )[ srcSize ] )
+        template<typename CharT, size_t srcSize>
+        static void CopyString( CharT* pDst, size_t dstSize, const CharT( &src )[ srcSize ] )
         {
             CopyString( pDst, dstSize, src, srcSize );
+        }
+
+        template<typename CharT>
+        static CharT* DuplicateString( const CharT* pString, size_t maxCount )
+        {
+            // Allocate space for the duplicated string.
+            CharT* pDuplicated = static_cast<CharT*>( malloc( (maxCount + 1) * sizeof( CharT ) ) );
+            if( pDuplicated == nullptr )
+            {
+                // Failed to duplicate the string.
+                return nullptr;
+            }
+
+            // Copy the source string to the new string.
+            CopyString( pDuplicated, maxCount + 1, pString, maxCount );
+
+            return pDuplicated;
+        }
+
+        template<typename CharT, size_t srcSize>
+        static CharT* DuplicateString( const CharT( &string )[ srcSize ] )
+        {
+            return DuplicateString( string, GetLength( string ) );
+        }
+
+        template<typename CharT>
+        static CharT* DuplicateString( const CharT* const& pString )
+        {
+            return DuplicateString( pString, GetLength( pString ) );
+        }
+
+        template<typename CharT, size_t size>
+        static constexpr size_t GetLength( const CharT( &string )[ size ] )
+        {
+            return size - 1;
+        }
+        
+        template<typename CharT>
+        static size_t GetLength( const CharT* const& pString )
+        {
+            size_t length = 0;
+            const CharT* p = pString;
+            while (*(p++)) length++;
+            return length;
         }
     };
 }
