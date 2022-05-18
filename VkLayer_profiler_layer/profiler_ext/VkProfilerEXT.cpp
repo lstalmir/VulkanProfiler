@@ -386,7 +386,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
         if( (*pProfilerMetricCount) == 0 )
         {
             // Return number of reported metrics
-            (*pProfilerMetricCount) += dd.Profiler.m_MetricsApiINTEL.GetMetricsCount();
+            (*pProfilerMetricCount) += static_cast<uint32_t>( dd.Profiler.m_MetricsApiINTEL.GetMetricsCount() );
         }
         else
         {
@@ -395,7 +395,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
                 dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties();
 
             const uint32_t returnedMetricPropertyCount =
-                std::template min<uint32_t>( (*pProfilerMetricCount), intelMetricsProperties.size() );
+                std::template min<uint32_t>( (*pProfilerMetricCount), static_cast<uint32_t>( intelMetricsProperties.size() ) );
 
             std::memcpy( pProfilerMetricProperties,
                 intelMetricsProperties.data(),
