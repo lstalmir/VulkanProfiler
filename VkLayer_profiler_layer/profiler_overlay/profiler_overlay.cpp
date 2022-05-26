@@ -96,6 +96,8 @@ namespace Profiler
         , m_pImGuiContext( nullptr )
         , m_pImGuiVulkanContext( nullptr )
         , m_pImGuiWindowContext( nullptr )
+        , m_pImGuiDefaultFont(nullptr)
+        , m_pImGuiCodeFont(nullptr)
         , m_DescriptorPool( VK_NULL_HANDLE )
         , m_RenderPass( VK_NULL_HANDLE )
         , m_RenderArea( {} )
@@ -243,7 +245,7 @@ namespace Profiler
         {
             result = InitializeImGuiVulkanContext( pCreateInfo );
         }
-
+        
         // Get vendor metric properties
         if( result == VK_SUCCESS )
         {
@@ -924,7 +926,8 @@ namespace Profiler
         ImGuiIO& io = ImGui::GetIO();
 
         // Absolute path to the selected font
-        std::filesystem::path fontPath;
+        std::filesystem::path defaultFontPath;
+        std::filesystem::path codeFontPath;
 
 #ifdef WIN32
         {
@@ -940,16 +943,28 @@ namespace Profiler
             }
 
             // List of fonts to use (in this order)
-            const char* fonts[] = {
+            const char* defaultFonts[] = {
                 "segoeui.ttf",
                 "tahoma.ttf" };
 
-            for( const char* font : fonts )
+            const char* codeFonts[] = {
+                "consolas.ttf",
+                "cour.ttf" };
+
+            for( const char* font : defaultFonts )
             {
-                fontPath = fontsPath / font;
-                if( std::filesystem::exists( fontPath ) )
+                defaultFontPath = fontsPath / font;
+                if( std::filesystem::exists( defaultFontPath ) )
                     break;
-                else fontPath = "";
+                else defaultFontPath = "";
+            }
+
+            for( const char* font : codeFonts )
+            {
+                codeFontPath = fontsPath / font;
+                if( std::filesystem::exists( codeFontPath ) )
+                    break;
+                else codeFontPath = "";
             }
         }
 #endif
@@ -1022,12 +1037,21 @@ namespace Profiler
         }
 #endif
 
-        if( !fontPath.empty() )
-        {
-            // Include all glyphs in the font to support non-latin letters
-            const ImWchar range[] = { 0x20, 0xFFFF, 0 };
+        // Include all glyphs in the font to support non-latin letters
+        const ImWchar range[] = { 0x20, 0xFFFF, 0 };
 
-            io.Fonts->AddFontFromFileTTF( fontPath.string().c_str(), 16.f, nullptr, range );
+        if( !defaultFontPath.empty() )
+        {
+            m_pImGuiDefaultFont = io.Fonts->AddFontFromFileTTF( defaultFontPath.string().c_str(), 16.f, nullptr, range );
+        }
+
+        if( !codeFontPath.empty() )
+        {
+            m_pImGuiCodeFont = io.Fonts->AddFontFromFileTTF( codeFontPath.string().c_str(), 16.f, nullptr, range );
+        }
+        else
+        {
+            m_pImGuiCodeFont = io.Fonts->AddFontDefault();
         }
 
         // Build atlas
@@ -1182,7 +1206,7 @@ namespace Profiler
                 Lang::Drawcalls };
 
             const char* selectedOption = groupOptions[ (size_t)m_HistogramGroupMode ];
-
+            
             // Select group mode
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, selectedOption, ImGuiComboFlags_NoPreview ) )
@@ -1271,7 +1295,7 @@ namespace Profiler
             ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
             ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
             ImGui::TableHeadersRow();
-
+                
             for( uint32_t i = 0; i < m_Data.m_VendorMetrics.size(); ++i )
             {
                 const VkProfilerPerformanceCounterResultEXT& metric = m_Data.m_VendorMetrics[ i ];
@@ -2453,19 +2477,19 @@ namespace Profiler
                 if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_VERTEX_BIT ].m_pShaderModule != nullptr) &&
                     ImGui::MenuItem( "Show vertex shader", nullptr, nullptr ) )
                 {
-                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_VERTEX_BIT ) );
+                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_VERTEX_BIT, m_pImGuiCodeFont ) );
                 }
                 
                 if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_FRAGMENT_BIT ].m_pShaderModule != nullptr) &&
                     ImGui::MenuItem( "Show pixel shader", nullptr, nullptr ) )
                 {
-                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT ) );
+                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, m_pImGuiCodeFont ) );
                 }
                 
                 if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_COMPUTE_BIT ].m_pShaderModule != nullptr) &&
                     ImGui::MenuItem( "Show compute shader", nullptr, nullptr ) )
                 {
-                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_COMPUTE_BIT ) );
+                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_COMPUTE_BIT, m_pImGuiCodeFont ) );
                 }
 
                 ImGui::EndPopup();

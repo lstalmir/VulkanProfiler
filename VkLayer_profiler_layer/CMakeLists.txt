@@ -204,7 +204,8 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC profiler_helpers
     PUBLIC profiler_ext
     PUBLIC profiler_overlay
-    PUBLIC profiler_trace)
+    PUBLIC profiler_trace
+    PUBLIC SPIRV-Tools)
 
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME} PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
 

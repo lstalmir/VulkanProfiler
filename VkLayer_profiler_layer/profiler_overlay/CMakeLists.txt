@@ -87,14 +87,20 @@ set (imgui_widgets
     "imgui_widgets/imgui_ex.h"
     "imgui_widgets/imgui_ex.cpp"
     )
-    
+
+set (external
+    "external/ImGuiColorTextEdit/TextEditor.h"
+    "external/ImGuiColorTextEdit/TextEditor.cpp"
+    )
+
 # Link intermediate static library
 add_library (profiler_overlay
     ${sources}
     ${headers}
     ${imgui}
     ${imgui_platform}
-    ${imgui_widgets})
+    ${imgui_widgets}
+    ${external})
 
 # Set include path
 target_include_directories (profiler_overlay
@@ -105,7 +111,7 @@ target_include_directories (profiler_overlay
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 
 # Set include paths and link window libraries in linux builds
 if (UNIX)

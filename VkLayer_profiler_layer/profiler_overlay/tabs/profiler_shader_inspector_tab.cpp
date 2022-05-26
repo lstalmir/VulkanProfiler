@@ -25,6 +25,10 @@
 #include "../imgui_widgets/imgui_ex.h"
 #include "../imgui_widgets/imgui_table_ex.h"
 
+#include "../external/ImGuiColorTextEdit/TextEditor.h"
+
+#include <spirv-tools/libspirv.h>
+
 
 namespace Profiler
 {
@@ -40,15 +44,19 @@ namespace Profiler
     ProfilerShaderInspectorTab::ProfilerShaderInspectorTab(
         VkDevice_Object* pDevice,
         const DeviceProfilerPipelineData& pipeline,
-        VkShaderStageFlagBits stage )
+        VkShaderStageFlagBits stage,
+        ImFont* font )
         : m_Device( *pDevice )
         , m_StringSerializer( *pDevice )
+        , m_pImGuiCodeFont( font )
         , m_ShaderStage( stage )
         , m_Pipeline( pipeline )
         , m_PipelineExecutableIndex( UINT32_MAX )
         , m_PipelineExecutableProperties()
         , m_PipelineExecutableStatistics()
         , m_PipelineExecutableInternalRepresentations()
+        , m_pTextEditor( nullptr )
+        , m_CurrentTabIndex( -1 )
     {
         // Get pipeline executable properties, if available.
         if( pDevice->EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME ) )
@@ -149,6 +157,33 @@ namespace Profiler
                 }
             }
         }
+
+        // Get the SPIR-V module associated with the inspected shader stage.
+        const auto& bytecode = pipeline.m_ShaderTuple.m_Shaders[ stage ].m_pShaderModule->m_Bytecode;
+
+        // Disassemble the SPIR-V module.
+        spv_context spvContext = spvContextCreate( spv_target_env::SPV_ENV_UNIVERSAL_1_6 );
+
+        spv_text spvDisassembly;
+        spv_result_t result = spvBinaryToText( spvContext, bytecode.data(), bytecode.size(),
+            SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES,
+            &spvDisassembly,
+            nullptr );
+
+        if( result == SPV_SUCCESS )
+        {
+            m_ShaderModuleDisassembly = spvDisassembly->str;
+        }
+        else
+        {
+            m_ShaderModuleDisassembly = "Failed to disassemble the shader module.";
+        }
+
+        spvTextDestroy( spvDisassembly );
+        spvContextDestroy( spvContext );
+
+        // Create the text editor.
+        m_pTextEditor = std::make_unique<TextEditor>();
     }
 
     /***********************************************************************************\
@@ -208,23 +243,50 @@ namespace Profiler
             }
 
             // Print the internal shader representation.
-            if( !m_PipelineExecutableInternalRepresentations.empty() )
+            if( ImGui::BeginTabBar( (pipelineName + "_internal_representations").c_str() ) )
             {
-                ImGui::BeginTabBar(nullptr);
+                int tabIndex = 0;
+
+                if( ImGui::BeginTabItem( "Disassembly" ) )
+                {
+                    ImGui::PushFont( m_pImGuiCodeFont );
+
+                    if( m_CurrentTabIndex != tabIndex )
+                    {
+                        m_pTextEditor->SetText( m_ShaderModuleDisassembly );
+                        m_CurrentTabIndex = tabIndex;
+                    }
+
+                    m_pTextEditor->Render( "Disassembly" );
+
+                    ImGui::PopFont();
+                    ImGui::EndTabItem();
+                }
 
                 for( const auto& internalRepresentation : m_PipelineExecutableInternalRepresentations )
                 {
+                    tabIndex++;
+
                     if( ImGui::BeginTabItem( internalRepresentation.name ) )
                     {
+                        ImGui::PushFont( m_pImGuiCodeFont );
+
                         if( internalRepresentation.isText )
                         {
-                            ImGui::TextWrapped( "%s", static_cast<const char*>( internalRepresentation.pData ) );
+                            if( m_CurrentTabIndex != tabIndex )
+                            {
+                                m_pTextEditor->SetText( static_cast<const char*>( internalRepresentation.pData ) );
+                                m_CurrentTabIndex = tabIndex;
+                            }
+
+                            m_pTextEditor->Render( "Disassembly" );
                         }
                         else
                         {
                             ImGui::TextUnformatted( "Binary" );
                         }
 
+                        ImGui::PopFont();
                         ImGui::EndTabItem();
                     }
                 }

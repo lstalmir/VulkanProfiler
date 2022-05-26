@@ -98,6 +98,9 @@ namespace Profiler
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
 
+        ImFont* m_pImGuiDefaultFont;
+        ImFont* m_pImGuiCodeFont;
+
         VkDescriptorPool m_DescriptorPool;
 
         VkRenderPass m_RenderPass;
@@ -113,7 +116,7 @@ namespace Profiler
         std::vector<VkSemaphore> m_CommandSemaphores;
 
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
-
+        
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;
         const char* m_pTimestampDisplayUnitStr;

@@ -22,6 +22,9 @@
 #include "profiler_helpers/profiler_data_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+struct ImFont;
+class TextEditor;
+
 namespace Profiler
 {
     struct DeviceProfilerPipelineData;
@@ -29,13 +32,19 @@ namespace Profiler
     class ProfilerShaderInspectorTab
     {
     public:
-        ProfilerShaderInspectorTab( VkDevice_Object* pDevice, const DeviceProfilerPipelineData& pipeline, VkShaderStageFlagBits stage );
+        ProfilerShaderInspectorTab(
+            VkDevice_Object* pDevice,
+            const DeviceProfilerPipelineData& pipeline,
+            VkShaderStageFlagBits stage,
+            ImFont* font );
 
         void Draw();
 
     private:
         VkDevice_Object&                  m_Device;
         DeviceProfilerStringSerializer    m_StringSerializer;
+
+        ImFont*                           m_pImGuiCodeFont;
 
         // Shader stage that is being inspected in this tab.
         VkShaderStageFlagBits             m_ShaderStage;
@@ -47,5 +56,12 @@ namespace Profiler
         VkPipelineExecutablePropertiesKHR m_PipelineExecutableProperties;
         std::vector<VkPipelineExecutableStatisticKHR> m_PipelineExecutableStatistics;
         std::vector<VkPipelineExecutableInternalRepresentationKHR> m_PipelineExecutableInternalRepresentations;
+
+        std::string m_ShaderModuleDisassembly;
+
+        // Widget that displays the shader code.
+        std::unique_ptr<TextEditor> m_pTextEditor;
+
+        int  m_CurrentTabIndex;
     };
 }
