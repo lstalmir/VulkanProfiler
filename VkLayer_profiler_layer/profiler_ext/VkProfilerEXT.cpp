@@ -365,6 +365,23 @@ VKAPI_ATTR void VKAPI_CALL vkFreeProfilerFrameDataEXT(
 /***************************************************************************************\
 
 Function:
+    vkFlushProfilerEXT
+
+Description:
+    Collect data submitted so far and begin next profiling run.
+    Has the same effect as vkQueuePresentKHR except presenting anything.
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
+    VkDevice device )
+{
+    VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.FinishFrame();
+    return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
     vkEnumerateProfilerPerformanceCounterPropertiesEXT
 
 Description:
@@ -372,6 +389,7 @@ Description:
 \***************************************************************************************/
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEXT(
     VkDevice device,
+    uint32_t metricsSetIndex,
     uint32_t* pProfilerMetricCount,
     VkProfilerPerformanceCounterPropertiesEXT* pProfilerMetricProperties )
 {
@@ -386,24 +404,20 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
         if( (*pProfilerMetricCount) == 0 )
         {
             // Return number of reported metrics
-            (*pProfilerMetricCount) += dd.Profiler.m_MetricsApiINTEL.GetMetricsCount();
+            (*pProfilerMetricCount) += static_cast<uint32_t>( dd.Profiler.m_MetricsApiINTEL.GetMetricsCount( metricsSetIndex ) );
         }
         else
         {
             // Get reported metrics descriptions
             const std::vector<VkProfilerPerformanceCounterPropertiesEXT> intelMetricsProperties =
-                dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties();
+                dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties( metricsSetIndex );
 
             const uint32_t returnedMetricPropertyCount =
-                std::template min<uint32_t>( (*pProfilerMetricCount), intelMetricsProperties.size() );
+                std::template min<uint32_t>( (*pProfilerMetricCount), static_cast<uint32_t>( intelMetricsProperties.size() ) );
 
             std::memcpy( pProfilerMetricProperties,
                 intelMetricsProperties.data(),
                 returnedMetricPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
-
-            // There may be other metric sources that will be appended to the end
-            pProfilerMetricProperties += returnedMetricPropertyCount;
-            (*pProfilerMetricCount) -= returnedMetricPropertyCount;
 
             if( returnedMetricPropertyCount < intelMetricsProperties.size() )
             {
@@ -426,16 +440,86 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 /***************************************************************************************\
 
 Function:
-    vkFlushProfilerEXT
+    vkSetProfilerPerformanceMetricsSetNameEXT
 
 Description:
-    Collect data submitted so far and begin next profiling run.
-    Has the same effect as vkQueuePresentKHR except presenting anything.
 
 \***************************************************************************************/
-VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
-    VkDevice device )
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
+    VkDevice device,
+    uint32_t* pMetricsSetCount,
+    VkProfilerPerformanceMetricsSetPropertiesEXT* pMetricSets )
 {
-    VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.FinishFrame();
-    return VK_SUCCESS;
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    VkResult result = VK_SUCCESS;
+
+    bool hasSufficientSpace = true;
+
+    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
+    {
+        if( (*pMetricsSetCount) == 0 )
+        {
+            // Return number of reported metrics
+            (*pMetricsSetCount) += static_cast<uint32_t>( dd.Profiler.m_MetricsApiINTEL.GetMetricsSetCount() );
+        }
+        else
+        {
+            // Get reported metrics descriptions
+            const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> intelMetricsProperties =
+                dd.Profiler.m_MetricsApiINTEL.GetMetricsSets();
+
+            const uint32_t returnedMetricPropertyCount =
+                std::template min<uint32_t>( (*pMetricsSetCount), static_cast<uint32_t>( intelMetricsProperties.size() ) );
+
+            std::memcpy( pMetricSets,
+                intelMetricsProperties.data(),
+                returnedMetricPropertyCount * sizeof( VkProfilerPerformanceMetricsSetPropertiesEXT ) );
+
+            if( returnedMetricPropertyCount < intelMetricsProperties.size() )
+            {
+                hasSufficientSpace = false;
+            }
+        }
+    }
+
+    // TODO: Other metric sources (VK_KHR_performance_query)
+
+    if( (result == VK_SUCCESS) && !(hasSufficientSpace) )
+    {
+        // All vkEnumerate* functions return VK_INCOMPLETE when provided buffer was too small
+        result = VK_INCOMPLETE;
+    }
+
+    return result;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkSetProfilerPerformanceMetricsSetEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerPerformanceMetricsSetEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex )
+{
+    return VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_MetricsApiINTEL.SetActiveMetricsSet( metricsSetIndex );
+}
+
+/***************************************************************************************\
+
+Function:
+    vkGetProfilerActivePerformanceMetricsSetIndexEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
+    VkDevice device,
+    uint32_t* pIndex )
+{
+    (*pIndex) = VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_MetricsApiINTEL.GetActiveMetricsSetIndex();
 }

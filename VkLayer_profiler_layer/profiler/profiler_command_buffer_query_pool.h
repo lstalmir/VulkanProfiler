@@ -24,6 +24,8 @@
 #include "profiler_query_pool.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include "intel/profiler_metrics_api.h"
+
 #include <vulkan/vk_layer.h>
 
 #include <vector>
@@ -49,7 +51,7 @@ namespace Profiler
 
         CommandBufferQueryPool( const CommandBufferQueryPool& ) = delete;
 
-        VkQueryPool GetPerformanceQueryPoolHandle() const { return m_PerformanceQueryPoolINTEL; }
+        uint32_t GetPerformanceQueryMetricsSetIndex() const { return m_PerformanceQueryMetricsSetIndexINTEL; }
 
         __forceinline void PreallocateQueries( VkCommandBuffer commandBuffer )
         {
@@ -84,6 +86,36 @@ namespace Profiler
 
             m_CurrentQueryIndex = UINT32_MAX;
             m_CurrentQueryPoolIndex = 0;
+        }
+
+        __forceinline void BeginPerformanceQuery( VkCommandBuffer commandBuffer )
+        {
+            m_PerformanceQueryMetricsSetIndexINTEL = m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+
+            // Check if there is performance query extension is available.
+            if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
+                (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
+            {
+                m_Device.Callbacks.CmdResetQueryPool(
+                    commandBuffer,
+                    m_PerformanceQueryPoolINTEL, 0, 1 );
+
+                m_Device.Callbacks.CmdBeginQuery(
+                    commandBuffer,
+                    m_PerformanceQueryPoolINTEL, 0, 0 );
+            }
+        }
+
+        __forceinline void EndPerformanceQuery( VkCommandBuffer commandBuffer )
+        {
+            // Check if any performance metrics has been collected.
+            if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
+                (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
+            {
+                m_Device.Callbacks.CmdEndQuery(
+                    commandBuffer,
+                    m_PerformanceQueryPoolINTEL, 0 );
+            }
         }
 
         __forceinline void ResolveTimestampsGpu( VkCommandBuffer commandBuffer )
@@ -153,9 +185,42 @@ namespace Profiler
             return m_pQueryPools[ queryPoolIndex ]->GetQueryData( queryIndex );
         }
 
+        __forceinline std::vector<VkProfilerPerformanceCounterResultEXT> GetPerformanceQueryData() const
+        {
+            // Check if any performance metrics has been collected.
+            if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
+                (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
+            {
+                // Allocate temporary space for the raw report.
+                const size_t reportSize = m_MetricsApiINTEL.GetReportSize( m_PerformanceQueryMetricsSetIndexINTEL );
+                std::vector<char> report( reportSize );
+
+                VkResult result = m_Device.Callbacks.GetQueryPoolResults(
+                    m_Device.Handle,
+                    m_PerformanceQueryPoolINTEL,
+                    0, 1, reportSize,
+                    report.data(),
+                    reportSize, 0 );
+
+                if( result == VK_SUCCESS )
+                {
+                    // Process metrics for the command buffer.
+                    return m_MetricsApiINTEL.ParseReport(
+                        m_PerformanceQueryMetricsSetIndexINTEL,
+                        report.data(),
+                        report.size() );
+                }
+            }
+
+            // No performance metrics collected.
+            return {};
+        }
+
     protected:
         DeviceProfiler&                  m_Profiler;
         VkDevice_Object&                 m_Device;
+
+        ProfilerMetricsApi_INTEL&        m_MetricsApiINTEL;
 
         std::vector<TimestampQueryPool*> m_pQueryPools;
         uint32_t                         m_QueryPoolSize;
@@ -163,6 +228,7 @@ namespace Profiler
         uint32_t                         m_CurrentQueryIndex;
 
         VkQueryPool                      m_PerformanceQueryPoolINTEL;
+        uint32_t                         m_PerformanceQueryMetricsSetIndexINTEL;
 
         __forceinline void AllocateQueryPool( VkCommandBuffer commandBuffer )
         {

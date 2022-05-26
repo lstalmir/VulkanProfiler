@@ -60,8 +60,9 @@ namespace Profiler
         , m_pDeviceParams( nullptr )
         , m_pConcurrentGroup( nullptr )
         , m_pConcurrentGroupParams( nullptr )
-        , m_pActiveMetricSet( nullptr )
-        , m_pActiveMetricSetParams( nullptr )
+        , m_MetricsSets()
+        , m_ActiveMetricSetMutex()
+        , m_ActiveMetricsSetIndex( UINT32_MAX )
         #ifdef WIN32
         , m_hMDDll( nullptr )
         #endif
@@ -119,88 +120,82 @@ namespace Profiler
             }
         }
 
-        // Find RenderBasic metric set
+        // Enumerate available metric sets
+        const uint32_t oaMetricSetCount = m_pConcurrentGroupParams->MetricSetsCount;
+
+        uint32_t defaultMetricsSetIndex = UINT32_MAX;
+
+        for( uint32_t setIndex = 0; setIndex < oaMetricSetCount; ++setIndex )
         {
-            const uint32_t oaMetricSetCount = m_pConcurrentGroupParams->MetricSetsCount;
+            MD::IMetricSet_1_5* pMetricSet = m_pConcurrentGroup->GetMetricSet( setIndex );
 
-            for( uint32_t i = 0; i < oaMetricSetCount; ++i )
+            // Temporarily activate the set.
+            pMetricSet->SetApiFiltering( MD::API_TYPE_DX11 );
+
+            if( pMetricSet->Activate() != MD::CC_OK )
             {
-                MD::IMetricSet_1_5* pMetricSet = m_pConcurrentGroup->GetMetricSet( i );
-                assert( pMetricSet );
+                // Activation failed, skip the set.
+                continue;
+            }
 
-                MD::TMetricSetParams_1_4* pMetricSetParams = pMetricSet->GetParams();
-                assert( pMetricSetParams );
+            auto& metricsSet = m_MetricsSets.emplace_back();
+            metricsSet.m_pMetricSet = pMetricSet;
+            metricsSet.m_pMetricSetParams = pMetricSet->GetParams();
 
-                if( (std::strcmp( pMetricSetParams->SymbolName, "RenderBasic" ) == 0) &&
-                    (pMetricSetParams->MetricsCount > 0) /*&&
-                    (pMetricSetParams->ApiMask & MD::API_TYPE_VULKAN)*/ )
+            // Construct metric properties
+            for( uint32_t metricIndex = 0; metricIndex < metricsSet.m_pMetricSetParams->MetricsCount; ++metricIndex )
+            {
+                MD::IMetric_1_0* pMetric = metricsSet.m_pMetricSet->GetMetric( metricIndex );
+                MD::TMetricParams_1_0* pMetricParams = pMetric->GetParams();
+
+                VkProfilerPerformanceCounterPropertiesEXT counterProperties = {};
+                ProfilerStringFunctions::CopyString( counterProperties.shortName, pMetricParams->ShortName, -1 );
+                ProfilerStringFunctions::CopyString( counterProperties.description, pMetricParams->LongName, -1 );
+
+                switch( pMetricParams->ResultType )
                 {
-                    m_pActiveMetricSet = pMetricSet;
-                    m_pActiveMetricSetParams = pMetricSetParams;
+                case MD::RESULT_FLOAT:
+                    counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
                     break;
+
+                case MD::RESULT_UINT32:
+                    counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT;
+                    break;
+
+                case MD::RESULT_UINT64:
+                    counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT;
+                    break;
+
+                case MD::RESULT_BOOL:
+                    counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT;
+                    break;
+
+                default:
+                    assert( !"PROFILER: Intel MDAPI metric result type not supported" );
                 }
+
+                // Factor applied to the output
+                double metricFactor = 1.0;
+                counterProperties.unit = TranslateUnit( pMetricParams->MetricResultUnits, metricFactor );
+
+                metricsSet.m_MetricsProperties.push_back( counterProperties );
+                metricsSet.m_MetricFactors.push_back( metricFactor );
             }
 
-            // Check if RenderBasic metric set is available
-            if( !m_pActiveMetricSet )
+            // Deactivate the set.
+            pMetricSet->Deactivate();
+
+            // Find default metrics set index.
+            if( (defaultMetricsSetIndex == UINT32_MAX) &&
+                (strcmp( metricsSet.m_pMetricSetParams->SymbolName, "RenderBasic" ) == 0) )
             {
-                return VK_ERROR_INCOMPATIBLE_DRIVER;
+                defaultMetricsSetIndex = setIndex;
             }
         }
 
-        // Activate metric set
+        if( defaultMetricsSetIndex != UINT32_MAX )
         {
-            // Activate only metrics supported by Vulkan driver
-            // TMP: Little hack to enable metrics
-            m_pActiveMetricSet->SetApiFiltering( MD::API_TYPE_DX11 );
-
-            if( m_pActiveMetricSet->Activate() != MD::CC_OK )
-            {
-                return VK_ERROR_INITIALIZATION_FAILED;
-            }
-
-            // Refresh metric set params
-            m_pActiveMetricSetParams = m_pActiveMetricSet->GetParams();
-        }
-
-        // Construct metric properties
-        for( uint32_t i = 0; i < m_pActiveMetricSetParams->MetricsCount; ++i )
-        {
-            MD::IMetric_1_0* pMetric = m_pActiveMetricSet->GetMetric( i );
-            MD::TMetricParams_1_0* pMetricParams = pMetric->GetParams();
-
-            VkProfilerPerformanceCounterPropertiesEXT counterProperties = {};
-            ProfilerStringFunctions::CopyString( counterProperties.shortName, pMetricParams->ShortName, -1 );
-            ProfilerStringFunctions::CopyString( counterProperties.description, pMetricParams->LongName, -1 );
-
-            switch( pMetricParams->ResultType )
-            {
-            case MD::RESULT_FLOAT:
-                counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
-                break;
-
-            case MD::RESULT_UINT32:
-                counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT;
-                break;
-
-            case MD::RESULT_UINT64:
-                counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT;
-                break;
-
-            case MD::RESULT_BOOL:
-                counterProperties.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT;
-                break;
-
-            default:
-                assert( !"PROFILER: Intel MDAPI metric result type not supported" );
-            }
-
-            // Factor applied to the output
-            double metricFactor = 1.0;
-            counterProperties.unit = TranslateUnit( pMetricParams->MetricResultUnits, metricFactor );
-
-            m_ActiveMetricsProperties.push_back( counterProperties );
-            m_MetricFactors.push_back( metricFactor );
+            return SetActiveMetricsSet( defaultMetricsSetIndex );
         }
 
         return VK_SUCCESS;
@@ -230,9 +225,9 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerMetricsApi_INTEL::IsAvailable() const
     {
+        std::shared_lock lk( m_ActiveMetricSetMutex );
         return m_pDevice != nullptr &&
-            m_pActiveMetricSet != nullptr &&
-            m_pActiveMetricSetParams->MetricsCount > 0;
+            m_ActiveMetricsSetIndex != UINT32_MAX;
     }
 
     /***********************************************************************************\
@@ -243,9 +238,9 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    size_t ProfilerMetricsApi_INTEL::GetReportSize() const
+    size_t ProfilerMetricsApi_INTEL::GetReportSize( uint32_t metricsSetIndex ) const
     {
-        return m_pActiveMetricSetParams->QueryReportSize;
+        return m_MetricsSets[ metricsSetIndex ].m_pMetricSetParams->QueryReportSize;
     }
 
     /***********************************************************************************\
@@ -257,10 +252,113 @@ namespace Profiler
         Get number of HW metrics exposed by this extension.
 
     \***********************************************************************************/
-    size_t ProfilerMetricsApi_INTEL::GetMetricsCount() const
+    size_t ProfilerMetricsApi_INTEL::GetMetricsCount( uint32_t metricsSetIndex ) const
     {
-        return m_pActiveMetricSetParams->MetricsCount;
+        return m_MetricsSets[ metricsSetIndex ].m_pMetricSetParams->MetricsCount;
         // Skip InformationCount - no valuable data here
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMetricsSetCount
+
+    Description:
+        Get number of metrics sets exposed by this extensions.
+
+    \***********************************************************************************/
+    size_t ProfilerMetricsApi_INTEL::GetMetricsSetCount() const
+    {
+        return m_MetricsSets.size();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMetricsSets
+
+    Description:
+
+    \***********************************************************************************/
+    std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> ProfilerMetricsApi_INTEL::GetMetricsSets() const
+    {
+        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSetsProperties;
+        metricsSetsProperties.reserve( m_MetricsSets.size() );
+
+        for( const auto& metricsSet : m_MetricsSets )
+        {
+            auto& metricsSetProperties = metricsSetsProperties.emplace_back();
+            metricsSetProperties.metricsCount = metricsSet.m_pMetricSetParams->MetricsCount;
+            
+            ProfilerStringFunctions::CopyString( metricsSetProperties.name, metricsSet.m_pMetricSetParams->ShortName, -1 );
+        }
+
+        return metricsSetsProperties;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetActiveMetricsSet
+
+    Description:
+
+    \***********************************************************************************/
+    VkResult ProfilerMetricsApi_INTEL::SetActiveMetricsSet( uint32_t metricsSetIndex )
+    {
+        std::unique_lock lk( m_ActiveMetricSetMutex );
+
+        // Disable the current active metrics set.
+        if( m_ActiveMetricsSetIndex != UINT32_MAX )
+        {
+            if( m_MetricsSets[ m_ActiveMetricsSetIndex ].m_pMetricSet->Deactivate() != MD::CC_OK )
+            {
+                assert( false );
+                return VK_ERROR_NOT_PERMITTED_EXT;
+            }
+
+            m_ActiveMetricsSetIndex = UINT32_MAX;
+        }
+
+        // Check if the metric set is available
+        if( metricsSetIndex >= m_MetricsSets.size() )
+        {
+            assert( false );
+            return VK_ERROR_VALIDATION_FAILED_EXT;
+        }
+
+        m_ActiveMetricsSetIndex = metricsSetIndex;
+
+        // Get the active metrics set object.
+        auto& metricsSet = m_MetricsSets[ m_ActiveMetricsSetIndex ];
+
+        // Activate only metrics supported by Vulkan driver
+        // TMP: Little hack to enable metrics
+        metricsSet.m_pMetricSet->SetApiFiltering( MD::API_TYPE_DX11 );
+
+        if( metricsSet.m_pMetricSet->Activate() != MD::CC_OK )
+        {
+            // Activation failed.
+            m_ActiveMetricsSetIndex = UINT32_MAX;
+
+            assert( false );
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetActiveMetricsSetIndex
+
+    Description:
+
+    \***********************************************************************************/
+    uint32_t ProfilerMetricsApi_INTEL::GetActiveMetricsSetIndex() const
+    {
+        return m_ActiveMetricsSetIndex;
     }
 
     /***********************************************************************************\
@@ -273,9 +371,16 @@ namespace Profiler
         Metrics must appear in the same order as in returned reports.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterPropertiesEXT> ProfilerMetricsApi_INTEL::GetMetricsProperties() const
+    std::vector<VkProfilerPerformanceCounterPropertiesEXT> ProfilerMetricsApi_INTEL::GetMetricsProperties(
+        uint32_t metricsSetIndex ) const
     {
-        return m_ActiveMetricsProperties;
+        // Check if the metrics set is available.
+        if (metricsSetIndex >= m_MetricsSets.size())
+        {
+            return {};
+        }
+
+        return m_MetricsSets[ metricsSetIndex ].m_MetricsProperties;
     }
 
     /***********************************************************************************\
@@ -288,23 +393,26 @@ namespace Profiler
 
     \***********************************************************************************/
     std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerMetricsApi_INTEL::ParseReport(
+        uint32_t    metricsSetIndex,
         const char* pQueryReportData,
-        size_t queryReportSize )
+        size_t      queryReportSize )
     {
+        const auto& metricsSet = m_MetricsSets[ metricsSetIndex ];
+
         // Convert MDAPI-specific TTypedValue_1_0 to custom VkProfilerMetricEXT
         std::vector<VkProfilerPerformanceCounterResultEXT> parsedMetrics;
 
         std::vector<MD::TTypedValue_1_0> metrics(
-            m_pActiveMetricSetParams->MetricsCount +
-            m_pActiveMetricSetParams->InformationCount );
+            metricsSet.m_pMetricSetParams->MetricsCount +
+            metricsSet.m_pMetricSetParams->InformationCount );
 
         uint32_t reportCount = 0;
 
         // Check if there is data, otherwise we'll get integer zero-division
-        if( m_pActiveMetricSetParams->MetricsCount > 0 )
+        if( metricsSet.m_pMetricSetParams->MetricsCount > 0 )
         {
             // Calculate normalized metrics from raw query data
-            MD::ECompletionCode cc = m_pActiveMetricSet->CalculateMetrics(
+            MD::ECompletionCode cc = metricsSet.m_pMetricSet->CalculateMetrics(
                 reinterpret_cast<const unsigned char*>( pQueryReportData ),
                 static_cast<uint32_t>( queryReportSize ),
                 metrics.data(),
@@ -315,13 +423,13 @@ namespace Profiler
             assert( cc == MD::CC_OK );
         }
 
-        for( uint32_t i = 0; i < m_pActiveMetricSetParams->MetricsCount; ++i )
+        for( uint32_t i = 0; i < metricsSet.m_pMetricSetParams->MetricsCount; ++i )
         {
             // Metric type information is stored in metric properties to reduce memory transaction overhead
             VkProfilerPerformanceCounterResultEXT parsedMetric = {};
 
             // Const factor applied to the metric
-            const double factor = m_MetricFactors[ i ];
+            const double factor = metricsSet.m_MetricFactors[ i ];
 
             switch( metrics[ i ].ValueType )
             {
@@ -350,7 +458,7 @@ namespace Profiler
         }
 
         // This must match every time
-        assert( parsedMetrics.size() == m_ActiveMetricsProperties.size() );
+        assert( parsedMetrics.size() == metricsSet.m_MetricsProperties.size() );
 
         return parsedMetrics;
     }

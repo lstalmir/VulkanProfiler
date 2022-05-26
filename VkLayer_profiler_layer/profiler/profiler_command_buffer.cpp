@@ -168,16 +168,7 @@ namespace Profiler
             m_pQueryPool->PreallocateQueries( m_CommandBuffer );
 
             // Begin collection of vendor metrics.
-            if( auto performanceQueryPool = m_pQueryPool->GetPerformanceQueryPoolHandle() )
-            {
-                m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
-                    m_CommandBuffer,
-                    performanceQueryPool, 0, 1 );
-
-                m_Profiler.m_pDevice->Callbacks.CmdBeginQuery(
-                    m_CommandBuffer,
-                    performanceQueryPool, 0, 0 );
-            }
+            m_pQueryPool->BeginPerformanceQuery( m_CommandBuffer );
 
             // Send global timestamp query for the whole command buffer.
             m_Data.m_BeginTimestamp = m_pQueryPool->WriteTimestamp( m_CommandBuffer );
@@ -232,12 +223,7 @@ namespace Profiler
             }
 
             // End collection of vendor metrics.
-            if( auto performanceQueryPool = m_pQueryPool->GetPerformanceQueryPoolHandle() )
-            {
-                m_Profiler.m_pDevice->Callbacks.CmdEndQuery(
-                    m_CommandBuffer,
-                    performanceQueryPool, 0 );
-            }
+            m_pQueryPool->EndPerformanceQuery( m_CommandBuffer );
 
             // Copy query results to the buffers.
             m_pQueryPool->ResolveTimestampsGpu( m_CommandBuffer );
@@ -729,7 +715,6 @@ namespace Profiler
 
             // Reset accumulated stats if buffer is being reused
             m_Data.m_Stats = m_Stats;
-            m_Data.m_PerformanceQueryReportINTEL = {};
 
             // Read global timestamp values
             m_Data.m_BeginTimestamp = m_pQueryPool->GetTimestampData( m_Data.m_BeginTimestamp );
@@ -845,25 +830,8 @@ namespace Profiler
             }
 
             // Read vendor-specific data
-            if( auto performanceQueryPool = m_pQueryPool->GetPerformanceQueryPoolHandle() )
-            {
-                const size_t reportSize = m_Profiler.m_MetricsApiINTEL.GetReportSize();
-
-                m_Data.m_PerformanceQueryReportINTEL.resize( reportSize );
-
-                VkResult result = m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
-                    m_Profiler.m_pDevice->Handle,
-                    performanceQueryPool,
-                    0, 1, reportSize,
-                    m_Data.m_PerformanceQueryReportINTEL.data(),
-                    reportSize, 0 );
-
-                if( result != VK_SUCCESS )
-                {
-                    // No data available
-                    m_Data.m_PerformanceQueryReportINTEL.clear();
-                }
-            }
+            m_Data.m_PerformanceQueryResults = m_pQueryPool->GetPerformanceQueryData();
+            m_Data.m_PerformanceQueryMetricsSetIndex = m_pQueryPool->GetPerformanceQueryMetricsSetIndex();
 
             // Subsequent calls to GetData will return the same results
             m_Dirty = false;

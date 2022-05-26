@@ -28,6 +28,7 @@ namespace Profiler
     CommandBufferQueryPool::CommandBufferQueryPool( DeviceProfiler& profiler, VkCommandBufferLevel level )
         : m_Profiler( profiler )
         , m_Device( *profiler.m_pDevice )
+        , m_MetricsApiINTEL( profiler.m_MetricsApiINTEL )
         , m_pQueryPools()
         , m_QueryPoolSize( 32768 )
         , m_CurrentQueryPoolIndex( 0 )
@@ -36,7 +37,7 @@ namespace Profiler
     {
         // Initialize performance query once
         if( (level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) &&
-            (m_Profiler.m_MetricsApiINTEL.IsAvailable()) )
+            (m_MetricsApiINTEL.IsAvailable()) )
         {
             VkQueryPoolCreateInfoINTEL intelCreateInfo = {};
             intelCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO_INTEL;
@@ -48,8 +49,8 @@ namespace Profiler
             createInfo.queryType = VK_QUERY_TYPE_PERFORMANCE_QUERY_INTEL;
             createInfo.queryCount = 1;
 
-            m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
-                m_Profiler.m_pDevice->Handle,
+            m_Device.Callbacks.CreateQueryPool(
+                m_Device.Handle,
                 &createInfo,
                 nullptr,
                 &m_PerformanceQueryPoolINTEL );

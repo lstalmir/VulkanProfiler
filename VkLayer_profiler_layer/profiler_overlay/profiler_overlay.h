@@ -110,7 +110,18 @@ namespace Profiler
         std::vector<VkFence> m_CommandFences;
         std::vector<VkSemaphore> m_CommandSemaphores;
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
+        uint32_t m_ActiveMetricsSetIndex;
+
+        struct VendorMetricsSet
+        {
+            VkProfilerPerformanceMetricsSetPropertiesEXT           m_Properties;
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Metrics;
+        };
+
+        std::vector<VendorMetricsSet> m_VendorMetricsSets;
+        std::vector<bool>             m_VendorMetricsSetVisibility;
+
+        char m_VendorMetricFilter[ 128 ] = {};
 
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;
@@ -172,6 +183,12 @@ namespace Profiler
 
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
+
+        // Performance metrics filter.
+        // The profiler will show only metrics for the selected command buffer.
+        // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
+        VkCommandBuffer m_PerformanceQueryCommandBufferFilter;
+        std::string     m_PerformanceQueryCommandBufferFilterName;
 
         // Trace serialization output
         bool m_SerializationSucceeded;

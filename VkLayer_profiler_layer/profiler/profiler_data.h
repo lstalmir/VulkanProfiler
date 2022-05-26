@@ -594,7 +594,8 @@ namespace Profiler
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
-        std::vector<char>                                   m_PerformanceQueryReportINTEL = {};
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_PerformanceQueryResults = {};
+        uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
 
         uint64_t                                            m_ProfilerCpuOverheadNs = {};
     };

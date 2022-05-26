@@ -25,12 +25,27 @@
 #endif
 #include <vector>
 #include <string>
+#include <shared_mutex>
 #include <vulkan/vulkan.h>
 // Import extension structures
 #include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
+    class DeviceProfiler;
+
+    struct ProfilerMetricsSet_INTEL
+    {
+        MetricsDiscovery::IMetricSet_1_5* m_pMetricSet;
+        MetricsDiscovery::TMetricSetParams_1_4* m_pMetricSetParams;
+
+        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_MetricsProperties;
+
+        // Some metrics are reported in premultiplied units, e.g., MHz
+        // This vector contains factors applied to each metric in output reports
+        std::vector<double> m_MetricFactors;
+    };
+
     /***********************************************************************************\
 
     Class:
@@ -50,15 +65,24 @@ namespace Profiler
 
         bool IsAvailable() const;
 
-        size_t GetReportSize() const;
+        size_t GetReportSize( uint32_t ) const;
 
-        size_t GetMetricsCount() const;
+        size_t GetMetricsCount( uint32_t ) const;
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> GetMetricsProperties() const;
+        size_t GetMetricsSetCount() const;
+
+        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> GetMetricsSets() const;
+
+        VkResult SetActiveMetricsSet( uint32_t );
+
+        uint32_t GetActiveMetricsSetIndex() const;
+
+        std::vector<VkProfilerPerformanceCounterPropertiesEXT> GetMetricsProperties( uint32_t ) const;
 
         std::vector<VkProfilerPerformanceCounterResultEXT> ParseReport(
+            uint32_t    metricsSetIndex,
             const char* pQueryReportData,
-            size_t queryReportSize );
+            size_t      queryReportSize );
 
     private:
         #ifdef WIN32
@@ -73,14 +97,11 @@ namespace Profiler
         MetricsDiscovery::IConcurrentGroup_1_5* m_pConcurrentGroup;
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
-        MetricsDiscovery::IMetricSet_1_5* m_pActiveMetricSet;
-        MetricsDiscovery::TMetricSetParams_1_4* m_pActiveMetricSetParams;
+        std::vector<ProfilerMetricsSet_INTEL> m_MetricsSets;
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_ActiveMetricsProperties;
+        std::shared_mutex mutable             m_ActiveMetricSetMutex;
+        uint32_t                              m_ActiveMetricsSetIndex;
 
-        // Some metrics are reported in premultiplied units, e.g., MHz
-        // This vector contains factors applied to each metric in output reports
-        std::vector<double> m_MetricFactors;
 
         bool LoadMetricsDiscoveryLibrary();
         void UnloadMetricsDiscoveryLibrary();

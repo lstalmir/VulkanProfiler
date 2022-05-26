@@ -55,4 +55,35 @@ namespace ImGuiX
 
     \*************************************************************************/
     ImU32 ColorLerp( ImU32, ImU32, float );
+
+    /*************************************************************************\
+
+    Function:
+        Selectable
+
+    Description:
+        Selectable combo box item.
+
+    \*************************************************************************/
+    bool Selectable( const char*, bool );
+
+    /*************************************************************************\
+
+    Function:
+        TSelectable
+
+    Description:
+        Selectable combo box item.
+
+    \*************************************************************************/
+    template<typename T>
+    bool TSelectable( const char* label, T& actual, const T& expected )
+    {
+        if( Selectable( label, (actual == expected) ) )
+        {
+            actual = expected;
+            return true;
+        }
+        return false;
+    }
 }
