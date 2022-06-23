@@ -1298,7 +1298,9 @@ namespace Profiler
                 }
             }
 
-            // Show a combo box that allows the user to select the filter.
+            // Show a combo box that allows the user to select the filter the profiled range.
+            ImGui::Text( "Range" );
+            ImGui::SameLine( 100.f );
             if( ImGui::BeginCombo( "PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
                 if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
@@ -1323,6 +1325,8 @@ namespace Profiler
             }
 
             // Show a combo box that allows the user to change the active metrics set.
+            ImGui::Text( "Metrics set" );
+            ImGui::SameLine( 100.f );
             if( ImGui::BeginCombo( "PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
             {
                 // Enumerate metrics sets.
@@ -1330,7 +1334,7 @@ namespace Profiler
                 {
                     if( m_VendorMetricsSetVisibility[ metricsSetIndex ] )
                     {
-                        const auto& metricsSet = m_VendorMetricsSets[metricsSetIndex];
+                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
 
                         if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
                         {
@@ -1348,6 +1352,8 @@ namespace Profiler
             }
 
             // Show a search box for filtering metrics sets to find specific metrics.
+            ImGui::Text( "Filter" );
+            ImGui::SameLine( 100.f );
             if( ImGui::InputText( "PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
             {
                 try
@@ -1399,9 +1405,8 @@ namespace Profiler
 
                 ImGui::BeginTable( "Performance counters table",
                     /* columns_count */ 3,
-                    ImGuiTableFlags_Resizable |
-                        ImGuiTableFlags_NoClip |
-                        ImGuiTableFlags_Borders );
+                    ImGuiTableFlags_NoClip |
+                    (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
 
                 // Headers
                 ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
