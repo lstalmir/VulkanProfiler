@@ -261,6 +261,11 @@ namespace Profiler
         uint32_t m_Depth;
     };
 
+    struct DeviceProfilerDrawcallTraceRaysIndirectPayload
+    {
+        VkDeviceAddress m_IndirectAddress;
+    };
+
     /***********************************************************************************\
 
     Structure:
@@ -293,6 +298,7 @@ namespace Profiler
         DeviceProfilerDrawcallFillBufferPayload m_FillBuffer;
         DeviceProfilerDrawcallUpdateBufferPayload m_UpdateBuffer;
         DeviceProfilerDrawcallTraceRaysPayload m_TraceRays;
+        DeviceProfilerDrawcallTraceRaysIndirectPayload m_TraceRaysIndirect;
     };
 
     /***********************************************************************************\

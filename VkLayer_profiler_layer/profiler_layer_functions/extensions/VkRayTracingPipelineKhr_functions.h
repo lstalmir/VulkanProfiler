@@ -45,5 +45,14 @@ namespace Profiler
             uint32_t width,
             uint32_t height,
             uint32_t depth );
+
+        // vkCmdTraceRaysIndirectKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdTraceRaysIndirectKHR(
+            VkCommandBuffer commandBuffer,
+            const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable,
+            const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable,
+            const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable,
+            const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable,
+            VkDeviceAddress indirectDeviceAddress );
     };
 }

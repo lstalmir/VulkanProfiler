@@ -188,6 +188,10 @@ namespace Profiler
                 drawcall.m_Payload.m_TraceRays.m_Width,
                 drawcall.m_Payload.m_TraceRays.m_Height,
                 drawcall.m_Payload.m_TraceRays.m_Depth );
+
+        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+            return fmt::format( "vkCmdTraceRaysIndirectKHR ({})",
+                drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
         }
     }
 
@@ -367,6 +371,12 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eUpdateBuffer:
             return "vkCmdUpdateBuffer";
+
+        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+            return "vkCmdTraceRaysKHR";
+
+        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+            return "vkCmdTraceRaysIndirectKHR";
         }
     }
 

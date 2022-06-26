@@ -98,4 +98,42 @@ namespace Profiler
         profiledCommandBuffer.PostCommand( drawcall );
     }
 
+    /***********************************************************************************\
+
+    Function:
+        CmdTraceRaysIndirectKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkRayTracingPipelineKhr_Functions::CmdTraceRaysIndirectKHR(
+        VkCommandBuffer commandBuffer,
+        const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable,
+        const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable,
+        const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable,
+        const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable,
+        VkDeviceAddress indirectDeviceAddress )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Setup drawcall descriptor
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eTraceRaysKHR;
+        drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress = indirectDeviceAddress;
+
+        profiledCommandBuffer.PreCommand( drawcall );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdTraceRaysIndirectKHR(
+            commandBuffer,
+            pRaygenShaderBindingTable,
+            pMissShaderBindingTable,
+            pHitShaderBindingTable,
+            pCallableShaderBindingTable,
+            indirectDeviceAddress );
+
+        profiledCommandBuffer.PostCommand( drawcall );
+    }
+
 }

@@ -173,6 +173,16 @@ namespace Profiler
                 { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ) },
                 { "dstOffset", drawcall.m_Payload.m_UpdateBuffer.m_Offset },
                 { "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size } };
+
+        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+            return {
+                { "width", drawcall.m_Payload.m_TraceRays.m_Width },
+                { "height", drawcall.m_Payload.m_TraceRays.m_Height },
+                { "depth", drawcall.m_Payload.m_TraceRays.m_Depth } };
+
+        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+            return {
+                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress } };
         }
     }
 
