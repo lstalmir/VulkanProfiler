@@ -90,8 +90,8 @@ namespace Profiler
         inline static constexpr char Submit[] = u8"Co przesłanie komend";
         inline static constexpr char SyncMode[] = u8"Moment synchronizacji";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
-        inline static constexpr char ShowShaderCapabilities[] = "Pokaż funkcjonalności shadera";
-        inline static constexpr char TimeUnit[] = "Jednostka czasu";
+        inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
+        inline static constexpr char TimeUnit[] = u8"Jednostka czasu";
 
         inline static constexpr char Unknown[] = u8"Nieznany";
     };

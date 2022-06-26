@@ -225,7 +225,7 @@ namespace Profiler
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
-        void DrawShaderCapabilityBadge( ImU32 color, const char* shortName, const char* longName );
+        void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
 
         template<typename Data>
         void PrintDuration( const Data& data )

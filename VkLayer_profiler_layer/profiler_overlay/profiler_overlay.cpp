@@ -2595,7 +2595,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::DrawShaderCapabilityBadge( ImU32 color, const char* shortName, const char* longName )
+    void ProfilerOverlayOutput::DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName )
     {
         assert( m_ShowShaderCapabilities );
         
