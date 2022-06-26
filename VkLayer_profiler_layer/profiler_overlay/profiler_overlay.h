@@ -166,6 +166,7 @@ namespace Profiler
         DeviceProfilerFrameData m_Data;
         bool m_Pause;
         bool m_ShowDebugLabels;
+        bool m_ShowShaderCapabilities;
 
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
@@ -224,6 +225,7 @@ namespace Profiler
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
+        void DrawShaderCapabilityBadge( ImU32 color, const char* shortName, const char* longName );
 
         template<typename Data>
         void PrintDuration( const Data& data )

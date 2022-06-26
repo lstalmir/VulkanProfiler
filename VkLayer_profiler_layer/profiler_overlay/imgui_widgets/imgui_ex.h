@@ -48,6 +48,28 @@ namespace ImGuiX
     /*************************************************************************\
 
     Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void Badge( ImU32 color, float rounding, const char* fmt, ... );
+    
+    /*************************************************************************\
+
+    Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void BadgeUnformatted( ImU32 color, float rounding, const char* text );
+
+    /*************************************************************************\
+
+    Function:
         ColorLerp
 
     Description:

@@ -115,6 +115,7 @@ namespace Profiler
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
         , m_ShowDebugLabels( true )
+        , m_ShowShaderCapabilities( true )
         , m_SelectedFrameBrowserNodeIndex( { 0xFFFF } )
         , m_ScrollToSelectedFrameBrowserNode( false )
         , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
@@ -127,6 +128,7 @@ namespace Profiler
         , m_RenderPassColumnColor( 0 )
         , m_GraphicsPipelineColumnColor( 0 )
         , m_ComputePipelineColumnColor( 0 )
+        , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
         , m_pStringSerializer( nullptr )
     {
@@ -1629,6 +1631,12 @@ namespace Profiler
 
             ImGui::TextUnformatted( Lang::DispatchCallsIndirect );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
+            
+            ImGui::TextUnformatted( Lang::TraceRaysCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysCount );
+
+            ImGui::TextUnformatted( Lang::TraceRaysIndirectCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysIndirectCount );
 
             ImGui::TextUnformatted( Lang::CopyBufferCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferCount );
@@ -1720,6 +1728,9 @@ namespace Profiler
 
         // Display debug labels in frame browser.
         ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
+
+        // Display shader capability badges in frame browser.
+        ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
     }
 
     /***********************************************************************************\
@@ -2450,6 +2461,20 @@ namespace Profiler
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
         }
 
+        if( m_ShowShaderCapabilities )
+        {
+            if( pipeline.m_UsesRayQuery )
+            {
+                static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
+                DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
+            }
+            if( pipeline.m_UsesRayTracing )
+            {
+                static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
+                DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
+            }
+        }
+
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
@@ -2560,6 +2585,29 @@ namespace Profiler
 
         ImDrawList* pDrawList = ImGui::GetWindowDrawList();
         pDrawList->AddRectFilled( cursorPosition, rectSize, color );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawSignificanceRect
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawShaderCapabilityBadge( ImU32 color, const char* shortName, const char* longName )
+    {
+        assert( m_ShowShaderCapabilities );
+        
+        ImGui::SameLine();
+        ImGuiX::BadgeUnformatted( color, 5.f, shortName );
+
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::BeginTooltip();
+            ImGui::Text( Lang::ShaderCapabilityTooltipFmt, longName );
+            ImGui::EndTooltip();
+        }
     }
 
     /***********************************************************************************\

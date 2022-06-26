@@ -442,6 +442,9 @@ namespace Profiler
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
+
+        bool                                                m_UsesRayQuery = false;
+        bool                                                m_UsesRayTracing = false;
     };
 
     /***********************************************************************************\
@@ -459,6 +462,10 @@ namespace Profiler
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
+
+        bool                                                m_UsesRayQuery = false;
+        bool                                                m_UsesRayTracing = false;
+
         uint64_t                                            m_BeginTimestamp = UINT64_MAX;
         uint64_t                                            m_EndTimestamp = UINT64_MAX;
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
@@ -470,6 +477,8 @@ namespace Profiler
             , m_BindPoint( pipeline.m_BindPoint )
             , m_ShaderTuple( pipeline.m_ShaderTuple )
             , m_Type( pipeline.m_Type )
+            , m_UsesRayQuery( pipeline.m_UsesRayQuery )
+            , m_UsesRayTracing( pipeline.m_UsesRayTracing )
         {
         }
 
