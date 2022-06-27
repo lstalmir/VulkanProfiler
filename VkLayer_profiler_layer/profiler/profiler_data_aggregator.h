@@ -82,6 +82,7 @@ namespace Profiler
 
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
+        uint32_t                                               m_VendorMetricsSetIndex;
 
         std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
 

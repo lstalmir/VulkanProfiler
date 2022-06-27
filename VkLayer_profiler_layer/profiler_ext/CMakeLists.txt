@@ -35,6 +35,9 @@ add_library (profiler_ext
     ${sources}
     ${headers})
 
+target_link_libraries (profiler_ext
+    PRIVATE profiler)
+
 # Set include path
 target_include_directories (profiler_ext
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}

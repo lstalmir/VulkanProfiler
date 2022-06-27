@@ -42,4 +42,5 @@ private:
     static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
 
     static bool IsMouseMessage( const MSG& );
+    static bool IsKeyboardMessage( const MSG& );
 };
