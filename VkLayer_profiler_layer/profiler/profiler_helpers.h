@@ -551,4 +551,21 @@ namespace Profiler
             return SIZE_MAX;
         }
     };
+
+
+
+    template<typename T>
+    inline T* CopyElements(uint32_t count, const T* pElements)
+    {
+        T* pDuplicated = nullptr;
+        if (count > 0)
+        {
+            pDuplicated = reinterpret_cast<T*>(malloc(count * sizeof(T)));
+            if (pDuplicated)
+            {
+                memcpy(pDuplicated, pElements, count * sizeof(T));
+            }
+        }
+        return pDuplicated;
+    }
 }

@@ -129,6 +129,42 @@ namespace Profiler
 
         delete[] pAvailableDeviceExtensions;
 
+        // Create a copy of the create info
+        VkDeviceCreateInfo createInfo = (*pCreateInfo);
+
+        // Get the features struct
+        VkPhysicalDeviceFeatures2 deviceFeatures;
+        VkPhysicalDeviceFeatures2* pDeviceFeatures =
+            FindPNext<VkPhysicalDeviceFeatures2>(&createInfo, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
+
+        if (!pDeviceFeatures)
+        {
+            // Application did not provide device features struct via pNext pointer.
+            // Append the struct to the chain so that other features required by the profiler can be enabled.
+            deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            deviceFeatures.pNext = nullptr;
+
+            if (createInfo.pEnabledFeatures)
+            {
+                // VkPhysicalDeviceFeatures provided, copy them to the struct and unset the pointer.
+                memcpy(&deviceFeatures.features, createInfo.pEnabledFeatures, sizeof(deviceFeatures.features));
+                createInfo.pEnabledFeatures = nullptr;
+            }
+            else
+            {
+                // Application did not enable any features, clear all bits.
+                memset(&deviceFeatures, 0, sizeof(deviceFeatures));
+            }
+
+            pDeviceFeatures = &deviceFeatures;
+
+            // Append the structure to the chain.
+            AppendPNext(createInfo, pDeviceFeatures);
+        }
+
+        // Enable device features required by the enabled extensions
+        DeviceProfiler::EnableOptionalDeviceFeatures( deviceExtensions, pDeviceFeatures );
+
         // Convert to continuous memory block
         std::vector<const char*> enabledDeviceExtensions;
         enabledDeviceExtensions.reserve( deviceExtensions.size() );
@@ -139,7 +175,6 @@ namespace Profiler
         }
 
         // Override device create info
-        VkDeviceCreateInfo createInfo = (*pCreateInfo);
         createInfo.enabledExtensionCount = enabledDeviceExtensions.size();
         createInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
 

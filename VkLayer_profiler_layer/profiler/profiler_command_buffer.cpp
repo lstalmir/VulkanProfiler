@@ -965,6 +965,21 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
             m_Stats.m_TraceRaysIndirectCount++;
             break;
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            m_Stats.m_BuildAccelerationStructuresCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+            break;
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+            m_Stats.m_BuildAccelerationStructuresIndirectCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+            break;
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+            m_Stats.m_CopyAccelerationStructureCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+            m_Stats.m_CopyAccelerationStructureToMemoryCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+            m_Stats.m_CopyMemoryToAccelerationStructureCount++;
+            break;
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
         case DeviceProfilerDrawcallType::eEndDebugLabel:
         case DeviceProfilerDrawcallType::eInsertDebugLabel:

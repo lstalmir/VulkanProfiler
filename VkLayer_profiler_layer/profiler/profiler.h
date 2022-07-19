@@ -63,6 +63,8 @@ namespace Profiler
         static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const VkProfilerCreateInfoEXT* );
         static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
 
+        static void EnableOptionalDeviceFeatures( const std::unordered_set<std::string>& enabledExtensions, void* pDeviceCreateInfoPNextChain );
+
         static void LoadConfiguration( const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
         VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
@@ -73,6 +75,8 @@ namespace Profiler
         VkResult SetMode( VkProfilerModeEXT );
         VkResult SetSyncMode( VkProfilerSyncModeEXT );
         DeviceProfilerFrameData GetData() const;
+
+        bool CapturePipelineExecutableProperties() const { return m_PipelineExecutablePropertiesEnabled; }
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
         DeviceProfilerCommandPool& GetCommandPool( VkCommandPool commandPool );
@@ -137,7 +141,7 @@ namespace Profiler
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;
 
-        ConcurrentMap<VkShaderModule, ProfilerShaderModule> m_ShaderModules;
+        ConcurrentMap<VkShaderModule, DeviceProfilerShaderModule> m_ShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
 
         ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
@@ -149,6 +153,8 @@ namespace Profiler
         ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
 
         DeviceProfilerSynchronization m_Synchronization;
+
+        bool                    m_PipelineExecutablePropertiesEnabled;
 
 
         VkResult InitializeINTEL();

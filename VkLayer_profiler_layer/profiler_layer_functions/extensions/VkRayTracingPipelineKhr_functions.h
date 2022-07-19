@@ -54,5 +54,37 @@ namespace Profiler
             const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable,
             const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable,
             VkDeviceAddress indirectDeviceAddress );
+
+        // TODO: Move to VkAccelerationStructureKhr_function.h
+        // vkCmdBuildAccelerationStructuresKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdBuildAccelerationStructuresKHR(
+            VkCommandBuffer commandBuffer,
+            uint32_t infoCount,
+            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
+            const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos);
+
+        // vkCmdBuildAccelerationStructuresIndirectKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdBuildAccelerationStructuresIndirectKHR(
+            VkCommandBuffer commandBuffer,
+            uint32_t infoCount,
+            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
+            const VkDeviceAddress* pIndirectDeviceAddresses,
+            const uint32_t* pIndirectStrides,
+            const uint32_t* const* ppMaxPrimitiveCounts);
+
+        // vkCmdCopyAccelerationStructureKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyAccelerationStructureKHR(
+            VkCommandBuffer commandBuffer,
+            const VkCopyAccelerationStructureInfoKHR* pInfo);
+
+        // vkCmdCopyAccelerationStructureToMemoryKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyAccelerationStructureToMemoryKHR(
+            VkCommandBuffer commandBuffer,
+            const VkCopyAccelerationStructureToMemoryInfoKHR* pInfo);
+
+        // vkCmdCopyMemoryToAccelerationStructureKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyMemoryToAccelerationStructureKHR(
+            VkCommandBuffer commandBuffer,
+            const VkCopyMemoryToAccelerationStructureInfoKHR* pInfo);
     };
 }

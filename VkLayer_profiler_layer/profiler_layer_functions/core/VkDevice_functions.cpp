@@ -127,6 +127,13 @@ namespace Profiler
         GETPROCADDR( CreateRayTracingPipelinesKHR );
         GETPROCADDR( CmdTraceRaysKHR );
 
+        // VK_KHR_acceleration_structure functions
+        GETPROCADDR(CmdBuildAccelerationStructuresKHR);
+        GETPROCADDR(CmdBuildAccelerationStructuresIndirectKHR);
+        GETPROCADDR(CmdCopyAccelerationStructureKHR);
+        GETPROCADDR(CmdCopyAccelerationStructureToMemoryKHR);
+        GETPROCADDR(CmdCopyMemoryToAccelerationStructureKHR);
+
         // VK_KHR_swapchain functions
         GETPROCADDR( QueuePresentKHR );
         GETPROCADDR( CreateSwapchainKHR );
@@ -243,6 +250,24 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
+        std::vector<VkGraphicsPipelineCreateInfo> createInfos;
+        if (dd.Profiler.CapturePipelineExecutableProperties())
+        {
+            // To capture the properties and internal representations, flags must be passed to the ICD.
+            // Create a copy of pCreateInfos list and add these flags.
+            createInfos.resize(createInfoCount);
+            memcpy(createInfos.data(), pCreateInfos, createInfoCount * sizeof(*pCreateInfos));
+
+            for (auto& createInfo : createInfos)
+            {
+                createInfo.flags |=
+                    VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR |
+                    VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+            }
+
+            pCreateInfos = createInfos.data();
+        }
+
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateGraphicsPipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
@@ -273,6 +298,24 @@ namespace Profiler
         VkPipeline* pPipelines )
     {
         auto& dd = DeviceDispatch.Get( device );
+
+        std::vector<VkComputePipelineCreateInfo> createInfos;
+        if (dd.Profiler.CapturePipelineExecutableProperties())
+        {
+            // To capture the properties and internal representations, flags must be passed to the ICD.
+            // Create a copy of pCreateInfos list and add these flags.
+            createInfos.resize(createInfoCount);
+            memcpy(createInfos.data(), pCreateInfos, createInfoCount * sizeof(*pCreateInfos));
+
+            for (auto& createInfo : createInfos)
+            {
+                createInfo.flags |=
+                    VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR |
+                    VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+            }
+
+            pCreateInfos = createInfos.data();
+        }
 
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateComputePipelines(

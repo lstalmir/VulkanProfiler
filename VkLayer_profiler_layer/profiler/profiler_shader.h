@@ -25,29 +25,38 @@
 #include <vulkan/vulkan.h>
 #include <spirv/unified1/spirv.h>
 
+
 namespace Profiler
 {
-    struct ProfilerShaderTuple
+    struct DeviceProfilerShaderModule
+    {
+        uint32_t                    m_Hash = 0;
+        std::vector<uint32_t>       m_Bytecode = {};
+        std::vector<SpvCapability>  m_Capabilities = {};
+    };
+
+    struct DeviceProfilerPipelineShader
+    {
+        uint32_t                    m_Hash = 0;
+        std::string                 m_EntryPoint = "";
+        DeviceProfilerShaderModule* m_pShaderModule = nullptr;
+    };
+
+    struct DeviceProfilerPipelineShaderTuple
     {
         uint32_t m_Hash = 0;
 
-        BitsetArray<VkShaderStageFlagBits, uint32_t, 32> m_Stages = {};
+        BitsetArray<VkShaderStageFlagBits, DeviceProfilerPipelineShader, 32> m_Shaders = {};
 
-        inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
+        inline constexpr bool operator==( const DeviceProfilerPipelineShaderTuple& rh ) const
         {
             return m_Hash == rh.m_Hash;
         }
 
-        inline constexpr bool operator!=( const ProfilerShaderTuple& rh ) const
+        inline constexpr bool operator!=( const DeviceProfilerPipelineShaderTuple& rh ) const
         {
             return !operator==( rh );
         }
-    };
-
-    struct ProfilerShaderModule
-    {
-        uint32_t                   m_Hash = 0;
-        std::vector<SpvCapability> m_Capabilities = {};
     };
 }
 
@@ -55,9 +64,9 @@ namespace Profiler
 namespace std
 {
     template<>
-    struct hash<Profiler::ProfilerShaderTuple>
+    struct hash<Profiler::DeviceProfilerPipelineShaderTuple>
     {
-        inline size_t operator()( const Profiler::ProfilerShaderTuple& tuple ) const
+        inline size_t operator()( const Profiler::DeviceProfilerPipelineShaderTuple& tuple ) const
         {
             return tuple.m_Hash;
         }

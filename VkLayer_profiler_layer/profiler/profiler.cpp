@@ -25,6 +25,8 @@
 #include <sstream>
 #include <fstream>
 
+#include "../profiler_layer_functions/Helpers.h"
+
 namespace
 {
     static inline VkImageAspectFlags GetImageAspectFlagsForFormat( VkFormat format )
@@ -133,6 +135,7 @@ namespace Profiler
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
+        , m_PipelineExecutablePropertiesEnabled( false )
     {
     }
 
@@ -149,7 +152,8 @@ namespace Profiler
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+            VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME
         };
 
         // Load configuration that will be used by the profiler.
@@ -180,6 +184,36 @@ namespace Profiler
             VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
             VK_EXT_DEBUG_UTILS_EXTENSION_NAME
         };
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EnableOptionalDeviceFeatures
+
+    Description:
+        Enables required device features based on the enabled extensions.
+
+    \***********************************************************************************/
+    void DeviceProfiler::EnableOptionalDeviceFeatures(const std::unordered_set<std::string>& enabledExtensions, void* pDeviceCreateInfoPNextChain)
+    {
+        if (enabledExtensions.count(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME))
+        {
+            // pipelineExecutableInfo feature must be enabled to read internal representations and statistics
+            VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR* pPipelineExecutablePropertiesFeatures =
+                FindPNext<VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR>(pDeviceCreateInfoPNextChain, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR);
+
+            if (!pPipelineExecutablePropertiesFeatures)
+            {
+                static VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR pipelineExecutablePropertiesFeatures;
+                pipelineExecutablePropertiesFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
+                pPipelineExecutablePropertiesFeatures = &pipelineExecutablePropertiesFeatures;
+
+                AppendPNext(pDeviceCreateInfoPNextChain, pPipelineExecutablePropertiesFeatures);
+            }
+
+            pPipelineExecutablePropertiesFeatures->pipelineExecutableInfo = VK_TRUE;
+        }
     }
 
     /***********************************************************************************\
@@ -258,6 +292,12 @@ namespace Profiler
             InitializeINTEL();
         }
 
+        if (m_pDevice->EnabledExtensions.count(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME))
+        {
+            // Capture pipeline statistics and internal representations for debugging.
+            m_PipelineExecutablePropertiesEnabled = true;
+        }
+
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
 
@@ -281,6 +321,10 @@ namespace Profiler
         CreateInternalPipeline( DeviceProfilerPipelineType::eUpdateBuffer, "UpdateBuffer" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eBeginRenderPass, "BeginRenderPass" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eEndRenderPass, "EndRenderPass" );
+        CreateInternalPipeline(DeviceProfilerPipelineType::eBuildAccelerationStructuresKHR, "BuildAccelerationStructuresKHR");
+        CreateInternalPipeline(DeviceProfilerPipelineType::eCopyAccelerationStructureKHR, "CopyAccelerationStructureKHR");
+        CreateInternalPipeline(DeviceProfilerPipelineType::eCopyAccelerationStructureToMemoryKHR, "CopyAccelerationStructureToMemoryKHR");
+        CreateInternalPipeline(DeviceProfilerPipelineType::eCopyMemoryToAccelerationStructureKHR, "CopyMemoryToAccelerationStructureKHR");
 
         return VK_SUCCESS;
     }
@@ -631,10 +675,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
     {
-        ProfilerShaderModule sm;
-
         // Compute shader code hash to use later
-        sm.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+        DeviceProfilerShaderModule shaderModule = {};
+        shaderModule.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+        shaderModule.m_Bytecode.resize( pCreateInfo->codeSize / sizeof( uint32_t ) );
+        memcpy( shaderModule.m_Bytecode.data(), pCreateInfo->pCode, pCreateInfo->codeSize );
 
         // Enumerate capabilities of the shader module
         const uint32_t* pCurrentWord = pCreateInfo->pCode + 5; // skip header bytes
@@ -645,11 +690,11 @@ namespace Profiler
         {
             assert((*pCurrentWord >> 16) == 2);
 
-            sm.m_Capabilities.push_back(static_cast<SpvCapability>(*(pCurrentWord + 1)));
+            shaderModule.m_Capabilities.push_back(static_cast<SpvCapability>(*(pCurrentWord + 1)));
             pCurrentWord += 2; // SpvOpCapability is 2 words long
         }
 
-        m_ShaderModules.insert( module, std::move( sm ) );
+        m_ShaderModules.insert( module, std::move( shaderModule ) );
     }
 
     /***********************************************************************************\
@@ -660,9 +705,9 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
+    void DeviceProfiler::DestroyShaderModule( VkShaderModule )
     {
-        m_ShaderModules.remove( module );
+        // Don't remove the shader module entry from the map so that the pipelines are not invalidated.
     }
 
     /***********************************************************************************\
@@ -1039,21 +1084,26 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages )
     {
+        BitsetArray<VkShaderStageFlagBits, uint32_t, 32> shaderHashes = {};
+
         for( uint32_t i = 0; i < stageCount; ++i )
         {
-            // VkShaderModule entry should already be in the map
-            const ProfilerShaderModule& sm = m_ShaderModules.at( pStages[i].module );
+            const VkPipelineShaderStageCreateInfo& stageCreateInfo = pStages[i];
 
-            const char* entrypoint = pStages[i].pName;
-            uint32_t hash = sm.m_Hash;
+            // VkShaderModule entry should already be in the map
+            DeviceProfilerShaderModule& shaderModule = m_ShaderModules.at( stageCreateInfo.module );
+
+            // Fill the pipeline shader stage info
+            DeviceProfilerPipelineShader& pipelineShader = pipeline.m_ShaderTuple.m_Shaders[stageCreateInfo.stage];
+            pipelineShader.m_Hash = shaderModule.m_Hash;
+            pipelineShader.m_EntryPoint = stageCreateInfo.pName;
+            pipelineShader.m_pShaderModule = &shaderModule;
 
             // Hash the entrypoint and append it to the final hash
-            hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
-
-            pipeline.m_ShaderTuple.m_Stages[pStages[i].stage] = hash;
+            pipelineShader.m_Hash ^= Hash::Fingerprint32( pipelineShader.m_EntryPoint );
 
             // Check if the stage uses ray query or ray tracing capabilities
-            for( SpvCapability capability : sm.m_Capabilities )
+            for( SpvCapability capability : shaderModule.m_Capabilities )
             {
                 if( (capability == SpvCapabilityRayQueryKHR) ||
                     (capability == SpvCapabilityRayQueryProvisionalKHR) )
@@ -1066,12 +1116,15 @@ namespace Profiler
                     pipeline.m_UsesRayTracing = true;
                 }
             }
+
+            // Store the computed hash in an array to compute the combined pipeline hash later
+            shaderHashes[stageCreateInfo.stage] = pipelineShader.m_Hash;
         }
 
         // Compute aggregated tuple hash for fast comparison
         pipeline.m_ShaderTuple.m_Hash = Hash::Fingerprint32(
-            reinterpret_cast<const char*>( &pipeline.m_ShaderTuple.m_Stages ),
-            sizeof( pipeline.m_ShaderTuple.m_Stages ) );
+            reinterpret_cast<const char*>( &shaderHashes ),
+            sizeof( shaderHashes ) );
     }
 
     /***********************************************************************************\
@@ -1140,8 +1193,8 @@ namespace Profiler
         {
             // Vertex and pixel shader hashes
             char pPipelineDebugName[ 25 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_VERTEX_BIT] );
-            u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_FRAGMENT_BIT] );
+            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_VERTEX_BIT].m_Hash );
+            u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_FRAGMENT_BIT].m_Hash );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }
@@ -1150,7 +1203,7 @@ namespace Profiler
         {
             // Compute shader hash
             char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_COMPUTE_BIT] );
+            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_COMPUTE_BIT].m_Hash );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }
@@ -1159,9 +1212,9 @@ namespace Profiler
         {
             // Ray tracing shader hash
             char pPipelineDebugName[ 75 ] = "RGEN=XXXXXXXX, aHIT=XXXXXXXX, cHIT=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 5, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_RAYGEN_BIT_KHR] );
-            u32tohex( pPipelineDebugName + 20, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_ANY_HIT_BIT_KHR] );
-            u32tohex( pPipelineDebugName + 35, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR] );
+            u32tohex( pPipelineDebugName + 5, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_RAYGEN_BIT_KHR].m_Hash );
+            u32tohex( pPipelineDebugName + 20, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_ANY_HIT_BIT_KHR].m_Hash );
+            u32tohex( pPipelineDebugName + 35, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR].m_Hash );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }

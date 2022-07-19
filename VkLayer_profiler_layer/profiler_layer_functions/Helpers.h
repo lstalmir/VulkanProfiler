@@ -77,19 +77,48 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        FindPNext
+
+    Description:
+        Finds the structure of type sType in the pNext chain.
+        Returns NULL ptr if structure is not found.
+
+    \***********************************************************************************/
+    inline void* FindPNext( void* pBaseStruct, VkStructureType sType )
+    {
+        VkBaseOutStructure* ptr = reinterpret_cast<VkBaseOutStructure*>(pBaseStruct);
+        while (ptr != nullptr && ptr->sType != sType)
+            ptr = ptr->pNext;
+        return ptr;
+    }
+
+    template<typename StructureType>
+    inline StructureType* FindPNext( void* pBaseStruct, VkStructureType sType)
+    {
+        return reinterpret_cast<StructureType*>(FindPNext(pBaseStruct, sType));
+    }
+
+    /***********************************************************************************\
+
+    Function:
         AppendPNext
 
     Description:
 
     \***********************************************************************************/
+    inline void AppendPNext(void* pNextChain, void* pNext)
+    {
+        VkBaseOutStructure* pStruct = reinterpret_cast<VkBaseOutStructure*>(pNextChain);
+
+        // Skip pNext pointers until we get to the end of chain
+        while (pStruct->pNext) pStruct = pStruct->pNext;
+
+        pStruct->pNext = reinterpret_cast<VkBaseOutStructure*>(pNext);
+    }
+
     template<typename StructureType>
     inline void AppendPNext( StructureType& structure, void* pNext )
     {
-        VkBaseOutStructure* pStruct = reinterpret_cast<VkBaseOutStructure*>(&structure);
-
-        // Skip pNext pointers until we get to the end of chain
-        while( pStruct->pNext ) pStruct = pStruct->pNext;
-
-        pStruct->pNext = reinterpret_cast<VkBaseOutStructure*>(pNext);
+        AppendPNext((void*)&structure, pNext);
     }
 }
