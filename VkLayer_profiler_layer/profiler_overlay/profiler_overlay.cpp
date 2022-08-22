@@ -1284,6 +1284,36 @@ namespace Profiler
                 pHistogramDescription, 0, FLT_MAX, { 0, 100 },
                 std::bind( &ProfilerOverlayOutput::DrawPerformanceGraphLabel, this, std::placeholders::_1 ),
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
+            ImGui::PopItemWidth();
+        }
+
+        // Timeline
+        {
+            std::unordered_map<VkQueue, std::vector<float>> ranges;
+            GetTimelineGraphRanges(ranges);
+
+            // Find min and max of all ranges to display the timeline on a common x axis
+            float x_min = FLT_MAX;
+            float x_max = -FLT_MAX;
+            for (const auto& [queue, commandBufferRanges] : ranges) {
+                for (float v : commandBufferRanges) {
+                    x_min = std::min(x_min, v);
+                    x_max = std::max(x_max, v);
+                }
+            }
+
+            ImGui::PushItemWidth(-1);
+            char timelineName[64];
+            for (const auto& [queue, commandBufferRanges] : ranges) {
+                auto queueName = m_pStringSerializer->GetName(queue);
+                sprintf(timelineName, "%s##_timeline", queueName.c_str());
+                ImGuiX::PlotTimeline(timelineName,
+                    commandBufferRanges.data(),
+                    commandBufferRanges.size() / 2, 0,
+                    x_min,
+                    x_max);
+            }
+            ImGui::PopItemWidth();
         }
 
         // Top pipelines
@@ -2165,6 +2195,29 @@ namespace Profiler
 
         // Insert drawcall cycle count to histogram
         columns.push_back( column );
+    }
+
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::GetTimelineGraphRanges(std::unordered_map<VkQueue, std::vector<float>>& ranges) const
+    {
+        // Enumerate submits batches in frame
+        for (const auto& submitBatch : m_Data.m_Submits)
+        {
+            auto& commandBufferRanges = ranges[submitBatch.m_Handle];
+
+            // Enumerate submits in submit batch
+            for (const auto& submit : submitBatch.m_Submits)
+            {
+                // Enumerate command buffers in submit
+                for (const auto& commandBuffer : submit.m_CommandBuffers)
+                {
+                    commandBufferRanges.push_back(commandBuffer.m_BeginTimestamp);
+                    commandBufferRanges.push_back(commandBuffer.m_EndTimestamp);
+                }
+            }
+        }
     }
 
     /***********************************************************************************\

@@ -238,6 +238,9 @@ namespace Profiler
         void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 
+        // Timeline graph helpers
+        void GetTimelineGraphRanges(std::unordered_map<VkQueue, std::vector<float>>&) const;
+
         // Trace serialization helpers
         void DrawTraceSerializationOutputWindow();
 

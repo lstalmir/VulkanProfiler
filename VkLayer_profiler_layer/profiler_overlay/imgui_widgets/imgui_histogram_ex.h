@@ -83,4 +83,30 @@ namespace ImGuiX
         ImVec2 graph_size = ImVec2( 0, 0 ),
         std::function<HistogramColumnHoverCallback> hover_cb = NULL,
         std::function<HistogramColumnClickCallback> click_cb = NULL );
+
+    /*************************************************************************\
+
+    Function:
+        PlotTimeline
+
+    Description:
+        Draws horizontal bars on a timeline.
+
+    Input:
+        label           Title of the timeline
+        ranges          List of ranges (timestamp pairs) to draw
+        ranges_count    Number of ranges
+        ranges_offset   First range offset
+        scale_min       Value at the beginning of the timeline
+        scale_max       Value at the end of the timeline
+
+    \*************************************************************************/
+    void PlotTimeline(
+        const char* label,
+        const float* ranges,
+        int ranges_count,
+        int ranges_offset = 0,
+        float scale_min = FLT_MAX,
+        float scale_max = FLT_MAX,
+        ImVec2 graph_size = ImVec2(0, 0));
 }
