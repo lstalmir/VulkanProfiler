@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,7 @@
 #pragma once
 #include "VkCommandBuffer_functions.h"
 #include "VkQueue_functions.h"
+#include "VkAccelerationStructureKhr_functions.h"
 #include "VkCreateRenderPass2Khr_functions.h"
 #include "VkDebugMarkerExt_functions.h"
 #include "VkDebugUtilsExt_functions.h"
@@ -43,6 +44,7 @@ namespace Profiler
     struct VkDevice_Functions
         : VkCommandBuffer_Functions
         , VkQueue_Functions
+        , VkAccelerationStructureKhr_Functions
         , VkCreateRenderPass2Khr_Functions
         , VkDebugMarkerExt_Functions
         , VkDebugUtilsExt_Functions

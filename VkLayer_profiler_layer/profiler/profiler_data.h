@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -71,7 +71,12 @@ namespace Profiler
         eFillBuffer = 0x000C0000,
         eUpdateBuffer = 0x000D0000,
         eTraceRaysKHR = 0x000E0000,
-        eTraceRaysIndirectKHR = 0x000E0001
+        eTraceRaysIndirectKHR = 0x000E0001,
+        eBuildAccelerationStructuresKHR = 0x000F0000,
+        eBuildAccelerationStructuresIndirectKHR = 0x000F0001,
+        eCopyAccelerationStructureKHR = 0x00100000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
     };
 
     /***********************************************************************************\
@@ -102,6 +107,10 @@ namespace Profiler
         eBeginRenderPass = 0x000BFFFF,
         eEndRenderPass = 0x000EFFFF,
         eRayTracingKHR = 0x000E0000,
+        eBuildAccelerationStructuresKHR = 0x000F0000,
+        eCopyAccelerationStructureKHR = 0x00100000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
     };
 
     /***********************************************************************************\
@@ -266,6 +275,33 @@ namespace Profiler
         VkDeviceAddress m_IndirectAddress;
     };
 
+    struct DeviceProfilerDrawcallBuildAccelerationStructuresPayload
+    {
+        uint32_t m_InfoCount;
+        VkAccelerationStructureBuildGeometryInfoKHR* m_pInfos;
+    };
+
+    struct DeviceProfilerDrawcallCopyAccelerationStructurePayload
+    {
+        VkAccelerationStructureKHR m_Src;
+        VkAccelerationStructureKHR m_Dst;
+        VkCopyAccelerationStructureModeKHR m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload
+    {
+        VkAccelerationStructureKHR m_Src;
+        VkDeviceOrHostAddressKHR m_Dst;
+        VkCopyAccelerationStructureModeKHR m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload
+    {
+        VkDeviceOrHostAddressConstKHR m_Src;
+        VkAccelerationStructureKHR m_Dst;
+        VkCopyAccelerationStructureModeKHR m_Mode;
+    };
+
     /***********************************************************************************\
 
     Structure:
@@ -299,6 +335,10 @@ namespace Profiler
         DeviceProfilerDrawcallUpdateBufferPayload m_UpdateBuffer;
         DeviceProfilerDrawcallTraceRaysPayload m_TraceRays;
         DeviceProfilerDrawcallTraceRaysIndirectPayload m_TraceRaysIndirect;
+        DeviceProfilerDrawcallBuildAccelerationStructuresPayload m_BuildAccelerationStructures;
+        DeviceProfilerDrawcallCopyAccelerationStructurePayload m_CopyAccelerationStructure;
+        DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload m_CopyAccelerationStructureToMemory;
+        DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload m_CopyMemoryToAccelerationStructure;
     };
 
     /***********************************************************************************\
@@ -338,6 +378,13 @@ namespace Profiler
                 // Create copy of already stored string
                 m_Payload.m_DebugLabel.m_pName = _strdup( dc.m_Payload.m_DebugLabel.m_pName );
             }
+
+            if( dc.GetPipelineType() == DeviceProfilerPipelineType::eBuildAccelerationStructuresKHR )
+            {
+                // Create copy of build infos
+                m_Payload.m_BuildAccelerationStructures.m_pInfos =
+                    CopyElements( dc.m_Payload.m_BuildAccelerationStructures.m_InfoCount, dc.m_Payload.m_BuildAccelerationStructures.m_pInfos );
+            }
         }
 
         inline DeviceProfilerDrawcall( DeviceProfilerDrawcall&& dc )
@@ -354,6 +401,11 @@ namespace Profiler
             if( GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 free( m_Payload.m_DebugLabel.m_pName );
+            }
+
+            if( GetPipelineType() == DeviceProfilerPipelineType::eBuildAccelerationStructuresKHR )
+            {
+                free( m_Payload.m_BuildAccelerationStructures.m_pInfos );
             }
         }
 
@@ -407,6 +459,11 @@ namespace Profiler
         uint32_t m_UpdateBufferCount = {};
         uint32_t m_TraceRaysCount = {};
         uint32_t m_TraceRaysIndirectCount = {};
+        uint32_t m_BuildAccelerationStructuresCount = {};
+        uint32_t m_BuildAccelerationStructuresIndirectCount = {};
+        uint32_t m_CopyAccelerationStructureCount = {};
+        uint32_t m_CopyAccelerationStructureToMemoryCount = {};
+        uint32_t m_CopyMemoryToAccelerationStructureCount = {};
         uint32_t m_PipelineBarrierCount = {};
 
         // Stat aggregation helper
@@ -428,6 +485,11 @@ namespace Profiler
             m_UpdateBufferCount += rh.m_UpdateBufferCount;
             m_TraceRaysCount += rh.m_TraceRaysCount;
             m_TraceRaysIndirectCount += rh.m_TraceRaysIndirectCount;
+            m_BuildAccelerationStructuresCount += rh.m_BuildAccelerationStructuresCount;
+            m_BuildAccelerationStructuresIndirectCount += rh.m_BuildAccelerationStructuresIndirectCount;
+            m_CopyAccelerationStructureCount += rh.m_CopyAccelerationStructureCount;
+            m_CopyAccelerationStructureToMemoryCount += rh.m_CopyAccelerationStructureToMemoryCount;
+            m_CopyMemoryToAccelerationStructureCount += rh.m_CopyMemoryToAccelerationStructureCount;
             m_PipelineBarrierCount += rh.m_PipelineBarrierCount;
             return *this;
         }

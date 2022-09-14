@@ -23,9 +23,29 @@
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include <fmt/format.h>
+#include <sstream>
 
 namespace Profiler
 {
+    struct FlagsStringBuilder
+    {
+        std::stringstream m_Stream;
+        bool m_Empty = true;
+
+        void AddFlag(std::string&& flag)
+        {
+            if (!m_Empty)
+                m_Stream << " | ";
+            m_Stream << flag;
+            m_Empty = false;
+        }
+
+        std::string BuildString()
+        {
+            return m_Stream.str();
+        }
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -192,6 +212,32 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
             return fmt::format( "vkCmdTraceRaysIndirectKHR ({})",
                 drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
+
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            return fmt::format("vkCmdBuildAccelerationStructuresKHR ({})",
+                drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount);
+
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+            return fmt::format("vkCmdBuildAccelerationStructuresIndirectKHR ({})",
+                drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount);
+
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+            return fmt::format("vkCmdCopyAccelerationStructureKHR ({}, {}, {})",
+                GetName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Src),
+                GetName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Dst),
+                GetCopyAccelerationStructureModeName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode));
+
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+            return fmt::format("vkCmdCopyAccelerationStructureToMemoryKHR ({}, {}, {})",
+                GetName(drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Src),
+                drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Dst.hostAddress,
+                GetCopyAccelerationStructureModeName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode));
+
+        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+            return fmt::format("vkCmdCopyMemoryToAccelerationStructureKHR ({}, {}, {})",
+                drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Src.hostAddress,
+                GetName(drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Dst),
+                GetCopyAccelerationStructureModeName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode));
         }
     }
 
@@ -377,6 +423,21 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
             return "vkCmdTraceRaysIndirectKHR";
+
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            return "vkCmdBuildAccelerationStructuresKHR";
+
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+            return "vkCmdBuildAccelerationStructuresIndirectKHR";
+
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+            return "vkCmdCopyAccelerationStructureKHR";
+
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+            return "vkCmdCopyAccelerationStructureToMemoryKHR";
+
+        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+            return "vkCmdCopyMemoryToAccelerationStructureKHR";
         }
     }
 
@@ -401,5 +462,110 @@ namespace Profiler
         u8tohex( color + 5, B );
 
         return color;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCopyAccelerationStructureModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetCopyAccelerationStructureModeName(
+        VkCopyAccelerationStructureModeKHR mode) const
+    {
+        switch (mode)
+        {
+        case VK_COPY_ACCELERATION_STRUCTURE_MODE_CLONE_KHR:
+            return "Clone";
+        case VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR:
+            return "Compact";
+        case VK_COPY_ACCELERATION_STRUCTURE_MODE_SERIALIZE_KHR:
+            return "Serialize";
+        case VK_COPY_ACCELERATION_STRUCTURE_MODE_DESERIALIZE_KHR:
+            return "Deserialize";
+        }
+        return fmt::format("Unknown mode ({})", mode);
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetAccelerationStructureTypeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetAccelerationStructureTypeName(
+        VkAccelerationStructureTypeKHR type) const
+    {
+        switch (type)
+        {
+        case VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR:
+            return "Top-level";
+        case VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR:
+            return "Bottom-level";
+        case VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR:
+            return "Generic";
+        }
+        return fmt::format("Unknown type ({})", type);
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBuildAccelerationStructureFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBuildAccelerationStructureFlagNames(
+        VkBuildAccelerationStructureFlagsKHR flags) const
+    {
+        FlagsStringBuilder builder;
+
+        if (flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR)
+            builder.AddFlag("Allow update (1)");
+        if (flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR)
+            builder.AddFlag("Allow compaction (2)");
+        if (flags & VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR)
+            builder.AddFlag("Prefer fast trace (4)");
+        if (flags & VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR)
+            builder.AddFlag("Prefer fast build (8)");
+        if (flags & VK_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_KHR)
+            builder.AddFlag("Low memory (16)");
+        if (flags & VK_BUILD_ACCELERATION_STRUCTURE_MOTION_BIT_NV)
+            builder.AddFlag("Motion (32)");
+
+        for (uint32_t i = 6; i < 8 * sizeof(flags); ++i)
+        {
+            uint32_t unkownFlag = 1U << i;
+            if (flags & unkownFlag)
+                builder.AddFlag(fmt::format("Unknown flag ({})", unkownFlag));
+        }
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBuildAccelerationStructureModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBuildAccelerationStructureModeName(
+        VkBuildAccelerationStructureModeKHR mode) const
+    {
+        switch (mode)
+        {
+        case VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR:
+            return "Build";
+        case VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR:
+            return "Update";
+        }
+        return fmt::format("Unknown mode ({})", mode);
     }
 }

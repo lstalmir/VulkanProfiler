@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -126,6 +126,13 @@ namespace Profiler
         // VK_KHR_ray_tracing_pipeline functions
         GETPROCADDR( CreateRayTracingPipelinesKHR );
         GETPROCADDR( CmdTraceRaysKHR );
+
+        // VK_KHR_acceleration_structure functions
+        GETPROCADDR( CmdBuildAccelerationStructuresKHR );
+        GETPROCADDR( CmdBuildAccelerationStructuresIndirectKHR );
+        GETPROCADDR( CmdCopyAccelerationStructureKHR );
+        GETPROCADDR( CmdCopyAccelerationStructureToMemoryKHR );
+        GETPROCADDR( CmdCopyMemoryToAccelerationStructureKHR );
 
         // VK_KHR_swapchain functions
         GETPROCADDR( QueuePresentKHR );

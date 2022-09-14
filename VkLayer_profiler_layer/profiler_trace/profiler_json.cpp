@@ -183,6 +183,31 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
             return {
                 { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress } };
+
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+        {
+            const uint32_t infoCount = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+
+            std::vector<nlohmann::json> infos;
+            infos.reserve(infoCount);
+
+            for( uint32_t i = 0; i < infoCount; ++i )
+            {
+                const auto& info = drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ];
+                infos.push_back( {
+                    { "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) },
+                    { "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) },
+                    { "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) },
+                    { "src", m_pStringSerializer->GetName( info.srcAccelerationStructure ) },
+                    { "dst", m_pStringSerializer->GetName( info.dstAccelerationStructure ) },
+                    { "geometryCount", info.geometryCount } } );
+            }
+
+            return {
+                { "infoCount", infoCount },
+                { "infos", infos } };
+        }
         }
     }
 

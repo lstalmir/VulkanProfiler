@@ -50,6 +50,11 @@ namespace Profiler
 
         std::string GetColorHex( const float* ) const;
 
+        std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
+        std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
+        std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
+        std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
+
     private:
         const struct VkDevice_Object& m_Device;
     };

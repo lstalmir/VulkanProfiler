@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -551,4 +551,29 @@ namespace Profiler
             return SIZE_MAX;
         }
     };
+
+    /***********************************************************************************\
+
+    Function:
+        CopyElements
+
+    Description:
+        Allocates an array of <count> elements and copies the data from pElements to
+        the new location.
+
+    \***********************************************************************************/
+    template<typename T>
+    inline T* CopyElements(uint32_t count, const T* pElements)
+    {
+        T* pDuplicated = nullptr;
+        if (count > 0)
+        {
+            pDuplicated = reinterpret_cast<T*>(malloc(count * sizeof(T)));
+            if (pDuplicated)
+            {
+                memcpy(pDuplicated, pElements, count * sizeof(T));
+            }
+        }
+        return pDuplicated;
+    }
 }
