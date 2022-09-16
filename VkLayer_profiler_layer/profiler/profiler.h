@@ -150,6 +150,8 @@ namespace Profiler
 
         DeviceProfilerSynchronization m_Synchronization;
 
+        void*                   m_pStablePowerStateHandle;
+
 
         VkResult InitializeINTEL();
 

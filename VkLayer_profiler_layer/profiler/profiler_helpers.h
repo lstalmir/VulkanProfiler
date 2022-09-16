@@ -336,6 +336,9 @@ namespace Profiler
 
         static bool IsPreemptionEnabled();
 
+        static bool SetStablePowerState( struct VkDevice_Object* pDevice, void** ppStateHandle );
+        static void ResetStablePowerState( void* pStateHandle );
+
         template<typename... Args>
         inline static void WriteDebug( const char* fmt, Args... args )
         {

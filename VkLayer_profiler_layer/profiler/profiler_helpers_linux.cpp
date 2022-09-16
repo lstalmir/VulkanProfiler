@@ -73,6 +73,34 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetStablePowerState
+
+    Description:
+        Forces GPU to run at constant frequency for more reliable measurements.
+        Not all systems support this feature.
+
+    \***********************************************************************************/
+    bool ProfilerPlatformFunctions::SetStablePowerState( VkDevice_Object*, void** )
+    {
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetStablePowerState
+
+    Description:
+        Restores the default (dynamic) GPU frequency.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::ResetStablePowerState( void* )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteDebugUnformatted
 
     Description:
