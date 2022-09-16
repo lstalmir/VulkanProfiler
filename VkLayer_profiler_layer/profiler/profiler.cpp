@@ -286,6 +286,12 @@ namespace Profiler
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyAccelerationStructureToMemoryKHR, "CopyAccelerationStructureToMemoryKHR" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyMemoryToAccelerationStructureKHR, "CopyMemoryToAccelerationStructureKHR" );
 
+        if( m_Config.m_SetStablePowerState )
+        {
+            // Set stable power state.
+            ProfilerPlatformFunctions::SetStablePowerState( m_pDevice, &m_pStablePowerStateHandle );
+        }
+
         return VK_SUCCESS;
     }
 
@@ -369,6 +375,11 @@ namespace Profiler
         {
             m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
             m_SubmitFence = VK_NULL_HANDLE;
+        }
+        
+        if( m_pStablePowerStateHandle != nullptr )
+        {
+            ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
         }
 
         m_CurrentFrame = 0;
