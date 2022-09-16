@@ -42,8 +42,7 @@ namespace Profiler
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR;
-        drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount = infoCount;
-        drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos = CopyElements( infoCount, pInfos );
+        drawcall.m_Payload = DeviceProfilerDrawcallBuildAccelerationStructuresPayload( infoCount, pInfos, ppBuildRangeInfos );
 
         profiledCommandBuffer.PreCommand( drawcall );
 
@@ -79,8 +78,7 @@ namespace Profiler
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR;
-        drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount = infoCount;
-        drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos = CopyElements( infoCount, pInfos );
+        drawcall.m_Payload = DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload( infoCount, pInfos, ppMaxPrimitiveCounts );
 
         profiledCommandBuffer.PreCommand( drawcall );
 

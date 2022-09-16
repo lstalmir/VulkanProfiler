@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -190,18 +190,79 @@ namespace Profiler
             const uint32_t infoCount = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
 
             std::vector<nlohmann::json> infos;
-            infos.reserve(infoCount);
+            infos.reserve( infoCount );
 
             for( uint32_t i = 0; i < infoCount; ++i )
             {
                 const auto& info = drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ];
-                infos.push_back( {
+
+                std::vector<nlohmann::json> geometries;
+                if( info.pGeometries )
+                {
+                    geometries.reserve( info.geometryCount );
+                    for( uint32_t j = 0; j < info.geometryCount; ++j )
+                    {
+                        const auto& geometry = info.pGeometries[ j ];
+                        nlohmann::json geometryData;
+
+                        switch( geometry.geometryType )
+                        {
+                        case VK_GEOMETRY_TYPE_TRIANGLES_KHR:
+                            geometryData = {
+                                { "vertexFormat", m_pStringSerializer->GetFormatName( geometry.geometry.triangles.vertexFormat ) },
+                                { "vertexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.vertexData.hostAddress ) },
+                                { "vertexStride", geometry.geometry.triangles.vertexStride },
+                                { "maxVertex", geometry.geometry.triangles.maxVertex },
+                                { "indexType", m_pStringSerializer->GetIndexTypeName( geometry.geometry.triangles.indexType ) },
+                                { "indexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.indexData.hostAddress ) },
+                                { "transformData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.transformData.hostAddress ) } };
+                            break;
+
+                        case VK_GEOMETRY_TYPE_AABBS_KHR:
+                            geometryData = {
+                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.aabbs.data.hostAddress ) },
+                                { "stride", geometry.geometry.aabbs.stride } };
+                            break;
+
+                        case VK_GEOMETRY_TYPE_INSTANCES_KHR:
+                            geometryData = {
+                                { "arrayOfPointers", static_cast<bool>( geometry.geometry.instances.arrayOfPointers ) },
+                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ) } };
+                            break;
+                        }
+
+                        nlohmann::json geometryRange;
+                        if( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
+                        {
+                            const auto& range = drawcall.m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ][ j ];
+                            geometryRange = {
+                                { "primitiveCount", range.primitiveCount },
+                                { "primitiveOffset", range.primitiveOffset },
+                                { "firstVertex", range.firstVertex },
+                                { "transformOffset", range.transformOffset } };
+                        }
+                        else //( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
+                        {
+                            geometryRange = {
+                                { "maxPrimitiveCount", drawcall.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ][ j ] } };
+                        }
+
+                        geometries.push_back({
+                            { "type", m_pStringSerializer->GetGeometryTypeName( geometry.geometryType ) },
+                            { "flags", m_pStringSerializer->GetGeometryFlagNames( geometry.flags ) },
+                            { "data", geometryData },
+                            { "range", geometryRange } });
+                    }
+                }
+
+                infos.push_back({
                     { "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) },
                     { "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) },
                     { "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) },
                     { "src", m_pStringSerializer->GetName( info.srcAccelerationStructure ) },
                     { "dst", m_pStringSerializer->GetName( info.dstAccelerationStructure ) },
-                    { "geometryCount", info.geometryCount } } );
+                    { "geometryCount", info.geometryCount },
+                    { "geometries", geometries } });
             }
 
             return {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,12 +48,20 @@ namespace Profiler
 
         std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
 
+        std::string GetPointer( const void* ) const;
+
         std::string GetColorHex( const float* ) const;
+
+        std::string GetFormatName( VkFormat ) const;
+        std::string GetIndexTypeName( VkIndexType ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
         std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
+
+        std::string GetGeometryTypeName( VkGeometryTypeKHR ) const;
+        std::string GetGeometryFlagNames( VkGeometryFlagsKHR ) const;
 
     private:
         const struct VkDevice_Object& m_Device;
