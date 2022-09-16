@@ -2207,10 +2207,15 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp );
+        const bool isValidRenderPass = (renderPass.m_Type != DeviceProfilerRenderPassType::eNone);
 
-        // Mark hotspots with color
-        DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
+        if( isValidRenderPass )
+        {
+            const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp);
+
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
+        }
 
         char indexStr[ 2 * sizeof( index ) + 1 ] = {};
         structtohex( indexStr, index );
@@ -2231,36 +2236,47 @@ namespace Profiler
             ImGui::SetScrollHereY();
         }
 
-        const bool inRenderPassSubtree =
-            ImGui::TreeNode( indexStr, "%s",
+        bool inRenderPassSubtree;
+        if( isValidRenderPass )
+        {
+            inRenderPassSubtree = ImGui::TreeNode( indexStr, "%s",
                 m_pStringSerializer->GetName( renderPass ).c_str() );
+        }
+        else
+        {
+            // Print render pass inline.
+            inRenderPassSubtree = true;
+        }
 
         if( inRenderPassSubtree )
         {
             // Render pass subtree opened
-            PrintDuration( renderPass );
-
-            if( renderPass.m_Handle != VK_NULL_HANDLE )
+            if( isValidRenderPass )
             {
-                const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+                PrintDuration( renderPass );
 
-                index.DrawcallIndex = 0;
-
-                if( (m_ScrollToSelectedFrameBrowserNode) &&
-                    (m_SelectedFrameBrowserNodeIndex == index) )
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    ImGui::SetScrollHereY();
+                    const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+
+                    index.DrawcallIndex = 0;
+
+                    if( (m_ScrollToSelectedFrameBrowserNode) &&
+                        (m_SelectedFrameBrowserNodeIndex == index) )
+                    {
+                        ImGui::SetScrollHereY();
+                    }
+
+                    // Mark hotspots with color
+                    DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
+
+                    index.DrawcallIndex = 0xFFFF;
+
+                    // Print BeginRenderPass pipeline
+                    ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
+
+                    PrintDuration( renderPass.m_Begin );
                 }
-
-                // Mark hotspots with color
-                DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
-
-                index.DrawcallIndex = 0xFFFF;
-
-                // Print BeginRenderPass pipeline
-                ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-
-                PrintDuration( renderPass.m_Begin );
             }
 
             // Sort frame browser data
@@ -2287,33 +2303,36 @@ namespace Profiler
                 index.SubpassIndex = 0xFFFF;
             }
 
-            if( renderPass.m_Handle != VK_NULL_HANDLE )
+            if( isValidRenderPass )
             {
-                const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
-
-                index.DrawcallIndex = 1;
-
-                if( (m_ScrollToSelectedFrameBrowserNode) &&
-                    (m_SelectedFrameBrowserNodeIndex == index) )
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    ImGui::SetScrollHereY();
+                    const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
+
+                    index.DrawcallIndex = 1;
+
+                    if( (m_ScrollToSelectedFrameBrowserNode) &&
+                        (m_SelectedFrameBrowserNodeIndex == index) )
+                    {
+                        ImGui::SetScrollHereY();
+                    }
+
+                    // Mark hotspots with color
+                    DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
+
+                    index.DrawcallIndex = 0xFFFF;
+
+                    // Print EndRenderPass pipeline
+                    ImGui::TextUnformatted( "vkCmdEndRenderPass" );
+
+                    PrintDuration( renderPass.m_End );
                 }
 
-                // Mark hotspots with color
-                DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
-
-                index.DrawcallIndex = 0xFFFF;
-
-                // Print EndRenderPass pipeline
-                ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-
-                PrintDuration( renderPass.m_End );
+                ImGui::TreePop();
             }
-
-            ImGui::TreePop();
         }
 
-        if( !inRenderPassSubtree )
+        if( isValidRenderPass && !inRenderPassSubtree )
         {
             // Render pass collapsed
             PrintDuration( renderPass );
