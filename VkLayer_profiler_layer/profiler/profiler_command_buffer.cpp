@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -207,7 +207,10 @@ namespace Profiler
                 uint64_t lastTimestampInRenderPassIndex =
                     m_Data.m_EndTimestamp;
 
-                if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+                if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
+                    (m_pCurrentPipelineData != nullptr) &&
+                    !m_pCurrentPipelineData->m_Drawcalls.empty() &&
+                    (m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp != UINT64_MAX) )
                 {
                     lastTimestampInRenderPassIndex =
                         m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp;
@@ -485,9 +488,7 @@ namespace Profiler
                 break;
 
             case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
-                ProfilerPlatformFunctions::WriteDebug(
-                    "%s - VK_KHR_ray_tracing extension not supported\n",
-                    __FUNCTION__ );
+                m_RayTracingPipeline = pipeline;
                 break;
             }
         }
@@ -534,6 +535,10 @@ namespace Profiler
                 pipelineChanged = SetupCommandBufferForStatCounting( m_ComputePipeline );
                 break;
 
+            case DeviceProfilerPipelineType::eRayTracingKHR:
+                pipelineChanged = SetupCommandBufferForStatCounting( m_RayTracingPipeline );
+                break;
+
             default: // Internal pipelines
                 pipelineChanged = SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ) );
                 break;
@@ -571,7 +576,8 @@ namespace Profiler
                     if( pPreviousPipelineData != nullptr )
                     {
                         if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
-                            !(pPreviousPipelineData->m_Drawcalls.empty()) )
+                            !pPreviousPipelineData->m_Drawcalls.empty() &&
+                            (pPreviousPipelineData->m_Drawcalls.back().m_EndTimestamp != UINT64_MAX) )
                         {
                             pPreviousPipelineData->m_EndTimestamp =
                                 pPreviousPipelineData->m_Drawcalls.back().m_EndTimestamp;
@@ -593,7 +599,8 @@ namespace Profiler
                     if( pPreviousSubpassData != nullptr )
                     {
                         if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                            (pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE) )
+                            (pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE) &&
+                            !pPreviousSubpassData->m_Pipelines.empty() )
                         {
                             pPreviousSubpassData->m_EndTimestamp =
                                 pPreviousSubpassData->m_Pipelines.back().m_EndTimestamp;
@@ -897,7 +904,8 @@ namespace Profiler
             // Send timestamp query at the end of the subpass.
             if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
                 (m_pCurrentPipelineData) &&
-                !(m_pCurrentPipelineData->m_Drawcalls.empty()) )
+                !(m_pCurrentPipelineData->m_Drawcalls.empty()) &&
+                (m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp != UINT64_MAX) )
             {
                 m_pCurrentSubpassData->m_EndTimestamp =
                     m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp;
@@ -982,6 +990,27 @@ namespace Profiler
             break;
         case DeviceProfilerDrawcallType::eUpdateBuffer:
             m_Stats.m_UpdateBufferCount++;
+            break;
+        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+            m_Stats.m_TraceRaysCount++;
+            break;
+        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+            m_Stats.m_TraceRaysIndirectCount++;
+            break;
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            m_Stats.m_BuildAccelerationStructuresCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+            break;
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+            m_Stats.m_BuildAccelerationStructuresIndirectCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+            break;
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+            m_Stats.m_CopyAccelerationStructureCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+            m_Stats.m_CopyAccelerationStructureToMemoryCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+            m_Stats.m_CopyMemoryToAccelerationStructureCount++;
             break;
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
         case DeviceProfilerDrawcallType::eEndDebugLabel:
@@ -1086,12 +1115,18 @@ namespace Profiler
     {
         switch( pipelineType )
         {
+        case DeviceProfilerPipelineType::eNone:
+        case DeviceProfilerPipelineType::eDebug:
+            return DeviceProfilerRenderPassType::eNone;
         case DeviceProfilerPipelineType::eGraphics:
         case DeviceProfilerPipelineType::eClearAttachments:
             return DeviceProfilerRenderPassType::eGraphics;
 
         case DeviceProfilerPipelineType::eCompute:
             return DeviceProfilerRenderPassType::eCompute;
+
+        case DeviceProfilerPipelineType::eRayTracingKHR:
+            return DeviceProfilerRenderPassType::eRayTracing;
 
         default:
             return DeviceProfilerRenderPassType::eCopy;

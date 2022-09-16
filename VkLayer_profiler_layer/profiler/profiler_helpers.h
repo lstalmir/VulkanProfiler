@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -503,4 +504,76 @@ namespace Profiler
             return length;
         }
     };
+    
+    /***********************************************************************************\
+
+    Class:
+        EnumArray
+
+    Description:
+        Enumerated array can be indexed using enum values.
+
+    \***********************************************************************************/
+    template<typename EnumT, typename ValueT, size_t count>
+    class EnumArray : public std::array<ValueT, count>
+    {
+    public:
+        using std::array<ValueT, count>::operator[];
+
+        inline ValueT& operator[]( EnumT e ) { return this->operator[]( static_cast<size_t>( e ) ); }
+        inline const ValueT& operator[]( EnumT e ) const { return this->operator[]( static_cast<size_t>( e ) ); }
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        BitsetArray
+
+    Description:
+        Enumerated array can be indexed using bit flags.
+
+    \***********************************************************************************/
+    template<typename EnumT, typename ValueT, size_t count>
+    class BitsetArray : public std::array<ValueT, count>
+    {
+    public:
+        using std::array<ValueT, count>::operator[];
+
+        inline ValueT& operator[]( EnumT e ) { return this->operator[]( IndexOf( e ) ); }
+        inline const ValueT& operator[]( EnumT e ) const { return this->operator[]( IndexOf( e ) ); }
+
+    private:
+        inline static constexpr size_t IndexOf( EnumT e )
+        {
+            for( size_t i = 0; i < 64; ++i )
+                if (((e >> i) & 1U) == 1U)
+                    return i;
+            return SIZE_MAX;
+        }
+    };
+
+    /***********************************************************************************\
+
+    Function:
+        CopyElements
+
+    Description:
+        Allocates an array of <count> elements and copies the data from pElements to
+        the new location.
+
+    \***********************************************************************************/
+    template<typename T>
+    inline T* CopyElements(uint32_t count, const T* pElements)
+    {
+        T* pDuplicated = nullptr;
+        if (count > 0)
+        {
+            pDuplicated = reinterpret_cast<T*>(malloc(count * sizeof(T)));
+            if (pDuplicated)
+            {
+                memcpy(pDuplicated, pElements, count * sizeof(T));
+            }
+        }
+        return pDuplicated;
+    }
 }

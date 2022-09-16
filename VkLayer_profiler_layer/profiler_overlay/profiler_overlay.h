@@ -166,6 +166,7 @@ namespace Profiler
         DeviceProfilerFrameData m_Data;
         bool m_Pause;
         bool m_ShowDebugLabels;
+        bool m_ShowShaderCapabilities;
 
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
@@ -185,6 +186,7 @@ namespace Profiler
         uint32_t m_RenderPassColumnColor;
         uint32_t m_GraphicsPipelineColumnColor;
         uint32_t m_ComputePipelineColumnColor;
+        uint32_t m_RayTracingPipelineColumnColor;
         uint32_t m_InternalPipelineColumnColor;
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
@@ -223,6 +225,7 @@ namespace Profiler
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
+        void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
 
         template<typename Data>
         void PrintDuration( const Data& data )

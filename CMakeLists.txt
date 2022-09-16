@@ -62,6 +62,15 @@ set (VULKAN_HEADERS_INCLUDE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Headers/include"
     )
 
+set (SPIRV-Headers_SOURCE_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers"
+    )
+    
+include_directories (
+    "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers/include"
+    "${VULKAN_HEADERS_INCLUDE_DIR}"
+    )
+
 # Include sub-projects
 add_subdirectory (Vulkan-Headers)
 add_subdirectory (VkLayer_profiler_layer)

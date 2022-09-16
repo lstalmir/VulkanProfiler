@@ -19,9 +19,11 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_helpers.h"
 #include <array>
 #include <stdint.h>
 #include <vulkan/vulkan.h>
+#include <spirv/unified1/spirv.h>
 
 namespace Profiler
 {
@@ -29,12 +31,7 @@ namespace Profiler
     {
         uint32_t m_Hash = 0;
 
-        uint32_t m_Vert = 0;
-        uint32_t m_Tesc = 0;
-        uint32_t m_Tese = 0;
-        uint32_t m_Geom = 0;
-        uint32_t m_Frag = 0;
-        uint32_t m_Comp = 0;
+        BitsetArray<VkShaderStageFlagBits, uint32_t, 32> m_Stages = {};
 
         inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
         {
@@ -45,6 +42,12 @@ namespace Profiler
         {
             return !operator==( rh );
         }
+    };
+
+    struct ProfilerShaderModule
+    {
+        uint32_t                   m_Hash = 0;
+        std::vector<SpvCapability> m_Capabilities = {};
     };
 }
 

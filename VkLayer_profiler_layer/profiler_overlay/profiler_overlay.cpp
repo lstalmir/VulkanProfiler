@@ -115,6 +115,7 @@ namespace Profiler
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
         , m_ShowDebugLabels( true )
+        , m_ShowShaderCapabilities( true )
         , m_SelectedFrameBrowserNodeIndex( { 0xFFFF } )
         , m_ScrollToSelectedFrameBrowserNode( false )
         , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
@@ -127,6 +128,7 @@ namespace Profiler
         , m_RenderPassColumnColor( 0 )
         , m_GraphicsPipelineColumnColor( 0 )
         , m_ComputePipelineColumnColor( 0 )
+        , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
         , m_pStringSerializer( nullptr )
     {
@@ -1052,6 +1054,7 @@ namespace Profiler
         m_RenderPassColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
         m_GraphicsPipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
         m_ComputePipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.55f, 0.0f, 1.0f } ); // #ffba42
+        m_RayTracingPipelineColumnColor = ImGui::GetColorU32( { 0.2f, 0.73f, 0.92f, 1.0f } ); // #34baeb
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
     }
 
@@ -1628,6 +1631,12 @@ namespace Profiler
 
             ImGui::TextUnformatted( Lang::DispatchCallsIndirect );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
+            
+            ImGui::TextUnformatted( Lang::TraceRaysCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysCount );
+
+            ImGui::TextUnformatted( Lang::TraceRaysIndirectCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysIndirectCount );
 
             ImGui::TextUnformatted( Lang::CopyBufferCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferCount );
@@ -1719,6 +1728,9 @@ namespace Profiler
 
         // Display debug labels in frame browser.
         ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
+
+        // Display shader capability badges in frame browser.
+        ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
     }
 
     /***********************************************************************************\
@@ -1909,6 +1921,10 @@ namespace Profiler
 
             case VK_PIPELINE_BIND_POINT_COMPUTE:
                 column.color = m_ComputePipelineColumnColor;
+                break;
+
+            case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+                column.color = m_RayTracingPipelineColumnColor;
                 break;
 
             default:
@@ -2191,10 +2207,15 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp );
+        const bool isValidRenderPass = (renderPass.m_Type != DeviceProfilerRenderPassType::eNone);
 
-        // Mark hotspots with color
-        DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
+        if( isValidRenderPass )
+        {
+            const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp);
+
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
+        }
 
         char indexStr[ 2 * sizeof( index ) + 1 ] = {};
         structtohex( indexStr, index );
@@ -2215,36 +2236,47 @@ namespace Profiler
             ImGui::SetScrollHereY();
         }
 
-        const bool inRenderPassSubtree =
-            ImGui::TreeNode( indexStr, "%s",
+        bool inRenderPassSubtree;
+        if( isValidRenderPass )
+        {
+            inRenderPassSubtree = ImGui::TreeNode( indexStr, "%s",
                 m_pStringSerializer->GetName( renderPass ).c_str() );
+        }
+        else
+        {
+            // Print render pass inline.
+            inRenderPassSubtree = true;
+        }
 
         if( inRenderPassSubtree )
         {
             // Render pass subtree opened
-            PrintDuration( renderPass );
-
-            if( renderPass.m_Handle != VK_NULL_HANDLE )
+            if( isValidRenderPass )
             {
-                const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+                PrintDuration( renderPass );
 
-                index.DrawcallIndex = 0;
-
-                if( (m_ScrollToSelectedFrameBrowserNode) &&
-                    (m_SelectedFrameBrowserNodeIndex == index) )
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    ImGui::SetScrollHereY();
+                    const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+
+                    index.DrawcallIndex = 0;
+
+                    if( (m_ScrollToSelectedFrameBrowserNode) &&
+                        (m_SelectedFrameBrowserNodeIndex == index) )
+                    {
+                        ImGui::SetScrollHereY();
+                    }
+
+                    // Mark hotspots with color
+                    DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
+
+                    index.DrawcallIndex = 0xFFFF;
+
+                    // Print BeginRenderPass pipeline
+                    ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
+
+                    PrintDuration( renderPass.m_Begin );
                 }
-
-                // Mark hotspots with color
-                DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
-
-                index.DrawcallIndex = 0xFFFF;
-
-                // Print BeginRenderPass pipeline
-                ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-
-                PrintDuration( renderPass.m_Begin );
             }
 
             // Sort frame browser data
@@ -2271,33 +2303,36 @@ namespace Profiler
                 index.SubpassIndex = 0xFFFF;
             }
 
-            if( renderPass.m_Handle != VK_NULL_HANDLE )
+            if( isValidRenderPass )
             {
-                const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
-
-                index.DrawcallIndex = 1;
-
-                if( (m_ScrollToSelectedFrameBrowserNode) &&
-                    (m_SelectedFrameBrowserNodeIndex == index) )
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    ImGui::SetScrollHereY();
+                    const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
+
+                    index.DrawcallIndex = 1;
+
+                    if( (m_ScrollToSelectedFrameBrowserNode) &&
+                        (m_SelectedFrameBrowserNodeIndex == index) )
+                    {
+                        ImGui::SetScrollHereY();
+                    }
+
+                    // Mark hotspots with color
+                    DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
+
+                    index.DrawcallIndex = 0xFFFF;
+
+                    // Print EndRenderPass pipeline
+                    ImGui::TextUnformatted( "vkCmdEndRenderPass" );
+
+                    PrintDuration( renderPass.m_End );
                 }
 
-                // Mark hotspots with color
-                DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
-
-                index.DrawcallIndex = 0xFFFF;
-
-                // Print EndRenderPass pipeline
-                ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-
-                PrintDuration( renderPass.m_End );
+                ImGui::TreePop();
             }
-
-            ImGui::TreePop();
         }
 
-        if( !inRenderPassSubtree )
+        if( isValidRenderPass && !inRenderPassSubtree )
         {
             // Render pass collapsed
             PrintDuration( renderPass );
@@ -2445,6 +2480,20 @@ namespace Profiler
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
         }
 
+        if( m_ShowShaderCapabilities )
+        {
+            if( pipeline.m_UsesRayQuery )
+            {
+                static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
+                DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
+            }
+            if( pipeline.m_UsesRayTracing )
+            {
+                static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
+                DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
+            }
+        }
+
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
@@ -2555,6 +2604,29 @@ namespace Profiler
 
         ImDrawList* pDrawList = ImGui::GetWindowDrawList();
         pDrawList->AddRectFilled( cursorPosition, rectSize, color );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawSignificanceRect
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName )
+    {
+        assert( m_ShowShaderCapabilities );
+        
+        ImGui::SameLine();
+        ImGuiX::BadgeUnformatted( color, 5.f, shortName );
+
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::BeginTooltip();
+            ImGui::Text( Lang::ShaderCapabilityTooltipFmt, longName );
+            ImGui::EndTooltip();
+        }
     }
 
     /***********************************************************************************\

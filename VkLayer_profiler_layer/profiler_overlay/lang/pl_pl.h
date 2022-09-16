@@ -58,6 +58,8 @@ namespace Profiler
         inline static constexpr char CustomStatistics[] = u8"Własne statystyki";
         inline static constexpr char Container[] = u8"Kontener";
 
+        inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
+
         // Memory tab
         inline static constexpr char MemoryHeapUsage[] = u8"Wykorzystanie stert pamięci";
         inline static constexpr char MemoryHeap[] = u8"Sterta";
@@ -69,6 +71,8 @@ namespace Profiler
         inline static constexpr char DrawCallsIndirect[] = u8"Komendy rysujące (typu indirect)";
         inline static constexpr char DispatchCalls[] = u8"Komendy obliczeniowe";
         inline static constexpr char DispatchCallsIndirect[] = u8"Komendy obliczeniowe (typu indirect)";
+        inline static constexpr char TraceRaysCalls[] = u8"Komendy śledzenia promieni";
+        inline static constexpr char TraceRaysIndirectCalls[] = u8"Komendy śledzenia promieni (typu indirect)";
         inline static constexpr char CopyBufferCalls[] = u8"Kopie pomiędzy buforami";
         inline static constexpr char CopyBufferToImageCalls[] = u8"Kopie z buforów do obrazów";
         inline static constexpr char CopyImageCalls[] = u8"Kopie pomiędzy obrazami";
@@ -86,6 +90,8 @@ namespace Profiler
         inline static constexpr char Submit[] = u8"Co przesłanie komend";
         inline static constexpr char SyncMode[] = u8"Moment synchronizacji";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
+        inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
+        inline static constexpr char TimeUnit[] = u8"Jednostka czasu";
 
         inline static constexpr char Unknown[] = u8"Nieznany";
     };
