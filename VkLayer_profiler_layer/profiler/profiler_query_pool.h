@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler_memory_manager.h"
+#include "profiler_helpers.h"
 
 #include <vulkan/vk_layer.h>
 
@@ -41,7 +42,7 @@ namespace Profiler
         void ResolveQueryDataGpu( VkCommandBuffer, uint32_t );
         void ResolveQueryDataCpu( uint32_t );
 
-        __forceinline uint64_t GetQueryData( uint32_t queryIndex ) const
+        PROFILER_FORCE_INLINE uint64_t GetQueryData( uint32_t queryIndex ) const
         {
             return reinterpret_cast<const uint64_t*>( m_QueryResultsBufferAllocation.m_pMappedMemory )[ queryIndex ];
         }

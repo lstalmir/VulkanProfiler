@@ -22,6 +22,7 @@
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <filesystem>
+#include <vector>
 
 namespace Profiler
 {

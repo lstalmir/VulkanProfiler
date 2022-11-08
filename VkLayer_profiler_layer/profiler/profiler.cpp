@@ -1121,7 +1121,7 @@ namespace Profiler
         }
 
         char pObjectDebugName[ 64 ] = {};
-        sprintf_s( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
+        ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
 
         m_pDevice->Debug.ObjectNames.insert( object, pObjectDebugName );
     }

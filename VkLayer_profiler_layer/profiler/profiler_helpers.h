@@ -59,6 +59,15 @@
 #define PROFILER_MAKE_STRING_IMPL( LIT ) #LIT
 #define PROFILER_MAKE_STRING( LIT ) PROFILER_MAKE_STRING_IMPL( LIT )
 
+// Force inlining of some functions for performance reasons
+#if defined( _MSC_VER )
+#define PROFILER_FORCE_INLINE __forceinline
+#elif defined( __GNUC__ )
+#define PROFILER_FORCE_INLINE inline __attribute__((always_inline))
+#else
+#define PROFILER_FORCE_INLINE inline
+#endif
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -71,7 +80,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T>
-    void ClearMemory( T* pMemory )
+    PROFILER_FORCE_INLINE void ClearMemory( T* pMemory )
     {
         memset( pMemory, 0, sizeof( T ) );
     }
@@ -86,7 +95,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T>
-    void ClearStructure( T* pStruct, VkStructureType type )
+    PROFILER_FORCE_INLINE void ClearStructure( T* pStruct, VkStructureType type )
     {
         memset( pStruct, 0, sizeof( T ) );
         pStruct->sType = type;
@@ -101,7 +110,7 @@ namespace Profiler
         Convert 8-bit unsigned number to hexadecimal string.
 
     \***********************************************************************************/
-    inline void u8tohex( char* pBuffer, uint8_t value )
+    PROFILER_FORCE_INLINE void u8tohex( char* pBuffer, uint8_t value )
     {
         static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert(sizeof( hexDigits ) == 16);
@@ -124,7 +133,7 @@ namespace Profiler
         Convert 16-bit unsigned number to hexadecimal string.
 
     \***********************************************************************************/
-    inline void u16tohex( char* pBuffer, uint16_t value )
+    PROFILER_FORCE_INLINE void u16tohex( char* pBuffer, uint16_t value )
     {
         static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert(sizeof( hexDigits ) == 16);
@@ -147,7 +156,7 @@ namespace Profiler
         Convert 32-bit unsigned number to hexadecimal string.
 
     \***********************************************************************************/
-    inline void u32tohex( char* pBuffer, uint32_t value )
+    PROFILER_FORCE_INLINE void u32tohex( char* pBuffer, uint32_t value )
     {
         static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert( sizeof( hexDigits ) == 16 );
@@ -170,7 +179,7 @@ namespace Profiler
         Convert 64-bit unsigned number to hexadecimal string.
 
     \***********************************************************************************/
-    inline void u64tohex( char* pBuffer, uint64_t value )
+    PROFILER_FORCE_INLINE void u64tohex( char* pBuffer, uint64_t value )
     {
         static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert( sizeof( hexDigits ) == 16 );
@@ -194,7 +203,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T, size_t Size>
-    inline void structtohex( char( &pBuffer )[ Size ], const T& value )
+    PROFILER_FORCE_INLINE void structtohex( char( &pBuffer )[ Size ], const T& value )
     {
         static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert(sizeof( hexDigits ) == 16);
@@ -219,7 +228,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-    uint32_t DigitCount( T value )
+    PROFILER_FORCE_INLINE uint32_t DigitCount( T value )
     {
         if( value == 0 )
         {
@@ -409,6 +418,27 @@ namespace Profiler
     \***********************************************************************************/
     struct ProfilerStringFunctions
     {
+        template<size_t dstSize, typename... ArgsT>
+        static void Format( char( &dst )[ dstSize ], const char* fmt, ArgsT... args )
+        {
+#if defined( _MSC_VER )
+            sprintf_s( dst, fmt, args... );
+#else
+            sprintf( dst, fmt, args... );
+#endif
+        }
+        
+        template<typename... ArgsT>
+        static void Format( char* dst, size_t dstSize, const char* fmt, ArgsT... args )
+        {
+#if defined( _MSC_VER )
+            sprintf_s( dst, dstSize, fmt, args... );
+#else
+            (void) dstSize;
+            sprintf( dst, fmt, args... );
+#endif
+        }
+
         template<typename CharT>
         static void CopyString( CharT* pDst, size_t dstSize, const CharT* pSrc, size_t srcSize )
         {
@@ -566,7 +596,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T>
-    inline T* CopyElements(uint32_t count, const T* pElements)
+    PROFILER_FORCE_INLINE T* CopyElements(uint32_t count, const T* pElements)
     {
         T* pDuplicated = nullptr;
         if (count > 0)
@@ -578,5 +608,24 @@ namespace Profiler
             }
         }
         return pDuplicated;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        MakeVector
+
+    Description:
+        Creates an std::vector preinitialized with <count> elements.
+
+    \***********************************************************************************/
+    template<typename T>
+    PROFILER_FORCE_INLINE std::vector<T> MakeVector(uint32_t count, const T* pElements)
+    {
+        if (count > 0)
+        {
+            return std::vector<T>(pElements, pElements + count);
+        }
+        return {};
     }
 }
