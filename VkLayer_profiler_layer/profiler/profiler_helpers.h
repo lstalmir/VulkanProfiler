@@ -298,118 +298,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
-        ProfilerPlatformFunctions
-
-    Description:
-
-    \***********************************************************************************/
-    class ProfilerPlatformFunctions
-    {
-    public:
-        inline static std::filesystem::path GetCustomConfigPath()
-        {
-            static bool customConfigPathInitialized = false;
-            std::filesystem::path customConfigPath = "";
-
-            if( !customConfigPathInitialized )
-            {
-                // Check environment variable
-                const auto envProfilerConfigPath = GetEnvironmentVar( "PROFILER_CONFIG_PATH" );
-
-                if( envProfilerConfigPath.has_value() )
-                {
-                    customConfigPath = envProfilerConfigPath.value();
-                }
-
-                customConfigPathInitialized = true;
-            }
-
-            // Returns empty if custom config path not defined
-            return customConfigPath;
-        }
-
-        inline static std::filesystem::path GetApplicationDir()
-        {
-            static std::filesystem::path applicationDir;
-
-            if( applicationDir.empty() )
-            {
-                // Get full application path and remove filename component
-                applicationDir = GetApplicationPath().remove_filename();
-            }
-
-            return applicationDir;
-        }
-
-        static std::filesystem::path GetApplicationPath();
-
-        static bool IsPreemptionEnabled();
-
-        static bool SetStablePowerState( struct VkDevice_Object* pDevice, void** ppStateHandle );
-        static void ResetStablePowerState( void* pStateHandle );
-
-        template<typename... Args>
-        inline static void WriteDebug( const char* fmt, Args... args )
-        {
-            // Include layer prefix to filter debug output
-            // Skip ' ' at the end and include string terminator instead
-            static constexpr size_t messagePrefixLength = sizeof( VK_LAYER_profiler_name ":" );
-
-            char debugMessageBuffer[ 256 ] = VK_LAYER_profiler_name ": ";
-            sprintf( debugMessageBuffer + messagePrefixLength, fmt, args... );
-
-            // Invoke OS-specific implementation
-            WriteDebugUnformatted( debugMessageBuffer );
-        }
-
-        static void WriteDebugUnformatted( const char* str );
-
-        inline static std::filesystem::path FindFile(
-            const std::filesystem::path& directory,
-            const std::filesystem::path& filename,
-            const bool recurse = true )
-        {
-            if( std::filesystem::exists( directory ) )
-            {
-                // Enumerate all files in the directory
-                for( auto directoryEntry : std::filesystem::directory_iterator( directory ) )
-                {
-                    if( directoryEntry.path().filename() == filename )
-                    {
-                        return directoryEntry;
-                    }
-
-                    // Check in subdirectories
-                    if( directoryEntry.is_directory() && recurse )
-                    {
-                        std::filesystem::path result = FindFile( directoryEntry, filename, recurse );
-
-                        if( !result.empty() )
-                        {
-                            return result;
-                        }
-                    }
-                }
-            }
-            return "";
-        }
-
-        inline static std::string GetProcessName()
-        {
-            // Extract filename component from the path
-            return GetApplicationPath().filename().u8string().c_str();
-        }
-
-        static uint32_t GetCurrentThreadId();
-        static uint32_t GetCurrentProcessId();
-
-        static std::optional<std::string> GetEnvironmentVar(const char* pVariableName);
-
-    };
-
-    /***********************************************************************************\
-
-    Class:
         ProfilerStringFunctions
 
     Description:
@@ -496,6 +384,12 @@ namespace Profiler
         template<typename CharT>
         static CharT* DuplicateString( const CharT* pString, size_t maxCount )
         {
+            if( maxCount == 0 )
+            {
+                // Nothing to duplicate.
+                return nullptr;
+            }
+
             // Allocate space for the duplicated string.
             CharT* pDuplicated = static_cast<CharT*>( malloc( (maxCount + 1) * sizeof( CharT ) ) );
             if( pDuplicated == nullptr )
@@ -522,22 +416,136 @@ namespace Profiler
             return DuplicateString( pString, GetLength( pString ) );
         }
 
-        template<typename CharT, size_t size>
-        static constexpr size_t GetLength( const CharT( &string )[ size ] )
-        {
-            return size - 1;
-        }
-        
         template<typename CharT>
-        static size_t GetLength( const CharT* const& pString )
+        static constexpr size_t GetLength( const CharT* const& pString )
         {
             size_t length = 0;
-            const CharT* p = pString;
-            while (*(p++)) length++;
+            if( pString != nullptr )
+            {
+                while( pString[ length ] )
+                    length++;
+            }
             return length;
         }
     };
     
+    /***********************************************************************************\
+
+    Class:
+        ProfilerPlatformFunctions
+
+    Description:
+
+    \***********************************************************************************/
+    class ProfilerPlatformFunctions
+    {
+    public:
+        inline static std::filesystem::path GetCustomConfigPath()
+        {
+            static bool customConfigPathInitialized = false;
+            std::filesystem::path customConfigPath = "";
+
+            if( !customConfigPathInitialized )
+            {
+                // Check environment variable
+                const auto envProfilerConfigPath = GetEnvironmentVar( "PROFILER_CONFIG_PATH" );
+
+                if( envProfilerConfigPath.has_value() )
+                {
+                    customConfigPath = envProfilerConfigPath.value();
+                }
+
+                customConfigPathInitialized = true;
+            }
+
+            // Returns empty if custom config path not defined
+            return customConfigPath;
+        }
+
+        inline static std::filesystem::path GetApplicationDir()
+        {
+            static std::filesystem::path applicationDir;
+
+            if( applicationDir.empty() )
+            {
+                // Get full application path and remove filename component
+                applicationDir = GetApplicationPath().remove_filename();
+            }
+
+            return applicationDir;
+        }
+
+        static std::filesystem::path GetApplicationPath();
+
+        static bool IsPreemptionEnabled();
+
+        static bool SetStablePowerState( struct VkDevice_Object* pDevice, void** ppStateHandle );
+        static void ResetStablePowerState( void* pStateHandle );
+
+        template<typename... Args>
+        inline static void WriteDebug( const char* fmt, Args... args )
+        {
+            static constexpr size_t messageBufferLength = 256;
+
+            // Include layer prefix to filter debug output
+            // Skip ' ' at the end and include string terminator instead
+            static constexpr size_t messagePrefixLength = sizeof( VK_LAYER_profiler_name ":" );
+
+            char debugMessageBuffer[ messageBufferLength ] = VK_LAYER_profiler_name ": ";
+            ProfilerStringFunctions::Format(
+                debugMessageBuffer + messagePrefixLength,
+                messageBufferLength - messagePrefixLength, fmt, args... );
+
+            // Invoke OS-specific implementation
+            WriteDebugUnformatted( debugMessageBuffer );
+        }
+
+        static void WriteDebugUnformatted( const char* str );
+
+        inline static std::filesystem::path FindFile(
+            const std::filesystem::path& directory,
+            const std::filesystem::path& filename,
+            const bool recurse = true )
+        {
+            if( std::filesystem::exists( directory ) )
+            {
+                // Enumerate all files in the directory
+                for( auto directoryEntry : std::filesystem::directory_iterator( directory ) )
+                {
+                    if( directoryEntry.path().filename() == filename )
+                    {
+                        return directoryEntry;
+                    }
+
+                    // Check in subdirectories
+                    if( directoryEntry.is_directory() && recurse )
+                    {
+                        std::filesystem::path result = FindFile( directoryEntry, filename, recurse );
+
+                        if( !result.empty() )
+                        {
+                            return result;
+                        }
+                    }
+                }
+            }
+            return "";
+        }
+
+        inline static std::string GetProcessName()
+        {
+            // Extract filename component from the path
+            return GetApplicationPath().filename().u8string().c_str();
+        }
+
+        static uint32_t GetCurrentThreadId();
+        static uint32_t GetCurrentProcessId();
+
+        static void GetLocalTime( tm*, const time_t& );
+
+        static std::optional<std::string> GetEnvironmentVar(const char* pVariableName);
+    };
+
     /***********************************************************************************\
 
     Class:
@@ -608,24 +616,5 @@ namespace Profiler
             }
         }
         return pDuplicated;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        MakeVector
-
-    Description:
-        Creates an std::vector preinitialized with <count> elements.
-
-    \***********************************************************************************/
-    template<typename T>
-    PROFILER_FORCE_INLINE std::vector<T> MakeVector(uint32_t count, const T* pElements)
-    {
-        if (count > 0)
-        {
-            return std::vector<T>(pElements, pElements + count);
-        }
-        return {};
     }
 }
