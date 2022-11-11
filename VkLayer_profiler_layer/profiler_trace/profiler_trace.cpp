@@ -529,7 +529,8 @@ namespace Profiler
         const auto currentTimePoint = system_clock::now();
         const auto currentTimePointInTimeT = system_clock::to_time_t( currentTimePoint );
 
-        const auto* tm = std::localtime( &currentTimePointInTimeT );
+        tm localTime;
+        ProfilerPlatformFunctions::GetLocalTime( &localTime, currentTimePointInTimeT );
 
         // Get milliseconds
         const auto ms = time_point_cast<milliseconds>(currentTimePoint).time_since_epoch() % 1000;
@@ -538,7 +539,7 @@ namespace Profiler
         std::stringstream stringBuilder;
         stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
         stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
-        stringBuilder << std::put_time( tm, "%Y-%m-%d_%H-%M-%S" ) << "_" << ms.count();
+        stringBuilder << std::put_time( &localTime, "%Y-%m-%d_%H-%M-%S" ) << "_" << ms.count();
         stringBuilder << ".json";
 
         return std::filesystem::absolute( stringBuilder.str() );
