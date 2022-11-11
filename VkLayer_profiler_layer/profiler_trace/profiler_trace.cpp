@@ -181,6 +181,14 @@ namespace Profiler
             if( submitBatchData.m_Handle == queue )
             {
                 m_CpuQueueSubmitTimestampOffset = GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp );
+
+                // Use first submitted packet's begin timestamp as a reference if synchronization timestamps were not sent.
+                if( m_GpuQueueSubmitTimestampOffset == 0 )
+                {
+                    m_GpuQueueSubmitTimestampOffset = !submitBatchData.m_Submits.empty()
+                        ? submitBatchData.m_Submits.front().m_BeginTimestamp
+                        : 0;
+                }
                 break;
             }
         }
