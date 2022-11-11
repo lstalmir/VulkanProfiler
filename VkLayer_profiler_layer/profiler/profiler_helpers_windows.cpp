@@ -322,6 +322,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetLocalTime
+
+    Description:
+        Returns local time.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::GetLocalTime( tm* localTime, const time_t& time )
+    {
+        ::localtime_s( localTime, &time );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetEnvironmentVar
 
     Description:

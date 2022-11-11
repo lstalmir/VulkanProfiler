@@ -145,6 +145,20 @@ namespace Profiler
     {
         return static_cast<uint32_t>(getpid());
     }
+    
+    /***********************************************************************************\
+
+    Function:
+        GetLocalTime
+
+    Description:
+        Returns local time.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::GetLocalTime( tm* localTime, const time_t& time )
+    {
+        *localTime = *localtime( &time );
+    }
 
     /***********************************************************************************\
 
