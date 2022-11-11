@@ -609,23 +609,4 @@ namespace Profiler
         }
         return pDuplicated;
     }
-
-    /***********************************************************************************\
-
-    Function:
-        MakeVector
-
-    Description:
-        Creates an std::vector preinitialized with <count> elements.
-
-    \***********************************************************************************/
-    template<typename T>
-    PROFILER_FORCE_INLINE std::vector<T> MakeVector(uint32_t count, const T* pElements)
-    {
-        if (count > 0)
-        {
-            return std::vector<T>(pElements, pElements + count);
-        }
-        return {};
-    }
 }
