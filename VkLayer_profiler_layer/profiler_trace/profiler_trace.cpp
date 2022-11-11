@@ -241,12 +241,12 @@ namespace Profiler
             TraceEvent::Phase::eDurationBegin,
             eventName,
             "Command buffers",
-            GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+            GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
             m_CommandQueue ) );
 
         for( const auto& renderPassData : data.m_RenderPasses )
         {
-            if( renderPassData.m_BeginTimestamp != UINT64_MAX )
+            if( renderPassData.m_BeginTimestamp.m_Value != UINT64_MAX )
             {
                 // Serialize the render pass
                 Serialize( renderPassData );
@@ -258,7 +258,7 @@ namespace Profiler
             TraceEvent::Phase::eDurationEnd,
             eventName,
             "Command buffers",
-            GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+            GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
             m_CommandQueue ) );
     }
 
@@ -283,17 +283,17 @@ namespace Profiler
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Render passes",
-                GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue ) );
 
             if( (data.m_Handle != VK_NULL_HANDLE) &&
-                (data.m_Begin.m_BeginTimestamp != UINT64_MAX) )
+                (data.m_Begin.m_BeginTimestamp.m_Value != UINT64_MAX) )
             {
                 // vkCmdBeginRenderPass
                 m_pEvents.push_back( new TraceCompleteEvent(
                     "vkCmdBeginRenderPass",
                     "Drawcalls",
-                    GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp ),
+                    GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp.m_Value ),
                     GetDuration( data.m_Begin ),
                     m_CommandQueue ) );
             }
@@ -308,13 +308,13 @@ namespace Profiler
         if( isValidRenderPass )
         {
             if( (data.m_Handle != VK_NULL_HANDLE) &&
-                (data.m_End.m_BeginTimestamp != UINT64_MAX) )
+                (data.m_End.m_BeginTimestamp.m_Value != UINT64_MAX) )
             {
                 // vkCmdEndRenderPass
                 m_pEvents.push_back( new TraceCompleteEvent(
                     "vkCmdEndRenderPass",
                     "Drawcalls",
-                    GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp ),
+                    GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp.m_Value ),
                     GetDuration( data.m_End ),
                     m_CommandQueue ) );
             }
@@ -324,7 +324,7 @@ namespace Profiler
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Render passes",
-                GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
     }
@@ -348,7 +348,7 @@ namespace Profiler
             m_pEvents.push_back( new TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName, "",
-                GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
 
@@ -358,7 +358,7 @@ namespace Profiler
         {
             for( const auto& pipelineData : data.m_Pipelines )
             {
-                if( pipelineData.m_BeginTimestamp != UINT64_MAX )
+                if( pipelineData.m_BeginTimestamp.m_Value != UINT64_MAX )
                 {
                     // Serialize the pipelines
                     Serialize( pipelineData );
@@ -390,7 +390,7 @@ namespace Profiler
             m_pEvents.push_back( new TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName, "",
-                GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
     }
@@ -419,13 +419,13 @@ namespace Profiler
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Pipelines",
-                GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
 
         for( const auto& drawcall : data.m_Drawcalls )
         {
-            if( drawcall.m_BeginTimestamp != UINT64_MAX )
+            if( drawcall.m_BeginTimestamp.m_Value != UINT64_MAX )
             {
                 // Serialize the drawcall
                 Serialize( drawcall );
@@ -439,7 +439,7 @@ namespace Profiler
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Pipelines",
-                GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
     }
@@ -465,7 +465,7 @@ namespace Profiler
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Drawcalls",
-                GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
                 {},
                 eventArgs ) );
@@ -474,7 +474,7 @@ namespace Profiler
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Drawcalls",
-                GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+                GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
 
@@ -486,7 +486,7 @@ namespace Profiler
                 m_pEvents.push_back( new DebugTraceEvent(
                     TraceEvent::Phase::eInstant,
                     data.m_Payload.m_DebugLabel.m_pName,
-                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ) ) );
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
             }
 
             if( data.m_Type == DeviceProfilerDrawcallType::eBeginDebugLabel )
@@ -494,7 +494,7 @@ namespace Profiler
                 m_pEvents.push_back( new DebugTraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     data.m_Payload.m_DebugLabel.m_pName,
-                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp ) ) );
+                    GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
 
                 m_DebugLabelStackDepth++;
             }
@@ -507,7 +507,7 @@ namespace Profiler
                     m_pEvents.push_back( new DebugTraceEvent(
                         TraceEvent::Phase::eDurationEnd,
                         "",
-                        GetNormalizedGpuTimestamp( data.m_BeginTimestamp ) ) );
+                        GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
 
                     m_DebugLabelStackDepth--;
                 }
