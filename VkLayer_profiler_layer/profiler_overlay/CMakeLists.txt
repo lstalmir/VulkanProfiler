@@ -94,6 +94,9 @@ add_library (profiler_overlay
     ${imgui_platform}
     ${imgui_widgets})
 
+target_link_libraries (profiler_overlay
+    profiler_helpers)
+
 # Set include path
 target_include_directories (profiler_overlay
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}

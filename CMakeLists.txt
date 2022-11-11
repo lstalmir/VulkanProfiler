@@ -45,6 +45,10 @@ if (UNIX)
     #find_package (Wayland)
     find_package (XCB REQUIRED COMPONENTS XCB SHAPE)
     find_package (X11 REQUIRED)
+
+    # Export symbols explicitly
+    set (CMAKE_CXX_VISIBILITY_PRESET hidden)
+    set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 endif ()
 
 # Build with C++17

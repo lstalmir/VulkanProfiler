@@ -228,24 +228,7 @@ namespace Profiler
         void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
 
         template<typename Data>
-        void PrintDuration( const Data& data )
-        {
-            if( (data.m_BeginTimestamp != UINT64_MAX) && (data.m_EndTimestamp != UINT64_MAX) )
-            {
-                const uint64_t ticks = data.m_EndTimestamp - data.m_BeginTimestamp;
-
-                // Print the duration
-                ImGuiX::TextAlignRight( "%.2f %s",
-                    m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
-                    m_pTimestampDisplayUnitStr );
-            }
-            else
-            {
-                // No data collected in this mode
-                ImGuiX::TextAlignRight( "- %s",
-                    m_pTimestampDisplayUnitStr );
-            }
-        }
+        void PrintDuration( const Data& data );
 
         // Sort frame browser data
         template<typename Data>

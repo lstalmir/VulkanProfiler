@@ -503,7 +503,7 @@ namespace Profiler
             if( dc.GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 // Create copy of already stored string
-                m_Payload.m_DebugLabel.m_pName = _strdup( dc.m_Payload.m_DebugLabel.m_pName );
+                m_Payload.m_DebugLabel.m_pName = ProfilerStringFunctions::DuplicateString( dc.m_Payload.m_DebugLabel.m_pName );
             }
 
             if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )

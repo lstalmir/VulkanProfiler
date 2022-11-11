@@ -38,7 +38,8 @@ namespace Profiler
 
         inline static constexpr VkObjectT GetObjectHandleAsVulkanHandle( uint64_t object )
         {
-            return *reinterpret_cast<VkObjectT*>(&static_cast<uintptr_t>(object));
+            uintptr_t uintptrObj = static_cast<uintptr_t>(object);
+            return *reinterpret_cast<VkObjectT*>(&uintptrObj);
         }
     };
 
@@ -69,8 +70,9 @@ namespace Profiler
     template<typename VkObjectT>
     struct VkObject_Traits : VkObject_Traits_Base<VkObjectT, std::is_pointer_v<VkObjectT>>
     {
-        using VkObject_Traits_Base::GetObjectHandleAsUint64;
-        using VkObject_Traits_Base::GetObjectHandleAsVulkanHandle;
+        using Base = VkObject_Traits_Base<VkObjectT, std::is_pointer_v<VkObjectT>>;
+        using Base::GetObjectHandleAsUint64;
+        using Base::GetObjectHandleAsVulkanHandle;
         static constexpr VkObjectType ObjectType                            = VK_OBJECT_TYPE_UNKNOWN;
         static constexpr VkDebugReportObjectTypeEXT DebugReportObjectType   = VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT;
         static constexpr const char ObjectTypeName[]                        = "Unknown object type";
@@ -79,8 +81,9 @@ namespace Profiler
     
     #define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME )         \
     template<> struct VkObject_Traits<TYPE> : VkObject_Traits_Base<TYPE, std::is_pointer_v<TYPE>> {     \
-        using VkObject_Traits_Base::GetObjectHandleAsUint64;                                            \
-        using VkObject_Traits_Base::GetObjectHandleAsVulkanHandle;                                      \
+        using Base = VkObject_Traits_Base<TYPE, std::is_pointer_v<TYPE>>;                               \
+        using Base::GetObjectHandleAsUint64;                                                            \
+        using Base::GetObjectHandleAsVulkanHandle;                                                      \
         static constexpr VkObjectType ObjectType                            = OBJECT_TYPE;              \
         static constexpr VkDebugReportObjectTypeEXT DebugReportObjectType   = DEBUG_REPORT_OBJECT_TYPE; \
         static constexpr const char ObjectTypeName[]                        = #TYPE;                    \

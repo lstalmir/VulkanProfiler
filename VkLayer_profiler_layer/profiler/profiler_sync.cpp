@@ -254,6 +254,10 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerSynchronization::SendSynchronizationTimestamps()
     {
+        // For some reason this code causes hangs on Ubuntu with nvidia-driver-510.
+        // Validation layer doesn't report any issues, so it may be a driver bug.
+        // TODO: Check other drivers/gpus.
+#if !defined( __linux__ )
         assert( m_pDevice );
 
         // Reset query pool
@@ -282,6 +286,7 @@ namespace Profiler
         }
 
         m_SynchronizationTimestampsSent = true;
+#endif
     }
 
     /***********************************************************************************\

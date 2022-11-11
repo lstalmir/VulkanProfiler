@@ -2665,4 +2665,32 @@ namespace Profiler
 
         ImGui::TextUnformatted( pName );
     }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintDuration
+
+    Description:
+
+    \***********************************************************************************/
+    template <typename Data>
+    void ProfilerOverlayOutput::PrintDuration( const Data& data )
+    {
+        if( ( data.m_BeginTimestamp != UINT64_MAX ) && ( data.m_EndTimestamp != UINT64_MAX ) )
+        {
+            const uint64_t ticks = data.m_EndTimestamp - data.m_BeginTimestamp;
+
+            // Print the duration
+            ImGuiX::TextAlignRight( "%.2f %s",
+                m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
+                m_pTimestampDisplayUnitStr );
+        }
+        else
+        {
+            // No data collected in this mode
+            ImGuiX::TextAlignRight( "- %s",
+                m_pTimestampDisplayUnitStr );
+        }
+    }
 }

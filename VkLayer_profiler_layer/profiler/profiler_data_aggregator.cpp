@@ -24,6 +24,7 @@
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "intel/profiler_metrics_api.h"
 #include <assert.h>
+#include <algorithm>
 #include <unordered_set>
 
 namespace Profiler

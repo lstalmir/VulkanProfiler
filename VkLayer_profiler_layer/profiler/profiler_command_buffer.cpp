@@ -842,14 +842,7 @@ namespace Profiler
                 }
             }
 
-            volatile const uint64_t endTimestampIndex = m_Data.m_EndTimestamp;
-
-            m_Data.m_EndTimestamp = m_pQueryPool->GetTimestampData( endTimestampIndex );
-
-            if( m_Data.m_EndTimestamp < m_Data.m_BeginTimestamp )
-            {
-                __debugbreak();
-            }
+            m_Data.m_EndTimestamp = m_pQueryPool->GetTimestampData( m_Data.m_EndTimestamp );
 
             // Read vendor-specific data
             if( auto performanceQueryPool = m_pQueryPool->GetPerformanceQueryPoolHandle() )
