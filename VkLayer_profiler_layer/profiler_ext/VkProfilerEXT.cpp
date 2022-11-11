@@ -164,7 +164,7 @@ public:
         out.sType = VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT;
         out.pNext = nullptr;
         out.regionType = VK_PROFILER_REGION_TYPE_COMMAND_EXT;
-        out.duration = (data.m_EndTimestamp - data.m_BeginTimestamp) * m_TimestampPeriodMs;
+        out.duration = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
         out.properties.command.type = DrawcallTypeToCommandType( data.m_Type );
         out.subregionCount = 0;
         out.pSubregions = nullptr;
@@ -177,7 +177,7 @@ public:
         out.sType = VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT;
         out.pNext = nullptr;
         out.regionType = VK_PROFILER_REGION_TYPE_PIPELINE_EXT;
-        out.duration = (data.m_EndTimestamp - data.m_BeginTimestamp) * m_TimestampPeriodMs;
+        out.duration = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
         out.properties.pipeline.handle = data.m_Handle;
         return SerializeSubregions( data.m_Drawcalls, &RegionBuilder::SerializeDrawcall, out );
     }
@@ -188,7 +188,7 @@ public:
         out.sType = VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT;
         out.pNext = nullptr;
         out.regionType = VK_PROFILER_REGION_TYPE_SUBPASS_EXT;
-        out.duration = (data.m_EndTimestamp - data.m_BeginTimestamp) * m_TimestampPeriodMs;
+        out.duration = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
         out.properties.subpass.index = data.m_Index;
         out.properties.subpass.contents = data.m_Contents;
 
@@ -210,7 +210,7 @@ public:
     {
         out.sType = VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT;
         out.regionType = VK_PROFILER_REGION_TYPE_RENDER_PASS_EXT;
-        out.duration = (data.m_EndTimestamp - data.m_BeginTimestamp) * m_TimestampPeriodMs;
+        out.duration = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
         out.properties.renderPass.handle = data.m_Handle;
 
         VkProfilerRenderPassDataEXT* pRenderPassData = nullptr;
@@ -221,8 +221,8 @@ public:
             // Fill additional render pass data
             pRenderPassData->sType = VK_STRUCTURE_TYPE_PROFILER_RENDER_PASS_DATA_EXT;
             pRenderPassData->pNext = nullptr;
-            pRenderPassData->beginDuration = (data.m_Begin.m_EndTimestamp - data.m_Begin.m_BeginTimestamp) * m_TimestampPeriodMs;
-            pRenderPassData->endDuration = (data.m_End.m_EndTimestamp - data.m_End.m_BeginTimestamp) * m_TimestampPeriodMs;
+            pRenderPassData->beginDuration = (data.m_Begin.m_EndTimestamp.m_Value - data.m_Begin.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
+            pRenderPassData->endDuration = (data.m_End.m_EndTimestamp.m_Value - data.m_End.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
             out.pNext = pRenderPassData;
 
             result = SerializeSubregions( data.m_Subpasses, &RegionBuilder::SerializeSubpass, out );
@@ -237,7 +237,7 @@ public:
         out.sType = VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT;
         out.pNext = nullptr;
         out.regionType = VK_PROFILER_REGION_TYPE_COMMAND_BUFFER_EXT;
-        out.duration = (data.m_EndTimestamp - data.m_BeginTimestamp) * m_TimestampPeriodMs;
+        out.duration = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
         out.properties.commandBuffer.handle = data.m_Handle;
         out.properties.commandBuffer.level = data.m_Level;
         return SerializeSubregions( data.m_RenderPasses, &RegionBuilder::SerializeRenderPass, out );

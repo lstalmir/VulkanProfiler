@@ -132,6 +132,22 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Structure:
+        DeviceProfilerTimestamp
+
+    Description:
+        Timestamp allocation info.
+        Contains the timestamp index and its last recorded value.
+
+    \***********************************************************************************/
+    struct DeviceProfilerTimestamp
+    {
+        uint64_t m_Index = UINT64_MAX;
+        uint64_t m_Value = UINT64_MAX;
+    };
+
+    /***********************************************************************************\
+
     Drawcall-specific playloads
 
     \***********************************************************************************/
@@ -481,8 +497,8 @@ namespace Profiler
     {
         DeviceProfilerDrawcallType                          m_Type = {};
         DeviceProfilerDrawcallPayload                       m_Payload = {};
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
 
         inline DeviceProfilerPipelineType GetPipelineType() const
         {
@@ -703,8 +719,8 @@ namespace Profiler
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
 
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
 
         inline DeviceProfilerPipelineData() = default;
@@ -753,8 +769,8 @@ namespace Profiler
     {
         uint32_t                                            m_Index = {};
         VkSubpassContents                                   m_Contents = {};
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
 
         ContainerType<struct DeviceProfilerPipelineData>    m_Pipelines = {};
         std::list<struct DeviceProfilerCommandBufferData>   m_SecondaryCommandBuffers = {};
@@ -792,8 +808,8 @@ namespace Profiler
         VkAttachmentLoadOp                                  m_ColorAttachmentLoadOp = {};
         VkAttachmentLoadOp                                  m_DepthAttachmentLoadOp = {};
         VkAttachmentLoadOp                                  m_StencilAttachmentLoadOp = {};
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
     };
 
     /***********************************************************************************\
@@ -810,8 +826,8 @@ namespace Profiler
         VkAttachmentStoreOp                                 m_ColorAttachmentStoreOp = {};
         VkAttachmentStoreOp                                 m_DepthAttachmentStoreOp = {};
         VkAttachmentStoreOp                                 m_StencilAttachmentStoreOp = {};
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
     };
 
     /***********************************************************************************\
@@ -826,8 +842,8 @@ namespace Profiler
     struct DeviceProfilerRenderPassData
     {
         VkRenderPass                                        m_Handle = {};
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
 
         DeviceProfilerRenderPassType                        m_Type = {};
 
@@ -851,8 +867,8 @@ namespace Profiler
         VkCommandBuffer                                     m_Handle = {};
         VkCommandBufferLevel                                m_Level = {};
         DeviceProfilerDrawcallStats                         m_Stats = {};
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
@@ -876,8 +892,8 @@ namespace Profiler
         std::vector<VkSemaphore>                            m_SignalSemaphores = {};
         std::vector<VkSemaphore>                            m_WaitSemaphores = {};
 
-        uint64_t                                            m_BeginTimestamp = UINT64_MAX;
-        uint64_t                                            m_EndTimestamp = UINT64_MAX;
+        DeviceProfilerTimestamp                             m_BeginTimestamp;
+        DeviceProfilerTimestamp                             m_EndTimestamp;
     };
 
     /***********************************************************************************\

@@ -1240,7 +1240,7 @@ namespace Profiler
             {
                 if( pipeline.m_Handle != VK_NULL_HANDLE )
                 {
-                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
 
                     ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
                     ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
@@ -1830,7 +1830,7 @@ namespace Profiler
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             (data.m_Handle != VK_NULL_HANDLE) )
         {
-            const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
+            const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -1904,7 +1904,7 @@ namespace Profiler
             ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
             (data.m_Handle != VK_NULL_HANDLE) )
         {
-            const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
+            const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -1962,7 +1962,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
+        const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
         PerformanceGraphColumn column = {};
         column.x = cycleCount;
@@ -2014,7 +2014,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerRenderPassData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( renderPassData );
-            regionCycleCount = renderPassData.m_EndTimestamp - renderPassData.m_BeginTimestamp;
+            regionCycleCount = renderPassData.m_EndTimestamp.m_Value - renderPassData.m_BeginTimestamp.m_Value;
             break;
         }
 
@@ -2024,7 +2024,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerPipelineData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = pipelineData.m_EndTimestamp - pipelineData.m_BeginTimestamp;
+            regionCycleCount = pipelineData.m_EndTimestamp.m_Value - pipelineData.m_BeginTimestamp.m_Value;
             break;
         }
 
@@ -2034,7 +2034,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerDrawcall*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = pipelineData.m_EndTimestamp - pipelineData.m_BeginTimestamp;
+            regionCycleCount = pipelineData.m_EndTimestamp.m_Value - pipelineData.m_BeginTimestamp.m_Value;
             break;
         }
         }
@@ -2139,7 +2139,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t commandBufferTicks = (cmdBuffer.m_EndTimestamp - cmdBuffer.m_BeginTimestamp);
+        const uint64_t commandBufferTicks = (cmdBuffer.m_EndTimestamp.m_Value - cmdBuffer.m_BeginTimestamp.m_Value);
 
         // Mark hotspots with color
         DrawSignificanceRect( (float)commandBufferTicks / m_Data.m_Ticks, index );
@@ -2211,7 +2211,7 @@ namespace Profiler
 
         if( isValidRenderPass )
         {
-            const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp);
+            const uint64_t renderPassTicks = (renderPass.m_EndTimestamp.m_Value - renderPass.m_BeginTimestamp.m_Value);
 
             // Mark hotspots with color
             DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
@@ -2257,7 +2257,7 @@ namespace Profiler
 
                 if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+                    const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value);
 
                     index.DrawcallIndex = 0;
 
@@ -2307,7 +2307,7 @@ namespace Profiler
             {
                 if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
+                    const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value);
 
                     index.DrawcallIndex = 1;
 
@@ -2350,7 +2350,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex index, bool isOnlySubpass )
     {
-        const uint64_t subpassTicks = (subpass.m_EndTimestamp - subpass.m_BeginTimestamp);
+        const uint64_t subpassTicks = (subpass.m_EndTimestamp.m_Value - subpass.m_BeginTimestamp.m_Value);
         bool inSubpassSubtree = false;
 
         if( !isOnlySubpass )
@@ -2446,7 +2446,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+        const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
 
         const bool printPipelineInline =
             (pipeline.m_Handle == VK_NULL_HANDLE) ||
@@ -2542,7 +2542,7 @@ namespace Profiler
     {
         if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
-            const uint64_t drawcallTicks = (drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp);
+            const uint64_t drawcallTicks = (drawcall.m_EndTimestamp.m_Value - drawcall.m_BeginTimestamp.m_Value);
 
             if( (m_ScrollToSelectedFrameBrowserNode) &&
                 (m_SelectedFrameBrowserNodeIndex == index) )
@@ -2677,9 +2677,9 @@ namespace Profiler
     template <typename Data>
     void ProfilerOverlayOutput::PrintDuration( const Data& data )
     {
-        if( ( data.m_BeginTimestamp != UINT64_MAX ) && ( data.m_EndTimestamp != UINT64_MAX ) )
+        if( ( data.m_BeginTimestamp.m_Value != UINT64_MAX ) && ( data.m_EndTimestamp.m_Value != UINT64_MAX ) )
         {
-            const uint64_t ticks = data.m_EndTimestamp - data.m_BeginTimestamp;
+            const uint64_t ticks = data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value;
 
             // Print the duration
             ImGuiX::TextAlignRight( "%.2f %s",

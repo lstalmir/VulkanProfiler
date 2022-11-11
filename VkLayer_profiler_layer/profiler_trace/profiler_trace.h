@@ -101,7 +101,7 @@ namespace Profiler
         template<typename DataStructType>
         inline Milliseconds GetDuration( const DataStructType& data ) const
         {
-            return (data.m_EndTimestamp - data.m_BeginTimestamp) * m_GpuTimestampPeriod;
+            return (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_GpuTimestampPeriod;
         }
 
         // Serialization
