@@ -62,6 +62,7 @@ namespace Profiler
         {
             Test::SetUp();
 
+            SkipIfLayerNotPresent();
             SetEnvironmentVariable( "VK_INSTANCE_LAYERS", VK_LAYER_profiler_name );
         }
 
@@ -74,6 +75,27 @@ namespace Profiler
             {
                 ResetEnvironmentVariable( variable.c_str() );
             }
+        }
+
+        inline void SkipIfLayerNotPresent()
+        {
+            uint32_t layerCount = 0;
+            vkEnumerateInstanceLayerProperties( &layerCount, nullptr );
+
+            std::vector<VkLayerProperties> layers( layerCount );
+            vkEnumerateInstanceLayerProperties( &layerCount, layers.data() );
+
+            for( const VkLayerProperties& layer : layers )
+            {
+                if( ( strcmp( layer.layerName, VK_LAYER_profiler_name ) == 0 ) &&
+                    ( layer.implementationVersion == VK_LAYER_profiler_impl_ver ) )
+                {
+                    // Profiler layer found.
+                    return;
+                }
+            }
+
+            GTEST_SKIP() << VK_LAYER_profiler_name " not found.";
         }
     };
 
