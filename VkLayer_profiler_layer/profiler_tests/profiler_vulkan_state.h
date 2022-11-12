@@ -51,6 +51,7 @@ namespace Profiler
         VkPhysicalDevice            PhysicalDevice;
         VkPhysicalDeviceProperties  PhysicalDeviceProperties;
         VkPhysicalDeviceMemoryProperties PhysicalDeviceMemoryProperties;
+        std::vector<VkQueueFamilyProperties> PhysicalDeviceQueueProperties;
         VkDevice                    Device;
         uint32_t                    QueueFamilyIndex;
         VkQueue                     Queue;
@@ -69,6 +70,8 @@ namespace Profiler
             , CommandPool( VK_NULL_HANDLE )
             , DescriptorPool( VK_NULL_HANDLE )
         {
+            DeviceProfiler* profiler = nullptr;
+
             // Application info
             {
                 ApplicationInfo = {};
@@ -104,12 +107,12 @@ namespace Profiler
                 uint32_t queueFamilyCount = 0;
                 vkGetPhysicalDeviceQueueFamilyProperties( PhysicalDevice, &queueFamilyCount, nullptr );
 
-                std::vector<VkQueueFamilyProperties> queueFamilyProperties( queueFamilyCount );
-                vkGetPhysicalDeviceQueueFamilyProperties( PhysicalDevice, &queueFamilyCount, queueFamilyProperties.data() );
+                PhysicalDeviceQueueProperties.resize( queueFamilyCount );
+                vkGetPhysicalDeviceQueueFamilyProperties( PhysicalDevice, &queueFamilyCount, PhysicalDeviceQueueProperties.data() );
 
                 for( uint32_t i = 0; i < queueFamilyCount; ++i )
                 {
-                    const VkQueueFamilyProperties& properties = queueFamilyProperties[ i ];
+                    const VkQueueFamilyProperties& properties = PhysicalDeviceQueueProperties[ i ];
                     
                     if( (properties.queueCount > 0) &&
                         (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
@@ -140,16 +143,6 @@ namespace Profiler
 
                 // Get graphics queue handle
                 vkGetDeviceQueue( Device, QueueFamilyIndex, 0, &Queue );
-            }
-
-            // Create command pool
-            {
-                VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-                commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-                commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-                commandPoolCreateInfo.queueFamilyIndex = QueueFamilyIndex;
-
-                VERIFY_RESULT( this, vkCreateCommandPool( Device, &commandPoolCreateInfo, nullptr, &CommandPool ) );
             }
 
             // Create descriptor pool
@@ -184,16 +177,19 @@ namespace Profiler
                 VkInstance_Functions::Dispatch& id = VkInstance_Functions::InstanceDispatch.Create( Instance );
                 id.Instance.Handle = Instance;
                 id.Instance.ApplicationInfo = ApplicationInfo;
+                id.Instance.SetInstanceLoaderData = SetInstanceLoaderData;
                 init_layer_instance_dispatch_table( Instance, vkGetInstanceProcAddr, id.Instance.Callbacks );
 
                 VkPhysicalDevice_Object& dev = id.Instance.PhysicalDevices[ PhysicalDevice ];
                 dev.Properties = PhysicalDeviceProperties;
                 dev.MemoryProperties = PhysicalDeviceMemoryProperties;
+                dev.QueueFamilyProperties = PhysicalDeviceQueueProperties;
 
                 VkDevice_Functions::Dispatch& dd = VkDevice_Functions::DeviceDispatch.Create( Device );
                 dd.Device.Handle = Device;
                 dd.Device.pPhysicalDevice = &dev;
                 dd.Device.pInstance = &id.Instance;
+                dd.Device.SetDeviceLoaderData = SetDeviceLoaderData;
                 init_layer_device_dispatch_table( Device, vkGetDeviceProcAddr, dd.Device.Callbacks );
 
                 VkQueue_Object queue = {};
@@ -204,6 +200,20 @@ namespace Profiler
                 dd.Device.Queues.emplace( Queue, queue );
 
                 dd.Profiler.Initialize( &dd.Device, nullptr );
+                profiler = &dd.Profiler;
+            }
+
+            // Create command pool
+            {
+                VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+                commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+                commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+                commandPoolCreateInfo.queueFamilyIndex = QueueFamilyIndex;
+
+                VERIFY_RESULT( this, vkCreateCommandPool( Device, &commandPoolCreateInfo, nullptr, &CommandPool ) );
+
+                // Register the command pool.
+                profiler->CreateCommandPool( CommandPool, &commandPoolCreateInfo );
             }
         }
 
@@ -252,6 +262,18 @@ namespace Profiler
             VkLayerInstanceDispatchTable dispatchTable = {};
             init_layer_instance_dispatch_table( Instance, VkInstance_Functions::GetInstanceProcAddr, dispatchTable );
             return dispatchTable;
+        }
+
+        inline static VkResult SetInstanceLoaderData( VkInstance instance, void *object )
+        {
+            (*(void**)object) = (*(void**)instance);
+            return VK_SUCCESS;
+        }
+
+        inline static VkResult SetDeviceLoaderData( VkDevice device, void *object )
+        {
+            (*(void**)object) = (*(void**)device);
+            return VK_SUCCESS;
         }
     };
 }

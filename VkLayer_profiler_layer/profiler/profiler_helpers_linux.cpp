@@ -101,6 +101,33 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetLibraryInstanceHandle
+
+    Description:
+        No-op.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::SetLibraryInstanceHandle( void* )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLibraryInstanceHandle
+
+    Description:
+        No-op.
+
+    \***********************************************************************************/
+    void* ProfilerPlatformFunctions::GetLibraryInstanceHandle()
+    {
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteDebugUnformatted
 
     Description:

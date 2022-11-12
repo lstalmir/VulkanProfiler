@@ -155,12 +155,6 @@ namespace Profiler
             // Restore initial state
             Reset( 0 /*flags*/ );
 
-            if( pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT )
-            {
-                // Setup render pass and subpass for commands
-                SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
-            }
-
             // Reset query pools.
             m_pQueryPool->Reset( m_CommandBuffer );
 

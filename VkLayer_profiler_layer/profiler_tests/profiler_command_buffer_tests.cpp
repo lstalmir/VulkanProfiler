@@ -21,6 +21,13 @@
 #include "profiler_testing_common.h"
 #include "profiler_vulkan_simple_triangle.h"
 
+#define VALIDATE_RANGES( parentRange, childRange ) \
+    { const auto parentRange##_Time = (parentRange.m_EndTimestamp.m_Value - parentRange.m_BeginTimestamp.m_Value); \
+      const auto childRange##_Time = (childRange.m_EndTimestamp.m_Value - childRange.m_BeginTimestamp.m_Value); \
+      EXPECT_GE( parentRange##_Time, childRange##_Time ); \
+      EXPECT_LE( parentRange.m_BeginTimestamp.m_Value, childRange.m_BeginTimestamp.m_Value ); \
+      EXPECT_GE( parentRange.m_EndTimestamp.m_Value, childRange.m_EndTimestamp.m_Value ); }
+
 namespace Profiler
 {
     class ProfilerCommandBufferULT : public ProfilerBaseULT
@@ -142,73 +149,51 @@ namespace Profiler
 
             const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
             EXPECT_EQ( commandBuffers[ 0 ], cmdBufferData.m_Handle );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
             EXPECT_FALSE( cmdBufferData.m_RenderPasses.empty() );
 
             const auto& renderPassData = cmdBufferData.m_RenderPasses.front();
             EXPECT_EQ( simpleTriangle.RenderPass, renderPassData.m_Handle );
             EXPECT_FALSE( renderPassData.m_Subpasses.empty() );
+            VALIDATE_RANGES( cmdBufferData, renderPassData );
 
             const auto& subpassData = renderPassData.m_Subpasses.front();
             EXPECT_EQ( 0, subpassData.m_Index );
             EXPECT_EQ( VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS, subpassData.m_Contents );
             EXPECT_EQ( 0, subpassData.m_Pipelines.size() );
             EXPECT_FALSE( subpassData.m_SecondaryCommandBuffers.empty() );
+            VALIDATE_RANGES( renderPassData, subpassData );
 
             const auto& secondaryCmdBufferData = subpassData.m_SecondaryCommandBuffers.front();
             EXPECT_EQ( commandBuffers[ 1 ], secondaryCmdBufferData.m_Handle );
             EXPECT_FALSE( secondaryCmdBufferData.m_RenderPasses.empty() );
+            EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawCount );
+            VALIDATE_RANGES( subpassData, secondaryCmdBufferData );
 
             const auto& inheritedRenderPassData = secondaryCmdBufferData.m_RenderPasses.front();
             EXPECT_EQ( VK_NULL_HANDLE, inheritedRenderPassData.m_Handle );
             EXPECT_FALSE( inheritedRenderPassData.m_Subpasses.empty() );
+            VALIDATE_RANGES( secondaryCmdBufferData, inheritedRenderPassData );
 
             const auto& inheritedSubpassData = inheritedRenderPassData.m_Subpasses.front();
             EXPECT_EQ( -1, inheritedSubpassData.m_Index );
             EXPECT_EQ( VK_SUBPASS_CONTENTS_INLINE, inheritedSubpassData.m_Contents );
             EXPECT_EQ( 0, inheritedSubpassData.m_SecondaryCommandBuffers.size() );
             EXPECT_FALSE( inheritedSubpassData.m_Pipelines.empty() );
+            VALIDATE_RANGES( inheritedRenderPassData, inheritedSubpassData );
 
-            const auto& pipelineData = *std::next( inheritedSubpassData.m_Pipelines.begin() );
+            const auto& pipelineData = inheritedSubpassData.m_Pipelines.front();
             EXPECT_EQ( simpleTriangle.Pipeline, pipelineData.m_Handle );
             EXPECT_FALSE( pipelineData.m_Drawcalls.empty() );
+            VALIDATE_RANGES( inheritedSubpassData, pipelineData );
 
             const auto& drawcallData = pipelineData.m_Drawcalls.front();
             EXPECT_EQ( DeviceProfilerDrawcallType::eDraw, drawcallData.m_Type );
-            EXPECT_NE( 0, drawcallData.m_BeginTimestamp );
-            EXPECT_NE( 0, drawcallData.m_EndTimestamp );
-            EXPECT_LT( drawcallData.m_BeginTimestamp, drawcallData.m_EndTimestamp );
-            EXPECT_LT( 0, (drawcallData.m_EndTimestamp - drawcallData.m_BeginTimestamp) );
-
-            // Validate that drawcall data propagates to pipeline stats
-            EXPECT_EQ( drawcallData.m_BeginTimestamp, pipelineData.m_BeginTimestamp );
-            EXPECT_EQ( drawcallData.m_EndTimestamp, pipelineData.m_EndTimestamp );
-
-            // Validate that pipeline stats propagate to subpass stats
-            EXPECT_EQ( pipelineData.m_BeginTimestamp, inheritedSubpassData.m_BeginTimestamp );
-            EXPECT_EQ( pipelineData.m_EndTimestamp, inheritedSubpassData.m_EndTimestamp );
-
-            // Validate that subpass stats propagate to renderpass stats
-            EXPECT_EQ( inheritedSubpassData.m_BeginTimestamp, inheritedRenderPassData.m_BeginTimestamp );
-            EXPECT_EQ( inheritedSubpassData.m_EndTimestamp, inheritedRenderPassData.m_EndTimestamp );
-
-            // Validate that renderpass stats propagate to secondary command buffer stats
-            EXPECT_EQ( inheritedRenderPassData.m_BeginTimestamp, secondaryCmdBufferData.m_BeginTimestamp );
-            EXPECT_EQ( inheritedRenderPassData.m_EndTimestamp, secondaryCmdBufferData.m_EndTimestamp );
-            EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawCount );
-
-            // Validate that secondary command buffer stats propagate to subpass stats
-            EXPECT_EQ( secondaryCmdBufferData.m_BeginTimestamp, subpassData.m_BeginTimestamp );
-            EXPECT_EQ( secondaryCmdBufferData.m_EndTimestamp, subpassData.m_EndTimestamp );
-
-            // Validate that subpass stats propagate to renderpass stats
-            // Render pass data includes begin/end ops, so expected time is greater than subpass time
-            EXPECT_LE( (subpassData.m_EndTimestamp - subpassData.m_BeginTimestamp),
-                (renderPassData.m_EndTimestamp - renderPassData.m_BeginTimestamp) );
-
-            // Validate that renderpass stats propagate to primary command buffer stats
-            EXPECT_EQ( renderPassData.m_BeginTimestamp, cmdBufferData.m_BeginTimestamp );
-            EXPECT_EQ( renderPassData.m_EndTimestamp, cmdBufferData.m_EndTimestamp );
-            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_NE( 0, drawcallData.m_BeginTimestamp.m_Value );
+            EXPECT_NE( 0, drawcallData.m_EndTimestamp.m_Value );
+            EXPECT_LT( drawcallData.m_BeginTimestamp.m_Value, drawcallData.m_EndTimestamp.m_Value );
+            EXPECT_LT( 0, (drawcallData.m_EndTimestamp.m_Value - drawcallData.m_BeginTimestamp.m_Value) );
+            VALIDATE_RANGES( pipelineData, drawcallData );
         }
     }
 
