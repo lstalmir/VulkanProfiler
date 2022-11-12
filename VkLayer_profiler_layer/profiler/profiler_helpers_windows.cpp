@@ -41,6 +41,8 @@ namespace Profiler
         ID3D12Device* m_pD3D12Device;
     };
 
+    static HINSTANCE g_hProfilerDllInstance;
+
     /***********************************************************************************\
 
     Function:
@@ -270,6 +272,38 @@ namespace Profiler
 
             free( pState );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetLibraryInstanceHandle
+
+    Description:
+        No-op.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::SetLibraryInstanceHandle( void* hLibraryInstance )
+    {
+        static_assert( sizeof( HINSTANCE ) == sizeof( void* ),
+            "Sizeof HINSTANCE must be equal to size of opaque void* for the function "
+            "ProfilerPlatformFunctions::SetLibraryInstanceHandle to work correctly." );
+
+        g_hProfilerDllInstance = static_cast<HINSTANCE>(hLibraryInstance);
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLibraryInstanceHandle
+
+    Description:
+        No-op.
+
+    \***********************************************************************************/
+    void* ProfilerPlatformFunctions::GetLibraryInstanceHandle()
+    {
+        return g_hProfilerDllInstance;
     }
 
     /***********************************************************************************\

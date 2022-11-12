@@ -95,6 +95,7 @@ add_library (profiler_overlay
     ${imgui_widgets})
 
 target_link_libraries (profiler_overlay
+    profiler
     profiler_helpers)
 
 # Set include path

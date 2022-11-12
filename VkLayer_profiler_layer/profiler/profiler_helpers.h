@@ -482,6 +482,10 @@ namespace Profiler
         static bool SetStablePowerState( struct VkDevice_Object* pDevice, void** ppStateHandle );
         static void ResetStablePowerState( void* pStateHandle );
 
+        // Used on Windows for hooking on window messages (param is HINSTANCE).
+        static void SetLibraryInstanceHandle( void* hLibraryInstance );
+        static void* GetLibraryInstanceHandle();
+
         template<typename... Args>
         inline static void WriteDebug( const char* fmt, Args... args )
         {

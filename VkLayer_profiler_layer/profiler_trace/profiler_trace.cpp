@@ -186,7 +186,7 @@ namespace Profiler
                 if( m_GpuQueueSubmitTimestampOffset == 0 )
                 {
                     m_GpuQueueSubmitTimestampOffset = !submitBatchData.m_Submits.empty()
-                        ? submitBatchData.m_Submits.front().m_BeginTimestamp
+                        ? submitBatchData.m_Submits.front().m_BeginTimestamp.m_Value
                         : 0;
                 }
                 break;
