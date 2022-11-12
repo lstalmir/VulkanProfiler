@@ -280,7 +280,8 @@ namespace Profiler
         SetLibraryInstanceHandle
 
     Description:
-        No-op.
+        Saves HINSTANCE handle to the loaded layer's DLL.
+        The handle is used by win32 imgui implementation to hook on incoming messages.
 
     \***********************************************************************************/
     void ProfilerPlatformFunctions::SetLibraryInstanceHandle( void* hLibraryInstance )
@@ -298,7 +299,7 @@ namespace Profiler
         GetLibraryInstanceHandle
 
     Description:
-        No-op.
+        Returns the saved HINSTANCE handle to the loaded layer's DLL.
 
     \***********************************************************************************/
     void* ProfilerPlatformFunctions::GetLibraryInstanceHandle()
