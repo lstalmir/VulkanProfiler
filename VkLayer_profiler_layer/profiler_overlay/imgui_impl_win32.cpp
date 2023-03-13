@@ -29,8 +29,6 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM
 static ConcurrentMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
 static HHOOK g_GetMessageHook;
 
-extern HINSTANCE g_hProfilerDllInstance;
-
 /***********************************************************************************\
 
 Function:
@@ -54,11 +52,14 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd )
 
     if( !g_GetMessageHook )
     {
+        HINSTANCE hProfilerDllInstance =
+            static_cast<HINSTANCE>( Profiler::ProfilerPlatformFunctions::GetLibraryInstanceHandle() );
+
         // Register a global window hook on GetMessage/PeekMessage function.
         g_GetMessageHook = SetWindowsHookEx(
             WH_GETMESSAGE,
             ImGui_ImplWin32_Context::GetMessageHook,
-            g_hProfilerDllInstance,
+            hProfilerDllInstance,
             0 /*dwThreadId*/ );
 
         if( !g_GetMessageHook )

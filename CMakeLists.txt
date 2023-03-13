@@ -45,6 +45,10 @@ if (UNIX)
     #find_package (Wayland)
     find_package (XCB REQUIRED COMPONENTS XCB SHAPE)
     find_package (X11 REQUIRED)
+
+    # Export symbols explicitly
+    set (CMAKE_CXX_VISIBILITY_PRESET hidden)
+    set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 endif ()
 
 # Build with C++17
@@ -60,6 +64,15 @@ set (VULKAN_HEADERS_INSTALL_DIR
 
 set (VULKAN_HEADERS_INCLUDE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Headers/include"
+    )
+
+set (SPIRV-Headers_SOURCE_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers"
+    )
+    
+include_directories (
+    "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers/include"
+    "${VULKAN_HEADERS_INCLUDE_DIR}"
     )
 
 # Include sub-projects

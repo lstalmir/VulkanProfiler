@@ -73,6 +73,61 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetStablePowerState
+
+    Description:
+        Forces GPU to run at constant frequency for more reliable measurements.
+        Not all systems support this feature.
+
+    \***********************************************************************************/
+    bool ProfilerPlatformFunctions::SetStablePowerState( VkDevice_Object*, void** )
+    {
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetStablePowerState
+
+    Description:
+        Restores the default (dynamic) GPU frequency.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::ResetStablePowerState( void* )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetLibraryInstanceHandle
+
+    Description:
+        No-op.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::SetLibraryInstanceHandle( void* )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLibraryInstanceHandle
+
+    Description:
+        No-op.
+
+    \***********************************************************************************/
+    void* ProfilerPlatformFunctions::GetLibraryInstanceHandle()
+    {
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteDebugUnformatted
 
     Description:
@@ -116,6 +171,20 @@ namespace Profiler
     uint32_t ProfilerPlatformFunctions::GetCurrentProcessId()
     {
         return static_cast<uint32_t>(getpid());
+    }
+    
+    /***********************************************************************************\
+
+    Function:
+        GetLocalTime
+
+    Description:
+        Returns local time.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::GetLocalTime( tm* localTime, const time_t& time )
+    {
+        *localTime = *localtime( &time );
     }
 
     /***********************************************************************************\

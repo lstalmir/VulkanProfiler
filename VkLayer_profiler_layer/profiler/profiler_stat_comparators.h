@@ -26,12 +26,12 @@ namespace Profiler
     template<typename Data>
     inline bool DurationDesc( const Data& a, const Data& b )
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
+        return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) > (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
     }
 
     template<typename Data>
     inline bool DurationAsc( const Data& a, const Data& b )
     {
-        return (a.m_EndTimestamp - a.m_BeginTimestamp) < (b.m_EndTimestamp - b.m_BeginTimestamp);
+        return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) < (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
     }
 }

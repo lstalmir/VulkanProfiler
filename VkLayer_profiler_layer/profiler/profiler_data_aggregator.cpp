@@ -24,6 +24,7 @@
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "intel/profiler_metrics_api.h"
 #include <assert.h>
+#include <algorithm>
 #include <unordered_set>
 
 namespace Profiler
@@ -193,8 +194,8 @@ namespace Profiler
                 submitData.m_SignalSemaphores = submit.m_SignalSemaphores;
                 submitData.m_WaitSemaphores = submit.m_WaitSemaphores;
 
-                submitData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
-                submitData.m_EndTimestamp = 0;
+                submitData.m_BeginTimestamp.m_Value = std::numeric_limits<uint64_t>::max();
+                submitData.m_EndTimestamp.m_Value = 0;
 
                 for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
                 {
@@ -211,10 +212,10 @@ namespace Profiler
                         submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
                     }
 
-                    submitData.m_BeginTimestamp = std::min(
-                        submitData.m_BeginTimestamp, submitData.m_CommandBuffers.back().m_BeginTimestamp );
-                    submitData.m_EndTimestamp = std::max(
-                        submitData.m_EndTimestamp, submitData.m_CommandBuffers.back().m_EndTimestamp );
+                    submitData.m_BeginTimestamp.m_Value = std::min(
+                        submitData.m_BeginTimestamp.m_Value, submitData.m_CommandBuffers.back().m_BeginTimestamp.m_Value );
+                    submitData.m_EndTimestamp.m_Value = std::max(
+                        submitData.m_EndTimestamp.m_Value, submitData.m_CommandBuffers.back().m_EndTimestamp.m_Value );
                 }
             }
         }
@@ -269,7 +270,7 @@ namespace Profiler
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp - commandBuffer.m_BeginTimestamp);
+                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value);
                 }
             }
         }
@@ -333,7 +334,7 @@ namespace Profiler
                             Profiler::Aggregate<SumAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
+                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
                                 commandBufferData.m_PerformanceQueryResults[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -352,7 +353,7 @@ namespace Profiler
                             Profiler::Aggregate<AvgAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
+                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
                                 commandBufferData.m_PerformanceQueryResults[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
@@ -416,7 +417,7 @@ namespace Profiler
         std::sort( pipelines.begin(), pipelines.end(),
             []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
+                return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) > (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
             } );
 
         return pipelines;
@@ -445,8 +446,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_EndTimestamp += (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
-            endRenderPassPipeline.m_EndTimestamp += (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
+            beginRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value);
+            endRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value);
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -499,6 +500,6 @@ namespace Profiler
         }
 
         // Increase total pipeline time
-        (*it).second.m_EndTimestamp += (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+        (*it).second.m_EndTimestamp.m_Value += (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
     }
 }

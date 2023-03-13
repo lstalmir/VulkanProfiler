@@ -104,6 +104,7 @@ namespace Profiler
 
         DeviceProfilerPipeline              m_GraphicsPipeline;
         DeviceProfilerPipeline              m_ComputePipeline;
+        DeviceProfilerPipeline              m_RayTracingPipeline;
 
         void EndSubpass();
 

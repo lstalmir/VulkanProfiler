@@ -59,6 +59,8 @@ namespace Profiler
         inline static constexpr char CustomStatistics[] = "Custom statistics";
         inline static constexpr char Container[] = "Container";
 
+        inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
+
         // Memory tab
         inline static constexpr char MemoryHeapUsage[] = "Memory heap usage";
         inline static constexpr char MemoryHeap[] = "Heap";
@@ -70,6 +72,8 @@ namespace Profiler
         inline static constexpr char DrawCallsIndirect[] = "Draw calls (indirect)";
         inline static constexpr char DispatchCalls[] = "Dispatch calls";
         inline static constexpr char DispatchCallsIndirect[] = "Dispatch calls (indirect)";
+        inline static constexpr char TraceRaysCalls[] = "Trace rays calls";
+        inline static constexpr char TraceRaysIndirectCalls[] = "Trace rays calls (indirect)";
         inline static constexpr char CopyBufferCalls[] = "Copy buffer calls";
         inline static constexpr char CopyBufferToImageCalls[] = "Copy buffer-to-image calls";
         inline static constexpr char CopyImageCalls[] = "Copy image calls";
@@ -87,6 +91,7 @@ namespace Profiler
         inline static constexpr char Submit[] = "Submit";
         inline static constexpr char SyncMode[] = "Sync mode";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
+        inline static constexpr char ShowShaderCapabilities[] = "Show shader capabilities";
         inline static constexpr char TimeUnit[] = "Time unit";
 
         inline static constexpr char Milliseconds[] = "ms";

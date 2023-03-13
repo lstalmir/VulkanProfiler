@@ -53,7 +53,7 @@ namespace Profiler
 
         uint32_t GetPerformanceQueryMetricsSetIndex() const { return m_PerformanceQueryMetricsSetIndexINTEL; }
 
-        __forceinline void PreallocateQueries( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void PreallocateQueries( VkCommandBuffer commandBuffer )
         {
             if( ( m_pQueryPools.empty() ) ||
                 ( ( m_CurrentQueryPoolIndex == m_pQueryPools.size() ) &&
@@ -64,7 +64,7 @@ namespace Profiler
             }
         }
 
-        __forceinline void Reset( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void Reset( VkCommandBuffer commandBuffer )
         {
             // Reset the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
@@ -88,7 +88,7 @@ namespace Profiler
             m_CurrentQueryPoolIndex = 0;
         }
 
-        __forceinline void BeginPerformanceQuery( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void BeginPerformanceQuery( VkCommandBuffer commandBuffer )
         {
             m_PerformanceQueryMetricsSetIndexINTEL = m_MetricsApiINTEL.GetActiveMetricsSetIndex();
 
@@ -106,7 +106,7 @@ namespace Profiler
             }
         }
 
-        __forceinline void EndPerformanceQuery( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void EndPerformanceQuery( VkCommandBuffer commandBuffer )
         {
             // Check if any performance metrics has been collected.
             if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
@@ -118,7 +118,7 @@ namespace Profiler
             }
         }
 
-        __forceinline void ResolveTimestampsGpu( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void ResolveTimestampsGpu( VkCommandBuffer commandBuffer )
         {
             // Copy data from the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
@@ -133,7 +133,7 @@ namespace Profiler
             }
         }
 
-        __forceinline void ResolveTimestampsCpu()
+        PROFILER_FORCE_INLINE void ResolveTimestampsCpu()
         {
             // Copy data from the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
@@ -148,7 +148,7 @@ namespace Profiler
             }
         }
 
-        __forceinline uint64_t WriteTimestamp( VkCommandBuffer commandBuffer, VkPipelineStageFlagBits stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT )
+        PROFILER_FORCE_INLINE uint64_t WriteTimestamp( VkCommandBuffer commandBuffer, VkPipelineStageFlagBits stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT )
         {
             // Allocate query from the pool
             m_CurrentQueryIndex++;
@@ -177,7 +177,7 @@ namespace Profiler
                    ( static_cast<uint64_t>( m_CurrentQueryIndex ) & 0xFFFFFFFF );
         }
 
-        __forceinline uint64_t GetTimestampData( uint64_t query ) const
+        PROFILER_FORCE_INLINE uint64_t GetTimestampData( uint64_t query ) const
         {
             const uint32_t queryPoolIndex = static_cast<uint32_t>( query >> 32 );
             const uint32_t queryIndex = static_cast<uint32_t>( query & 0xFFFFFFFF );
@@ -185,7 +185,7 @@ namespace Profiler
             return m_pQueryPools[ queryPoolIndex ]->GetQueryData( queryIndex );
         }
 
-        __forceinline std::vector<VkProfilerPerformanceCounterResultEXT> GetPerformanceQueryData() const
+        PROFILER_FORCE_INLINE std::vector<VkProfilerPerformanceCounterResultEXT> GetPerformanceQueryData() const
         {
             // Check if any performance metrics has been collected.
             if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
@@ -230,7 +230,7 @@ namespace Profiler
         VkQueryPool                      m_PerformanceQueryPoolINTEL;
         uint32_t                         m_PerformanceQueryMetricsSetIndexINTEL;
 
-        __forceinline void AllocateQueryPool( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void AllocateQueryPool( VkCommandBuffer commandBuffer )
         {
             auto* pQueryPool = m_pQueryPools.emplace_back(
                 new TimestampQueryPool( m_Profiler, m_QueryPoolSize ) );

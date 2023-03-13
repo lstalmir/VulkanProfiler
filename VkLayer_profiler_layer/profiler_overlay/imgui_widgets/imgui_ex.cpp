@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "imgui_ex.h"
+#include <imgui_internal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -80,6 +81,55 @@ namespace ImGuiX
         uint32_t textSize = static_cast<uint32_t>(ImGui::CalcTextSize( text ).x);
 
         ImGui::SameLine( ImGui::GetWindowContentRegionMax().x - textSize );
+        ImGui::TextUnformatted( text );
+    }
+    
+    /*************************************************************************\
+
+    Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void Badge( ImU32 color, float rounding, const char* fmt, ... )
+    {
+        va_list args;
+        va_start( args, fmt );
+
+        char text[ 128 ];
+        vsnprintf( text, sizeof( text ), fmt, args );
+
+        va_end( args );
+
+        BadgeUnformatted( color, rounding, text );
+    }
+    
+    /*************************************************************************\
+
+    Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void BadgeUnformatted( ImU32 color, float rounding, const char* text )
+    {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        ImDrawList* dl = window->DrawList;
+
+        ImVec2 textSize = ImGui::CalcTextSize( text );
+
+        ImVec2 origin = window->DC.CursorPos;
+        ImVec2 lt = origin; lt.x -= 2;
+        ImVec2 rb = origin; rb.x += textSize.x + 2; rb.y += textSize.y + 1;
+
+        // Draw the background.
+        dl->AddRectFilled( lt, rb, color, rounding, (rounding > 0.f) ? ImDrawCornerFlags_All : ImDrawCornerFlags_None );
+
+        // Draw the text.
         ImGui::TextUnformatted( text );
     }
 

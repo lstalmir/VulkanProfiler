@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -87,6 +87,7 @@ namespace Profiler
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
+        void CreatePipelines( uint32_t, const VkRayTracingPipelineCreateInfoKHR*, VkPipeline* );
         void DestroyPipeline( VkPipeline );
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
@@ -136,7 +137,7 @@ namespace Profiler
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;
 
-        ConcurrentMap<VkShaderModule, uint32_t> m_ShaderModuleHashes;
+        ConcurrentMap<VkShaderModule, ProfilerShaderModule> m_ShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
 
         ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
@@ -149,14 +150,14 @@ namespace Profiler
 
         DeviceProfilerSynchronization m_Synchronization;
 
+        void*                   m_pStablePowerStateHandle;
+
 
         VkResult InitializeINTEL();
 
-        ProfilerShaderTuple CreateShaderTuple( const VkGraphicsPipelineCreateInfo& );
-        ProfilerShaderTuple CreateShaderTuple( const VkComputePipelineCreateInfo& );
-
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
-
+        
+        void SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages );
         void SetDefaultObjectName( const DeviceProfilerPipeline& pipeline );
 
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
