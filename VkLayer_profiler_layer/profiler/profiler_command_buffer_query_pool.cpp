@@ -65,5 +65,13 @@ namespace Profiler
         {
             delete pQueryPool;
         }
+
+        if( m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE )
+        {
+            m_Device.Callbacks.DestroyQueryPool(
+                m_Device.Handle,
+                m_PerformanceQueryPoolINTEL,
+                nullptr );
+        }
     }
 }
