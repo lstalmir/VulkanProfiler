@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,8 +36,8 @@ namespace Profiler
 
     struct ProfilerMetricsSet_INTEL
     {
-        MetricsDiscovery::IMetricSet_1_5* m_pMetricSet;
-        MetricsDiscovery::TMetricSetParams_1_4* m_pMetricSetParams;
+        MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
+        MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
 
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_MetricsProperties;
 
@@ -60,7 +60,7 @@ namespace Profiler
     public:
         ProfilerMetricsApi_INTEL();
 
-        VkResult Initialize();
+        VkResult Initialize( struct VkDevice_Object* pDevice );
         void Destroy();
 
         bool IsAvailable() const;
@@ -85,16 +85,20 @@ namespace Profiler
             size_t      queryReportSize );
 
     private:
+        // Require at least version 1.1.
+        static const uint32_t m_RequiredVersionMajor = 1;
+        static const uint32_t m_MinRequiredVersionMinor = 1;
+
         #ifdef WIN32
         HMODULE m_hMDDll;
         // Since there is no official support for Windows, we have to open the library manually
-        static std::filesystem::path FindMetricsDiscoveryLibrary( const std::filesystem::path& );
+        static std::filesystem::path FindMetricsDiscoveryLibrary( struct VkDevice_Object* pDevice );
         #endif
 
-        MetricsDiscovery::IMetricsDevice_1_5* m_pDevice;
-        MetricsDiscovery::TMetricsDeviceParams_1_2* m_pDeviceParams;
+        MetricsDiscovery::IMetricsDevice_1_1* m_pDevice;
+        MetricsDiscovery::TMetricsDeviceParams_1_0* m_pDeviceParams;
 
-        MetricsDiscovery::IConcurrentGroup_1_5* m_pConcurrentGroup;
+        MetricsDiscovery::IConcurrentGroup_1_1* m_pConcurrentGroup;
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
         std::vector<ProfilerMetricsSet_INTEL> m_MetricsSets;
@@ -103,7 +107,7 @@ namespace Profiler
         uint32_t                              m_ActiveMetricsSetIndex;
 
 
-        bool LoadMetricsDiscoveryLibrary();
+        bool LoadMetricsDiscoveryLibrary( struct VkDevice_Object* pDevice );
         void UnloadMetricsDiscoveryLibrary();
 
         bool OpenMetricsDevice();

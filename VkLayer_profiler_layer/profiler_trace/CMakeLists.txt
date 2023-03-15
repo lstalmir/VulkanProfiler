@@ -22,11 +22,6 @@ cmake_minimum_required (VERSION 3.8)
 
 project (profiler_trace)
 
-# Disable 3-rd party library tests
-set (JSON_BuildTests OFF CACHE INTERNAL "")
-# Include 3-rd party libraries
-add_subdirectory (json)
-
 set (headers
     "profiler_trace.h"
     "profiler_trace_event.h"

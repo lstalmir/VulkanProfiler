@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 
 #include "profiler_metrics_api.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_layer_objects/VkDevice_object.h"
 
 #ifndef NDEBUG
 #ifndef _DEBUG
@@ -30,6 +31,8 @@
 
 #ifdef WIN32
 #include <Windows.h>
+#include <SetupAPI.h>
+#include <devguid.h>
 #endif
 
 #ifdef WIN32
@@ -41,6 +44,9 @@
 #else // LINUX
 #define PROFILER_METRICS_DLL_INTEL "libmd.so"
 #endif
+
+#include <nlohmann/json.hpp>
+#include <fstream>
 
 namespace MD = MetricsDiscovery;
 
@@ -77,13 +83,14 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    VkResult ProfilerMetricsApi_INTEL::Initialize()
+    VkResult ProfilerMetricsApi_INTEL::Initialize(
+        struct VkDevice_Object* pDevice )
     {
         // Returning errors from this function is fine - it is optional feature and will be 
         // disabled when initialization fails. If these errors were moved later (to other functions)
         // whole layer could crash.
 
-        if( !LoadMetricsDiscoveryLibrary() )
+        if( !LoadMetricsDiscoveryLibrary( pDevice ) )
             return VK_ERROR_INCOMPATIBLE_DRIVER;
 
         if( !OpenMetricsDevice() )
@@ -98,7 +105,7 @@ namespace Profiler
 
             for( uint32_t i = 0; i < concurrentGroupCount; ++i )
             {
-                MD::IConcurrentGroup_1_5* pConcurrentGroup = m_pDevice->GetConcurrentGroup( i );
+                MD::IConcurrentGroup_1_1* pConcurrentGroup = m_pDevice->GetConcurrentGroup( i );
                 assert( pConcurrentGroup );
 
                 MD::TConcurrentGroupParams_1_0* pConcurrentGroupParams = pConcurrentGroup->GetParams();
@@ -127,10 +134,10 @@ namespace Profiler
 
         for( uint32_t setIndex = 0; setIndex < oaMetricSetCount; ++setIndex )
         {
-            MD::IMetricSet_1_5* pMetricSet = m_pConcurrentGroup->GetMetricSet( setIndex );
+            MD::IMetricSet_1_1* pMetricSet = m_pConcurrentGroup->GetMetricSet( setIndex );
 
             // Temporarily activate the set.
-            pMetricSet->SetApiFiltering( MD::API_TYPE_DX11 );
+            pMetricSet->SetApiFiltering( MD::API_TYPE_VULKAN );
 
             if( pMetricSet->Activate() != MD::CC_OK )
             {
@@ -327,23 +334,24 @@ namespace Profiler
             return VK_ERROR_VALIDATION_FAILED_EXT;
         }
 
-        m_ActiveMetricsSetIndex = metricsSetIndex;
+        // Get the new metrics set object.
+        auto& metricsSet = m_MetricsSets[ metricsSetIndex ];
 
-        // Get the active metrics set object.
-        auto& metricsSet = m_MetricsSets[ m_ActiveMetricsSetIndex ];
-
-        // Activate only metrics supported by Vulkan driver
-        // TMP: Little hack to enable metrics
-        metricsSet.m_pMetricSet->SetApiFiltering( MD::API_TYPE_DX11 );
-
-        if( metricsSet.m_pMetricSet->Activate() != MD::CC_OK )
+        // Activate only metrics supported by Vulkan driver.
+        if( metricsSet.m_pMetricSet->SetApiFiltering( MD::API_TYPE_VULKAN ) != MD::CC_OK )
         {
-            // Activation failed.
-            m_ActiveMetricsSetIndex = UINT32_MAX;
-
             assert( false );
             return VK_ERROR_INITIALIZATION_FAILED;
         }
+
+        // Activate the metrics set.
+        if( metricsSet.m_pMetricSet->Activate() != MD::CC_OK )
+        {
+            assert( false );
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        m_ActiveMetricsSetIndex = metricsSetIndex;
 
         return VK_SUCCESS;
     }
@@ -477,9 +485,73 @@ namespace Profiler
 
     \***********************************************************************************/
     std::filesystem::path ProfilerMetricsApi_INTEL::FindMetricsDiscoveryLibrary(
-        const std::filesystem::path& searchDirectory )
+        struct VkDevice_Object* pDevice )
     {
-        return ProfilerPlatformFunctions::FindFile( searchDirectory, PROFILER_METRICS_DLL_INTEL );
+        std::filesystem::path igdmdPath;
+
+        // Open registry key with the display adapters.
+        HKEY hRegistryKey = NULL;
+        if (RegOpenKeyA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}", &hRegistryKey) != ERROR_SUCCESS)
+        {
+            return igdmdPath;
+        }
+
+        char vulkanDriverName[MAX_PATH] = {};
+        char vulkanDeviceId[64] = {};
+
+        for (int i = 0; igdmdPath.empty(); ++i)
+        {
+            char displayAdapterIndex[8] = {};
+            sprintf_s(displayAdapterIndex, "%04d", i);
+
+            // Read vendor and device ID from the registry.
+            DWORD vulkanDeviceIdLength = 64;
+            if (RegGetValueA(hRegistryKey, displayAdapterIndex, "MatchingDeviceId", RRF_RT_REG_SZ, NULL, vulkanDeviceId, &vulkanDeviceIdLength) != ERROR_SUCCESS)
+            {
+                break;
+            }
+
+            uint32_t vendorId, deviceId;
+            sscanf_s(vulkanDeviceId, "PCI\\VEN_%04x&DEV_%04x", &vendorId, &deviceId);
+            if ((vendorId != pDevice->pPhysicalDevice->Properties.vendorID) ||
+                (deviceId != pDevice->pPhysicalDevice->Properties.deviceID))
+            {
+                continue;
+            }
+
+            // Get VulkanDriverName value.
+            DWORD vulkanDriverNameLength = MAX_PATH;
+            if (RegGetValueA(hRegistryKey, displayAdapterIndex, "VulkanDriverName", RRF_RT_REG_SZ, NULL, vulkanDriverName, &vulkanDriverNameLength) != ERROR_SUCCESS)
+            {
+                break;
+            }
+
+            // Parse JSON file.
+            nlohmann::json icd = nlohmann::json::parse(std::ifstream(vulkanDriverName));
+
+            if (icd["file_format_version"] == "1.0.0")
+            {
+                // Get path to the DLL.
+                std::filesystem::path vulkanModulePath = icd["ICD"]["library_path"];
+
+                if (!vulkanModulePath.is_absolute())
+                {
+                    // library_path may be relative to the JSON.
+                    vulkanModulePath = std::filesystem::path(vulkanDriverName).parent_path() / vulkanModulePath;
+                    vulkanModulePath = vulkanModulePath.lexically_normal();
+                }
+
+                // Check if the DLL is loaded.
+                if (GetModuleHandleA(vulkanModulePath.string().c_str()) != NULL)
+                {
+                    igdmdPath = ProfilerPlatformFunctions::FindFile(vulkanModulePath.parent_path(), PROFILER_METRICS_DLL_INTEL);
+                }
+            }
+        }
+
+        RegCloseKey(hRegistryKey);
+
+        return igdmdPath;
     }
     #endif
 
@@ -491,7 +563,8 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    bool ProfilerMetricsApi_INTEL::LoadMetricsDiscoveryLibrary()
+    bool ProfilerMetricsApi_INTEL::LoadMetricsDiscoveryLibrary(
+        struct VkDevice_Object* pDevice )
     {
         #ifdef WIN32
         // Load library from driver store
@@ -499,8 +572,7 @@ namespace Profiler
         GetSystemDirectoryA( pSystemDirectory, MAX_PATH );
 
         // Find location of igdmdX.dll
-        const std::filesystem::path mdDllPath = FindMetricsDiscoveryLibrary(
-            std::filesystem::path( pSystemDirectory ) / "DriverStore" / "FileRepository" );
+        const std::filesystem::path mdDllPath = FindMetricsDiscoveryLibrary( pDevice );
 
         if( !mdDllPath.empty() )
         {
@@ -556,12 +628,23 @@ namespace Profiler
         if( pfnOpenMetricsDevice )
         {
             // Create metrics device
-            const MD::ECompletionCode result = pfnOpenMetricsDevice( &m_pDevice );
+            MD::IMetricsDeviceLatest* pDevice = nullptr;
+            MD::ECompletionCode result = pfnOpenMetricsDevice( &pDevice );
 
             if( result == MD::CC_OK )
             {
                 // Get device parameters
+                m_pDevice = pDevice;
                 m_pDeviceParams = m_pDevice->GetParams();
+
+                // Check if the required version is supported by the current driver.
+                if( ( m_pDeviceParams->Version.MajorNumber != m_RequiredVersionMajor) ||
+                    ( m_pDeviceParams->Version.MinorNumber < m_MinRequiredVersionMinor ) )
+                {
+                    CloseMetricsDevice();
+
+                    result = MD::CC_ERROR_NOT_SUPPORTED;
+                }
             }
 
             return result == MD::CC_OK;
@@ -594,7 +677,7 @@ namespace Profiler
             assert( pfnCloseMetricsDevice );
 
             // Destroy metrics device
-            pfnCloseMetricsDevice( m_pDevice );
+            pfnCloseMetricsDevice( static_cast<MD::IMetricsDeviceLatest*>( m_pDevice ) );
 
             m_pDevice = nullptr;
             m_pDeviceParams = nullptr;

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -307,7 +307,7 @@ namespace Profiler
     VkResult DeviceProfiler::InitializeINTEL()
     {
         // Load MDAPI
-        VkResult result = m_MetricsApiINTEL.Initialize();
+        VkResult result = m_MetricsApiINTEL.Initialize( m_pDevice );
 
         if( result != VK_SUCCESS ||
             m_MetricsApiINTEL.IsAvailable() == false )
