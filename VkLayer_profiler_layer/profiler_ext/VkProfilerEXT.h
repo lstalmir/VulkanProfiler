@@ -252,6 +252,7 @@ typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkFlushProfilerEXT )(VkDevice);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceMetricsSetsEXT )(VkDevice, uint32_t*, VkProfilerPerformanceMetricsSetPropertiesEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceCounterPropertiesEXT )(VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerPerformanceMetricsSetEXT )(VkDevice, uint32_t);
+typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerActivePerformanceMetricsSetIndexEXT )(VkDevice, uint32_t*);
 
 #ifndef VK_NO_PROTOTYPES
 VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
