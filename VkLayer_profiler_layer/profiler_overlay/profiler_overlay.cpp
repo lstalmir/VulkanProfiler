@@ -27,6 +27,7 @@
 #include <sstream>
 #include <stack>
 #include <fstream>
+#include <regex>
 
 #include "utils/lockable_unordered_map.h"
 
@@ -109,7 +110,8 @@ namespace Profiler
         , m_CommandBuffers()
         , m_CommandFences()
         , m_CommandSemaphores()
-        , m_VendorMetricProperties()
+        , m_VendorMetricsSets()
+        , m_VendorMetricFilter()
         , m_TimestampPeriod( 0 )
         , m_TimestampDisplayUnit( 1.0f )
         , m_pTimestampDisplayUnitStr( Lang::Milliseconds )
@@ -117,10 +119,13 @@ namespace Profiler
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
         , m_ShowDebugLabels( true )
+        , m_ShowShaderCapabilities( true )
         , m_SelectedFrameBrowserNodeIndex( { 0xFFFF } )
         , m_ScrollToSelectedFrameBrowserNode( false )
         , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
         , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
+        , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
+        , m_PerformanceQueryCommandBufferFilterName( "Frame" )
         , m_SerializationSucceeded( false )
         , m_SerializationMessage()
         , m_SerializationOutputWindowSize( { 0, 0 } )
@@ -129,6 +134,7 @@ namespace Profiler
         , m_RenderPassColumnColor( 0 )
         , m_GraphicsPipelineColumnColor( 0 )
         , m_ComputePipelineColumnColor( 0 )
+        , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
         , m_pStringSerializer( nullptr )
     {
@@ -245,15 +251,36 @@ namespace Profiler
         {
             result = InitializeImGuiVulkanContext( pCreateInfo );
         }
-        
-        // Get vendor metric properties
+
+        // Get vendor metrics sets
         if( result == VK_SUCCESS )
         {
-            uint32_t vendorMetricCount = 0;
-            vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, &vendorMetricCount, nullptr );
+            uint32_t vendorMetricsSetCount = 0;
+            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, nullptr );
 
-            m_VendorMetricProperties.resize( vendorMetricCount );
-            vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, &vendorMetricCount, m_VendorMetricProperties.data() );
+            std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets( vendorMetricsSetCount );
+            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, metricsSets.data() );
+
+            m_VendorMetricsSets.reserve( vendorMetricsSetCount );
+            m_VendorMetricsSetVisibility.reserve( vendorMetricsSetCount );
+
+            for( uint32_t i = 0; i < vendorMetricsSetCount; ++i )
+            {
+                VendorMetricsSet& metricsSet = m_VendorMetricsSets.emplace_back();
+                memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
+
+                // Get metrics belonging to this set.
+                metricsSet.m_Metrics.resize( metricsSet.m_Properties.metricsCount );
+
+                uint32_t metricsCount = metricsSet.m_Properties.metricsCount;
+                vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, i,
+                    &metricsCount,
+                    metricsSet.m_Metrics.data() );
+
+                m_VendorMetricsSetVisibility.push_back( true );
+            }
+
+            vkGetProfilerActivePerformanceMetricsSetIndexEXT( device.Handle, &m_ActiveMetricsSetIndex );
         }
 
         // Initialize serializer
@@ -1018,20 +1045,36 @@ namespace Profiler
             }
 
             // List of fonts to use (in this order)
-            const char* fonts[] = {
+            const char* defaultFonts[] = {
                 "Ubuntu-R.ttf",
                 "LiberationSans-Regural.ttf",
                 "DejaVuSans.ttf" };
 
-            for( const char* font : fonts )
+            const char* codeFonts[] = {
+                "UbuntuMono-R.ttf",
+                "DejaVuSansMono.ttf" };
+
+            for( const char* font : defaultFonts )
             {
                 for( const std::filesystem::path& fontDirectory : fontDirectories )
                 {
-                    fontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
-                    if( !fontPath.empty() )
+                    defaultFontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
+                    if( !defaultFontPath.empty() )
                         break;
                 }
-                if( !fontPath.empty() )
+                if( !defaultFontPath.empty() )
+                    break;
+            }
+
+            for( const char* font : codeFonts )
+            {
+                for( const std::filesystem::path& fontDirectory : fontDirectories )
+                {
+                    codeFontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
+                    if( !codeFontPath.empty() )
+                        break;
+                }
+                if( !codeFontPath.empty() )
                     break;
             }
         }
@@ -1080,6 +1123,7 @@ namespace Profiler
         m_RenderPassColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
         m_GraphicsPipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
         m_ComputePipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.55f, 0.0f, 1.0f } ); // #ffba42
+        m_RayTracingPipelineColumnColor = ImGui::GetColorU32( { 0.2f, 0.73f, 0.92f, 1.0f } ); // #34baeb
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
     }
 
@@ -1213,20 +1257,10 @@ namespace Profiler
                 {
                     for( size_t i = 0; i < std::extent_v<decltype(groupOptions)>; ++i )
                     {
-                        bool isSelected = (selectedOption == groupOptions[ i ]);
-
-                        if( ImGui::Selectable( groupOptions[ i ], isSelected ) )
+                        if( ImGuiX::TSelectable( groupOptions[ i ], selectedOption, groupOptions[ i ] ) )
                         {
                             // Selection changed
-                            selectedOption = groupOptions[ i ];
-                            isSelected = true;
-
                             m_HistogramGroupMode = HistogramGroupMode( i );
-                        }
-
-                        if( isSelected )
-                        {
-                            ImGui::SetItemDefaultFocus();
                         }
                     }
 
@@ -1265,7 +1299,7 @@ namespace Profiler
             {
                 if( pipeline.m_Handle != VK_NULL_HANDLE )
                 {
-                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
 
                     ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
                     ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
@@ -1282,89 +1316,221 @@ namespace Profiler
         if( !m_Data.m_VendorMetrics.empty() &&
             ImGui::CollapsingHeader( Lang::PerformanceCounters ) )
         {
-            assert( m_Data.m_VendorMetrics.size() == m_VendorMetricProperties.size() );
+            std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
-            ImGui::BeginTable( "Performance counters table",
-                /* columns_count */ 3,
-                ImGuiTableFlags_Resizable |
-                    ImGuiTableFlags_NoClip |
-                    ImGuiTableFlags_Borders );
+            // Data source
+            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_Data.m_VendorMetrics;
 
-            // Headers
-            ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableHeadersRow();
-                
-            for( uint32_t i = 0; i < m_Data.m_VendorMetrics.size(); ++i )
+            bool performanceQueryResultsFiltered = false;
+
+            // Find the first command buffer that matches the filter.
+            // TODO: Aggregation.
+            for( const auto& submitBatch : m_Data.m_Submits )
             {
-                const VkProfilerPerformanceCounterResultEXT& metric = m_Data.m_VendorMetrics[ i ];
-                const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = m_VendorMetricProperties[ i ];
-
-                ImGui::TableNextColumn();
+                for( const auto& submit : submitBatch.m_Submits )
                 {
-                    ImGui::Text( "%s", metricProperties.shortName );
-
-                    if( ImGui::IsItemHovered() &&
-                        metricProperties.description[ 0 ] )
+                    for( const auto& commandBuffer : submit.m_CommandBuffers )
                     {
-                        ImGui::BeginTooltip();
-                        ImGui::PushTextWrapPos( 350.f );
-                        ImGui::TextUnformatted( metricProperties.description );
-                        ImGui::PopTextWrapPos();
-                        ImGui::EndTooltip();
+                        if( (performanceQueryResultsFiltered == false) &&
+                            (commandBuffer.m_Handle != VK_NULL_HANDLE) &&
+                            (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
+                        {
+                            // Use the data from this command buffer.
+                            pVendorMetrics = &commandBuffer.m_PerformanceQueryResults;
+                            performanceQueryResultsFiltered = true;
+                        }
+
+                        uniqueCommandBuffers.insert( commandBuffer.m_Handle );
                     }
-                }
-
-                ImGui::TableNextColumn();
-                {
-                    const float columnWidth = ImGuiX::TableGetColumnWidth();
-                    switch( metricProperties.storage )
-                    {
-                    case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
-                        ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
-                        break;
-
-                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
-                        ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
-                        break;
-
-                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
-                        ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
-                        break;
-                    }
-                }
-
-                ImGui::TableNextColumn();
-                {
-                    const char* pUnitString = "???";
-
-                    assert( metricProperties.unit < 11 );
-                    static const char* const ppUnitString[ 11 ] =
-                    {
-                        "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
-                        "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
-                        "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
-                        "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
-                        "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
-                        "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
-                        "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
-                        "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
-                        "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
-                        "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
-                        "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
-                    };
-
-                    if( metricProperties.unit < 11 )
-                    {
-                        pUnitString = ppUnitString[ metricProperties.unit ];
-                    }
-
-                    ImGui::TextUnformatted( pUnitString );
                 }
             }
 
-            ImGui::EndTable();
+            // Show a combo box that allows the user to select the filter the profiled range.
+            ImGui::Text( "Range" );
+            ImGui::SameLine( 100.f );
+            if( ImGui::BeginCombo( "PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
+            {
+                if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+                {
+                    // Selection changed.
+                    m_PerformanceQueryCommandBufferFilterName = "Frame";
+                }
+
+                // Enumerate command buffers.
+                for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
+                {
+                    std::string commandBufferName = m_pStringSerializer->GetName(commandBuffer);
+
+                    if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
+                    {
+                        // Selection changed.
+                        m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            // Show a combo box that allows the user to change the active metrics set.
+            ImGui::Text( "Metrics set" );
+            ImGui::SameLine( 100.f );
+            if( ImGui::BeginCombo( "PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
+            {
+                // Enumerate metrics sets.
+                for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
+                {
+                    if( m_VendorMetricsSetVisibility[ metricsSetIndex ] )
+                    {
+                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
+
+                        if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
+                        {
+                            // Notify the profiler.
+                            if( vkSetProfilerPerformanceMetricsSetEXT( m_pDevice->Handle, metricsSetIndex ) == VK_SUCCESS )
+                            {
+                                // Refresh the performance metric properties.
+                                m_ActiveMetricsSetIndex = metricsSetIndex;
+                            }
+                        }
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            // Show a search box for filtering metrics sets to find specific metrics.
+            ImGui::Text( "Filter" );
+            ImGui::SameLine( 100.f );
+            if( ImGui::InputText( "PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
+            {
+                try
+                {
+                    // Text changed, construct a regex from the string and find the matching metrics sets.
+                    std::regex regexFilter( m_VendorMetricFilter );
+
+                    // Enumerate only sets that match the query.
+                    for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
+                    {
+                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
+
+                        // Match by metrics set name.
+                        if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
+                        {
+                            m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
+                            continue;
+                        }
+
+                        m_VendorMetricsSetVisibility[ metricsSetIndex ] = false;
+
+                        // Match by metric name.
+                        for( const auto& metric : metricsSet.m_Metrics )
+                        {
+                            if( std::regex_search( metric.shortName, regexFilter ) )
+                            {
+                                m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch( ... )
+                {
+                    // Regex compilation failed, don't change the visibility of the sets.
+                }
+            }
+
+            if( pVendorMetrics->empty() )
+            {
+                // Vendor metrics not available.
+                ImGui::Text( "Performance metrics are not available for the selected command buffer." );
+            }
+
+            const auto& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
+            if( pVendorMetrics->size() == activeMetricsSet.m_Metrics.size() )
+            {
+                const auto& vendorMetrics = *pVendorMetrics;
+
+                ImGui::BeginTable( "Performance counters table",
+                    /* columns_count */ 3,
+                    ImGuiTableFlags_NoClip |
+                    (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
+
+                // Headers
+                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableHeadersRow();
+
+                for( uint32_t i = 0; i < vendorMetrics.size(); ++i )
+                {
+                    const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[ i ];
+                    const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = activeMetricsSet.m_Metrics[ i ];
+
+                    ImGui::TableNextColumn();
+                    {
+                        ImGui::Text( "%s", metricProperties.shortName );
+
+                        if( ImGui::IsItemHovered() &&
+                            metricProperties.description[ 0 ] )
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::PushTextWrapPos( 350.f );
+                            ImGui::TextUnformatted( metricProperties.description );
+                            ImGui::PopTextWrapPos();
+                            ImGui::EndTooltip();
+                        }
+                    }
+
+                    ImGui::TableNextColumn();
+                    {
+                        const float columnWidth = ImGuiX::TableGetColumnWidth();
+                        switch( metricProperties.storage )
+                        {
+                        case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
+                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
+                            break;
+
+                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                            ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
+                            break;
+
+                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                            ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
+                            break;
+                        }
+                    }
+
+                    ImGui::TableNextColumn();
+                    {
+                        const char* pUnitString = "???";
+
+                        assert( metricProperties.unit < 11 );
+                        static const char* const ppUnitString[ 11 ] =
+                        {
+                            "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
+                            "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
+                            "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
+                            "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
+                            "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
+                            "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
+                            "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
+                            "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
+                            "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
+                            "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
+                            "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
+                        };
+
+                        if( metricProperties.unit < 11 )
+                        {
+                            pUnitString = ppUnitString[ metricProperties.unit ];
+                        }
+
+                        ImGui::TextUnformatted( pUnitString );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
         }
 
         // Force frame browser open
@@ -1392,20 +1558,10 @@ namespace Profiler
                 {
                     for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
                     {
-                        bool isSelected = (selectedOption == sortOptions[ i ]);
-
-                        if( ImGui::Selectable( sortOptions[ i ], isSelected ) )
+                        if( ImGuiX::TSelectable( sortOptions[ i ], selectedOption, sortOptions[ i ] ) )
                         {
                             // Selection changed
-                            selectedOption = sortOptions[ i ];
-                            isSelected = true;
-
                             m_FrameBrowserSortMode = FrameBrowserSortMode( i );
-                        }
-
-                        if( isSelected )
-                        {
-                            ImGui::SetItemDefaultFocus();
                         }
                     }
 
@@ -1656,6 +1812,12 @@ namespace Profiler
 
             ImGui::TextUnformatted( Lang::DispatchCallsIndirect );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
+            
+            ImGui::TextUnformatted( Lang::TraceRaysCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysCount );
+
+            ImGui::TextUnformatted( Lang::TraceRaysIndirectCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysIndirectCount );
 
             ImGui::TextUnformatted( Lang::CopyBufferCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferCount );
@@ -1747,6 +1909,9 @@ namespace Profiler
 
         // Display debug labels in frame browser.
         ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
+
+        // Display shader capability badges in frame browser.
+        ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
     }
 
     /***********************************************************************************\
@@ -1846,7 +2011,7 @@ namespace Profiler
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             (data.m_Handle != VK_NULL_HANDLE) )
         {
-            const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
+            const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -1920,7 +2085,7 @@ namespace Profiler
             ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
             (data.m_Handle != VK_NULL_HANDLE) )
         {
-            const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
+            const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -1937,6 +2102,10 @@ namespace Profiler
 
             case VK_PIPELINE_BIND_POINT_COMPUTE:
                 column.color = m_ComputePipelineColumnColor;
+                break;
+
+            case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+                column.color = m_RayTracingPipelineColumnColor;
                 break;
 
             default:
@@ -1974,7 +2143,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        const float cycleCount = static_cast<float>( data.m_EndTimestamp - data.m_BeginTimestamp );
+        const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
         PerformanceGraphColumn column = {};
         column.x = cycleCount;
@@ -2026,7 +2195,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerRenderPassData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( renderPassData );
-            regionCycleCount = renderPassData.m_EndTimestamp - renderPassData.m_BeginTimestamp;
+            regionCycleCount = renderPassData.m_EndTimestamp.m_Value - renderPassData.m_BeginTimestamp.m_Value;
             break;
         }
 
@@ -2036,7 +2205,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerPipelineData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = pipelineData.m_EndTimestamp - pipelineData.m_BeginTimestamp;
+            regionCycleCount = pipelineData.m_EndTimestamp.m_Value - pipelineData.m_BeginTimestamp.m_Value;
             break;
         }
 
@@ -2046,7 +2215,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerDrawcall*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = pipelineData.m_EndTimestamp - pipelineData.m_BeginTimestamp;
+            regionCycleCount = pipelineData.m_EndTimestamp.m_Value - pipelineData.m_BeginTimestamp.m_Value;
             break;
         }
         }
@@ -2151,7 +2320,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t commandBufferTicks = (cmdBuffer.m_EndTimestamp - cmdBuffer.m_BeginTimestamp);
+        const uint64_t commandBufferTicks = (cmdBuffer.m_EndTimestamp.m_Value - cmdBuffer.m_BeginTimestamp.m_Value);
 
         // Mark hotspots with color
         DrawSignificanceRect( (float)commandBufferTicks / m_Data.m_Ticks, index );
@@ -2219,10 +2388,15 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t renderPassTicks = (renderPass.m_EndTimestamp - renderPass.m_BeginTimestamp );
+        const bool isValidRenderPass = (renderPass.m_Type != DeviceProfilerRenderPassType::eNone);
 
-        // Mark hotspots with color
-        DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
+        if( isValidRenderPass )
+        {
+            const uint64_t renderPassTicks = (renderPass.m_EndTimestamp.m_Value - renderPass.m_BeginTimestamp.m_Value);
+
+            // Mark hotspots with color
+            DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
+        }
 
         char indexStr[ 2 * sizeof( index ) + 1 ] = {};
         structtohex( indexStr, index );
@@ -2243,36 +2417,47 @@ namespace Profiler
             ImGui::SetScrollHereY();
         }
 
-        const bool inRenderPassSubtree =
-            ImGui::TreeNode( indexStr, "%s",
+        bool inRenderPassSubtree;
+        if( isValidRenderPass )
+        {
+            inRenderPassSubtree = ImGui::TreeNode( indexStr, "%s",
                 m_pStringSerializer->GetName( renderPass ).c_str() );
+        }
+        else
+        {
+            // Print render pass inline.
+            inRenderPassSubtree = true;
+        }
 
         if( inRenderPassSubtree )
         {
             // Render pass subtree opened
-            PrintDuration( renderPass );
-
-            if( renderPass.m_Handle != VK_NULL_HANDLE )
+            if( isValidRenderPass )
             {
-                const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
+                PrintDuration( renderPass );
 
-                index.DrawcallIndex = 0;
-
-                if( (m_ScrollToSelectedFrameBrowserNode) &&
-                    (m_SelectedFrameBrowserNodeIndex == index) )
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    ImGui::SetScrollHereY();
+                    const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value);
+
+                    index.DrawcallIndex = 0;
+
+                    if( (m_ScrollToSelectedFrameBrowserNode) &&
+                        (m_SelectedFrameBrowserNodeIndex == index) )
+                    {
+                        ImGui::SetScrollHereY();
+                    }
+
+                    // Mark hotspots with color
+                    DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
+
+                    index.DrawcallIndex = 0xFFFF;
+
+                    // Print BeginRenderPass pipeline
+                    ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
+
+                    PrintDuration( renderPass.m_Begin );
                 }
-
-                // Mark hotspots with color
-                DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
-
-                index.DrawcallIndex = 0xFFFF;
-
-                // Print BeginRenderPass pipeline
-                ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-
-                PrintDuration( renderPass.m_Begin );
             }
 
             // Sort frame browser data
@@ -2299,33 +2484,36 @@ namespace Profiler
                 index.SubpassIndex = 0xFFFF;
             }
 
-            if( renderPass.m_Handle != VK_NULL_HANDLE )
+            if( isValidRenderPass )
             {
-                const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
-
-                index.DrawcallIndex = 1;
-
-                if( (m_ScrollToSelectedFrameBrowserNode) &&
-                    (m_SelectedFrameBrowserNodeIndex == index) )
+                if( renderPass.m_Handle != VK_NULL_HANDLE )
                 {
-                    ImGui::SetScrollHereY();
+                    const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value);
+
+                    index.DrawcallIndex = 1;
+
+                    if( (m_ScrollToSelectedFrameBrowserNode) &&
+                        (m_SelectedFrameBrowserNodeIndex == index) )
+                    {
+                        ImGui::SetScrollHereY();
+                    }
+
+                    // Mark hotspots with color
+                    DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
+
+                    index.DrawcallIndex = 0xFFFF;
+
+                    // Print EndRenderPass pipeline
+                    ImGui::TextUnformatted( "vkCmdEndRenderPass" );
+
+                    PrintDuration( renderPass.m_End );
                 }
 
-                // Mark hotspots with color
-                DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
-
-                index.DrawcallIndex = 0xFFFF;
-
-                // Print EndRenderPass pipeline
-                ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-
-                PrintDuration( renderPass.m_End );
+                ImGui::TreePop();
             }
-
-            ImGui::TreePop();
         }
 
-        if( !inRenderPassSubtree )
+        if( isValidRenderPass && !inRenderPassSubtree )
         {
             // Render pass collapsed
             PrintDuration( renderPass );
@@ -2343,7 +2531,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex index, bool isOnlySubpass )
     {
-        const uint64_t subpassTicks = (subpass.m_EndTimestamp - subpass.m_BeginTimestamp);
+        const uint64_t subpassTicks = (subpass.m_EndTimestamp.m_Value - subpass.m_BeginTimestamp.m_Value);
         bool inSubpassSubtree = false;
 
         if( !isOnlySubpass )
@@ -2439,7 +2627,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex index )
     {
-        const uint64_t pipelineTicks = (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+        const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
 
         const bool printPipelineInline =
             (pipeline.m_Handle == VK_NULL_HANDLE) ||
@@ -2496,6 +2684,20 @@ namespace Profiler
             }
         }
 
+        if( m_ShowShaderCapabilities )
+        {
+            if( pipeline.m_UsesRayQuery )
+            {
+                static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
+                DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
+            }
+            if( pipeline.m_UsesRayTracing )
+            {
+                static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
+                DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
+            }
+        }
+
         if( inPipelineSubtree )
         {
             // Pipeline subtree opened
@@ -2544,7 +2746,7 @@ namespace Profiler
     {
         if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
-            const uint64_t drawcallTicks = (drawcall.m_EndTimestamp - drawcall.m_BeginTimestamp);
+            const uint64_t drawcallTicks = (drawcall.m_EndTimestamp.m_Value - drawcall.m_BeginTimestamp.m_Value);
 
             if( (m_ScrollToSelectedFrameBrowserNode) &&
                 (m_SelectedFrameBrowserNodeIndex == index) )
@@ -2611,6 +2813,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        DrawSignificanceRect
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName )
+    {
+        assert( m_ShowShaderCapabilities );
+        
+        ImGui::SameLine();
+        ImGuiX::BadgeUnformatted( color, 5.f, shortName );
+
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::BeginTooltip();
+            ImGui::Text( Lang::ShaderCapabilityTooltipFmt, longName );
+            ImGui::EndTooltip();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DrawDebugLabel
 
     Description:
@@ -2643,5 +2868,33 @@ namespace Profiler
         ImGui::SetCursorScreenPos( cursorPosition );
 
         ImGui::TextUnformatted( pName );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintDuration
+
+    Description:
+
+    \***********************************************************************************/
+    template <typename Data>
+    void ProfilerOverlayOutput::PrintDuration( const Data& data )
+    {
+        if( ( data.m_BeginTimestamp.m_Value != UINT64_MAX ) && ( data.m_EndTimestamp.m_Value != UINT64_MAX ) )
+        {
+            const uint64_t ticks = data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value;
+
+            // Print the duration
+            ImGuiX::TextAlignRight( "%.2f %s",
+                m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
+                m_pTimestampDisplayUnitStr );
+        }
+        else
+        {
+            // No data collected in this mode
+            ImGuiX::TextAlignRight( "- %s",
+                m_pTimestampDisplayUnitStr );
+        }
     }
 }

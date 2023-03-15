@@ -22,6 +22,8 @@
 #include "profiler_helpers/profiler_data_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <memory>
+
 struct ImFont;
 class TextEditor;
 

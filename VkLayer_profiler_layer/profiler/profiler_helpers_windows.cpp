@@ -20,6 +20,7 @@
 
 #ifdef WIN32
 #include "profiler_helpers.h"
+#include "../profiler_layer_objects/VkDevice_object.h"
 
 #if !defined _DEBUG && !defined NDEBUG
 #define NDEBUG // for assert.h
@@ -28,8 +29,20 @@
 #include <Windows.h>
 #include <assert.h>
 
+#include <d3d12.h>
+#include <dxgi1_6.h>
+
 namespace Profiler
 {
+    struct StablePowerState_T
+    {
+        HMODULE       m_hDXGIModule;
+        HMODULE       m_hD3D12Module;
+        ID3D12Device* m_pD3D12Device;
+    };
+
+    static HINSTANCE g_hProfilerDllInstance;
+
     /***********************************************************************************\
 
     Function:
@@ -109,6 +122,194 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetStablePowerState
+
+    Description:
+        Forces GPU to run at constant frequency for more reliable measurements.
+        Not all systems support this feature.
+
+    \***********************************************************************************/
+    bool ProfilerPlatformFunctions::SetStablePowerState( VkDevice_Object* pDevice, void** ppStateHandle )
+    {
+        HRESULT hr = S_OK;
+
+        typedef decltype(CreateDXGIFactory)* PFN_CREATE_DXGI_FACTORY;
+
+        PFN_CREATE_DXGI_FACTORY pfnCreateDXGIFactory;
+        PFN_D3D12_CREATE_DEVICE pfnD3D12CreateDevice;
+
+        // Allocate a structure for the stable power state state.
+        StablePowerState_T* pState = static_cast<StablePowerState_T*>( malloc( sizeof( StablePowerState_T ) ) );
+        if( pState == nullptr )
+        {
+            // Failed to allocate stable power state struct.
+            *ppStateHandle = nullptr;
+            return false;
+        }
+
+        // Load required modules.
+        pState->m_hDXGIModule = LoadLibraryA( "dxgi.dll" );
+        if( pState->m_hDXGIModule == nullptr )
+            hr = E_FAIL;
+
+        pState->m_hD3D12Module = LoadLibraryA( "d3d12.dll" );
+        if( pState->m_hD3D12Module == nullptr )
+            hr = E_FAIL;
+
+        // Get required entry points.
+        if( SUCCEEDED( hr ) )
+        {
+            pfnCreateDXGIFactory = reinterpret_cast<PFN_CREATE_DXGI_FACTORY>( GetProcAddress( pState->m_hDXGIModule, "CreateDXGIFactory" ) );
+            if( pfnCreateDXGIFactory == nullptr )
+                hr = E_FAIL;
+        }
+        if( SUCCEEDED( hr ) )
+        {
+            pfnD3D12CreateDevice = reinterpret_cast<PFN_D3D12_CREATE_DEVICE>( GetProcAddress( pState->m_hD3D12Module, "D3D12CreateDevice" ) );
+            if( pfnD3D12CreateDevice == nullptr )
+                hr = E_FAIL;
+        }
+
+        // Create DXGI factory to enumerate DirectX adapters.
+        IDXGIFactory* pDXGIFactory = nullptr;
+        if( SUCCEEDED( hr ) )
+        {
+            hr = pfnCreateDXGIFactory( IID_PPV_ARGS( &pDXGIFactory ) );
+        }
+
+        const VkPhysicalDeviceProperties& physicalDeviceProperties = pDevice->pPhysicalDevice->Properties;
+
+        // Find the DXGI adapter for the selected physical device.
+        IDXGIAdapter* pDeviceDXGIAdapter = nullptr;
+        if( SUCCEEDED( hr ) )
+        {
+            IDXGIAdapter* pDXGIAdapter = nullptr;
+            for(UINT adapterIndex = 0;
+                pDXGIFactory->EnumAdapters( adapterIndex, &pDXGIAdapter ) == S_OK;
+                ++adapterIndex )
+            {
+                DXGI_ADAPTER_DESC adapterDesc;
+                pDXGIAdapter->GetDesc( &adapterDesc );
+
+                // TODO: Handle multi-gpu systems with the same gpus.
+                if( (adapterDesc.VendorId == physicalDeviceProperties.vendorID) &&
+                    (adapterDesc.DeviceId == physicalDeviceProperties.deviceID) )
+                {
+                    pDeviceDXGIAdapter = pDXGIAdapter;
+                    break;
+                }
+
+                pDXGIAdapter->Release();
+            }
+
+            if( pDeviceDXGIAdapter == nullptr )
+                hr = E_FAIL;
+
+            pDXGIFactory->Release();
+        }
+
+        // Create a D3D12 device on the selected physical device.
+        if( SUCCEEDED( hr ) )
+        {
+            hr = pfnD3D12CreateDevice( pDeviceDXGIAdapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS( &pState->m_pD3D12Device ) );
+            pDeviceDXGIAdapter->Release();
+        }
+
+        if( SUCCEEDED( hr ) )
+        {
+            hr = pState->m_pD3D12Device->SetStablePowerState( true );
+        }
+
+        // Free the state if anything went wrong.
+        if( FAILED( hr ) )
+        {
+            // Failed to set stable power state.
+            if( pState->m_pD3D12Device != nullptr )
+            {
+                pState->m_pD3D12Device->Release();
+            }
+
+            if( pState->m_hD3D12Module != nullptr )
+            {
+                FreeLibrary( pState->m_hD3D12Module );
+            }
+
+            if( pState->m_hDXGIModule != nullptr )
+            {
+                FreeLibrary( pState->m_hDXGIModule );
+            }
+
+            free( pState );
+
+            pState = nullptr;
+        }
+
+        *ppStateHandle = pState;
+
+        return SUCCEEDED( hr );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetStablePowerState
+
+    Description:
+        Restores the default (dynamic) GPU frequency.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::ResetStablePowerState( void* pStateHandle )
+    {
+        StablePowerState_T* pState = static_cast<StablePowerState_T*>( pStateHandle );
+
+        if( pState != nullptr )
+        {
+            pState->m_pD3D12Device->SetStablePowerState( false );
+            pState->m_pD3D12Device->Release();
+
+            FreeLibrary( pState->m_hD3D12Module );
+            FreeLibrary( pState->m_hDXGIModule );
+
+            free( pState );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetLibraryInstanceHandle
+
+    Description:
+        Saves HINSTANCE handle to the loaded layer's DLL.
+        The handle is used by win32 imgui implementation to hook on incoming messages.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::SetLibraryInstanceHandle( void* hLibraryInstance )
+    {
+        static_assert( sizeof( HINSTANCE ) == sizeof( void* ),
+            "Sizeof HINSTANCE must be equal to size of opaque void* for the function "
+            "ProfilerPlatformFunctions::SetLibraryInstanceHandle to work correctly." );
+
+        g_hProfilerDllInstance = static_cast<HINSTANCE>(hLibraryInstance);
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLibraryInstanceHandle
+
+    Description:
+        Returns the saved HINSTANCE handle to the loaded layer's DLL.
+
+    \***********************************************************************************/
+    void* ProfilerPlatformFunctions::GetLibraryInstanceHandle()
+    {
+        return g_hProfilerDllInstance;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteDebugUnformatted
 
     Description:
@@ -151,6 +352,20 @@ namespace Profiler
     uint32_t ProfilerPlatformFunctions::GetCurrentProcessId()
     {
         return ::GetCurrentProcessId();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLocalTime
+
+    Description:
+        Returns local time.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::GetLocalTime( tm* localTime, const time_t& time )
+    {
+        ::localtime_s( localTime, &time );
     }
 
     /***********************************************************************************\

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -282,6 +282,16 @@ namespace Profiler
         CreateInternalPipeline( DeviceProfilerPipelineType::eUpdateBuffer, "UpdateBuffer" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eBeginRenderPass, "BeginRenderPass" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eEndRenderPass, "EndRenderPass" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eBuildAccelerationStructuresKHR, "BuildAccelerationStructuresKHR" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyAccelerationStructureKHR, "CopyAccelerationStructureKHR" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyAccelerationStructureToMemoryKHR, "CopyAccelerationStructureToMemoryKHR" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyMemoryToAccelerationStructureKHR, "CopyMemoryToAccelerationStructureKHR" );
+
+        if( m_Config.m_SetStablePowerState )
+        {
+            // Set stable power state.
+            ProfilerPlatformFunctions::SetStablePowerState( m_pDevice, &m_pStablePowerStateHandle );
+        }
 
         return VK_SUCCESS;
     }
@@ -298,7 +308,7 @@ namespace Profiler
     VkResult DeviceProfiler::InitializeINTEL()
     {
         // Load MDAPI
-        VkResult result = m_MetricsApiINTEL.Initialize();
+        VkResult result = m_MetricsApiINTEL.Initialize( m_pDevice );
 
         if( result != VK_SUCCESS ||
             m_MetricsApiINTEL.IsAvailable() == false )
@@ -366,6 +376,11 @@ namespace Profiler
         {
             m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
             m_SubmitFence = VK_NULL_HANDLE;
+        }
+        
+        if( m_pStablePowerStateHandle != nullptr )
+        {
+            ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
         }
 
         m_CurrentFrame = 0;
@@ -545,10 +560,12 @@ namespace Profiler
         {
             DeviceProfilerPipeline profilerPipeline;
             profilerPipeline.m_Handle = pPipelines[i];
-            profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eGraphics;
 
+            const VkGraphicsPipelineCreateInfo& createInfo = pCreateInfos[i];
+
+            SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultObjectName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[i], profilerPipeline );
@@ -570,10 +587,37 @@ namespace Profiler
         {
             DeviceProfilerPipeline profilerPipeline;
             profilerPipeline.m_Handle = pPipelines[ i ];
-            profilerPipeline.m_ShaderTuple = CreateShaderTuple( pCreateInfos[ i ] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
+            
+            SetPipelineShaderProperties( profilerPipeline, 1, &pCreateInfos[i].stage );
+            SetDefaultObjectName( profilerPipeline );
 
+            m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreatePipelines
+
+    Description:
+        Register ray-tracing pipelines.
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines )
+    {
+        for( uint32_t i = 0; i < pipelineCount; ++i )
+        {
+            DeviceProfilerPipeline profilerPipeline;
+            profilerPipeline.m_Handle = pPipelines[ i ];
+            profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
+            profilerPipeline.m_Type = DeviceProfilerPipelineType::eRayTracingKHR;
+            
+            const VkRayTracingPipelineCreateInfoKHR& createInfo = pCreateInfos[i];
+
+            SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultObjectName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
@@ -606,8 +650,23 @@ namespace Profiler
         // Compute shader code hash to use later
         DeviceProfilerShaderModule shaderModule = {};
         shaderModule.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+
+        // Save the bytecode to display the shader's disassembly
         shaderModule.m_Bytecode.resize( pCreateInfo->codeSize / sizeof( uint32_t ) );
         memcpy( shaderModule.m_Bytecode.data(), pCreateInfo->pCode, pCreateInfo->codeSize );
+
+        // Enumerate capabilities of the shader module
+        const uint32_t* pCurrentWord = pCreateInfo->pCode + 5; // skip header bytes
+        const uint32_t* pLastWord = pCreateInfo->pCode + (pCreateInfo->codeSize / sizeof(uint32_t)) - 1;
+
+        while ((pCurrentWord < pLastWord) &&
+            ((*pCurrentWord & 0xffff) == SpvOpCapability))
+        {
+            assert((*pCurrentWord >> 16) == 2);
+
+            shaderModule.m_Capabilities.push_back(static_cast<SpvCapability>(*(pCurrentWord + 1)));
+            pCurrentWord += 2; // SpvOpCapability is 2 words long
+        }
 
         m_ShaderModules.insert( module, std::move( shaderModule ) );
     }
@@ -992,77 +1051,42 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        CreateShaderTuple
+        SetPipelineShaderProperties
 
     Description:
 
     \***********************************************************************************/
-    DeviceProfilerPipelineShaderTuple DeviceProfiler::CreateShaderTuple( const VkGraphicsPipelineCreateInfo& createInfo )
+    void DeviceProfiler::SetPipelineShaderProperties(
+        DeviceProfilerPipeline&                pipeline,
+        uint32_t                               stageCount,
+        const VkPipelineShaderStageCreateInfo* pStages )
     {
-        DeviceProfilerPipelineShaderTuple tuple;
+        DeviceProfilerPipelineShaderTuple& tuple = pipeline.m_ShaderTuple;
 
         // Array of shader hashes used in the pipeline
         BitsetArray<VkShaderStageFlagBits, uint32_t, 32> shaderHashes = {};
 
-        for( uint32_t i = 0; i < createInfo.stageCount; ++i )
+        for( uint32_t i = 0; i < stageCount; ++i )
         {
             // VkShaderModule entry should already be in the map
-            DeviceProfilerShaderModule& shaderModule = m_ShaderModules.at( createInfo.pStages[i].module );
-
-            const char* entrypoint = createInfo.pStages[i].pName;
+            DeviceProfilerShaderModule& shaderModule = m_ShaderModules.at( pStages[i].module );
+            uint32_t hash = shaderModule.m_Hash;
 
             // Hash the entrypoint and append it to the final hash
-            uint32_t hash = shaderModule.m_Hash;
+            const char* entrypoint = pStages[i].pName;
             hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
 
-            DeviceProfilerPipelineShader& shader = tuple.m_Shaders[ createInfo.pStages[i].stage ];
+            DeviceProfilerPipelineShader& shader = tuple.m_Shaders[ pStages[i].stage ];
             shader.m_Hash = hash;
             shader.m_EntryPoint = entrypoint;
             shader.m_pShaderModule = &shaderModule;
 
             // Store the shader hash in the array for global hash computation
-            shaderHashes[ createInfo.pStages[i].stage ] = hash;
+            shaderHashes[ pStages[i].stage ] = hash;
         }
 
         // Compute aggregated tuple hash for fast comparison
         tuple.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>( &shaderHashes ), sizeof( shaderHashes ) );
-
-        return tuple;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        CreateShaderTuple
-
-    Description:
-
-    \***********************************************************************************/
-    DeviceProfilerPipelineShaderTuple DeviceProfiler::CreateShaderTuple( const VkComputePipelineCreateInfo& createInfo )
-    {
-        DeviceProfilerPipelineShaderTuple tuple;
-
-        // VkShaderModule entry should already be in the map
-        DeviceProfilerShaderModule& shaderModule = m_ShaderModules.at( createInfo.stage.module );
-
-        const char* entrypoint = createInfo.stage.pName;
-
-        // Hash the entrypoint and append it to the final hash
-        uint32_t hash = shaderModule.m_Hash;
-        hash ^= Hash::Fingerprint32( entrypoint, ProfilerStringFunctions::GetLength( entrypoint ) );
-
-        // This should be checked in validation layers
-        assert( createInfo.stage.stage == VK_SHADER_STAGE_COMPUTE_BIT );
-
-        DeviceProfilerPipelineShader& shader = tuple.m_Shaders[ createInfo.stage.stage ];
-        shader.m_Hash = hash;
-        shader.m_EntryPoint = entrypoint;
-        shader.m_pShaderModule = &shaderModule;
-
-        // Aggregated tuple hash for fast comparison
-        tuple.m_Hash = hash;
-
-        return tuple;
     }
 
     /***********************************************************************************\
@@ -1097,7 +1121,7 @@ namespace Profiler
         }
 
         char pObjectDebugName[ 64 ] = {};
-        sprintf_s( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
+        ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
 
         m_pDevice->Debug.ObjectNames.insert( object, pObjectDebugName );
     }
@@ -1141,7 +1165,18 @@ namespace Profiler
         {
             // Compute shader hash
             char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_COMPUTE_BIT ].m_Hash );
+            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_COMPUTE_BIT].m_Hash );
+
+            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
+        }
+
+        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
+        {
+            // Ray tracing shader hash
+            char pPipelineDebugName[ 75 ] = "RGEN=XXXXXXXX, aHIT=XXXXXXXX, cHIT=XXXXXXXX";
+            u32tohex( pPipelineDebugName + 5, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_RAYGEN_BIT_KHR].m_Hash );
+            u32tohex( pPipelineDebugName + 20, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_ANY_HIT_BIT_KHR].m_Hash );
+            u32tohex( pPipelineDebugName + 35, pipeline.m_ShaderTuple.m_Shaders[VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR].m_Hash );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }

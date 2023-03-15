@@ -67,8 +67,6 @@ VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
 }
 
 #ifdef WIN32
-HINSTANCE g_hProfilerDllInstance;
-
 /***************************************************************************************\
 
 Function:
@@ -86,7 +84,7 @@ BOOL APIENTRY DllMain(
     if( dwReason == DLL_PROCESS_ATTACH )
     {
         // Save the profiler's DLL instance handle for window message hooking.
-        g_hProfilerDllInstance = hDllInstance;
+        Profiler::ProfilerPlatformFunctions::SetLibraryInstanceHandle( hDllInstance );
     }
 
     return TRUE;

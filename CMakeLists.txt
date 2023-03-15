@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2021 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -45,6 +45,10 @@ if (UNIX)
     #find_package (Wayland)
     find_package (XCB REQUIRED COMPONENTS XCB SHAPE)
     find_package (X11 REQUIRED)
+
+    # Export symbols explicitly
+    set (CMAKE_CXX_VISIBILITY_PRESET hidden)
+    set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 endif ()
 
 # Build with C++17
@@ -68,8 +72,17 @@ set (SPIRV-Headers_SOURCE_DIR
 
 set (SPIRV_SKIP_EXECUTABLES ON)
 set (SPIRV_SKIP_TESTS ON)
+    
+include_directories (
+    "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers/include"
+    "${VULKAN_HEADERS_INCLUDE_DIR}"
+    )
 
-# Include sub-projects
+# Disable 3-rd party library tests
+set (JSON_BuildTests OFF CACHE INTERNAL "")
+
+# Build third-party dependencies.
+add_subdirectory (External/json)
 add_subdirectory (SPIRV-Tools)
 add_subdirectory (Vulkan-Headers)
 

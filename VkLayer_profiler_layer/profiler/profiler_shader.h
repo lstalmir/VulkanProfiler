@@ -20,8 +20,10 @@
 
 #pragma once
 #include "profiler_helpers.h"
-
+#include <array>
+#include <stdint.h>
 #include <vulkan/vulkan.h>
+#include <spirv/unified1/spirv.h>
 
 
 namespace Profiler
@@ -30,6 +32,7 @@ namespace Profiler
     {
         uint32_t                    m_Hash;
         std::vector<uint32_t>       m_Bytecode;
+        std::vector<SpvCapability>  m_Capabilities = {};
     };
 
     struct DeviceProfilerPipelineShader

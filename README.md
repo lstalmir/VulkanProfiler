@@ -28,7 +28,7 @@ To build the layer create "cmake_build" folder in the project root directory and
 cmake .. && make all
 ```
 
-To install the layer copy `VkLayer_profiler_layer.so` and `VkLayer_profiler_layer.json` files to `~/.local/share/vulkan/explicit_layers.d` directory.
+To install the layer copy `VkLayer_profiler_layer.so` and `VkLayer_profiler_layer.json` files to `~/.local/share/vulkan/explicit_layer.d` directory.
 
 ### Notes
 Installation of the layer can be avoided. To use the layer without installation set VK_LAYER_PATH environment variable to the directory containing layer files.

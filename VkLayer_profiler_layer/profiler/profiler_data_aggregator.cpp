@@ -24,6 +24,7 @@
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "intel/profiler_metrics_api.h"
 #include <assert.h>
+#include <algorithm>
 #include <unordered_set>
 
 namespace Profiler
@@ -119,8 +120,7 @@ namespace Profiler
     VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
         m_pProfiler = pProfiler;
-        m_VendorMetricProperties = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties();
-
+        m_VendorMetricsSetIndex = UINT32_MAX;
         return VK_SUCCESS;
     }
 
@@ -188,8 +188,8 @@ namespace Profiler
                 submitData.m_SignalSemaphores = submit.m_SignalSemaphores;
                 submitData.m_WaitSemaphores = submit.m_WaitSemaphores;
 
-                submitData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
-                submitData.m_EndTimestamp = 0;
+                submitData.m_BeginTimestamp.m_Value = std::numeric_limits<uint64_t>::max();
+                submitData.m_EndTimestamp.m_Value = 0;
 
                 for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
                 {
@@ -206,10 +206,10 @@ namespace Profiler
                         submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
                     }
 
-                    submitData.m_BeginTimestamp = std::min(
-                        submitData.m_BeginTimestamp, submitData.m_CommandBuffers.back().m_BeginTimestamp );
-                    submitData.m_EndTimestamp = std::max(
-                        submitData.m_EndTimestamp, submitData.m_CommandBuffers.back().m_EndTimestamp );
+                    submitData.m_BeginTimestamp.m_Value = std::min(
+                        submitData.m_BeginTimestamp.m_Value, submitData.m_CommandBuffers.back().m_BeginTimestamp.m_Value );
+                    submitData.m_EndTimestamp.m_Value = std::max(
+                        submitData.m_EndTimestamp.m_Value, submitData.m_CommandBuffers.back().m_EndTimestamp.m_Value );
                 }
             }
         }
@@ -244,6 +244,8 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
     {
+        LoadVendorMetricsProperties();
+
         DeviceProfilerFrameData frameData;
         frameData.m_TopPipelines = CollectTopPipelines();
         frameData.m_VendorMetrics = AggregateVendorMetrics();
@@ -256,7 +258,7 @@ namespace Profiler
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp - commandBuffer.m_BeginTimestamp);
+                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value);
                 }
             }
         }
@@ -264,6 +266,51 @@ namespace Profiler
         frameData.m_Submits = std::move( m_AggregatedData );
 
         return frameData;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        LoadVendorMetricsProperties
+
+    Description:
+        Get metrics properties from the metrics API.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::LoadVendorMetricsProperties()
+    {
+        if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
+        {
+            // Check if vendor metrics set has changed.
+            const uint32_t activeMetricsSetIndex = m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+
+            if( m_VendorMetricsSetIndex != activeMetricsSetIndex )
+            {
+                m_VendorMetricsSetIndex = activeMetricsSetIndex;
+
+                if( m_VendorMetricsSetIndex != UINT32_MAX )
+                {
+                    // Preallocate space for the metrics properties.
+                    uint32_t vendorMetricsCount = m_pProfiler->m_MetricsApiINTEL.GetMetricsCount( m_VendorMetricsSetIndex );
+                    m_VendorMetricProperties.resize( vendorMetricsCount );
+
+                    // Copy metrics properties to the local vector.
+                    VkResult result = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties(
+                        m_VendorMetricsSetIndex,
+                        &vendorMetricsCount,
+                        m_VendorMetricProperties.data() );
+
+                    if( result != VK_SUCCESS )
+                    {
+                        m_VendorMetricProperties.clear();
+                    }
+                }
+                else
+                {
+                    m_VendorMetricProperties.clear();
+                }
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -298,13 +345,11 @@ namespace Profiler
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    // Preprocess metrics for the command buffer
-                    const std::vector<VkProfilerPerformanceCounterResultEXT> commandBufferVendorMetrics =
-                        m_pProfiler->m_MetricsApiINTEL.ParseReport(
-                            commandBufferData.m_PerformanceQueryReportINTEL.data(),
-                            commandBufferData.m_PerformanceQueryReportINTEL.size() );
-
-                    assert( commandBufferVendorMetrics.size() == metricCount );
+                    if( commandBufferData.m_PerformanceQueryMetricsSetIndex != m_VendorMetricsSetIndex )
+                    {
+                        // The command buffer has been recorded with at different set of metrics.
+                        continue;
+                    }
 
                     for( uint32_t i = 0; i < metricCount; ++i )
                     {
@@ -322,8 +367,8 @@ namespace Profiler
                             Profiler::Aggregate<SumAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
-                                commandBufferVendorMetrics[ i ],
+                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
+                                commandBufferData.m_PerformanceQueryResults[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
                             break;
@@ -341,8 +386,8 @@ namespace Profiler
                             Profiler::Aggregate<AvgAggregator>(
                                 weightedMetric.weight,
                                 weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp - commandBufferData.m_BeginTimestamp),
-                                commandBufferVendorMetrics[ i ],
+                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
+                                commandBufferData.m_PerformanceQueryResults[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
                             break;
@@ -405,7 +450,7 @@ namespace Profiler
         std::sort( pipelines.begin(), pipelines.end(),
             []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return (a.m_EndTimestamp - a.m_BeginTimestamp) > (b.m_EndTimestamp - b.m_BeginTimestamp);
+                return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) > (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
             } );
 
         return pipelines;
@@ -434,8 +479,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_EndTimestamp += (renderPass.m_Begin.m_EndTimestamp - renderPass.m_Begin.m_BeginTimestamp);
-            endRenderPassPipeline.m_EndTimestamp += (renderPass.m_End.m_EndTimestamp - renderPass.m_End.m_BeginTimestamp);
+            beginRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value);
+            endRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value);
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -488,6 +533,6 @@ namespace Profiler
         }
 
         // Increase total pipeline time
-        (*it).second.m_EndTimestamp += (pipeline.m_EndTimestamp - pipeline.m_BeginTimestamp);
+        (*it).second.m_EndTimestamp.m_Value += (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
     }
 }

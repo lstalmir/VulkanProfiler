@@ -115,8 +115,19 @@ namespace Profiler
         std::vector<VkFence> m_CommandFences;
         std::vector<VkSemaphore> m_CommandSemaphores;
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
-        
+        uint32_t m_ActiveMetricsSetIndex;
+
+        struct VendorMetricsSet
+        {
+            VkProfilerPerformanceMetricsSetPropertiesEXT           m_Properties;
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Metrics;
+        };
+
+        std::vector<VendorMetricsSet> m_VendorMetricsSets;
+        std::vector<bool>             m_VendorMetricsSetVisibility;
+
+        char m_VendorMetricFilter[ 128 ] = {};
+
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;
         const char* m_pTimestampDisplayUnitStr;
@@ -171,12 +182,19 @@ namespace Profiler
         DeviceProfilerFrameData m_Data;
         bool m_Pause;
         bool m_ShowDebugLabels;
+        bool m_ShowShaderCapabilities;
 
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
 
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
+
+        // Performance metrics filter.
+        // The profiler will show only metrics for the selected command buffer.
+        // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
+        VkCommandBuffer m_PerformanceQueryCommandBufferFilter;
+        std::string     m_PerformanceQueryCommandBufferFilterName;
 
         // Trace serialization output
         bool m_SerializationSucceeded;
@@ -190,6 +208,7 @@ namespace Profiler
         uint32_t m_RenderPassColumnColor;
         uint32_t m_GraphicsPipelineColumnColor;
         uint32_t m_ComputePipelineColumnColor;
+        uint32_t m_RayTracingPipelineColumnColor;
         uint32_t m_InternalPipelineColumnColor;
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
@@ -231,26 +250,10 @@ namespace Profiler
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
+        void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
 
         template<typename Data>
-        void PrintDuration( const Data& data )
-        {
-            if( (data.m_BeginTimestamp != UINT64_MAX) && (data.m_EndTimestamp != UINT64_MAX) )
-            {
-                const uint64_t ticks = data.m_EndTimestamp - data.m_BeginTimestamp;
-
-                // Print the duration
-                ImGuiX::TextAlignRight( "%.2f %s",
-                    m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
-                    m_pTimestampDisplayUnitStr );
-            }
-            else
-            {
-                // No data collected in this mode
-                ImGuiX::TextAlignRight( "- %s",
-                    m_pTimestampDisplayUnitStr );
-            }
-        }
+        void PrintDuration( const Data& data );
 
         // Sort frame browser data
         template<typename Data>

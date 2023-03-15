@@ -29,8 +29,6 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM
 static ConcurrentMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
 static HHOOK g_GetMessageHook;
 
-extern HINSTANCE g_hProfilerDllInstance;
-
 /***********************************************************************************\
 
 Function:
@@ -54,11 +52,14 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd )
 
     if( !g_GetMessageHook )
     {
+        HINSTANCE hProfilerDllInstance =
+            static_cast<HINSTANCE>( Profiler::ProfilerPlatformFunctions::GetLibraryInstanceHandle() );
+
         // Register a global window hook on GetMessage/PeekMessage function.
         g_GetMessageHook = SetWindowsHookEx(
             WH_GETMESSAGE,
             ImGui_ImplWin32_Context::GetMessageHook,
-            g_hProfilerDllInstance,
+            hProfilerDllInstance,
             0 /*dwThreadId*/ );
 
         if( !g_GetMessageHook )
@@ -153,10 +154,15 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
 
             if( g_pWin32Contexts.find( msg.hwnd, &context ) )
             {
-                // Capture only mouse events
-                if( IsMouseMessage( msg ) && ImGui::GetIO().WantCaptureMouse )
+                // Translate the message so that character input is handled correctly
+                MSG translatedMsg = msg;
+                TranslateMessage( &translatedMsg );
+
+                // Capture mouse and keyboard events
+                if( (IsMouseMessage( translatedMsg ) && ImGui::GetIO().WantCaptureMouse) ||
+                    (IsKeyboardMessage( translatedMsg ) && ImGui::GetIO().WantCaptureKeyboard) )
                 {
-                    ImGui_ImplWin32_WndProcHandler( msg.hwnd, msg.message, msg.wParam, msg.lParam );
+                    ImGui_ImplWin32_WndProcHandler( translatedMsg.hwnd, translatedMsg.message, translatedMsg.wParam, translatedMsg.lParam );
 
                     // Don't pass captured events to the application
                     filterMessage = true;
@@ -190,4 +196,18 @@ Description:
 bool ImGui_ImplWin32_Context::IsMouseMessage( const MSG& msg )
 {
     return (msg.message >= WM_MOUSEFIRST) && (msg.message <= WM_MOUSELAST);
+}
+
+/***********************************************************************************\
+
+Function:
+    IsKeyboardMessage
+
+Description:
+    Checks if MSG describes keyboard message.
+
+\***********************************************************************************/
+bool ImGui_ImplWin32_Context::IsKeyboardMessage( const MSG& msg )
+{
+    return (msg.message >= WM_KEYFIRST) && (msg.message <= WM_KEYLAST);
 }

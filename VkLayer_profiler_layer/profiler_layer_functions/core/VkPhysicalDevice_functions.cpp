@@ -140,7 +140,7 @@ namespace Profiler
 
         // Override device create info
         VkDeviceCreateInfo createInfo = (*pCreateInfo);
-        createInfo.enabledExtensionCount = enabledDeviceExtensions.size();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledDeviceExtensions.size());
         createInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
 
         // Move chain on for next layer

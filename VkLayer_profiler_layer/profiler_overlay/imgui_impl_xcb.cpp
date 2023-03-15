@@ -40,7 +40,7 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window )
 {
     // Connect to X server
     m_Connection = xcb_connect( nullptr, nullptr );
-    if( !m_Connection )
+    if( xcb_connection_has_error( m_Connection ) )
         InitError();
 
     m_InputWindow = xcb_generate_id( m_Connection );

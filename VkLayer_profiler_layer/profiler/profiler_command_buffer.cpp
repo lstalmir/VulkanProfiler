@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2022 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -155,12 +155,6 @@ namespace Profiler
             // Restore initial state
             Reset( 0 /*flags*/ );
 
-            if( pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT )
-            {
-                // Setup render pass and subpass for commands
-                SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
-            }
-
             // Reset query pools.
             m_pQueryPool->Reset( m_CommandBuffer );
 
@@ -168,19 +162,10 @@ namespace Profiler
             m_pQueryPool->PreallocateQueries( m_CommandBuffer );
 
             // Begin collection of vendor metrics.
-            if( auto performanceQueryPool = m_pQueryPool->GetPerformanceQueryPoolHandle() )
-            {
-                m_Profiler.m_pDevice->Callbacks.CmdResetQueryPool(
-                    m_CommandBuffer,
-                    performanceQueryPool, 0, 1 );
-
-                m_Profiler.m_pDevice->Callbacks.CmdBeginQuery(
-                    m_CommandBuffer,
-                    performanceQueryPool, 0, 0 );
-            }
+            m_pQueryPool->BeginPerformanceQuery( m_CommandBuffer );
 
             // Send global timestamp query for the whole command buffer.
-            m_Data.m_BeginTimestamp = m_pQueryPool->WriteTimestamp( m_CommandBuffer );
+            m_Data.m_BeginTimestamp.m_Index = m_pQueryPool->WriteTimestamp( m_CommandBuffer );
         }
     }
 
@@ -198,30 +183,33 @@ namespace Profiler
         if( m_ProfilingEnabled )
         {
             // Send global timestamp query for the whole command buffer.
-            m_Data.m_EndTimestamp =
+            m_Data.m_EndTimestamp.m_Index =
                 m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
             if( (m_pCurrentRenderPassData != nullptr) &&
                 (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
             {
                 uint64_t lastTimestampInRenderPassIndex =
-                    m_Data.m_EndTimestamp;
+                    m_Data.m_EndTimestamp.m_Index;
 
-                if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+                if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
+                    (m_pCurrentPipelineData != nullptr) &&
+                    !m_pCurrentPipelineData->m_Drawcalls.empty() &&
+                    (m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp.m_Index != UINT64_MAX) )
                 {
                     lastTimestampInRenderPassIndex =
-                        m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp;
+                        m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp.m_Index;
                 }
 
                 // Update an ending timestamp for the previous render pass.
-                m_pCurrentRenderPassData->m_EndTimestamp = lastTimestampInRenderPassIndex;
-                m_pCurrentSubpassData->m_EndTimestamp = lastTimestampInRenderPassIndex;
+                m_pCurrentRenderPassData->m_EndTimestamp.m_Index = lastTimestampInRenderPassIndex;
+                m_pCurrentSubpassData->m_EndTimestamp.m_Index = lastTimestampInRenderPassIndex;
 
                 // Update pipeline end timestamp index.
                 if( ( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT ) &&
                     ( m_pCurrentPipelineData != nullptr ) )
                 {
-                    m_pCurrentPipelineData->m_EndTimestamp = lastTimestampInRenderPassIndex;
+                    m_pCurrentPipelineData->m_EndTimestamp.m_Index = lastTimestampInRenderPassIndex;
                 }
 
                 // Clear renderpass-scoped pointers.
@@ -232,12 +220,7 @@ namespace Profiler
             }
 
             // End collection of vendor metrics.
-            if( auto performanceQueryPool = m_pQueryPool->GetPerformanceQueryPoolHandle() )
-            {
-                m_Profiler.m_pDevice->Callbacks.CmdEndQuery(
-                    m_CommandBuffer,
-                    performanceQueryPool, 0 );
-            }
+            m_pQueryPool->EndPerformanceQuery( m_CommandBuffer );
 
             // Copy query results to the buffers.
             m_pQueryPool->ResolveTimestampsGpu( m_CommandBuffer );
@@ -295,14 +278,14 @@ namespace Profiler
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
                 // Update an ending timestamp for the previous render pass.
-                m_pCurrentRenderPassData->m_EndTimestamp = timestampIndex;
-                m_pCurrentSubpassData->m_EndTimestamp = timestampIndex;
+                m_pCurrentRenderPassData->m_EndTimestamp.m_Index = timestampIndex;
+                m_pCurrentSubpassData->m_EndTimestamp.m_Index = timestampIndex;
 
                 // Update pipeline end timestamp index.
                 if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
                     (m_pCurrentPipelineData != nullptr) )
                 {
-                    m_pCurrentPipelineData->m_EndTimestamp = timestampIndex;
+                    m_pCurrentPipelineData->m_EndTimestamp.m_Index = timestampIndex;
                 }
 
                 // Clear renderpass-scoped pointers.
@@ -326,7 +309,7 @@ namespace Profiler
             // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
             m_pQueryPool->PreallocateQueries( m_CommandBuffer );
 
-            m_pCurrentRenderPassData->m_BeginTimestamp =
+            m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
                 m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
 
             // Record initial transitions and clears.
@@ -357,7 +340,7 @@ namespace Profiler
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                     m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
-                m_pCurrentRenderPassData->m_Begin.m_EndTimestamp =
+                m_pCurrentRenderPassData->m_Begin.m_EndTimestamp.m_Index =
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
             }
 
@@ -388,7 +371,7 @@ namespace Profiler
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                     m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
-                m_pCurrentRenderPassData->m_End.m_BeginTimestamp =
+                m_pCurrentRenderPassData->m_End.m_BeginTimestamp.m_Index =
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
             }
         }
@@ -412,7 +395,7 @@ namespace Profiler
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                     m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
-                m_pCurrentRenderPassData->m_End.m_EndTimestamp =
+                m_pCurrentRenderPassData->m_End.m_EndTimestamp.m_Index =
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
                 // Use the end timestamp of the end command.
@@ -456,7 +439,7 @@ namespace Profiler
             m_pCurrentSubpassData->m_Contents = contents;
 
             // Write begin timestamp of the subpass.
-            m_pCurrentSubpassData->m_BeginTimestamp =
+            m_pCurrentSubpassData->m_BeginTimestamp.m_Index =
                 m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
     }
@@ -485,9 +468,7 @@ namespace Profiler
                 break;
 
             case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
-                ProfilerPlatformFunctions::WriteDebug(
-                    "%s - VK_KHR_ray_tracing extension not supported\n",
-                    __FUNCTION__ );
+                m_RayTracingPipeline = pipeline;
                 break;
             }
         }
@@ -534,6 +515,10 @@ namespace Profiler
                 pipelineChanged = SetupCommandBufferForStatCounting( m_ComputePipeline );
                 break;
 
+            case DeviceProfilerPipelineType::eRayTracingKHR:
+                pipelineChanged = SetupCommandBufferForStatCounting( m_RayTracingPipeline );
+                break;
+
             default: // Internal pipelines
                 pipelineChanged = SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ) );
                 break;
@@ -558,58 +543,60 @@ namespace Profiler
                 // Update draw begin timestamp index.
                 if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
                 {
-                    m_pCurrentDrawcallData->m_BeginTimestamp = timestampIndex;
+                    m_pCurrentDrawcallData->m_BeginTimestamp.m_Index = timestampIndex;
                 }
 
                 // Update pipeline begin timestamp index.
                 if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                    (m_pCurrentPipelineData->m_BeginTimestamp == UINT64_MAX) )
+                    (m_pCurrentPipelineData->m_BeginTimestamp.m_Index == UINT64_MAX) )
                 {
-                    m_pCurrentPipelineData->m_BeginTimestamp = timestampIndex;
+                    m_pCurrentPipelineData->m_BeginTimestamp.m_Index = timestampIndex;
 
                     // Update end timestamp of the previous pipeline.
                     if( pPreviousPipelineData != nullptr )
                     {
                         if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
-                            !(pPreviousPipelineData->m_Drawcalls.empty()) )
+                            !pPreviousPipelineData->m_Drawcalls.empty() &&
+                            (pPreviousPipelineData->m_Drawcalls.back().m_EndTimestamp.m_Index != UINT64_MAX) )
                         {
                             pPreviousPipelineData->m_EndTimestamp =
                                 pPreviousPipelineData->m_Drawcalls.back().m_EndTimestamp;
                         }
                         else
                         {
-                            pPreviousPipelineData->m_EndTimestamp = timestampIndex;
+                            pPreviousPipelineData->m_EndTimestamp.m_Index = timestampIndex;
                         }
                     }
                 }
 
                 // Update subpass begin timestamp index.
                 if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    (m_pCurrentSubpassData->m_BeginTimestamp == UINT64_MAX) )
+                    (m_pCurrentSubpassData->m_BeginTimestamp.m_Index == UINT64_MAX) )
                 {
-                    m_pCurrentSubpassData->m_BeginTimestamp = timestampIndex;
+                    m_pCurrentSubpassData->m_BeginTimestamp.m_Index = timestampIndex;
 
                     // Update end timestamp of the previous subpass.
                     if( pPreviousSubpassData != nullptr )
                     {
                         if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                            (pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE) )
+                            (pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE) &&
+                            !pPreviousSubpassData->m_Pipelines.empty() )
                         {
                             pPreviousSubpassData->m_EndTimestamp =
                                 pPreviousSubpassData->m_Pipelines.back().m_EndTimestamp;
                         }
                         else
                         {
-                            pPreviousSubpassData->m_EndTimestamp = timestampIndex;
+                            pPreviousSubpassData->m_EndTimestamp.m_Index = timestampIndex;
                         }
                     }
                 }
 
                 // Update render pass begin timestamp index.
                 if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    (m_pCurrentRenderPassData->m_BeginTimestamp == UINT64_MAX) )
+                    (m_pCurrentRenderPassData->m_BeginTimestamp.m_Index == UINT64_MAX) )
                 {
-                    m_pCurrentRenderPassData->m_BeginTimestamp = timestampIndex;
+                    m_pCurrentRenderPassData->m_BeginTimestamp.m_Index = timestampIndex;
 
                     // Update end timestamp of the previous render pass.
                     if( pPreviousRenderPassData != nullptr )
@@ -642,7 +629,7 @@ namespace Profiler
                 if (drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug)
                 {
                     // Send a timestamp query at the end of the command.
-                    m_pCurrentDrawcallData->m_EndTimestamp =
+                    m_pCurrentDrawcallData->m_EndTimestamp.m_Index =
                         m_pQueryPool->WriteTimestamp(m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
                 }
                 else
@@ -729,17 +716,16 @@ namespace Profiler
 
             // Reset accumulated stats if buffer is being reused
             m_Data.m_Stats = m_Stats;
-            m_Data.m_PerformanceQueryReportINTEL = {};
 
             // Read global timestamp values
-            m_Data.m_BeginTimestamp = m_pQueryPool->GetTimestampData( m_Data.m_BeginTimestamp );
+            m_Data.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( m_Data.m_BeginTimestamp.m_Index );
 
             if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
             {
                 for( auto& renderPass : m_Data.m_RenderPasses )
                 {
                     // Update render pass begin timestamp
-                    renderPass.m_BeginTimestamp = m_pQueryPool->GetTimestampData( renderPass.m_BeginTimestamp );
+                    renderPass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_BeginTimestamp.m_Index );
 
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
@@ -747,21 +733,21 @@ namespace Profiler
                         (renderPass.m_Handle != VK_NULL_HANDLE) )
                     {
                         // Get vkCmdBeginRenderPass time
-                        renderPass.m_Begin.m_BeginTimestamp = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_BeginTimestamp );
-                        renderPass.m_Begin.m_EndTimestamp = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_EndTimestamp );
+                        renderPass.m_Begin.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_BeginTimestamp.m_Index );
+                        renderPass.m_Begin.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_EndTimestamp.m_Index );
                     }
 
                     for( auto& subpass : renderPass.m_Subpasses )
                     {
                         if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                         {
-                            subpass.m_BeginTimestamp = m_pQueryPool->GetTimestampData( subpass.m_BeginTimestamp );
+                            subpass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_BeginTimestamp.m_Index );
 
                             if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
                             {
                                 for( auto& pipeline : subpass.m_Pipelines )
                                 {
-                                    pipeline.m_BeginTimestamp = m_pQueryPool->GetTimestampData( pipeline.m_BeginTimestamp );
+                                    pipeline.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_BeginTimestamp.m_Index );
 
                                     if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
                                     {
@@ -771,23 +757,23 @@ namespace Profiler
                                             if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
                                             {
                                                 // Update drawcall timestamps
-                                                drawcall.m_BeginTimestamp = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp );
-                                                drawcall.m_EndTimestamp = m_pQueryPool->GetTimestampData( drawcall.m_EndTimestamp );
+                                                drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
+                                                drawcall.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_EndTimestamp.m_Index );
                                             }
                                             else
                                             {
                                                 // Provide timestamps for debug commands
-                                                drawcall.m_BeginTimestamp = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp );
-                                                drawcall.m_EndTimestamp = drawcall.m_BeginTimestamp;
+                                                drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
+                                                drawcall.m_EndTimestamp.m_Value = drawcall.m_BeginTimestamp.m_Value;
                                             }
                                         }
                                     }
 
-                                    pipeline.m_EndTimestamp = m_pQueryPool->GetTimestampData( pipeline.m_EndTimestamp );
+                                    pipeline.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_EndTimestamp.m_Index );
                                 }
                             }
 
-                            subpass.m_EndTimestamp = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp );
+                            subpass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp.m_Index );
                         }
 
                         else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
@@ -827,43 +813,18 @@ namespace Profiler
                         (renderPass.m_Handle != VK_NULL_HANDLE) )
                     {
                         // Get vkCmdEndRenderPass time
-                        renderPass.m_End.m_BeginTimestamp = m_pQueryPool->GetTimestampData( renderPass.m_End.m_BeginTimestamp );
-                        renderPass.m_End.m_EndTimestamp = m_pQueryPool->GetTimestampData( renderPass.m_End.m_EndTimestamp );
+                        renderPass.m_End.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_BeginTimestamp.m_Index );
+                        renderPass.m_End.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_EndTimestamp.m_Index );
                     }
 
-                    renderPass.m_EndTimestamp = m_pQueryPool->GetTimestampData( renderPass.m_EndTimestamp );
+                    renderPass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_EndTimestamp.m_Index );
                 }
             }
 
-            volatile const uint64_t endTimestampIndex = m_Data.m_EndTimestamp;
-
-            m_Data.m_EndTimestamp = m_pQueryPool->GetTimestampData( endTimestampIndex );
-
-            if( m_Data.m_EndTimestamp < m_Data.m_BeginTimestamp )
-            {
-                __debugbreak();
-            }
+            m_Data.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( m_Data.m_EndTimestamp.m_Index );
 
             // Read vendor-specific data
-            if( auto performanceQueryPool = m_pQueryPool->GetPerformanceQueryPoolHandle() )
-            {
-                const size_t reportSize = m_Profiler.m_MetricsApiINTEL.GetReportSize();
-
-                m_Data.m_PerformanceQueryReportINTEL.resize( reportSize );
-
-                VkResult result = m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
-                    m_Profiler.m_pDevice->Handle,
-                    performanceQueryPool,
-                    0, 1, reportSize,
-                    m_Data.m_PerformanceQueryReportINTEL.data(),
-                    reportSize, 0 );
-
-                if( result != VK_SUCCESS )
-                {
-                    // No data available
-                    m_Data.m_PerformanceQueryReportINTEL.clear();
-                }
-            }
+            m_pQueryPool->GetPerformanceQueryData( m_Data.m_PerformanceQueryResults, m_Data.m_PerformanceQueryMetricsSetIndex );
 
             // Subsequent calls to GetData will return the same results
             m_Dirty = false;
@@ -897,14 +858,15 @@ namespace Profiler
             // Send timestamp query at the end of the subpass.
             if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
                 (m_pCurrentPipelineData) &&
-                !(m_pCurrentPipelineData->m_Drawcalls.empty()) )
+                !(m_pCurrentPipelineData->m_Drawcalls.empty()) &&
+                (m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp.m_Index != UINT64_MAX) )
             {
                 m_pCurrentSubpassData->m_EndTimestamp =
                     m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp;
             }
             else
             {
-                m_pCurrentSubpassData->m_EndTimestamp =
+                m_pCurrentSubpassData->m_EndTimestamp.m_Index =
                     m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
             }
 
@@ -982,6 +944,27 @@ namespace Profiler
             break;
         case DeviceProfilerDrawcallType::eUpdateBuffer:
             m_Stats.m_UpdateBufferCount++;
+            break;
+        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+            m_Stats.m_TraceRaysCount++;
+            break;
+        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+            m_Stats.m_TraceRaysIndirectCount++;
+            break;
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            m_Stats.m_BuildAccelerationStructuresCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+            break;
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+            m_Stats.m_BuildAccelerationStructuresIndirectCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+            break;
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+            m_Stats.m_CopyAccelerationStructureCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+            m_Stats.m_CopyAccelerationStructureToMemoryCount++;
+            break;
+        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+            m_Stats.m_CopyMemoryToAccelerationStructureCount++;
             break;
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
         case DeviceProfilerDrawcallType::eEndDebugLabel:
@@ -1086,12 +1069,18 @@ namespace Profiler
     {
         switch( pipelineType )
         {
+        case DeviceProfilerPipelineType::eNone:
+        case DeviceProfilerPipelineType::eDebug:
+            return DeviceProfilerRenderPassType::eNone;
         case DeviceProfilerPipelineType::eGraphics:
         case DeviceProfilerPipelineType::eClearAttachments:
             return DeviceProfilerRenderPassType::eGraphics;
 
         case DeviceProfilerPipelineType::eCompute:
             return DeviceProfilerRenderPassType::eCompute;
+
+        case DeviceProfilerPipelineType::eRayTracingKHR:
+            return DeviceProfilerRenderPassType::eRayTracing;
 
         default:
             return DeviceProfilerRenderPassType::eCopy;

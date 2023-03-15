@@ -48,6 +48,28 @@ namespace ImGuiX
     /*************************************************************************\
 
     Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void Badge( ImU32 color, float rounding, const char* fmt, ... );
+    
+    /*************************************************************************\
+
+    Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void BadgeUnformatted( ImU32 color, float rounding, const char* text );
+
+    /*************************************************************************\
+
+    Function:
         ColorLerp
 
     Description:
@@ -55,4 +77,35 @@ namespace ImGuiX
 
     \*************************************************************************/
     ImU32 ColorLerp( ImU32, ImU32, float );
+
+    /*************************************************************************\
+
+    Function:
+        Selectable
+
+    Description:
+        Selectable combo box item.
+
+    \*************************************************************************/
+    bool Selectable( const char*, bool );
+
+    /*************************************************************************\
+
+    Function:
+        TSelectable
+
+    Description:
+        Selectable combo box item.
+
+    \*************************************************************************/
+    template<typename T>
+    bool TSelectable( const char* label, T& actual, const T& expected )
+    {
+        if( Selectable( label, (actual == expected) ) )
+        {
+            actual = expected;
+            return true;
+        }
+        return false;
+    }
 }

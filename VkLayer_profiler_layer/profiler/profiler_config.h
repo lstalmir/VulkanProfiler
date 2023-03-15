@@ -37,6 +37,9 @@ namespace Profiler
         // Whether to enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode.
         bool m_EnableRenderPassBeginEndProfiling = false;
 
+        // Whether to try to stabilize GPU frequency by setting stable power state via D3D12 device (Windows 10+ only).
+        bool m_SetStablePowerState = true;
+
         // Frequency of sending timestamp queries in command buffers recorded by the application.
         VkProfilerModeEXT m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
 

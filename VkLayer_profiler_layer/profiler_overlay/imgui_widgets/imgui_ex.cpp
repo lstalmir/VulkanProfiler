@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "imgui_ex.h"
+#include <imgui_internal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -82,6 +83,55 @@ namespace ImGuiX
         ImGui::SameLine( ImGui::GetWindowContentRegionMax().x - textSize );
         ImGui::TextUnformatted( text );
     }
+    
+    /*************************************************************************\
+
+    Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void Badge( ImU32 color, float rounding, const char* fmt, ... )
+    {
+        va_list args;
+        va_start( args, fmt );
+
+        char text[ 128 ];
+        vsnprintf( text, sizeof( text ), fmt, args );
+
+        va_end( args );
+
+        BadgeUnformatted( color, rounding, text );
+    }
+    
+    /*************************************************************************\
+
+    Function:
+        Badge
+
+    Description:
+        Print text with a color background.
+
+    \*************************************************************************/
+    void BadgeUnformatted( ImU32 color, float rounding, const char* text )
+    {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        ImDrawList* dl = window->DrawList;
+
+        ImVec2 textSize = ImGui::CalcTextSize( text );
+
+        ImVec2 origin = window->DC.CursorPos;
+        ImVec2 lt = origin; lt.x -= 2;
+        ImVec2 rb = origin; rb.x += textSize.x + 2; rb.y += textSize.y + 1;
+
+        // Draw the background.
+        dl->AddRectFilled( lt, rb, color, rounding, (rounding > 0.f) ? ImDrawCornerFlags_All : ImDrawCornerFlags_None );
+
+        // Draw the text.
+        ImGui::TextUnformatted( text );
+    }
 
     /*************************************************************************\
 
@@ -99,5 +149,33 @@ namespace ImGuiX
         const ImU8 o2 = ComponentLerp( (a >> 16) & 0xFF, (b >> 16) & 0xFF, s );
         const ImU8 o3 = ComponentLerp( (a >> 24) & 0xFF, (b >> 24) & 0xFF, s );
         return o0 | (o1 << 8) | (o2 << 16) | (o3 << 24);
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Selectable
+
+    Description:
+        Selectable combo box item.
+
+    \*************************************************************************/
+    bool Selectable( const char* label, bool isSelected )
+    {
+        bool selectionChanged = false;
+
+        if( ImGui::Selectable( label, isSelected ) )
+        {
+            // Selection changed.
+            isSelected = true;
+            selectionChanged = true;
+        }
+
+        if( isSelected )
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        return selectionChanged;
     }
 }
