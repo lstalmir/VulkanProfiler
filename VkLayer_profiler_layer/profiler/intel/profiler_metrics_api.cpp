@@ -243,7 +243,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    size_t ProfilerMetricsApi_INTEL::GetReportSize( uint32_t metricsSetIndex ) const
+    uint32_t ProfilerMetricsApi_INTEL::GetReportSize( uint32_t metricsSetIndex ) const
     {
         return m_MetricsSets[ metricsSetIndex ].m_pMetricSetParams->QueryReportSize;
     }
@@ -257,7 +257,7 @@ namespace Profiler
         Get number of HW metrics exposed by this extension.
 
     \***********************************************************************************/
-    size_t ProfilerMetricsApi_INTEL::GetMetricsCount( uint32_t metricsSetIndex ) const
+    uint32_t ProfilerMetricsApi_INTEL::GetMetricsCount( uint32_t metricsSetIndex ) const
     {
         return m_MetricsSets[ metricsSetIndex ].m_pMetricSetParams->MetricsCount;
         // Skip InformationCount - no valuable data here
@@ -272,9 +272,9 @@ namespace Profiler
         Get number of metrics sets exposed by this extensions.
 
     \***********************************************************************************/
-    size_t ProfilerMetricsApi_INTEL::GetMetricsSetCount() const
+    uint32_t ProfilerMetricsApi_INTEL::GetMetricsSetCount() const
     {
-        return m_MetricsSets.size();
+        return static_cast<uint32_t>( m_MetricsSets.size() );
     }
 
     /***********************************************************************************\
@@ -285,20 +285,37 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> ProfilerMetricsApi_INTEL::GetMetricsSets() const
+    VkResult ProfilerMetricsApi_INTEL::GetMetricsSets(
+        uint32_t*                                     pPropertyCount,
+        VkProfilerPerformanceMetricsSetPropertiesEXT* pProperties ) const
     {
-        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSetsProperties;
-        metricsSetsProperties.reserve( m_MetricsSets.size() );
+        const uint32_t metricsSetCount = static_cast<uint32_t>( m_MetricsSets.size() );
 
-        for( const auto& metricsSet : m_MetricsSets )
+        if( pProperties == nullptr )
         {
-            auto& metricsSetProperties = metricsSetsProperties.emplace_back();
+            (*pPropertyCount) = metricsSetCount;
+            return VK_SUCCESS;
+        }
+
+        // Copy metrics set properties to the output buffer.
+        const uint32_t maxPropertyCount = std::min( *pPropertyCount, metricsSetCount );
+        for( uint32_t i = 0; i < maxPropertyCount; ++i )
+        {
+            auto& metricsSet = m_MetricsSets[ i ];
+            auto& metricsSetProperties = pProperties[ i ];
             metricsSetProperties.metricsCount = metricsSet.m_pMetricSetParams->MetricsCount;
             
             ProfilerStringFunctions::CopyString( metricsSetProperties.name, metricsSet.m_pMetricSetParams->ShortName, -1 );
         }
 
-        return metricsSetsProperties;
+        // Check if the output buffer was sufficient.
+        const uint32_t bufferSize = std::exchange( *pPropertyCount, maxPropertyCount );
+        if( bufferSize < metricsSetCount )
+        {
+            return VK_INCOMPLETE;
+        }
+
+        return VK_SUCCESS;
     }
 
     /***********************************************************************************\
@@ -377,16 +394,42 @@ namespace Profiler
         Metrics must appear in the same order as in returned reports.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterPropertiesEXT> ProfilerMetricsApi_INTEL::GetMetricsProperties(
-        uint32_t metricsSetIndex ) const
+    VkResult ProfilerMetricsApi_INTEL::GetMetricsProperties(
+        uint32_t                                   metricsSetIndex,
+        uint32_t*                                  pPropertyCount,
+        VkProfilerPerformanceCounterPropertiesEXT* pProperties ) const
     {
         // Check if the metrics set is available.
-        if (metricsSetIndex >= m_MetricsSets.size())
+        if( metricsSetIndex < m_MetricsSets.size() )
         {
-            return {};
+            const ProfilerMetricsSet_INTEL& metricsSet = m_MetricsSets[ metricsSetIndex ];
+            const uint32_t propertyCount = static_cast<uint32_t>( metricsSet.m_MetricsProperties.size() );
+
+            if( pProperties == nullptr )
+            {
+                (*pPropertyCount) = propertyCount;
+                return VK_SUCCESS;
+            }
+
+            // Copy metrics set properties to the output buffer.
+            const uint32_t maxPropertyCount = std::min( *pPropertyCount, propertyCount );
+            std::memcpy( pProperties, metricsSet.m_MetricsProperties.data(),
+                maxPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+            
+            // Check if the output buffer was sufficient.
+            const uint32_t bufferSize = std::exchange( *pPropertyCount, maxPropertyCount );
+            if( bufferSize < propertyCount )
+            {
+                return VK_INCOMPLETE;
+            }
+        }
+        else
+        {
+            // Metrics set not found.
+            (*pPropertyCount) = 0;
         }
 
-        return m_MetricsSets[ metricsSetIndex ].m_MetricsProperties;
+        return VK_SUCCESS;
     }
 
     /***********************************************************************************\

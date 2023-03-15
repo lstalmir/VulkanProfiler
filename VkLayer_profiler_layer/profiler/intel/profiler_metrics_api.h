@@ -73,19 +73,24 @@ namespace Profiler
 
         bool IsAvailable() const;
 
-        size_t GetReportSize( uint32_t ) const;
+        uint32_t GetReportSize( uint32_t metricsSetIndex ) const;
 
-        size_t GetMetricsCount( uint32_t ) const;
+        uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const;
 
-        size_t GetMetricsSetCount() const;
+        uint32_t GetMetricsSetCount() const;
 
-        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> GetMetricsSets() const;
+        VkResult GetMetricsSets(
+            uint32_t*                                     pPropertyCount,
+            VkProfilerPerformanceMetricsSetPropertiesEXT* pProperties ) const;
 
-        VkResult SetActiveMetricsSet( uint32_t );
+        VkResult SetActiveMetricsSet( uint32_t metricsSetIndex );
 
         uint32_t GetActiveMetricsSetIndex() const;
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> GetMetricsProperties( uint32_t ) const;
+        VkResult GetMetricsProperties(
+            uint32_t                                   metricsSetIndex,
+            uint32_t*                                  pPropertyCount,
+            VkProfilerPerformanceCounterPropertiesEXT* pProperties ) const;
 
         void ParseReport(
             uint32_t                                            metricsSetIndex,

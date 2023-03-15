@@ -401,38 +401,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 
     if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
     {
-        if( (*pProfilerMetricCount) == 0 )
-        {
-            // Return number of reported metrics
-            (*pProfilerMetricCount) += static_cast<uint32_t>( dd.Profiler.m_MetricsApiINTEL.GetMetricsCount( metricsSetIndex ) );
-        }
-        else
-        {
-            // Get reported metrics descriptions
-            const std::vector<VkProfilerPerformanceCounterPropertiesEXT> intelMetricsProperties =
-                dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties( metricsSetIndex );
-
-            const uint32_t returnedMetricPropertyCount =
-                std::template min<uint32_t>( (*pProfilerMetricCount), static_cast<uint32_t>( intelMetricsProperties.size() ) );
-
-            std::memcpy( pProfilerMetricProperties,
-                intelMetricsProperties.data(),
-                returnedMetricPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
-
-            if( returnedMetricPropertyCount < intelMetricsProperties.size() )
-            {
-                hasSufficientSpace = false;
-            }
-        }
+        // Get reported metrics descriptions
+        result = dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties( metricsSetIndex, pProfilerMetricCount, pProfilerMetricProperties );
+    }
+    else
+    {
+        (*pProfilerMetricCount) = 0;
     }
 
     // TODO: Other metric sources (VK_KHR_performance_query)
-
-    if( (result == VK_SUCCESS) && !(hasSufficientSpace) )
-    {
-        // All vkEnumerate* functions return VK_INCOMPLETE when provided buffer was too small
-        result = VK_INCOMPLETE;
-    }
 
     return result;
 }
@@ -454,42 +431,17 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
 
     VkResult result = VK_SUCCESS;
 
-    bool hasSufficientSpace = true;
-
     if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
     {
-        if( (*pMetricsSetCount) == 0 )
-        {
-            // Return number of reported metrics
-            (*pMetricsSetCount) += static_cast<uint32_t>( dd.Profiler.m_MetricsApiINTEL.GetMetricsSetCount() );
-        }
-        else
-        {
-            // Get reported metrics descriptions
-            const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> intelMetricsProperties =
-                dd.Profiler.m_MetricsApiINTEL.GetMetricsSets();
-
-            const uint32_t returnedMetricPropertyCount =
-                std::template min<uint32_t>( (*pMetricsSetCount), static_cast<uint32_t>( intelMetricsProperties.size() ) );
-
-            std::memcpy( pMetricSets,
-                intelMetricsProperties.data(),
-                returnedMetricPropertyCount * sizeof( VkProfilerPerformanceMetricsSetPropertiesEXT ) );
-
-            if( returnedMetricPropertyCount < intelMetricsProperties.size() )
-            {
-                hasSufficientSpace = false;
-            }
-        }
+        // Get reported metrics descriptions
+        result = dd.Profiler.m_MetricsApiINTEL.GetMetricsSets( pMetricsSetCount, pMetricSets );
+    }
+    else
+    {
+        (*pMetricsSetCount) = 0;
     }
 
     // TODO: Other metric sources (VK_KHR_performance_query)
-
-    if( (result == VK_SUCCESS) && !(hasSufficientSpace) )
-    {
-        // All vkEnumerate* functions return VK_INCOMPLETE when provided buffer was too small
-        result = VK_INCOMPLETE;
-    }
 
     return result;
 }

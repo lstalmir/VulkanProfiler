@@ -120,13 +120,7 @@ namespace Profiler
     VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
         m_pProfiler = pProfiler;
-
-        if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
-        {
-            m_VendorMetricsSetIndex = m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
-            m_VendorMetricProperties = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( m_VendorMetricsSetIndex );
-        }
-
+        m_VendorMetricsSetIndex = UINT32_MAX;
         return VK_SUCCESS;
     }
 
@@ -250,13 +244,7 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
     {
-        // Check if vendor metrics set has changed
-        const uint32_t activeMetricsSetIndex = m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
-        if( m_VendorMetricsSetIndex != activeMetricsSetIndex )
-        {
-            m_VendorMetricsSetIndex = activeMetricsSetIndex;
-            m_VendorMetricProperties = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( activeMetricsSetIndex );
-        }
+        LoadVendorMetricsProperties();
 
         DeviceProfilerFrameData frameData;
         frameData.m_TopPipelines = CollectTopPipelines();
@@ -278,6 +266,51 @@ namespace Profiler
         frameData.m_Submits = std::move( m_AggregatedData );
 
         return frameData;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        LoadVendorMetricsProperties
+
+    Description:
+        Get metrics properties from the metrics API.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::LoadVendorMetricsProperties()
+    {
+        if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
+        {
+            // Check if vendor metrics set has changed.
+            const uint32_t activeMetricsSetIndex = m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+
+            if( m_VendorMetricsSetIndex != activeMetricsSetIndex )
+            {
+                m_VendorMetricsSetIndex = activeMetricsSetIndex;
+
+                if( m_VendorMetricsSetIndex != UINT32_MAX )
+                {
+                    // Preallocate space for the metrics properties.
+                    uint32_t vendorMetricsCount = m_pProfiler->m_MetricsApiINTEL.GetMetricsCount( m_VendorMetricsSetIndex );
+                    m_VendorMetricProperties.resize( vendorMetricsCount );
+
+                    // Copy metrics properties to the local vector.
+                    VkResult result = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties(
+                        m_VendorMetricsSetIndex,
+                        &vendorMetricsCount,
+                        m_VendorMetricProperties.data() );
+
+                    if( result != VK_SUCCESS )
+                    {
+                        m_VendorMetricProperties.clear();
+                    }
+                }
+                else
+                {
+                    m_VendorMetricProperties.clear();
+                }
+            }
+        }
     }
 
     /***********************************************************************************\

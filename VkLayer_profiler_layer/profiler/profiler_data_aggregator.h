@@ -84,6 +84,7 @@ namespace Profiler
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
         uint32_t                                               m_VendorMetricsSetIndex;
 
+        void LoadVendorMetricsProperties();
         std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines() const;
