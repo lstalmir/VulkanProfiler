@@ -11,7 +11,7 @@ jobs:
     # Build configs.
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
         build_type: [Release, Debug]
       
     name: Build ${{matrix.os}} ${{matrix.build_type}}
@@ -23,6 +23,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      if: ${{matrix.os}} == ubuntu-latest
+      run: apt-get install extra-cmake-modules libvulkan-dev libx11-dev libxext-dev libxrandr-dev libx11-xcb-dev libxcb-shape0-dev
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
