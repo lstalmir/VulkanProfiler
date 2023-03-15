@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -91,3 +91,6 @@ target_include_directories (profiler
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
+
+target_link_libraries (profiler
+    PRIVATE nlohmann_json::nlohmann_json)

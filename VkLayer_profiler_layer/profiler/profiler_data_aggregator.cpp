@@ -120,8 +120,7 @@ namespace Profiler
     VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
         m_pProfiler = pProfiler;
-        m_VendorMetricProperties = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties();
-
+        m_VendorMetricsSetIndex = UINT32_MAX;
         return VK_SUCCESS;
     }
 
@@ -245,6 +244,8 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
     {
+        LoadVendorMetricsProperties();
+
         DeviceProfilerFrameData frameData;
         frameData.m_TopPipelines = CollectTopPipelines();
         frameData.m_VendorMetrics = AggregateVendorMetrics();
@@ -265,6 +266,51 @@ namespace Profiler
         frameData.m_Submits = std::move( m_AggregatedData );
 
         return frameData;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        LoadVendorMetricsProperties
+
+    Description:
+        Get metrics properties from the metrics API.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::LoadVendorMetricsProperties()
+    {
+        if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
+        {
+            // Check if vendor metrics set has changed.
+            const uint32_t activeMetricsSetIndex = m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+
+            if( m_VendorMetricsSetIndex != activeMetricsSetIndex )
+            {
+                m_VendorMetricsSetIndex = activeMetricsSetIndex;
+
+                if( m_VendorMetricsSetIndex != UINT32_MAX )
+                {
+                    // Preallocate space for the metrics properties.
+                    uint32_t vendorMetricsCount = m_pProfiler->m_MetricsApiINTEL.GetMetricsCount( m_VendorMetricsSetIndex );
+                    m_VendorMetricProperties.resize( vendorMetricsCount );
+
+                    // Copy metrics properties to the local vector.
+                    VkResult result = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties(
+                        m_VendorMetricsSetIndex,
+                        &vendorMetricsCount,
+                        m_VendorMetricProperties.data() );
+
+                    if( result != VK_SUCCESS )
+                    {
+                        m_VendorMetricProperties.clear();
+                    }
+                }
+                else
+                {
+                    m_VendorMetricProperties.clear();
+                }
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -299,13 +345,11 @@ namespace Profiler
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    // Preprocess metrics for the command buffer
-                    const std::vector<VkProfilerPerformanceCounterResultEXT> commandBufferVendorMetrics =
-                        m_pProfiler->m_MetricsApiINTEL.ParseReport(
-                            commandBufferData.m_PerformanceQueryReportINTEL.data(),
-                            commandBufferData.m_PerformanceQueryReportINTEL.size() );
-
-                    assert( commandBufferVendorMetrics.size() == metricCount );
+                    if( commandBufferData.m_PerformanceQueryMetricsSetIndex != m_VendorMetricsSetIndex )
+                    {
+                        // The command buffer has been recorded with at different set of metrics.
+                        continue;
+                    }
 
                     for( uint32_t i = 0; i < metricCount; ++i )
                     {
@@ -324,7 +368,7 @@ namespace Profiler
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferVendorMetrics[ i ],
+                                commandBufferData.m_PerformanceQueryResults[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
                             break;
@@ -343,7 +387,7 @@ namespace Profiler
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferVendorMetrics[ i ],
+                                commandBufferData.m_PerformanceQueryResults[ i ],
                                 m_VendorMetricProperties[ i ].storage );
 
                             break;

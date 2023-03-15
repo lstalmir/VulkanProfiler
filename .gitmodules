@@ -13,8 +13,8 @@
 [submodule "VkLayer_profiler_layer/profiler_tests/googletest"]
 	path = VkLayer_profiler_layer/profiler_tests/googletest
 	url = https://github.com/google/googletest
-[submodule "VkLayer_profiler_layer/profiler_trace/json"]
-	path = VkLayer_profiler_layer/profiler_trace/json
+[submodule "External/json"]
+	path = External/json
 	url = https://github.com/nlohmann/json
 [submodule "VkLayer_profiler_layer/profiler_helpers/fmt"]
 	path = VkLayer_profiler_layer/profiler_helpers/fmt

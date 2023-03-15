@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2021 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -74,6 +74,12 @@ include_directories (
     "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers/include"
     "${VULKAN_HEADERS_INCLUDE_DIR}"
     )
+
+# Disable 3-rd party library tests
+set (JSON_BuildTests OFF CACHE INTERNAL "")
+
+# Build third-party dependencies.
+add_subdirectory (External/json)
 
 # Include sub-projects
 add_subdirectory (Vulkan-Headers)

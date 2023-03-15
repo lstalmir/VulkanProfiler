@@ -150,4 +150,32 @@ namespace ImGuiX
         const ImU8 o3 = ComponentLerp( (a >> 24) & 0xFF, (b >> 24) & 0xFF, s );
         return o0 | (o1 << 8) | (o2 << 16) | (o3 << 24);
     }
+
+    /*************************************************************************\
+
+    Function:
+        Selectable
+
+    Description:
+        Selectable combo box item.
+
+    \*************************************************************************/
+    bool Selectable( const char* label, bool isSelected )
+    {
+        bool selectionChanged = false;
+
+        if( ImGui::Selectable( label, isSelected ) )
+        {
+            // Selection changed.
+            isSelected = true;
+            selectionChanged = true;
+        }
+
+        if( isSelected )
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        return selectionChanged;
+    }
 }

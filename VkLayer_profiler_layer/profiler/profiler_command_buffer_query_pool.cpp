@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Lukasz Stalmirski
+// Copyright (c) 2022-2023 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,15 +28,18 @@ namespace Profiler
     CommandBufferQueryPool::CommandBufferQueryPool( DeviceProfiler& profiler, VkCommandBufferLevel level )
         : m_Profiler( profiler )
         , m_Device( *profiler.m_pDevice )
+        , m_MetricsApiINTEL( profiler.m_MetricsApiINTEL )
         , m_pQueryPools()
         , m_QueryPoolSize( 32768 )
         , m_CurrentQueryPoolIndex( 0 )
         , m_CurrentQueryIndex( UINT32_MAX )
         , m_PerformanceQueryPoolINTEL( VK_NULL_HANDLE )
+        , m_PerformanceQueryMetricsSetIndexINTEL( UINT32_MAX )
+        , m_PerformanceQueryReportINTEL()
     {
         // Initialize performance query once
         if( (level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) &&
-            (m_Profiler.m_MetricsApiINTEL.IsAvailable()) )
+            (m_MetricsApiINTEL.IsAvailable()) )
         {
             VkQueryPoolCreateInfoINTEL intelCreateInfo = {};
             intelCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO_INTEL;
@@ -48,8 +51,8 @@ namespace Profiler
             createInfo.queryType = VK_QUERY_TYPE_PERFORMANCE_QUERY_INTEL;
             createInfo.queryCount = 1;
 
-            m_Profiler.m_pDevice->Callbacks.CreateQueryPool(
-                m_Profiler.m_pDevice->Handle,
+            m_Device.Callbacks.CreateQueryPool(
+                m_Device.Handle,
                 &createInfo,
                 nullptr,
                 &m_PerformanceQueryPoolINTEL );
@@ -61,6 +64,14 @@ namespace Profiler
         for( auto* pQueryPool : m_pQueryPools )
         {
             delete pQueryPool;
+        }
+
+        if( m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE )
+        {
+            m_Device.Callbacks.DestroyQueryPool(
+                m_Device.Handle,
+                m_PerformanceQueryPoolINTEL,
+                nullptr );
         }
     }
 }

@@ -365,67 +365,6 @@ VKAPI_ATTR void VKAPI_CALL vkFreeProfilerFrameDataEXT(
 /***************************************************************************************\
 
 Function:
-    vkEnumerateProfilerPerformanceCounterPropertiesEXT
-
-Description:
-
-\***************************************************************************************/
-VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEXT(
-    VkDevice device,
-    uint32_t* pProfilerMetricCount,
-    VkProfilerPerformanceCounterPropertiesEXT* pProfilerMetricProperties )
-{
-    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-
-    VkResult result = VK_SUCCESS;
-
-    bool hasSufficientSpace = true;
-
-    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
-    {
-        if( (*pProfilerMetricCount) == 0 )
-        {
-            // Return number of reported metrics
-            (*pProfilerMetricCount) += static_cast<uint32_t>( dd.Profiler.m_MetricsApiINTEL.GetMetricsCount() );
-        }
-        else
-        {
-            // Get reported metrics descriptions
-            const std::vector<VkProfilerPerformanceCounterPropertiesEXT> intelMetricsProperties =
-                dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties();
-
-            const uint32_t returnedMetricPropertyCount =
-                std::template min<uint32_t>( (*pProfilerMetricCount), static_cast<uint32_t>( intelMetricsProperties.size() ) );
-
-            std::memcpy( pProfilerMetricProperties,
-                intelMetricsProperties.data(),
-                returnedMetricPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
-
-            // There may be other metric sources that will be appended to the end
-            pProfilerMetricProperties += returnedMetricPropertyCount;
-            (*pProfilerMetricCount) -= returnedMetricPropertyCount;
-
-            if( returnedMetricPropertyCount < intelMetricsProperties.size() )
-            {
-                hasSufficientSpace = false;
-            }
-        }
-    }
-
-    // TODO: Other metric sources (VK_KHR_performance_query)
-
-    if( (result == VK_SUCCESS) && !(hasSufficientSpace) )
-    {
-        // All vkEnumerate* functions return VK_INCOMPLETE when provided buffer was too small
-        result = VK_INCOMPLETE;
-    }
-
-    return result;
-}
-
-/***************************************************************************************\
-
-Function:
     vkFlushProfilerEXT
 
 Description:
@@ -438,4 +377,101 @@ VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
 {
     VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.FinishFrame();
     return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkEnumerateProfilerPerformanceCounterPropertiesEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex,
+    uint32_t* pProfilerMetricCount,
+    VkProfilerPerformanceCounterPropertiesEXT* pProfilerMetricProperties )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    VkResult result = VK_SUCCESS;
+
+    bool hasSufficientSpace = true;
+
+    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
+    {
+        // Get reported metrics descriptions
+        result = dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties( metricsSetIndex, pProfilerMetricCount, pProfilerMetricProperties );
+    }
+    else
+    {
+        (*pProfilerMetricCount) = 0;
+    }
+
+    // TODO: Other metric sources (VK_KHR_performance_query)
+
+    return result;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkSetProfilerPerformanceMetricsSetNameEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
+    VkDevice device,
+    uint32_t* pMetricsSetCount,
+    VkProfilerPerformanceMetricsSetPropertiesEXT* pMetricSets )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    VkResult result = VK_SUCCESS;
+
+    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
+    {
+        // Get reported metrics descriptions
+        result = dd.Profiler.m_MetricsApiINTEL.GetMetricsSets( pMetricsSetCount, pMetricSets );
+    }
+    else
+    {
+        (*pMetricsSetCount) = 0;
+    }
+
+    // TODO: Other metric sources (VK_KHR_performance_query)
+
+    return result;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkSetProfilerPerformanceMetricsSetEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerPerformanceMetricsSetEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex )
+{
+    return VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_MetricsApiINTEL.SetActiveMetricsSet( metricsSetIndex );
+}
+
+/***************************************************************************************\
+
+Function:
+    vkGetProfilerActivePerformanceMetricsSetIndexEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
+    VkDevice device,
+    uint32_t* pIndex )
+{
+    (*pIndex) = VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_MetricsApiINTEL.GetActiveMetricsSetIndex();
 }

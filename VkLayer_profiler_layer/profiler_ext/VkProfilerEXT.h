@@ -238,12 +238,21 @@ typedef union VkProfilerPerformanceCounterResultEXT
     double      float64;
 } VkProfilerPerformanceCounterResultEXT;
 
+typedef struct VkProfilerPerformanceMetricsSetPropertiesEXT
+{
+    char     name[ 64 ];
+    uint32_t metricsCount;
+} VkProfilerPerformanceMetricsSetPropertiesEXT;
+
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerModeEXT )(VkDevice, VkProfilerModeEXT);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
 typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkFreeProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerMetricPropertiesEXT )(VkDevice, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkFlushProfilerEXT )(VkDevice);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceMetricsSetsEXT )(VkDevice, uint32_t*, VkProfilerPerformanceMetricsSetPropertiesEXT*);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceCounterPropertiesEXT )(VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerPerformanceMetricsSetEXT )(VkDevice, uint32_t);
+typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerActivePerformanceMetricsSetIndexEXT )(VkDevice, uint32_t*);
 
 #ifndef VK_NO_PROTOTYPES
 VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
@@ -262,12 +271,26 @@ VKAPI_ATTR void VKAPI_CALL vkFreeProfilerFrameDataEXT(
     VkDevice device,
     VkProfilerDataEXT* pData );
 
+VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
+    VkDevice device );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
+    VkDevice device,
+    uint32_t* pProfilerMetricSetCount,
+    VkProfilerPerformanceMetricsSetPropertiesEXT* pProfilerMetricsSetNameInfos );
+
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEXT(
     VkDevice device,
+    uint32_t metricsSetIndex,
     uint32_t* pProfilerMetricCount,
     VkProfilerPerformanceCounterPropertiesEXT* pProfilerMetricProperties );
 
-VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
-    VkDevice device );
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerPerformanceMetricsSetEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex );
+
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
+    VkDevice device,
+    uint32_t* pMetricsSetIndex );
 #endif // VK_NO_PROTOTYPES
 #endif // VK_EXT_profiler
