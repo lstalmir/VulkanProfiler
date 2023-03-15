@@ -31,8 +31,6 @@
 
 #ifdef WIN32
 #include <Windows.h>
-#include <SetupAPI.h>
-#include <devguid.h>
 #endif
 
 #ifdef WIN32
@@ -400,17 +398,16 @@ namespace Profiler
         Convert query data to human-readable form.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerMetricsApi_INTEL::ParseReport(
-        uint32_t    metricsSetIndex,
-        const char* pQueryReportData,
-        size_t      queryReportSize )
+    void ProfilerMetricsApi_INTEL::ParseReport(
+        uint32_t                                            metricsSetIndex,
+        ProfilerMetricsReport_INTEL&                        report,
+        std::vector<VkProfilerPerformanceCounterResultEXT>& results )
     {
         const auto& metricsSet = m_MetricsSets[ metricsSetIndex ];
 
         // Convert MDAPI-specific TTypedValue_1_0 to custom VkProfilerMetricEXT
-        std::vector<VkProfilerPerformanceCounterResultEXT> parsedMetrics;
-
-        std::vector<MD::TTypedValue_1_0> metrics(
+        results.clear();
+        report.m_IntermediateValues.resize(
             metricsSet.m_pMetricSetParams->MetricsCount +
             metricsSet.m_pMetricSetParams->InformationCount );
 
@@ -421,10 +418,10 @@ namespace Profiler
         {
             // Calculate normalized metrics from raw query data
             MD::ECompletionCode cc = metricsSet.m_pMetricSet->CalculateMetrics(
-                reinterpret_cast<const unsigned char*>( pQueryReportData ),
-                static_cast<uint32_t>( queryReportSize ),
-                metrics.data(),
-                static_cast<uint32_t>( metrics.size() * sizeof( MD::TTypedValue_1_0 ) ),
+                reinterpret_cast<const unsigned char*>( report.m_QueryResult.data() ),
+                static_cast<uint32_t>( report.m_QueryResult.size() ),
+                report.m_IntermediateValues.data(),
+                static_cast<uint32_t>( report.m_IntermediateValues.size() * sizeof( MD::TTypedValue_1_0 ) ),
                 &reportCount,
                 false );
 
@@ -439,36 +436,34 @@ namespace Profiler
             // Const factor applied to the metric
             const double factor = metricsSet.m_MetricFactors[ i ];
 
-            switch( metrics[ i ].ValueType )
+            switch( report.m_IntermediateValues[ i ].ValueType )
             {
             default:
             case MD::VALUE_TYPE_FLOAT:
-                parsedMetric.float32 = static_cast<float>(metrics[ i ].ValueFloat * factor);
+                parsedMetric.float32 = static_cast<float>(report.m_IntermediateValues[ i ].ValueFloat * factor);
                 break;
 
             case MD::VALUE_TYPE_UINT32:
-                parsedMetric.uint32 = static_cast<uint32_t>(metrics[ i ].ValueUInt32 * factor);
+                parsedMetric.uint32 = static_cast<uint32_t>(report.m_IntermediateValues[ i ].ValueUInt32 * factor);
                 break;
 
             case MD::VALUE_TYPE_UINT64:
-                parsedMetric.uint64 = static_cast<uint64_t>(metrics[ i ].ValueUInt64 * factor);
+                parsedMetric.uint64 = static_cast<uint64_t>(report.m_IntermediateValues[ i ].ValueUInt64 * factor);
                 break;
 
             case MD::VALUE_TYPE_BOOL:
-                parsedMetric.uint32 = metrics[ i ].ValueBool;
+                parsedMetric.uint32 = report.m_IntermediateValues[ i ].ValueBool;
                 break;
 
             case MD::VALUE_TYPE_CSTRING:
                 assert( !"PROFILER: Intel MDAPI string metrics not supported!" );
             }
 
-            parsedMetrics.push_back( parsedMetric );
+            results.push_back( parsedMetric );
         }
 
         // This must match every time
-        assert( parsedMetrics.size() == metricsSet.m_MetricsProperties.size() );
-
-        return parsedMetrics;
+        assert( results.size() == metricsSet.m_MetricsProperties.size() );
     }
 
     #ifdef WIN32
@@ -491,65 +486,81 @@ namespace Profiler
 
         // Open registry key with the display adapters.
         HKEY hRegistryKey = NULL;
-        if (RegOpenKeyA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}", &hRegistryKey) != ERROR_SUCCESS)
+        if( RegOpenKeyA( HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}", &hRegistryKey ) != ERROR_SUCCESS )
         {
             return igdmdPath;
         }
 
-        char vulkanDriverName[MAX_PATH] = {};
-        char vulkanDeviceId[64] = {};
+        char vulkanDriverName[ MAX_PATH ];
+        char vulkanDeviceId[ 64 ];
+        char displayAdapterIndex[ 8 ];
 
-        for (int i = 0; igdmdPath.empty(); ++i)
+        for( int i = 0; igdmdPath.empty(); ++i )
         {
-            char displayAdapterIndex[8] = {};
-            sprintf_s(displayAdapterIndex, "%04d", i);
+            sprintf_s( displayAdapterIndex, "%04d", i );
 
-            // Read vendor and device ID from the registry.
-            DWORD vulkanDeviceIdLength = 64;
-            if (RegGetValueA(hRegistryKey, displayAdapterIndex, "MatchingDeviceId", RRF_RT_REG_SZ, NULL, vulkanDeviceId, &vulkanDeviceIdLength) != ERROR_SUCCESS)
+            // Open device's registry key.
+            HKEY hDeviceRegistryKey = NULL;
+            if( RegOpenKeyA( hRegistryKey, displayAdapterIndex, &hDeviceRegistryKey ) != ERROR_SUCCESS )
             {
                 break;
             }
 
-            uint32_t vendorId, deviceId;
-            sscanf_s(vulkanDeviceId, "PCI\\VEN_%04x&DEV_%04x", &vendorId, &deviceId);
-            if ((vendorId != pDevice->pPhysicalDevice->Properties.vendorID) ||
-                (deviceId != pDevice->pPhysicalDevice->Properties.deviceID))
+            // Read vendor and device ID from the registry.
+            DWORD vulkanDeviceIdLength = sizeof( vulkanDeviceId );
+            if( RegGetValueA( hDeviceRegistryKey, NULL, "MatchingDeviceId", RRF_RT_REG_SZ, NULL, vulkanDeviceId, &vulkanDeviceIdLength ) != ERROR_SUCCESS )
             {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
+
+            uint32_t vendorId, deviceId;
+            sscanf_s( vulkanDeviceId, "PCI\\VEN_%04x&DEV_%04x", &vendorId, &deviceId );
+            if( (vendorId != pDevice->pPhysicalDevice->Properties.vendorID) ||
+                (deviceId != pDevice->pPhysicalDevice->Properties.deviceID) )
+            {
+                RegCloseKey( hDeviceRegistryKey );
                 continue;
             }
 
             // Get VulkanDriverName value.
-            DWORD vulkanDriverNameLength = MAX_PATH;
-            if (RegGetValueA(hRegistryKey, displayAdapterIndex, "VulkanDriverName", RRF_RT_REG_SZ, NULL, vulkanDriverName, &vulkanDriverNameLength) != ERROR_SUCCESS)
+            DWORD vulkanDriverNameLength = sizeof( vulkanDriverName );
+            if( RegGetValueA( hDeviceRegistryKey, NULL, "VulkanDriverName", RRF_RT_REG_SZ, NULL, vulkanDriverName, &vulkanDriverNameLength ) != ERROR_SUCCESS )
             {
-                break;
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
             }
 
-            // Parse JSON file.
-            nlohmann::json icd = nlohmann::json::parse(std::ifstream(vulkanDriverName));
+            // Make sure the string is null-terminated.
+            vulkanDriverNameLength = std::min<DWORD>( vulkanDriverNameLength, MAX_PATH - 1 );
+            vulkanDriverName[ vulkanDriverNameLength ] = 0;
 
-            if (icd["file_format_version"] == "1.0.0")
+            // Parse JSON file.
+            nlohmann::json icd = nlohmann::json::parse( std::ifstream( vulkanDriverName ) );
+
+            if( icd[ "file_format_version" ] == "1.0.0" )
             {
                 // Get path to the DLL.
-                std::filesystem::path vulkanModulePath = icd["ICD"]["library_path"];
+                std::filesystem::path vulkanModulePath = icd[ "ICD" ][ "library_path" ];
 
-                if (!vulkanModulePath.is_absolute())
+                if( !vulkanModulePath.is_absolute() )
                 {
                     // library_path may be relative to the JSON.
-                    vulkanModulePath = std::filesystem::path(vulkanDriverName).parent_path() / vulkanModulePath;
+                    vulkanModulePath = std::filesystem::path( vulkanDriverName ).parent_path() / vulkanModulePath;
                     vulkanModulePath = vulkanModulePath.lexically_normal();
                 }
 
                 // Check if the DLL is loaded.
-                if (GetModuleHandleA(vulkanModulePath.string().c_str()) != NULL)
+                if( GetModuleHandleA( vulkanModulePath.string().c_str() ) != NULL )
                 {
-                    igdmdPath = ProfilerPlatformFunctions::FindFile(vulkanModulePath.parent_path(), PROFILER_METRICS_DLL_INTEL);
+                    igdmdPath = ProfilerPlatformFunctions::FindFile( vulkanModulePath.parent_path(), PROFILER_METRICS_DLL_INTEL );
                 }
             }
+            
+            RegCloseKey( hDeviceRegistryKey );
         }
 
-        RegCloseKey(hRegistryKey);
+        RegCloseKey( hRegistryKey );
 
         return igdmdPath;
     }

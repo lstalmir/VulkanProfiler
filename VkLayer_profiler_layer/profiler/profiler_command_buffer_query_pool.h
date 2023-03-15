@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Lukasz Stalmirski
+// Copyright (c) 2022-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,10 @@ namespace Profiler
 
         CommandBufferQueryPool( const CommandBufferQueryPool& ) = delete;
 
-        uint32_t GetPerformanceQueryMetricsSetIndex() const { return m_PerformanceQueryMetricsSetIndexINTEL; }
+        PROFILER_FORCE_INLINE uint32_t GetPerformanceQueryMetricsSetIndex() const
+        {
+            return m_PerformanceQueryMetricsSetIndexINTEL;
+        }
 
         PROFILER_FORCE_INLINE void PreallocateQueries( VkCommandBuffer commandBuffer )
         {
@@ -185,35 +188,37 @@ namespace Profiler
             return m_pQueryPools[ queryPoolIndex ]->GetQueryData( queryIndex );
         }
 
-        PROFILER_FORCE_INLINE std::vector<VkProfilerPerformanceCounterResultEXT> GetPerformanceQueryData() const
+        PROFILER_FORCE_INLINE void GetPerformanceQueryData(
+            std::vector<VkProfilerPerformanceCounterResultEXT>& results,
+            uint32_t&                                           metricsSetIndex )
         {
+            results.clear();
+            metricsSetIndex = m_PerformanceQueryMetricsSetIndexINTEL;
+
             // Check if any performance metrics has been collected.
             if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
                 (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
             {
                 // Allocate temporary space for the raw report.
                 const size_t reportSize = m_MetricsApiINTEL.GetReportSize( m_PerformanceQueryMetricsSetIndexINTEL );
-                std::vector<char> report( reportSize );
+                m_PerformanceQueryReportINTEL.m_QueryResult.resize( reportSize );
 
                 VkResult result = m_Device.Callbacks.GetQueryPoolResults(
                     m_Device.Handle,
                     m_PerformanceQueryPoolINTEL,
-                    0, 1, reportSize,
-                    report.data(),
-                    reportSize, 0 );
+                    0, 1, m_PerformanceQueryReportINTEL.m_QueryResult.size(),
+                    m_PerformanceQueryReportINTEL.m_QueryResult.data(),
+                    m_PerformanceQueryReportINTEL.m_QueryResult.size(), 0 );
 
                 if( result == VK_SUCCESS )
                 {
                     // Process metrics for the command buffer.
-                    return m_MetricsApiINTEL.ParseReport(
+                    m_MetricsApiINTEL.ParseReport(
                         m_PerformanceQueryMetricsSetIndexINTEL,
-                        report.data(),
-                        report.size() );
+                        m_PerformanceQueryReportINTEL,
+                        results );
                 }
             }
-
-            // No performance metrics collected.
-            return {};
         }
 
     protected:
@@ -229,6 +234,7 @@ namespace Profiler
 
         VkQueryPool                      m_PerformanceQueryPoolINTEL;
         uint32_t                         m_PerformanceQueryMetricsSetIndexINTEL;
+        ProfilerMetricsReport_INTEL      m_PerformanceQueryReportINTEL;
 
         PROFILER_FORCE_INLINE void AllocateQueryPool( VkCommandBuffer commandBuffer )
         {

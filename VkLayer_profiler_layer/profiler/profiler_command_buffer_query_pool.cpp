@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Lukasz Stalmirski
+// Copyright (c) 2022-2023 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,8 @@ namespace Profiler
         , m_CurrentQueryPoolIndex( 0 )
         , m_CurrentQueryIndex( UINT32_MAX )
         , m_PerformanceQueryPoolINTEL( VK_NULL_HANDLE )
+        , m_PerformanceQueryMetricsSetIndexINTEL( UINT32_MAX )
+        , m_PerformanceQueryReportINTEL()
     {
         // Initialize performance query once
         if( (level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) &&

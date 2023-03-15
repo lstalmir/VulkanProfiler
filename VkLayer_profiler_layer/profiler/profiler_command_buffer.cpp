@@ -824,8 +824,7 @@ namespace Profiler
             m_Data.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( m_Data.m_EndTimestamp.m_Index );
 
             // Read vendor-specific data
-            m_Data.m_PerformanceQueryResults = m_pQueryPool->GetPerformanceQueryData();
-            m_Data.m_PerformanceQueryMetricsSetIndex = m_pQueryPool->GetPerformanceQueryMetricsSetIndex();
+            m_pQueryPool->GetPerformanceQueryData( m_Data.m_PerformanceQueryResults, m_Data.m_PerformanceQueryMetricsSetIndex );
 
             // Subsequent calls to GetData will return the same results
             m_Dirty = false;
