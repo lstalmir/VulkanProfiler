@@ -213,8 +213,11 @@ namespace Profiler
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
-        // Shader inspector tabs
-        std::vector<ProfilerShaderInspectorTab*> m_pTabs;
+        // Pipeline inspector tab
+        const DeviceProfilerPipelineData* m_pSelectedPipeline;
+        std::vector<const char*> m_pSelectedPipelineShaderStageNames;
+        std::vector<DeviceProfilerShaderInspectorTab*> m_pSelectedPipelineShaderStageInspectors;
+        size_t m_SelectedPipelineShaderStageIndex;
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
@@ -225,6 +228,7 @@ namespace Profiler
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
+        void UpdateInspectorTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
 
@@ -281,5 +285,8 @@ namespace Profiler
 
             return pSortedData;
         }
+
+        // Inspect pipeline
+        void InspectPipeline( const DeviceProfilerPipelineData& );
     };
 }

@@ -35,6 +35,7 @@ namespace Profiler
         // Tabs
         inline static constexpr char Performance[] = "Performance";
         inline static constexpr char Memory[] = "Memory";
+        inline static constexpr char Inspector[] = "Inspector";
         inline static constexpr char Statistics[] = "Statistics";
         inline static constexpr char Settings[] = "Settings";
 
@@ -66,6 +67,15 @@ namespace Profiler
         inline static constexpr char MemoryHeap[] = "Heap";
         inline static constexpr char Allocations[] = "Allocations";
         inline static constexpr char MemoryTypeIndex[] = "Memory type index";
+
+        // Inspector tab
+        inline static constexpr char ShaderStage[] = "Shader stage";
+        inline static constexpr char ShaderStage_VS[] = "Vertex shader";
+        inline static constexpr char ShaderStage_TCS[] = "Tessellation control shader";
+        inline static constexpr char ShaderStage_TES[] = "Tessellation evaluation shader";
+        inline static constexpr char ShaderStage_GS[] = "Geometry shader";
+        inline static constexpr char ShaderStage_FS[] = "Fragment shader";
+        inline static constexpr char ShaderStage_CS[] = "Compute shader";
 
         // Statistics tab
         inline static constexpr char DrawCalls[] = "Draw calls";

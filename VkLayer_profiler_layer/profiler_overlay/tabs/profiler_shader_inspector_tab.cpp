@@ -21,6 +21,7 @@
 #include "profiler_shader_inspector_tab.h"
 
 #include "profiler/profiler_data.h"
+#include "profiler_layer_objects/VkDevice_object.h"
 
 #include "../imgui_widgets/imgui_ex.h"
 #include "../imgui_widgets/imgui_table_ex.h"
@@ -41,13 +42,13 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerShaderInspectorTab::ProfilerShaderInspectorTab(
-        VkDevice_Object* pDevice,
+    DeviceProfilerShaderInspectorTab::DeviceProfilerShaderInspectorTab(
+        VkDevice_Object& device,
         const DeviceProfilerPipelineData& pipeline,
         VkShaderStageFlagBits stage,
         ImFont* font )
-        : m_Device( *pDevice )
-        , m_StringSerializer( *pDevice )
+        : m_Device( device )
+        , m_StringSerializer( device )
         , m_pImGuiCodeFont( font )
         , m_ShaderStage( stage )
         , m_Pipeline( pipeline )
@@ -59,7 +60,7 @@ namespace Profiler
         , m_CurrentTabIndex( -1 )
     {
         // Get pipeline executable properties, if available.
-        if( pDevice->EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME ) )
+        if( m_Device.EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME ) )
         {
             VkPipelineInfoKHR pipelineInfo = {};
             pipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
@@ -189,112 +190,120 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ~ProfilerShaderInspectorTab
+
+    Description:
+        Destructor.
+
+    \***********************************************************************************/
+    DeviceProfilerShaderInspectorTab::~DeviceProfilerShaderInspectorTab()
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Draw
 
     Description:
         Draws the shader inspector tab in the current profiler's window.
 
     \***********************************************************************************/
-    void ProfilerShaderInspectorTab::Draw()
+    void DeviceProfilerShaderInspectorTab::Draw()
     {
         // Get the name of the shader module.
         const auto pipelineName = m_StringSerializer.GetName( m_Pipeline ) + " (" + std::to_string( m_ShaderStage ) + ")";
 
-        if( ImGui::BeginTabItem( pipelineName.c_str(), nullptr, 0 ) )
+        // Print pipeline executable statistics if the extension is supported.
+        if( !m_PipelineExecutableStatistics.empty() )
         {
-            // Print pipeline executable statistics if the extension is supported.
-            if( !m_PipelineExecutableStatistics.empty() )
+            for( uint32_t i = 0; i < m_PipelineExecutableStatistics.size(); ++i )
             {
-                for( uint32_t i = 0; i < m_PipelineExecutableStatistics.size(); ++i )
+                const auto& statistic = m_PipelineExecutableStatistics[ i ];
+
+                ImGui::Text( "%s", statistic.name );
+
+                if( ImGui::IsItemHovered() &&
+                    statistic.description[ 0 ] )
                 {
-                    const auto& statistic = m_PipelineExecutableStatistics[ i ];
+                    ImGui::BeginTooltip();
+                    ImGui::PushTextWrapPos( 350.f );
+                    ImGui::TextUnformatted( statistic.description );
+                    ImGui::PopTextWrapPos();
+                    ImGui::EndTooltip();
+                }
 
-                    ImGui::Text( "%s", statistic.name );
+                switch( statistic.format )
+                {
+                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
+                    ImGuiX::TextAlignRight( "%s", statistic.value.b32 ? "True" : "False" );
+                    break;
 
-                    if( ImGui::IsItemHovered() &&
-                        statistic.description[ 0 ] )
-                    {
-                        ImGui::BeginTooltip();
-                        ImGui::PushTextWrapPos( 350.f );
-                        ImGui::TextUnformatted( statistic.description );
-                        ImGui::PopTextWrapPos();
-                        ImGui::EndTooltip();
-                    }
+                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
+                    ImGuiX::TextAlignRight( "%lld", statistic.value.i64 );
+                    break;
 
-                    switch( statistic.format )
-                    {
-                    case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
-                        ImGuiX::TextAlignRight( "%s", statistic.value.b32 ? "True" : "False" );
-                        break;
+                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
+                    ImGuiX::TextAlignRight( "%llu", statistic.value.u64 );
+                    break;
 
-                    case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
-                        ImGuiX::TextAlignRight( "%lld", statistic.value.i64 );
-                        break;
-
-                    case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
-                        ImGuiX::TextAlignRight( "%llu", statistic.value.u64 );
-                        break;
-
-                    case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_FLOAT64_KHR:
-                        ImGuiX::TextAlignRight( "%lf", statistic.value.f64 );
-                        break;
-                    }
+                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_FLOAT64_KHR:
+                    ImGuiX::TextAlignRight( "%lf", statistic.value.f64 );
+                    break;
                 }
             }
+        }
 
-            // Print the internal shader representation.
-            if( ImGui::BeginTabBar( (pipelineName + "_internal_representations").c_str() ) )
+        // Print the internal shader representation.
+        if( ImGui::BeginTabBar( (pipelineName + "_internal_representations").c_str() ) )
+        {
+            int tabIndex = 0;
+
+            if( ImGui::BeginTabItem( "Disassembly" ) )
             {
-                int tabIndex = 0;
+                ImGui::PushFont( m_pImGuiCodeFont );
 
-                if( ImGui::BeginTabItem( "Disassembly" ) )
+                if( m_CurrentTabIndex != tabIndex )
+                {
+                    m_pTextEditor->SetText( m_ShaderModuleDisassembly );
+                    m_CurrentTabIndex = tabIndex;
+                }
+
+                m_pTextEditor->Render( "Disassembly" );
+
+                ImGui::PopFont();
+                ImGui::EndTabItem();
+            }
+
+            for( const auto& internalRepresentation : m_PipelineExecutableInternalRepresentations )
+            {
+                tabIndex++;
+
+                if( ImGui::BeginTabItem( internalRepresentation.name ) )
                 {
                     ImGui::PushFont( m_pImGuiCodeFont );
 
-                    if( m_CurrentTabIndex != tabIndex )
+                    if( internalRepresentation.isText )
                     {
-                        m_pTextEditor->SetText( m_ShaderModuleDisassembly );
-                        m_CurrentTabIndex = tabIndex;
-                    }
+                        if( m_CurrentTabIndex != tabIndex )
+                        {
+                            m_pTextEditor->SetText( static_cast<const char*>( internalRepresentation.pData ) );
+                            m_CurrentTabIndex = tabIndex;
+                        }
 
-                    m_pTextEditor->Render( "Disassembly" );
+                        m_pTextEditor->Render( "Disassembly" );
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted( "Binary" );
+                    }
 
                     ImGui::PopFont();
                     ImGui::EndTabItem();
                 }
-
-                for( const auto& internalRepresentation : m_PipelineExecutableInternalRepresentations )
-                {
-                    tabIndex++;
-
-                    if( ImGui::BeginTabItem( internalRepresentation.name ) )
-                    {
-                        ImGui::PushFont( m_pImGuiCodeFont );
-
-                        if( internalRepresentation.isText )
-                        {
-                            if( m_CurrentTabIndex != tabIndex )
-                            {
-                                m_pTextEditor->SetText( static_cast<const char*>( internalRepresentation.pData ) );
-                                m_CurrentTabIndex = tabIndex;
-                            }
-
-                            m_pTextEditor->Render( "Disassembly" );
-                        }
-                        else
-                        {
-                            ImGui::TextUnformatted( "Binary" );
-                        }
-
-                        ImGui::PopFont();
-                        ImGui::EndTabItem();
-                    }
-                }
-
-                ImGui::EndTabBar();
             }
 
-            ImGui::EndTabItem();
+            ImGui::EndTabBar();
         }
     }
 }

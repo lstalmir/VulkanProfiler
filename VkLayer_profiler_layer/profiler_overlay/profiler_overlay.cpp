@@ -46,6 +46,14 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
 using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 #endif
 
+static const Profiler::BitsetArray<VkShaderStageFlagBits, const char*, 32> g_scShaderStageNames
+    = { Lang::ShaderStage_VS,
+        Lang::ShaderStage_TCS,
+        Lang::ShaderStage_TES,
+        Lang::ShaderStage_GS,
+        Lang::ShaderStage_FS,
+        Lang::ShaderStage_CS };
+
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "imgui_impl_win32.h"
 #endif
@@ -137,6 +145,10 @@ namespace Profiler
         , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
         , m_pStringSerializer( nullptr )
+        , m_pSelectedPipeline( nullptr )
+        , m_pSelectedPipelineShaderStageNames( 0 )
+        , m_pSelectedPipelineShaderStageInspectors( 0 )
+        , m_SelectedPipelineShaderStageIndex( 0 )
     {
     }
 
@@ -843,6 +855,11 @@ namespace Profiler
             UpdateMemoryTab();
             ImGui::EndTabItem();
         }
+        if( ImGui::BeginTabItem( Lang::Inspector ) )
+        {
+            UpdateInspectorTab();
+            ImGui::EndTabItem();
+        }
         if( ImGui::BeginTabItem( Lang::Statistics ) )
         {
             UpdateStatisticsTab();
@@ -852,10 +869,6 @@ namespace Profiler
         {
             UpdateSettingsTab();
             ImGui::EndTabItem();
-        }
-        for( auto& tab : m_pTabs )
-        {
-            tab->Draw();
         }
 
         ImGui::EndTabBar();
@@ -1791,6 +1804,49 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        UpdateInspectorTab
+
+    Description:
+        Updates "Inspector" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateInspectorTab()
+    {
+        if( m_pSelectedPipeline )
+        {
+            // TODO: Pipeline state.
+
+            // Draw combo box with all shaders in the pipeline.
+            ImGui::Text( Lang::ShaderStage );
+            ImGui::SameLine();
+
+            const char* pSelectedStage = m_pSelectedPipelineShaderStageNames[ m_SelectedPipelineShaderStageIndex ];
+            if( ImGui::BeginCombo( "##ShaderStageCombo", pSelectedStage ) )
+            {
+                const size_t stageCount = m_pSelectedPipelineShaderStageNames.size();
+                for( size_t i = 0; i < stageCount; ++i )
+                {
+                    if( ImGuiX::TSelectable(
+                            m_pSelectedPipelineShaderStageNames[ i ],
+                            pSelectedStage,
+                            m_pSelectedPipelineShaderStageNames[ i ] ) )
+                    {
+                        // Selection changed
+                        m_SelectedPipelineShaderStageIndex = i;
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            // Draw the selected shader stage.
+            m_pSelectedPipelineShaderStageInspectors[ m_SelectedPipelineShaderStageIndex ]->Draw();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UpdateStatisticsTab
 
     Description:
@@ -2662,22 +2718,9 @@ namespace Profiler
 
             if( ImGui::BeginPopupContextItem() )
             {
-                if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_VERTEX_BIT ].m_pShaderModule != nullptr) &&
-                    ImGui::MenuItem( "Show vertex shader", nullptr, nullptr ) )
+                if( ImGui::MenuItem( "Inspect", nullptr, nullptr ) )
                 {
-                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_VERTEX_BIT, m_pImGuiCodeFont ) );
-                }
-                
-                if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_FRAGMENT_BIT ].m_pShaderModule != nullptr) &&
-                    ImGui::MenuItem( "Show pixel shader", nullptr, nullptr ) )
-                {
-                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, m_pImGuiCodeFont ) );
-                }
-                
-                if( (pipeline.m_ShaderTuple.m_Shaders[ VK_SHADER_STAGE_COMPUTE_BIT ].m_pShaderModule != nullptr) &&
-                    ImGui::MenuItem( "Show compute shader", nullptr, nullptr ) )
-                {
-                    m_pTabs.push_back( new ProfilerShaderInspectorTab( m_pDevice, pipeline, VK_SHADER_STAGE_COMPUTE_BIT, m_pImGuiCodeFont ) );
+                    InspectPipeline( pipeline );
                 }
 
                 ImGui::EndPopup();
@@ -2895,6 +2938,46 @@ namespace Profiler
             // No data collected in this mode
             ImGuiX::TextAlignRight( "- %s",
                 m_pTimestampDisplayUnitStr );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InspectPipeline
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::InspectPipeline( const DeviceProfilerPipelineData& pipeline )
+    {
+        // Don't do anything if we're already inspecting this pipeline.
+        if( !m_pSelectedPipeline || m_pSelectedPipeline->m_Handle != pipeline.m_Handle )
+        {
+            for( DeviceProfilerShaderInspectorTab* pShaderInspector : m_pSelectedPipelineShaderStageInspectors )
+            {
+                delete pShaderInspector;
+            }
+
+            m_pSelectedPipeline = &pipeline;
+            m_pSelectedPipelineShaderStageInspectors.clear();
+            m_pSelectedPipelineShaderStageNames.clear();
+            m_SelectedPipelineShaderStageIndex = 0;
+
+            // Create an inspector tab for each stage in the pipeline.
+            for( VkShaderStageFlagBits shaderStage = VK_SHADER_STAGE_VERTEX_BIT;
+                 shaderStage != VK_SHADER_STAGE_ALL + 1;
+                 shaderStage = (VkShaderStageFlagBits)((uint32_t)shaderStage << 1))
+            {
+                const DeviceProfilerPipelineShader& shader = pipeline.m_ShaderTuple.m_Shaders[ shaderStage ];
+                if( shader.m_pShaderModule )
+                {
+                    m_pSelectedPipelineShaderStageInspectors.push_back(
+                        new DeviceProfilerShaderInspectorTab( *m_pDevice, pipeline, shaderStage, m_pImGuiCodeFont ) );
+
+                    m_pSelectedPipelineShaderStageNames.push_back( g_scShaderStageNames[ shaderStage ] );
+                }
+            }
         }
     }
 }
