@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "VkRayTracingPipelineKhr_functions.h"
+#include "VkPipelineExecutablePropertiesKhr_functions.h"
 
 namespace Profiler
 {
@@ -41,6 +42,11 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
+        // Capture executable properties for shader inspection.
+        VkRayTracingPipelineCreateInfoKHR* pCreateInfosWithExecutableProperties = nullptr;
+        VkPipelineExecutablePropertiesKhr_Functions::CapturePipelineExecutableProperties(
+            dd, createInfoCount, &pCreateInfos, &pCreateInfosWithExecutableProperties );
+
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateRayTracingPipelinesKHR(
             device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
@@ -50,6 +56,8 @@ namespace Profiler
             // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
+
+        free( pCreateInfosWithExecutableProperties );
 
         return result;
     }

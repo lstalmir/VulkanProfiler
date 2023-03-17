@@ -144,6 +144,7 @@ namespace Profiler
         , m_ComputePipelineColumnColor( 0 )
         , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
+        , m_PipelineInspectorTabOpen( false )
         , m_pStringSerializer( nullptr )
         , m_pSelectedPipeline( nullptr )
         , m_pSelectedPipelineShaderStageNames( 0 )
@@ -855,11 +856,6 @@ namespace Profiler
             UpdateMemoryTab();
             ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( Lang::Inspector ) )
-        {
-            UpdateInspectorTab();
-            ImGui::EndTabItem();
-        }
         if( ImGui::BeginTabItem( Lang::Statistics ) )
         {
             UpdateStatisticsTab();
@@ -868,6 +864,18 @@ namespace Profiler
         if( ImGui::BeginTabItem( Lang::Settings ) )
         {
             UpdateSettingsTab();
+            ImGui::EndTabItem();
+        }
+
+        ImGuiTabItemFlags inspectorTabFlags = 0;
+        if( m_SwitchToPipelineInspectorTab )
+        {
+            inspectorTabFlags |= ImGuiTabItemFlags_SetSelected;
+            m_SwitchToPipelineInspectorTab = false;
+        }
+        if( ImGui::BeginTabItem( Lang::Inspector, &m_PipelineInspectorTabOpen, inspectorTabFlags ) )
+        {
+            UpdateInspectorTab();
             ImGui::EndTabItem();
         }
 
@@ -1482,16 +1490,7 @@ namespace Profiler
                     ImGui::TableNextColumn();
                     {
                         ImGui::Text( "%s", metricProperties.shortName );
-
-                        if( ImGui::IsItemHovered() &&
-                            metricProperties.description[ 0 ] )
-                        {
-                            ImGui::BeginTooltip();
-                            ImGui::PushTextWrapPos( 350.f );
-                            ImGui::TextUnformatted( metricProperties.description );
-                            ImGui::PopTextWrapPos();
-                            ImGui::EndTooltip();
-                        }
+                        ImGuiX::TooltipUnformatted( metricProperties.description );
                     }
 
                     ImGui::TableNextColumn();
@@ -1814,11 +1813,23 @@ namespace Profiler
     {
         if( m_pSelectedPipeline )
         {
+            ImGui::TextUnformatted( "Pipeline" );
+            ImGui::SameLine();
+            ImGui::SetCursorPosX( 100 );
+            ImGui::TextUnformatted( m_pStringSerializer->GetName( *m_pSelectedPipeline ).c_str() );
+
+            if( m_ShowShaderCapabilities )
+            {
+                DrawShaderCapabilities( *m_pSelectedPipeline );
+            }
+
             // TODO: Pipeline state.
 
             // Draw combo box with all shaders in the pipeline.
-            ImGui::Text( Lang::ShaderStage );
+            ImGui::TextUnformatted( Lang::ShaderStage );
             ImGui::SameLine();
+            ImGui::SetCursorPosX( 100 );
+            ImGui::SetNextItemWidth( 200 );
 
             const char* pSelectedStage = m_pSelectedPipelineShaderStageNames[ m_SelectedPipelineShaderStageIndex ];
             if( ImGui::BeginCombo( "##ShaderStageCombo", pSelectedStage ) )
@@ -2729,16 +2740,7 @@ namespace Profiler
 
         if( m_ShowShaderCapabilities )
         {
-            if( pipeline.m_UsesRayQuery )
-            {
-                static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
-                DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
-            }
-            if( pipeline.m_UsesRayTracing )
-            {
-                static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
-                DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
-            }
+            DrawShaderCapabilities( pipeline );
         }
 
         if( inPipelineSubtree )
@@ -2856,7 +2858,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        DrawSignificanceRect
+        DrawShaderCapabilities
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawShaderCapabilities( const DeviceProfilerPipelineData& pipeline )
+    {
+        if( pipeline.m_UsesRayQuery )
+        {
+            static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
+            DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
+        }
+        if( pipeline.m_UsesRayTracing )
+        {
+            static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
+            DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawShaderCapabilityBadge
 
     Description:
 
@@ -2954,14 +2978,9 @@ namespace Profiler
         // Don't do anything if we're already inspecting this pipeline.
         if( !m_pSelectedPipeline || m_pSelectedPipeline->m_Handle != pipeline.m_Handle )
         {
-            for( DeviceProfilerShaderInspectorTab* pShaderInspector : m_pSelectedPipelineShaderStageInspectors )
-            {
-                delete pShaderInspector;
-            }
-
             m_pSelectedPipeline = &pipeline;
-            m_pSelectedPipelineShaderStageInspectors.clear();
             m_pSelectedPipelineShaderStageNames.clear();
+            m_pSelectedPipelineShaderStageInspectors.clear();
             m_SelectedPipelineShaderStageIndex = 0;
 
             // Create an inspector tab for each stage in the pipeline.
@@ -2972,12 +2991,14 @@ namespace Profiler
                 const DeviceProfilerPipelineShader& shader = pipeline.m_ShaderTuple.m_Shaders[ shaderStage ];
                 if( shader.m_pShaderModule )
                 {
-                    m_pSelectedPipelineShaderStageInspectors.push_back(
-                        new DeviceProfilerShaderInspectorTab( *m_pDevice, pipeline, shaderStage, m_pImGuiCodeFont ) );
-
-                    m_pSelectedPipelineShaderStageNames.push_back( g_scShaderStageNames[ shaderStage ] );
+                    m_pSelectedPipelineShaderStageNames.emplace_back( g_scShaderStageNames[ shaderStage ] );
+                    m_pSelectedPipelineShaderStageInspectors.emplace_back(
+                        std::make_unique<DeviceProfilerShaderInspectorTab>( *m_pDevice, pipeline, shaderStage, m_pImGuiCodeFont ) );
                 }
             }
         }
+
+        m_PipelineInspectorTabOpen = true;
+        m_SwitchToPipelineInspectorTab = true;
     }
 }

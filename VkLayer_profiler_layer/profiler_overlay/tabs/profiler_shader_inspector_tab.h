@@ -22,7 +22,8 @@
 #include "profiler_helpers/profiler_data_helpers.h"
 
 #include <memory>
-#include <vector>
+#include <string>
+#include <unordered_map>
 
 struct ImFont;
 class TextEditor;
@@ -58,16 +59,9 @@ namespace Profiler
         // Context of the shader module usage.
         const DeviceProfilerPipelineData& m_Pipeline;
 
-        uint32_t m_PipelineExecutableIndex;
-        VkPipelineExecutablePropertiesKHR m_PipelineExecutableProperties;
-        std::vector<VkPipelineExecutableStatisticKHR> m_PipelineExecutableStatistics;
-        std::vector<VkPipelineExecutableInternalRepresentationKHR> m_PipelineExecutableInternalRepresentations;
-
         std::string m_ShaderModuleDisassembly;
 
-        // Widget that displays the shader code.
-        std::unique_ptr<TextEditor> m_pTextEditor;
-
-        int m_CurrentTabIndex;
+        // Widgets that display the shader code.
+        std::unordered_map<int, std::unique_ptr<TextEditor>> m_pTextEditors;
     };
 } // namespace Profiler

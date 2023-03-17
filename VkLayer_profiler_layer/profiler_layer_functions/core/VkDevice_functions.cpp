@@ -250,6 +250,11 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
+        // Capture executable properties for shader inspection.
+        VkGraphicsPipelineCreateInfo* pCreateInfosWithExecutableProperties = nullptr;
+        VkPipelineExecutablePropertiesKhr_Functions::CapturePipelineExecutableProperties(
+            dd, createInfoCount, &pCreateInfos, &pCreateInfosWithExecutableProperties );
+
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateGraphicsPipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
@@ -259,6 +264,8 @@ namespace Profiler
             // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
+        
+        free( pCreateInfosWithExecutableProperties );
 
         return result;
     }
@@ -281,6 +288,11 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
+        // Capture executable properties for shader inspection.
+        VkComputePipelineCreateInfo* pCreateInfosWithExecutableProperties = nullptr;
+        VkPipelineExecutablePropertiesKhr_Functions::CapturePipelineExecutableProperties(
+            dd, createInfoCount, &pCreateInfos, &pCreateInfosWithExecutableProperties );
+
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateComputePipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
@@ -290,6 +302,8 @@ namespace Profiler
             // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
+        
+        free( pCreateInfosWithExecutableProperties );
 
         return result;
     }

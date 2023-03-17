@@ -52,113 +52,8 @@ namespace Profiler
         , m_pImGuiCodeFont( font )
         , m_ShaderStage( stage )
         , m_Pipeline( pipeline )
-        , m_PipelineExecutableIndex( UINT32_MAX )
-        , m_PipelineExecutableProperties()
-        , m_PipelineExecutableStatistics()
-        , m_PipelineExecutableInternalRepresentations()
-        , m_pTextEditor( nullptr )
-        , m_CurrentTabIndex( -1 )
+        , m_pTextEditors()
     {
-        // Get pipeline executable properties, if available.
-        if( m_Device.EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME ) )
-        {
-            VkPipelineInfoKHR pipelineInfo = {};
-            pipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
-            pipelineInfo.pipeline = m_Pipeline.m_Handle;
-
-            // Get number of executables compiled for this pipeline.
-            uint32_t pipelineExecutableCount = 0;
-            VkResult result = m_Device.Callbacks.GetPipelineExecutablePropertiesKHR(
-                m_Device.Handle,
-                &pipelineInfo,
-                &pipelineExecutableCount,
-                nullptr );
-
-            if( (result == VK_SUCCESS) &&
-                (pipelineExecutableCount > 0) )
-            {
-                std::vector<VkPipelineExecutablePropertiesKHR> pipelineExecutableProperties( pipelineExecutableCount );
-                result = m_Device.Callbacks.GetPipelineExecutablePropertiesKHR(
-                    m_Device.Handle,
-                    &pipelineInfo,
-                    &pipelineExecutableCount,
-                    pipelineExecutableProperties.data() );
-
-                if( result == VK_SUCCESS )
-                {
-                    uint32_t pipelineExecutableIndex = 0;
-
-                    // Find the executable info for the inspected shader.
-                    for( const auto& executable : pipelineExecutableProperties )
-                    {
-                        if( (executable.stages & stage) == stage )
-                        {
-                            m_PipelineExecutableIndex = pipelineExecutableIndex;
-                            m_PipelineExecutableProperties = executable;
-                            break;
-                        }
-
-                        pipelineExecutableIndex++;
-                    }
-
-                    // Get the statistics for the inspected shader.
-                    VkPipelineExecutableInfoKHR pipelineExecutableInfo = {};
-                    pipelineExecutableInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
-                    pipelineExecutableInfo.pipeline = m_Pipeline.m_Handle;
-                    pipelineExecutableInfo.executableIndex = m_PipelineExecutableIndex;
-
-                    uint32_t pipelineExecutableStatisticsCount = 0;
-                    result = m_Device.Callbacks.GetPipelineExecutableStatisticsKHR(
-                        m_Device.Handle,
-                        &pipelineExecutableInfo,
-                        &pipelineExecutableStatisticsCount,
-                        nullptr );
-
-                    if( (result == VK_SUCCESS) &&
-                        (pipelineExecutableStatisticsCount > 0) )
-                    {
-                        m_PipelineExecutableStatistics.resize( pipelineExecutableStatisticsCount );
-                        result = m_Device.Callbacks.GetPipelineExecutableStatisticsKHR(
-                            m_Device.Handle,
-                            &pipelineExecutableInfo,
-                            &pipelineExecutableStatisticsCount,
-                            m_PipelineExecutableStatistics.data() );
-
-                        if( result != VK_SUCCESS )
-                        {
-                            // Error occured while retrieving the pipeline executable statistics.
-                            m_PipelineExecutableStatistics.clear();
-                        }
-                    }
-
-                    // Get the internal representation for the inspected shader.
-                    uint32_t pipelineExecutableInternalRepresentationCount = 0;
-                    result = m_Device.Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
-                        m_Device.Handle,
-                        &pipelineExecutableInfo,
-                        &pipelineExecutableInternalRepresentationCount,
-                        nullptr );
-
-                    if( (result == VK_SUCCESS) &&
-                        (pipelineExecutableInternalRepresentationCount > 0) )
-                    {
-                        m_PipelineExecutableInternalRepresentations.resize( pipelineExecutableInternalRepresentationCount );
-                        result = m_Device.Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
-                            m_Device.Handle,
-                            &pipelineExecutableInfo,
-                            &pipelineExecutableInternalRepresentationCount,
-                            m_PipelineExecutableInternalRepresentations.data() );
-
-                        if( result != VK_SUCCESS )
-                        {
-                            // Error occured while retrieving the pipeline executable internal representations.
-                            m_PipelineExecutableInternalRepresentations.clear();
-                        }
-                    }
-                }
-            }
-        }
-
         // Get the SPIR-V module associated with the inspected shader stage.
         const auto& bytecode = pipeline.m_ShaderTuple.m_Shaders[ stage ].m_pShaderModule->m_Bytecode;
 
@@ -182,9 +77,6 @@ namespace Profiler
 
         spvTextDestroy( spvDisassembly );
         spvContextDestroy( spvContext );
-
-        // Create the text editor.
-        m_pTextEditor = std::make_unique<TextEditor>();
     }
 
     /***********************************************************************************\
@@ -214,92 +106,107 @@ namespace Profiler
         // Get the name of the shader module.
         const auto pipelineName = m_StringSerializer.GetName( m_Pipeline ) + " (" + std::to_string( m_ShaderStage ) + ")";
 
-        // Print pipeline executable statistics if the extension is supported.
-        if( !m_PipelineExecutableStatistics.empty() )
-        {
-            for( uint32_t i = 0; i < m_PipelineExecutableStatistics.size(); ++i )
-            {
-                const auto& statistic = m_PipelineExecutableStatistics[ i ];
-
-                ImGui::Text( "%s", statistic.name );
-
-                if( ImGui::IsItemHovered() &&
-                    statistic.description[ 0 ] )
-                {
-                    ImGui::BeginTooltip();
-                    ImGui::PushTextWrapPos( 350.f );
-                    ImGui::TextUnformatted( statistic.description );
-                    ImGui::PopTextWrapPos();
-                    ImGui::EndTooltip();
-                }
-
-                switch( statistic.format )
-                {
-                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
-                    ImGuiX::TextAlignRight( "%s", statistic.value.b32 ? "True" : "False" );
-                    break;
-
-                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
-                    ImGuiX::TextAlignRight( "%lld", statistic.value.i64 );
-                    break;
-
-                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
-                    ImGuiX::TextAlignRight( "%llu", statistic.value.u64 );
-                    break;
-
-                case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_FLOAT64_KHR:
-                    ImGuiX::TextAlignRight( "%lf", statistic.value.f64 );
-                    break;
-                }
-            }
-        }
-
-        // Print the internal shader representation.
-        if( ImGui::BeginTabBar( (pipelineName + "_internal_representations").c_str() ) )
+        // Print the shader's disassembly.
+        if( ImGui::BeginTabBar( ("##" + pipelineName + "_internal_representations").c_str() ) )
         {
             int tabIndex = 0;
-
             if( ImGui::BeginTabItem( "Disassembly" ) )
             {
                 ImGui::PushFont( m_pImGuiCodeFont );
-
-                if( m_CurrentTabIndex != tabIndex )
+                
+                auto& pTabTextEditor = m_pTextEditors[ tabIndex ];
+                if( !pTabTextEditor )
                 {
-                    m_pTextEditor->SetText( m_ShaderModuleDisassembly );
-                    m_CurrentTabIndex = tabIndex;
+                    pTabTextEditor = std::make_unique<TextEditor>();
+                    pTabTextEditor->SetText( m_ShaderModuleDisassembly );
                 }
 
-                m_pTextEditor->Render( "Disassembly" );
+                pTabTextEditor->Render( "Disassembly" );
 
                 ImGui::PopFont();
                 ImGui::EndTabItem();
             }
-
-            for( const auto& internalRepresentation : m_PipelineExecutableInternalRepresentations )
+            
+            // Print pipeline executable statistics if the extension is supported.
+            if( m_Pipeline.m_pExecutableProperties )
             {
-                tabIndex++;
-
-                if( ImGui::BeginTabItem( internalRepresentation.name ) )
+                for( const auto& executable : m_Pipeline.m_pExecutableProperties->m_Shaders )
                 {
-                    ImGui::PushFont( m_pImGuiCodeFont );
-
-                    if( internalRepresentation.isText )
+                    // Skip executables that are not part of the inspected stage.
+                    if( (executable.m_ExecutableProperties.stages & m_ShaderStage) != m_ShaderStage )
                     {
-                        if( m_CurrentTabIndex != tabIndex )
+                        continue;
+                    }
+
+                    tabIndex++;
+
+                    if( ImGui::BeginTabItem( executable.m_ExecutableProperties.name ) )
+                    {
+                        // Print tooltip if the tab is open.
+                        ImGuiX::TooltipUnformatted( executable.m_ExecutableProperties.description );
+
+                        for( uint32_t i = 0; i < executable.m_ExecutableStatistics.size(); ++i )
                         {
-                            m_pTextEditor->SetText( static_cast<const char*>( internalRepresentation.pData ) );
-                            m_CurrentTabIndex = tabIndex;
+                            const auto& statistic = executable.m_ExecutableStatistics[ i ];
+
+                            ImGui::Text( "%s", statistic.name );
+                            ImGuiX::TooltipUnformatted( statistic.description );
+
+                            switch( statistic.format )
+                            {
+                            case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
+                                ImGuiX::TextAlignRight( "%s", statistic.value.b32 ? "True" : "False" );
+                                break;
+
+                            case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
+                                ImGuiX::TextAlignRight( "%lld", statistic.value.i64 );
+                                break;
+
+                            case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
+                                ImGuiX::TextAlignRight( "%llu", statistic.value.u64 );
+                                break;
+
+                            case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_FLOAT64_KHR:
+                                ImGuiX::TextAlignRight( "%lf", statistic.value.f64 );
+                                break;
+                            }
                         }
 
-                        m_pTextEditor->Render( "Disassembly" );
+                        int internalRepresentationIndex = tabIndex;
+                        for( const auto& internalRepresentation : executable.m_InternalRepresentations )
+                        {
+                            if( ImGui::CollapsingHeader( internalRepresentation.name ) )
+                            {
+                                ImGui::PushFont( m_pImGuiCodeFont );
+
+                                if( internalRepresentation.isText )
+                                {
+                                    auto& pTabTextEditor = m_pTextEditors[ internalRepresentationIndex ];
+                                    if( !pTabTextEditor )
+                                    {
+                                        pTabTextEditor = std::make_unique<TextEditor>();
+                                        pTabTextEditor->SetText( static_cast<const char*>( internalRepresentation.pData ) );
+                                    }
+
+                                    pTabTextEditor->Render( "Disassembly" );
+                                }
+                                else
+                                {
+                                    ImGui::TextUnformatted( "Binary" );
+                                }
+
+                                ImGui::PopFont();
+                                internalRepresentationIndex += 0x100;
+                            }
+                        }
+
+                        ImGui::EndTabItem();
                     }
                     else
                     {
-                        ImGui::TextUnformatted( "Binary" );
+                        // Print tooltip if the tab is closed.
+                        ImGuiX::TooltipUnformatted( executable.m_ExecutableProperties.description );
                     }
-
-                    ImGui::PopFont();
-                    ImGui::EndTabItem();
                 }
             }
 

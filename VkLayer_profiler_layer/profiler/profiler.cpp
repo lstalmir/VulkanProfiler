@@ -133,6 +133,7 @@ namespace Profiler
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
+        , m_PipelineExecutablePropertiesEnabled( false )
     {
     }
 
@@ -149,8 +150,7 @@ namespace Profiler
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
-            VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME
         };
 
         // Load configuration that will be used by the profiler.
@@ -161,6 +161,12 @@ namespace Profiler
         {
             // Enable MDAPI data collection on Intel GPUs
             deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+        }
+
+        if( config.m_CapturePipelineExecutableProperties )
+        {
+            // Enable pipeline executable properties capture
+            deviceExtensions.insert( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
         }
 
         return deviceExtensions;
@@ -258,6 +264,11 @@ namespace Profiler
         {
             InitializeINTEL();
         }
+
+        // Capture pipeline statistics and internal representations for debugging.
+        m_PipelineExecutablePropertiesEnabled =
+            m_Config.m_CapturePipelineExecutableProperties &&
+            m_pDevice->EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
 
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
@@ -1063,6 +1074,100 @@ namespace Profiler
     {
         DeviceProfilerPipelineShaderTuple& tuple = pipeline.m_ShaderTuple;
 
+        // Read pipeline's executable properties.
+        if( m_PipelineExecutablePropertiesEnabled )
+        {
+            VkPipelineInfoKHR pipelineInfo = {};
+            pipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
+            pipelineInfo.pipeline = pipeline.m_Handle;
+
+            // Get number of executables compiled for this pipeline.
+            uint32_t pipelineExecutableCount = 0;
+            VkResult result = m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
+                m_pDevice->Handle,
+                &pipelineInfo,
+                &pipelineExecutableCount,
+                nullptr );
+
+            if( (result == VK_SUCCESS) &&
+                (pipelineExecutableCount > 0) )
+            {
+                std::vector<VkPipelineExecutablePropertiesKHR> pipelineExecutableProperties( pipelineExecutableCount );
+                result = m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
+                    m_pDevice->Handle,
+                    &pipelineInfo,
+                    &pipelineExecutableCount,
+                    pipelineExecutableProperties.data() );
+
+                if( result == VK_SUCCESS )
+                {
+                    pipeline.m_pExecutableProperties = std::make_shared<DeviceProfilerPipelineExecutableProperties>();
+                    pipeline.m_pExecutableProperties->m_Shaders.resize( pipelineExecutableCount );
+
+                    for( uint32_t i = 0; i < pipelineExecutableCount; ++i )
+                    {
+                        auto& shaderExecutableProperties = pipeline.m_pExecutableProperties->m_Shaders.emplace_back();
+                        shaderExecutableProperties.m_ExecutableProperties = pipelineExecutableProperties[ i ];
+
+                        // Get the statistics for the inspected shader.
+                        VkPipelineExecutableInfoKHR shaderExecutableInfo = {};
+                        shaderExecutableInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
+                        shaderExecutableInfo.pipeline = pipeline.m_Handle;
+                        shaderExecutableInfo.executableIndex = i;
+
+                        uint32_t shaderExecutableStatisticsCount = 0;
+                        result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
+                            m_pDevice->Handle,
+                            &shaderExecutableInfo,
+                            &shaderExecutableStatisticsCount,
+                            nullptr );
+
+                        if( (result == VK_SUCCESS) &&
+                            (shaderExecutableStatisticsCount > 0) )
+                        {
+                            shaderExecutableProperties.m_ExecutableStatistics.resize( shaderExecutableStatisticsCount );
+                            result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
+                                m_pDevice->Handle,
+                                &shaderExecutableInfo,
+                                &shaderExecutableStatisticsCount,
+                                shaderExecutableProperties.m_ExecutableStatistics.data() );
+
+                            if( result != VK_SUCCESS )
+                            {
+                                // Error occured while retrieving the pipeline executable statistics.
+                                shaderExecutableProperties.m_ExecutableStatistics.clear();
+                            }
+                        }
+
+                        // Get the internal representation for the inspected shader.
+                        uint32_t shaderExecutableInternalRepresentationCount = 0;
+                        result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                            m_pDevice->Handle,
+                            &shaderExecutableInfo,
+                            &shaderExecutableInternalRepresentationCount,
+                            nullptr );
+
+                        if( (result == VK_SUCCESS) &&
+                            (shaderExecutableInternalRepresentationCount > 0) )
+                        {
+                            shaderExecutableProperties.m_InternalRepresentations.resize( shaderExecutableInternalRepresentationCount );
+                            result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                                m_pDevice->Handle,
+                                &shaderExecutableInfo,
+                                &shaderExecutableInternalRepresentationCount,
+                                shaderExecutableProperties.m_InternalRepresentations.data() );
+
+                            if( result != VK_SUCCESS )
+                            {
+                                // Error occured while retrieving the pipeline executable internal representations.
+                                shaderExecutableProperties.m_InternalRepresentations.clear();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Array of shader hashes used in the pipeline
         BitsetArray<VkShaderStageFlagBits, uint32_t, 32> shaderHashes = {};
 
@@ -1083,6 +1188,21 @@ namespace Profiler
 
             // Store the shader hash in the array for global hash computation
             shaderHashes[ pStages[i].stage ] = hash;
+            
+            // Check if the stage uses ray query or ray tracing capabilities
+            for( SpvCapability capability : shaderModule.m_Capabilities )
+            {
+                if( (capability == SpvCapabilityRayQueryKHR) ||
+                    (capability == SpvCapabilityRayQueryProvisionalKHR) )
+                {
+                    pipeline.m_UsesRayQuery = true;
+                }
+                if( (capability == SpvCapabilityRayTracingKHR) ||
+                    (capability == SpvCapabilityRayTracingProvisionalKHR) )
+                {
+                    pipeline.m_UsesRayTracing = true;
+                }
+            }
         }
 
         // Compute aggregated tuple hash for fast comparison

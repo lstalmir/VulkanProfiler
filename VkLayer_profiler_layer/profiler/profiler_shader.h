@@ -58,6 +58,39 @@ namespace Profiler
             return !operator==( rh );
         }
     };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPipelineShaderExecutableProperties
+
+    Description:
+        Internal representations of the shader.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineShaderExecutableProperties
+    {
+        VkPipelineExecutablePropertiesKHR                          m_ExecutableProperties = {};
+        std::vector<VkPipelineExecutableStatisticKHR>              m_ExecutableStatistics = {};
+        std::vector<VkPipelineExecutableInternalRepresentationKHR> m_InternalRepresentations = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPipelineExecutableProperties
+
+    Description:
+        Internal representations of the pipeline and its shaders.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineExecutableProperties
+    {
+        std::vector<DeviceProfilerPipelineShaderExecutableProperties> m_Shaders = {};
+    };
+
+    typedef std::shared_ptr<DeviceProfilerPipelineExecutableProperties>
+        DeviceProfilerPipelineExecutablePropertiesPtr;
 }
 
 

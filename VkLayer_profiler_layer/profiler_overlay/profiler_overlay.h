@@ -214,9 +214,11 @@ namespace Profiler
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         // Pipeline inspector tab
+        bool m_PipelineInspectorTabOpen;
+        bool m_SwitchToPipelineInspectorTab;
         const DeviceProfilerPipelineData* m_pSelectedPipeline;
         std::vector<const char*> m_pSelectedPipelineShaderStageNames;
-        std::vector<DeviceProfilerShaderInspectorTab*> m_pSelectedPipelineShaderStageInspectors;
+        std::vector<std::unique_ptr<DeviceProfilerShaderInspectorTab>> m_pSelectedPipelineShaderStageInspectors;
         size_t m_SelectedPipelineShaderStageIndex;
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
@@ -254,6 +256,7 @@ namespace Profiler
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
+        void DrawShaderCapabilities( const DeviceProfilerPipelineData& );
         void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
 
         template<typename Data>
