@@ -70,12 +70,22 @@ namespace Profiler
 
         // Inspector tab
         inline static constexpr char ShaderStage[] = "Shader stage";
-        inline static constexpr char ShaderStage_VS[] = "Vertex shader";
-        inline static constexpr char ShaderStage_TCS[] = "Tessellation control shader";
-        inline static constexpr char ShaderStage_TES[] = "Tessellation evaluation shader";
-        inline static constexpr char ShaderStage_GS[] = "Geometry shader";
-        inline static constexpr char ShaderStage_FS[] = "Fragment shader";
-        inline static constexpr char ShaderStage_CS[] = "Compute shader";
+        inline static constexpr char ShaderStage_Unknown[] = "Unknown shader";
+        inline static constexpr char ShaderStage_Vertex[] = "Vertex shader";
+        inline static constexpr char ShaderStage_TessellationControl[] = "Tessellation control shader";
+        inline static constexpr char ShaderStage_TessellationEvaluation[] = "Tessellation evaluation shader";
+        inline static constexpr char ShaderStage_Geometry[] = "Geometry shader";
+        inline static constexpr char ShaderStage_Fragment[] = "Fragment shader";
+        inline static constexpr char ShaderStage_Compute[] = "Compute shader";
+        inline static constexpr char ShaderStage_RayGeneration[] = "Ray generation shader";
+        inline static constexpr char ShaderStage_RayAnyHit[] = "Ray any-hit shader";
+        inline static constexpr char ShaderStage_RayClosestHit[] = "Ray closest-hit shader";
+        inline static constexpr char ShaderStage_RayMiss[] = "Ray miss shader";
+        inline static constexpr char ShaderStage_RayIntersection[] = "Ray intersection shader";
+        inline static constexpr char ShaderStage_Callable[] = "Callable shader";
+        inline static constexpr char ShaderStage_Task[] = "Task shader";
+        inline static constexpr char ShaderStage_Mesh[] = "Mesh shader";
+        inline static constexpr char ShaderStage_Subpass[] = "Subpass shader";
 
         // Statistics tab
         inline static constexpr char DrawCalls[] = "Draw calls";

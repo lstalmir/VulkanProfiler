@@ -32,6 +32,7 @@ set (headers
 set (sources
     "profiler_overlay.cpp"
     "tabs/profiler_shader_inspector_tab.cpp"
+    "tabs/spirv_language_definition.cpp"
     )
 
 set (imgui

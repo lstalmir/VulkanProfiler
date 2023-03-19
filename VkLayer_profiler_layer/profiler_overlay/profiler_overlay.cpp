@@ -47,12 +47,21 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 #endif
 
 static const Profiler::BitsetArray<VkShaderStageFlagBits, const char*, 32> g_scShaderStageNames
-    = { Lang::ShaderStage_VS,
-        Lang::ShaderStage_TCS,
-        Lang::ShaderStage_TES,
-        Lang::ShaderStage_GS,
-        Lang::ShaderStage_FS,
-        Lang::ShaderStage_CS };
+    = { Lang::ShaderStage_Vertex,
+        Lang::ShaderStage_TessellationControl,
+        Lang::ShaderStage_TessellationEvaluation,
+        Lang::ShaderStage_Geometry,
+        Lang::ShaderStage_Fragment,
+        Lang::ShaderStage_Compute,
+        Lang::ShaderStage_Task,
+        Lang::ShaderStage_Mesh,
+        Lang::ShaderStage_RayGeneration,
+        Lang::ShaderStage_RayAnyHit,
+        Lang::ShaderStage_RayClosestHit,
+        Lang::ShaderStage_RayMiss,
+        Lang::ShaderStage_RayIntersection,
+        Lang::ShaderStage_Callable,
+        Lang::ShaderStage_Subpass };
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "imgui_impl_win32.h"
@@ -2991,7 +3000,16 @@ namespace Profiler
                 const DeviceProfilerPipelineShader& shader = pipeline.m_ShaderTuple.m_Shaders[ shaderStage ];
                 if( shader.m_pShaderModule )
                 {
-                    m_pSelectedPipelineShaderStageNames.emplace_back( g_scShaderStageNames[ shaderStage ] );
+                    const char* pShaderStageName = g_scShaderStageNames[ shaderStage ];
+                    assert( pShaderStageName );
+
+                    if( !pShaderStageName )
+                    {
+                        // Unsupported shader stage.
+                        pShaderStageName = Lang::ShaderStage_Unknown;
+                    }
+
+                    m_pSelectedPipelineShaderStageNames.emplace_back( pShaderStageName );
                     m_pSelectedPipelineShaderStageInspectors.emplace_back(
                         std::make_unique<DeviceProfilerShaderInspectorTab>( *m_pDevice, pipeline, shaderStage, m_pImGuiCodeFont ) );
                 }

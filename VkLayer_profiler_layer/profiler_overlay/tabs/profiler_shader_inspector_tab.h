@@ -21,6 +21,8 @@
 #pragma once
 #include "profiler_helpers/profiler_data_helpers.h"
 
+#include <spirv/unified1/spirv.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -36,6 +38,26 @@ namespace Profiler
 
     class DeviceProfilerShaderInspectorTab
     {
+    public:
+        struct Source
+        {
+            std::string m_Code;
+            SpvSourceLanguage m_Language;
+            uint32_t m_Filename;
+        };
+
+        struct SourceFilename
+        {
+            std::string m_ShortName;
+            std::string m_FullPath;
+        };
+
+        struct SourceList
+        {
+            std::vector<Source> m_Sources;
+            std::unordered_map<uint32_t, SourceFilename> m_Filenames;
+        };
+
     public:
         DeviceProfilerShaderInspectorTab(
             VkDevice_Object& device,
@@ -60,6 +82,7 @@ namespace Profiler
         const DeviceProfilerPipelineData& m_Pipeline;
 
         std::string m_ShaderModuleDisassembly;
+        SourceList m_ShaderModuleSourceList;
 
         // Widgets that display the shader code.
         std::unordered_map<int, std::unique_ptr<TextEditor>> m_pTextEditors;
