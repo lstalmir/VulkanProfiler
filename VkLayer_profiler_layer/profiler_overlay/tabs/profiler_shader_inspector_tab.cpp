@@ -274,7 +274,8 @@ namespace Profiler
             tabIndex++;
 
             // Print sources included in the SPIR-V.
-            if( ImGui::BeginTabItem( "Sources" ) )
+            if( !m_ShaderModuleSourceList.m_Sources.empty() &&
+                ImGui::BeginTabItem( "Sources" ) )
             {
                 if( ImGui::BeginTabBar( "##Sources" ) )
                 {
