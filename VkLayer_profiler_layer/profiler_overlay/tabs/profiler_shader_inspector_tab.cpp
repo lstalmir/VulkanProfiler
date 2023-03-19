@@ -82,7 +82,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template <typename T>
-    static T ReadSpirvOperand(
+    T ReadSpirvOperand(
         const spv_parsed_instruction_t* pParsedInstruction,
         uint32_t operand )
     {
@@ -95,7 +95,7 @@ namespace Profiler
     }
 
     template <>
-    static const char* ReadSpirvOperand(
+    const char* ReadSpirvOperand(
         const spv_parsed_instruction_t* pParsedInstruction,
         uint32_t operand )
     {
