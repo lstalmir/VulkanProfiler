@@ -104,6 +104,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        u32log2
+
+    Description:
+        Compute log2 of a 32-bit unsigned integer.
+
+    \***********************************************************************************/
+    PROFILER_FORCE_INLINE uint32_t u32log2( uint32_t value )
+    {
+        uint32_t result = 0;
+        while( value > 0 )
+            result++, ( value >>= 1U );
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         u8tohex
 
     Description:

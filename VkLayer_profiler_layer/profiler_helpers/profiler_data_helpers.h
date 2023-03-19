@@ -52,8 +52,21 @@ namespace Profiler
 
         std::string GetColorHex( const float* ) const;
 
+        constexpr const char* GetBoolean( VkBool32 b ) const
+        {
+            return b ? "True" : "False";
+        }
+
         std::string GetFormatName( VkFormat ) const;
         std::string GetIndexTypeName( VkIndexType ) const;
+        std::string GetTopologyName( VkPrimitiveTopology ) const;
+        std::string GetPolygonModeName( VkPolygonMode ) const;
+        std::string GetCullModeName( VkCullModeFlags ) const;
+        std::string GetFrontFaceName( VkFrontFace ) const;
+        std::string GetCompareOpName( VkCompareOp ) const;
+        std::string GetBlendOpName( VkBlendOp ) const;
+        std::string GetBlendFactorName( VkBlendFactor ) const;
+        std::string GetLogicOpName( VkLogicOp ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;

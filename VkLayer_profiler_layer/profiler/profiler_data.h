@@ -683,6 +683,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerPipelineGraphicsState
+
+    Description:
+        Captured VkGraphicsPipelineCreateInfo.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineGraphicsState
+    {
+        VkPipelineInputAssemblyStateCreateInfo              m_InputAssemblyState;
+        VkPipelineTessellationStateCreateInfo               m_TessellationState;
+        VkPipelineRasterizationStateCreateInfo              m_RasterizationState;
+        VkPipelineMultisampleStateCreateInfo                m_MultisampleState;
+        VkPipelineDepthStencilStateCreateInfo               m_DepthStencilState;
+        VkPipelineColorBlendStateCreateInfo                 m_ColorBlendState;
+        std::vector<VkPipelineColorBlendAttachmentState>    m_ColorBlendAttachmentStates;
+        VkPipelineDynamicStateCreateInfo                    m_DynamicState;
+        std::vector<VkDynamicState>                         m_DynamicStates;
+    };
+    using DeviceProfilerPipelineGraphicsStatePtr = std::shared_ptr<DeviceProfilerPipelineGraphicsState>;
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerPipeline
 
     Description:
@@ -697,6 +720,7 @@ namespace Profiler
         DeviceProfilerPipelineType                          m_Type = {};
 
         DeviceProfilerPipelineExecutablePropertiesPtr       m_pExecutableProperties = nullptr;
+        DeviceProfilerPipelineGraphicsStatePtr              m_pGraphicsState = nullptr;
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
@@ -719,6 +743,7 @@ namespace Profiler
         DeviceProfilerPipelineType                          m_Type = {};
 
         DeviceProfilerPipelineExecutablePropertiesPtr       m_pExecutableProperties = nullptr;
+        DeviceProfilerPipelineGraphicsStatePtr              m_pGraphicsState = nullptr;
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
@@ -735,6 +760,7 @@ namespace Profiler
             , m_ShaderTuple( pipeline.m_ShaderTuple )
             , m_Type( pipeline.m_Type )
             , m_pExecutableProperties( pipeline.m_pExecutableProperties )
+            , m_pGraphicsState( pipeline.m_pGraphicsState )
             , m_UsesRayQuery( pipeline.m_UsesRayQuery )
             , m_UsesRayTracing( pipeline.m_UsesRayTracing )
         {

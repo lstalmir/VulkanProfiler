@@ -1812,6 +1812,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        PrintPipelineState
+
+    Description:
+        Helper function for writing pipeline states.
+
+    \***********************************************************************************/
+    template<typename... Args>
+    PROFILER_FORCE_INLINE
+    void PrintPipelineState(
+        const char* pStateName,
+        const char* pFormat,
+        Args&&... args )
+    {
+        constexpr float haderColumnSize = 250;
+        ImGui::TextUnformatted( pStateName );
+        ImGui::SameLine();
+        ImGui::SetCursorPosX( haderColumnSize );
+        ImGui::Text( pFormat, std::forward<Args>( args )... );
+    };
+
+    /***********************************************************************************\
+
+    Function:
         UpdateInspectorTab
 
     Description:
@@ -1832,35 +1855,175 @@ namespace Profiler
                 DrawShaderCapabilities( *m_pSelectedPipeline );
             }
 
-            // TODO: Pipeline state.
-
-            // Draw combo box with all shaders in the pipeline.
-            ImGui::TextUnformatted( Lang::ShaderStage );
-            ImGui::SameLine();
-            ImGui::SetCursorPosX( 100 );
-            ImGui::SetNextItemWidth( 200 );
-
-            const char* pSelectedStage = m_pSelectedPipelineShaderStageNames[ m_SelectedPipelineShaderStageIndex ];
-            if( ImGui::BeginCombo( "##ShaderStageCombo", pSelectedStage ) )
+            // Print graphics pipeline state.
+            if( m_pSelectedPipeline->m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
             {
-                const size_t stageCount = m_pSelectedPipelineShaderStageNames.size();
-                for( size_t i = 0; i < stageCount; ++i )
+                assert( m_pSelectedPipeline->m_pGraphicsState );
+                auto& graphicsState = *m_pSelectedPipeline->m_pGraphicsState;
+
+                ImGui::Dummy( ImVec2( 1, 5 ) );
+
+                if( graphicsState.m_InputAssemblyState.sType && ImGui::CollapsingHeader( "Input Assembly State" ) )
                 {
-                    if( ImGuiX::TSelectable(
-                            m_pSelectedPipelineShaderStageNames[ i ],
-                            pSelectedStage,
-                            m_pSelectedPipelineShaderStageNames[ i ] ) )
-                    {
-                        // Selection changed
-                        m_SelectedPipelineShaderStageIndex = i;
-                    }
+                    PrintPipelineState( "Primitive topology", "%s", m_pStringSerializer->GetTopologyName( graphicsState.m_InputAssemblyState.topology ).c_str() );
+                    PrintPipelineState( "Primitive restart enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_InputAssemblyState.primitiveRestartEnable ) );
                 }
 
-                ImGui::EndCombo();
+                if( graphicsState.m_TessellationState.sType && ImGui::CollapsingHeader( "Tessellation State" ) )
+                {
+                    PrintPipelineState( "Primitive restart enabled", "%u", graphicsState.m_TessellationState.patchControlPoints );
+                }
+
+                if( graphicsState.m_RasterizationState.sType && ImGui::CollapsingHeader( "Rasterization State" ) )
+                {
+                    PrintPipelineState( "Polygon mode", "%s", m_pStringSerializer->GetPolygonModeName( graphicsState.m_RasterizationState.polygonMode ).c_str() );
+                    PrintPipelineState( "Cull mode", "%s", m_pStringSerializer->GetCullModeName( graphicsState.m_RasterizationState.cullMode ).c_str() );
+                    PrintPipelineState( "Front face", "%s", m_pStringSerializer->GetFrontFaceName( graphicsState.m_RasterizationState.frontFace ).c_str() );
+                    PrintPipelineState( "Rasterizer discard enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_RasterizationState.rasterizerDiscardEnable ) );
+                    PrintPipelineState( "Depth bias enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_RasterizationState.depthBiasEnable ) );
+                    PrintPipelineState( "Depth bias constant factor", "%f", graphicsState.m_RasterizationState.depthBiasConstantFactor );
+                    PrintPipelineState( "Depth bias clamp", "%f", graphicsState.m_RasterizationState.depthBiasClamp );
+                    PrintPipelineState( "Depth bias slope factor", "%f", graphicsState.m_RasterizationState.depthBiasSlopeFactor );
+                    PrintPipelineState( "Line width", "%f", graphicsState.m_RasterizationState.lineWidth );
+                }
+
+                if( graphicsState.m_MultisampleState.sType && ImGui::CollapsingHeader( "Multisample State" ) )
+                {
+                    PrintPipelineState( "Rasterization samples", "%u", u32log2( graphicsState.m_MultisampleState.rasterizationSamples ) );
+                    PrintPipelineState( "Sample shading enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.sampleShadingEnable ) );
+                    PrintPipelineState( "Min sample shading", "%f", graphicsState.m_MultisampleState.minSampleShading );
+                    PrintPipelineState( "Sample mask", "%08X",
+                        graphicsState.m_MultisampleState.pSampleMask
+                            ? *graphicsState.m_MultisampleState.pSampleMask
+                            : 0xFFFFFFFF );
+                    PrintPipelineState( "Alpha to coverage enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.alphaToCoverageEnable ) );
+                    PrintPipelineState( "Alpha to one enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.alphaToOneEnable ) );
+                }
+
+                if( graphicsState.m_DepthStencilState.sType && ImGui::CollapsingHeader( "Depth-Stencil State" ) )
+                {
+                    PrintPipelineState( "Depth test enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.depthTestEnable ) );
+                    PrintPipelineState( "Depth write enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.depthWriteEnable ) );
+                    PrintPipelineState( "Depth compare op", "%s", m_pStringSerializer->GetCompareOpName( graphicsState.m_DepthStencilState.depthCompareOp ).c_str() );
+                    PrintPipelineState( "Depth bounds test enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.depthBoundsTestEnable ) );
+                    PrintPipelineState( "Stencil test enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.stencilTestEnable ) );
+                    PrintPipelineState( "Min depth bounds", "%f", graphicsState.m_DepthStencilState.minDepthBounds );
+                    PrintPipelineState( "Max depth bounds", "%f", graphicsState.m_DepthStencilState.maxDepthBounds );
+                }
+
+                if( graphicsState.m_ColorBlendState.sType && ImGui::CollapsingHeader( "Color Blend State" ) )
+                {
+                    PrintPipelineState( "Blend constants", "[ %.2f, %.2f, %.2f, %.2f ]",
+                        graphicsState.m_ColorBlendState.blendConstants[ 0 ],
+                        graphicsState.m_ColorBlendState.blendConstants[ 1 ],
+                        graphicsState.m_ColorBlendState.blendConstants[ 2 ],
+                        graphicsState.m_ColorBlendState.blendConstants[ 3 ] );
+
+                    PrintPipelineState( "Logic op", "%s",
+                        graphicsState.m_ColorBlendState.logicOpEnable
+                            ? m_pStringSerializer->GetLogicOpName( graphicsState.m_ColorBlendState.logicOp ).c_str()
+                            : "Disabled" );
+
+                    ImGui::BeginTable(
+                        "Color blend attachment states",
+                        /* columns_count */ 9,
+                        ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV );
+
+                    // Headers
+                    ImGui::TableSetupColumn( "Attachment" );
+                    ImGui::TableSetupColumn( "Enabled" );
+                    ImGui::TableSetupColumn( "Color Op" );
+                    ImGui::TableSetupColumn( "Color Src" );
+                    ImGui::TableSetupColumn( "Color Dst" );
+                    ImGui::TableSetupColumn( "Alpha Op" );
+                    ImGui::TableSetupColumn( "Alpha Src" );
+                    ImGui::TableSetupColumn( "Alpha Dst");
+                    ImGui::TableSetupColumn( "Mask" );
+                    ImGui::TableHeadersRow();
+
+                    for( uint32_t i = 0; i < graphicsState.m_ColorBlendState.attachmentCount; ++i )
+                    {
+                        const auto& blendState = graphicsState.m_ColorBlendState.pAttachments[ i ];
+
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%d", i );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBoolean( blendState.blendEnable ) );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( blendState.colorBlendOp ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.srcColorBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.dstColorBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( blendState.alphaBlendOp ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.srcAlphaBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.dstAlphaBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        int maskIdx = 0;
+                        char mask[ 5 ];
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_R_BIT )
+                            mask[ maskIdx++ ] = 'R';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_G_BIT )
+                            mask[ maskIdx++ ] = 'G';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_B_BIT )
+                            mask[ maskIdx++ ] = 'B';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_A_BIT )
+                            mask[ maskIdx++ ] = 'A';
+                        mask[ maskIdx ] = 0;
+                        ImGui::TextUnformatted( mask );
+                    }
+
+                    ImGui::EndTable();
+                }
             }
 
-            // Draw the selected shader stage.
-            m_pSelectedPipelineShaderStageInspectors[ m_SelectedPipelineShaderStageIndex ]->Draw();
+            // Print shader stages.
+            if( ImGui::CollapsingHeader( "Shaders" ) )
+            {
+                // Draw combo box with all shaders in the pipeline.
+                ImGui::TextUnformatted( Lang::ShaderStage );
+                ImGui::SameLine();
+                ImGui::SetCursorPosX( 150 );
+                ImGui::SetNextItemWidth( 250 );
+
+                const char* pSelectedStage = m_pSelectedPipelineShaderStageNames[ m_SelectedPipelineShaderStageIndex ];
+                if( ImGui::BeginCombo( "##ShaderStageCombo", pSelectedStage ) )
+                {
+                    const size_t stageCount = m_pSelectedPipelineShaderStageNames.size();
+                    for( size_t i = 0; i < stageCount; ++i )
+                    {
+                        if( ImGuiX::TSelectable(
+                                m_pSelectedPipelineShaderStageNames[ i ],
+                                pSelectedStage,
+                                m_pSelectedPipelineShaderStageNames[ i ] ) )
+                        {
+                            // Selection changed
+                            m_SelectedPipelineShaderStageIndex = i;
+                        }
+                    }
+
+                    ImGui::EndCombo();
+                }
+
+                // Draw font size adjustment box.
+                ImGui::SameLine();
+                ImGui::SetCursorPosX( 420 );
+                ImGui::SetNextItemWidth( 80 );
+
+                static char fontSize[ 32 ] = "16";
+                if( ImGui::InputText( "Font size", fontSize, 32, ImGuiInputTextFlags_CharsDecimal ) )
+                {
+                    float size = atof( fontSize );
+                    if( size > 6.0f )
+                        m_pImGuiCodeFont->Scale = size / 16.0f;
+                }
+
+                // Draw the selected shader stage.
+                m_pSelectedPipelineShaderStageInspectors[ m_SelectedPipelineShaderStageIndex ]->Draw();
+            }
         }
     }
 

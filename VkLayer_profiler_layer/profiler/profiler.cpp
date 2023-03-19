@@ -579,6 +579,79 @@ namespace Profiler
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultObjectName( profilerPipeline );
 
+            // Capture graphics state of this pipeline.
+            auto pGraphicsState = std::make_shared<DeviceProfilerPipelineGraphicsState>();
+            std::memset( pGraphicsState.get(), 0, sizeof( *pGraphicsState ) );
+
+            if( createInfo.pInputAssemblyState )
+            {
+                pGraphicsState->m_InputAssemblyState = *createInfo.pInputAssemblyState;
+                pGraphicsState->m_InputAssemblyState.pNext = nullptr;
+            }
+
+            if( createInfo.pTessellationState )
+            {
+                pGraphicsState->m_TessellationState = *createInfo.pTessellationState;
+                pGraphicsState->m_TessellationState.pNext = nullptr;
+            }
+
+            if( createInfo.pRasterizationState )
+            {
+                pGraphicsState->m_RasterizationState = *createInfo.pRasterizationState;
+                pGraphicsState->m_RasterizationState.pNext = nullptr;
+            }
+
+            if( createInfo.pMultisampleState )
+            {
+                pGraphicsState->m_MultisampleState = *createInfo.pMultisampleState;
+                pGraphicsState->m_MultisampleState.pNext = nullptr;
+                pGraphicsState->m_MultisampleState.pSampleMask = nullptr; // TODO
+            }
+
+            if( createInfo.pDepthStencilState )
+            {
+                pGraphicsState->m_DepthStencilState = *createInfo.pDepthStencilState;
+                pGraphicsState->m_DepthStencilState.pNext = nullptr;
+            }
+
+            if( createInfo.pColorBlendState )
+            {
+                pGraphicsState->m_ColorBlendState = *createInfo.pColorBlendState;
+                pGraphicsState->m_ColorBlendState.pNext = nullptr;
+                pGraphicsState->m_ColorBlendState.pAttachments = nullptr;
+
+                // Copy attachments states to local vector.
+                const uint32_t attachmentCount = createInfo.pColorBlendState->attachmentCount;
+                pGraphicsState->m_ColorBlendAttachmentStates.resize( attachmentCount );
+
+                std::memcpy(
+                    pGraphicsState->m_ColorBlendAttachmentStates.data(),
+                    createInfo.pColorBlendState->pAttachments,
+                    attachmentCount * sizeof( VkPipelineColorBlendAttachmentState ) );
+
+                pGraphicsState->m_ColorBlendState.pAttachments = pGraphicsState->m_ColorBlendAttachmentStates.data();
+            }
+
+            if( createInfo.pDynamicState )
+            {
+                pGraphicsState->m_DynamicState = *createInfo.pDynamicState;
+                pGraphicsState->m_DynamicState.pNext = nullptr;
+                pGraphicsState->m_DynamicState.pDynamicStates = nullptr;
+
+                // Copy dynamic states to local vector.
+                const uint32_t dynamicStateCount = createInfo.pDynamicState->dynamicStateCount;
+                pGraphicsState->m_DynamicStates.resize( dynamicStateCount );
+
+                std::memcpy(
+                    pGraphicsState->m_DynamicStates.data(),
+                    createInfo.pDynamicState->pDynamicStates,
+                    dynamicStateCount * sizeof( VkDynamicState ) );
+
+                pGraphicsState->m_DynamicState.pDynamicStates = pGraphicsState->m_DynamicStates.data();
+            }
+
+            profilerPipeline.m_pGraphicsState = pGraphicsState;
+
             m_Pipelines.insert( pPipelines[i], profilerPipeline );
         }
     }
