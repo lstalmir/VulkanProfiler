@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2022 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -140,6 +140,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkDebugMarkerExt_functions.h"
     "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.cpp"
     "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.h"
+    "profiler_layer_functions/extensions/VkDeferredHostOperationsKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkDeferredHostOperationsKhr_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.cpp"
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.cpp"

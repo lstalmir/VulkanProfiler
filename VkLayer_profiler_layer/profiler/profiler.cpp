@@ -375,6 +375,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Destroy()
     {
+        m_DeferredOperationCallbacks.clear();
+
         m_pCommandBuffers.clear();
         m_pCommandPools.clear();
 
@@ -554,6 +556,60 @@ namespace Profiler
         {
             FreeCommandBuffer( pCommandBuffers[ i ] );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateDeferredOperation
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateDeferredOperation( VkDeferredOperationKHR deferredOperation )
+    {
+        m_DeferredOperationCallbacks.insert( deferredOperation, nullptr );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyDeferredOperation
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyDeferredOperation( VkDeferredOperationKHR deferredOperation )
+    {
+        m_DeferredOperationCallbacks.remove( deferredOperation );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDeferredOperationCallback
+
+    Description:
+        Associates a callback to invoke when the deferred operation is complete.
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetDeferredOperationCallback( VkDeferredOperationKHR deferredOperation, DeferredOperationCallback callback )
+    {
+        m_DeferredOperationCallbacks.at( deferredOperation ) = callback;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDeferredOperationCallback
+
+    Description:
+        Returns callback associated with the deferred operation.
+
+    \***********************************************************************************/
+    DeferredOperationCallback DeviceProfiler::GetDeferredOperationCallback( VkDeferredOperationKHR deferredOperation ) const
+    {
+        return m_DeferredOperationCallbacks.at( deferredOperation );
     }
 
     /***********************************************************************************\

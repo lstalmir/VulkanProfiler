@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -114,6 +114,11 @@ namespace Profiler
         GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
         GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
         GETPROCADDR( CmdEndDebugUtilsLabelEXT );
+
+        // VK_KHR_deferred_host_operations functions
+        GETPROCADDR( CreateDeferredOperationKHR );
+        GETPROCADDR( DestroyDeferredOperationKHR );
+        GETPROCADDR( DeferredOperationJoinKHR );
 
         // VK_AMD_draw_indirect_count functions
         GETPROCADDR( CmdDrawIndirectCountAMD );
