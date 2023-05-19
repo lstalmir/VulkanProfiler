@@ -829,7 +829,7 @@ namespace Profiler
             m_Data = data;
         }
 
-        ImGui::BeginTabBar( "" );
+        ImGui::BeginTabBar( "##tabs" );
 
         if( ImGui::BeginTabItem( Lang::Performance ) )
         {
@@ -919,6 +919,14 @@ namespace Profiler
         {
             // Catch exceptions thrown by OS-specific ImGui window constructors
             result = VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        // Set DPI scaling.
+        if( result == VK_SUCCESS )
+        {
+            ImGuiIO& io = ImGui::GetIO();
+            io.FontGlobalScale = m_pImGuiWindowContext->GetDPIScale();
+            assert(io.FontGlobalScale > 0.0f);
         }
 
         // Deinitialize context if something failed
@@ -1510,7 +1518,7 @@ namespace Profiler
                 ImGui::Text( Lang::Sort );
                 ImGui::SameLine();
 
-                if( ImGui::BeginCombo( "FrameBrowserSortMode", selectedOption ) )
+                if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
                 {
                     for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
                     {
@@ -1821,6 +1829,13 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateSettingsTab()
     {
+        // Set interface scaling.
+        float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        if( ImGui::InputFloat( "Interface scale", &interfaceScale ) )
+        {
+            ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
+        }
+
         // Select synchronization mode
         {
             static const char* syncGroupOptions[] = {

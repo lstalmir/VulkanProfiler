@@ -116,6 +116,19 @@ void ImGui_ImplWin32_Context::NewFrame()
 /***********************************************************************************\
 
 Function:
+    GetDPIScale
+
+Description:
+
+\***********************************************************************************/
+float ImGui_ImplWin32_Context::GetDPIScale() const
+{
+    return ImGui_ImplWin32_GetDpiScaleForHwnd( m_AppWindow );
+}
+
+/***********************************************************************************\
+
+Function:
     InitError
 
 Description:

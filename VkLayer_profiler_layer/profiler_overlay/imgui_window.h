@@ -27,4 +27,5 @@ public:
     virtual const char* GetName() const = 0;
     virtual void NewFrame() = 0;
     virtual void UpdateWindowRect() {}
+    virtual float GetDPIScale() const { return 1.0f; }
 };

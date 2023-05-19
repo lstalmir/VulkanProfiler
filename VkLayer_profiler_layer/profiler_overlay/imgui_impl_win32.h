@@ -34,6 +34,8 @@ public:
 
     void NewFrame() override;
 
+    float GetDPIScale() const override;
+
 private:
     HWND m_AppWindow;
 
