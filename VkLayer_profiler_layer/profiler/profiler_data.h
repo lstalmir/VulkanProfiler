@@ -978,6 +978,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerPerformanceCounterResult
+
+    Description:
+        Contains aggregated data of VkProfilerPerformanceCounterResultEXT.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPerformanceCounterResult
+    {
+        VkProfilerPerformanceCounterResultEXT               m_Current = {};
+        VkProfilerPerformanceCounterResultEXT               m_Avg = {};
+        VkProfilerPerformanceCounterResultEXT               m_Min = {};
+        VkProfilerPerformanceCounterResultEXT               m_Max = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerFrameData
 
     Description:
@@ -995,7 +1012,7 @@ namespace Profiler
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};
 
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
+        std::vector<DeviceProfilerPerformanceCounterResult> m_VendorMetrics = {};
 
         std::unordered_map<VkQueue, uint64_t>               m_SyncTimestamps = {};
     };

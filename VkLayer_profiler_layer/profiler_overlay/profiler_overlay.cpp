@@ -1275,10 +1275,10 @@ namespace Profiler
             std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
             // Data source
-            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_Data.m_VendorMetrics;
+            const auto* pVendorMetrics = &m_Data.m_VendorMetrics;
 
             bool performanceQueryResultsFiltered = false;
-
+#if 0
             // Find the first command buffer that matches the filter.
             // TODO: Aggregation.
             for( const auto& submitBatch : m_Data.m_Submits )
@@ -1300,6 +1300,7 @@ namespace Profiler
                     }
                 }
             }
+#endif
 
             // Show a combo box that allows the user to select the filter the profiled range.
             ImGui::Text( "Range" );
@@ -1346,6 +1347,7 @@ namespace Profiler
                             {
                                 // Refresh the performance metric properties.
                                 m_ActiveMetricsSetIndex = metricsSetIndex;
+                                m_VendorMetricsSamples.clear();
                             }
                         }
                     }
@@ -1407,19 +1409,76 @@ namespace Profiler
                 const auto& vendorMetrics = *pVendorMetrics;
 
                 ImGui::BeginTable( "Performance counters table",
-                    /* columns_count */ 3,
+                    /* columns_count */ 6,
                     ImGuiTableFlags_NoClip |
                     (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
 
                 // Headers
                 ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "Min", ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "Avg", ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "Max", ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "Current", ImGuiTableColumnFlags_WidthStretch );
                 ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
                 ImGui::TableHeadersRow();
 
+                auto GetMetricAsFloat = [](
+                    const VkProfilerPerformanceCounterResultEXT& metric,
+                    const VkProfilerPerformanceCounterPropertiesEXT& metricProperties) -> float
+                {
+                    switch (metricProperties.storage)
+                    {
+                    case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
+                        return metric.float32;
+
+                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                        return metric.uint32;
+
+                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                        return metric.uint64;
+                    }
+                    return 0;
+                };
+
+                auto PrintMetric = [](
+                    const VkProfilerPerformanceCounterResultEXT& metric,
+                    const VkProfilerPerformanceCounterPropertiesEXT& metricProperties)
+                {
+                    static char rawNumberBuffer[64];
+
+                    // Generate unformatted number string.
+                    const float columnWidth = ImGuiX::TableGetColumnWidth();
+                    switch (metricProperties.storage)
+                    {
+                    case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
+                        ProfilerStringFunctions::Format(rawNumberBuffer, "%.2f", metric.float32);
+                        break;
+
+                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                        ProfilerStringFunctions::Format(rawNumberBuffer, "%u", metric.uint32);
+                        break;
+
+                    case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                        ProfilerStringFunctions::Format(rawNumberBuffer, "%llu", metric.uint64);
+                        break;
+                    }
+
+                    const char* pNumber = rawNumberBuffer;
+#ifdef WIN32
+                    // Format number.
+                    static char formattedNumberBuffer[64];
+                    GetNumberFormatA(LOCALE_USER_DEFAULT, 0, rawNumberBuffer, NULL, formattedNumberBuffer, sizeof(formattedNumberBuffer));
+                    pNumber = formattedNumberBuffer;
+#endif
+
+                    // Print number.
+                    ImGuiX::TextAlignRight(columnWidth, "%s", pNumber);
+                };
+
+                m_VendorMetricsSamples.resize(vendorMetrics.size());
                 for( uint32_t i = 0; i < vendorMetrics.size(); ++i )
                 {
-                    const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[ i ];
+                    const VkProfilerPerformanceCounterResultEXT& avg = vendorMetrics[ i ].m_Avg;
                     const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = activeMetricsSet.m_Metrics[ i ];
 
                     ImGui::TableNextColumn();
@@ -1437,24 +1496,33 @@ namespace Profiler
                         }
                     }
 
-                    ImGui::TableNextColumn();
+                    //ImGui::TableNextColumn();
                     {
-                        const float columnWidth = ImGuiX::TableGetColumnWidth();
-                        switch( metricProperties.storage )
-                        {
-                        case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
-                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
-                            break;
+                        static char graphname[128];
+                        ProfilerStringFunctions::Format(graphname, "##%s_Graph", metricProperties.shortName);
 
-                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
-                            ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
-                            break;
+                        // Graph.
+                        m_VendorMetricsSamples[i].push_back(GetMetricAsFloat(vendorMetrics[i].m_Current, metricProperties));
 
-                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
-                            ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
-                            break;
-                        }
+                        ImGui::PushItemWidth(-1);
+                        ImGui::PlotLines(
+                            graphname,
+                            RingBuffer<float, 100>::getter,
+                            &m_VendorMetricsSamples[i],
+                            m_VendorMetricsSamples[i].m_Count);
                     }
+
+                    ImGui::TableNextColumn();
+                    PrintMetric(vendorMetrics[i].m_Min, metricProperties);
+
+                    ImGui::TableNextColumn();
+                    PrintMetric(vendorMetrics[i].m_Avg, metricProperties);
+
+                    ImGui::TableNextColumn();
+                    PrintMetric(vendorMetrics[i].m_Max, metricProperties);
+
+                    ImGui::TableNextColumn();
+                    PrintMetric(vendorMetrics[i].m_Current, metricProperties);
 
                     ImGui::TableNextColumn();
                     {

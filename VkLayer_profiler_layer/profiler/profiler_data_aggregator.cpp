@@ -48,6 +48,24 @@ namespace Profiler
         }
     };
 
+    struct MinAggregator
+    {
+        template<typename T>
+        inline void operator()(uint64_t&, T& acc, uint64_t, const T& value) const
+        {
+            acc = std::min(acc, value);
+        }
+    };
+
+    struct MaxAggregator
+    {
+        template<typename T>
+        inline void operator()(uint64_t&, T& acc, uint64_t, const T& value) const
+        {
+            acc = std::max(acc, value);
+        }
+    };
+
     struct NormAggregator
     {
         template<typename T>
@@ -121,6 +139,7 @@ namespace Profiler
     {
         m_pProfiler = pProfiler;
         m_VendorMetricsSetIndex = UINT32_MAX;
+        m_VendorMetricsSampleCount = 0;
         return VK_SUCCESS;
     }
 
@@ -193,23 +212,26 @@ namespace Profiler
 
                 for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
                 {
+                    const DeviceProfilerCommandBufferData* pCommandBufferData = nullptr;
+
                     // Check if buffer was freed before present
                     // In such case pCommandBuffer is pointer to freed memory and cannot be dereferenced
                     auto it = data.find( pCommandBuffer );
                     if( it != data.end() )
                     {
-                        submitData.m_CommandBuffers.push_back( it->second );
+                        pCommandBufferData = &submitData.m_CommandBuffers.emplace_back( it->second );
                     }
                     else
                     {
                         // Collect command buffer data now
-                        submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
+                        pCommandBufferData = &submitData.m_CommandBuffers.emplace_back( pCommandBuffer->GetData() );
                     }
 
+                    assert(pCommandBufferData);
                     submitData.m_BeginTimestamp.m_Value = std::min(
-                        submitData.m_BeginTimestamp.m_Value, submitData.m_CommandBuffers.back().m_BeginTimestamp.m_Value );
+                        submitData.m_BeginTimestamp.m_Value, pCommandBufferData->m_BeginTimestamp.m_Value );
                     submitData.m_EndTimestamp.m_Value = std::max(
-                        submitData.m_EndTimestamp.m_Value, submitData.m_CommandBuffers.back().m_EndTimestamp.m_Value );
+                        submitData.m_EndTimestamp.m_Value, pCommandBufferData->m_EndTimestamp.m_Value );
                 }
             }
         }
@@ -245,10 +267,16 @@ namespace Profiler
     DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
     {
         LoadVendorMetricsProperties();
+        AccumulateVendorMetrics();
+
+        if (m_VendorMetricsUpdateCounter.Update())
+        {
+            ResolveVendorMetrics();
+        }
 
         DeviceProfilerFrameData frameData;
         frameData.m_TopPipelines = CollectTopPipelines();
-        frameData.m_VendorMetrics = AggregateVendorMetrics();
+        frameData.m_VendorMetrics = m_AggregatedVendorMetrics;
 
         // Collect per-frame stats
         for( const auto& submitBatch : m_AggregatedData )
@@ -294,6 +322,14 @@ namespace Profiler
                     uint32_t vendorMetricsCount = m_pProfiler->m_MetricsApiINTEL.GetMetricsCount( m_VendorMetricsSetIndex );
                     m_VendorMetricProperties.resize( vendorMetricsCount );
 
+                    m_VendorMetrics.resize( vendorMetricsCount );
+                    memset(m_VendorMetrics.data(), 0, sizeof(m_VendorMetrics[0]) * vendorMetricsCount);
+
+                    m_AggregatedVendorMetrics.resize( vendorMetricsCount );
+                    memset(m_AggregatedVendorMetrics.data(), 0, sizeof(m_AggregatedVendorMetrics[0]) * vendorMetricsCount);
+
+                    m_VendorMetricsSampleCount = 0;
+
                     // Copy metrics properties to the local vector.
                     VkResult result = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties(
                         m_VendorMetricsSetIndex,
@@ -316,19 +352,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        AggregateVendorMetrics
+        AccumulateVendorMetrics
 
     Description:
         Merge vendor metrics collected from different command buffers.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerDataAggregator::AggregateVendorMetrics() const
+    void ProfilerDataAggregator::AccumulateVendorMetrics()
     {
-        const uint32_t metricCount = static_cast<uint32_t>( m_VendorMetricProperties.size() );
+        const uint32_t metricCount = static_cast<uint32_t>(m_VendorMetricProperties.size());
 
         // No vendor metrics available
-        if( metricCount == 0 )
-            return {};
+        if (metricCount == 0)
+            return;
 
         // Helper structure containing aggregated metric value and its weight.
         struct __WeightedMetric
@@ -337,26 +373,26 @@ namespace Profiler
             uint64_t weight;
         };
 
-        std::vector<__WeightedMetric> aggregatedVendorMetrics( metricCount );
+        std::vector<__WeightedMetric> aggregatedVendorMetrics(metricCount);
 
-        for( const auto& submitBatchData : m_AggregatedData )
+        for (const auto& submitBatchData : m_AggregatedData)
         {
-            for( const auto& submitData : submitBatchData.m_Submits )
+            for (const auto& submitData : submitBatchData.m_Submits)
             {
-                for( const auto& commandBufferData : submitData.m_CommandBuffers )
+                for (const auto& commandBufferData : submitData.m_CommandBuffers)
                 {
-                    if( commandBufferData.m_PerformanceQueryMetricsSetIndex != m_VendorMetricsSetIndex )
+                    if (commandBufferData.m_PerformanceQueryMetricsSetIndex != m_VendorMetricsSetIndex)
                     {
                         // The command buffer has been recorded with at different set of metrics.
                         continue;
                     }
 
-                    for( uint32_t i = 0; i < metricCount; ++i )
+                    for (size_t i = 0; i < metricCount; ++i)
                     {
                         // Get metric accumulator
-                        __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+                        __WeightedMetric& weightedMetric = aggregatedVendorMetrics[i];
 
-                        switch( m_VendorMetricProperties[ i ].unit )
+                        switch (m_VendorMetricProperties[i].unit)
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
@@ -368,8 +404,8 @@ namespace Profiler
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceQueryResults[ i ],
-                                m_VendorMetricProperties[ i ].storage );
+                                commandBufferData.m_PerformanceQueryResults[i],
+                                m_VendorMetricProperties[i].storage);
 
                             break;
                         }
@@ -387,8 +423,8 @@ namespace Profiler
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceQueryResults[ i ],
-                                m_VendorMetricProperties[ i ].storage );
+                                commandBufferData.m_PerformanceQueryResults[i],
+                                m_VendorMetricProperties[i].storage);
 
                             break;
                         }
@@ -398,20 +434,83 @@ namespace Profiler
             }
         }
 
-        // Normalize aggregated metrics by weight
-        std::vector<VkProfilerPerformanceCounterResultEXT> normalizedAggregatedVendorMetrics( metricCount );
-
-        for( uint32_t i = 0; i < metricCount; ++i )
+        // Normalize aggregated metrics by weight.
+        for (uint32_t i = 0; i < metricCount; ++i)
         {
-            const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+            const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[i];
             Profiler::Aggregate<NormAggregator>(
-                normalizedAggregatedVendorMetrics[ i ],
+                m_VendorMetrics[i].m_Current,
                 weightedMetric.weight,
                 weightedMetric.value,
-                m_VendorMetricProperties[ i ].storage );
+                m_VendorMetricProperties[i].storage);
+
+            m_AggregatedVendorMetrics[i].m_Current = m_VendorMetrics[i].m_Current;
         }
 
-        return normalizedAggregatedVendorMetrics;
+        if (m_VendorMetricsSampleCount > 0)
+        {
+            // Accumulate aggregated per-frame metrics.
+            for (uint32_t i = 0; i < metricCount; ++i)
+            {
+                Profiler::Aggregate<SumAggregator>(
+                    m_VendorMetrics[i].m_Avg, 1,
+                    m_VendorMetrics[i].m_Current,
+                    m_VendorMetricProperties[i].storage);
+
+                Profiler::Aggregate<MinAggregator>(
+                    m_VendorMetrics[i].m_Min, 1,
+                    m_VendorMetrics[i].m_Current,
+                    m_VendorMetricProperties[i].storage);
+
+                Profiler::Aggregate<MaxAggregator>(
+                    m_VendorMetrics[i].m_Max, 1,
+                    m_VendorMetrics[i].m_Current,
+                    m_VendorMetricProperties[i].storage);
+            }
+        }
+        else
+        {
+            // Initialize per-frame metrics.
+            for (uint32_t i = 0; i < metricCount; ++i)
+            {
+                m_VendorMetrics[i].m_Avg = m_VendorMetrics[i].m_Current;
+                m_VendorMetrics[i].m_Min = m_VendorMetrics[i].m_Current;
+                m_VendorMetrics[i].m_Max = m_VendorMetrics[i].m_Current;
+            }
+        }
+
+        m_VendorMetricsSampleCount++;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveVendorMetrics
+
+    Description:
+        Process accumulated metrics.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::ResolveVendorMetrics()
+    {
+        const uint32_t metricCount = static_cast<uint32_t>(m_VendorMetricProperties.size());
+
+        // Resolve metrics.
+        for (uint32_t i = 0; i < metricCount; ++i)
+        {
+            Profiler::Aggregate<NormAggregator>(
+                m_AggregatedVendorMetrics[i].m_Avg,
+                m_VendorMetricsSampleCount,
+                m_VendorMetrics[i].m_Avg,
+                m_VendorMetricProperties[i].storage);
+
+            m_AggregatedVendorMetrics[i].m_Min = m_VendorMetrics[i].m_Min;
+            m_AggregatedVendorMetrics[i].m_Max = m_VendorMetrics[i].m_Max;
+        }
+
+        // Clear accumulated values.
+        memset(m_VendorMetrics.data(), 0, sizeof(m_VendorMetrics[0]) * m_VendorMetrics.size());
+        m_VendorMetricsSampleCount = 0;
     }
 
     /***********************************************************************************\

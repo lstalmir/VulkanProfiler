@@ -49,6 +49,57 @@ namespace Profiler
     class DeviceProfiler;
     struct ProfilerSubmitData;
 
+    template<typename T, int N>
+    struct RingBuffer {
+        T m_Values[N] = {};
+        int m_Head = 0;
+        int m_Count = 0;
+
+        size_t size() const {
+            return m_Count;
+        }
+
+        bool empty() const {
+            return m_Count == 0;
+        }
+
+        void clear() {
+            m_Head = 0;
+            m_Count = 0;
+        }
+
+        void push_back(const T& value) {
+            if (m_Count < N) {
+                int tail = (m_Head + m_Count) % N;
+                m_Values[tail] = value;
+                m_Count++;
+            }
+            else {
+                m_Values[m_Head] = value;
+                m_Head = (m_Head + 1) % N;
+            }
+        }
+
+        void pop_back() {
+            if (m_Count > 0) m_Count--;
+        }
+
+        const T& at(int i) const {
+            int idx = (m_Head + i) % N;
+            return m_Values[idx];
+        }
+
+        T& at(int i) {
+            int idx = (m_Head + i) % N;
+            return m_Values[idx];
+        }
+
+        inline static float getter(void* pData, int idx) {
+            auto* pThis = static_cast<RingBuffer<T, N>*>(pData);
+            return pThis->at(idx);
+        }
+    };
+
     /***********************************************************************************\
 
     Class:
@@ -122,6 +173,8 @@ namespace Profiler
         std::vector<bool>             m_VendorMetricsSetVisibility;
 
         char m_VendorMetricFilter[ 128 ] = {};
+
+        std::vector<RingBuffer<float, 100>> m_VendorMetricsSamples;
 
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;

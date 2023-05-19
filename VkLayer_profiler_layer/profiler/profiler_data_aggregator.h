@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler_data.h"
 #include "profiler_command_buffer.h"
+#include "profiler_counters.h"
 #include <list>
 #include <map>
 #include <mutex>
@@ -71,21 +72,28 @@ namespace Profiler
         DeviceProfilerFrameData GetAggregatedData();
 
     private:
-        DeviceProfiler* m_pProfiler;
+        DeviceProfiler*                                        m_pProfiler;
 
-        ContainerType<DeviceProfilerSubmitBatch> m_Submits;
-        ContainerType<DeviceProfilerSubmitBatchData> m_AggregatedData;
+        ContainerType<DeviceProfilerSubmitBatch>               m_Submits;
+        ContainerType<DeviceProfilerSubmitBatchData>           m_AggregatedData;
 
         std::unordered_map<ProfilerCommandBuffer*, DeviceProfilerCommandBufferData> m_Data;
 
-        std::mutex m_Mutex;
+        std::mutex                                             m_Mutex;
 
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
         uint32_t                                               m_VendorMetricsSetIndex;
 
+        CpuEventFrequencyCounter                               m_VendorMetricsUpdateCounter = CpuEventFrequencyCounter(std::chrono::milliseconds(250));
+        std::vector<DeviceProfilerPerformanceCounterResult>    m_VendorMetrics;
+        uint32_t                                               m_VendorMetricsSampleCount;
+
+        std::vector<DeviceProfilerPerformanceCounterResult>    m_AggregatedVendorMetrics;
+
         void LoadVendorMetricsProperties();
-        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
+        void AccumulateVendorMetrics();
+        void ResolveVendorMetrics();
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines() const;
 
