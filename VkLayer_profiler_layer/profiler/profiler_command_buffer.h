@@ -63,6 +63,11 @@ namespace Profiler
         void PreEndRenderPass();
         void PostEndRenderPass();
 
+        void PreBeginRendering( const VkRenderingInfo* );
+        void PostBeginRendering( const VkRenderingInfo* );
+        void PreEndRendering();
+        void PostEndRendering();
+
         void NextSubpass( VkSubpassContents );
 
         void BindPipeline( const DeviceProfilerPipeline& );

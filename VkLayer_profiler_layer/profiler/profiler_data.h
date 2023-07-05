@@ -106,6 +106,8 @@ namespace Profiler
         eUpdateBuffer = 0x000D0000,
         eBeginRenderPass = 0x000BFFFF,
         eEndRenderPass = 0x000EFFFF,
+        eBeginRendering = 0x000BFFFE,
+        eEndRendering = 0x000EFFFE,
         eRayTracingKHR = 0x000E0000,
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eCopyAccelerationStructureKHR = 0x00100000,
@@ -846,6 +848,7 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
         DeviceProfilerRenderPassType                        m_Type = {};
+        bool                                                m_Dynamic = {};
 
         DeviceProfilerRenderPassBeginData                   m_Begin = {};
         DeviceProfilerRenderPassEndData                     m_End = {};

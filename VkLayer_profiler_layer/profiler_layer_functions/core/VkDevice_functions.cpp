@@ -69,6 +69,8 @@ namespace Profiler
         GETPROCADDR( CmdBeginRenderPass2 );
         GETPROCADDR( CmdEndRenderPass2 );
         GETPROCADDR( CmdNextSubpass2 );
+        GETPROCADDR( CmdBeginRendering );
+        GETPROCADDR( CmdEndRendering );
         GETPROCADDR( CmdBindPipeline );
         GETPROCADDR( CmdExecuteCommands );
         GETPROCADDR( CmdPipelineBarrier );
@@ -100,6 +102,10 @@ namespace Profiler
         GETPROCADDR( CmdBeginRenderPass2KHR );
         GETPROCADDR( CmdEndRenderPass2KHR );
         GETPROCADDR( CmdNextSubpass2KHR );
+
+        // VK_KHR_dynamic_rendering functions
+        //GETPROCADDR( CmdBeginRenderingKHR );
+        //GETPROCADDR( CmdEndRenderingKHR );
 
         // VK_EXT_debug_marker functions
         GETPROCADDR( DebugMarkerSetObjectNameEXT );

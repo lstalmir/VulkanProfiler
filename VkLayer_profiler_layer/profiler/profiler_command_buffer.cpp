@@ -419,6 +419,143 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        PreBeginRendering
+
+    Description:
+        Marks beginning of next render pass (VK_KHR_dynamic_rendering).
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PreBeginRendering( const VkRenderingInfo* pRenderingInfo )
+    {
+        if ((m_ProfilingEnabled) &&
+            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT))
+        {
+            // End the current render pass, if any.
+            if (m_pCurrentRenderPassData != nullptr)
+            {
+                // Insert a timestamp query at the render pass boundary.
+                const uint64_t timestampIndex =
+                    m_pQueryPool->WriteTimestamp(m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+
+                // Update an ending timestamp for the previous render pass.
+                m_pCurrentRenderPassData->m_EndTimestamp.m_Index = timestampIndex;
+                m_pCurrentSubpassData->m_EndTimestamp.m_Index = timestampIndex;
+
+                // Update pipeline end timestamp index.
+                if ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+                    (m_pCurrentPipelineData != nullptr))
+                {
+                    m_pCurrentPipelineData->m_EndTimestamp.m_Index = timestampIndex;
+                }
+
+                // Clear renderpass-scoped pointers.
+                m_pCurrentRenderPass = nullptr;
+                m_pCurrentRenderPassData = nullptr;
+                m_pCurrentSubpassData = nullptr;
+                m_pCurrentPipelineData = nullptr;
+            }
+
+            // Setup pointers for the new render pass.
+            m_pCurrentRenderPass = nullptr;
+            m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
+            m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
+            m_pCurrentRenderPassData->m_Type = DeviceProfilerRenderPassType::eGraphics;
+            m_pCurrentRenderPassData->m_Dynamic = true;
+
+            // Helper function to accumulate common attachment operations.
+            auto AccumulateAttachmentOperations = [&](
+                const VkRenderingAttachmentInfo* pAttachmentInfo,
+                uint32_t& clearCounter,
+                uint32_t& resolveCounter)
+            {
+                // Attachment operations are ignored if imageView is null.
+                if ((pAttachmentInfo != nullptr) &&
+                    (pAttachmentInfo->imageView != VK_NULL_HANDLE))
+                {
+                    if (pAttachmentInfo->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR)
+                    {
+                        clearCounter++;
+                    }
+
+                    if ((pAttachmentInfo->resolveMode != VK_RESOLVE_MODE_NONE) &&
+                        (pAttachmentInfo->resolveImageView != VK_NULL_HANDLE))
+                    {
+                        resolveCounter++;
+                    }
+                }
+            };
+
+            // Clears and resolves issued when rendering begins.
+            for (uint32_t i = 0; i < pRenderingInfo->colorAttachmentCount; ++i)
+            {
+                AccumulateAttachmentOperations(&pRenderingInfo->pColorAttachments[i], m_Stats.m_ClearColorCount, m_Stats.m_ResolveCount);
+            }
+
+            AccumulateAttachmentOperations(pRenderingInfo->pDepthAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount);
+            AccumulateAttachmentOperations(pRenderingInfo->pStencilAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount);
+
+            // Ensure there are free queries that can be used in the render pass.
+            // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
+            m_pQueryPool->PreallocateQueries(m_CommandBuffer);
+
+            m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
+                m_pQueryPool->WriteTimestamp(m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+
+            // Record initial transitions and clears.
+            if ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
+                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
+                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling))
+            {
+                m_pCurrentRenderPassData->m_Begin.m_BeginTimestamp = m_pCurrentRenderPassData->m_BeginTimestamp;
+            }
+        }
+    }
+    
+    /***********************************************************************************\
+
+    Function:
+        PostBeginRendering
+
+    Description:
+        Marks beginning of next render pass (VK_KHR_dynamic_rendering).
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostBeginRendering( const VkRenderingInfo* )
+    {
+        PostBeginRenderPass( nullptr, VK_SUBPASS_CONTENTS_INLINE );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreEndRendering
+
+    Description:
+        Marks end of current render pass (VK_KHR_dynamic_rendering).
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PreEndRendering()
+    {
+        PreEndRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostEndRendering
+
+    Description:
+        Marks end of current render pass (VK_KHR_dynamic_rendering).
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PostEndRendering()
+    {
+        PostEndRenderPass();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         NextSubpass
 
     Description:
