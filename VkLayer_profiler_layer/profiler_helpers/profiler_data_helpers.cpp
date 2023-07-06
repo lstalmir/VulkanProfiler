@@ -285,19 +285,54 @@ namespace Profiler
             return GetName( renderPass.m_Handle );
         }
 
+        std::string renderPassName = "Unknown Pass";
+
         switch( renderPass.m_Type )
         {
         case DeviceProfilerRenderPassType::eGraphics:
-            return "Graphics Pass";
+            renderPassName = "Graphics Pass"; break;
         case DeviceProfilerRenderPassType::eCompute:
-            return "Compute Pass";
+            renderPassName = "Compute Pass"; break;
         case DeviceProfilerRenderPassType::eRayTracing:
-            return "Ray Tracing Pass";
+            renderPassName = "Ray Tracing Pass"; break;
         case DeviceProfilerRenderPassType::eCopy:
-            return "Copy Pass";
+            renderPassName = "Copy Pass"; break;
         }
 
-        return "Unknown Pass";
+        if( renderPass.m_Dynamic )
+        {
+            renderPassName = "Dynamic " + renderPassName;
+        }
+
+        return renderPassName;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the render pass command.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerRenderPassBeginData&, bool dynamic ) const
+    {
+        return (!dynamic) ? "vkCmdBeginRenderPass" : "vkCmdBeginRendering";
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the render pass command.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName(const DeviceProfilerRenderPassEndData&, bool dynamic) const
+    {
+        return (!dynamic) ? "vkCmdEndRenderPass" : "vkCmdEndRendering";
     }
 
     /***********************************************************************************\

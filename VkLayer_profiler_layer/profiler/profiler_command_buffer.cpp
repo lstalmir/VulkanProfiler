@@ -867,7 +867,8 @@ namespace Profiler
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                             m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) &&
-                        (renderPass.m_Handle != VK_NULL_HANDLE) )
+                        ((renderPass.m_Handle != VK_NULL_HANDLE) ||
+                            renderPass.m_Dynamic) )
                     {
                         // Get vkCmdBeginRenderPass time
                         renderPass.m_Begin.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_BeginTimestamp.m_Index );
@@ -947,7 +948,8 @@ namespace Profiler
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                             m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) &&
-                        (renderPass.m_Handle != VK_NULL_HANDLE) )
+                        ((renderPass.m_Handle != VK_NULL_HANDLE) ||
+                            renderPass.m_Dynamic) )
                     {
                         // Get vkCmdEndRenderPass time
                         renderPass.m_End.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_BeginTimestamp.m_Index );
@@ -982,15 +984,18 @@ namespace Profiler
     void ProfilerCommandBuffer::EndSubpass()
     {
         // Render pass must be already tracked
-        assert( m_pCurrentRenderPass );
         assert( !m_Data.m_RenderPasses.empty() );
 
         if( m_CurrentSubpassIndex != -1 )
         {
             assert( m_pCurrentSubpassData );
 
-            // Check if any attachments are resolved at the end of current subpass
-            m_Stats.m_ResolveCount += m_pCurrentRenderPass->m_Subpasses[ m_CurrentSubpassIndex ].m_ResolveCount;
+            // Check if any attachments are resolved at the end of current subpass.
+            // m_pCurrentRenderPass may be null in case of dynamic rendering.
+            if( m_pCurrentRenderPass )
+            {
+                m_Stats.m_ResolveCount += m_pCurrentRenderPass->m_Subpasses[m_CurrentSubpassIndex].m_ResolveCount;
+            }
 
             // Send timestamp query at the end of the subpass.
             if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&

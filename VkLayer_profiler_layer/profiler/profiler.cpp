@@ -281,6 +281,8 @@ namespace Profiler
         CreateInternalPipeline( DeviceProfilerPipelineType::eUpdateBuffer, "UpdateBuffer" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eBeginRenderPass, "BeginRenderPass" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eEndRenderPass, "EndRenderPass" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eBeginRendering, "BeginRendering" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eEndRendering, "EndRendering" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eBuildAccelerationStructuresKHR, "BuildAccelerationStructuresKHR" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyAccelerationStructureKHR, "CopyAccelerationStructureKHR" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyAccelerationStructureToMemoryKHR, "CopyAccelerationStructureToMemoryKHR" );

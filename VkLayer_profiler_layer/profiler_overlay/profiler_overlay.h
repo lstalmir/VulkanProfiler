@@ -241,6 +241,9 @@ namespace Profiler
         void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
+        template<typename T>
+        void PrintRenderPassCommand( const T& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex );
+
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
         void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
 

@@ -42,6 +42,8 @@ namespace Profiler
         std::string GetName( const struct DeviceProfilerPipelineData& ) const;
         std::string GetName( const struct DeviceProfilerSubpassData& ) const;
         std::string GetName( const struct DeviceProfilerRenderPassData& ) const;
+        std::string GetName( const struct DeviceProfilerRenderPassBeginData&, bool dynamic ) const;
+        std::string GetName( const struct DeviceProfilerRenderPassEndData&, bool dynamic ) const;
         std::string GetName( const struct DeviceProfilerCommandBufferData& ) const;
 
         std::string GetName( const struct VkObject& object ) const;
