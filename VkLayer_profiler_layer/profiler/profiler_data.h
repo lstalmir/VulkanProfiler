@@ -846,11 +846,15 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
         DeviceProfilerRenderPassType                        m_Type = {};
+        bool                                                m_Dynamic = {};
 
         DeviceProfilerRenderPassBeginData                   m_Begin = {};
         DeviceProfilerRenderPassEndData                     m_End = {};
 
         ContainerType<struct DeviceProfilerSubpassData>     m_Subpasses = {};
+
+        bool HasBeginCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
+        bool HasEndCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
     };
 
     /***********************************************************************************\

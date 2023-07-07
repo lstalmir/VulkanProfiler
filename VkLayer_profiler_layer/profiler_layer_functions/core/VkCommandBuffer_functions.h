@@ -80,6 +80,15 @@ namespace Profiler
             const VkSubpassBeginInfo* pSubpassBeginInfo,
             const VkSubpassEndInfo* pSubpassEndInfo );
 
+        // vkCmdBeginRendering
+        static VKAPI_ATTR void VKAPI_CALL CmdBeginRendering(
+            VkCommandBuffer commandBuffer,
+            const VkRenderingInfo* pRenderingInfo );
+
+        // vkCmdEndRendering
+        static VKAPI_ATTR void VKAPI_CALL CmdEndRendering(
+            VkCommandBuffer commandBuffer );
+
         // vkCmdBindPipeline
         static VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(
             VkCommandBuffer commandBuffer,
