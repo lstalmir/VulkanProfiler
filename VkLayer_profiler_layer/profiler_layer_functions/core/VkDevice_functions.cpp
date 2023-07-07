@@ -104,8 +104,8 @@ namespace Profiler
         GETPROCADDR( CmdNextSubpass2KHR );
 
         // VK_KHR_dynamic_rendering functions
-        //GETPROCADDR( CmdBeginRenderingKHR );
-        //GETPROCADDR( CmdEndRenderingKHR );
+        GETPROCADDR( CmdBeginRenderingKHR );
+        GETPROCADDR( CmdEndRenderingKHR );
 
         // VK_EXT_debug_marker functions
         GETPROCADDR( DebugMarkerSetObjectNameEXT );

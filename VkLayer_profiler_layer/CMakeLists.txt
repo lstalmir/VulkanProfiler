@@ -144,6 +144,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.h"
+    "profiler_layer_functions/extensions/VkDynamicRenderingKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkDynamicRenderingKhr_functions.h"
     "profiler_layer_functions/extensions/VkRayTracingPipelineKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkRayTracingPipelineKhr_functions.h"
     "profiler_layer_functions/extensions/VkSurfaceKhr_functions.cpp"
