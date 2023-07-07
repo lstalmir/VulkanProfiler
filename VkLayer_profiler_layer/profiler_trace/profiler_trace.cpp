@@ -294,7 +294,7 @@ namespace Profiler
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue ) );
 
-            if( (data.m_Handle != VK_NULL_HANDLE || data.m_Dynamic) &&
+            if( (data.HasBeginCommand()) &&
                 (data.m_Begin.m_BeginTimestamp.m_Value != UINT64_MAX) )
             {
                 const std::string beginEventName = m_pStringSerializer->GetName( data.m_Begin, data.m_Dynamic );
@@ -317,7 +317,7 @@ namespace Profiler
         
         if( isValidRenderPass )
         {
-            if( (data.m_Handle != VK_NULL_HANDLE || data.m_Dynamic) &&
+            if( (data.HasEndCommand()) &&
                 (data.m_End.m_BeginTimestamp.m_Value != UINT64_MAX) )
             {
                 const std::string endEventName = m_pStringSerializer->GetName( data.m_End, data.m_Dynamic );

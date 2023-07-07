@@ -270,30 +270,7 @@ namespace Profiler
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
-            // End the current render pass, if any.
-            if( m_pCurrentRenderPassData != nullptr )
-            {
-                // Insert a timestamp query at the render pass boundary.
-                const uint64_t timestampIndex =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
-
-                // Update an ending timestamp for the previous render pass.
-                m_pCurrentRenderPassData->m_EndTimestamp.m_Index = timestampIndex;
-                m_pCurrentSubpassData->m_EndTimestamp.m_Index = timestampIndex;
-
-                // Update pipeline end timestamp index.
-                if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                    (m_pCurrentPipelineData != nullptr) )
-                {
-                    m_pCurrentPipelineData->m_EndTimestamp.m_Index = timestampIndex;
-                }
-
-                // Clear renderpass-scoped pointers.
-                m_pCurrentRenderPass = nullptr;
-                m_pCurrentRenderPassData = nullptr;
-                m_pCurrentSubpassData = nullptr;
-                m_pCurrentPipelineData = nullptr;
-            }
+            PreBeginRenderPassCommonProlog();
 
             // Setup pointers for the new render pass.
             m_pCurrentRenderPass = &m_Profiler.GetRenderPass( pBeginInfo->renderPass );
@@ -305,20 +282,7 @@ namespace Profiler
             m_Stats.m_ClearColorCount += m_pCurrentRenderPass->m_ClearColorAttachmentCount;
             m_Stats.m_ClearDepthStencilCount += m_pCurrentRenderPass->m_ClearDepthStencilAttachmentCount;
 
-            // Ensure there are free queries that can be used in the render pass.
-            // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
-            m_pQueryPool->PreallocateQueries( m_CommandBuffer );
-
-            m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
-                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
-
-            // Record initial transitions and clears.
-            if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
-                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
-            {
-                m_pCurrentRenderPassData->m_Begin.m_BeginTimestamp = m_pCurrentRenderPassData->m_BeginTimestamp;
-            }
+            PreBeginRenderPassCommonEpilog();
         }
     }
 
@@ -427,36 +391,12 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRendering( const VkRenderingInfo* pRenderingInfo )
     {
-        if ((m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT))
+        if( (m_ProfilingEnabled) &&
+            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
-            // End the current render pass, if any.
-            if (m_pCurrentRenderPassData != nullptr)
-            {
-                // Insert a timestamp query at the render pass boundary.
-                const uint64_t timestampIndex =
-                    m_pQueryPool->WriteTimestamp(m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-
-                // Update an ending timestamp for the previous render pass.
-                m_pCurrentRenderPassData->m_EndTimestamp.m_Index = timestampIndex;
-                m_pCurrentSubpassData->m_EndTimestamp.m_Index = timestampIndex;
-
-                // Update pipeline end timestamp index.
-                if ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                    (m_pCurrentPipelineData != nullptr))
-                {
-                    m_pCurrentPipelineData->m_EndTimestamp.m_Index = timestampIndex;
-                }
-
-                // Clear renderpass-scoped pointers.
-                m_pCurrentRenderPass = nullptr;
-                m_pCurrentRenderPassData = nullptr;
-                m_pCurrentSubpassData = nullptr;
-                m_pCurrentPipelineData = nullptr;
-            }
+            PreBeginRenderPassCommonProlog();
 
             // Setup pointers for the new render pass.
-            m_pCurrentRenderPass = nullptr;
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
             m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
             m_pCurrentRenderPassData->m_Type = DeviceProfilerRenderPassType::eGraphics;
@@ -466,19 +406,19 @@ namespace Profiler
             auto AccumulateAttachmentOperations = [&](
                 const VkRenderingAttachmentInfo* pAttachmentInfo,
                 uint32_t& clearCounter,
-                uint32_t& resolveCounter)
+                uint32_t& resolveCounter )
             {
                 // Attachment operations are ignored if imageView is null.
-                if ((pAttachmentInfo != nullptr) &&
-                    (pAttachmentInfo->imageView != VK_NULL_HANDLE))
+                if( (pAttachmentInfo != nullptr) &&
+                    (pAttachmentInfo->imageView != VK_NULL_HANDLE) )
                 {
-                    if (pAttachmentInfo->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR)
+                    if( pAttachmentInfo->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR )
                     {
                         clearCounter++;
                     }
 
-                    if ((pAttachmentInfo->resolveMode != VK_RESOLVE_MODE_NONE) &&
-                        (pAttachmentInfo->resolveImageView != VK_NULL_HANDLE))
+                    if( (pAttachmentInfo->resolveMode != VK_RESOLVE_MODE_NONE) &&
+                        (pAttachmentInfo->resolveImageView != VK_NULL_HANDLE) )
                     {
                         resolveCounter++;
                     }
@@ -486,28 +426,15 @@ namespace Profiler
             };
 
             // Clears and resolves issued when rendering begins.
-            for (uint32_t i = 0; i < pRenderingInfo->colorAttachmentCount; ++i)
+            for( uint32_t i = 0; i < pRenderingInfo->colorAttachmentCount; ++i )
             {
-                AccumulateAttachmentOperations(&pRenderingInfo->pColorAttachments[i], m_Stats.m_ClearColorCount, m_Stats.m_ResolveCount);
+                AccumulateAttachmentOperations( &pRenderingInfo->pColorAttachments[i], m_Stats.m_ClearColorCount, m_Stats.m_ResolveCount );
             }
 
-            AccumulateAttachmentOperations(pRenderingInfo->pDepthAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount);
-            AccumulateAttachmentOperations(pRenderingInfo->pStencilAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount);
+            AccumulateAttachmentOperations( pRenderingInfo->pDepthAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount );
+            AccumulateAttachmentOperations( pRenderingInfo->pStencilAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount );
 
-            // Ensure there are free queries that can be used in the render pass.
-            // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
-            m_pQueryPool->PreallocateQueries(m_CommandBuffer);
-
-            m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
-                m_pQueryPool->WriteTimestamp(m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-
-            // Record initial transitions and clears.
-            if ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
-                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling))
-            {
-                m_pCurrentRenderPassData->m_Begin.m_BeginTimestamp = m_pCurrentRenderPassData->m_BeginTimestamp;
-            }
+            PreBeginRenderPassCommonEpilog();
         }
     }
     
@@ -867,8 +794,7 @@ namespace Profiler
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                             m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) &&
-                        ((renderPass.m_Handle != VK_NULL_HANDLE) ||
-                            renderPass.m_Dynamic) )
+                        (renderPass.HasBeginCommand()) )
                     {
                         // Get vkCmdBeginRenderPass time
                         renderPass.m_Begin.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_BeginTimestamp.m_Index );
@@ -948,8 +874,7 @@ namespace Profiler
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                             m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) &&
-                        ((renderPass.m_Handle != VK_NULL_HANDLE) ||
-                            renderPass.m_Dynamic) )
+                        (renderPass.HasEndCommand()) )
                     {
                         // Get vkCmdEndRenderPass time
                         renderPass.m_End.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_BeginTimestamp.m_Index );
@@ -970,6 +895,72 @@ namespace Profiler
         }
 
         return m_Data;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreBeginRenderPassCommonProlog
+
+    Description:
+        Common code executed for both vkCmdBeginRenderPass and vkCmdBeginRendering
+        before setting up the new render pass.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PreBeginRenderPassCommonProlog()
+    {
+        // End the current render pass, if any.
+        if( m_pCurrentRenderPassData != nullptr )
+        {
+            // Insert a timestamp query at the render pass boundary.
+            const uint64_t timestampIndex =
+                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+
+            // Update an ending timestamp for the previous render pass.
+            m_pCurrentRenderPassData->m_EndTimestamp.m_Index = timestampIndex;
+            m_pCurrentSubpassData->m_EndTimestamp.m_Index = timestampIndex;
+
+            // Update pipeline end timestamp index.
+            if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
+                (m_pCurrentPipelineData != nullptr) )
+            {
+                m_pCurrentPipelineData->m_EndTimestamp.m_Index = timestampIndex;
+            }
+
+            // Clear renderpass-scoped pointers.
+            m_pCurrentRenderPass = nullptr;
+            m_pCurrentRenderPassData = nullptr;
+            m_pCurrentSubpassData = nullptr;
+            m_pCurrentPipelineData = nullptr;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PreBeginRenderPassCommonEpilog
+
+    Description:
+        Common code executed for both vkCmdBeginRenderPass and vkCmdBeginRendering
+        after setting up the new render pass.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PreBeginRenderPassCommonEpilog()
+    {
+        // Ensure there are free queries that can be used in the render pass.
+        // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
+        m_pQueryPool->PreallocateQueries( m_CommandBuffer );
+
+        m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
+            m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+
+        // Record initial transitions and clears.
+        if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
+            ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
+                m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
+        {
+            m_pCurrentRenderPassData->m_Begin.m_BeginTimestamp = m_pCurrentRenderPassData->m_BeginTimestamp;
+        }
     }
 
     /***********************************************************************************\

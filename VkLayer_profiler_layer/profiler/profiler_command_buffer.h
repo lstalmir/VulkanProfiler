@@ -111,6 +111,9 @@ namespace Profiler
         DeviceProfilerPipeline              m_ComputePipeline;
         DeviceProfilerPipeline              m_RayTracingPipeline;
 
+        void PreBeginRenderPassCommonProlog();
+        void PreBeginRenderPassCommonEpilog();
+
         void EndSubpass();
 
         void IncrementStat( const DeviceProfilerDrawcall& );

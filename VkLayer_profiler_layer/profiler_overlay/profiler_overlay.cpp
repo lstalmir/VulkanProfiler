@@ -1980,7 +1980,7 @@ namespace Profiler
         const bool renderPassContinue = (index.SubpassIndex != 0xFFFF);
 
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
-            (data.m_Handle != VK_NULL_HANDLE) )
+            (data.m_Handle != VK_NULL_HANDLE || data.m_Dynamic) )
         {
             const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
@@ -2359,8 +2359,8 @@ namespace Profiler
         dynamic rendering counterparts: vkCmdBeginRendering, etc.
 
     \***********************************************************************************/
-    template<typename T>
-    void ProfilerOverlayOutput::PrintRenderPassCommand( const T& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex )
+    template<typename Data>
+    void ProfilerOverlayOutput::PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex )
     {
         const uint64_t commandTicks = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value);
 
@@ -2441,7 +2441,11 @@ namespace Profiler
             if( isValidRenderPass )
             {
                 PrintDuration( renderPass );
-                PrintRenderPassCommand( renderPass.m_Begin, renderPass.m_Dynamic, index, 0 );
+
+                if( renderPass.HasBeginCommand() )
+                {
+                    PrintRenderPassCommand( renderPass.m_Begin, renderPass.m_Dynamic, index, 0 );
+                }
             }
 
             // Sort frame browser data
@@ -2470,7 +2474,11 @@ namespace Profiler
 
             if( isValidRenderPass )
             {
-                PrintRenderPassCommand( renderPass.m_End, renderPass.m_Dynamic, index, 1 );
+                if( renderPass.HasEndCommand() )
+                {
+                    PrintRenderPassCommand( renderPass.m_End, renderPass.m_Dynamic, index, 1 );
+                }
+
                 ImGui::TreePop();
             }
         }
