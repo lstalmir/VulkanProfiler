@@ -167,18 +167,27 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
 
             if( g_pWin32Contexts.find( msg.hwnd, &context ) )
             {
+                ImGuiIO& io = ImGui::GetIO();
+
                 // Translate the message so that character input is handled correctly
                 MSG translatedMsg = msg;
                 TranslateMessage( &translatedMsg );
 
                 // Capture mouse and keyboard events
-                if( (IsMouseMessage( translatedMsg ) && ImGui::GetIO().WantCaptureMouse) ||
-                    (IsKeyboardMessage( translatedMsg ) && ImGui::GetIO().WantCaptureKeyboard) )
+                if( (IsMouseMessage( translatedMsg )) ||
+                    (IsKeyboardMessage( translatedMsg )) )
                 {
                     ImGui_ImplWin32_WndProcHandler( translatedMsg.hwnd, translatedMsg.message, translatedMsg.wParam, translatedMsg.lParam );
 
                     // Don't pass captured events to the application
-                    filterMessage = true;
+                    filterMessage = io.WantCaptureMouse || io.WantCaptureKeyboard;
+                }
+
+                // Resize window
+                if( msg.message == WM_SIZE )
+                {
+                    ImGui::GetIO().DisplaySize.x = LOWORD( msg.lParam );
+                    ImGui::GetIO().DisplaySize.y = HIWORD( msg.lParam );
                 }
             }
         }
