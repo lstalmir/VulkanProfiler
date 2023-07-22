@@ -57,3 +57,4 @@ jobs:
           ${{github.workspace}}/build/VkLayer_profiler_layer/${{matrix.build_type}}/*.so
           ${{github.workspace}}/build/VkLayer_profiler_layer/${{matrix.build_type}}/*.dll
           ${{github.workspace}}/build/VkLayer_profiler_layer/VkLayer_profiler_layer.json
+        retention-days: 5
