@@ -33,10 +33,6 @@ jobs:
         packages: extra-cmake-modules libvulkan-dev libx11-dev libxext-dev libxrandr-dev libx11-xcb-dev libxcb-shape0-dev
         version: 1.0
 
-    - name: Get Commit
-      id: get_commit
-      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -56,8 +52,7 @@ jobs:
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{runner.os}}-${{steps.get_commit.outputs.sha_short}}-bin
+        name: ${{runner.os}}-${{matrix.build_type}}-bin
         path: |
-          ${{github.workspace}}/build/VkLayer_profiler_layer/${{matrix.build_type}}
-          ${{github.workspace}}/build/VkLayer_profiler_layer/VkLayer_profiler_layer.json
-        retention-days: 5
+          ${{github.workspace}}/build/**/*
+        retention-days: 1
