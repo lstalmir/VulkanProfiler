@@ -51,4 +51,4 @@ install (TARGETS profiler_ext
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 install (FILES ${headers}
-    DESTINATION include)
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
