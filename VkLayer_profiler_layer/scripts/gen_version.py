@@ -27,7 +27,7 @@ def git(*args):
   return proc.stdout.decode().strip()
 
 # Get the commit this branch was based on
-rev_base = git("merge-base", "master", "HEAD")
+rev_base = git("merge-base", "origin/master", "HEAD")
 
 # Get number of commits in the base branch
 rev_base_count = int(git("rev-list", "--count", rev_base))
