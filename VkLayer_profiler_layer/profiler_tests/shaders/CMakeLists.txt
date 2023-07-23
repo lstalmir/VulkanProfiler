@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,3 @@ endforeach ()
 
 add_custom_target (profiler_tests_shaders ALL
     DEPENDS ${spirvs})
-
-install (FILES
-    ${spirvs}
-    DESTINATION BIN ${CMAKE_OUTPUT_BINDIR})

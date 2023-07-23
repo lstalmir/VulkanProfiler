@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,9 @@ project (profiler_tests)
 # Prevent overriding the parent project's compiler/linker
 # settings on Windows
 set (gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+# Prevent installation of gtest
+set (INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 
 add_subdirectory (googletest)
 add_subdirectory (shaders)
