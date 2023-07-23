@@ -16,9 +16,22 @@ jobs:
 
     name: Build ${{matrix.os}} ${{matrix.build_type}}
     runs-on: ${{matrix.os}}
+    
+    env:
+      CI_MASTER_RELEASE_BUILD: |
+        ${{ matrix.build_type == 'Release' && github.ref == 'refs/heads/master' }}
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout all
+      if: CI_MASTER_RELEASE_BUILD == true
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Checkout commit
+      if: CI_MASTER_RELEASE_BUILD == false
+      uses: actions/checkout@v3
       with:
         submodules: recursive
 
