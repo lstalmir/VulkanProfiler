@@ -23,14 +23,14 @@ jobs:
 
     steps:
     - name: Checkout all
-      if: ${{ CI_MASTER_RELEASE_BUILD == true }}
+      if: env.CI_MASTER_RELEASE_BUILD == true
       uses: actions/checkout@v3
       with:
         submodules: recursive
         fetch-depth: 0
 
     - name: Checkout commit
-      if: ${{ CI_MASTER_RELEASE_BUILD == false }}
+      if: env.CI_MASTER_RELEASE_BUILD == false
       uses: actions/checkout@v3
       with:
         submodules: recursive
