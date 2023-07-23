@@ -15,7 +15,7 @@ jobs:
         build_type: [Release, Debug]
 
     name: Build ${{matrix.os}} ${{matrix.build_type}}
-    runs-on: [${{matrix.os}}, x64]
+    runs-on: ["${{matrix.os}}", x64]
 
     steps:
     - uses: actions/checkout@v3
