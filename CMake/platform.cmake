@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,38 +20,15 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler_tests)
+set (PROFILER_PLATFORM_FOUND 0)
 
-# Find Vulkan SDK and glslangValidator
-# Linux:    install libvulkan-dev and glslang-tools
-# Windows:  install Vulkan SDK
-find_package (Vulkan)
-find_program (glslangvalidator glslangValidator)
-
-if (NOT Vulkan_FOUND OR NOT glslangvalidator)
-    message (WARNING "Vulkan SDK and/or glslangValidator not found. Tests will be disabled.")
-    set (BUILD_TESTS OFF CACHE BOOL "" FORCE)
+if (WIN32)
+    include (CMake/platform_windows.cmake)
+endif ()
+if (UNIX)
+    include (CMake/platform_linux.cmake)
 endif ()
 
-if (BUILD_TESTS)
-    add_subdirectory (shaders)
-
-    set (tests
-        "profiler_command_buffer_tests.cpp"
-        "profiler_extensions_tests.cpp"
-        "profiler_memory_tests.cpp"
-        )
-
-    add_executable (profiler_tests
-        ${tests}
-        )
-
-    add_dependencies (profiler_tests profiler_tests_shaders)
-
-    target_link_libraries (profiler_tests
-        PRIVATE ${Vulkan_LIBRARIES}
-        PRIVATE gtest_main
-        PRIVATE profiler
-        PRIVATE VkLayer_profiler_layer_lib
-        )
-endif (BUILD_TESTS)
+if (NOT PROFILER_PLATFORM_FOUND)
+    message (FATAL_ERROR "No target platform found")
+endif ()

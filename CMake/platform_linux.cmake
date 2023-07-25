@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,38 +20,29 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler_tests)
+# ECM is required on Linux to find Wayland and XCB
+find_package (ECM NO_MODULE)
+if (ECM_FOUND)
+    set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
 
-# Find Vulkan SDK and glslangValidator
-# Linux:    install libvulkan-dev and glslang-tools
-# Windows:  install Vulkan SDK
-find_package (Vulkan)
-find_program (glslangvalidator glslangValidator)
-
-if (NOT Vulkan_FOUND OR NOT glslangvalidator)
-    message (WARNING "Vulkan SDK and/or glslangValidator not found. Tests will be disabled.")
-    set (BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    #find_package (Wayland)
+    find_package (XCB COMPONENTS XCB SHAPE)
+    
+    if (Wayland_FOUND OR XCB_FOUND)
+        set (PROFILER_PLATFORM_FOUND 1)
+    endif ()
 endif ()
 
-if (BUILD_TESTS)
-    add_subdirectory (shaders)
+# If either Wayland or XCB was found, X11 is optional
+if (NOT PROFILER_PLATFORM_FOUND)
+    set (X11_REQUIRED REQUIRED)
+endif ()
+find_package (X11 ${X11_REQUIRED})
 
-    set (tests
-        "profiler_command_buffer_tests.cpp"
-        "profiler_extensions_tests.cpp"
-        "profiler_memory_tests.cpp"
-        )
+if (X11_FOUND)
+    set (PROFILER_PLATFORM_FOUND 1)
+endif ()
 
-    add_executable (profiler_tests
-        ${tests}
-        )
-
-    add_dependencies (profiler_tests profiler_tests_shaders)
-
-    target_link_libraries (profiler_tests
-        PRIVATE ${Vulkan_LIBRARIES}
-        PRIVATE gtest_main
-        PRIVATE profiler
-        PRIVATE VkLayer_profiler_layer_lib
-        )
-endif (BUILD_TESTS)
+# Export symbols explicitly
+set (CMAKE_CXX_VISIBILITY_PRESET hidden)
+set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)

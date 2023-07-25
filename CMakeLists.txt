@@ -29,34 +29,11 @@ set (CMAKE_CXX_STANDARD_REQUIRED ON)
 # Options
 option (BUILD_TESTS "Build tests." ON)
 
+# Platform-specific configuration and dependencies.
+include (CMake/platform.cmake)
+
 # Build third-party dependencies.
 add_subdirectory (External EXCLUDE_FROM_ALL)
-
-# Find Vulkan SDK and glslangValidator
-# Linux:    install libvulkan-dev and glslang-tools
-# Windows:  install Vulkan SDK
-find_package (Vulkan)
-find_program (glslangvalidator glslangValidator)
-
-if (NOT Vulkan_FOUND OR NOT glslangvalidator)
-    message (WARNING "Vulkan SDK and/or glslangValidator not found. Tests will be disabled.")
-    set (BUILD_TESTS OFF CACHE BOOL "" FORCE)
-endif ()
-
-# Detect available libraries
-if (UNIX)
-    # ECM is required on Linux to find Wayland and XCB
-    find_package (ECM REQUIRED NO_MODULE)
-    set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
-
-    #find_package (Wayland)
-    find_package (XCB REQUIRED COMPONENTS XCB SHAPE)
-    find_package (X11 REQUIRED)
-
-    # Export symbols explicitly
-    set (CMAKE_CXX_VISIBILITY_PRESET hidden)
-    set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)
-endif ()
 
 # Include sub-projects
 add_subdirectory (VkLayer_profiler_layer)
