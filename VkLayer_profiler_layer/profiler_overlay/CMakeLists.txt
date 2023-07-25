@@ -96,27 +96,23 @@ target_link_libraries (profiler_overlay
 if (UNIX)
 
     if (Wayland_FOUND)
-        target_link_libraries (profiler_overlay ${Wayland_LIBRARIES})
-        target_include_directories (profiler_overlay
-            PRIVATE ${Wayland_INCLUDE_DIRS})
+        target_link_libraries (profiler_overlay PRIVATE ${Wayland_LIBRARIES})
+        target_include_directories (profiler_overlay PRIVATE ${Wayland_INCLUDE_DIRS})
     endif () # Wayland_FOUND
 
     if (XCB_FOUND)
-        target_link_libraries (profiler_overlay ${XCB_LIBRARIES})
-        target_link_libraries (profiler_overlay XCB::SHAPE)
-        target_include_directories (profiler_overlay
-            PRIVATE ${XCB_INCLUDE_DIRS})
+        target_link_libraries (profiler_overlay PRIVATE ${XCB_LIBRARIES})
+        target_link_libraries (profiler_overlay PRIVATE XCB::SHAPE)
+        target_include_directories (profiler_overlay PRIVATE ${XCB_INCLUDE_DIRS})
     endif () # XCB_FOUND
 
     if (X11_FOUND)
-        target_link_libraries (profiler_overlay ${X11_LIBRARIES} )
-        target_include_directories (profiler_overlay
-            PRIVATE ${X11_INCLUDE_DIR})
+        target_link_libraries (profiler_overlay PRIVATE ${X11_LIBRARIES} )
+        target_include_directories (profiler_overlay PRIVATE ${X11_INCLUDE_DIR})
     endif () # X11_FOUND
     if (X11_Xrandr_FOUND)
-        target_link_libraries (profiler_overlay ${X11_Xrandr_LIB})
-        target_include_directories (profiler_overlay
-            PRIVATE ${X11_Xrandr_INCLUDE_PATH})
+        target_link_libraries (profiler_overlay PRIVATE ${X11_Xrandr_LIB})
+        target_include_directories (profiler_overlay PRIVATE ${X11_Xrandr_INCLUDE_PATH})
     endif () # X11_Xrandr_FOUND
 
 endif () # UNIX
