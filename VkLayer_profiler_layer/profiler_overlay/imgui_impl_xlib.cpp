@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "imgui_impl_xlib.h"
-#include "imgui/imgui.h"
+#include <imgui.h>
 #include <stdlib.h>
 #include <X11/extensions/shape.h>
 
