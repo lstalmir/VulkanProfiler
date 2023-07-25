@@ -46,29 +46,6 @@ endif ()
 project (${PROFILER_LAYER_PROJECTNAME})
 message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}.${PROFILER_LAYER_VER_PATCH}")
 
-if (WIN32)
-
-    add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
-    add_definitions (-DNOMINMAX)
-
-elseif (UNIX)
-
-    add_compile_options (-fPIC)
-
-    if (X11_FOUND)
-        add_definitions (-DVK_USE_PLATFORM_XLIB_KHR)
-    endif ()
-
-    if (XCB_FOUND)
-        add_definitions (-DVK_USE_PLATFORM_XCB_KHR)
-    endif ()
-
-    if (Wayland_FOUND)
-        add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
-    endif ()
-
-endif ()
-
 # Generate dispatch tables
 add_custom_command (
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h

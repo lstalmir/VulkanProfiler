@@ -20,7 +20,7 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-# ECM is required on Linux to find Wayland and XCB
+# ECM is required on Linux to find Wayland and XCB.
 find_package (ECM NO_MODULE)
 if (ECM_FOUND)
     set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
@@ -33,7 +33,7 @@ if (ECM_FOUND)
     endif ()
 endif ()
 
-# If either Wayland or XCB was found, X11 is optional
+# If either Wayland or XCB was found, X11 is optional.
 if (NOT PROFILER_PLATFORM_FOUND)
     set (X11_REQUIRED REQUIRED)
 endif ()
@@ -43,6 +43,20 @@ if (X11_FOUND)
     set (PROFILER_PLATFORM_FOUND 1)
 endif ()
 
-# Export symbols explicitly
+# Enable Vulkan platforms for each SDK found.
+if (X11_FOUND)
+    add_definitions (-DVK_USE_PLATFORM_XLIB_KHR)
+endif ()
+if (XCB_FOUND)
+    add_definitions (-DVK_USE_PLATFORM_XCB_KHR)
+endif ()
+if (Wayland_FOUND)
+    add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
+endif ()
+
+# Generate Position Independent Code (PIC) since we're targeting a shared library.
+add_compile_options (-fPIC)
+
+# Export symbols explicitly.
 set (CMAKE_CXX_VISIBILITY_PRESET hidden)
 set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)

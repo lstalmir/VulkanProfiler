@@ -22,3 +22,9 @@ cmake_minimum_required (VERSION 3.8)
 
 # There is only one platform on Windows
 set (PROFILER_PLATFORM_FOUND 1)
+
+# Enable Windows platform.
+add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
+
+# Disable macros that would collide with stl.
+add_definitions (-DNOMINMAX)
