@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2019-2021 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,77 +20,30 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler)
+project (profiler_helpers)
 
 set (headers
-    "profiler.h"
-    "profiler_command_buffer.h"
-    "profiler_command_buffer_query_pool.h"
-    "profiler_command_pool.h"
-    "profiler_config.h"
-    "profiler_counters.h"
-    "profiler_data.h"
-    "profiler_data_aggregator.h"
-    "profiler_helpers.h"
-    "profiler_memory_manager.h"
-    "profiler_query_pool.h"
-    "profiler_resources.h"
-    "profiler_shader.h"
-    "profiler_stat_comparators.h"
-    "profiler_sync.h"
+    "profiler_data_helpers.h"
+    "profiler_time_helpers.h"
     )
 
 set (sources
-    "profiler.cpp"
-    "profiler_command_buffer.cpp"
-    "profiler_command_buffer_query_pool.cpp"
-    "profiler_command_pool.cpp"
-    "profiler_config.cpp"
-    "profiler_data_aggregator.cpp"
-    "profiler_memory_manager.cpp"
-    "profiler_query_pool.cpp"
-    "profiler_sync.cpp"
-    # Windows
-    "profiler_helpers_windows.cpp"
-    # Linux
-    "profiler_helpers_linux.cpp"
-    )
-
-set (farmhash
-    "farmhash/src/farmhash.h"
-    "farmhash/src/farmhash.cc"
-    )
-
-set (intel
-    "intel/profiler_metrics_api.h"
-    "intel/profiler_metrics_api.cpp"
+    "profiler_data_helpers.cpp"
     )
 
 # Link intermediate static library
-add_library (profiler
+add_library (profiler_helpers
     ${sources}
-    ${headers}
-    ${farmhash}
-    ${intel})
+    ${headers})
 
-target_compile_definitions (profiler
-    PRIVATE -DNAMESPACE_FOR_HASH_FUNCTIONS=Profiler::Hash
-    )
-
-if (MSVC)
-    # Disable __builtin_expect in MSVC builds
-    target_compile_definitions (profiler
-        PRIVATE -DFARMHASH_NO_BUILTIN_EXPECT)
-endif ()
+target_link_libraries (profiler_helpers
+    PRIVATE fmt::fmt)
 
 # Set include path
-target_include_directories (profiler
+target_include_directories (profiler_helpers
     PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
     PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
-
-target_link_libraries (profiler
-    PRIVATE nlohmann_json::nlohmann_json)

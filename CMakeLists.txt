@@ -20,6 +20,8 @@
 
 cmake_minimum_required (VERSION 3.8)
 
+set_property (GLOBAL PROPERTY USE_FOLDERS ON)
+
 project (VulkanProfiler CXX)
 
 # Options
@@ -28,7 +30,7 @@ option (BUILD_TESTS "Build tests." ON)
 # Find Vulkan SDK and glslangValidator
 # Linux:    install libvulkan-dev and glslang-tools
 # Windows:  install Vulkan SDK
-find_package (Vulkan)
+#find_package (Vulkan)
 find_program (glslangvalidator glslangValidator)
 
 if (NOT Vulkan_FOUND OR NOT glslangvalidator)
@@ -75,12 +77,8 @@ include_directories (
     "${VULKAN_HEADERS_INCLUDE_DIR}"
     )
 
-# Disable 3-rd party library tests
-set (JSON_BuildTests OFF CACHE INTERNAL "")
-
 # Build third-party dependencies.
-add_subdirectory (External/json EXCLUDE_FROM_ALL)
+add_subdirectory (External EXCLUDE_FROM_ALL)
 
 # Include sub-projects
-add_subdirectory (Vulkan-Headers EXCLUDE_FROM_ALL)
-add_subdirectory (VkLayer_profiler_layer)
+add_subdirectory (Source)

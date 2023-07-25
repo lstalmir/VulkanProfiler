@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,32 +20,36 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler_helpers)
+project (profiler_tests)
 
-add_subdirectory (fmt)
+add_subdirectory (shaders)
 
-set (headers
-    "profiler_data_helpers.h"
-    "profiler_time_helpers.h"
+set (tests
+    "profiler_command_buffer_tests.cpp"
+    "profiler_extensions_tests.cpp"
+    "profiler_memory_tests.cpp"
     )
 
-set (sources
-    "profiler_data_helpers.cpp"
+add_executable (profiler_tests
+    ${tests}
+    )
+    
+add_dependencies (profiler_tests profiler_tests_shaders)
+
+target_link_libraries (profiler_tests
+    PRIVATE ${Vulkan_LIBRARIES}
+    PRIVATE gtest_main
+    PRIVATE profiler
+    PRIVATE VkLayer_profiler_layer_lib
     )
 
-# Link intermediate static library
-add_library (profiler_helpers
-    ${sources}
-    ${headers})
+target_link_directories (profiler_tests
+    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../profiler"
+    )
 
-target_link_libraries (profiler_helpers
-    PRIVATE fmt::fmt)
-
-# Set include path
-target_include_directories (profiler_helpers
-    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
-    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
+target_include_directories (profiler_tests
+    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    PRIVATE "${VULKAN_HEADERS_INCLUDE_DIR}"
+    PRIVATE "${VULKAN_LOADER_INCLUDE_DIR}"
+    )

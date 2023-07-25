@@ -33,12 +33,6 @@ set (sources
     )
 
 set (imgui
-    "imgui/imgui.h"
-    "imgui/imgui.cpp"
-    "imgui/imgui_demo.cpp"
-    "imgui/imgui_draw.cpp"
-    "imgui/imgui_tables.cpp"
-    "imgui/imgui_widgets.cpp"
     "imgui_impl_vulkan_layer.h"
     "imgui_impl_vulkan_layer.cpp"
     "imgui_window.h"
@@ -47,8 +41,6 @@ set (imgui
 # Platform-dependent implementation
 if (WIN32)
 set (imgui_platform
-    "imgui/backends/imgui_impl_win32.h"
-    "imgui/backends/imgui_impl_win32.cpp"
     "imgui_impl_win32.h"
     "imgui_impl_win32.cpp"
     )
@@ -85,7 +77,7 @@ set (imgui_widgets
     "imgui_widgets/imgui_ex.h"
     "imgui_widgets/imgui_ex.cpp"
     )
-    
+
 # Link intermediate static library
 add_library (profiler_overlay
     ${sources}
@@ -95,6 +87,7 @@ add_library (profiler_overlay
     ${imgui_widgets})
 
 target_link_libraries (profiler_overlay
+    imgui
     profiler
     profiler_helpers)
 
@@ -106,8 +99,7 @@ target_include_directories (profiler_overlay
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../VkLayer_profiler_layer
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
 
 # Set include paths and link window libraries in linux builds
 if (UNIX)
