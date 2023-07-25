@@ -1080,6 +1080,14 @@ namespace Profiler
                 {
                     pipeline.m_UsesRayTracing = true;
                 }
+                if( capability == SpvCapabilityTessellation )
+                {
+                    pipeline.m_UsesTessellationStage = true;
+                }
+                if( capability == SpvCapabilityGeometry )
+                {
+                    pipeline.m_UsesGeometryStage = true;
+                }
             }
         }
 
@@ -1154,9 +1162,27 @@ namespace Profiler
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
             // Vertex and pixel shader hashes
-            char pPipelineDebugName[ 25 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
+            char pPipelineDebugName[ 69 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
             u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_VERTEX_BIT] );
             u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_FRAGMENT_BIT] );
+            char* pPipelineDebugNameBuffer = pPipelineDebugName + 24;
+
+            // Tessellation stage
+            if( pipeline.m_UsesTessellationStage )
+            {
+                strcat( pPipelineDebugNameBuffer, ", TESC=XXXXXXXX, TESE=XXXXXXXX" );
+                u32tohex( pPipelineDebugNameBuffer + 7, pipeline.m_ShaderTuple.m_Stages[ VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT ] );
+                u32tohex( pPipelineDebugNameBuffer + 22, pipeline.m_ShaderTuple.m_Stages[ VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT ] );
+                pPipelineDebugNameBuffer += 30;
+            }
+
+            // Geometry stage
+            if( pipeline.m_UsesGeometryStage )
+            {
+                strcat( pPipelineDebugNameBuffer, ", GEO=XXXXXXXX" );
+                u32tohex( pPipelineDebugNameBuffer + 6, pipeline.m_ShaderTuple.m_Stages[ VK_SHADER_STAGE_GEOMETRY_BIT ] );
+                pPipelineDebugNameBuffer += 14;
+            }
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }

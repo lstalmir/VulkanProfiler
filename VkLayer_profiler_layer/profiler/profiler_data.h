@@ -698,6 +698,8 @@ namespace Profiler
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
+        bool                                                m_UsesTessellationStage = false;
+        bool                                                m_UsesGeometryStage = false;
     };
 
     /***********************************************************************************\
@@ -718,6 +720,8 @@ namespace Profiler
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
+        bool                                                m_UsesTessellationStage = false;
+        bool                                                m_UsesGeometryStage = false;
 
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
@@ -732,6 +736,8 @@ namespace Profiler
             , m_Type( pipeline.m_Type )
             , m_UsesRayQuery( pipeline.m_UsesRayQuery )
             , m_UsesRayTracing( pipeline.m_UsesRayTracing )
+            , m_UsesTessellationStage( pipeline.m_UsesTessellationStage )
+            , m_UsesGeometryStage( pipeline.m_UsesGeometryStage )
         {
         }
 
