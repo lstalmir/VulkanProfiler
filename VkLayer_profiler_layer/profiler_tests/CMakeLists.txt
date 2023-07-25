@@ -42,14 +42,3 @@ target_link_libraries (profiler_tests
     PRIVATE profiler
     PRIVATE VkLayer_profiler_layer_lib
     )
-
-target_link_directories (profiler_tests
-    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../profiler"
-    )
-
-target_include_directories (profiler_tests
-    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/.."
-    PRIVATE "${VULKAN_HEADERS_INCLUDE_DIR}"
-    PRIVATE "${VULKAN_LOADER_INCLUDE_DIR}"
-    )

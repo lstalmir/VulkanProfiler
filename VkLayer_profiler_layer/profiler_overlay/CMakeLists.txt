@@ -87,19 +87,10 @@ add_library (profiler_overlay
     ${imgui_widgets})
 
 target_link_libraries (profiler_overlay
-    imgui
-    profiler
-    profiler_helpers)
-
-# Set include path
-target_include_directories (profiler_overlay
-    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
-    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../VkLayer_profiler_layer
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
+    PUBLIC profiler_common
+    PRIVATE imgui
+    PRIVATE profiler
+    PRIVATE profiler_helpers)
 
 # Set include paths and link window libraries in linux builds
 if (UNIX)

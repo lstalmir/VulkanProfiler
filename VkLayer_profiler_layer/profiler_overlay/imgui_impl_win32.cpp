@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "imgui_impl_win32.h"
-#include "imgui/backends/imgui_impl_win32.h"
+#include <backends/imgui_impl_win32.h>
 
 #include "profiler/profiler_helpers.h"
 

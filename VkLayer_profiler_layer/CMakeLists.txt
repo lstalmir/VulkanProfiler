@@ -76,17 +76,24 @@ add_custom_command (
         ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py
         ${VULKAN_HEADERS_INSTALL_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS Vulkan-Headers
+    DEPENDS ${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py)
 
-add_custom_target (profiler_pre_build
+add_custom_target (profiler_codegen
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
 
-# Generated files
-include_directories (${CMAKE_CURRENT_BINARY_DIR})
-
-# Utilities
-include_directories (utils)
+add_library (profiler_common INTERFACE)
+target_link_libraries (profiler_common
+    INTERFACE Vulkan-Headers
+    INTERFACE SPIRV-Headers
+    INTERFACE farmhash
+    INTERFACE fmt
+    INTERFACE nlohmann_json)
+target_include_directories (profiler_common
+    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
+    INTERFACE ${CMAKE_CURRENT_BINARY_DIR}
+    INTERFACE utils)
+add_dependencies (profiler_common profiler_codegen)
 
 # Include implementation of the layer
 add_subdirectory (profiler)
@@ -94,12 +101,6 @@ add_subdirectory (profiler_ext)
 add_subdirectory (profiler_helpers)
 add_subdirectory (profiler_overlay)
 add_subdirectory (profiler_trace)
-
-add_dependencies (profiler profiler_pre_build)
-add_dependencies (profiler_helpers profiler_pre_build)
-add_dependencies (profiler_ext profiler_pre_build)
-add_dependencies (profiler_overlay profiler_pre_build)
-add_dependencies (profiler_trace profiler_pre_build)
 
 # Enable tests
 if (BUILD_TESTS)

@@ -21,7 +21,7 @@
 #include "profiler.h"
 #include "profiler_command_buffer.h"
 #include "profiler_helpers.h"
-#include "farmhash/src/farmhash.h"
+#include <farmhash.h>
 #include <sstream>
 #include <fstream>
 
@@ -649,7 +649,7 @@ namespace Profiler
         ProfilerShaderModule sm;
 
         // Compute shader code hash to use later
-        sm.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+        sm.m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
 
         // Enumerate capabilities of the shader module
         const uint32_t* pCurrentWord = pCreateInfo->pCode + 5; // skip header bytes
@@ -1063,7 +1063,7 @@ namespace Profiler
             uint32_t hash = sm.m_Hash;
 
             // Hash the entrypoint and append it to the final hash
-            hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
+            hash ^= Farmhash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
 
             pipeline.m_ShaderTuple.m_Stages[pStages[i].stage] = hash;
 
@@ -1084,7 +1084,7 @@ namespace Profiler
         }
 
         // Compute aggregated tuple hash for fast comparison
-        pipeline.m_ShaderTuple.m_Hash = Hash::Fingerprint32(
+        pipeline.m_ShaderTuple.m_Hash = Farmhash::Fingerprint32(
             reinterpret_cast<const char*>( &pipeline.m_ShaderTuple.m_Stages ),
             sizeof( pipeline.m_ShaderTuple.m_Stages ) );
     }

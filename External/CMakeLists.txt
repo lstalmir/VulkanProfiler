@@ -33,11 +33,14 @@ add_library (farmhash STATIC
 if (MSVC)
     # Disable __builtin_expect in MSVC builds
     target_compile_definitions (farmhash
-        PUBLIC -DFARMHASH_NO_BUILTIN_EXPECT)
+        PUBLIC FARMHASH_NO_BUILTIN_EXPECT)
 endif ()
 
 target_include_directories (farmhash
     PUBLIC farmhash/src)
+
+target_compile_definitions (farmhash
+    PUBLIC NAMESPACE_FOR_HASH_FUNCTIONS=Farmhash)
 
 # google/googletest
 set (gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -48,6 +51,13 @@ add_subdirectory (googletest)
 add_library (metrics-discovery INTERFACE)
 target_include_directories (metrics-discovery
     INTERFACE metrics-discovery/inc/common/instrumentation/api)
+
+# KhronosGroup/Vulkan-Headers
+add_subdirectory (Vulkan-Headers)
+set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers" PARENT_SCOPE)
+
+# KhronosGroup/SPIRV-Headers
+add_subdirectory (SPIRV-Headers)
 
 # nlohmann/json
 set (JSON_BuildTests OFF CACHE INTERNAL "")
@@ -77,8 +87,5 @@ target_include_directories (imgui
     PUBLIC imgui
     PUBLIC imgui/backends)
 
-# KhronosGroup/Vulkan-Headers
-add_subdirectory (Vulkan-Headers)
-
-# KhronosGroup/SPIRV-Headers
-add_subdirectory (SPIRV-Headers)
+target_link_libraries (imgui
+    PUBLIC Vulkan-Headers)

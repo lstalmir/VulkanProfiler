@@ -37,13 +37,4 @@ add_library (profiler_helpers
     ${headers})
 
 target_link_libraries (profiler_helpers
-    PRIVATE fmt::fmt)
-
-# Set include path
-target_include_directories (profiler_helpers
-    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
-    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
+    PUBLIC profiler_common)

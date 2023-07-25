@@ -23,14 +23,19 @@ cmake_minimum_required (VERSION 3.8)
 set_property (GLOBAL PROPERTY USE_FOLDERS ON)
 
 project (VulkanProfiler CXX)
+set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Options
 option (BUILD_TESTS "Build tests." ON)
 
+# Build third-party dependencies.
+add_subdirectory (External EXCLUDE_FROM_ALL)
+
 # Find Vulkan SDK and glslangValidator
 # Linux:    install libvulkan-dev and glslang-tools
 # Windows:  install Vulkan SDK
-#find_package (Vulkan)
+find_package (Vulkan)
 find_program (glslangvalidator glslangValidator)
 
 if (NOT Vulkan_FOUND OR NOT glslangvalidator)
@@ -53,32 +58,5 @@ if (UNIX)
     set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 endif ()
 
-# Build with C++17
-set (CMAKE_CXX_STANDARD 17)
-
-set (VK_EXT_PROFILER_INCLUDE_DIR
-    "${CMAKE_CURRENT_LIST_DIR}/VkLayer_profiler_layer/profiler_ext"
-    )
-
-set (VULKAN_HEADERS_INSTALL_DIR
-    "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Headers"
-    )
-
-set (VULKAN_HEADERS_INCLUDE_DIR
-    "${CMAKE_CURRENT_LIST_DIR}/Vulkan-Headers/include"
-    )
-
-set (SPIRV-Headers_SOURCE_DIR
-    "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers"
-    )
-    
-include_directories (
-    "${CMAKE_CURRENT_LIST_DIR}/SPIRV-Headers/include"
-    "${VULKAN_HEADERS_INCLUDE_DIR}"
-    )
-
-# Build third-party dependencies.
-add_subdirectory (External EXCLUDE_FROM_ALL)
-
 # Include sub-projects
-add_subdirectory (Source)
+add_subdirectory (VkLayer_profiler_layer)

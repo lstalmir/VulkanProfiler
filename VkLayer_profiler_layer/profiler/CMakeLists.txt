@@ -67,14 +67,6 @@ add_library (profiler
     ${headers}
     ${intel})
 
-# Set include path
-target_include_directories (profiler
-    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
-    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../vulkan_traits
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/shaders
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/resources)
-
 target_link_libraries (profiler
-    PRIVATE nlohmann_json::nlohmann_json)
+    PUBLIC profiler_common
+    PUBLIC metrics-discovery)

@@ -75,7 +75,7 @@ namespace Profiler
         {
         default:
         case DeviceProfilerDrawcallType::eUnknown:
-            return fmt::format( "Unknown command ({})", drawcall.m_Type );
+            return fmt::format( "Unknown command ({})", static_cast<uint32_t>( drawcall.m_Type ) );
 
         case DeviceProfilerDrawcallType::eInsertDebugLabel:
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
@@ -385,7 +385,7 @@ namespace Profiler
         {
         default:
         case DeviceProfilerDrawcallType::eUnknown:
-            return fmt::format( "Unknown command ({})", drawcall.m_Type );
+            return fmt::format( "Unknown command ({})", static_cast<uint32_t>( drawcall.m_Type ) );
 
         case DeviceProfilerDrawcallType::eInsertDebugLabel:
             return "vkCmdInsertDebugLabelEXT";
@@ -1029,7 +1029,7 @@ namespace Profiler
         case VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG:
             return "PVRTC2 4BPP Srgb";
         }
-        return fmt::format( "Unknown format ({})", format );
+        return fmt::format( "Unknown format ({})", static_cast<uint32_t>( format ) );
     }
 
     /***********************************************************************************\
@@ -1053,7 +1053,7 @@ namespace Profiler
         case VK_INDEX_TYPE_NONE_KHR:
             return "None";
         }
-        return fmt::format( "Unknown type ({})", type );
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
 
     /***********************************************************************************\
@@ -1078,7 +1078,7 @@ namespace Profiler
         case VK_COPY_ACCELERATION_STRUCTURE_MODE_DESERIALIZE_KHR:
             return "Deserialize";
         }
-        return fmt::format( "Unknown mode ({})", mode );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
     }
 
     /***********************************************************************************\
@@ -1101,7 +1101,7 @@ namespace Profiler
         case VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR:
             return "Generic";
         }
-        return fmt::format( "Unknown type ({})", type );
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
 
     /***********************************************************************************\
@@ -1158,7 +1158,7 @@ namespace Profiler
         case VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR:
             return "Update";
         }
-        return fmt::format( "Unknown mode ({})", mode );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
     }
 
     /***********************************************************************************\
@@ -1180,7 +1180,7 @@ namespace Profiler
         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
             return "Instances";
         }
-        return fmt::format( "Unknown type ({})", type );
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
 
     /***********************************************************************************\
