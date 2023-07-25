@@ -1,24 +1,24 @@
-[submodule "Vulkan-Headers"]
-	path = Vulkan-Headers
-	url = https://github.com/KhronosGroup/Vulkan-Headers
-[submodule "VkLayer_profiler_layer/profiler/farmhash"]
-	path = VkLayer_profiler_layer/profiler/farmhash
-	url = https://github.com/google/farmhash
-[submodule "VkLayer_profiler_layer/profiler_overlay/imgui"]
-	path = VkLayer_profiler_layer/profiler_overlay/imgui
-	url = https://github.com/ocornut/imgui
-[submodule "VkLayer_profiler_layer/profiler/intel/metrics-discovery"]
-	path = VkLayer_profiler_layer/profiler/intel/metrics-discovery
-	url = https://github.com/intel/metrics-discovery
-[submodule "VkLayer_profiler_layer/profiler_tests/googletest"]
-	path = VkLayer_profiler_layer/profiler_tests/googletest
-	url = https://github.com/google/googletest
 [submodule "External/json"]
 	path = External/json
 	url = https://github.com/nlohmann/json
-[submodule "VkLayer_profiler_layer/profiler_helpers/fmt"]
-	path = VkLayer_profiler_layer/profiler_helpers/fmt
-	url = https://github.com/fmtlib/fmt
-[submodule "SPIRV-Headers"]
-	path = SPIRV-Headers
+[submodule "External/imgui"]
+	path = External/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "External/Vulkan-Headers"]
+	path = External/Vulkan-Headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers
+[submodule "External/SPIRV-Headers"]
+	path = External/SPIRV-Headers
 	url = https://github.com/KhronosGroup/SPIRV-Headers
+[submodule "External/fmt"]
+	path = External/fmt
+	url = https://github.com/fmtlib/fmt
+[submodule "External/farmhash"]
+	path = External/farmhash
+	url = https://github.com/google/farmhash
+[submodule "External/googletest"]
+	path = External/googletest
+	url = https://github.com/google/googletest
+[submodule "External/metrics-discovery"]
+	path = External/metrics-discovery
+	url = https://github.com/intel/metrics-discovery
