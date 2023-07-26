@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,21 +20,11 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-project (profiler_helpers)
+# There is only one platform on Windows
+set (PROFILER_PLATFORM_FOUND 1)
 
-set (headers
-    "profiler_data_helpers.h"
-    "profiler_time_helpers.h"
-    )
+# Enable Windows platform.
+add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
 
-set (sources
-    "profiler_data_helpers.cpp"
-    )
-
-# Link intermediate static library
-add_library (profiler_helpers
-    ${sources}
-    ${headers})
-
-target_link_libraries (profiler_helpers
-    PUBLIC profiler_common)
+# Disable macros that would collide with stl.
+add_definitions (-DNOMINMAX)

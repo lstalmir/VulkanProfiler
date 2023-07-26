@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #pragma once
-#include "metrics-discovery/inc/common/instrumentation/api/metrics_discovery_api.h"
+#include <metrics_discovery_api.h>
 #ifdef WIN32
 #include <filesystem>
 #endif

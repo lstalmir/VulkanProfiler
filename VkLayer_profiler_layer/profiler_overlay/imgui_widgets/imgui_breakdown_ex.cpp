@@ -72,7 +72,7 @@ namespace ImGuiX
             return;
 
         const bool hovered =
-            ItemHoverable( frame_bb, id ) &&
+            ItemHoverable( frame_bb, id, 0 ) &&
             inner_bb.Contains( g.IO.MousePos );
 
         // Determine horizontal scale from values

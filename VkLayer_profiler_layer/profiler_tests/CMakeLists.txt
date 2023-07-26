@@ -22,42 +22,36 @@ cmake_minimum_required (VERSION 3.8)
 
 project (profiler_tests)
 
-# Prevent overriding the parent project's compiler/linker
-# settings on Windows
-set (gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+# Find Vulkan SDK and glslangValidator
+# Linux:    install libvulkan-dev and glslang-tools
+# Windows:  install Vulkan SDK
+find_package (Vulkan)
+find_program (glslangvalidator glslangValidator)
 
-# Prevent installation of gtest
-set (INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+if (NOT Vulkan_FOUND OR NOT glslangvalidator)
+    message (WARNING "Vulkan SDK and/or glslangValidator not found. Tests will be disabled.")
+    set (BUILD_TESTS OFF CACHE BOOL "" FORCE)
+endif ()
 
-add_subdirectory (googletest)
-add_subdirectory (shaders)
+if (BUILD_TESTS)
+    add_subdirectory (shaders)
 
-set (tests
-    "profiler_command_buffer_tests.cpp"
-    "profiler_extensions_tests.cpp"
-    "profiler_memory_tests.cpp"
-    )
+    set (tests
+        "profiler_command_buffer_tests.cpp"
+        "profiler_extensions_tests.cpp"
+        "profiler_memory_tests.cpp"
+        )
 
-add_executable (profiler_tests
-    ${tests}
-    )
-    
-add_dependencies (profiler_tests profiler_tests_shaders)
+    add_executable (profiler_tests
+        ${tests}
+        )
 
-target_link_libraries (profiler_tests
-    PRIVATE ${Vulkan_LIBRARIES}
-    PRIVATE gtest_main
-    PRIVATE profiler
-    PRIVATE VkLayer_profiler_layer_lib
-    )
+    add_dependencies (profiler_tests profiler_tests_shaders)
 
-target_link_directories (profiler_tests
-    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/../profiler"
-    )
-
-target_include_directories (profiler_tests
-    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/.."
-    PRIVATE "${VULKAN_HEADERS_INCLUDE_DIR}"
-    PRIVATE "${VULKAN_LOADER_INCLUDE_DIR}"
-    )
+    target_link_libraries (profiler_tests
+        PRIVATE ${Vulkan_LIBRARIES}
+        PRIVATE gtest_main
+        PRIVATE profiler
+        PRIVATE VkLayer_profiler_layer_lib
+        )
+endif (BUILD_TESTS)

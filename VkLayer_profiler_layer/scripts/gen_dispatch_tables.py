@@ -96,7 +96,8 @@ class DispatchTableGenerator:
 
     def write_commands( self, out: io.TextIOBase ):
         out.write( "#pragma once\n" )
-        out.write( "#include \"" + os.path.join( VULKAN_HEADERS_DIR, "include", "vulkan", "vk_layer.h" ) + "\"\n\n" )
+        out.write( "#include <vulkan/vulkan.h>\n" )
+        out.write( "#include <vulkan/vk_layer.h>\n\n" )
         out.write( "typedef struct VkLayerInstanceDispatchTable {\n" )
         for extension, commands in self.instance_dispatch_table.items():
             self.write_extension_commands( out, extension, commands, "  PFN_vk{0} {0};\n" )
