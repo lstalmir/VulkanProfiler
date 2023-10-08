@@ -372,6 +372,8 @@ namespace Profiler
 
         m_ImageViews.clear();
 
+        m_Images.clear();
+
         for( auto& fence : m_CommandFences )
         {
             m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
@@ -386,8 +388,11 @@ namespace Profiler
 
         m_CommandSemaphores.clear();
 
+        m_ImageFormat = VK_FORMAT_UNDEFINED;
+
         m_Window = OSWindowHandle();
         m_pDevice = nullptr;
+        m_pSwapchain = nullptr;
     }
 
     /***********************************************************************************\
