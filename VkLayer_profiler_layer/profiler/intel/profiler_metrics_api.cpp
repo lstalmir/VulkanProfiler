@@ -536,17 +536,17 @@ namespace Profiler
 
         char vulkanDriverName[ MAX_PATH ];
         char vulkanDeviceId[ 64 ];
-        char displayAdapterIndex[ 8 ];
 
-        for( int i = 0; igdmdPath.empty(); ++i )
+        // Enumerate subkeys.
+        for( DWORD dwKeyIndex = 0;
+             RegEnumKeyA( hRegistryKey, dwKeyIndex, vulkanDriverName, MAX_PATH ) == ERROR_SUCCESS;
+             ++dwKeyIndex )
         {
-            sprintf_s( displayAdapterIndex, "%04d", i );
-
             // Open device's registry key.
             HKEY hDeviceRegistryKey = NULL;
-            if( RegOpenKeyA( hRegistryKey, displayAdapterIndex, &hDeviceRegistryKey ) != ERROR_SUCCESS )
+            if( RegOpenKeyA( hRegistryKey, vulkanDriverName, &hDeviceRegistryKey ) != ERROR_SUCCESS )
             {
-                break;
+                continue;
             }
 
             // Read vendor and device ID from the registry.
@@ -601,6 +601,12 @@ namespace Profiler
             }
             
             RegCloseKey( hDeviceRegistryKey );
+
+            // Exit enumeration if the DLL has been found.
+            if( !igdmdPath.empty() )
+            {
+                break;
+            }
         }
 
         RegCloseKey( hRegistryKey );

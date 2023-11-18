@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2019-2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -40,8 +40,12 @@ target_link_libraries (profiler_ext
 
 # Set include path
 target_include_directories (profiler_ext
-    PRIVATE ${VULKAN_HEADERS_INCLUDE_DIR}
-    PRIVATE ${VULKAN_LOADER_INCLUDE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/core
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/extensions)
+
+# Install headers
+install (TARGETS profiler_ext
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+install (FILES ${headers}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

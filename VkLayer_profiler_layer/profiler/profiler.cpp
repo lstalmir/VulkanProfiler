@@ -21,7 +21,7 @@
 #include "profiler.h"
 #include "profiler_command_buffer.h"
 #include "profiler_helpers.h"
-#include "farmhash/src/farmhash.h"
+#include <farmhash.h>
 #include <sstream>
 #include <fstream>
 
@@ -789,7 +789,7 @@ namespace Profiler
     {
         // Compute shader code hash to use later
         DeviceProfilerShaderModule shaderModule = {};
-        shaderModule.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+        shaderModule.m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
 
         // Save the bytecode to display the shader's disassembly
         shaderModule.m_Bytecode.resize( pCreateInfo->codeSize / sizeof( uint32_t ) );
@@ -1308,7 +1308,7 @@ namespace Profiler
 
             // Hash the entrypoint and append it to the final hash
             const char* entrypoint = pStages[i].pName;
-            hash ^= Hash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
+            hash ^= Farmhash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
 
             DeviceProfilerPipelineShader& shader = tuple.m_Shaders[ pStages[i].stage ];
             shader.m_Hash = hash;
@@ -1335,7 +1335,7 @@ namespace Profiler
         }
 
         // Compute aggregated tuple hash for fast comparison
-        tuple.m_Hash = Hash::Fingerprint32( reinterpret_cast<const char*>( &shaderHashes ), sizeof( shaderHashes ) );
+        tuple.m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( &shaderHashes ), sizeof( shaderHashes ) );
     }
 
     /***********************************************************************************\

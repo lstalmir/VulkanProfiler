@@ -396,6 +396,8 @@ namespace Profiler
 
         m_ImageViews.clear();
 
+        m_Images.clear();
+
         for( auto& fence : m_CommandFences )
         {
             m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
@@ -410,8 +412,11 @@ namespace Profiler
 
         m_CommandSemaphores.clear();
 
+        m_ImageFormat = VK_FORMAT_UNDEFINED;
+
         m_Window = OSWindowHandle();
         m_pDevice = nullptr;
+        m_pSwapchain = nullptr;
     }
 
     /***********************************************************************************\
@@ -853,7 +858,7 @@ namespace Profiler
             m_Data = data;
         }
 
-        ImGui::BeginTabBar( "" );
+        ImGui::BeginTabBar( "##tabs" );
 
         if( ImGui::BeginTabItem( Lang::Performance ) )
         {
@@ -955,6 +960,14 @@ namespace Profiler
         {
             // Catch exceptions thrown by OS-specific ImGui window constructors
             result = VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        // Set DPI scaling.
+        if( result == VK_SUCCESS )
+        {
+            ImGuiIO& io = ImGui::GetIO();
+            io.FontGlobalScale = m_pImGuiWindowContext->GetDPIScale();
+            assert(io.FontGlobalScale > 0.0f);
         }
 
         // Deinitialize context if something failed
@@ -1575,7 +1588,7 @@ namespace Profiler
                 ImGui::Text( Lang::Sort );
                 ImGui::SameLine();
 
-                if( ImGui::BeginCombo( "FrameBrowserSortMode", selectedOption ) )
+                if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
                 {
                     for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
                     {
@@ -2104,6 +2117,13 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateSettingsTab()
     {
+        // Set interface scaling.
+        float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        if( ImGui::InputFloat( "Interface scale", &interfaceScale ) )
+        {
+            ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
+        }
+
         // Select synchronization mode
         {
             static const char* syncGroupOptions[] = {
@@ -2248,7 +2268,7 @@ namespace Profiler
         const bool renderPassContinue = (index.SubpassIndex != 0xFFFF);
 
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
-            (data.m_Handle != VK_NULL_HANDLE) )
+            (data.m_Handle != VK_NULL_HANDLE || data.m_Dynamic) )
         {
             const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
 
@@ -2619,6 +2639,41 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        PrintRenderPassCommand
+
+    Description:
+        Writes render pass command data to the overlay.
+        Render pass commands include vkCmdBeginRenderPass, vkCmdEndRenderPass, as well as
+        dynamic rendering counterparts: vkCmdBeginRendering, etc.
+
+    \***********************************************************************************/
+    template<typename Data>
+    void ProfilerOverlayOutput::PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex )
+    {
+        const uint64_t commandTicks = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value);
+
+        index.DrawcallIndex = drawcallIndex;
+
+        if( (m_ScrollToSelectedFrameBrowserNode) &&
+            (m_SelectedFrameBrowserNodeIndex == index) )
+        {
+            ImGui::SetScrollHereY();
+        }
+
+        // Mark hotspots with color
+        DrawSignificanceRect( (float)commandTicks / m_Data.m_Ticks, index );
+
+        index.DrawcallIndex = 0xFFFF;
+
+        // Print command's name
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( data, dynamic ).c_str() );
+
+        PrintDuration( data );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         PrintRenderPass
 
     Description:
@@ -2675,27 +2730,9 @@ namespace Profiler
             {
                 PrintDuration( renderPass );
 
-                if( renderPass.m_Handle != VK_NULL_HANDLE )
+                if( renderPass.HasBeginCommand() )
                 {
-                    const uint64_t renderPassBeginTicks = (renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value);
-
-                    index.DrawcallIndex = 0;
-
-                    if( (m_ScrollToSelectedFrameBrowserNode) &&
-                        (m_SelectedFrameBrowserNodeIndex == index) )
-                    {
-                        ImGui::SetScrollHereY();
-                    }
-
-                    // Mark hotspots with color
-                    DrawSignificanceRect( (float)renderPassBeginTicks / m_Data.m_Ticks, index );
-
-                    index.DrawcallIndex = 0xFFFF;
-
-                    // Print BeginRenderPass pipeline
-                    ImGui::TextUnformatted( "vkCmdBeginRenderPass" );
-
-                    PrintDuration( renderPass.m_Begin );
+                    PrintRenderPassCommand( renderPass.m_Begin, renderPass.m_Dynamic, index, 0 );
                 }
             }
 
@@ -2725,27 +2762,9 @@ namespace Profiler
 
             if( isValidRenderPass )
             {
-                if( renderPass.m_Handle != VK_NULL_HANDLE )
+                if( renderPass.HasEndCommand() )
                 {
-                    const uint64_t renderPassEndTicks = (renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value);
-
-                    index.DrawcallIndex = 1;
-
-                    if( (m_ScrollToSelectedFrameBrowserNode) &&
-                        (m_SelectedFrameBrowserNodeIndex == index) )
-                    {
-                        ImGui::SetScrollHereY();
-                    }
-
-                    // Mark hotspots with color
-                    DrawSignificanceRect( (float)renderPassEndTicks / m_Data.m_Ticks, index );
-
-                    index.DrawcallIndex = 0xFFFF;
-
-                    // Print EndRenderPass pipeline
-                    ImGui::TextUnformatted( "vkCmdEndRenderPass" );
-
-                    PrintDuration( renderPass.m_End );
+                    PrintRenderPassCommand( renderPass.m_End, renderPass.m_Dynamic, index, 1 );
                 }
 
                 ImGui::TreePop();

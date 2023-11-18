@@ -63,6 +63,11 @@ namespace Profiler
         void PreEndRenderPass();
         void PostEndRenderPass();
 
+        void PreBeginRendering( const VkRenderingInfo* );
+        void PostBeginRendering( const VkRenderingInfo* );
+        void PreEndRendering();
+        void PostEndRendering();
+
         void NextSubpass( VkSubpassContents );
 
         void BindPipeline( const DeviceProfilerPipeline& );
@@ -105,6 +110,9 @@ namespace Profiler
         DeviceProfilerPipeline              m_GraphicsPipeline;
         DeviceProfilerPipeline              m_ComputePipeline;
         DeviceProfilerPipeline              m_RayTracingPipeline;
+
+        void PreBeginRenderPassCommonProlog();
+        void PreBeginRenderPassCommonEpilog();
 
         void EndSubpass();
 

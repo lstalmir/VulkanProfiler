@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "imgui_impl_xcb.h"
-#include "imgui/imgui.h"
+#include <imgui.h>
 #include <stdlib.h>
 #include <unordered_set>
 #include <xcb/shape.h>

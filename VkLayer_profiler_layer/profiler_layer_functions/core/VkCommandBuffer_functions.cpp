@@ -228,6 +228,51 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CmdBeginRendering
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdBeginRendering(
+        VkCommandBuffer commandBuffer,
+        const VkRenderingInfo* pRenderingInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreBeginRendering( pRenderingInfo );
+
+        // Begin rendering
+        dd.Device.Callbacks.CmdBeginRendering( commandBuffer, pRenderingInfo );
+
+        profiledCommandBuffer.PostBeginRendering( pRenderingInfo );
+    }
+    
+    /***********************************************************************************\
+
+    Function:
+        CmdEndRendering
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdEndRendering(
+        VkCommandBuffer commandBuffer )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        profiledCommandBuffer.PreEndRendering();
+
+        // End rendering
+        dd.Device.Callbacks.CmdEndRendering( commandBuffer );
+
+        profiledCommandBuffer.PostEndRendering();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CmdBindPipeline
 
     Description:

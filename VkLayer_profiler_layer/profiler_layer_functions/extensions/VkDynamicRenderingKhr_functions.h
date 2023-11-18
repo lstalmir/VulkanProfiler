@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2023-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,30 +19,19 @@
 // SOFTWARE.
 
 #pragma once
-#include "imgui_window.h"
-#include "lockable_unordered_map.h"
+#include "VkDevice_functions_base.h"
 
-#include <Windows.h>
-
-class ImGui_ImplWin32_Context : public ImGui_Window_Context
+namespace Profiler
 {
-public:
-    ImGui_ImplWin32_Context( HWND hWnd );
-    ~ImGui_ImplWin32_Context();
+    struct VkDynamicRenderingKhr_Functions : VkDevice_Functions_Base
+    {
+        // vkCmdBeginRenderingKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdBeginRenderingKHR(
+            VkCommandBuffer commandBuffer,
+            const VkRenderingInfoKHR* pRenderingInfo );
 
-    const char* GetName() const override;
-
-    void NewFrame() override;
-
-    float GetDPIScale() const override;
-
-private:
-    HWND m_AppWindow;
-
-    void InitError();
-
-    static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
-
-    static bool IsMouseMessage( const MSG& );
-    static bool IsKeyboardMessage( const MSG& );
-};
+        // vkCmdEndRenderingKHR
+        static VKAPI_ATTR void VKAPI_CALL CmdEndRenderingKHR(
+            VkCommandBuffer commandBuffer );
+    };
+}

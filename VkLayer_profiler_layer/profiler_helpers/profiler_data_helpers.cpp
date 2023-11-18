@@ -75,7 +75,7 @@ namespace Profiler
         {
         default:
         case DeviceProfilerDrawcallType::eUnknown:
-            return fmt::format( "Unknown command ({})", drawcall.m_Type );
+            return fmt::format( "Unknown command ({})", static_cast<uint32_t>( drawcall.m_Type ) );
 
         case DeviceProfilerDrawcallType::eInsertDebugLabel:
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
@@ -285,19 +285,54 @@ namespace Profiler
             return GetName( renderPass.m_Handle );
         }
 
+        std::string renderPassName = "Unknown Pass";
+
         switch( renderPass.m_Type )
         {
         case DeviceProfilerRenderPassType::eGraphics:
-            return "Graphics Pass";
+            renderPassName = "Graphics Pass"; break;
         case DeviceProfilerRenderPassType::eCompute:
-            return "Compute Pass";
+            renderPassName = "Compute Pass"; break;
         case DeviceProfilerRenderPassType::eRayTracing:
-            return "Ray Tracing Pass";
+            renderPassName = "Ray Tracing Pass"; break;
         case DeviceProfilerRenderPassType::eCopy:
-            return "Copy Pass";
+            renderPassName = "Copy Pass"; break;
         }
 
-        return "Unknown Pass";
+        if( renderPass.m_Dynamic )
+        {
+            renderPassName = "Dynamic " + renderPassName;
+        }
+
+        return renderPassName;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the render pass command.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerRenderPassBeginData&, bool dynamic ) const
+    {
+        return (!dynamic) ? "vkCmdBeginRenderPass" : "vkCmdBeginRendering";
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Returns name of the render pass command.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName(const DeviceProfilerRenderPassEndData&, bool dynamic) const
+    {
+        return (!dynamic) ? "vkCmdEndRenderPass" : "vkCmdEndRendering";
     }
 
     /***********************************************************************************\
@@ -350,7 +385,7 @@ namespace Profiler
         {
         default:
         case DeviceProfilerDrawcallType::eUnknown:
-            return fmt::format( "Unknown command ({})", drawcall.m_Type );
+            return fmt::format( "Unknown command ({})", static_cast<uint32_t>( drawcall.m_Type ) );
 
         case DeviceProfilerDrawcallType::eInsertDebugLabel:
             return "vkCmdInsertDebugLabelEXT";
@@ -994,7 +1029,7 @@ namespace Profiler
         case VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG:
             return "PVRTC2 4BPP Srgb";
         }
-        return fmt::format( "Unknown format ({})", format );
+        return fmt::format( "Unknown format ({})", static_cast<uint32_t>( format ) );
     }
 
     /***********************************************************************************\
@@ -1018,7 +1053,7 @@ namespace Profiler
         case VK_INDEX_TYPE_NONE_KHR:
             return "None";
         }
-        return fmt::format( "Unknown type ({})", type );
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
 
     /***********************************************************************************\
@@ -1056,7 +1091,7 @@ namespace Profiler
         case VK_PRIMITIVE_TOPOLOGY_PATCH_LIST:
             return "Patch list";
         }
-        return fmt::format( "Unknown mode ({})", topology );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( topology ) );
     }
 
     /***********************************************************************************\
@@ -1080,7 +1115,7 @@ namespace Profiler
         case VK_POLYGON_MODE_FILL_RECTANGLE_NV:
             return "Fill rectangle";
         }
-        return fmt::format( "Unknown mode ({})", mode );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
     }
 
     /***********************************************************************************\
@@ -1104,7 +1139,7 @@ namespace Profiler
         case VK_CULL_MODE_FRONT_AND_BACK:
             return "Both";
         }
-        return fmt::format( "Unknown mode ({})", mode );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
     }
 
     /***********************************************************************************\
@@ -1124,7 +1159,7 @@ namespace Profiler
         case VK_FRONT_FACE_COUNTER_CLOCKWISE:
             return "Counter-clockwise";
         }
-        return fmt::format( "Unknown mode ({})", face );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( face ) );
     }
 
     /***********************************************************************************\
@@ -1156,7 +1191,7 @@ namespace Profiler
         case VK_COMPARE_OP_ALWAYS:
             return "Always";
         }
-        return fmt::format( "Unknown op ({})", compareOp );
+        return fmt::format( "Unknown op ({})", static_cast<uint32_t>( compareOp ) );
     }
 
     /***********************************************************************************\
@@ -1274,7 +1309,7 @@ namespace Profiler
         case VK_BLEND_OP_BLUE_EXT:
             return "Blue";
         }
-        return fmt::format( "Unknown op ({})", blendOp );
+        return fmt::format( "Unknown op ({})", static_cast<uint32_t>( blendOp ) );
     }
 
     /***********************************************************************************\
@@ -1328,7 +1363,7 @@ namespace Profiler
         case VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA:
             return "1 - Src1 Alpha";
         }
-        return fmt::format( "Unknown ({})", blendFactor );
+        return fmt::format( "Unknown ({})", static_cast<uint32_t>( blendFactor ) );
     }
 
     /***********************************************************************************\
@@ -1376,7 +1411,7 @@ namespace Profiler
         case VK_LOGIC_OP_SET:
             return "Set";
         }
-        return fmt::format( "Unknown op ({})", logicOp );
+        return fmt::format( "Unknown op ({})", static_cast<uint32_t>( logicOp ) );
     }
 
     /***********************************************************************************\
@@ -1401,7 +1436,7 @@ namespace Profiler
         case VK_COPY_ACCELERATION_STRUCTURE_MODE_DESERIALIZE_KHR:
             return "Deserialize";
         }
-        return fmt::format( "Unknown mode ({})", mode );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
     }
 
     /***********************************************************************************\
@@ -1424,7 +1459,7 @@ namespace Profiler
         case VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR:
             return "Generic";
         }
-        return fmt::format( "Unknown type ({})", type );
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
 
     /***********************************************************************************\
@@ -1481,7 +1516,7 @@ namespace Profiler
         case VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR:
             return "Update";
         }
-        return fmt::format( "Unknown mode ({})", mode );
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
     }
 
     /***********************************************************************************\
@@ -1503,7 +1538,7 @@ namespace Profiler
         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
             return "Instances";
         }
-        return fmt::format( "Unknown type ({})", type );
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
 
     /***********************************************************************************\
