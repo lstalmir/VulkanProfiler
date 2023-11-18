@@ -1848,6 +1848,28 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        DrawPipelineStages
+
+    Description:
+        Draws shaders stages that are part of the pipeline.
+
+    \***********************************************************************************/
+    static void DrawPipelineStages( const DeviceProfilerPipelineData& pipeline )
+    {
+        for( uint32_t i = 0; i < pipeline.m_ShaderTuple.m_Shaders.size(); ++i )
+        {
+            const auto& shader = pipeline.m_ShaderTuple.m_Shaders[i];
+
+            if( shader.m_pShaderModule )
+            {
+                PrintPipelineState( g_scShaderStageNames[i], "%08X", shader.m_Hash );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UpdateInspectorTab
 
     Description:
@@ -1868,13 +1890,16 @@ namespace Profiler
                 DrawShaderCapabilities( *m_pSelectedPipeline );
             }
 
+            ImGui::Dummy( ImVec2( 1, 5 ) );
+
+            DrawPipelineStages( *m_pSelectedPipeline );
+            ImGui::Dummy( ImVec2( 1, 5 ) );
+
             // Print graphics pipeline state.
             if( m_pSelectedPipeline->m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
             {
                 assert( m_pSelectedPipeline->m_pGraphicsState );
                 auto& graphicsState = *m_pSelectedPipeline->m_pGraphicsState;
-
-                ImGui::Dummy( ImVec2( 1, 5 ) );
 
                 if( graphicsState.m_InputAssemblyState.sType && ImGui::CollapsingHeader( "Input Assembly State" ) )
                 {
