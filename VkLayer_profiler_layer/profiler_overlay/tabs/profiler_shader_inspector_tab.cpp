@@ -26,7 +26,7 @@
 #include "../imgui_widgets/imgui_ex.h"
 #include "../imgui_widgets/imgui_table_ex.h"
 
-#include "../external/ImGuiColorTextEdit/TextEditor.h"
+#include <TextEditor.h>
 
 #include <spirv-tools/libspirv.h>
 

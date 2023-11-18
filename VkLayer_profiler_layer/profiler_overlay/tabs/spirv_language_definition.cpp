@@ -18,10 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "../external/ImGuiColorTextEdit/TextEditor.h"
-
-#include "spirv/unified1/spirv.h"
-#include "spirv-tools/libspirv.h"
+#include <TextEditor.h>
 
 namespace Profiler
 {

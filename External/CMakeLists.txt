@@ -98,5 +98,8 @@ add_library (imguicolortextedit STATIC
     ImGuiColorTextEdit/TextEditor.h
     ImGuiColorTextEdit/TextEditor.cpp)
 
+target_include_directories (imguicolortextedit
+    PUBLIC ImGuiColorTextEdit)
+
 target_link_libraries (imguicolortextedit
     PUBLIC imgui)

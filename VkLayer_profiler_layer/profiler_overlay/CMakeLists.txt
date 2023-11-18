@@ -87,8 +87,7 @@ add_library (profiler_overlay
     ${headers}
     ${imgui}
     ${imgui_platform}
-    ${imgui_widgets}
-    ${external})
+    ${imgui_widgets})
 
 target_link_libraries (profiler_overlay
     PUBLIC profiler_common
