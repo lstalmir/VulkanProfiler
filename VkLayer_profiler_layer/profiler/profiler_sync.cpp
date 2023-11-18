@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,13 @@ namespace Profiler
         , m_TimestampQueryPoolResetCommandBuffer( VK_NULL_HANDLE )
         , m_TimestampQueryPoolResetSemaphore( VK_NULL_HANDLE )
         , m_TimestampQueryPoolResetQueue( VK_NULL_HANDLE )
+        , m_CpuSynchronizationTimestamp( 0 )
         , m_SynchronizationTimestampsSent( false )
+#if defined( VK_EXT_calibrated_timestamps )
+        , m_CalibratedTimestamps()
+        , m_HasCalibratedTimestamps( false )
+        , m_HasCalibratedTimestampsExt( false )
+#endif
     {
     }
 
@@ -61,6 +67,10 @@ namespace Profiler
         m_pDevice = pDevice;
 
         m_TimestampQueryPoolSize = static_cast<uint32_t>(m_pDevice->Queues.size());
+
+#if defined( VK_EXT_calibrated_timestamps )
+        m_HasCalibratedTimestampsExt = m_pDevice->EnabledExtensions.count( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+#endif
 
         // Create a command pool for each queue family
         VkCommandPoolCreateInfo commandPoolCreateInfo = {};
@@ -254,6 +264,31 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerSynchronization::SendSynchronizationTimestamps()
     {
+        // Support for VK_EXT_calibrated_timestamps
+#if defined( VK_EXT_calibrated_timestamps )
+        if( m_HasCalibratedTimestampsExt )
+        {
+            VkCalibratedTimestampInfoEXT timestampInfos[ TimeDomain::_count ];
+            timestampInfos[ TimeDomain::eDevice ] = { VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT, nullptr, VK_TIME_DOMAIN_DEVICE_EXT };
+#if defined(WIN32)
+            timestampInfos[ TimeDomain::eHost ] = { VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT, nullptr, VK_TIME_DOMAIN_QUERY_PERFORMANCE_COUNTER_EXT };
+#else
+            timestampInfos[ TimeDomain::eHost ] = { VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT, nullptr, VK_TIME_DOMAIN_CLOCK_MONOTONIC_EXT };
+#endif
+
+            uint64_t maxDeviations_unused[ TimeDomain::_count ];
+            VkResult result = m_pDevice->Callbacks.GetCalibratedTimestampsEXT(
+                m_pDevice->Handle,
+                2, timestampInfos, m_CalibratedTimestamps, maxDeviations_unused );
+
+            if( result == VK_SUCCESS )
+            {
+                m_HasCalibratedTimestamps = true;
+                return;
+            }
+        }
+#endif // VK_EXT_calibrated_timestamps
+
         // For some reason this code causes hangs on Ubuntu with nvidia-driver-510.
         // Validation layer doesn't report any issues, so it may be a driver bug.
         // TODO: Check other drivers/gpus.
@@ -285,8 +320,9 @@ namespace Profiler
             m_pDevice->Callbacks.QueueSubmit( commandQueue, 1, &submitInfo, VK_NULL_HANDLE );
         }
 
+        m_CpuSynchronizationTimestamp = std::chrono::high_resolution_clock::now().time_since_epoch().count();
         m_SynchronizationTimestampsSent = true;
-#endif
+#endif // ! __linux__
     }
 
     /***********************************************************************************\
@@ -299,9 +335,26 @@ namespace Profiler
         Device must be idle.
 
     \***********************************************************************************/
-    std::unordered_map<VkQueue, uint64_t> DeviceProfilerSynchronization::GetSynchronizationTimestamps() const
+    void DeviceProfilerSynchronization::GetSynchronizationTimestamps( DeviceProfilerSynchronizationTimestamps& calibratedTimestamps ) const
     {
-        std::unordered_map<VkQueue, uint64_t> perQueueTimestamps;
+#if defined( VK_EXT_calibrated_timestamps )
+        if( m_HasCalibratedTimestamps )
+        {
+            // Assign timestamps to the queues.
+            // "An implementation supporting VK_EXT_calibrated_timestamps will use the same time domain
+            //  for all its VkQueue so that timestamp values reported for VK_TIME_DOMAIN_DEVICE_EXT can
+            //  be matched to any timestamp captured through vkCmdWriteTimestamp or vkCmdWriteTimestamp2."
+            const uint64_t calibratedDeviceTimestamp = m_CalibratedTimestamps[ TimeDomain::eDevice ];
+
+            for( const auto& [queue, _] : m_CommandBuffers )
+            {
+                calibratedTimestamps.m_QueueTimestamps[ queue ] = calibratedDeviceTimestamp;
+            }
+
+            // Append host synchronization timestamp for cpu counter calibration.
+            calibratedTimestamps.m_HostTimestamp = m_CalibratedTimestamps[ TimeDomain::eHost ];
+        }
+#endif // VK_EXT_calibrated_timestamps
 
         if( m_SynchronizationTimestampsSent )
         {
@@ -315,22 +368,25 @@ namespace Profiler
             // Assign queries to the queues
             size_t currentTimestampIndex = 0;
 
-            for( const auto& commandBuffer : m_CommandBuffers )
+            for( const auto& [queue, _] : m_CommandBuffers )
             {
-                perQueueTimestamps.insert( std::pair( commandBuffer.first, timestamps[ currentTimestampIndex ] ) );
+                calibratedTimestamps.m_QueueTimestamps[ queue ] = timestamps[ currentTimestampIndex ];
                 currentTimestampIndex++;
             }
+
+            // Append host synchronization timestamp for cpu counter calibration.
+            calibratedTimestamps.m_HostTimestamp = m_CpuSynchronizationTimestamp;
         }
         else
         {
             // Synchronization timestamps not sent, return zeros
-            for( const auto& commandBuffer : m_CommandBuffers )
+            for( const auto& [queue, _] : m_CommandBuffers )
             {
-                perQueueTimestamps.insert( std::pair( commandBuffer.first, 0 ) );
+                calibratedTimestamps.m_QueueTimestamps[ queue ] = 0;
             }
-        }
 
-        return perQueueTimestamps;
+            calibratedTimestamps.m_HostTimestamp = 0;
+        }
     }
 
     /***********************************************************************************\

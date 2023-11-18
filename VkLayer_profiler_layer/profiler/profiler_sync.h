@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,21 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Struct:
+        DeviceProfilerSynchronizationTimestamps
+
+    Description:
+        Contains calibration timestamps.
+
+    \***********************************************************************************/
+    struct DeviceProfilerSynchronizationTimestamps
+    {
+        std::unordered_map<VkQueue, uint64_t> m_QueueTimestamps;
+        uint64_t m_HostTimestamp;
+    };
+
+    /***********************************************************************************\
+
     Class:
         DeviceProfilerSynchronization
 
@@ -36,6 +51,12 @@ namespace Profiler
     \***********************************************************************************/
     class DeviceProfilerSynchronization
     {
+        enum TimeDomain {
+            eHost,
+            eDevice,
+            _count
+        };
+
     public:
         DeviceProfilerSynchronization();
 
@@ -47,7 +68,7 @@ namespace Profiler
         void WaitForFence( VkFence fence, uint64_t timeout = std::numeric_limits<uint64_t>::max() );
 
         void SendSynchronizationTimestamps();
-        std::unordered_map<VkQueue, uint64_t> GetSynchronizationTimestamps() const;
+        void GetSynchronizationTimestamps( DeviceProfilerSynchronizationTimestamps& timestamps ) const;
 
     private:
         VkDevice_Object* m_pDevice;
@@ -63,8 +84,16 @@ namespace Profiler
         VkCommandBuffer m_TimestampQueryPoolResetCommandBuffer;
         VkSemaphore m_TimestampQueryPoolResetSemaphore;
         VkQueue m_TimestampQueryPoolResetQueue;
+        uint64_t m_CpuSynchronizationTimestamp;
 
         bool m_SynchronizationTimestampsSent;
+
+#if defined(VK_EXT_calibrated_timestamps)
+        // Support for VK_EXT_calibrated_timestamps
+        uint64_t m_CalibratedTimestamps[TimeDomain::_count];
+        bool m_HasCalibratedTimestamps;
+        bool m_HasCalibratedTimestampsExt;
+#endif
 
         VkResult RecordTimestmapQueryCommandBuffers();
     };

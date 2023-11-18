@@ -72,30 +72,38 @@ namespace Profiler
     \***********************************************************************************/
     class CpuTimestampCounter
     {
+        using Clock = std::chrono::high_resolution_clock;
+        using TimePoint = Clock::time_point;
+        using Duration = Clock::duration;
+
     public:
         // Initialize new CPU timestamp query counter
-        inline CpuTimestampCounter() { m_BeginValue = m_EndValue = std::chrono::high_resolution_clock::now(); }
+        inline CpuTimestampCounter() { Reset(); }
 
         // Reset counter values
-        inline void Reset() { m_BeginValue = m_EndValue = std::chrono::high_resolution_clock::now(); }
+        inline void Reset() { m_BeginValue = m_EndValue = GetCurrentValue(); }
 
         // Begin timestamp query
-        inline void Begin() { m_BeginValue = std::chrono::high_resolution_clock::now(); }
+        inline void Begin() { m_BeginValue = GetCurrentValue(); }
 
         // End timestamp query
-        inline void End() { m_EndValue = std::chrono::high_resolution_clock::now(); }
+        inline void End() { m_EndValue = GetCurrentValue(); }
 
         // Get time range between begin and end
         template<typename Unit>
-        inline auto GetValue() const { return std::chrono::duration_cast<Unit>(m_EndValue - m_BeginValue); }
+        inline Unit GetValue() const { return std::chrono::duration_cast<Unit>(m_EndValue - m_BeginValue); }
 
-        inline auto GetBeginValue() const { return m_BeginValue; }
+        inline TimePoint GetBeginValue() const { return m_BeginValue; }
 
-        inline auto GetCurrentValue() const { return std::chrono::high_resolution_clock::now(); }
+        inline TimePoint GetCurrentValue() const { return Clock::now() - m_SyncPoint; }
+
+        inline void Calibrate( uint64_t calibratedTimestamp ) { m_SyncPoint = Duration( calibratedTimestamp ); }
 
     protected:
-        std::chrono::high_resolution_clock::time_point m_BeginValue;
-        std::chrono::high_resolution_clock::time_point m_EndValue;
+        TimePoint m_BeginValue;
+        TimePoint m_EndValue;
+
+        Duration m_SyncPoint;
     };
 
     /***********************************************************************************\

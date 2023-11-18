@@ -149,7 +149,10 @@ namespace Profiler
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+#if defined( VK_EXT_calibrated_timestamps )
+            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME
+#endif // VK_EXT_calibrated_timestamps
         };
 
         // Load configuration that will be used by the profiler.
@@ -958,7 +961,10 @@ namespace Profiler
             m_Data = m_DataAggregator.GetAggregatedData();
         }
 
-        m_Data.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+        DeviceProfilerSynchronizationTimestamps calibratedTimestamps;
+        m_Synchronization.GetSynchronizationTimestamps( calibratedTimestamps );
+
+        m_Data.m_SyncTimestamps = calibratedTimestamps.m_QueueTimestamps;
 
         // TODO: Move to memory tracker
         m_Data.m_Memory = m_MemoryData;
@@ -971,6 +977,7 @@ namespace Profiler
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
         m_Data.m_CPU.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
+        m_CpuTimestampCounter.Calibrate( calibratedTimestamps.m_HostTimestamp );
         m_CpuTimestampCounter.Begin();
 
         // Prepare aggregator for the next frame
