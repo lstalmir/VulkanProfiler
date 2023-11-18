@@ -165,7 +165,7 @@ namespace Profiler
             m_pQueryPool->BeginPerformanceQuery( m_CommandBuffer );
 
             // Send global timestamp query for the whole command buffer.
-            m_Data.m_BeginTimestamp.m_Index = m_pQueryPool->WriteTimestamp( m_CommandBuffer );
+            m_Data.m_BeginTimestamp.m_Index = m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_BeginTimestampStage );
         }
     }
 
@@ -184,7 +184,7 @@ namespace Profiler
         {
             // Send global timestamp query for the whole command buffer.
             m_Data.m_EndTimestamp.m_Index =
-                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_EndTimestampStage );
 
             if( (m_pCurrentRenderPassData != nullptr) &&
                 (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
@@ -305,7 +305,7 @@ namespace Profiler
                     m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
                 m_pCurrentRenderPassData->m_Begin.m_EndTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_EndTimestampStage );
             }
 
             // Begin first subpass
@@ -336,7 +336,7 @@ namespace Profiler
                     m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
                 m_pCurrentRenderPassData->m_End.m_BeginTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_BeginTimestampStage );
             }
         }
     }
@@ -360,7 +360,7 @@ namespace Profiler
                     m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
             {
                 m_pCurrentRenderPassData->m_End.m_EndTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_EndTimestampStage );
 
                 // Use the end timestamp of the end command.
                 m_pCurrentRenderPassData->m_EndTimestamp = m_pCurrentRenderPassData->m_End.m_EndTimestamp;
@@ -504,7 +504,7 @@ namespace Profiler
 
             // Write begin timestamp of the subpass.
             m_pCurrentSubpassData->m_BeginTimestamp.m_Index =
-                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+                m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_BeginTimestampStage );
         }
     }
 
@@ -602,7 +602,7 @@ namespace Profiler
             {
                 // Begin timestamp query
                 const uint64_t timestampIndex =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_BeginTimestampStage );
 
                 // Update draw begin timestamp index.
                 if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
@@ -694,7 +694,7 @@ namespace Profiler
                 {
                     // Send a timestamp query at the end of the command.
                     m_pCurrentDrawcallData->m_EndTimestamp.m_Index =
-                        m_pQueryPool->WriteTimestamp(m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+                        m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_EndTimestampStage );
                 }
                 else
                 {
@@ -914,7 +914,7 @@ namespace Profiler
         {
             // Insert a timestamp query at the render pass boundary.
             const uint64_t timestampIndex =
-                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_EndTimestampStage );
 
             // Update an ending timestamp for the previous render pass.
             m_pCurrentRenderPassData->m_EndTimestamp.m_Index = timestampIndex;
@@ -952,7 +952,7 @@ namespace Profiler
         m_pQueryPool->PreallocateQueries( m_CommandBuffer );
 
         m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
-            m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+            m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_BeginTimestampStage );
 
         // Record initial transitions and clears.
         if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
@@ -1000,7 +1000,7 @@ namespace Profiler
             else
             {
                 m_pCurrentSubpassData->m_EndTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, m_Profiler.m_Config.m_EndTimestampStage );
             }
 
             // Update timestamp of the last pipeline in the subpass.

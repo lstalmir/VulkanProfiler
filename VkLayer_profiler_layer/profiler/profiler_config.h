@@ -46,6 +46,12 @@ namespace Profiler
         // Frequency of reading the timestamp queries.
         VkProfilerSyncModeEXT m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
 
+        // Pipeline stage at which begin timestamps are sent.
+        VkPipelineStageFlagBits m_BeginTimestampStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
+        // Pipeline stage at which end timestamps are sent.
+        VkPipelineStageFlagBits m_EndTimestampStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+
     public:
         void SaveToFile( const std::filesystem::path& filename ) const;
         void LoadFromFile( const std::filesystem::path& filename );

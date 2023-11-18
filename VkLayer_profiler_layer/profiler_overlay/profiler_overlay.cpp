@@ -1883,6 +1883,39 @@ namespace Profiler
             }
         }
 
+        // Select timestamp stage
+        {
+            static const char* timestampStageOptions[] = {
+                "VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT",
+                "VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT",
+                "VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT"
+            };
+            static const VkPipelineStageFlagBits timestampStages[] = {
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+            };
+
+            static int beginTimestampStageSelectedOption = 0;
+            int previousBeginTimestampStageSelectedOption = beginTimestampStageSelectedOption;
+
+            static int endTimestampStageSelectedOption = 2;
+            int previousEndTimestampStageSelectedOption = endTimestampStageSelectedOption;
+
+            ImGui::Combo( "Begin timestamp stage", &beginTimestampStageSelectedOption, timestampStageOptions, 3 );
+            ImGui::Combo( "End timestamp stage", &endTimestampStageSelectedOption, timestampStageOptions, 3 );
+
+            if( previousBeginTimestampStageSelectedOption != beginTimestampStageSelectedOption )
+            {
+                vkSetProfilerBeginTimestampStageEXT( m_pDevice->Handle, timestampStages[ beginTimestampStageSelectedOption ] );
+            }
+
+            if( previousEndTimestampStageSelectedOption != endTimestampStageSelectedOption )
+            {
+                vkSetProfilerEndTimestampStageEXT( m_pDevice->Handle, timestampStages[ endTimestampStageSelectedOption ] );
+            }
+        }
+
         // Display debug labels in frame browser.
         ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
 

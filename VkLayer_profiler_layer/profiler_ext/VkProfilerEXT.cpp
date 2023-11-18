@@ -475,3 +475,35 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
 {
     (*pIndex) = VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_MetricsApiINTEL.GetActiveMetricsSetIndex();
 }
+
+/***************************************************************************************\
+
+Function:
+    vkSetProfilerBeginTimestampStage
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerBeginTimestampStageEXT(
+    VkDevice device,
+    VkPipelineStageFlagBits stage )
+{
+    VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_Config.m_BeginTimestampStage = stage;
+    return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkSetProfilerEndTimestampStage
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerEndTimestampStageEXT(
+    VkDevice device,
+    VkPipelineStageFlagBits stage )
+{
+    VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_Config.m_EndTimestampStage = stage;
+    return VK_SUCCESS;
+}

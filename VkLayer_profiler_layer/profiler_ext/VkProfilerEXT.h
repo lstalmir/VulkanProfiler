@@ -253,6 +253,8 @@ typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceMetri
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceCounterPropertiesEXT )(VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerPerformanceMetricsSetEXT )(VkDevice, uint32_t);
 typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerActivePerformanceMetricsSetIndexEXT )(VkDevice, uint32_t*);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerBeginTimestampStageEXT )(VkDevice, VkPipelineStageFlagBits);
+typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerEndTimestampStageEXT )(VkDevice, VkPipelineStageFlagBits);
 
 #ifndef VK_NO_PROTOTYPES
 VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
@@ -292,5 +294,13 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerPerformanceMetricsSetEXT(
 VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
     VkDevice device,
     uint32_t* pMetricsSetIndex );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerBeginTimestampStageEXT(
+    VkDevice device,
+    VkPipelineStageFlagBits stage );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerEndTimestampStageEXT(
+    VkDevice device,
+    VkPipelineStageFlagBits stage );
 #endif // VK_NO_PROTOTYPES
 #endif // VK_EXT_profiler

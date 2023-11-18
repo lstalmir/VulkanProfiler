@@ -30,6 +30,8 @@
 #define VKPROF_SET_STABLE_POWER_STATE "set_stable_power_state"
 #define VKPROF_SAMPLING_MODE_CVAR_NAME "sampling_mode"
 #define VKPROF_SYNC_MODE_CVAR_NAME "sync_mode"
+#define VKPROF_BEGIN_TIMESTAMP_STAGE_CVAR_NAME "begin_timestamp_stage"
+#define VKPROF_END_TIMESTAMP_STAGE_CVAR_NAME "end_timestamp_stage"
 
 #define VKPROF_GET_ENV_CVAR_NAME(cvar) "VKPROF_" cvar
 
@@ -44,6 +46,8 @@ namespace Profiler
         out << VKPROF_SET_STABLE_POWER_STATE " " << m_SetStablePowerState << "\n";
         out << VKPROF_SAMPLING_MODE_CVAR_NAME " " << static_cast<int>( m_SamplingMode ) << "\n";
         out << VKPROF_SYNC_MODE_CVAR_NAME " " << static_cast<int>( m_SyncMode ) << "\n";
+        out << VKPROF_BEGIN_TIMESTAMP_STAGE_CVAR_NAME " " << static_cast<int>( m_BeginTimestampStage ) << "\n";
+        out << VKPROF_END_TIMESTAMP_STAGE_CVAR_NAME " " << static_cast<int>( m_EndTimestampStage ) << "\n";
     }
 
     void DeviceProfilerConfig::LoadFromFile( const std::filesystem::path& filename )
@@ -92,6 +96,18 @@ namespace Profiler
                     m_SyncMode = static_cast<VkProfilerSyncModeEXT>( atoi( value.c_str() ) );
                     continue;
                 }
+
+                if( strcmp( name.c_str(), VKPROF_BEGIN_TIMESTAMP_STAGE_CVAR_NAME ) == 0 )
+                {
+                    m_BeginTimestampStage = static_cast<VkPipelineStageFlagBits>( atoi( value.c_str() ) );
+                    continue;
+                }
+
+                if( strcmp( name.c_str(), VKPROF_END_TIMESTAMP_STAGE_CVAR_NAME ) == 0 )
+                {
+                    m_EndTimestampStage = static_cast<VkPipelineStageFlagBits>( atoi( value.c_str() ) );
+                    continue;
+                }
             }
         }
     }
@@ -136,6 +152,16 @@ namespace Profiler
         if( auto syncMode = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_SYNC_MODE_CVAR_NAME ) ) )
         {
             m_SyncMode = static_cast<VkProfilerSyncModeEXT>( std::stoi( syncMode.value() ) );
+        }
+
+        if( auto beginTimestampStage = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_BEGIN_TIMESTAMP_STAGE_CVAR_NAME ) ) )
+        {
+            m_BeginTimestampStage = static_cast<VkPipelineStageFlagBits>( std::stoi( beginTimestampStage.value() ) );
+        }
+
+        if( auto endTimestampStage = ProfilerPlatformFunctions::GetEnvironmentVar( VKPROF_GET_ENV_CVAR_NAME( VKPROF_END_TIMESTAMP_STAGE_CVAR_NAME ) ) )
+        {
+            m_EndTimestampStage = static_cast<VkPipelineStageFlagBits>( std::stoi( endTimestampStage.value() ) );
         }
     }
 }
