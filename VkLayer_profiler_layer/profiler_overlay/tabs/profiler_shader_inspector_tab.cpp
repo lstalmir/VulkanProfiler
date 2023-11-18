@@ -248,6 +248,9 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerShaderInspectorTab::Draw()
     {
+        // Get height of the target window.
+        const float height = ImGui::GetWindowHeight() - 125;
+
         // Get the name of the shader module.
         const auto pipelineName = m_StringSerializer.GetName( m_Pipeline ) + " (" + std::to_string( m_ShaderStage ) + ")";
 
@@ -267,7 +270,7 @@ namespace Profiler
                 }
 
                 ImGui::PushFont( m_pImGuiCodeFont );
-                pTabTextEditor->Render( "Disassembly" );
+                pTabTextEditor->Render( "Disassembly", ImVec2( 0, height ) );
                 ImGui::PopFont();
                 ImGui::EndTabItem();
             }
@@ -298,7 +301,7 @@ namespace Profiler
                             }
 
                             ImGui::PushFont( m_pImGuiCodeFont );
-                            pTabTextEditor->Render( sourceFilename.m_FullPath.c_str() );
+                            pTabTextEditor->Render( sourceFilename.m_FullPath.c_str(), ImVec2( 0, height ) );
                             ImGui::PopFont();
                             ImGui::EndTabItem();
                         }
@@ -374,7 +377,7 @@ namespace Profiler
                                         pTabTextEditor = CreateTextEditor( static_cast<const char*>( internalRepresentation.pData ) );
                                     }
 
-                                    pTabTextEditor->Render( "Disassembly" );
+                                    pTabTextEditor->Render( "Disassembly", ImVec2( 0, height ) );
                                 }
                                 else
                                 {
