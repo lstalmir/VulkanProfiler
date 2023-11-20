@@ -38,15 +38,25 @@ namespace Profiler
     struct DeviceProfilerPipelineShader
     {
         uint32_t                    m_Hash = 0;
+        uint32_t                    m_Index = 0;
+        VkShaderStageFlagBits       m_Stage = {};
         std::string                 m_EntryPoint = "";
         DeviceProfilerShaderModule* m_pShaderModule = nullptr;
     };
 
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPipelineShaderTuple
+
+    Description:
+        Collection of shaders that make up a single pipeline.
+
+    \***********************************************************************************/
     struct DeviceProfilerPipelineShaderTuple
     {
         uint32_t m_Hash = 0;
-
-        BitsetArray<VkShaderStageFlagBits, DeviceProfilerPipelineShader, 32> m_Shaders = {};
+        RuntimeArray<DeviceProfilerPipelineShader> m_Shaders = {};
 
         inline constexpr bool operator==( const DeviceProfilerPipelineShaderTuple& rh ) const
         {
@@ -56,6 +66,43 @@ namespace Profiler
         inline constexpr bool operator!=( const DeviceProfilerPipelineShaderTuple& rh ) const
         {
             return !operator==( rh );
+        }
+
+        inline ArrayView<const DeviceProfilerPipelineShader> GetShadersAtStage(VkShaderStageFlagBits stage) const
+        {
+            size_t first = -1;
+            for (; first < m_Shaders.size(); ++first)
+                if (m_Shaders[first].m_Stage == stage)
+                    break;
+
+            size_t last = first + 1;
+            for (; last < m_Shaders.size(); ++last)
+                if (m_Shaders[last].m_Stage != stage)
+                    break;
+
+            if (first == m_Shaders.size())
+                return {};
+
+            const auto* pData = m_Shaders.data();
+            return { pData + first, pData + last };
+        }
+
+        inline const DeviceProfilerPipelineShader* GetFirstShaderAtStage(VkShaderStageFlagBits stage) const
+        {
+            for (size_t i = 0; i < m_Shaders.size(); ++i)
+                if (m_Shaders[i].m_Stage == stage)
+                    return &m_Shaders[i];
+
+            return nullptr;
+        }
+
+        inline const DeviceProfilerPipelineShader* GetShaderAtIndex( uint32_t index ) const
+        {
+            for (size_t i = 0; i < m_Shaders.size(); ++i)
+                if (m_Shaders[i].m_Index == index)
+                    return &m_Shaders[i];
+
+            return nullptr;
         }
     };
 

@@ -184,18 +184,19 @@ namespace Profiler
     DeviceProfilerShaderInspectorTab::DeviceProfilerShaderInspectorTab(
         VkDevice_Object& device,
         const DeviceProfilerPipelineData& pipeline,
-        VkShaderStageFlagBits stage,
+        const DeviceProfilerPipelineShader& shader,
         ImFont* font )
         : m_Device( device )
         , m_StringSerializer( device )
         , m_pImGuiCodeFont( font )
-        , m_ShaderStage( stage )
-        , m_Pipeline( pipeline )
+        , m_PipelineHandle( pipeline.m_Handle )
+        , m_pExecutableProperties( pipeline.m_pExecutableProperties )
+        , m_Shader( shader )
         , m_ShaderModuleSourceList()
         , m_pTextEditors()
     {
         // Get the SPIR-V module associated with the inspected shader stage.
-        const auto& bytecode = pipeline.m_ShaderTuple.m_Shaders[ stage ].m_pShaderModule->m_Bytecode;
+        const auto& bytecode = m_Shader.m_pShaderModule->m_Bytecode;
 
         // Disassemble the SPIR-V module.
         spv_context spvContext = spvContextCreate( spv_target_env::SPV_ENV_UNIVERSAL_1_6 );
@@ -252,7 +253,7 @@ namespace Profiler
         const float height = ImGui::GetWindowHeight() - 125;
 
         // Get the name of the shader module.
-        const auto pipelineName = m_StringSerializer.GetName( m_Pipeline ) + " (" + std::to_string( m_ShaderStage ) + ")";
+        const auto pipelineName = m_StringSerializer.GetName( m_PipelineHandle ) + "_" + std::to_string( m_Shader.m_Hash );
 
         // Print the shader's disassembly.
         if( ImGui::BeginTabBar( ( "##" + pipelineName + "_internal_representations" ).c_str() ) )
@@ -319,12 +320,12 @@ namespace Profiler
             tabIndex++;
 
             // Print pipeline executable statistics if the extension is supported.
-            if( m_Pipeline.m_pExecutableProperties )
+            if( m_pExecutableProperties )
             {
-                for( const auto& executable : m_Pipeline.m_pExecutableProperties->m_Shaders )
+                for( const auto& executable : m_pExecutableProperties->m_Shaders )
                 {
                     // Skip executables that are not part of the inspected stage.
-                    if( ( executable.m_ExecutableProperties.stages & m_ShaderStage ) != m_ShaderStage )
+                    if( ( executable.m_ExecutableProperties.stages & m_Shader.m_Stage ) != m_Shader.m_Stage )
                     {
                         continue;
                     }

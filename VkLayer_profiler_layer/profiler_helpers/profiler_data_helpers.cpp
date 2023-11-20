@@ -261,6 +261,23 @@ namespace Profiler
         GetName
 
     Description:
+        Returns name of the pipeline shader.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineShader& shader ) const
+    {
+        return fmt::format( "{} {:08X} ({})",
+            GetShaderStageName( shader.m_Stage ),
+            shader.m_Hash,
+            shader.m_EntryPoint.c_str() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
         Returns name of the subpass.
 
     \***********************************************************************************/
@@ -519,6 +536,40 @@ namespace Profiler
         u8tohex( color + 5, B );
 
         return color;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShaderStageName
+
+    Description:
+        Returns string representation of a VkShaderStageFlagBit.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShaderStageName( VkShaderStageFlagBits stage ) const
+    {
+        static const Profiler::BitsetArray<VkShaderStageFlagBits, const char*, 32> scShaderStageNames
+            = { "Vertex shader",
+                "Tessellation control shader",
+                "Tessellation evaluation shader",
+                "Geometry shader",
+                "Fragment shader",
+                "Compute shader",
+                "Task shader",
+                "Mesh shader",
+                "Ray generation shader",
+                "Ray any-hit shader",
+                "Ray closest-hit shader",
+                "Ray miss shader",
+                "Ray intersection shader",
+                "Callable shader",
+                "Subpass shader" };
+
+        if (const char* pShaderStageName = scShaderStageNames.at_bit(stage))
+            return pShaderStageName;
+
+        return "Unknown shader";
     }
 
     /***********************************************************************************\

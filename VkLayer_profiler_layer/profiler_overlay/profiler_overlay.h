@@ -217,7 +217,7 @@ namespace Profiler
         bool m_PipelineInspectorTabOpen;
         bool m_SwitchToPipelineInspectorTab;
         const DeviceProfilerPipelineData* m_pSelectedPipeline;
-        std::vector<const char*> m_pSelectedPipelineShaderStageNames;
+        std::vector<std::string> m_pSelectedPipelineShaderStageNames;
         std::vector<std::unique_ptr<DeviceProfilerShaderInspectorTab>> m_pSelectedPipelineShaderStageInspectors;
         size_t m_SelectedPipelineShaderStageIndex;
 

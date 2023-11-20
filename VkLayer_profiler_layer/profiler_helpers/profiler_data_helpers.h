@@ -40,6 +40,7 @@ namespace Profiler
 
         std::string GetName( const struct DeviceProfilerDrawcall& ) const;
         std::string GetName( const struct DeviceProfilerPipelineData& ) const;
+        std::string GetName( const struct DeviceProfilerPipelineShader& ) const;
         std::string GetName( const struct DeviceProfilerSubpassData& ) const;
         std::string GetName( const struct DeviceProfilerRenderPassData& ) const;
         std::string GetName( const struct DeviceProfilerRenderPassBeginData&, bool dynamic ) const;
@@ -59,6 +60,7 @@ namespace Profiler
             return b ? "True" : "False";
         }
 
+        std::string GetShaderStageName( VkShaderStageFlagBits ) const;
         std::string GetFormatName( VkFormat ) const;
         std::string GetIndexTypeName( VkIndexType ) const;
         std::string GetTopologyName( VkPrimitiveTopology ) const;

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -45,23 +45,6 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
 #else
 using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 #endif
-
-static const Profiler::BitsetArray<VkShaderStageFlagBits, const char*, 32> g_scShaderStageNames
-    = { Lang::ShaderStage_Vertex,
-        Lang::ShaderStage_TessellationControl,
-        Lang::ShaderStage_TessellationEvaluation,
-        Lang::ShaderStage_Geometry,
-        Lang::ShaderStage_Fragment,
-        Lang::ShaderStage_Compute,
-        Lang::ShaderStage_Task,
-        Lang::ShaderStage_Mesh,
-        Lang::ShaderStage_RayGeneration,
-        Lang::ShaderStage_RayAnyHit,
-        Lang::ShaderStage_RayClosestHit,
-        Lang::ShaderStage_RayMiss,
-        Lang::ShaderStage_RayIntersection,
-        Lang::ShaderStage_Callable,
-        Lang::ShaderStage_Subpass };
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "imgui_impl_win32.h"
@@ -1831,41 +1814,18 @@ namespace Profiler
         Helper function for writing pipeline states.
 
     \***********************************************************************************/
-    template<typename... Args>
+    template<int headerColumnSize = 250, typename... Args>
     PROFILER_FORCE_INLINE
     void PrintPipelineState(
         const char* pStateName,
         const char* pFormat,
         Args&&... args )
     {
-        constexpr float haderColumnSize = 250;
         ImGui::TextUnformatted( pStateName );
         ImGui::SameLine();
-        ImGui::SetCursorPosX( haderColumnSize );
+        ImGui::SetCursorPosX( headerColumnSize );
         ImGui::Text( pFormat, std::forward<Args>( args )... );
     };
-
-    /***********************************************************************************\
-
-    Function:
-        DrawPipelineStages
-
-    Description:
-        Draws shaders stages that are part of the pipeline.
-
-    \***********************************************************************************/
-    static void DrawPipelineStages( const DeviceProfilerPipelineData& pipeline )
-    {
-        for( uint32_t i = 0; i < pipeline.m_ShaderTuple.m_Shaders.size(); ++i )
-        {
-            const auto& shader = pipeline.m_ShaderTuple.m_Shaders[i];
-
-            if( shader.m_pShaderModule )
-            {
-                PrintPipelineState( g_scShaderStageNames[i], "%08X", shader.m_Hash );
-            }
-        }
-    }
 
     /***********************************************************************************\
 
@@ -1892,8 +1852,23 @@ namespace Profiler
 
             ImGui::Dummy( ImVec2( 1, 5 ) );
 
-            DrawPipelineStages( *m_pSelectedPipeline );
+#if 0
+            // Print all pipeline shader stages.
+            const auto& stages = m_pSelectedPipeline->m_ShaderTuple.m_Shaders;
+            const size_t stageCount = stages.size();
+
+            for( uint32_t i = 0; i < stageCount; ++i )
+            {
+                const auto& shader = stages[ i ];
+
+                if (shader.m_pShaderModule)
+                {
+                    PrintPipelineState( m_pStringSerializer->GetShaderStageName( shader.m_Stage ).c_str(), "%08X", shader.m_Hash );
+                }
+            }
+
             ImGui::Dummy( ImVec2( 1, 5 ) );
+#endif
 
             // Print graphics pipeline state.
             if( m_pSelectedPipeline->m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
@@ -1905,11 +1880,13 @@ namespace Profiler
                 {
                     PrintPipelineState( "Primitive topology", "%s", m_pStringSerializer->GetTopologyName( graphicsState.m_InputAssemblyState.topology ).c_str() );
                     PrintPipelineState( "Primitive restart enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_InputAssemblyState.primitiveRestartEnable ) );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
                 }
 
                 if( graphicsState.m_TessellationState.sType && ImGui::CollapsingHeader( "Tessellation State" ) )
                 {
                     PrintPipelineState( "Primitive restart enabled", "%u", graphicsState.m_TessellationState.patchControlPoints );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
                 }
 
                 if( graphicsState.m_RasterizationState.sType && ImGui::CollapsingHeader( "Rasterization State" ) )
@@ -1923,6 +1900,7 @@ namespace Profiler
                     PrintPipelineState( "Depth bias clamp", "%f", graphicsState.m_RasterizationState.depthBiasClamp );
                     PrintPipelineState( "Depth bias slope factor", "%f", graphicsState.m_RasterizationState.depthBiasSlopeFactor );
                     PrintPipelineState( "Line width", "%f", graphicsState.m_RasterizationState.lineWidth );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
                 }
 
                 if( graphicsState.m_MultisampleState.sType && ImGui::CollapsingHeader( "Multisample State" ) )
@@ -1930,12 +1908,10 @@ namespace Profiler
                     PrintPipelineState( "Rasterization samples", "%u", u32log2( graphicsState.m_MultisampleState.rasterizationSamples ) );
                     PrintPipelineState( "Sample shading enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.sampleShadingEnable ) );
                     PrintPipelineState( "Min sample shading", "%f", graphicsState.m_MultisampleState.minSampleShading );
-                    PrintPipelineState( "Sample mask", "%08X",
-                        graphicsState.m_MultisampleState.pSampleMask
-                            ? *graphicsState.m_MultisampleState.pSampleMask
-                            : 0xFFFFFFFF );
+                    PrintPipelineState( "Sample mask", "%08X", graphicsState.m_MultisampleState.pSampleMask ? *graphicsState.m_MultisampleState.pSampleMask : 0xFFFFFFFF );
                     PrintPipelineState( "Alpha to coverage enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.alphaToCoverageEnable ) );
                     PrintPipelineState( "Alpha to one enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.alphaToOneEnable ) );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
                 }
 
                 if( graphicsState.m_DepthStencilState.sType && ImGui::CollapsingHeader( "Depth-Stencil State" ) )
@@ -1947,6 +1923,7 @@ namespace Profiler
                     PrintPipelineState( "Stencil test enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.stencilTestEnable ) );
                     PrintPipelineState( "Min depth bounds", "%f", graphicsState.m_DepthStencilState.minDepthBounds );
                     PrintPipelineState( "Max depth bounds", "%f", graphicsState.m_DepthStencilState.maxDepthBounds );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
                 }
 
                 if( graphicsState.m_ColorBlendState.sType && ImGui::CollapsingHeader( "Color Blend State" ) )
@@ -1961,7 +1938,8 @@ namespace Profiler
                         graphicsState.m_ColorBlendState.logicOpEnable
                             ? m_pStringSerializer->GetLogicOpName( graphicsState.m_ColorBlendState.logicOp ).c_str()
                             : "Disabled" );
-
+                    
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
                     ImGui::BeginTable(
                         "Color blend attachment states",
                         /* columns_count */ 9,
@@ -2002,19 +1980,56 @@ namespace Profiler
                         ImGui::TableNextColumn();
                         int maskIdx = 0;
                         char mask[ 5 ];
-                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_R_BIT )
-                            mask[ maskIdx++ ] = 'R';
-                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_G_BIT )
-                            mask[ maskIdx++ ] = 'G';
-                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_B_BIT )
-                            mask[ maskIdx++ ] = 'B';
-                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_A_BIT )
-                            mask[ maskIdx++ ] = 'A';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_R_BIT ) mask[ maskIdx++ ] = 'R';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_G_BIT ) mask[ maskIdx++ ] = 'G';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_B_BIT ) mask[ maskIdx++ ] = 'B';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_A_BIT ) mask[ maskIdx++ ] = 'A';
                         mask[ maskIdx ] = 0;
                         ImGui::TextUnformatted( mask );
                     }
 
                     ImGui::EndTable();
+                    ImGui::Dummy(ImVec2(1, 5));
+                }
+            }
+
+            // Print ray-tracing pipeline state.
+            if( m_pSelectedPipeline->m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
+            {
+                assert(m_pSelectedPipeline->m_pRayTracingState);
+                auto& rayTracingState = *m_pSelectedPipeline->m_pRayTracingState;
+
+                PrintPipelineState( "Max ray recursion depth", "%u", rayTracingState.m_MaxRecursionDepth );
+
+                ImGui::Dummy( ImVec2( 1, 5 ) );
+
+                if( ImGui::CollapsingHeader( "Groups" ) )
+                {
+                    const auto& shaderTuple = m_pSelectedPipeline->m_ShaderTuple;
+                    const size_t shaderGroupCount = rayTracingState.m_ShaderGroups.size();
+
+                    // Enumerate all shader groups in this pipeline.
+                    for( uint32_t i = 0; i < shaderGroupCount; ++i )
+                    {
+                        ImGui::Text( "Shader group %u", i );
+                        const auto& shaderGroup = rayTracingState.m_ShaderGroups[ i ];
+
+                        if( auto* pGeneralShader = shaderTuple.GetShaderAtIndex( shaderGroup.generalShader ) )
+                            PrintPipelineState<175>( "  General shader", "%s", m_pStringSerializer->GetName( *pGeneralShader ).c_str() );
+
+                        if( auto* pClosestHitShader = shaderTuple.GetShaderAtIndex( shaderGroup.closestHitShader ) )
+                            PrintPipelineState<175>( "  Closest-hit shader", "%s", m_pStringSerializer->GetName( *pClosestHitShader ).c_str() );
+
+                        if( auto* pAnyHitShader = shaderTuple.GetShaderAtIndex( shaderGroup.anyHitShader ) )
+                            PrintPipelineState<175>( "  Any-hit shader", "%s", m_pStringSerializer->GetName( *pAnyHitShader ).c_str() );
+
+                        if( auto* pIntersectionShader = shaderTuple.GetShaderAtIndex( shaderGroup.intersectionShader ) )
+                            PrintPipelineState<175>( "  Intersection shader", "%s", m_pStringSerializer->GetName( *pIntersectionShader ).c_str() );
+
+                        ImGui::Dummy( ImVec2( 1, 2 ) );
+                    }
+
+                    ImGui::Dummy( ImVec2( 1, 3 ) );
                 }
             }
 
@@ -2022,21 +2037,18 @@ namespace Profiler
             if( ImGui::CollapsingHeader( "Shaders" ) )
             {
                 // Draw combo box with all shaders in the pipeline.
-                ImGui::TextUnformatted( Lang::ShaderStage );
-                ImGui::SameLine();
-                ImGui::SetCursorPosX( 150 );
-                ImGui::SetNextItemWidth( 250 );
+                ImGui::SetNextItemWidth( 350 );
 
-                const char* pSelectedStage = m_pSelectedPipelineShaderStageNames[ m_SelectedPipelineShaderStageIndex ];
+                const char* pSelectedStage = m_pSelectedPipelineShaderStageNames[ m_SelectedPipelineShaderStageIndex ].c_str();
                 if( ImGui::BeginCombo( "##ShaderStageCombo", pSelectedStage ) )
                 {
                     const size_t stageCount = m_pSelectedPipelineShaderStageNames.size();
                     for( size_t i = 0; i < stageCount; ++i )
                     {
                         if( ImGuiX::TSelectable(
-                                m_pSelectedPipelineShaderStageNames[ i ],
+                                m_pSelectedPipelineShaderStageNames[ i ].c_str(),
                                 pSelectedStage,
-                                m_pSelectedPipelineShaderStageNames[ i ] ) )
+                                m_pSelectedPipelineShaderStageNames[ i ].c_str() ) )
                         {
                             // Selection changed
                             m_SelectedPipelineShaderStageIndex = i;
@@ -2048,8 +2060,8 @@ namespace Profiler
 
                 // Draw font size adjustment box.
                 ImGui::SameLine();
-                ImGui::SetCursorPosX( 420 );
-                ImGui::SetNextItemWidth( 80 );
+                ImGui::SetCursorPosX( 365 );
+                ImGui::SetNextItemWidth( 50 );
 
                 static char fontSize[ 32 ] = "16";
                 if( ImGui::InputText( "Font size", fontSize, 32, ImGuiInputTextFlags_CharsDecimal ) )
@@ -3200,25 +3212,14 @@ namespace Profiler
             m_SelectedPipelineShaderStageIndex = 0;
 
             // Create an inspector tab for each stage in the pipeline.
-            for( VkShaderStageFlagBits shaderStage = VK_SHADER_STAGE_VERTEX_BIT;
-                 shaderStage != VK_SHADER_STAGE_ALL + 1;
-                 shaderStage = (VkShaderStageFlagBits)((uint32_t)shaderStage << 1))
+            for( size_t i = 0; i < pipeline.m_ShaderTuple.m_Shaders.size(); ++i )
             {
-                const DeviceProfilerPipelineShader& shader = pipeline.m_ShaderTuple.m_Shaders[ shaderStage ];
+                const DeviceProfilerPipelineShader& shader = pipeline.m_ShaderTuple.m_Shaders[i];
                 if( shader.m_pShaderModule )
                 {
-                    const char* pShaderStageName = g_scShaderStageNames[ shaderStage ];
-                    assert( pShaderStageName );
-
-                    if( !pShaderStageName )
-                    {
-                        // Unsupported shader stage.
-                        pShaderStageName = Lang::ShaderStage_Unknown;
-                    }
-
-                    m_pSelectedPipelineShaderStageNames.emplace_back( pShaderStageName );
+                    m_pSelectedPipelineShaderStageNames.emplace_back( m_pStringSerializer->GetName( shader ) );
                     m_pSelectedPipelineShaderStageInspectors.emplace_back(
-                        std::make_unique<DeviceProfilerShaderInspectorTab>( *m_pDevice, pipeline, shaderStage, m_pImGuiCodeFont ) );
+                        std::make_unique<DeviceProfilerShaderInspectorTab>( *m_pDevice, pipeline, shader, m_pImGuiCodeFont ) );
                 }
             }
         }

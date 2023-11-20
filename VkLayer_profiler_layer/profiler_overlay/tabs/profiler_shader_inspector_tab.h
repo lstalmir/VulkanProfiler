@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_data.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 
 #include <spirv/unified1/spirv.h>
@@ -34,7 +35,6 @@ class TextEditor;
 namespace Profiler
 {
     struct VkDevice_Object;
-    struct DeviceProfilerPipelineData;
     class DeviceProfilerStringSerializer;
 
     class DeviceProfilerShaderInspectorTab
@@ -63,7 +63,7 @@ namespace Profiler
         DeviceProfilerShaderInspectorTab(
             VkDevice_Object& device,
             const DeviceProfilerPipelineData& pipeline,
-            VkShaderStageFlagBits stage,
+            const DeviceProfilerPipelineShader& shader,
             ImFont* font );
 
         ~DeviceProfilerShaderInspectorTab();
@@ -76,11 +76,10 @@ namespace Profiler
 
         ImFont* m_pImGuiCodeFont;
 
-        // Shader stage that is being inspected in this tab.
-        VkShaderStageFlagBits m_ShaderStage;
-
         // Context of the shader module usage.
-        const DeviceProfilerPipelineData& m_Pipeline;
+        VkPipeline m_PipelineHandle;
+        DeviceProfilerPipelineExecutablePropertiesPtr m_pExecutableProperties;
+        DeviceProfilerPipelineShader m_Shader;
 
         std::string m_ShaderModuleDisassembly;
         SourceList m_ShaderModuleSourceList;

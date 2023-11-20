@@ -599,10 +599,8 @@ namespace Profiler
     class BitsetArray : public std::array<ValueT, count>
     {
     public:
-        using std::array<ValueT, count>::operator[];
-
-        inline ValueT& operator[]( EnumT e ) { return this->operator[]( IndexOf( e ) ); }
-        inline const ValueT& operator[]( EnumT e ) const { return this->operator[]( IndexOf( e ) ); }
+        inline ValueT& at_bit( EnumT e ) { return this->operator[]( IndexOf( e ) ); }
+        inline const ValueT& at_bit( EnumT e ) const { return this->operator[]( IndexOf( e ) ); }
 
     private:
         inline static constexpr size_t IndexOf( EnumT e )
@@ -638,4 +636,197 @@ namespace Profiler
         }
         return pDuplicated;
     }
+
+    /***********************************************************************************\
+
+    Class:
+        RuntimeArray
+
+    Description:
+        Runtime-sized array.
+
+    \***********************************************************************************/
+    template<typename T>
+    class RuntimeArray
+    {
+    public:
+        RuntimeArray() = default;
+
+        explicit RuntimeArray(size_t size, const T* pData = nullptr)
+            : m_Size(size)
+        {
+            if (size)
+            {
+                m_pData = new T[size];
+
+                if (pData)
+                {
+                    if constexpr (std::is_trivially_copy_assignable_v<T>)
+                    {
+                        memcpy(m_pData, pData, byte_size());
+                    }
+                    else
+                    {
+                        for (size_t i = 0; i < size; ++i)
+                        {
+                            m_pData[i] = pData[i];
+                        }
+                    }
+                }
+            }
+        }
+
+        RuntimeArray(const RuntimeArray& other)
+            : RuntimeArray(other.m_Size, other.m_pData) {}
+
+        RuntimeArray(RuntimeArray&& other)
+            : m_Size(std::exchange(other.m_Size, 0))
+            , m_pData(std::exchange(other.m_pData, nullptr)) {}
+
+        ~RuntimeArray()
+        {
+            if (m_pData)
+            {
+                delete[] m_pData;
+            }
+        }
+
+        void resize(size_t newSize)
+        {
+            if (newSize == m_Size)
+            {
+                // No-op if no resizing is required.
+                return;
+            }
+
+            if (m_pData)
+            {
+                // If the array contains any data, copy it to the new memory.
+                T* pNewData = new T[newSize];
+
+                // Move elements to the new memory.
+                const size_t moveSize = std::min(m_Size, newSize);
+
+                if constexpr (std::is_trivially_move_assignable_v<T>)
+                {
+                    memcpy(pNewData, m_pData, moveSize);
+                }
+                else
+                {
+                    for (size_t i = 0; i < moveSize; ++i)
+                    {
+                        pNewData[i] = std::move(m_pData[i]);
+                    }
+                }
+
+                // Delete old memory.
+                delete[] std::exchange(m_pData, pNewData);
+            }
+            else
+            {
+                // Allocate new array.
+                m_pData = new T[newSize];
+            }
+
+            m_Size = newSize;
+        }
+
+        size_t size() const { return m_Size; }
+        size_t capacity() const { return m_Size; }
+        size_t byte_size() const { return m_Size * sizeof(T); }
+        bool empty() const { return m_Size == 0; }
+
+        T* data() { return m_pData; }
+        const T* data() const { return m_pData; }
+
+        T& at(size_t i) { return m_pData[i]; }
+        const T& at(size_t i) const { return m_pData[i]; }
+
+        T* begin() { return m_pData; }
+        T* end() { return m_pData + m_Size; }
+        const T* begin() const { return m_pData; }
+        const T* end() const { return m_pData + m_Size; }
+
+        T& front() { return m_pData[0]; }
+        const T& front() const { return m_pData[0]; }
+
+        T& back() { return m_pData[m_Size - 1]; }
+        const T& back() const { return m_pData[m_Size - 1]; }
+
+        void swap(RuntimeArray& other)
+        {
+            std::swap(m_Size, other.m_Size);
+            std::swap(m_pData, other.m_pData);
+        }
+
+        RuntimeArray& operator=(const RuntimeArray& other)
+        {
+            RuntimeArray(other).swap(*this);
+            return *this;
+        }
+
+        RuntimeArray& operator=(RuntimeArray&& other)
+        {
+            RuntimeArray(std::move(other)).swap(*this);
+            return *this;
+        }
+
+        T& operator[](size_t i) { return m_pData[i]; }
+        const T& operator[](size_t i) const { return m_pData[i]; }
+
+    private:
+        size_t m_Size = 0;
+        T* m_pData = nullptr;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        ArrayView
+
+    Description:
+        Lightweight view into an array.
+
+    \***********************************************************************************/
+    template<typename T>
+    class ArrayView
+    {
+    public:
+        ArrayView() = default;
+
+        ArrayView(const T* pFirst, const T* pLast)
+            : m_Size(pLast - pFirst)
+            , m_pData(pFirst) {}
+
+        template<size_t N>
+        ArrayView(const T(&array)[N])
+            : m_Size(N)
+            , m_pData(array) {}
+
+        template<size_t N>
+        ArrayView(const std::array<T, N>& array)
+            : m_Size(array.size())
+            , m_pData(array.data()) {}
+
+        ArrayView(const std::vector<T>& vector)
+            : m_Size(vector.size())
+            , m_pData(vector.data()) {}
+
+        size_t size() const { return m_Size; }
+        size_t capacity() const { return m_Size; }
+        size_t byte_size() const { return m_Size * sizeof(T); }
+        bool empty() const { return m_Size == 0; }
+        const T* data() const { return m_pData; }
+        const T& at(size_t i) const { return m_pData[i]; }
+        const T* begin() const { return m_pData; }
+        const T* end() const { return m_pData + m_Size; }
+        const T& front() const { return m_pData[0]; }
+        const T& back() const { return m_pData[m_Size - 1]; }
+
+        const T& operator[](size_t i) const { return m_pData[i]; }
+
+    private:
+        size_t m_Size;
+        const T* m_pData;
+    };
 }
