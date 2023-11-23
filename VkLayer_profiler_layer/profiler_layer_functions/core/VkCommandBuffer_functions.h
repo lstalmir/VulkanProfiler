@@ -101,7 +101,7 @@ namespace Profiler
             uint32_t commandBufferCount,
             const VkCommandBuffer* pCommandBuffers );
 
-        // vkPipelineBarrier
+        // vkCmdPipelineBarrier
         static VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier(
             VkCommandBuffer commandBuffer,
             VkPipelineStageFlags srcStageMask,
@@ -113,6 +113,11 @@ namespace Profiler
             const VkBufferMemoryBarrier* pBufferMemoryBarriers,
             uint32_t imageMemoryBarrierCount,
             const VkImageMemoryBarrier* pImageMemoryBarriers );
+
+        // vkCmdPipelineBarrier2
+        static VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier2(
+            VkCommandBuffer commandBuffer,
+            const VkDependencyInfo* pDependencyInfo );
 
         // vkCmdDraw
         static VKAPI_ATTR void VKAPI_CALL CmdDraw(

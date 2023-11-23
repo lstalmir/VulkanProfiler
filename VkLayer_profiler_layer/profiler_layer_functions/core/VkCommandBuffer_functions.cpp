@@ -357,6 +357,28 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CmdPipelineBarrier2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdPipelineBarrier2(
+        VkCommandBuffer commandBuffer,
+        const VkDependencyInfo* pDependencyInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Record barrier statistics
+        profiledCommandBuffer.PipelineBarrier( pDependencyInfo );
+
+        // Insert the barrier
+        dd.Device.Callbacks.CmdPipelineBarrier2( commandBuffer, pDependencyInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CmdDraw
 
     Description:

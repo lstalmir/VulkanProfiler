@@ -30,6 +30,7 @@
 #include "VkDynamicRenderingKhr_functions.h"
 #include "VkRayTracingPipelineKhr_functions.h"
 #include "VkSwapchainKhr_functions.h"
+#include "VkSynchronization2Khr_functions.h"
 
 namespace Profiler
 {
@@ -54,6 +55,7 @@ namespace Profiler
         , VkDynamicRenderingKhr_Functions
         , VkRayTracingPipelineKhr_Functions
         , VkSwapchainKhr_Functions
+        , VkSynchronization2Khr_Functions
     {
         // vkGetDeviceProcAddr
         static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetDeviceProcAddr(
