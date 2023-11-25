@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "VkQueue_functions.h"
+#include "VkSynchronization2Khr_functions.h"
 
 namespace Profiler
 {
     /***********************************************************************************\
 
     Function:
-        QueueSubmit
+        QueueSubmit2KHR
 
     Description:
 
     \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueSubmit(
+    VKAPI_ATTR VkResult VKAPI_CALL VkSynchronization2Khr_Functions::QueueSubmit2KHR(
         VkQueue queue,
         uint32_t submitCount,
-        const VkSubmitInfo* pSubmits,
+        const VkSubmitInfo2KHR* pSubmits,
         VkFence fence )
     {
         auto& dd = DeviceDispatch.Get( queue );
         dd.Profiler.PreSubmitCommandBuffers( queue );
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, submitCount, pSubmits, fence );
 
         dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
         return result;
@@ -49,24 +49,22 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        QueueSubmit2
+        CmdPipelineBarrier2KHR
 
     Description:
 
     \***********************************************************************************/
-    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueSubmit2(
-        VkQueue queue,
-        uint32_t submitCount,
-        const VkSubmitInfo2* pSubmits,
-        VkFence fence )
+    VKAPI_ATTR void VKAPI_CALL VkSynchronization2Khr_Functions::CmdPipelineBarrier2KHR(
+        VkCommandBuffer commandBuffer,
+        const VkDependencyInfoKHR* pDependencyInfo )
     {
-        auto& dd = DeviceDispatch.Get( queue );
-        dd.Profiler.PreSubmitCommandBuffers( queue );
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
-        // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
+        // Record barrier statistics
+        profiledCommandBuffer.PipelineBarrier( pDependencyInfo );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
-        return result;
+        // Insert the barrier
+        dd.Device.Callbacks.CmdPipelineBarrier2KHR( commandBuffer, pDependencyInfo );
     }
 }
