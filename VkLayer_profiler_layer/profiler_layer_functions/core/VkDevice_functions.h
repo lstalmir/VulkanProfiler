@@ -162,5 +162,31 @@ namespace Profiler
             VkDevice device,
             VkDeviceMemory memory,
             const VkAllocationCallbacks* pAllocator );
+
+        // vkBindBufferMemory
+        static VKAPI_ATTR VkResult VKAPI_CALL BindBufferMemory(
+            VkDevice device,
+            VkBuffer buffer,
+            VkDeviceMemory deviceMemory,
+            VkDeviceSize offset );
+
+        // vkBindImageMemory
+        static VKAPI_ATTR VkResult VKAPI_CALL BindImageMemory(
+            VkDevice device,
+            VkImage image,
+            VkDeviceMemory deviceMemory,
+            VkDeviceSize offset );
+
+        // vkDestroyBuffer
+        static VKAPI_ATTR void VKAPI_CALL DestroyBuffer(
+            VkDevice device,
+            VkBuffer buffer,
+            const VkAllocationCallbacks* pAllocator );
+
+        // vkDestroyImage
+        static VKAPI_ATTR void VKAPI_CALL DestroyImage(
+            VkDevice device,
+            VkImage image,
+            const VkAllocationCallbacks* pAllocator );
     };
 }

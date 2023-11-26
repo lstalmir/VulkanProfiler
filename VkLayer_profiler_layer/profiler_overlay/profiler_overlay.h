@@ -36,6 +36,7 @@
 #include "profiler_ext/VkProfilerEXT.h"
 
 struct ImGuiContext;
+struct ImFont;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
 
@@ -95,6 +96,9 @@ namespace Profiler
         ImGuiContext* m_pImGuiContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
+
+        ImFont* m_pUIFont;
+        ImFont* m_pMonoFont;
 
         VkDescriptorPool m_DescriptorPool;
 

@@ -1049,7 +1049,27 @@ namespace Profiler
         m_Data.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
 
         // TODO: Move to memory tracker
-        m_Data.m_Memory = m_MemoryData;
+        {
+            std::scoped_lock lk2( m_MemoryProfilerMutex );
+
+            // Get memory profiler data
+            m_Data.m_Memory = m_MemoryData;
+
+            for( auto& heap : m_MemoryData.m_Heaps )
+            {
+                heap.ResetDiffs();
+
+                for( auto& allocation : heap.m_Allocations )
+                {
+                    allocation.m_FlushRanges.clear();
+                    allocation.m_InvalidateRanges.clear();
+                }
+            }
+            for( auto& type : m_MemoryData.m_Types )
+            {
+                type.ResetDiffs();
+            }
+        }
 
         m_CpuTimestampCounter.End();
 
@@ -1071,65 +1091,242 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Destroy
+        AllocateMemory
 
     Description:
 
     \***********************************************************************************/
     void DeviceProfiler::AllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
-        std::scoped_lock lk( m_Allocations );
+        std::scoped_lock lk( m_MemoryProfilerMutex );
 
         // Insert allocation info to the map, it will be needed during deallocation.
-        m_Allocations.unsafe_insert( allocatedMemory, *pAllocateInfo );
+        auto emplaced =  m_Allocations.try_emplace( allocatedMemory );
+        assert( emplaced.second );
 
         const VkMemoryType& memoryType =
             m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
 
+        auto& memoryInfo = emplaced.first->second;
+        memoryInfo.m_Size = pAllocateInfo->allocationSize;
+        memoryInfo.m_TypeIndex = pAllocateInfo->memoryTypeIndex;
+        memoryInfo.m_HeapIndex = memoryType.heapIndex;
+
+        // Update memory usage statistics.
         auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
-        heap.m_AllocationCount++;
-        heap.m_AllocationSize += pAllocateInfo->allocationSize;
+        heap.AddAllocation( pAllocateInfo->allocationSize );
 
         auto& type = m_MemoryData.m_Types[ pAllocateInfo->memoryTypeIndex ];
-        type.m_AllocationCount++;
-        type.m_AllocationSize += pAllocateInfo->allocationSize;
+        type.AddAllocation( pAllocateInfo->allocationSize );
 
         m_MemoryData.m_TotalAllocationCount++;
         m_MemoryData.m_TotalAllocationSize += pAllocateInfo->allocationSize;
+
+        // Store information on the new allocation in the heap for more detailed profiling.
+        auto& allocation = heap.m_Allocations.emplace_back();
+        allocation.m_Handle = allocatedMemory;
+        allocation.m_Size = pAllocateInfo->allocationSize;
+        allocation.m_Type = pAllocateInfo->memoryTypeIndex;
     }
 
     /***********************************************************************************\
 
     Function:
-        Destroy
+        FreeMemory
 
     Description:
 
     \***********************************************************************************/
     void DeviceProfiler::FreeMemory( VkDeviceMemory allocatedMemory )
     {
-        std::scoped_lock lk( m_Allocations );
+        std::scoped_lock lk( m_MemoryProfilerMutex );
 
-        auto it = m_Allocations.unsafe_find( allocatedMemory );
+        auto it = m_Allocations.find( allocatedMemory );
         if( it != m_Allocations.end() )
         {
-            const VkMemoryType& memoryType =
-                m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
+            // Update memory usage statistics.
+            auto& heap = m_MemoryData.m_Heaps[ it->second.m_HeapIndex ];
+            heap.FreeAllocation( it->second.m_Size );
 
-            auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
-            heap.m_AllocationCount--;
-            heap.m_AllocationSize -= it->second.allocationSize;
-
-            auto& type = m_MemoryData.m_Types[ it->second.memoryTypeIndex ];
-            type.m_AllocationCount--;
-            type.m_AllocationSize -= it->second.allocationSize;
+            auto& type = m_MemoryData.m_Types[ it->second.m_TypeIndex ];
+            type.FreeAllocation( it->second.m_Size );
 
             m_MemoryData.m_TotalAllocationCount--;
-            m_MemoryData.m_TotalAllocationSize -= it->second.allocationSize;
+            m_MemoryData.m_TotalAllocationSize -= it->second.m_Size;
+
+            // Remove allocation entry from the heap's allocation list.
+            auto firstRemoved = std::remove_if( heap.m_Allocations.begin(), heap.m_Allocations.end(),
+                [ & ]( const DeviceProfilerMemoryAllocationData& data ) { return data.m_Handle == allocatedMemory; } );
+
+            // Remove_if moves all removed elements to the end of the vector.
+            // Erase must be called to remove those elements physically from the container.
+            heap.m_Allocations.erase( firstRemoved, heap.m_Allocations.end() );
 
             // Remove allocation entry from the map
-            m_Allocations.unsafe_remove( it );
+            m_Allocations.erase( it );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+        Appends buffer memory binding info to the memory allocation data.
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset )
+    {
+        // Get memory requirements of the bound buffer.
+        VkMemoryRequirements memoryRequirements;
+        m_pDevice->Callbacks.GetBufferMemoryRequirements( m_pDevice->Handle, buffer, &memoryRequirements );
+
+        BindResourceMemoryImpl( buffer, memory, offset, memoryRequirements );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+        Appends image memory binding info to the memory allocation data.
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
+    {
+        // Get memory requirements of the bound image.
+        VkMemoryRequirements memoryRequirements;
+        m_pDevice->Callbacks.GetImageMemoryRequirements( m_pDevice->Handle, image, &memoryRequirements );
+
+        BindResourceMemoryImpl( image, memory, offset, memoryRequirements );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindResourceMemoryImpl
+
+    Description:
+        Generic implementation of vkBindBufferMemory and vkBindImageMemory.
+
+    \***********************************************************************************/
+    template<typename ResourceT>
+    void DeviceProfiler::BindResourceMemoryImpl( ResourceT resource, VkDeviceMemory memory, VkDeviceSize offset, VkMemoryRequirements memoryRequirements )
+    {
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+
+        // Find the memory allocation info.
+        DeviceMemoryInfo memoryInfo = m_Allocations.at( memory );
+        auto& heap = m_MemoryData.m_Heaps[ memoryInfo.m_HeapIndex ];
+
+        // Find allocation entry in the heap's allocation list.
+        auto allocationIt = std::find_if( heap.m_Allocations.begin(), heap.m_Allocations.end(),
+            [ & ]( const DeviceProfilerMemoryAllocationData& data ) { return data.m_Handle == memory; } );
+
+        if( allocationIt != heap.m_Allocations.end() )
+        {
+            auto& binding = allocationIt->GetResourceBindings<ResourceT>().emplace_back();
+            binding.m_Handle = resource;
+            binding.m_Offset = offset;
+            binding.m_Size = memoryRequirements.size;
+        }
+
+        // Associate resource with its memory handle.
+        GetResourceMap<ResourceT>().insert_or_assign( resource, memory );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FlushMappedMemoryRanges
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::FlushMappedMemoryRanges( VkDeviceMemory memory, uint32_t count, const VkMappedMemoryRange* pRanges )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InvalidateMappedMemoryRanges
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::InvalidateMappedMemoryRanges( VkDeviceMemory memory, uint32_t count, const VkMappedMemoryRange* pRanges )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyBuffer( VkBuffer buffer )
+    {
+        DestroyResourceImpl( buffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImage
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyImage( VkImage image )
+    {
+        DestroyResourceImpl( image );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyResourceImpl
+
+    Description:
+        Generic implementation of vkDestroyBuffer and vkDestroyImage.
+
+    \***********************************************************************************/
+    template<typename ResourceT>
+    void DeviceProfiler::DestroyResourceImpl( ResourceT resource )
+    {
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+
+        // Find memory associated with the buffer.
+        auto [ memoryIt, found ] = GetResourceMemoryEntry( resource );
+        if( !found )
+        {
+            // No memory associated with the resource - it never was bound.
+            return;
+        }
+
+        // Find allocation entry of the memory.
+        auto memoryAllocationIt = m_Allocations.find( memoryIt->second );
+        if( memoryAllocationIt != m_Allocations.end() )
+        {
+            auto& heap = m_MemoryData.m_Heaps[ memoryAllocationIt->second.m_HeapIndex ];
+            auto allocationIt = std::find_if( heap.m_Allocations.begin(), heap.m_Allocations.end(),
+                [ & ]( const DeviceProfilerMemoryAllocationData& data ) { return data.m_Handle == memoryIt->second; } );
+
+            // Erase resource memory binding info from the memory entry.
+            auto [ bindingIt, found ] = allocationIt->GetResourceBindingEntry( resource );
+            if( found )
+            {
+                allocationIt->GetResourceBindings<ResourceT>().erase( bindingIt );
+            }
+        }
+
+        // Remove resource entry from the memory association map.
+        GetResourceMap<ResourceT>().erase( memoryIt );
     }
 
     /***********************************************************************************\

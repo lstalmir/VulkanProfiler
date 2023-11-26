@@ -58,6 +58,10 @@ namespace Profiler
         GETPROCADDR( FreeCommandBuffers );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
+        GETPROCADDR( BindBufferMemory );
+        GETPROCADDR( BindImageMemory );
+        GETPROCADDR( DestroyBuffer );
+        GETPROCADDR( DestroyImage );
 
         // VkCommandBuffer core functions
         GETPROCADDR( BeginCommandBuffer );
@@ -565,5 +569,107 @@ namespace Profiler
 
         // Free the memory
         dd.Device.Callbacks.FreeMemory( device, memory, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindBufferMemory(
+        VkDevice device,
+        VkBuffer buffer,
+        VkDeviceMemory deviceMemory,
+        VkDeviceSize offset )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Bind the buffer
+        VkResult result = dd.Device.Callbacks.BindBufferMemory(
+            device, buffer, deviceMemory, offset );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register memory binding
+            dd.Profiler.BindBufferMemory( buffer, deviceMemory, offset );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindImageMemory(
+        VkDevice device,
+        VkImage image,
+        VkDeviceMemory deviceMemory,
+        VkDeviceSize offset )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Bind the image
+        VkResult result = dd.Device.Callbacks.BindImageMemory(
+            device, image, deviceMemory, offset );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register memory binding
+            dd.Profiler.BindImageMemory( image, deviceMemory, offset );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyBuffer(
+        VkDevice device,
+        VkBuffer buffer,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Unregister memory binding
+        dd.Profiler.DestroyBuffer( buffer );
+
+        // Destroy the buffer
+        dd.Device.Callbacks.DestroyBuffer( device, buffer, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyImage(
+        VkDevice device,
+        VkImage image,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Unregister memory binding
+        dd.Profiler.DestroyImage( image );
+
+        // Destroy the image
+        dd.Device.Callbacks.DestroyImage( device, image, pAllocator );
     }
 }

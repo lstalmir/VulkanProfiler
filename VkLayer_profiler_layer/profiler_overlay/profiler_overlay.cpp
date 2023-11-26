@@ -97,6 +97,8 @@ namespace Profiler
         , m_pImGuiContext( nullptr )
         , m_pImGuiVulkanContext( nullptr )
         , m_pImGuiWindowContext( nullptr )
+        , m_pUIFont( nullptr )
+        , m_pMonoFont( nullptr )
         , m_DescriptorPool( VK_NULL_HANDLE )
         , m_RenderPass( VK_NULL_HANDLE )
         , m_RenderArea( {} )
@@ -336,6 +338,8 @@ namespace Profiler
         {
             ImGui::DestroyContext( m_pImGuiContext );
             m_pImGuiContext = nullptr;
+            m_pUIFont = nullptr;
+            m_pMonoFont = nullptr;
         }
 
         if( m_DescriptorPool )
@@ -798,6 +802,7 @@ namespace Profiler
 
         ImGui::NewFrame();
         ImGui::Begin( Lang::WindowName );
+        ImGui::PushFont( m_pUIFont );
 
         // Update input clipping rect
         m_pImGuiWindowContext->UpdateWindowRect();
@@ -862,6 +867,7 @@ namespace Profiler
         // Draw other windows
         DrawTraceSerializationOutputWindow();
 
+        ImGui::PopFont();
         ImGui::End();
         ImGui::Render();
     }
@@ -1063,8 +1069,11 @@ namespace Profiler
             // Include all glyphs in the font to support non-latin letters
             const ImWchar range[] = { 0x20, 0xFFFF, 0 };
 
-            io.Fonts->AddFontFromFileTTF( fontPath.string().c_str(), 16.f, nullptr, range );
+            m_pUIFont = io.Fonts->AddFontFromFileTTF( fontPath.string().c_str(), 16.f, nullptr, range );
         }
+
+        // Always load the default font
+        m_pMonoFont = io.Fonts->AddFontDefault();
 
         // Build atlas
         unsigned char* tex_pixels = NULL;
@@ -1640,29 +1649,54 @@ namespace Profiler
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pDevice->pPhysicalDevice->MemoryProperties;
 
+        char buffer[ 128 ] = {};
+        ImVec2 textSize;
+
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
+            const ImVec2 contentRegionSize = ImGui::GetWindowContentRegionMax();
+
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
+                const auto& heap = m_Data.m_Memory.m_Heaps[ i ];
+
                 ImGui::Text( "%s %u", Lang::MemoryHeap, i );
 
-                ImGuiX::TextAlignRight( "%u %s", m_Data.m_Memory.m_Heaps[ i ].m_AllocationCount, Lang::Allocations );
+                if( heap.m_NewAllocationCount || heap.m_FreedAllocationCount )
+                {
+                    ImGuiX::TextAlignRight( "(+%llu, -%llu) %llu %s",
+                        heap.m_NewAllocationCount,
+                        heap.m_FreedAllocationCount,
+                        heap.m_AllocationCount,
+                        Lang::Allocations );
+
+                    if (ImGui::IsItemHovered())
+                    {
+                        ImGui::BeginTooltip();
+                        ImGui::Text( "%.3f MB allocated", heap.m_NewAllocationSize / 1048576.f );
+                        ImGui::Text( "%.3f MB freed", heap.m_FreedAllocationSize / 1048576.f );
+                        ImGui::EndTooltip();
+                    }
+                }
+                else
+                {
+                    ImGuiX::TextAlignRight( "%llu %s", heap.m_AllocationCount, Lang::Allocations );
+                }
 
                 float usage = 0.f;
-                char usageStr[ 64 ] = {};
 
                 if( memoryProperties.memoryHeaps[ i ].size != 0 )
                 {
-                    usage = (float)m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
+                    usage = (float)heap.m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
 
-                    snprintf( usageStr, sizeof( usageStr ),
+                    snprintf( buffer, sizeof( buffer ),
                         "%.2f/%.2f MB (%.1f%%)",
-                        m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
+                        heap.m_AllocationSize / 1048576.f,
                         memoryProperties.memoryHeaps[ i ].size / 1048576.f,
                         usage * 100.f );
                 }
 
-                ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
+                ImGui::ProgressBar( usage, { -1, 0 }, buffer );
 
                 if( ImGui::IsItemHovered() && (memoryProperties.memoryHeaps[ i ].flags != 0) )
                 {
@@ -1748,11 +1782,53 @@ namespace Profiler
                     memoryTypeDescriptorPointers[ typeIndex ] = memoryTypeDescriptors[ typeIndex ].c_str();
                 }
 
+                snprintf( buffer, sizeof( buffer ), "heap_%d_breakdown", i );
                 ImGuiX::PlotBreakdownEx(
-                    "HEAP_BREAKDOWN",
+                    buffer,
                     memoryTypeUsages.data(),
                     memoryProperties.memoryTypeCount, 0,
                     memoryTypeDescriptorPointers.data() );
+
+                snprintf( buffer, sizeof( buffer ), "heap_%d_allocations", i );
+                if( ImGui::TreeNode( buffer, "Allocations" ) )
+                {
+                    // List memory allocations
+                    for( const auto& allocation : heap.m_Allocations )
+                    {
+                        if( ImGui::TreeNode( m_pStringSerializer->GetName( allocation.m_Handle ).c_str() ) )
+                        {
+                            ImGuiX::TextAlignRight( "%.2f MB", allocation.m_Size / 1048576.f );
+
+                            // List memory bindings
+                            for( const auto& binding : allocation.m_Buffers )
+                            {
+                                ImGui::PushFont( m_pMonoFont );
+                                ImGui::Text( "%08llx - %08llx", binding.m_Offset, binding.m_Offset + binding.m_Size );
+                                ImGui::PopFont();
+                                ImGui::SameLine( 200 );
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Handle ).c_str() );
+                                ImGuiX::TextAlignRight( "%llu bytes   ", binding.m_Size );
+                            }
+                            for( const auto& binding : allocation.m_Images )
+                            {
+                                ImGui::PushFont( m_pMonoFont );
+                                ImGui::Text( "%08llx - %08llx", binding.m_Offset, binding.m_Offset + binding.m_Size );
+                                ImGui::PopFont();
+                                ImGui::SameLine( 200 );
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Handle ).c_str() );
+                                ImGuiX::TextAlignRight( "%llu bytes   ", binding.m_Size );
+                            }
+
+                            ImGui::TreePop();
+                        }
+                        else
+                        {
+                            ImGuiX::TextAlignRight( "%.2f MB", allocation.m_Size / 1048576.f );
+                        }
+                    }
+
+                    ImGui::TreePop();
+                }
             }
         }
     }
