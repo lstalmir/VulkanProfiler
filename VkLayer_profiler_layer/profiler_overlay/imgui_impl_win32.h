@@ -36,12 +36,18 @@ public:
 
     float GetDPIScale() const override;
 
+    bool ProcessMessage( MSG );
+
 private:
     HWND m_AppWindow;
+    RECT m_ScreenRect;
+    RECT m_VirtualScreenRect;
+    POINT m_RawMousePos;
+    POINT m_AppCursorPos;
 
     void InitError();
 
-    static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
+    void UpdateCursorPosition( const RAWMOUSE& );
 
     static bool IsMouseMessage( const MSG& );
     static bool IsKeyboardMessage( const MSG& );
