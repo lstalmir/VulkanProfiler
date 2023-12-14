@@ -32,6 +32,8 @@
 #include <stack>
 #include <mutex>
 
+#include "tabs/profiler_shader_inspector_tab.h"
+
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -95,6 +97,9 @@ namespace Profiler
         ImGuiContext* m_pImGuiContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
+
+        ImFont* m_pImGuiDefaultFont;
+        ImFont* m_pImGuiCodeFont;
 
         VkDescriptorPool m_DescriptorPool;
 
@@ -208,6 +213,14 @@ namespace Profiler
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
+        // Pipeline inspector tab
+        bool m_PipelineInspectorTabOpen;
+        bool m_SwitchToPipelineInspectorTab;
+        const DeviceProfilerPipelineData* m_pSelectedPipeline;
+        std::vector<std::string> m_pSelectedPipelineShaderStageNames;
+        std::vector<std::unique_ptr<DeviceProfilerShaderInspectorTab>> m_pSelectedPipelineShaderStageInspectors;
+        size_t m_SelectedPipelineShaderStageIndex;
+
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
@@ -217,6 +230,7 @@ namespace Profiler
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
+        void UpdateInspectorTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
 
@@ -245,6 +259,7 @@ namespace Profiler
         void PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
+        void DrawShaderCapabilities( const DeviceProfilerPipelineData& );
         void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
 
         template<typename Data>
@@ -276,5 +291,8 @@ namespace Profiler
 
             return pSortedData;
         }
+
+        // Inspect pipeline
+        void InspectPipeline( const DeviceProfilerPipelineData& );
     };
 }

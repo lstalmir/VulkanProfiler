@@ -22,3 +22,9 @@
 [submodule "External/metrics-discovery"]
 	path = External/metrics-discovery
 	url = https://github.com/intel/metrics-discovery
+[submodule "External/SPIRV-Tools"]
+	path = External/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools
+[submodule "External/ImGuiColorTextEdit"]
+	path = External/ImGuiColorTextEdit
+	url = https://github.com/BalazsJako/ImGuiColorTextEdit

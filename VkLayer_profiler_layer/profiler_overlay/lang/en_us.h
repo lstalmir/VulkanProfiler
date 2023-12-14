@@ -35,6 +35,7 @@ namespace Profiler
         // Tabs
         inline static constexpr char Performance[] = "Performance";
         inline static constexpr char Memory[] = "Memory";
+        inline static constexpr char Inspector[] = "Inspector";
         inline static constexpr char Statistics[] = "Statistics";
         inline static constexpr char Settings[] = "Settings";
 

@@ -178,4 +178,49 @@ namespace ImGuiX
 
         return selectionChanged;
     }
+
+    /*************************************************************************\
+
+    Function:
+        Tooltip
+
+    Description:
+        Draws a tooltip with description of the previous item.
+
+    \*************************************************************************/
+    void Tooltip( const char* fmt, ... )
+    {
+        if( ImGui::IsItemHovered() )
+        {
+            va_list args;
+            va_start( args, fmt );
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos( 350.f );
+            ImGui::TextV( fmt, args );
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+            va_end( args );
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        TooltipUnformatted
+
+    Description:
+        Draws a tooltip with description of the previous item.
+
+    \*************************************************************************/
+    void TooltipUnformatted( const char* text )
+    {
+        if( ImGui::IsItemHovered() && text[ 0 ] )
+        {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos( 350.f );
+            ImGui::TextUnformatted( text );
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+    }
 }

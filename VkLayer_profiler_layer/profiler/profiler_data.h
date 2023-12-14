@@ -683,6 +683,45 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerPipelineGraphicsState
+
+    Description:
+        Captured VkGraphicsPipelineCreateInfo.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineGraphicsState
+    {
+        VkPipelineInputAssemblyStateCreateInfo              m_InputAssemblyState = {};
+        VkPipelineTessellationStateCreateInfo               m_TessellationState = {};
+        VkPipelineRasterizationStateCreateInfo              m_RasterizationState = {};
+        VkPipelineMultisampleStateCreateInfo                m_MultisampleState = {};
+        VkPipelineDepthStencilStateCreateInfo               m_DepthStencilState = {};
+        VkPipelineColorBlendStateCreateInfo                 m_ColorBlendState = {};
+        std::vector<VkPipelineColorBlendAttachmentState>    m_ColorBlendAttachmentStates = {};
+        VkPipelineDynamicStateCreateInfo                    m_DynamicState = {};
+        std::vector<VkDynamicState>                         m_DynamicStates = {};
+    };
+    using DeviceProfilerPipelineGraphicsStatePtr = std::shared_ptr<DeviceProfilerPipelineGraphicsState>;
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPipelineRayTracingState
+
+    Description:
+        Captured ray-tracing specific state.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineRayTracingState
+    {
+        std::vector<VkRayTracingShaderGroupCreateInfoKHR>   m_ShaderGroups = {};
+        uint32_t                                            m_MaxRecursionDepth = 0;
+    };
+    using DeviceProfilerPipelineRayTracingStatePtr = std::shared_ptr<DeviceProfilerPipelineRayTracingState>;
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerPipeline
 
     Description:
@@ -693,8 +732,12 @@ namespace Profiler
     {
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
-        ProfilerShaderTuple                                 m_ShaderTuple = {};
+        DeviceProfilerPipelineShaderTuple                   m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
+
+        DeviceProfilerPipelineExecutablePropertiesPtr       m_pExecutableProperties = nullptr;
+        DeviceProfilerPipelineGraphicsStatePtr              m_pGraphicsState = nullptr;
+        DeviceProfilerPipelineRayTracingStatePtr            m_pRayTracingState = nullptr;
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
@@ -713,8 +756,12 @@ namespace Profiler
     {
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
-        ProfilerShaderTuple                                 m_ShaderTuple = {};
+        DeviceProfilerPipelineShaderTuple                   m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
+
+        DeviceProfilerPipelineExecutablePropertiesPtr       m_pExecutableProperties = nullptr;
+        DeviceProfilerPipelineGraphicsStatePtr              m_pGraphicsState = nullptr;
+        DeviceProfilerPipelineRayTracingStatePtr            m_pRayTracingState = nullptr;
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
@@ -730,6 +777,9 @@ namespace Profiler
             , m_BindPoint( pipeline.m_BindPoint )
             , m_ShaderTuple( pipeline.m_ShaderTuple )
             , m_Type( pipeline.m_Type )
+            , m_pExecutableProperties( pipeline.m_pExecutableProperties )
+            , m_pGraphicsState( pipeline.m_pGraphicsState )
+            , m_pRayTracingState( pipeline.m_pRayTracingState )
             , m_UsesRayQuery( pipeline.m_UsesRayQuery )
             , m_UsesRayTracing( pipeline.m_UsesRayTracing )
         {

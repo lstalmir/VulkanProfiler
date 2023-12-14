@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -97,6 +97,8 @@ namespace Profiler
         , m_pImGuiContext( nullptr )
         , m_pImGuiVulkanContext( nullptr )
         , m_pImGuiWindowContext( nullptr )
+        , m_pImGuiDefaultFont(nullptr)
+        , m_pImGuiCodeFont(nullptr)
         , m_DescriptorPool( VK_NULL_HANDLE )
         , m_RenderPass( VK_NULL_HANDLE )
         , m_RenderArea( {} )
@@ -134,7 +136,12 @@ namespace Profiler
         , m_ComputePipelineColumnColor( 0 )
         , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
+        , m_PipelineInspectorTabOpen( false )
         , m_pStringSerializer( nullptr )
+        , m_pSelectedPipeline( nullptr )
+        , m_pSelectedPipelineShaderStageNames( 0 )
+        , m_pSelectedPipelineShaderStageInspectors( 0 )
+        , m_SelectedPipelineShaderStageIndex( 0 )
     {
     }
 
@@ -857,6 +864,18 @@ namespace Profiler
             ImGui::EndTabItem();
         }
 
+        ImGuiTabItemFlags inspectorTabFlags = 0;
+        if( m_SwitchToPipelineInspectorTab )
+        {
+            inspectorTabFlags |= ImGuiTabItemFlags_SetSelected;
+            m_SwitchToPipelineInspectorTab = false;
+        }
+        if( ImGui::BeginTabItem( Lang::Inspector, &m_PipelineInspectorTabOpen, inspectorTabFlags ) )
+        {
+            UpdateInspectorTab();
+            ImGui::EndTabItem();
+        }
+
         ImGui::EndTabBar();
 
         // Draw other windows
@@ -971,7 +990,8 @@ namespace Profiler
         ImGuiIO& io = ImGui::GetIO();
 
         // Absolute path to the selected font
-        std::filesystem::path fontPath;
+        std::filesystem::path defaultFontPath;
+        std::filesystem::path codeFontPath;
 
 #ifdef WIN32
         {
@@ -987,16 +1007,28 @@ namespace Profiler
             }
 
             // List of fonts to use (in this order)
-            const char* fonts[] = {
+            const char* defaultFonts[] = {
                 "segoeui.ttf",
                 "tahoma.ttf" };
 
-            for( const char* font : fonts )
+            const char* codeFonts[] = {
+                "consolas.ttf",
+                "cour.ttf" };
+
+            for( const char* font : defaultFonts )
             {
-                fontPath = fontsPath / font;
-                if( std::filesystem::exists( fontPath ) )
+                defaultFontPath = fontsPath / font;
+                if( std::filesystem::exists( defaultFontPath ) )
                     break;
-                else fontPath = "";
+                else defaultFontPath = "";
+            }
+
+            for( const char* font : codeFonts )
+            {
+                codeFontPath = fontsPath / font;
+                if( std::filesystem::exists( codeFontPath ) )
+                    break;
+                else codeFontPath = "";
             }
         }
 #endif
@@ -1050,31 +1082,56 @@ namespace Profiler
             }
 
             // List of fonts to use (in this order)
-            const char* fonts[] = {
+            const char* defaultFonts[] = {
                 "Ubuntu-R.ttf",
                 "LiberationSans-Regural.ttf",
                 "DejaVuSans.ttf" };
 
-            for( const char* font : fonts )
+            const char* codeFonts[] = {
+                "UbuntuMono-R.ttf",
+                "DejaVuSansMono.ttf" };
+
+            for( const char* font : defaultFonts )
             {
                 for( const std::filesystem::path& fontDirectory : fontDirectories )
                 {
-                    fontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
-                    if( !fontPath.empty() )
+                    defaultFontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
+                    if( !defaultFontPath.empty() )
                         break;
                 }
-                if( !fontPath.empty() )
+                if( !defaultFontPath.empty() )
+                    break;
+            }
+
+            for( const char* font : codeFonts )
+            {
+                for( const std::filesystem::path& fontDirectory : fontDirectories )
+                {
+                    codeFontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
+                    if( !codeFontPath.empty() )
+                        break;
+                }
+                if( !codeFontPath.empty() )
                     break;
             }
         }
 #endif
 
-        if( !fontPath.empty() )
-        {
-            // Include all glyphs in the font to support non-latin letters
-            const ImWchar range[] = { 0x20, 0xFFFF, 0 };
+        // Include all glyphs in the font to support non-latin letters
+        const ImWchar range[] = { 0x20, 0xFFFF, 0 };
 
-            io.Fonts->AddFontFromFileTTF( fontPath.string().c_str(), 16.f, nullptr, range );
+        if( !defaultFontPath.empty() )
+        {
+            m_pImGuiDefaultFont = io.Fonts->AddFontFromFileTTF( defaultFontPath.string().c_str(), 16.f, nullptr, range );
+        }
+
+        if( !codeFontPath.empty() )
+        {
+            m_pImGuiCodeFont = io.Fonts->AddFontFromFileTTF( codeFontPath.string().c_str(), 16.f, nullptr, range );
+        }
+        else
+        {
+            m_pImGuiCodeFont = io.Fonts->AddFontDefault();
         }
 
         // Build atlas
@@ -1230,7 +1287,7 @@ namespace Profiler
                 Lang::Drawcalls };
 
             const char* selectedOption = groupOptions[ (size_t)m_HistogramGroupMode ];
-
+            
             // Select group mode
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, selectedOption, ImGuiComboFlags_NoPreview ) )
@@ -1449,16 +1506,7 @@ namespace Profiler
                     ImGui::TableNextColumn();
                     {
                         ImGui::Text( "%s", metricProperties.shortName );
-
-                        if( ImGui::IsItemHovered() &&
-                            metricProperties.description[ 0 ] )
-                        {
-                            ImGui::BeginTooltip();
-                            ImGui::PushTextWrapPos( 350.f );
-                            ImGui::TextUnformatted( metricProperties.description );
-                            ImGui::PopTextWrapPos();
-                            ImGui::EndTooltip();
-                        }
+                        ImGuiX::TooltipUnformatted( metricProperties.description );
                     }
 
                     ImGui::TableNextColumn();
@@ -1764,6 +1812,278 @@ namespace Profiler
                     memoryTypeUsages.data(),
                     memoryProperties.memoryTypeCount, 0,
                     memoryTypeDescriptorPointers.data() );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintPipelineState
+
+    Description:
+        Helper function for writing pipeline states.
+
+    \***********************************************************************************/
+    template<int headerColumnSize = 250, typename... Args>
+    PROFILER_FORCE_INLINE
+    void PrintPipelineState(
+        const char* pStateName,
+        const char* pFormat,
+        Args&&... args )
+    {
+        ImGui::TextUnformatted( pStateName );
+        ImGui::SameLine();
+        ImGui::SetCursorPosX( headerColumnSize );
+        ImGui::Text( pFormat, std::forward<Args>( args )... );
+    };
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateInspectorTab
+
+    Description:
+        Updates "Inspector" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateInspectorTab()
+    {
+        if( m_pSelectedPipeline )
+        {
+            ImGui::TextUnformatted( "Pipeline" );
+            ImGui::SameLine();
+            ImGui::SetCursorPosX( 100 );
+            ImGui::TextUnformatted( m_pStringSerializer->GetName( *m_pSelectedPipeline ).c_str() );
+
+            if( m_ShowShaderCapabilities )
+            {
+                DrawShaderCapabilities( *m_pSelectedPipeline );
+            }
+
+            ImGui::Dummy( ImVec2( 1, 5 ) );
+
+#if 0
+            // Print all pipeline shader stages.
+            const auto& stages = m_pSelectedPipeline->m_ShaderTuple.m_Shaders;
+            const size_t stageCount = stages.size();
+
+            for( uint32_t i = 0; i < stageCount; ++i )
+            {
+                const auto& shader = stages[ i ];
+
+                if (shader.m_pShaderModule)
+                {
+                    PrintPipelineState( m_pStringSerializer->GetShaderStageName( shader.m_Stage ).c_str(), "%08X", shader.m_Hash );
+                }
+            }
+
+            ImGui::Dummy( ImVec2( 1, 5 ) );
+#endif
+
+            // Print graphics pipeline state.
+            if( m_pSelectedPipeline->m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
+            {
+                assert( m_pSelectedPipeline->m_pGraphicsState );
+                auto& graphicsState = *m_pSelectedPipeline->m_pGraphicsState;
+
+                if( graphicsState.m_InputAssemblyState.sType && ImGui::CollapsingHeader( "Input Assembly State" ) )
+                {
+                    PrintPipelineState( "Primitive topology", "%s", m_pStringSerializer->GetTopologyName( graphicsState.m_InputAssemblyState.topology ).c_str() );
+                    PrintPipelineState( "Primitive restart enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_InputAssemblyState.primitiveRestartEnable ) );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+                }
+
+                if( graphicsState.m_TessellationState.sType && ImGui::CollapsingHeader( "Tessellation State" ) )
+                {
+                    PrintPipelineState( "Primitive restart enabled", "%u", graphicsState.m_TessellationState.patchControlPoints );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+                }
+
+                if( graphicsState.m_RasterizationState.sType && ImGui::CollapsingHeader( "Rasterization State" ) )
+                {
+                    PrintPipelineState( "Polygon mode", "%s", m_pStringSerializer->GetPolygonModeName( graphicsState.m_RasterizationState.polygonMode ).c_str() );
+                    PrintPipelineState( "Cull mode", "%s", m_pStringSerializer->GetCullModeName( graphicsState.m_RasterizationState.cullMode ).c_str() );
+                    PrintPipelineState( "Front face", "%s", m_pStringSerializer->GetFrontFaceName( graphicsState.m_RasterizationState.frontFace ).c_str() );
+                    PrintPipelineState( "Rasterizer discard enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_RasterizationState.rasterizerDiscardEnable ) );
+                    PrintPipelineState( "Depth bias enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_RasterizationState.depthBiasEnable ) );
+                    PrintPipelineState( "Depth bias constant factor", "%f", graphicsState.m_RasterizationState.depthBiasConstantFactor );
+                    PrintPipelineState( "Depth bias clamp", "%f", graphicsState.m_RasterizationState.depthBiasClamp );
+                    PrintPipelineState( "Depth bias slope factor", "%f", graphicsState.m_RasterizationState.depthBiasSlopeFactor );
+                    PrintPipelineState( "Line width", "%f", graphicsState.m_RasterizationState.lineWidth );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+                }
+
+                if( graphicsState.m_MultisampleState.sType && ImGui::CollapsingHeader( "Multisample State" ) )
+                {
+                    PrintPipelineState( "Rasterization samples", "%u", u32log2( graphicsState.m_MultisampleState.rasterizationSamples ) );
+                    PrintPipelineState( "Sample shading enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.sampleShadingEnable ) );
+                    PrintPipelineState( "Min sample shading", "%f", graphicsState.m_MultisampleState.minSampleShading );
+                    PrintPipelineState( "Sample mask", "%08X", graphicsState.m_MultisampleState.pSampleMask ? *graphicsState.m_MultisampleState.pSampleMask : 0xFFFFFFFF );
+                    PrintPipelineState( "Alpha to coverage enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.alphaToCoverageEnable ) );
+                    PrintPipelineState( "Alpha to one enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_MultisampleState.alphaToOneEnable ) );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+                }
+
+                if( graphicsState.m_DepthStencilState.sType && ImGui::CollapsingHeader( "Depth-Stencil State" ) )
+                {
+                    PrintPipelineState( "Depth test enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.depthTestEnable ) );
+                    PrintPipelineState( "Depth write enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.depthWriteEnable ) );
+                    PrintPipelineState( "Depth compare op", "%s", m_pStringSerializer->GetCompareOpName( graphicsState.m_DepthStencilState.depthCompareOp ).c_str() );
+                    PrintPipelineState( "Depth bounds test enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.depthBoundsTestEnable ) );
+                    PrintPipelineState( "Stencil test enabled", "%s", m_pStringSerializer->GetBoolean( graphicsState.m_DepthStencilState.stencilTestEnable ) );
+                    PrintPipelineState( "Min depth bounds", "%f", graphicsState.m_DepthStencilState.minDepthBounds );
+                    PrintPipelineState( "Max depth bounds", "%f", graphicsState.m_DepthStencilState.maxDepthBounds );
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+                }
+
+                if( graphicsState.m_ColorBlendState.sType && ImGui::CollapsingHeader( "Color Blend State" ) )
+                {
+                    PrintPipelineState( "Blend constants", "[ %.2f, %.2f, %.2f, %.2f ]",
+                        graphicsState.m_ColorBlendState.blendConstants[ 0 ],
+                        graphicsState.m_ColorBlendState.blendConstants[ 1 ],
+                        graphicsState.m_ColorBlendState.blendConstants[ 2 ],
+                        graphicsState.m_ColorBlendState.blendConstants[ 3 ] );
+
+                    PrintPipelineState( "Logic op", "%s",
+                        graphicsState.m_ColorBlendState.logicOpEnable
+                            ? m_pStringSerializer->GetLogicOpName( graphicsState.m_ColorBlendState.logicOp ).c_str()
+                            : "Disabled" );
+                    
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+                    ImGui::BeginTable(
+                        "Color blend attachment states",
+                        /* columns_count */ 9,
+                        ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV );
+
+                    // Headers
+                    ImGui::TableSetupColumn( "Attachment" );
+                    ImGui::TableSetupColumn( "Enabled" );
+                    ImGui::TableSetupColumn( "Color Op" );
+                    ImGui::TableSetupColumn( "Color Src" );
+                    ImGui::TableSetupColumn( "Color Dst" );
+                    ImGui::TableSetupColumn( "Alpha Op" );
+                    ImGui::TableSetupColumn( "Alpha Src" );
+                    ImGui::TableSetupColumn( "Alpha Dst");
+                    ImGui::TableSetupColumn( "Mask" );
+                    ImGui::TableHeadersRow();
+
+                    for( uint32_t i = 0; i < graphicsState.m_ColorBlendState.attachmentCount; ++i )
+                    {
+                        const auto& blendState = graphicsState.m_ColorBlendState.pAttachments[ i ];
+
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%d", i );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBoolean( blendState.blendEnable ) );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( blendState.colorBlendOp ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.srcColorBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.dstColorBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( blendState.alphaBlendOp ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.srcAlphaBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( blendState.dstAlphaBlendFactor ).c_str() );
+                        ImGui::TableNextColumn();
+                        int maskIdx = 0;
+                        char mask[ 5 ];
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_R_BIT ) mask[ maskIdx++ ] = 'R';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_G_BIT ) mask[ maskIdx++ ] = 'G';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_B_BIT ) mask[ maskIdx++ ] = 'B';
+                        if( blendState.colorWriteMask & VK_COLOR_COMPONENT_A_BIT ) mask[ maskIdx++ ] = 'A';
+                        mask[ maskIdx ] = 0;
+                        ImGui::TextUnformatted( mask );
+                    }
+
+                    ImGui::EndTable();
+                    ImGui::Dummy(ImVec2(1, 5));
+                }
+            }
+
+            // Print ray-tracing pipeline state.
+            if( m_pSelectedPipeline->m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
+            {
+                assert(m_pSelectedPipeline->m_pRayTracingState);
+                auto& rayTracingState = *m_pSelectedPipeline->m_pRayTracingState;
+
+                PrintPipelineState( "Max ray recursion depth", "%u", rayTracingState.m_MaxRecursionDepth );
+
+                ImGui::Dummy( ImVec2( 1, 5 ) );
+
+                if( ImGui::CollapsingHeader( "Groups" ) )
+                {
+                    const auto& shaderTuple = m_pSelectedPipeline->m_ShaderTuple;
+                    const size_t shaderGroupCount = rayTracingState.m_ShaderGroups.size();
+
+                    // Enumerate all shader groups in this pipeline.
+                    for( uint32_t i = 0; i < shaderGroupCount; ++i )
+                    {
+                        ImGui::Text( "Shader group %u", i );
+                        const auto& shaderGroup = rayTracingState.m_ShaderGroups[ i ];
+
+                        if( auto* pGeneralShader = shaderTuple.GetShaderAtIndex( shaderGroup.generalShader ) )
+                            PrintPipelineState<175>( "  General shader", "%s", m_pStringSerializer->GetName( *pGeneralShader ).c_str() );
+
+                        if( auto* pClosestHitShader = shaderTuple.GetShaderAtIndex( shaderGroup.closestHitShader ) )
+                            PrintPipelineState<175>( "  Closest-hit shader", "%s", m_pStringSerializer->GetName( *pClosestHitShader ).c_str() );
+
+                        if( auto* pAnyHitShader = shaderTuple.GetShaderAtIndex( shaderGroup.anyHitShader ) )
+                            PrintPipelineState<175>( "  Any-hit shader", "%s", m_pStringSerializer->GetName( *pAnyHitShader ).c_str() );
+
+                        if( auto* pIntersectionShader = shaderTuple.GetShaderAtIndex( shaderGroup.intersectionShader ) )
+                            PrintPipelineState<175>( "  Intersection shader", "%s", m_pStringSerializer->GetName( *pIntersectionShader ).c_str() );
+
+                        ImGui::Dummy( ImVec2( 1, 2 ) );
+                    }
+
+                    ImGui::Dummy( ImVec2( 1, 3 ) );
+                }
+            }
+
+            // Print shader stages.
+            if( ImGui::CollapsingHeader( "Shaders" ) )
+            {
+                // Draw combo box with all shaders in the pipeline.
+                ImGui::SetNextItemWidth( 350 );
+
+                const char* pSelectedStage = m_pSelectedPipelineShaderStageNames[ m_SelectedPipelineShaderStageIndex ].c_str();
+                if( ImGui::BeginCombo( "##ShaderStageCombo", pSelectedStage ) )
+                {
+                    const size_t stageCount = m_pSelectedPipelineShaderStageNames.size();
+                    for( size_t i = 0; i < stageCount; ++i )
+                    {
+                        if( ImGuiX::TSelectable(
+                                m_pSelectedPipelineShaderStageNames[ i ].c_str(),
+                                pSelectedStage,
+                                m_pSelectedPipelineShaderStageNames[ i ].c_str() ) )
+                        {
+                            // Selection changed
+                            m_SelectedPipelineShaderStageIndex = i;
+                        }
+                    }
+
+                    ImGui::EndCombo();
+                }
+
+                // Draw font size adjustment box.
+                ImGui::SameLine();
+                ImGui::SetCursorPosX( 365 );
+                ImGui::SetNextItemWidth( 50 );
+
+                static char fontSize[ 32 ] = "16";
+                if( ImGui::InputText( "Font size", fontSize, 32, ImGuiInputTextFlags_CharsDecimal ) )
+                {
+                    float size = atof( fontSize );
+                    if( size > 6.0f )
+                        m_pImGuiCodeFont->Scale = size / 16.0f;
+                }
+
+                // Draw the selected shader stage.
+                m_pSelectedPipelineShaderStageInspectors[ m_SelectedPipelineShaderStageIndex ]->Draw();
             }
         }
     }
@@ -2645,20 +2965,21 @@ namespace Profiler
 
             inPipelineSubtree =
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
+
+            if( ImGui::BeginPopupContextItem() )
+            {
+                if( ImGui::MenuItem( "Inspect", nullptr, nullptr ) )
+                {
+                    InspectPipeline( pipeline );
+                }
+
+                ImGui::EndPopup();
+            }
         }
 
         if( m_ShowShaderCapabilities )
         {
-            if( pipeline.m_UsesRayQuery )
-            {
-                static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
-                DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
-            }
-            if( pipeline.m_UsesRayTracing )
-            {
-                static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
-                DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
-            }
+            DrawShaderCapabilities( pipeline );
         }
 
         if( inPipelineSubtree )
@@ -2776,7 +3097,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        DrawSignificanceRect
+        DrawShaderCapabilities
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawShaderCapabilities( const DeviceProfilerPipelineData& pipeline )
+    {
+        if( pipeline.m_UsesRayQuery )
+        {
+            static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
+            DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
+        }
+        if( pipeline.m_UsesRayTracing )
+        {
+            static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
+            DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawShaderCapabilityBadge
 
     Description:
 
@@ -2859,5 +3202,40 @@ namespace Profiler
             ImGuiX::TextAlignRight( "- %s",
                 m_pTimestampDisplayUnitStr );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InspectPipeline
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::InspectPipeline( const DeviceProfilerPipelineData& pipeline )
+    {
+        // Don't do anything if we're already inspecting this pipeline.
+        if( !m_pSelectedPipeline || m_pSelectedPipeline->m_Handle != pipeline.m_Handle )
+        {
+            m_pSelectedPipeline = &pipeline;
+            m_pSelectedPipelineShaderStageNames.clear();
+            m_pSelectedPipelineShaderStageInspectors.clear();
+            m_SelectedPipelineShaderStageIndex = 0;
+
+            // Create an inspector tab for each stage in the pipeline.
+            for( size_t i = 0; i < pipeline.m_ShaderTuple.m_Shaders.size(); ++i )
+            {
+                const DeviceProfilerPipelineShader& shader = pipeline.m_ShaderTuple.m_Shaders[i];
+                if( shader.m_pShaderModule )
+                {
+                    m_pSelectedPipelineShaderStageNames.emplace_back( m_pStringSerializer->GetName( shader ) );
+                    m_pSelectedPipelineShaderStageInspectors.emplace_back(
+                        std::make_unique<DeviceProfilerShaderInspectorTab>( *m_pDevice, pipeline, shader, m_pImGuiCodeFont ) );
+                }
+            }
+        }
+
+        m_PipelineInspectorTabOpen = true;
+        m_SwitchToPipelineInspectorTab = true;
     }
 }

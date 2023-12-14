@@ -24,12 +24,15 @@ project (profiler_overlay)
 
 set (headers
     "profiler_overlay.h"
+    "tabs/profiler_shader_inspector_tab.h"
     "lang/en_us.h"
     "lang/pl_pl.h"
     )
 
 set (sources
     "profiler_overlay.cpp"
+    "tabs/profiler_shader_inspector_tab.cpp"
+    "tabs/spirv_language_definition.cpp"
     )
 
 set (imgui
@@ -89,6 +92,7 @@ add_library (profiler_overlay
 target_link_libraries (profiler_overlay
     PUBLIC profiler_common
     PRIVATE imgui
+    PRIVATE imguicolortextedit
     PRIVATE profiler
     PRIVATE profiler_helpers)
 

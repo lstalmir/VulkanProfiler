@@ -158,6 +158,7 @@ namespace Profiler
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
+        , m_PipelineExecutablePropertiesEnabled( false )
     {
     }
 
@@ -185,6 +186,12 @@ namespace Profiler
         {
             // Enable MDAPI data collection on Intel GPUs
             deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+        }
+
+        if( config.m_CapturePipelineExecutableProperties )
+        {
+            // Enable pipeline executable properties capture
+            deviceExtensions.insert( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
         }
 
         return deviceExtensions;
@@ -282,6 +289,11 @@ namespace Profiler
         {
             InitializeINTEL();
         }
+
+        // Capture pipeline statistics and internal representations for debugging.
+        m_PipelineExecutablePropertiesEnabled =
+            m_Config.m_CapturePipelineExecutableProperties &&
+            m_pDevice->EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
 
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
@@ -724,6 +736,78 @@ namespace Profiler
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultObjectName( profilerPipeline );
 
+            // Capture graphics state of this pipeline.
+            auto pGraphicsState = std::make_shared<DeviceProfilerPipelineGraphicsState>();
+
+            if( createInfo.pInputAssemblyState )
+            {
+                pGraphicsState->m_InputAssemblyState = *createInfo.pInputAssemblyState;
+                pGraphicsState->m_InputAssemblyState.pNext = nullptr;
+            }
+
+            if( createInfo.pTessellationState )
+            {
+                pGraphicsState->m_TessellationState = *createInfo.pTessellationState;
+                pGraphicsState->m_TessellationState.pNext = nullptr;
+            }
+
+            if( createInfo.pRasterizationState )
+            {
+                pGraphicsState->m_RasterizationState = *createInfo.pRasterizationState;
+                pGraphicsState->m_RasterizationState.pNext = nullptr;
+            }
+
+            if( createInfo.pMultisampleState )
+            {
+                pGraphicsState->m_MultisampleState = *createInfo.pMultisampleState;
+                pGraphicsState->m_MultisampleState.pNext = nullptr;
+                pGraphicsState->m_MultisampleState.pSampleMask = nullptr; // TODO
+            }
+
+            if( createInfo.pDepthStencilState )
+            {
+                pGraphicsState->m_DepthStencilState = *createInfo.pDepthStencilState;
+                pGraphicsState->m_DepthStencilState.pNext = nullptr;
+            }
+
+            if( createInfo.pColorBlendState )
+            {
+                pGraphicsState->m_ColorBlendState = *createInfo.pColorBlendState;
+                pGraphicsState->m_ColorBlendState.pNext = nullptr;
+                pGraphicsState->m_ColorBlendState.pAttachments = nullptr;
+
+                // Copy attachments states to local vector.
+                const uint32_t attachmentCount = createInfo.pColorBlendState->attachmentCount;
+                pGraphicsState->m_ColorBlendAttachmentStates.resize( attachmentCount );
+
+                std::memcpy(
+                    pGraphicsState->m_ColorBlendAttachmentStates.data(),
+                    createInfo.pColorBlendState->pAttachments,
+                    attachmentCount * sizeof( VkPipelineColorBlendAttachmentState ) );
+
+                pGraphicsState->m_ColorBlendState.pAttachments = pGraphicsState->m_ColorBlendAttachmentStates.data();
+            }
+
+            if( createInfo.pDynamicState )
+            {
+                pGraphicsState->m_DynamicState = *createInfo.pDynamicState;
+                pGraphicsState->m_DynamicState.pNext = nullptr;
+                pGraphicsState->m_DynamicState.pDynamicStates = nullptr;
+
+                // Copy dynamic states to local vector.
+                const uint32_t dynamicStateCount = createInfo.pDynamicState->dynamicStateCount;
+                pGraphicsState->m_DynamicStates.resize( dynamicStateCount );
+
+                std::memcpy(
+                    pGraphicsState->m_DynamicStates.data(),
+                    createInfo.pDynamicState->pDynamicStates,
+                    dynamicStateCount * sizeof( VkDynamicState ) );
+
+                pGraphicsState->m_DynamicState.pDynamicStates = pGraphicsState->m_DynamicStates.data();
+            }
+
+            profilerPipeline.m_pGraphicsState = pGraphicsState;
+
             m_Pipelines.insert( pPipelines[i], profilerPipeline );
         }
     }
@@ -776,6 +860,14 @@ namespace Profiler
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultObjectName( profilerPipeline );
 
+            // Capture ray-tracing state of this pipeline.
+            auto pRayTracingState = std::make_shared<DeviceProfilerPipelineRayTracingState>();
+            pRayTracingState->m_MaxRecursionDepth = createInfo.maxPipelineRayRecursionDepth;
+            pRayTracingState->m_ShaderGroups.resize(createInfo.groupCount);
+            memcpy(pRayTracingState->m_ShaderGroups.data(), createInfo.pGroups, sizeof(*createInfo.pGroups) * createInfo.groupCount);
+
+            profilerPipeline.m_pRayTracingState = pRayTracingState;
+
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
     }
@@ -803,10 +895,13 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
     {
-        ProfilerShaderModule sm;
-
         // Compute shader code hash to use later
-        sm.m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+        DeviceProfilerShaderModule shaderModule = {};
+        shaderModule.m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
+
+        // Save the bytecode to display the shader's disassembly
+        shaderModule.m_Bytecode.resize( pCreateInfo->codeSize / sizeof( uint32_t ) );
+        memcpy( shaderModule.m_Bytecode.data(), pCreateInfo->pCode, pCreateInfo->codeSize );
 
         // Enumerate capabilities of the shader module
         const uint32_t* pCurrentWord = pCreateInfo->pCode + 5; // skip header bytes
@@ -817,11 +912,11 @@ namespace Profiler
         {
             assert((*pCurrentWord >> 16) == 2);
 
-            sm.m_Capabilities.push_back(static_cast<SpvCapability>(*(pCurrentWord + 1)));
+            shaderModule.m_Capabilities.push_back(static_cast<SpvCapability>(*(pCurrentWord + 1)));
             pCurrentWord += 2; // SpvOpCapability is 2 words long
         }
 
-        m_ShaderModules.insert( module, std::move( sm ) );
+        m_ShaderModules.insert( module, std::move( shaderModule ) );
     }
 
     /***********************************************************************************\
@@ -832,9 +927,9 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
+    void DeviceProfiler::DestroyShaderModule( VkShaderModule )
     {
-        m_ShaderModules.remove( module );
+        // Don't remove the shader module entry from the map so that the pipelines are not invalidated.
     }
 
     /***********************************************************************************\
@@ -1203,28 +1298,134 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        CreateShaderTuple
+        SetPipelineShaderProperties
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages )
+    void DeviceProfiler::SetPipelineShaderProperties(
+        DeviceProfilerPipeline&                pipeline,
+        uint32_t                               stageCount,
+        const VkPipelineShaderStageCreateInfo* pStages )
     {
+        DeviceProfilerPipelineShaderTuple& tuple = pipeline.m_ShaderTuple;
+
+        // Read pipeline's executable properties.
+        if( m_PipelineExecutablePropertiesEnabled )
+        {
+            VkPipelineInfoKHR pipelineInfo = {};
+            pipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
+            pipelineInfo.pipeline = pipeline.m_Handle;
+
+            // Get number of executables compiled for this pipeline.
+            uint32_t pipelineExecutableCount = 0;
+            VkResult result = m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
+                m_pDevice->Handle,
+                &pipelineInfo,
+                &pipelineExecutableCount,
+                nullptr );
+
+            if( (result == VK_SUCCESS) &&
+                (pipelineExecutableCount > 0) )
+            {
+                std::vector<VkPipelineExecutablePropertiesKHR> pipelineExecutableProperties( pipelineExecutableCount );
+                result = m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
+                    m_pDevice->Handle,
+                    &pipelineInfo,
+                    &pipelineExecutableCount,
+                    pipelineExecutableProperties.data() );
+
+                if( result == VK_SUCCESS )
+                {
+                    pipeline.m_pExecutableProperties = std::make_shared<DeviceProfilerPipelineExecutableProperties>();
+                    pipeline.m_pExecutableProperties->m_Shaders.resize( pipelineExecutableCount );
+
+                    for( uint32_t i = 0; i < pipelineExecutableCount; ++i )
+                    {
+                        auto& shaderExecutableProperties = pipeline.m_pExecutableProperties->m_Shaders.emplace_back();
+                        shaderExecutableProperties.m_ExecutableProperties = pipelineExecutableProperties[ i ];
+
+                        // Get the statistics for the inspected shader.
+                        VkPipelineExecutableInfoKHR shaderExecutableInfo = {};
+                        shaderExecutableInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
+                        shaderExecutableInfo.pipeline = pipeline.m_Handle;
+                        shaderExecutableInfo.executableIndex = i;
+
+                        uint32_t shaderExecutableStatisticsCount = 0;
+                        result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
+                            m_pDevice->Handle,
+                            &shaderExecutableInfo,
+                            &shaderExecutableStatisticsCount,
+                            nullptr );
+
+                        if( (result == VK_SUCCESS) &&
+                            (shaderExecutableStatisticsCount > 0) )
+                        {
+                            shaderExecutableProperties.m_ExecutableStatistics.resize( shaderExecutableStatisticsCount );
+                            result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
+                                m_pDevice->Handle,
+                                &shaderExecutableInfo,
+                                &shaderExecutableStatisticsCount,
+                                shaderExecutableProperties.m_ExecutableStatistics.data() );
+
+                            if( result != VK_SUCCESS )
+                            {
+                                // Error occured while retrieving the pipeline executable statistics.
+                                shaderExecutableProperties.m_ExecutableStatistics.clear();
+                            }
+                        }
+
+                        // Get the internal representation for the inspected shader.
+                        uint32_t shaderExecutableInternalRepresentationCount = 0;
+                        result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                            m_pDevice->Handle,
+                            &shaderExecutableInfo,
+                            &shaderExecutableInternalRepresentationCount,
+                            nullptr );
+
+                        if( (result == VK_SUCCESS) &&
+                            (shaderExecutableInternalRepresentationCount > 0) )
+                        {
+                            shaderExecutableProperties.m_InternalRepresentations.resize( shaderExecutableInternalRepresentationCount );
+                            result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                                m_pDevice->Handle,
+                                &shaderExecutableInfo,
+                                &shaderExecutableInternalRepresentationCount,
+                                shaderExecutableProperties.m_InternalRepresentations.data() );
+
+                            if( result != VK_SUCCESS )
+                            {
+                                // Error occured while retrieving the pipeline executable internal representations.
+                                shaderExecutableProperties.m_InternalRepresentations.clear();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Allocate memory for the shader stage infos
+        tuple.m_Shaders.resize(stageCount);
+
         for( uint32_t i = 0; i < stageCount; ++i )
         {
             // VkShaderModule entry should already be in the map
-            const ProfilerShaderModule& sm = m_ShaderModules.at( pStages[i].module );
-
-            const char* entrypoint = pStages[i].pName;
-            uint32_t hash = sm.m_Hash;
+            DeviceProfilerShaderModule& shaderModule = m_ShaderModules.at( pStages[i].module );
+            uint32_t hash = shaderModule.m_Hash;
 
             // Hash the entrypoint and append it to the final hash
+            const char* entrypoint = pStages[i].pName;
             hash ^= Farmhash::Fingerprint32( entrypoint, std::strlen( entrypoint ) );
 
-            pipeline.m_ShaderTuple.m_Stages[pStages[i].stage] = hash;
+            DeviceProfilerPipelineShader& shader = tuple.m_Shaders[i];
+            shader.m_Hash = hash;
+            shader.m_Index = i;
+            shader.m_Stage = pStages[i].stage;
+            shader.m_EntryPoint = entrypoint;
+            shader.m_pShaderModule = &shaderModule;
 
             // Check if the stage uses ray query or ray tracing capabilities
-            for( SpvCapability capability : sm.m_Capabilities )
+            for( SpvCapability capability : shaderModule.m_Capabilities )
             {
                 if( (capability == SpvCapabilityRayQueryKHR) ||
                     (capability == SpvCapabilityRayQueryProvisionalKHR) )
@@ -1239,10 +1440,23 @@ namespace Profiler
             }
         }
 
+        // Sort shader stages
+        std::sort(tuple.m_Shaders.begin(), tuple.m_Shaders.end(),
+            [](const DeviceProfilerPipelineShader& a, const DeviceProfilerPipelineShader& b)
+            {
+                return a.m_Stage < b.m_Stage;
+            });
+
+        // Construct array with shader hashes
+        RuntimeArray<uint32_t> shaderHashes(stageCount);
+
+        for (uint32_t i = 0; i < stageCount; ++i)
+        {
+            shaderHashes[i] = tuple.m_Shaders[i].m_Hash;
+        }
+
         // Compute aggregated tuple hash for fast comparison
-        pipeline.m_ShaderTuple.m_Hash = Farmhash::Fingerprint32(
-            reinterpret_cast<const char*>( &pipeline.m_ShaderTuple.m_Stages ),
-            sizeof( pipeline.m_ShaderTuple.m_Stages ) );
+        tuple.m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( shaderHashes.data() ), shaderHashes.byte_size() );
     }
 
     /***********************************************************************************\
@@ -1309,30 +1523,39 @@ namespace Profiler
     {
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
+            auto pVertexShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_VERTEX_BIT );
+            auto pFragmentShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_FRAGMENT_BIT );
+
             // Vertex and pixel shader hashes
             char pPipelineDebugName[ 25 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_VERTEX_BIT] );
-            u32tohex( pPipelineDebugName + 16, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_FRAGMENT_BIT] );
+            u32tohex( pPipelineDebugName + 3, (pVertexShader ? pVertexShader->m_Hash : 0) );
+            u32tohex( pPipelineDebugName + 16, (pFragmentShader ? pFragmentShader->m_Hash : 0) );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
         {
+            auto pComputeShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage(VK_SHADER_STAGE_COMPUTE_BIT);
+
             // Compute shader hash
             char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_COMPUTE_BIT] );
+            u32tohex( pPipelineDebugName + 3, (pComputeShader ? pComputeShader->m_Hash : 0) );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
         {
+            auto pRaygenShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_RAYGEN_BIT_KHR );
+            auto pAnyHitShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_ANY_HIT_BIT_KHR );
+            auto pClosestHitShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR );
+
             // Ray tracing shader hash
             char pPipelineDebugName[ 75 ] = "RGEN=XXXXXXXX, aHIT=XXXXXXXX, cHIT=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 5, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_RAYGEN_BIT_KHR] );
-            u32tohex( pPipelineDebugName + 20, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_ANY_HIT_BIT_KHR] );
-            u32tohex( pPipelineDebugName + 35, pipeline.m_ShaderTuple.m_Stages[VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR] );
+            u32tohex( pPipelineDebugName + 5, (pRaygenShader ? pRaygenShader->m_Hash : 0) );
+            u32tohex( pPipelineDebugName + 20, (pAnyHitShader ? pAnyHitShader->m_Hash : 0) );
+            u32tohex( pPipelineDebugName + 35, (pClosestHitShader ? pClosestHitShader->m_Hash : 0) );
 
             m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
         }

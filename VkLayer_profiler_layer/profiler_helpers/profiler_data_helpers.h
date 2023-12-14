@@ -40,6 +40,7 @@ namespace Profiler
 
         std::string GetName( const struct DeviceProfilerDrawcall& ) const;
         std::string GetName( const struct DeviceProfilerPipelineData& ) const;
+        std::string GetName( const struct DeviceProfilerPipelineShader& ) const;
         std::string GetName( const struct DeviceProfilerSubpassData& ) const;
         std::string GetName( const struct DeviceProfilerRenderPassData& ) const;
         std::string GetName( const struct DeviceProfilerRenderPassBeginData&, bool dynamic ) const;
@@ -54,8 +55,22 @@ namespace Profiler
 
         std::string GetColorHex( const float* ) const;
 
+        constexpr const char* GetBoolean( VkBool32 b ) const
+        {
+            return b ? "True" : "False";
+        }
+
+        std::string GetShaderStageName( VkShaderStageFlagBits ) const;
         std::string GetFormatName( VkFormat ) const;
         std::string GetIndexTypeName( VkIndexType ) const;
+        std::string GetTopologyName( VkPrimitiveTopology ) const;
+        std::string GetPolygonModeName( VkPolygonMode ) const;
+        std::string GetCullModeName( VkCullModeFlags ) const;
+        std::string GetFrontFaceName( VkFrontFace ) const;
+        std::string GetCompareOpName( VkCompareOp ) const;
+        std::string GetBlendOpName( VkBlendOp ) const;
+        std::string GetBlendFactorName( VkBlendFactor ) const;
+        std::string GetLogicOpName( VkLogicOp ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;

@@ -25,39 +25,128 @@
 #include <vulkan/vulkan.h>
 #include <spirv/unified1/spirv.h>
 
+
 namespace Profiler
 {
-    struct ProfilerShaderTuple
+    struct DeviceProfilerShaderModule
+    {
+        uint32_t                    m_Hash;
+        std::vector<uint32_t>       m_Bytecode;
+        std::vector<SpvCapability>  m_Capabilities = {};
+    };
+
+    struct DeviceProfilerPipelineShader
+    {
+        uint32_t                    m_Hash = 0;
+        uint32_t                    m_Index = 0;
+        VkShaderStageFlagBits       m_Stage = {};
+        std::string                 m_EntryPoint = "";
+        DeviceProfilerShaderModule* m_pShaderModule = nullptr;
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPipelineShaderTuple
+
+    Description:
+        Collection of shaders that make up a single pipeline.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineShaderTuple
     {
         uint32_t m_Hash = 0;
+        RuntimeArray<DeviceProfilerPipelineShader> m_Shaders = {};
 
-        BitsetArray<VkShaderStageFlagBits, uint32_t, 32> m_Stages = {};
-
-        inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
+        inline constexpr bool operator==( const DeviceProfilerPipelineShaderTuple& rh ) const
         {
             return m_Hash == rh.m_Hash;
         }
 
-        inline constexpr bool operator!=( const ProfilerShaderTuple& rh ) const
+        inline constexpr bool operator!=( const DeviceProfilerPipelineShaderTuple& rh ) const
         {
             return !operator==( rh );
         }
+
+        inline ArrayView<const DeviceProfilerPipelineShader> GetShadersAtStage(VkShaderStageFlagBits stage) const
+        {
+            size_t first = -1;
+            for (; first < m_Shaders.size(); ++first)
+                if (m_Shaders[first].m_Stage == stage)
+                    break;
+
+            size_t last = first + 1;
+            for (; last < m_Shaders.size(); ++last)
+                if (m_Shaders[last].m_Stage != stage)
+                    break;
+
+            if (first == m_Shaders.size())
+                return {};
+
+            const auto* pData = m_Shaders.data();
+            return { pData + first, pData + last };
+        }
+
+        inline const DeviceProfilerPipelineShader* GetFirstShaderAtStage(VkShaderStageFlagBits stage) const
+        {
+            for (size_t i = 0; i < m_Shaders.size(); ++i)
+                if (m_Shaders[i].m_Stage == stage)
+                    return &m_Shaders[i];
+
+            return nullptr;
+        }
+
+        inline const DeviceProfilerPipelineShader* GetShaderAtIndex( uint32_t index ) const
+        {
+            for (size_t i = 0; i < m_Shaders.size(); ++i)
+                if (m_Shaders[i].m_Index == index)
+                    return &m_Shaders[i];
+
+            return nullptr;
+        }
     };
 
-    struct ProfilerShaderModule
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPipelineShaderExecutableProperties
+
+    Description:
+        Internal representations of the shader.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineShaderExecutableProperties
     {
-        uint32_t                   m_Hash = 0;
-        std::vector<SpvCapability> m_Capabilities = {};
+        VkPipelineExecutablePropertiesKHR                          m_ExecutableProperties = {};
+        std::vector<VkPipelineExecutableStatisticKHR>              m_ExecutableStatistics = {};
+        std::vector<VkPipelineExecutableInternalRepresentationKHR> m_InternalRepresentations = {};
     };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPipelineExecutableProperties
+
+    Description:
+        Internal representations of the pipeline and its shaders.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPipelineExecutableProperties
+    {
+        std::vector<DeviceProfilerPipelineShaderExecutableProperties> m_Shaders = {};
+    };
+
+    typedef std::shared_ptr<DeviceProfilerPipelineExecutableProperties>
+        DeviceProfilerPipelineExecutablePropertiesPtr;
 }
 
 
 namespace std
 {
     template<>
-    struct hash<Profiler::ProfilerShaderTuple>
+    struct hash<Profiler::DeviceProfilerPipelineShaderTuple>
     {
-        inline size_t operator()( const Profiler::ProfilerShaderTuple& tuple ) const
+        inline size_t operator()( const Profiler::DeviceProfilerPipelineShaderTuple& tuple ) const
         {
             return tuple.m_Hash;
         }

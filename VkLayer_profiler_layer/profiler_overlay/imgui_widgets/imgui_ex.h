@@ -108,4 +108,26 @@ namespace ImGuiX
         }
         return false;
     }
+
+    /*************************************************************************\
+
+    Function:
+        Tooltip
+
+    Description:
+        Draws a tooltip with description of the previous item.
+
+    \*************************************************************************/
+    void Tooltip( const char* fmt, ... );
+
+    /*************************************************************************\
+
+    Function:
+        TooltipUnformatted
+
+    Description:
+        Draws a tooltip with description of the previous item.
+
+    \*************************************************************************/
+    void TooltipUnformatted( const char* text );
 }
