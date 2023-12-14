@@ -863,6 +863,17 @@ namespace Profiler
         DrawTraceSerializationOutputWindow();
 
         ImGui::End();
+
+        // Draw foreground overlay
+        ImDrawList* pForegroundDrawList = ImGui::GetForegroundDrawList();
+        if( pForegroundDrawList != nullptr )
+        {
+            // Draw cursor pointer in case the application doesn't render one.
+            // It is also needed when the app uses raw input because relative movements may be
+            // translated differently by the application and by the layer.
+            pForegroundDrawList->AddCircleFilled( ImGui::GetIO().MousePos, 2.f, 0xffffffff, 4 );
+        }
+
         ImGui::Render();
     }
 

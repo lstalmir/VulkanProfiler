@@ -62,7 +62,7 @@ static RECT ImGui_ImplWin32_Context_GetScreenRect()
     return rect;
 }
 
-static void ImGui_ImplWin32_Context_GetRawMousePosition( const RAWMOUSE& mouse, int& x, int& y )
+static void ImGui_ImplWin32_Context_GetRawMousePosition( const RAWMOUSE& mouse, POINT& p )
 {
     if( mouse.usFlags & MOUSE_MOVE_ABSOLUTE )
     {
@@ -76,13 +76,13 @@ static void ImGui_ImplWin32_Context_GetRawMousePosition( const RAWMOUSE& mouse, 
         float normalizedX = (mouse.lLastX / 65535.f);
         float normalizedY = (mouse.lLastY / 65535.f);
 
-        x = static_cast<int>( normalizedX * screenWidth ) + screenRect.left;
-        y = static_cast<int>( normalizedY * screenHeight ) + screenRect.top;
+        p.x = static_cast<int>( normalizedX * screenWidth ) + screenRect.left;
+        p.y = static_cast<int>( normalizedY * screenHeight ) + screenRect.top;
     }
     else
     {
-        x += mouse.lLastX;
-        y += mouse.lLastY;
+        p.x += mouse.lLastX;
+        p.y += mouse.lLastY;
     }
 }
 
@@ -259,11 +259,14 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                         const RAWMOUSE& mouse = rawInputDesc.data.mouse;
 
                         // Reconstruct mouse position.
-                        ImGui_ImplWin32_Context_GetRawMousePosition( mouse, context->m_RawMouseX, context->m_RawMouseY );
+                        POINT p = { context->m_RawMouseX, context->m_RawMouseY };
+                        ImGui_ImplWin32_Context_GetRawMousePosition( mouse, p );
 
                         // Convert to coordinates relative to the client area.
-                        POINT p = { context->m_RawMouseX, context->m_RawMouseY };
                         ScreenToClient( msg.hwnd, &p );
+                        p.x = std::clamp<int>( p.x, 0, static_cast<int>( io.DisplaySize.x ) );
+                        p.y = std::clamp<int>( p.y, 0, static_cast<int>( io.DisplaySize.y ) );
+
                         LPARAM mousepos = ImGui_ImplWin32_Context_MakeMousePositionLParam( p );
 
                         // Get active key modifiers
@@ -310,7 +313,9 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                         // Generate mouse move message.
                         translatedMsgs.push({ msg.hwnd, WM_MOUSEMOVE, 0, mousepos, msg.time, msg.pt });
 
-                        // Save mouse buttons state.
+                        // Save mouse state.
+                        context->m_RawMouseX = p.x;
+                        context->m_RawMouseY = p.y;
                         context->m_RawMouseButtons = keymods & ~(MK_CONTROL | MK_SHIFT);
                     }
                 }
@@ -335,8 +340,8 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                 // Resize window
                 if( msg.message == WM_SIZE )
                 {
-                    ImGui::GetIO().DisplaySize.x = LOWORD( msg.lParam );
-                    ImGui::GetIO().DisplaySize.y = HIWORD( msg.lParam );
+                    io.DisplaySize.x = LOWORD( msg.lParam );
+                    io.DisplaySize.y = HIWORD( msg.lParam );
                 }
             }
         }
