@@ -452,6 +452,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Destroy()
     {
+        m_DeferredOperationCallbacks.clear();
+
         m_pCommandBuffers.clear();
         m_pCommandPools.clear();
 
@@ -630,6 +632,72 @@ namespace Profiler
         for( uint32_t i = 0; i < count; ++i )
         {
             FreeCommandBuffer( pCommandBuffers[ i ] );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateDeferredOperation
+
+    Description:
+        Register deferred host operation.
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateDeferredOperation( VkDeferredOperationKHR deferredOperation )
+    {
+        m_DeferredOperationCallbacks.insert( deferredOperation, nullptr );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyDeferredOperation
+
+    Description:
+        Unregister deferred host operation.
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyDeferredOperation( VkDeferredOperationKHR deferredOperation )
+    {
+        m_DeferredOperationCallbacks.remove( deferredOperation );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDeferredOperationCallback
+
+    Description:
+        Associate an action with a deferred host operation. The action will be executed
+        when the deferred operation is joined.
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetDeferredOperationCallback( VkDeferredOperationKHR deferredOperation, DeferredOperationCallback callback )
+    {
+        m_DeferredOperationCallbacks.at( deferredOperation ) = std::move( callback );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ExecuteDeferredOperationCallback
+
+    Description:
+        Execute an action associated with the deferred host operation.
+
+    \***********************************************************************************/
+    void DeviceProfiler::ExecuteDeferredOperationCallback( VkDeferredOperationKHR deferredOperation )
+    {
+        auto& callback = m_DeferredOperationCallbacks.at( deferredOperation );
+        if( callback )
+        {
+            // Execute the custom action.
+            callback( deferredOperation );
+
+            // Clear the callback once it is executed.
+            // Note that callback is a reference to the element in the m_DeferredOperationCallbacks map.
+            callback = nullptr;
         }
     }
 

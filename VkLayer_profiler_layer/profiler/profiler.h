@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <sstream>
 #include <string>
+#include <functional>
 
 #include "lockable_unordered_map.h"
 
@@ -46,6 +47,9 @@
 namespace Profiler
 {
     class ProfilerCommandBuffer;
+
+    // Deferred operation callback.
+    using DeferredOperationCallback = std::function<void( VkDeferredOperationKHR )>;
 
     /***********************************************************************************\
 
@@ -84,6 +88,11 @@ namespace Profiler
 
         void AllocateCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
         void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
+
+        void CreateDeferredOperation( VkDeferredOperationKHR );
+        void DestroyDeferredOperation( VkDeferredOperationKHR );
+        void SetDeferredOperationCallback( VkDeferredOperationKHR, DeferredOperationCallback );
+        void ExecuteDeferredOperationCallback( VkDeferredOperationKHR );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
@@ -140,6 +149,8 @@ namespace Profiler
 
         ConcurrentMap<VkShaderModule, ProfilerShaderModule> m_ShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
+
+        ConcurrentMap<VkDeferredOperationKHR, DeferredOperationCallback> m_DeferredOperationCallbacks;
 
         ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,31 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.CreateRayTracingPipelinesKHR(
             device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
-        if( result == VK_SUCCESS )
+        // Register the pipelines once the deferred host operation completes.
+        if( (deferredOperation != VK_NULL_HANDLE) && (result == VK_OPERATION_DEFERRED_KHR) )
+        {
+            // If the operation has been deferred, the pointer must be kept alive until the pipeline creation is complete.
+            // The spec requires the application to join with the operation before freeing the memory, so we just need to
+            // keep the reference to both handles and handle join function to free the create info when the pipeline is ready.
+            auto registerDeferredPipelines = [ &dd, createInfoCount, pCreateInfos, pPipelines ]( VkDeferredOperationKHR deferredOperation )
+            {
+                // Get the result of the deferred operation.
+                VkResult pipelineCreationResult = dd.Device.Callbacks.GetDeferredOperationResultKHR(
+                    dd.Device.Handle,
+                    deferredOperation );
+
+                if( pipelineCreationResult == VK_SUCCESS )
+                {
+                    // Register the pipelines.
+                    dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
+                }
+            };
+
+            dd.Profiler.SetDeferredOperationCallback( deferredOperation, registerDeferredPipelines );
+        }
+
+        // Register the pipelines now if pipeline compilation succeeded immediatelly.
+        if( (result == VK_SUCCESS) || (result == VK_OPERATION_NOT_DEFERRED_KHR) )
         {
             // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
