@@ -50,37 +50,41 @@ namespace Profiler
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateRayTracingPipelinesKHR(
             device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
-
-        // If the operation has been deferred, the pointer must be kept alive until the pipeline creation is complete.
-        // The spec requires the application to join with the operation before freeing the memory, so we just need to
-        // keep the reference to both handles and handle join function to free the create info when the pipeline is ready.
+        
+        // Register the pipelines once the deferred host operation completes.
         if( (deferredOperation != VK_NULL_HANDLE) && (result == VK_OPERATION_DEFERRED_KHR) )
         {
-            // Keep temporary pCreateInfosWithExecutableProperties alive until the deferred operation is complete.
-            dd.Profiler.SetDeferredOperationCallback( deferredOperation,
-                [&dd, createInfoCount, pCreateInfos, pPipelines, pCreateInfosWithExecutableProperties]( VkDeferredOperationKHR deferredOperation )
+            // If the operation has been deferred, the pointer must be kept alive until the pipeline creation is complete.
+            // The spec requires the application to join with the operation before freeing the memory, so we just need to
+            // keep the reference to both handles and handle join function to free the create info when the pipeline is ready.
+            auto registerDeferredPipelines = [ &dd, createInfoCount, pCreateInfos, pPipelines, pCreateInfosWithExecutableProperties ]
+                ( VkDeferredOperationKHR deferredOperation )
+            {
+                // Get the result of the deferred operation.
+                VkResult pipelineCreationResult = dd.Device.Callbacks.GetDeferredOperationResultKHR(
+                    dd.Device.Handle,
+                    deferredOperation );
+
+                if( pipelineCreationResult == VK_SUCCESS )
                 {
-                    // Get the result of the deferred operation.
-                    VkResult pipelineCreationResult = dd.Device.Callbacks.GetDeferredOperationResultKHR(
-                        dd.Device.Handle,
-                        deferredOperation );
+                    // Register the pipelines.
+                    dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
+                }
 
-                    if( pipelineCreationResult == VK_SUCCESS )
-                    {
-                        // Register the pipelines.
-                        dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
-                    }
+                // Release pointer to the extended create info when the operation is complete.
+                free( pCreateInfosWithExecutableProperties );
+            };
 
-                    // Release pointer to the extended create info when the operation is complete.
-                    free( pCreateInfosWithExecutableProperties );
-                } );
+            dd.Profiler.SetDeferredOperationCallback( deferredOperation, registerDeferredPipelines );
 
+            // Clear the pointer - it will be freed as part of the deferred operation.
             pCreateInfosWithExecutableProperties = nullptr;
         }
 
         // Register the pipelines now if pipeline compilation succeeded immediatelly.
         if( (result == VK_SUCCESS) || (result == VK_OPERATION_NOT_DEFERRED_KHR) )
         {
+            // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
 

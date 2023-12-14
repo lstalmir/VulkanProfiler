@@ -74,6 +74,7 @@ namespace Profiler
         GETPROCADDR( CmdBindPipeline );
         GETPROCADDR( CmdExecuteCommands );
         GETPROCADDR( CmdPipelineBarrier );
+        GETPROCADDR( CmdPipelineBarrier2 );
         GETPROCADDR( CmdDraw );
         GETPROCADDR( CmdDrawIndirect );
         GETPROCADDR( CmdDrawIndexed );
@@ -96,6 +97,7 @@ namespace Profiler
 
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
+        GETPROCADDR( QueueSubmit2 );
 
         // VK_KHR_create_renderpass2 functions
         GETPROCADDR( CreateRenderPass2KHR );
@@ -149,6 +151,10 @@ namespace Profiler
         GETPROCADDR( QueuePresentKHR );
         GETPROCADDR( CreateSwapchainKHR );
         GETPROCADDR( DestroySwapchainKHR );
+
+        // VK_KHR_synchronization2 functions
+        GETPROCADDR( QueueSubmit2KHR );
+        GETPROCADDR( CmdPipelineBarrier2KHR );
 
         // VK_EXT_profiler functions
         GETPROCADDR_EXT( vkSetProfilerModeEXT );

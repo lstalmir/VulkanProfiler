@@ -79,6 +79,7 @@ namespace Profiler
             uint32_t, const VkMemoryBarrier*,
             uint32_t, const VkBufferMemoryBarrier*,
             uint32_t, const VkImageMemoryBarrier* );
+        void PipelineBarrier( const VkDependencyInfo* );
 
         const DeviceProfilerCommandBufferData& GetData();
 

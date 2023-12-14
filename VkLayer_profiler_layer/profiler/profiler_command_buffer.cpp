@@ -763,6 +763,27 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        PipelineBarrier
+
+    Description:
+        Stores barrier statistics in currently profiled entity.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::PipelineBarrier( const VkDependencyInfo* pDependencyInfo )
+    {
+        if( m_ProfilingEnabled )
+        {
+            // Pipeline barriers can occur only outside of the render pass, increment command buffer stats
+            m_Stats.m_PipelineBarrierCount +=
+                pDependencyInfo->memoryBarrierCount +
+                pDependencyInfo->bufferMemoryBarrierCount +
+                pDependencyInfo->imageMemoryBarrierCount;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetData
 
     Description:

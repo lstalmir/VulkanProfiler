@@ -94,7 +94,7 @@ namespace Profiler
         void CreateDeferredOperation( VkDeferredOperationKHR );
         void DestroyDeferredOperation( VkDeferredOperationKHR );
         void SetDeferredOperationCallback( VkDeferredOperationKHR, DeferredOperationCallback );
-        DeferredOperationCallback GetDeferredOperationCallback( VkDeferredOperationKHR ) const;
+        void ExecuteDeferredOperationCallback( VkDeferredOperationKHR );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
@@ -108,8 +108,9 @@ namespace Profiler
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
         void DestroyRenderPass( VkRenderPass );
 
-        void PreSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
-        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo*, VkFence );
+        void PreSubmitCommandBuffers( VkQueue );
+        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo* );
+        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo2* );
 
         void FinishFrame();
 
@@ -171,6 +172,8 @@ namespace Profiler
 
 
         VkResult InitializeINTEL();
+        void AcquirePerformanceConfigurationINTEL( VkQueue );
+        void ReleasePerformanceConfigurationINTEL();
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 
@@ -179,6 +182,9 @@ namespace Profiler
 
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
+
+        template<typename SubmitInfoT>
+        void PostSubmitCommandBuffersImpl( VkQueue, uint32_t, const SubmitInfoT* );
     };
 
     /***********************************************************************************\

@@ -38,6 +38,9 @@ public:
 
 private:
     HWND m_AppWindow;
+    int m_RawMouseX;
+    int m_RawMouseY;
+    int m_RawMouseButtons;
 
     void InitError();
 

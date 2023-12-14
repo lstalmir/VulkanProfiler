@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,29 +23,18 @@
 
 namespace Profiler
 {
-    /***********************************************************************************\
-
-    Structure:
-        VkQueue_Functions
-
-    Description:
-        Set of VkQueue functions which are overloaded in this layer.
-
-    \***********************************************************************************/
-    struct VkQueue_Functions : VkDevice_Functions_Base
+    struct VkSynchronization2Khr_Functions : VkDevice_Functions_Base
     {
-        // vkQueueSubmit
-        static VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit(
+        // vkQueueSubmit2KHR
+        static VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit2KHR(
             VkQueue queue,
             uint32_t submitCount,
-            const VkSubmitInfo* pSubmits,
+            const VkSubmitInfo2KHR* pSubmits,
             VkFence fence );
 
-        // vkQueueSubmit2
-        static VKAPI_ATTR VkResult VKAPI_CALL QueueSubmit2(
-            VkQueue queue,
-            uint32_t submitCount,
-            const VkSubmitInfo2* pSubmits,
-            VkFence fence );
+        // vkCmdPipelineBarrier2KHR
+        static VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier2KHR(
+            VkCommandBuffer commandBuffer,
+            const VkDependencyInfo* pDependencyInfo );
     };
 }

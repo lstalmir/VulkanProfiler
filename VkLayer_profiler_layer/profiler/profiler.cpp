@@ -105,6 +105,31 @@ namespace
             }
         }
     }
+
+    template<typename SubmitInfo>
+    struct SubmitInfoTraits;
+
+    template<>
+    struct SubmitInfoTraits<VkSubmitInfo>
+    {
+        PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo& info ) { return info.commandBufferCount; }
+        PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo& info ) { return info.signalSemaphoreCount; }
+        PROFILER_FORCE_INLINE static uint32_t WaitSemaphoreCount( const VkSubmitInfo& info ) { return info.waitSemaphoreCount; }
+        PROFILER_FORCE_INLINE static VkCommandBuffer CommandBuffer( const VkSubmitInfo& info, uint32_t i ) { return info.pCommandBuffers[ i ]; }
+        PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pSignalSemaphores[ i ]; }
+        PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pWaitSemaphores[ i ]; }
+    };
+
+    template<>
+    struct SubmitInfoTraits<VkSubmitInfo2>
+    {
+        PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo2& info ) { return info.commandBufferInfoCount; }
+        PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo2& info ) { return info.signalSemaphoreInfoCount; }
+        PROFILER_FORCE_INLINE static uint32_t WaitSemaphoreCount( const VkSubmitInfo2& info ) { return info.waitSemaphoreInfoCount; }
+        PROFILER_FORCE_INLINE static VkCommandBuffer CommandBuffer( const VkSubmitInfo2& info, uint32_t i ) { return info.pCommandBufferInfos[ i ].commandBuffer; }
+        PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pSignalSemaphoreInfos[ i ].semaphore; }
+        PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pWaitSemaphoreInfos[ i ].semaphore; }
+    };
 }
 
 namespace Profiler
@@ -367,6 +392,70 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        AcquirePerformanceConfigurationINTEL
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::AcquirePerformanceConfigurationINTEL( VkQueue queue )
+    {
+        assert( m_MetricsApiINTEL.IsAvailable() );
+        assert( m_PerformanceConfigurationINTEL == VK_NULL_HANDLE );
+
+        VkResult result;
+
+        // Acquire performance configuration
+        {
+            VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
+            acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
+            acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
+
+            assert( m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL );
+            result = m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
+                m_pDevice->Handle,
+                &acquireInfo,
+                &m_PerformanceConfigurationINTEL );
+        }
+
+        // Set performance configuration for the queue
+        if( result == VK_SUCCESS )
+        {
+            assert( m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL );
+            result = m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
+                queue, m_PerformanceConfigurationINTEL );
+        }
+
+        assert( result == VK_SUCCESS );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ReleasePerformanceConfigurationINTEL
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::ReleasePerformanceConfigurationINTEL()
+    {
+        assert( m_MetricsApiINTEL.IsAvailable() );
+
+        if( m_PerformanceConfigurationINTEL )
+        {
+            assert( m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL );
+            VkResult result = m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
+                m_pDevice->Handle, m_PerformanceConfigurationINTEL );
+
+            // Reset object handle for the next submit
+            m_PerformanceConfigurationINTEL = VK_NULL_HANDLE;
+
+            assert( result == VK_SUCCESS );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Destroy
 
     Description:
@@ -564,6 +653,7 @@ namespace Profiler
         CreateDeferredOperation
 
     Description:
+        Register deferred host operation.
 
     \***********************************************************************************/
     void DeviceProfiler::CreateDeferredOperation( VkDeferredOperationKHR deferredOperation )
@@ -577,6 +667,7 @@ namespace Profiler
         DestroyDeferredOperation
 
     Description:
+        Unregister deferred host operation.
 
     \***********************************************************************************/
     void DeviceProfiler::DestroyDeferredOperation( VkDeferredOperationKHR deferredOperation )
@@ -590,26 +681,36 @@ namespace Profiler
         SetDeferredOperationCallback
 
     Description:
-        Associates a callback to invoke when the deferred operation is complete.
+        Associate an action with a deferred host operation. The action will be executed
+        when the deferred operation is joined.
 
     \***********************************************************************************/
     void DeviceProfiler::SetDeferredOperationCallback( VkDeferredOperationKHR deferredOperation, DeferredOperationCallback callback )
     {
-        m_DeferredOperationCallbacks.at( deferredOperation ) = callback;
+        m_DeferredOperationCallbacks.at( deferredOperation ) = std::move( callback );
     }
 
     /***********************************************************************************\
 
     Function:
-        GetDeferredOperationCallback
+        ExecuteDeferredOperationCallback
 
     Description:
-        Returns callback associated with the deferred operation.
+        Execute an action associated with the deferred host operation.
 
     \***********************************************************************************/
-    DeferredOperationCallback DeviceProfiler::GetDeferredOperationCallback( VkDeferredOperationKHR deferredOperation ) const
+    void DeviceProfiler::ExecuteDeferredOperationCallback( VkDeferredOperationKHR deferredOperation )
     {
-        return m_DeferredOperationCallbacks.at( deferredOperation );
+        auto& callback = m_DeferredOperationCallbacks.at( deferredOperation );
+        if( callback )
+        {
+            // Execute the custom action.
+            callback( deferredOperation );
+
+            // Clear the callback once it is executed.
+            // Note that callback is a reference to the element in the m_DeferredOperationCallbacks map.
+            callback = nullptr;
+        }
     }
 
     /***********************************************************************************\
@@ -955,47 +1056,28 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue, uint32_t, const VkSubmitInfo*, VkFence )
+    void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue )
     {
-        assert( m_PerformanceConfigurationINTEL == VK_NULL_HANDLE );
-
         if( m_MetricsApiINTEL.IsAvailable() )
         {
-            VkResult result;
-
-            // Acquire performance configuration
-            {
-                VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
-                acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
-                acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
-
-                result = m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
-                    m_pDevice->Handle,
-                    &acquireInfo,
-                    &m_PerformanceConfigurationINTEL );
-            }
-
-            // Set performance configuration for the queue
-            if( result == VK_SUCCESS )
-            {
-                result = m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
-                    queue, m_PerformanceConfigurationINTEL );
-            }
-
-            assert( result == VK_SUCCESS );
+            AcquirePerformanceConfigurationINTEL( queue );
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        PostSubmitCommandBuffers
+        PostSubmitCommandBuffersImpl
 
     Description:
+        Structure-independent implementation of PostSubmitCommandBuffers.
 
     \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, VkFence fence )
+    template<typename SubmitInfoT>
+    void DeviceProfiler::PostSubmitCommandBuffersImpl( VkQueue queue, uint32_t count, const SubmitInfoT* pSubmitInfo )
     {
+        using T = SubmitInfoTraits<SubmitInfoT>;
+
         #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
         std::scoped_lock lk( m_CommandBuffers );
         #else
@@ -1018,18 +1100,18 @@ namespace Profiler
 
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
-            const VkSubmitInfo& submitInfo = pSubmitInfo[submitIdx];
+            const SubmitInfoT& submitInfo = pSubmitInfo[ submitIdx ];
 
             // Wrap submit info into our structure
             DeviceProfilerSubmit submit;
-            submit.m_pCommandBuffers.reserve( submitInfo.commandBufferCount );
-            submit.m_SignalSemaphores.reserve( submitInfo.signalSemaphoreCount );
-            submit.m_WaitSemaphores.reserve( submitInfo.waitSemaphoreCount );
+            submit.m_pCommandBuffers.reserve( T::CommandBufferCount( submitInfo ) );
+            submit.m_SignalSemaphores.reserve( T::SignalSemaphoreCount( submitInfo ) );
+            submit.m_WaitSemaphores.reserve( T::WaitSemaphoreCount( submitInfo ) );
 
-            for( uint32_t commandBufferIdx = 0; commandBufferIdx < submitInfo.commandBufferCount; ++commandBufferIdx )
+            for( uint32_t commandBufferIdx = 0; commandBufferIdx < T::CommandBufferCount( submitInfo ); ++commandBufferIdx )
             {
                 // Get command buffer handle
-                VkCommandBuffer commandBuffer = submitInfo.pCommandBuffers[commandBufferIdx];
+                VkCommandBuffer commandBuffer = T::CommandBuffer( submitInfo, commandBufferIdx );
                 auto& profilerCommandBuffer = GetCommandBuffer( commandBuffer );
 
                 // Dirty command buffer profiling data
@@ -1039,14 +1121,14 @@ namespace Profiler
             }
 
             // Copy semaphores
-            for( uint32_t semaphoreIdx = 0; semaphoreIdx < submitInfo.signalSemaphoreCount; ++semaphoreIdx )
+            for( uint32_t semaphoreIdx = 0; semaphoreIdx < T::SignalSemaphoreCount( submitInfo ); ++semaphoreIdx )
             {
-                submit.m_SignalSemaphores.push_back( submitInfo.pSignalSemaphores[ semaphoreIdx ] );
+                submit.m_SignalSemaphores.push_back( T::SignalSemaphore( submitInfo, semaphoreIdx ) );
             }
 
-            for( uint32_t semaphoreIdx = 0; semaphoreIdx < submitInfo.waitSemaphoreCount; ++semaphoreIdx )
+            for( uint32_t semaphoreIdx = 0; semaphoreIdx < T::WaitSemaphoreCount( submitInfo ); ++semaphoreIdx )
             {
-                submit.m_WaitSemaphores.push_back( submitInfo.pWaitSemaphores[ semaphoreIdx ] );
+                submit.m_WaitSemaphores.push_back( T::WaitSemaphore( submitInfo, semaphoreIdx ) );
             }
 
             // Store the submit wrapper
@@ -1056,17 +1138,9 @@ namespace Profiler
         m_DataAggregator.AppendSubmit( submitBatch );
 
         // Release performance configuration
-        if( m_PerformanceConfigurationINTEL )
+        if( m_MetricsApiINTEL.IsAvailable() )
         {
-            assert( m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL );
-
-            VkResult result = m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
-                m_pDevice->Handle, m_PerformanceConfigurationINTEL );
-
-            assert( result == VK_SUCCESS );
-
-            // Reset object handle for the next submit
-            m_PerformanceConfigurationINTEL = VK_NULL_HANDLE;
+            ReleasePerformanceConfigurationINTEL();
         }
 
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
@@ -1074,6 +1148,32 @@ namespace Profiler
             // Collect data from the submitted command buffers
             m_DataAggregator.Aggregate();
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostSubmitCommandBuffers
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo )
+    {
+        PostSubmitCommandBuffersImpl( queue, count, pSubmitInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostSubmitCommandBuffers
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo2* pSubmitInfo )
+    {
+        PostSubmitCommandBuffersImpl( queue, count, pSubmitInfo );
     }
 
     /***********************************************************************************\
