@@ -50,7 +50,7 @@ namespace Profiler
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateRayTracingPipelinesKHR(
             device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
-        
+
         // Register the pipelines once the deferred host operation completes.
         if( (deferredOperation != VK_NULL_HANDLE) && (result == VK_OPERATION_DEFERRED_KHR) )
         {
