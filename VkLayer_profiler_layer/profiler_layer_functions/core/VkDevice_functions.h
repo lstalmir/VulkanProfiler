@@ -25,6 +25,7 @@
 #include "VkCreateRenderPass2Khr_functions.h"
 #include "VkDebugMarkerExt_functions.h"
 #include "VkDebugUtilsExt_functions.h"
+#include "VkDeferredHostOperationsKhr_functions.h"
 #include "VkDrawIndirectCountAmd_functions.h"
 #include "VkDrawIndirectCountKhr_functions.h"
 #include "VkDynamicRenderingKhr_functions.h"
@@ -50,6 +51,7 @@ namespace Profiler
         , VkCreateRenderPass2Khr_Functions
         , VkDebugMarkerExt_Functions
         , VkDebugUtilsExt_Functions
+        , VkDeferredHostOperationsKhr_Functions
         , VkDrawIndirectCountAmd_Functions
         , VkDrawIndirectCountKhr_Functions
         , VkDynamicRenderingKhr_Functions

@@ -123,6 +123,11 @@ namespace Profiler
         GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
         GETPROCADDR( CmdEndDebugUtilsLabelEXT );
 
+        // VK_KHR_deferred_host_operations functions
+        GETPROCADDR( CreateDeferredOperationKHR );
+        GETPROCADDR( DestroyDeferredOperationKHR );
+        GETPROCADDR( DeferredOperationJoinKHR );
+
         // VK_AMD_draw_indirect_count functions
         GETPROCADDR( CmdDrawIndirectCountAMD );
         GETPROCADDR( CmdDrawIndexedIndirectCountAMD );

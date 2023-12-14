@@ -129,6 +129,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkDebugMarkerExt_functions.h"
     "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.cpp"
     "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.h"
+    "profiler_layer_functions/extensions/VkDeferredHostOperationsKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkDeferredHostOperationsKhr_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.cpp"
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.cpp"
