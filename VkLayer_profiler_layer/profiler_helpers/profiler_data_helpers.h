@@ -57,6 +57,9 @@ namespace Profiler
         std::string GetFormatName( VkFormat ) const;
         std::string GetIndexTypeName( VkIndexType ) const;
 
+        std::string GetBufferUsageFlagNames( VkBufferUsageFlags ) const;
+        std::string GetImageUsageFlagNames( VkImageUsageFlags ) const;
+
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;

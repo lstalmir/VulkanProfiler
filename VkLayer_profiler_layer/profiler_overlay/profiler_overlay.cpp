@@ -851,6 +851,11 @@ namespace Profiler
             UpdateMemoryTab();
             ImGui::EndTabItem();
         }
+        if( ImGui::BeginTabItem( Lang::Resources ) )
+        {
+            UpdateResourcesTab();
+            ImGui::EndTabItem();
+        }
         if( ImGui::BeginTabItem( Lang::Statistics ) )
         {
             UpdateStatisticsTab();
@@ -1789,6 +1794,9 @@ namespace Profiler
                     memoryProperties.memoryTypeCount, 0,
                     memoryTypeDescriptorPointers.data() );
 
+                float fontScale = ImGui::GetIO().FontGlobalScale;
+                float columnWidth = 200 * fontScale;
+
                 snprintf( buffer, sizeof( buffer ), "heap_%d_allocations", i );
                 if( ImGui::TreeNode( buffer, "Allocations" ) )
                 {
@@ -1805,7 +1813,7 @@ namespace Profiler
                                 ImGui::PushFont( m_pMonoFont );
                                 ImGui::Text( "%08llx - %08llx", binding.m_Offset, binding.m_Offset + binding.m_Size );
                                 ImGui::PopFont();
-                                ImGui::SameLine( 200 );
+                                ImGui::SameLine( columnWidth );
                                 ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Handle ).c_str() );
                                 ImGuiX::TextAlignRight( "%llu bytes   ", binding.m_Size );
                             }
@@ -1814,7 +1822,7 @@ namespace Profiler
                                 ImGui::PushFont( m_pMonoFont );
                                 ImGui::Text( "%08llx - %08llx", binding.m_Offset, binding.m_Offset + binding.m_Size );
                                 ImGui::PopFont();
-                                ImGui::SameLine( 200 );
+                                ImGui::SameLine( columnWidth );
                                 ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Handle ).c_str() );
                                 ImGuiX::TextAlignRight( "%llu bytes   ", binding.m_Size );
                             }
@@ -1829,6 +1837,84 @@ namespace Profiler
 
                     ImGui::TreePop();
                 }
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateResourcesTab
+
+    Description:
+        Updates "Resources" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateResourcesTab()
+    {
+        float fontScale = ImGui::GetIO().FontGlobalScale;
+        float columnWidth = 130 * fontScale;
+
+        for( const auto& [handle, bufferInfo] : m_Data.m_Memory.m_Buffers )
+        {
+            if( ImGui::TreeNode( m_pStringSerializer->GetName( handle ).c_str() ) )
+            {
+                ImGui::TextUnformatted( "Logical size" );
+                ImGui::SameLine( columnWidth );
+                ImGui::Text( "%llu bytes", bufferInfo.m_LogicalSize );
+
+                ImGui::TextUnformatted( "Physical size" );
+                ImGui::SameLine( columnWidth );
+                ImGui::Text( "%llu bytes", bufferInfo.m_PhysicalSize );
+
+                ImGui::TextUnformatted( "Usage" );
+                ImGui::SameLine( columnWidth );
+                ImGui::TextUnformatted( m_pStringSerializer->GetBufferUsageFlagNames( bufferInfo.m_Usage ).c_str() );
+
+                ImGui::TextUnformatted( "Device memory" );
+                ImGui::SameLine( columnWidth );
+                ImGui::TextUnformatted( m_pStringSerializer->GetName( bufferInfo.m_Memory ).c_str() );
+
+                ImGui::TreePop();
+            }
+        }
+        for( const auto& [handle, imageInfo] : m_Data.m_Memory.m_Images )
+        {
+            if( ImGui::TreeNode( m_pStringSerializer->GetName( handle ).c_str() ) )
+            {
+                ImGui::Text( "Extent" );
+                ImGui::SameLine( columnWidth );
+                ImGui::Text( "%u x %u x %u", imageInfo.m_Extent.width, imageInfo.m_Extent.height, imageInfo.m_Extent.depth);
+
+                ImGui::Text( "Physical size", imageInfo.m_PhysicalSize );
+                ImGui::SameLine( columnWidth );
+                ImGui::Text( "%llu bytes", imageInfo.m_PhysicalSize );
+
+                ImGui::Text( "Format" );
+                ImGui::SameLine( columnWidth );
+                ImGui::TextUnformatted( m_pStringSerializer->GetFormatName( imageInfo.m_Format ).c_str() );
+
+                ImGui::Text( "Array layers" );
+                ImGui::SameLine( columnWidth );
+                ImGui::Text( "%u", imageInfo.m_ArrayLayers );
+
+                ImGui::Text( "Mip levels" );
+                ImGui::SameLine( columnWidth );
+                ImGui::Text( "%u", imageInfo.m_MipLevels );
+
+                ImGui::Text( "Samples" );
+                ImGui::SameLine( columnWidth );
+                ImGui::Text( "%u", imageInfo.m_Samples );
+
+                ImGui::Text( "Usage" );
+                ImGui::SameLine( columnWidth );
+                ImGui::TextUnformatted( m_pStringSerializer->GetImageUsageFlagNames( imageInfo.m_Usage ).c_str() );
+
+                ImGui::TextUnformatted( "Device memory" );
+                ImGui::SameLine( columnWidth );
+                ImGui::TextUnformatted( m_pStringSerializer->GetName( imageInfo.m_Memory ).c_str() );
+
+                ImGui::TreePop();
             }
         }
     }

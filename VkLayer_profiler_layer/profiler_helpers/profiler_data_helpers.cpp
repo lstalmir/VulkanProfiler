@@ -1059,6 +1059,116 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetBufferUsageFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBufferUsageFlagNames( VkBufferUsageFlags flags ) const
+    {
+        FlagsStringBuilder builder;
+        if( flags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT )
+            builder.AddFlag( "Transfer src" );
+        if( flags & VK_BUFFER_USAGE_TRANSFER_DST_BIT )
+            builder.AddFlag( "Transfer dst" );
+        if( flags & VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT )
+            builder.AddFlag( "Uniform texel buffer" );
+        if( flags & VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT )
+            builder.AddFlag( "Storage texel buffer" );
+        if( flags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT )
+            builder.AddFlag( "Uniform buffer" );
+        if( flags & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT )
+            builder.AddFlag( "Storage buffer" );
+        if( flags & VK_BUFFER_USAGE_INDEX_BUFFER_BIT )
+            builder.AddFlag( "Index buffer" );
+        if( flags & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+            builder.AddFlag( "Vertex buffer" );
+        if( flags & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT )
+            builder.AddFlag( "Indirect buffer" );
+        if( flags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT )
+            builder.AddFlag( "Shader device address" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_DECODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video decode src" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_DECODE_DST_BIT_KHR )
+            builder.AddFlag( "Video decode dst" );
+        if( flags & VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT )
+            builder.AddFlag( "Transform feedback buffer" );
+        if( flags & VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT )
+            builder.AddFlag( "Transform feedback counter buffer" );
+        if( flags & VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT )
+            builder.AddFlag( "Conditional rendering" );
+        if( flags & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR )
+            builder.AddFlag( "Accel struct build input" );
+        if( flags & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR )
+            builder.AddFlag( "Accel struct storage" );
+        if( flags & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR )
+            builder.AddFlag( "Shader binding table" );
+        if( flags & VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Sampler descriptor buffer" );
+        if( flags & VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Resource descriptor buffer" );
+        if( flags & VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Push descriptor buffer" );
+        if( flags & VK_BUFFER_USAGE_MICROMAP_BUILD_INPUT_READ_ONLY_BIT_EXT )
+            builder.AddFlag( "Micromap build input" );
+        if( flags & VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT )
+            builder.AddFlag( "Micromap storage" );
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageUsageFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageUsageFlagNames( VkImageUsageFlags flags ) const
+    {
+        FlagsStringBuilder builder;
+        if( flags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT )
+            builder.AddFlag( "Transfer src" );
+        if( flags & VK_IMAGE_USAGE_TRANSFER_DST_BIT )
+            builder.AddFlag( "Transfer dst" );
+        if( flags & VK_IMAGE_USAGE_SAMPLED_BIT )
+            builder.AddFlag( "Sampled" );
+        if( flags & VK_IMAGE_USAGE_STORAGE_BIT )
+            builder.AddFlag( "Storage" );
+        if( flags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
+            builder.AddFlag( "Color attachment" );
+        if( flags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
+            builder.AddFlag( "Depth-stencil attachment" );
+        if( flags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT )
+            builder.AddFlag( "Transient attachment" );
+        if( flags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT )
+            builder.AddFlag( "Input attachment" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR )
+            builder.AddFlag( "Video decode dst" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video decode src" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR )
+            builder.AddFlag( "Video decode dpb" );
+        if( flags & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT )
+            builder.AddFlag( "Fragment density map" );
+        if( flags & VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR )
+            builder.AddFlag( "Fragment shading rate attachment" );
+        if( flags & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT )
+            builder.AddFlag( "Host transfer" );
+        if( flags & VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT )
+            builder.AddFlag( "Attachment feedback loop" );
+        if( flags & VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI )
+            builder.AddFlag( "Invocation mask" );
+        if( flags & VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM )
+            builder.AddFlag( "Sample weight" );
+        if( flags & VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM )
+            builder.AddFlag( "Sample block match" );
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetCopyAccelerationStructureModeName
 
     Description:

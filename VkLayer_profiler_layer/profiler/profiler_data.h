@@ -1049,6 +1049,59 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerResourceInfo
+
+    Description:
+        Common data associated with any resource that can be bound to a memory.
+
+    \***********************************************************************************/
+    struct DeviceProfilerResourceInfo
+    {
+        VkDeviceMemory          m_Memory = {};
+        VkDeviceSize            m_MemoryOffset = {};
+        VkDeviceSize            m_PhysicalSize = {};
+        uint32_t                m_MemoryTypeIndex = {};
+        uint32_t                m_MemoryHeapIndex = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerBufferInfo
+
+    Description:
+        Buffer desc.
+
+    \***********************************************************************************/
+    struct DeviceProfilerBufferInfo : DeviceProfilerResourceInfo
+    {
+        VkDeviceSize            m_LogicalSize = {};
+        VkBufferUsageFlags      m_Usage = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerImageInfo
+
+    Description:
+        Image desc.
+
+    \***********************************************************************************/
+    struct DeviceProfilerImageInfo : DeviceProfilerResourceInfo
+    {
+        VkExtent3D              m_Extent = {};
+        VkFormat                m_Format = {};
+        VkImageUsageFlags       m_Usage = {};
+        uint32_t                m_MipLevels = {};
+        uint32_t                m_ArrayLayers = {};
+        VkSampleCountFlagBits   m_Samples = {};
+        VkImageTiling           m_Tiling = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerMemoryData
 
     Description:
@@ -1061,6 +1114,9 @@ namespace Profiler
 
         std::vector<struct DeviceProfilerMemoryHeapData> m_Heaps = {};
         std::vector<struct DeviceProfilerMemoryTypeData> m_Types = {};
+
+        std::unordered_map<VkBuffer, DeviceProfilerBufferInfo> m_Buffers = {};
+        std::unordered_map<VkImage, DeviceProfilerImageInfo>   m_Images = {};
     };
 
     /***********************************************************************************\

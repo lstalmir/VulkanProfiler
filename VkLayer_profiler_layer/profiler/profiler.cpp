@@ -1182,7 +1182,13 @@ namespace Profiler
         VkMemoryRequirements memoryRequirements;
         m_pDevice->Callbacks.GetBufferMemoryRequirements( m_pDevice->Handle, buffer, &memoryRequirements );
 
-        BindResourceMemoryImpl( buffer, memory, offset, memoryRequirements );
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+
+        auto bufferInfo = m_MemoryData.m_Buffers.find( buffer );
+        if( bufferInfo != m_MemoryData.m_Buffers.end() )
+        {
+            BindResourceMemoryImpl( buffer, memory, offset, memoryRequirements, bufferInfo->second );
+        }
     }
 
     /***********************************************************************************\
@@ -1200,7 +1206,13 @@ namespace Profiler
         VkMemoryRequirements memoryRequirements;
         m_pDevice->Callbacks.GetImageMemoryRequirements( m_pDevice->Handle, image, &memoryRequirements );
 
-        BindResourceMemoryImpl( image, memory, offset, memoryRequirements );
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+
+        auto imageInfo = m_MemoryData.m_Images.find( image );
+        if( imageInfo != m_MemoryData.m_Images.end() )
+        {
+            BindResourceMemoryImpl( image, memory, offset, memoryRequirements, imageInfo->second );
+        }
     }
 
     /***********************************************************************************\
@@ -1213,10 +1225,8 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename ResourceT>
-    void DeviceProfiler::BindResourceMemoryImpl( ResourceT resource, VkDeviceMemory memory, VkDeviceSize offset, VkMemoryRequirements memoryRequirements )
+    void DeviceProfiler::BindResourceMemoryImpl( ResourceT resource, VkDeviceMemory memory, VkDeviceSize offset, VkMemoryRequirements memoryRequirements, DeviceProfilerResourceInfo& resourceInfo )
     {
-        std::scoped_lock lk( m_MemoryProfilerMutex );
-
         // Find the memory allocation info.
         DeviceMemoryInfo memoryInfo = m_Allocations.at( memory );
         auto& heap = m_MemoryData.m_Heaps[ memoryInfo.m_HeapIndex ];
@@ -1231,6 +1241,12 @@ namespace Profiler
             binding.m_Handle = resource;
             binding.m_Offset = offset;
             binding.m_Size = memoryRequirements.size;
+
+            resourceInfo.m_Memory = memory;
+            resourceInfo.m_MemoryOffset = offset;
+            resourceInfo.m_PhysicalSize = memoryRequirements.size;
+            resourceInfo.m_MemoryTypeIndex = memoryInfo.m_TypeIndex;
+            resourceInfo.m_MemoryHeapIndex = memoryInfo.m_HeapIndex;
         }
 
         // Associate resource with its memory handle.
@@ -1264,6 +1280,25 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreateBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateBuffer( VkBuffer buffer, const VkBufferCreateInfo* createInfo )
+    {
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+
+        DeviceProfilerBufferInfo bufferInfo;
+        bufferInfo.m_LogicalSize = createInfo->size;
+        bufferInfo.m_Usage = createInfo->usage;
+
+        m_MemoryData.m_Buffers.try_emplace( buffer, std::move( bufferInfo ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DestroyBuffer
 
     Description:
@@ -1271,7 +1306,34 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyBuffer( VkBuffer buffer )
     {
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+        m_MemoryData.m_Buffers.erase( buffer );
+
         DestroyResourceImpl( buffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateImage( VkImage image, const VkImageCreateInfo* createInfo )
+    {
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+
+        DeviceProfilerImageInfo imageInfo;
+        imageInfo.m_Extent = createInfo->extent;
+        imageInfo.m_Format = createInfo->format;
+        imageInfo.m_Usage = createInfo->usage;
+        imageInfo.m_MipLevels = createInfo->mipLevels;
+        imageInfo.m_ArrayLayers = createInfo->arrayLayers;
+        imageInfo.m_Samples = createInfo->samples;
+        imageInfo.m_Tiling = createInfo->tiling;
+
+        m_MemoryData.m_Images.try_emplace( image, std::move( imageInfo ) );
     }
 
     /***********************************************************************************\
@@ -1284,6 +1346,9 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyImage( VkImage image )
     {
+        std::scoped_lock lk( m_MemoryProfilerMutex );
+        m_MemoryData.m_Images.erase( image );
+
         DestroyResourceImpl( image );
     }
 
@@ -1299,8 +1364,6 @@ namespace Profiler
     template<typename ResourceT>
     void DeviceProfiler::DestroyResourceImpl( ResourceT resource )
     {
-        std::scoped_lock lk( m_MemoryProfilerMutex );
-
         // Find memory associated with the buffer.
         auto [ memoryIt, found ] = GetResourceMemoryEntry( resource );
         if( !found )

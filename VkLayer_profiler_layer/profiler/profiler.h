@@ -109,7 +109,11 @@ namespace Profiler
         void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
         void FlushMappedMemoryRanges( VkDeviceMemory, uint32_t, const VkMappedMemoryRange* );
         void InvalidateMappedMemoryRanges( VkDeviceMemory, uint32_t, const VkMappedMemoryRange* );
+
+        void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
         void DestroyBuffer( VkBuffer );
+
+        void CreateImage( VkImage, const VkImageCreateInfo* );
         void DestroyImage( VkImage );
 
         void SetObjectName( VkObject, const char* );
@@ -186,7 +190,7 @@ namespace Profiler
         void PostSubmitCommandBuffersImpl( VkQueue, uint32_t, const SubmitInfoT* );
 
         template<typename ResourceT>
-        void BindResourceMemoryImpl( ResourceT, VkDeviceMemory, VkDeviceSize, VkMemoryRequirements );
+        void BindResourceMemoryImpl( ResourceT, VkDeviceMemory, VkDeviceSize, VkMemoryRequirements, DeviceProfilerResourceInfo& );
 
         template<typename ResourceT>
         void DestroyResourceImpl( ResourceT );

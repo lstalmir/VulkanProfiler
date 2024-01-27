@@ -177,11 +177,25 @@ namespace Profiler
             VkDeviceMemory deviceMemory,
             VkDeviceSize offset );
 
+        // vkCreateBuffer
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateBuffer(
+            VkDevice device,
+            const VkBufferCreateInfo* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkBuffer* pBuffer );
+
         // vkDestroyBuffer
         static VKAPI_ATTR void VKAPI_CALL DestroyBuffer(
             VkDevice device,
             VkBuffer buffer,
             const VkAllocationCallbacks* pAllocator );
+        
+        // vkCreateImage
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateImage(
+            VkDevice device,
+            const VkImageCreateInfo* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkImage* pImage );
 
         // vkDestroyImage
         static VKAPI_ATTR void VKAPI_CALL DestroyImage(

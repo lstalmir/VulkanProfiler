@@ -221,6 +221,7 @@ namespace Profiler
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
         void UpdateMemoryTab();
+        void UpdateResourcesTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
 

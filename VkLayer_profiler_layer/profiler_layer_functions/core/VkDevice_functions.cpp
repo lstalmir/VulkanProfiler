@@ -60,7 +60,9 @@ namespace Profiler
         GETPROCADDR( FreeMemory );
         GETPROCADDR( BindBufferMemory );
         GETPROCADDR( BindImageMemory );
+        GETPROCADDR( CreateBuffer );
         GETPROCADDR( DestroyBuffer );
+        GETPROCADDR( CreateImage );
         GETPROCADDR( DestroyImage );
 
         // VkCommandBuffer core functions
@@ -632,6 +634,34 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreateBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateBuffer(
+        VkDevice device,
+        const VkBufferCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkBuffer* pBuffer )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        VkResult result = dd.Device.Callbacks.CreateBuffer(
+            device, pCreateInfo, pAllocator, pBuffer );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register resource
+            dd.Profiler.CreateBuffer( *pBuffer, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DestroyBuffer
 
     Description:
@@ -649,6 +679,34 @@ namespace Profiler
 
         // Destroy the buffer
         dd.Device.Callbacks.DestroyBuffer( device, buffer, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateImage(
+        VkDevice device,
+        const VkImageCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkImage* pImage )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        VkResult result = dd.Device.Callbacks.CreateImage(
+            device, pCreateInfo, pAllocator, pImage );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register resource
+            dd.Profiler.CreateImage( *pImage, pCreateInfo );
+        }
+
+        return result;
     }
 
     /***********************************************************************************\
