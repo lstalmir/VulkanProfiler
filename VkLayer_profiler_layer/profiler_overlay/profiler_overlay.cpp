@@ -1802,10 +1802,18 @@ namespace Profiler
                 for( const auto& [objectType, data] : deviceData.m_ObjectTypeData )
                 {
                     auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
-                    if( !traits.HasDeviceMemory || objectType == VK_OBJECT_TYPE_DEVICE_MEMORY )
+                    if( !traits.HasDeviceMemory )
                         continue;
 
-                    PlotSamples( objectType, data.m_DeviceMemoryUsageSamples );
+                    if( objectType == VK_OBJECT_TYPE_DEVICE_MEMORY )
+                    {
+                        samples.pMemoryUsageSamples = &data.m_DeviceMemoryUsageSamples;
+                        ImPlot::PlotLineG( VkObject_Traits<VkDeviceMemory>::ObjectTypeName, GetMemoryUsage, &samples, data.m_DeviceMemoryUsageSamples.size() );
+                    }
+                    else
+                    {
+                        PlotSamples( objectType, data.m_DeviceMemoryUsageSamples );
+                    }
                 }
 
                 ImPlot::EndPlot();
@@ -1954,6 +1962,7 @@ namespace Profiler
                 float fontScale = ImGui::GetIO().FontGlobalScale;
                 float columnWidth = 200 * fontScale;
 
+#if 0
                 snprintf( buffer, sizeof( buffer ), "heap_%d_allocations", i );
                 if( ImGui::TreeNode( buffer, "Allocations" ) )
                 {
@@ -1994,6 +2003,7 @@ namespace Profiler
 
                     ImGui::TreePop();
                 }
+#endif
             }
         }
 

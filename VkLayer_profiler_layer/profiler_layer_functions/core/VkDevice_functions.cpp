@@ -665,6 +665,7 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             dd.Device.HostMemoryProfiler.BindAllocator( *pMemory, pProfilerAllocator );
+            dd.Device.HostMemoryProfiler.BindDeviceMemory( *pMemory, *pMemory, 0, pAllocateInfo->allocationSize );
 
             // Register allocation
             dd.Profiler.AllocateMemory( *pMemory, pAllocateInfo );
