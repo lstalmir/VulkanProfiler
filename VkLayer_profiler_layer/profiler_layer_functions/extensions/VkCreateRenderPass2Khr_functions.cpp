@@ -38,12 +38,22 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_RENDER_PASS );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the render pass
         VkResult result = dd.Device.Callbacks.CreateRenderPass2KHR(
             device, pCreateInfo, pAllocator, pRenderPass );
 
         if( result == VK_SUCCESS )
         {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pRenderPass, pProfilerAllocator );
+
             // Register new render pass
             dd.Profiler.CreateRenderPass( *pRenderPass, pCreateInfo );
         }

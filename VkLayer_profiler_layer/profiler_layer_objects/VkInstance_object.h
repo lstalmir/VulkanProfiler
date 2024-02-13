@@ -26,6 +26,8 @@
 #include <unordered_set>
 #include <string>
 
+#include "../profiler/profiler_allocator.h"
+
 namespace Profiler
 {
     struct VkInstance_Object
@@ -48,5 +50,8 @@ namespace Profiler
 
         // Surfaces created with this instance
         std::unordered_map<VkSurfaceKHR, VkSurfaceKhr_Object> Surfaces;
+
+        MemoryProfilerManager HostMemoryProfilerManager;
+        MemoryProfiler        HostMemoryProfiler;
     };
 }

@@ -36,6 +36,7 @@
 #include "profiler_ext/VkProfilerEXT.h"
 
 struct ImGuiContext;
+struct ImPlotContext;
 struct ImFont;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
@@ -94,6 +95,7 @@ namespace Profiler
 
         static std::mutex s_ImGuiMutex;
         ImGuiContext* m_pImGuiContext;
+        ImPlotContext* m_pImPlotContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
 

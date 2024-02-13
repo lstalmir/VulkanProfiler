@@ -41,12 +41,25 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( device );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_PIPELINE );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateRayTracingPipelinesKHR(
             device, deferredOperation, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
         if( result == VK_SUCCESS )
         {
+            for( uint32_t i = 0; i < createInfoCount; ++i )
+            {
+                dd.Device.HostMemoryProfiler.BindAllocator( pPipelines[ i ], pProfilerAllocator );
+            }
+
             // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }

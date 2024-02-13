@@ -61,6 +61,12 @@ namespace Profiler
             id.Instance.EnabledExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
         }
 
+        // Initialize the memory profiler
+        id.Instance.HostMemoryProfiler.Initialize();
+        id.Instance.HostMemoryProfilerManager.Initialize();
+        id.Instance.HostMemoryProfilerManager.RegisterMemoryProfiler(
+            instance, &id.Instance.HostMemoryProfiler );
+
         return VK_SUCCESS;
     }
 
@@ -76,6 +82,12 @@ namespace Profiler
     void VkInstance_Functions_Base::DestroyInstanceBase(
         VkInstance instance )
     {
+        auto& id = InstanceDispatch.Get( instance );
+
+        id.Instance.HostMemoryProfilerManager.UnregisterMemoryProfiler( instance );
+        id.Instance.HostMemoryProfilerManager.Destroy();
+        id.Instance.HostMemoryProfiler.Destroy();
+
         InstanceDispatch.Erase( instance );
     }
 }

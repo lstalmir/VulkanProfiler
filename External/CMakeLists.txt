@@ -89,3 +89,17 @@ target_include_directories (imgui
 
 target_link_libraries (imgui
     PUBLIC Vulkan-Headers)
+
+# epezent/implot
+add_library (implot STATIC
+    implot/implot.h
+    implot/implot.cpp
+    implot/implot_internal.h
+    implot/implot_items.cpp
+    implot/implot_demo.cpp)
+
+target_include_directories (implot
+    PUBLIC implot)
+
+target_link_libraries (implot
+    PUBLIC imgui)

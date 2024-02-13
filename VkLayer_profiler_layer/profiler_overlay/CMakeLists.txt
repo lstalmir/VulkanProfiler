@@ -89,6 +89,7 @@ add_library (profiler_overlay
 target_link_libraries (profiler_overlay
     PUBLIC profiler_common
     PRIVATE imgui
+    PRIVATE implot
     PRIVATE profiler
     PRIVATE profiler_helpers)
 

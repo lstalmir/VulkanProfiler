@@ -69,6 +69,9 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 #include <X11/extensions/Xrandr.h>
 #endif
 
+#include <implot.h>
+#include <implot_internal.h>
+
 namespace Profiler
 {
     // Define static members
@@ -79,6 +82,30 @@ namespace Profiler
         HistogramGroupMode groupMode;
         FrameBrowserTreeNodeIndex nodeIndex;
     };
+
+    struct MemoryProfilerSamples
+    {
+        const RingBuffer<double>* pTimestampSamples;
+        const RingBuffer<size_t>* pMemoryUsageSamples;
+        const RingBuffer<size_t>* pBaselineSamples;
+    };
+
+    static ImPlotPoint GetMemoryUsage( int index, void* buf )
+    {
+        const MemoryProfilerSamples* samples = static_cast<const MemoryProfilerSamples*>(buf);
+        size_t accSample = (samples->pBaselineSamples->at( index ) + samples->pMemoryUsageSamples->at( index ));
+        double x = samples->pTimestampSamples->at( index );
+        double y = accSample / (double)(1024 * 1024);
+        return ImPlotPoint( x, y );
+    }
+
+    static ImPlotPoint GetBaseline( int index, void* buf )
+    {
+        const MemoryProfilerSamples* samples = static_cast<const MemoryProfilerSamples*>(buf);
+        double x = samples->pTimestampSamples->at( index );
+        double y = samples->pBaselineSamples->at( index ) / (double)(1024 * 1024);
+        return ImPlotPoint( x, y );
+    }
 
     /***********************************************************************************\
 
@@ -95,6 +122,7 @@ namespace Profiler
         , m_pSwapchain( nullptr )
         , m_Window()
         , m_pImGuiContext( nullptr )
+        , m_pImPlotContext( nullptr )
         , m_pImGuiVulkanContext( nullptr )
         , m_pImGuiWindowContext( nullptr )
         , m_pUIFont( nullptr )
@@ -238,6 +266,11 @@ namespace Profiler
 
             InitializeImGuiDefaultFont();
             InitializeImGuiStyle();
+
+            m_pImPlotContext = ImPlot::CreateContext();
+
+            ImPlotStyle& plotStyle = ImPlot::GetStyle();
+            plotStyle.Colors[ ImPlotCol_FrameBg ] = ImColor( 0, 0, 0, 0 );
         }
 
         // Init window
@@ -332,6 +365,12 @@ namespace Profiler
         {
             delete m_pImGuiWindowContext;
             m_pImGuiWindowContext = nullptr;
+        }
+
+        if( m_pImPlotContext )
+        {
+            ImPlot::DestroyContext( m_pImPlotContext );
+            m_pImPlotContext = nullptr;
         }
 
         if( m_pImGuiContext )
@@ -795,6 +834,7 @@ namespace Profiler
     {
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
+        ImPlot::SetCurrentContext( m_pImPlotContext );
 
         m_pImGuiVulkanContext->NewFrame();
 
@@ -1657,6 +1697,123 @@ namespace Profiler
         char buffer[ 128 ] = {};
         ImVec2 textSize;
 
+        const MemoryProfilerData& deviceData = m_pDevice->HostMemoryProfiler.GetData();
+        std::shared_lock deviceDataLock( deviceData );
+
+        const MemoryProfilerData& instanceData = m_pDevice->pInstance->HostMemoryProfiler.GetData();
+        std::shared_lock instanceDataLock( instanceData );
+
+        static std::unordered_set<VkObjectType> objectTypeFilter;
+
+        if( ImPlot::BeginSubplots( "##memory-usage-plots", 2, 1, ImVec2( -1, 196 * 2 ), ImPlotSubplotFlags_NoMenus | ImPlotSubplotFlags_ShareItems ) )
+        {
+            auto initTime = m_pDevice->pInstance->HostMemoryProfilerManager.GetInitTime();
+            double currentTime = 0;
+            if( instanceData.m_MemoryUsageTimePoints.size() )
+            {
+                auto timeSinceInit = std::chrono::high_resolution_clock::now() - initTime;
+                auto nsSinceInit = std::chrono::duration_cast<std::chrono::nanoseconds>(timeSinceInit);
+                nsSinceInit -= std::chrono::milliseconds( 200 );
+                currentTime = nsSinceInit.count() / 1e9;
+            }
+
+            objectTypeFilter.clear();
+
+            MemoryProfilerSamples samples = {};
+
+            RingBuffer<size_t> acc( instanceData.m_MemoryUsageTimePoints.capacity() );
+            for( size_t i = 0; i < instanceData.m_MemoryUsageTimePoints.size(); ++i )
+                acc.push_back( 0 );
+            samples.pBaselineSamples = &acc;
+
+            RingBuffer<double> timepoints( instanceData.m_MemoryUsageTimePoints.capacity() );
+            samples.pTimestampSamples = &timepoints;
+
+            auto PlotSamples = [&]( VkObjectType objectType, const RingBuffer<uint64_t>& data )
+                {
+                    size_t sampleCount = data.size();
+
+                    auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+                    samples.pMemoryUsageSamples = &data;
+                    ImPlot::PushStyleVar( ImPlotStyleVar_FillAlpha, 0.25f );
+                    ImPlot::PlotShadedG( traits.ObjectTypeName, GetMemoryUsage, &samples, GetBaseline, &samples, sampleCount );
+                    ImPlot::PopStyleVar();
+                    ImPlot::PlotLineG( traits.ObjectTypeName, GetMemoryUsage, &samples, sampleCount );
+
+                    ImPlotItem* pItem = ImPlot::GetItem( traits.ObjectTypeName );
+                    if( pItem && pItem->Show )
+                    {
+                        // Stack the samples.
+                        for( size_t i = 0; i < sampleCount; ++i )
+                            acc[ i ] += data[ i ];
+
+                        objectTypeFilter.insert( objectType );
+                    }
+                };
+
+            auto PlotMemoryUsageSamples = [&]( const MemoryProfilerData& data, const RingBuffer<uint64_t>( MemoryProfilerObjectTypeData::* samples ) )
+                {
+                    timepoints.clear();
+                    for( size_t i = 0; i < data.m_MemoryUsageTimePoints.size(); ++i )
+                    {
+                        auto timeSinceInit = data.m_MemoryUsageTimePoints[ i ] - initTime;
+                        auto nsSinceInit = std::chrono::duration_cast<std::chrono::nanoseconds>(timeSinceInit);
+                        timepoints.push_back( nsSinceInit.count() / 1e9 );
+                    }
+
+                    for( const auto& [objectType, data] : data.m_ObjectTypeData )
+                    {
+                        PlotSamples( objectType, (data.*samples) );
+                    }
+                };
+
+            if( ImPlot::BeginPlot( "Host memory usage (MiB)", ImVec2( -1, 196 ) ) )
+            {
+                ImPlot::SetupLegend( ImPlotLocation_East, ImPlotLegendFlags_Outside );
+                ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoHighlight );
+                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - 5.0, currentTime, ImPlotCond_Always );
+                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_LockMin );
+                ImPlot::SetupAxisLimits( ImAxis_Y1, 0, 1e3 );
+                PlotMemoryUsageSamples( instanceData, &MemoryProfilerObjectTypeData::m_HostMemoryUsageSamples );
+                PlotMemoryUsageSamples( deviceData, &MemoryProfilerObjectTypeData::m_HostMemoryUsageSamples );
+                ImPlot::EndPlot();
+            }
+
+            if( ImPlot::BeginPlot( "Device memory usage (MiB)", ImVec2( -1, 196 ) ) )
+            {
+                ImPlot::SetupLegend( ImPlotLocation_East, ImPlotLegendFlags_Outside );
+                ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoHighlight );
+                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - 5.0, currentTime, ImPlotCond_Always );
+                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_LockMin );
+                ImPlot::SetupAxisLimits( ImAxis_Y1, 0, 1e3 );
+
+                acc.clear();
+                for( size_t i = 0; i < deviceData.m_MemoryUsageTimePoints.size(); ++i )
+                    acc.push_back( 0 );
+
+                timepoints.clear();
+                for( size_t i = 0; i < deviceData.m_MemoryUsageTimePoints.size(); ++i )
+                {
+                    auto timeSinceInit = deviceData.m_MemoryUsageTimePoints[ i ] - initTime;
+                    auto nsSinceInit = std::chrono::duration_cast<std::chrono::nanoseconds>(timeSinceInit);
+                    timepoints.push_back( nsSinceInit.count() / 1e9 );
+                }
+
+                for( const auto& [objectType, data] : deviceData.m_ObjectTypeData )
+                {
+                    auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+                    if( !traits.HasDeviceMemory || objectType == VK_OBJECT_TYPE_DEVICE_MEMORY )
+                        continue;
+
+                    PlotSamples( objectType, data.m_DeviceMemoryUsageSamples );
+                }
+
+                ImPlot::EndPlot();
+            }
+
+            ImPlot::EndSubplots();
+        }
+
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
             const ImVec2 contentRegionSize = ImGui::GetWindowContentRegionMax();
@@ -1838,6 +1995,74 @@ namespace Profiler
                     ImGui::TreePop();
                 }
             }
+        }
+
+        if( ImGui::CollapsingHeader( "Objects" ) )
+        {
+            ImGui::BeginTable( "##objects-table", 5, ImGuiTableFlags_Sortable );
+
+            // Headers
+            ImGui::TableSetupColumn( "Object", ImGuiTableColumnFlags_WidthStretch );
+            ImGui::TableSetupColumn( "Object type", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableSetupColumn( "Dev mem size", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableSetupColumn( "Sys mem size", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableSetupColumn( "Sys mem count", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableHeadersRow();
+
+            for( const auto& [objectType, objectTypeData] : instanceData.m_ObjectTypeData )
+            {
+                if( !objectTypeFilter.count( objectType ) )
+                    continue;
+
+                for( size_t i = 0; i < objectTypeData.m_ObjectCount; ++i )
+                {
+                    const auto& objectData = objectTypeData.m_pObjects[ i ];
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( objectData.m_Object ).c_str() );
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted( objectData.m_Object.m_pTypeName );
+
+                    ImGui::TableNextColumn();
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text( "%zu B", objectData.m_HostMemorySize );
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text( "%zu", objectData.m_HostMemoryAllocationCount );
+                }
+            }
+
+            for( const auto& [objectType, objectTypeData] : deviceData.m_ObjectTypeData )
+            {
+                if( !objectTypeFilter.count( objectType ) )
+                    continue;
+
+                for( size_t i = 0; i < objectTypeData.m_ObjectCount; ++i )
+                {
+                    const auto& objectData = objectTypeData.m_pObjects[ i ];
+                    const auto objectTraits = VkObject_Runtime_Traits::FromObjectType( objectType );
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( objectData.m_Object ).c_str() );
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted( objectData.m_Object.m_pTypeName );
+
+                    ImGui::TableNextColumn();
+                    if( objectTraits.HasDeviceMemory )
+                        ImGui::Text( "%zu B", objectData.m_DeviceMemorySize );
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text( "%zu B", objectData.m_HostMemorySize );
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text( "%zu", objectData.m_HostMemoryAllocationCount );
+                }
+            }
+
+            ImGui::EndTable();
         }
     }
 

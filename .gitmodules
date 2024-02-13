@@ -22,3 +22,6 @@
 [submodule "External/metrics-discovery"]
 	path = External/metrics-discovery
 	url = https://github.com/intel/metrics-discovery
+[submodule "External/implot"]
+	path = External/implot
+	url = https://github.com/epezent/implot

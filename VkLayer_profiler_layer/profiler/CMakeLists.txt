@@ -24,6 +24,7 @@ project (profiler)
 
 set (headers
     "profiler.h"
+    "profiler_allocator.h"
     "profiler_command_buffer.h"
     "profiler_command_buffer_query_pool.h"
     "profiler_command_pool.h"
@@ -42,6 +43,7 @@ set (headers
 
 set (sources
     "profiler.cpp"
+    "profiler_allocator.cpp"
     "profiler_command_buffer.cpp"
     "profiler_command_buffer_query_pool.cpp"
     "profiler_command_pool.cpp"

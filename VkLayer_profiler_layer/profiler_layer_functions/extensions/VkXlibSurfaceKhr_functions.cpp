@@ -39,11 +39,21 @@ namespace Profiler
     {
         auto& id = InstanceDispatch.Get( instance );
 
+        // Track host memory operations
+        auto pProfilerAllocator = id.Instance.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_SURFACE_KHR );
+
+        pAllocator = pProfilerAllocator.get();
+
         VkResult result = id.Instance.Callbacks.CreateXlibSurfaceKHR(
             instance, pCreateInfo, pAllocator, pSurface );
 
         if( result == VK_SUCCESS )
         {
+            id.Instance.HostMemoryProfiler.BindAllocator( *pSurface, pProfilerAllocator );
+
             VkSurfaceKhr_Object surfaceObject = {};
             surfaceObject.Handle = *pSurface;
             surfaceObject.Window = pCreateInfo->window;

@@ -178,4 +178,11 @@ public:
     const_iterator end() const { return BaseType::end(); }
     const_iterator cbegin() const { return BaseType::begin(); }
     const_iterator cend() const { return BaseType::end(); }
+
+    // Get the snapshot of the current state of the map.
+    BaseType snapshot() const
+    {
+        std::shared_lock lk( m_Mtx );
+        return BaseType( *this );
+    }
 };

@@ -146,6 +146,14 @@ namespace Profiler
         // Move chain on for next layer
         pLayerLinkInfo->u.pLayerInfo = pLayerLinkInfo->u.pLayerInfo->pNext;
 
+        // Track host memory allocations for the device
+        auto pProfilerAllocator = id.Instance.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_DEVICE );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the device
         VkResult result = id.Instance.Callbacks.CreateDevice(
             physicalDevice, &createInfo, pAllocator, pDevice );
@@ -160,6 +168,8 @@ namespace Profiler
                 pfnSetDeviceLoaderData,
                 pAllocator,
                 *pDevice );
+
+            id.Instance.HostMemoryProfiler.BindAllocator( *pDevice, pProfilerAllocator );
         }
 
         if( result != VK_SUCCESS &&
