@@ -34,11 +34,11 @@ namespace Profiler
         , m_pNext( pAllocator )
         , m_ObjectHandle( 0 )
         , m_ObjectType( objectType )
-        , m_AllocatedMemorySize( 0 )
-        , m_Allocations()
         , m_DeviceMemoryHandle( VK_NULL_HANDLE )
         , m_DeviceMemoryOffset( 0 )
         , m_DeviceMemorySize( 0 )
+        , m_AllocatedMemorySize( 0 )
+        , m_Allocations()
     {
         pUserData = this;
         pfnAllocation = Allocate;
@@ -424,6 +424,8 @@ namespace Profiler
         : m_Thread()
         , m_ThreadWakeCv()
         , m_ThreadQuitSignal( true )
+        , m_ThreadPaused( false )
+        , m_ThreadUpdateInterval( std::chrono::milliseconds( 100 ) )
         , m_InitTime()
         , m_pMemoryProfilers()
     {}
@@ -433,6 +435,7 @@ namespace Profiler
         m_InitTime = std::chrono::high_resolution_clock::now();
 
         m_ThreadQuitSignal = false;
+        m_ThreadPaused = false;
         m_Thread = std::thread( &MemoryProfilerManager::ThreadProc, this );
 
         return VK_SUCCESS;
@@ -446,6 +449,7 @@ namespace Profiler
         if( m_Thread.joinable() )
         {
             m_ThreadQuitSignal = true;
+            m_ThreadPaused = false;
             m_ThreadWakeCv.notify_one();
             lock.unlock();
 
@@ -474,23 +478,26 @@ namespace Profiler
             std::shared_lock lock( m_pMemoryProfilers );
             std::cv_status cvStatus = m_ThreadWakeCv.wait_until( lock, nextUpdateTime );
 
-            // Process any pending events.
-            for( const auto& [_, pProfiler] : m_pMemoryProfilers )
+            if( !m_ThreadPaused )
             {
-                pProfiler->ProcessEvents();
+                // Process any pending events.
+                for( const auto& [_, pProfiler] : m_pMemoryProfilers )
+                {
+                    pProfiler->ProcessEvents();
+                }
+
+                clock::time_point currentTime = clock::now();
+                if( currentTime < nextUpdateTime )
+                    continue;
+
+                // Update the profilers.
+                for( const auto& [_, pProfiler] : m_pMemoryProfilers )
+                {
+                    pProfiler->UpdateData( currentTime );
+                }
             }
 
-            clock::time_point currentTime = clock::now();
-            if( currentTime < nextUpdateTime )
-                continue;
-
-            // Update the profilers.
-            for( const auto& [_, pProfiler] : m_pMemoryProfilers )
-            {
-                pProfiler->UpdateData( currentTime );
-            }
-
-            nextUpdateTime += std::chrono::milliseconds( 100 );
+            nextUpdateTime += m_ThreadUpdateInterval;
         }
     }
 }

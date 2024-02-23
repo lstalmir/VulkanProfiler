@@ -185,6 +185,8 @@ namespace Profiler
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
 
+        std::chrono::high_resolution_clock::time_point m_PauseTimestamp;
+
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
 

@@ -871,7 +871,11 @@ namespace Profiler
 
         // Keep results
         ImGui::SameLine();
-        ImGui::Checkbox( Lang::Pause, &m_Pause );
+        if( ImGui::Checkbox( Lang::Pause, &m_Pause ) )
+        {
+            m_PauseTimestamp = std::chrono::high_resolution_clock::now();
+            m_pDevice->pInstance->HostMemoryProfilerManager.Pause( m_Pause );
+        }
 
         if( !m_Pause )
         {
@@ -1705,15 +1709,19 @@ namespace Profiler
 
         static std::unordered_set<VkObjectType> objectTypeFilter;
 
-        if( ImPlot::BeginSubplots( "##memory-usage-plots", 2, 1, ImVec2( -1, 196 * 2 ), ImPlotSubplotFlags_NoMenus | ImPlotSubplotFlags_ShareItems ) )
+        const int plotHeight = 160;
+        if( ImPlot::BeginSubplots( "##memory-usage-plots", 2, 1, ImVec2( -1, plotHeight * 2 ), ImPlotSubplotFlags_NoMenus | ImPlotSubplotFlags_ShareItems ) )
         {
             auto initTime = m_pDevice->pInstance->HostMemoryProfilerManager.GetInitTime();
+            auto updateInterval = m_pDevice->pInstance->HostMemoryProfilerManager.GetUpdateInterval();
             double currentTime = 0;
             if( instanceData.m_MemoryUsageTimePoints.size() )
             {
                 auto timeSinceInit = std::chrono::high_resolution_clock::now() - initTime;
+                if( m_Pause )
+                    timeSinceInit = m_PauseTimestamp - initTime;
                 auto nsSinceInit = std::chrono::duration_cast<std::chrono::nanoseconds>(timeSinceInit);
-                nsSinceInit -= std::chrono::milliseconds( 200 );
+                nsSinceInit -= updateInterval;
                 currentTime = nsSinceInit.count() / 1e9;
             }
 
@@ -1767,11 +1775,15 @@ namespace Profiler
                     }
                 };
 
-            if( ImPlot::BeginPlot( "Host memory usage (MiB)", ImVec2( -1, 196 ) ) )
+            // Memory profiler collects numTimepoints x updateInterval samples.
+            assert( timepoints.capacity() > 2 );
+            double historyLength = (updateInterval.count() * (timepoints.capacity() - 2)) / 1e9;
+
+            if( ImPlot::BeginPlot( "Host memory usage (MiB)", ImVec2( -1, plotHeight ) ) )
             {
                 ImPlot::SetupLegend( ImPlotLocation_East, ImPlotLegendFlags_Outside );
                 ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoHighlight );
-                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - 5.0, currentTime, ImPlotCond_Always );
+                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - historyLength, currentTime, ImPlotCond_Always );
                 ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_LockMin );
                 ImPlot::SetupAxisLimits( ImAxis_Y1, 0, 1e3 );
                 PlotMemoryUsageSamples( instanceData, &MemoryProfilerObjectTypeData::m_HostMemoryUsageSamples );
@@ -1779,11 +1791,11 @@ namespace Profiler
                 ImPlot::EndPlot();
             }
 
-            if( ImPlot::BeginPlot( "Device memory usage (MiB)", ImVec2( -1, 196 ) ) )
+            if( ImPlot::BeginPlot( "Device memory usage (MiB)", ImVec2( -1, plotHeight ) ) )
             {
                 ImPlot::SetupLegend( ImPlotLocation_East, ImPlotLegendFlags_Outside );
                 ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoHighlight );
-                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - 5.0, currentTime, ImPlotCond_Always );
+                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - historyLength, currentTime, ImPlotCond_Always );
                 ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_LockMin );
                 ImPlot::SetupAxisLimits( ImAxis_Y1, 0, 1e3 );
 
@@ -1799,21 +1811,26 @@ namespace Profiler
                     timepoints.push_back( nsSinceInit.count() / 1e9 );
                 }
 
+                // Plot total allocated VkDeviceMemory with no stacking.
+                auto deviceMemoryObjectTypeData = deviceData.m_ObjectTypeData.find( VK_OBJECT_TYPE_DEVICE_MEMORY );
+                if( deviceMemoryObjectTypeData != deviceData.m_ObjectTypeData.end() )
+                {
+                    auto& data = deviceMemoryObjectTypeData->second;
+                    samples.pMemoryUsageSamples = &data.m_DeviceMemoryUsageSamples;
+                    ImPlot::PlotLineG( VkObject_Traits<VkDeviceMemory>::ObjectTypeName, GetMemoryUsage, &samples, data.m_DeviceMemoryUsageSamples.size() );
+                }
+
+                // Stack resources that are allocated from the VkDeviceMemory.
                 for( const auto& [objectType, data] : deviceData.m_ObjectTypeData )
                 {
+                    if( objectType == VK_OBJECT_TYPE_DEVICE_MEMORY )
+                        continue;
+
                     auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
                     if( !traits.HasDeviceMemory )
                         continue;
 
-                    if( objectType == VK_OBJECT_TYPE_DEVICE_MEMORY )
-                    {
-                        samples.pMemoryUsageSamples = &data.m_DeviceMemoryUsageSamples;
-                        ImPlot::PlotLineG( VkObject_Traits<VkDeviceMemory>::ObjectTypeName, GetMemoryUsage, &samples, data.m_DeviceMemoryUsageSamples.size() );
-                    }
-                    else
-                    {
-                        PlotSamples( objectType, data.m_DeviceMemoryUsageSamples );
-                    }
+                    PlotSamples( objectType, data.m_DeviceMemoryUsageSamples );
                 }
 
                 ImPlot::EndPlot();

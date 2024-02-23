@@ -129,12 +129,12 @@ namespace Profiler
         uint64_t                     m_ObjectHandle;
         VkObjectType                 m_ObjectType;
 
-        size_t                       m_AllocatedMemorySize;
-        std::unordered_map<void*, MemoryProfilerSystemAllocationInfo> m_Allocations;
-
         VkDeviceMemory               m_DeviceMemoryHandle;
         VkDeviceSize                 m_DeviceMemoryOffset;
         VkDeviceSize                 m_DeviceMemorySize;
+
+        size_t                       m_AllocatedMemorySize;
+        std::unordered_map<void*, MemoryProfilerSystemAllocationInfo> m_Allocations;
     };
 
     /***********************************************************************************\
@@ -215,10 +215,19 @@ namespace Profiler
 
         auto GetInitTime() const { return m_InitTime; }
 
+        void Pause( bool pause ) { m_ThreadPaused = pause; }
+
+        auto GetUpdateInterval() const { return m_ThreadUpdateInterval; }
+
+        template<typename DurationT>
+        void SetUpdateInterval( DurationT interval ) { m_ThreadUpdateInterval = interval; }
+
     private:
         std::thread                 m_Thread;
         std::condition_variable_any m_ThreadWakeCv;
         bool                        m_ThreadQuitSignal;
+        bool                        m_ThreadPaused;
+        std::chrono::nanoseconds    m_ThreadUpdateInterval;
 
         std::chrono::high_resolution_clock::time_point m_InitTime;
 
