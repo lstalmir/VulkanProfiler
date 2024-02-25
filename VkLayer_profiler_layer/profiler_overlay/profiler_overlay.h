@@ -214,6 +214,9 @@ namespace Profiler
         uint32_t m_RayTracingPipelineColumnColor;
         uint32_t m_InternalPipelineColumnColor;
 
+        // Implot colormaps
+        int m_PlotColormap;
+
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
@@ -221,6 +224,7 @@ namespace Profiler
 
         void InitializeImGuiDefaultFont();
         void InitializeImGuiStyle();
+        void InitializeImPlotStyle();
 
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();

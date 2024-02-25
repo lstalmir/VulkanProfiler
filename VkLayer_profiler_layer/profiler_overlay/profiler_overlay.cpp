@@ -72,6 +72,8 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 #include <implot.h>
 #include <implot_internal.h>
 
+#define IM_RGB(R,G,B) IM_COL32(R,G,B,255)
+
 namespace Profiler
 {
     // Define static members
@@ -164,6 +166,7 @@ namespace Profiler
         , m_ComputePipelineColumnColor( 0 )
         , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
+        , m_PlotColormap( 0 )
         , m_pStringSerializer( nullptr )
     {
     }
@@ -269,8 +272,7 @@ namespace Profiler
 
             m_pImPlotContext = ImPlot::CreateContext();
 
-            ImPlotStyle& plotStyle = ImPlot::GetStyle();
-            plotStyle.Colors[ ImPlotCol_FrameBg ] = ImColor( 0, 0, 0, 0 );
+            InitializeImPlotStyle();
         }
 
         // Init window
@@ -1157,6 +1159,43 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        InitializeImPlotStyle
+
+    Description:
+        Setup colormaps and override default style to match the main window.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::InitializeImPlotStyle()
+    {
+        // Disable background color behind the plots.
+        ImPlotStyle& plotStyle = ImPlot::GetStyle();
+        plotStyle.Colors[ ImPlotCol_FrameBg ] = ImColor( 0, 0, 0, 0 );
+
+        // Assign colormap to object types.
+        // Based on 'Deep' colormap.
+        static const ImU32 plotColors[] = {
+            IM_RGB( 255,215,0,255 ),
+            IM_RGB( 255,177,78 ),
+            IM_RGB( 250,135,117 ),
+            IM_RGB( 234,95,148 ),
+            IM_RGB( 205,52,181 ),
+            IM_RGB( 157,2,215 ),
+            IM_RGB( 86,48,235 ),
+            IM_RGB( 46,119,193 ),
+            IM_RGB( 37,174,200 ),
+            IM_RGB( 51,227,199 ),
+            IM_RGB( 63,201,140 ),
+            IM_RGB( 39,188,69 ),
+            IM_RGB( 137,195,18 ),
+            IM_RGB( 186,228,84 ),
+            IM_RGB( 235,243,62 ) };
+
+        m_PlotColormap = ImPlot::AddColormap( "Profiler", plotColors, static_cast<int>(std::size( plotColors )) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         InitializeImGuiVulkanContext
 
     Description:
@@ -1712,6 +1751,8 @@ namespace Profiler
         const int plotHeight = 160;
         if( ImPlot::BeginSubplots( "##memory-usage-plots", 2, 1, ImVec2( -1, plotHeight * 2 ), ImPlotSubplotFlags_NoMenus | ImPlotSubplotFlags_ShareItems ) )
         {
+            ImPlot::PushColormap( m_PlotColormap );
+
             auto initTime = m_pDevice->pInstance->HostMemoryProfilerManager.GetInitTime();
             auto updateInterval = m_pDevice->pInstance->HostMemoryProfilerManager.GetUpdateInterval();
             double currentTime = 0;
@@ -1779,13 +1820,20 @@ namespace Profiler
             assert( timepoints.capacity() > 2 );
             double historyLength = (updateInterval.count() * (timepoints.capacity() - 2)) / 1e9;
 
+            constexpr ImPlotAxisFlags xAxisFlags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoHighlight;
+            constexpr ImPlotAxisFlags yAxisFlags = 0;
+            auto SetupPlot = [&]()
+                {
+                    ImPlot::SetupLegend( ImPlotLocation_NorthEast, ImPlotLegendFlags_Outside );
+                    ImPlot::SetupAxes( nullptr, nullptr, xAxisFlags, yAxisFlags );
+                    ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - historyLength, currentTime, ImPlotCond_Always );
+                    ImPlot::SetupAxisLimits( ImAxis_Y1, 0, 1e3 );
+                    ImPlot::SetupAxisLimitsConstraints( ImAxis_Y1, 0, DBL_MAX );
+                };
+
             if( ImPlot::BeginPlot( "Host memory usage (MiB)", ImVec2( -1, plotHeight ) ) )
             {
-                ImPlot::SetupLegend( ImPlotLocation_East, ImPlotLegendFlags_Outside );
-                ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoHighlight );
-                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - historyLength, currentTime, ImPlotCond_Always );
-                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_LockMin );
-                ImPlot::SetupAxisLimits( ImAxis_Y1, 0, 1e3 );
+                SetupPlot();
                 PlotMemoryUsageSamples( instanceData, &MemoryProfilerObjectTypeData::m_HostMemoryUsageSamples );
                 PlotMemoryUsageSamples( deviceData, &MemoryProfilerObjectTypeData::m_HostMemoryUsageSamples );
                 ImPlot::EndPlot();
@@ -1793,11 +1841,7 @@ namespace Profiler
 
             if( ImPlot::BeginPlot( "Device memory usage (MiB)", ImVec2( -1, plotHeight ) ) )
             {
-                ImPlot::SetupLegend( ImPlotLocation_East, ImPlotLegendFlags_Outside );
-                ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoHighlight );
-                ImPlot::SetupAxisLimits( ImAxis_X1, currentTime - historyLength, currentTime, ImPlotCond_Always );
-                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_LockMin );
-                ImPlot::SetupAxisLimits( ImAxis_Y1, 0, 1e3 );
+                SetupPlot();
 
                 acc.clear();
                 for( size_t i = 0; i < deviceData.m_MemoryUsageTimePoints.size(); ++i )
@@ -1836,6 +1880,7 @@ namespace Profiler
                 ImPlot::EndPlot();
             }
 
+            ImPlot::PopColormap();
             ImPlot::EndSubplots();
         }
 
