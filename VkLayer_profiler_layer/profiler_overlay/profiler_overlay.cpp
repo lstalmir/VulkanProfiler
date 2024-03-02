@@ -2081,58 +2081,98 @@ namespace Profiler
             ImGui::TableSetupColumn( "Sys mem count", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
             ImGui::TableHeadersRow();
 
-            for( const auto& [objectType, objectTypeData] : instanceData.m_ObjectTypeData )
-            {
-                if( !objectTypeFilter.count( objectType ) )
-                    continue;
+            int devMemSizeColumnWidth = ImGuiX::TableGetColumnWidth( 2 );
+            int hostMemSizeColumnWidth = ImGuiX::TableGetColumnWidth( 3 );
+            int hostMemCountColumnWidth = ImGuiX::TableGetColumnWidth( 4 );
 
-                for( size_t i = 0; i < objectTypeData.m_ObjectCount; ++i )
+            // Total allocated memory size
+            const size_t totalHostMemoryUsage = instanceData.m_TotalMemoryUsage + deviceData.m_TotalMemoryUsage;
+            const size_t totalDeviceMemoryUsage = deviceData.m_ObjectTypeData.at( VK_OBJECT_TYPE_DEVICE_MEMORY ).m_DeviceMemorySize;
+
+            auto DrawMemoryUsageBar = [&]( size_t usage, size_t totalUsage )
                 {
-                    const auto& objectData = objectTypeData.m_pObjects[ i ];
+                    float usagePercent = static_cast<float>(usage) / totalUsage;
 
-                    ImGui::TableNextColumn();
-                    ImGui::TextUnformatted( m_pStringSerializer->GetName( objectData.m_Object ).c_str() );
+                    ImGuiTable* pTable = m_pImGuiContext->CurrentTable;
+                    assert( pTable );
 
-                    ImGui::TableNextColumn();
-                    ImGui::TextUnformatted( objectData.m_Object.m_pTypeName );
+                    ImRect r = ImGui::TableGetCellBgRect( pTable, pTable->CurrentColumn );
+                    r.Min.x = (r.Max.x - (r.GetWidth() * usagePercent));
 
-                    ImGui::TableNextColumn();
+                    ImU32 color = ImGui::GetColorU32( ImGuiCol_FrameBg );
 
-                    ImGui::TableNextColumn();
-                    ImGui::Text( "%zu B", objectData.m_HostMemorySize );
+                    ImDrawList* pDrawList = ImGui::GetWindowDrawList();
+                    pDrawList->AddRectFilled( r.Min, r.Max, color );
+                };
 
-                    ImGui::TableNextColumn();
-                    ImGui::Text( "%zu", objectData.m_HostMemoryAllocationCount );
-                }
-            }
-
-            for( const auto& [objectType, objectTypeData] : deviceData.m_ObjectTypeData )
-            {
-                if( !objectTypeFilter.count( objectType ) )
-                    continue;
-
-                for( size_t i = 0; i < objectTypeData.m_ObjectCount; ++i )
+            auto DrawMemoryUsageStatsColumns = [&]( size_t hostMemSize, size_t hostMemCount, size_t devMemSize, bool hasDeviceMemory, bool inTreeNode )
                 {
-                    const auto& objectData = objectTypeData.m_pObjects[ i ];
-                    const auto objectTraits = VkObject_Runtime_Traits::FromObjectType( objectType );
+                    float offset = (inTreeNode ? +21 : 0);
 
                     ImGui::TableNextColumn();
-                    ImGui::TextUnformatted( m_pStringSerializer->GetName( objectData.m_Object ).c_str() );
+                    if( hasDeviceMemory )
+                    {
+                        DrawMemoryUsageBar( devMemSize, totalDeviceMemoryUsage );
+                        ImGuiX::TextAlignRight( devMemSizeColumnWidth + offset, "%zu B", devMemSize );
+                    }
 
                     ImGui::TableNextColumn();
-                    ImGui::TextUnformatted( objectData.m_Object.m_pTypeName );
+                    DrawMemoryUsageBar( hostMemSize, totalHostMemoryUsage );
+                    ImGuiX::TextAlignRight( hostMemSizeColumnWidth + offset, "%zu B", hostMemSize );
 
                     ImGui::TableNextColumn();
-                    if( objectTraits.HasDeviceMemory )
-                        ImGui::Text( "%zu B", objectData.m_DeviceMemorySize );
+                    ImGuiX::TextAlignRight( hostMemCountColumnWidth + offset, "%zu", hostMemCount );
+                };
 
-                    ImGui::TableNextColumn();
-                    ImGui::Text( "%zu B", objectData.m_HostMemorySize );
+            auto DrawObjectTypeRows = [&]( const std::unordered_map<VkObjectType, MemoryProfilerObjectTypeData>& data )
+                {
+                    for( const auto& [objectType, objectTypeData] : data )
+                    {
+                        if( !objectTypeFilter.count( objectType ) )
+                            continue;
 
-                    ImGui::TableNextColumn();
-                    ImGui::Text( "%zu", objectData.m_HostMemoryAllocationCount );
-                }
-            }
+                        const auto objectTraits = VkObject_Runtime_Traits::FromObjectType( objectType );
+
+                        ImGui::TableNextColumn();
+
+                        bool open = ImGui::TreeNode( objectTraits.ObjectTypeName );
+
+                        ImGui::TableNextColumn();
+
+                        DrawMemoryUsageStatsColumns(
+                            objectTypeData.m_HostMemorySize,
+                            objectTypeData.m_HostMemoryAllocationCount,
+                            objectTypeData.m_DeviceMemorySize,
+                            objectTraits.HasDeviceMemory,
+                            open );
+
+                        if( open )
+                        {
+                            for( size_t i = 0; i < objectTypeData.m_ObjectCount; ++i )
+                            {
+                                const auto& objectData = objectTypeData.m_pObjects[ i ];
+
+                                ImGui::TableNextColumn();
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( objectData.m_Object ).c_str() );
+
+                                ImGui::TableNextColumn();
+                                ImGui::TextUnformatted( objectData.m_Object.m_pTypeName );
+
+                                DrawMemoryUsageStatsColumns(
+                                    objectData.m_HostMemorySize,
+                                    objectData.m_HostMemoryAllocationCount,
+                                    objectData.m_DeviceMemorySize,
+                                    objectTraits.HasDeviceMemory,
+                                    open );
+                            }
+
+                            ImGui::TreePop();
+                        }
+                    }
+                };
+
+            DrawObjectTypeRows( instanceData.m_ObjectTypeData );
+            DrawObjectTypeRows( deviceData.m_ObjectTypeData );
 
             ImGui::EndTable();
         }

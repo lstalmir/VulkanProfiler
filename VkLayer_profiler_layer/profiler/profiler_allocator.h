@@ -78,6 +78,7 @@ namespace Profiler
         RingBuffer<size_t>                   m_TotalMemoryUsageSamples{ 128 };
         std::unordered_map<VkObjectType, MemoryProfilerObjectTypeData> m_ObjectTypeData;
         std::vector<MemoryProfilerObjectData> m_ObjectData;
+        size_t                               m_TotalMemoryUsage;
     };
 
     /***********************************************************************************\

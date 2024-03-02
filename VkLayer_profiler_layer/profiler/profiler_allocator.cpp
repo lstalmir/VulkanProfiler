@@ -356,6 +356,7 @@ namespace Profiler
         // Fill object type data.
         m_Data.m_MemoryUsageTimePoints.push_back( tp );
         m_Data.m_TotalMemoryUsageSamples.push_back( m_TotalHostMemoryUsage );
+        m_Data.m_TotalMemoryUsage = m_TotalHostMemoryUsage;
 
         size_t sampleCount = (m_Data.m_TotalMemoryUsageSamples.size() % m_Data.m_TotalMemoryUsageSamples.capacity());
 
