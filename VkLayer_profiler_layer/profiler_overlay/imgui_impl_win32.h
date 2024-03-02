@@ -24,6 +24,8 @@
 
 #include <Windows.h>
 
+struct ImGuiContext;
+
 class ImGui_ImplWin32_Context : public ImGui_Window_Context
 {
 public:
@@ -38,6 +40,7 @@ public:
 
 private:
     HWND m_AppWindow;
+    ImGuiContext* m_pImGuiContext;
     int m_RawMouseX;
     int m_RawMouseY;
     int m_RawMouseButtons;
