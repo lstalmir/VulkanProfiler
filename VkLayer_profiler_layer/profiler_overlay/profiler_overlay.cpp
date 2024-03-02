@@ -722,7 +722,6 @@ namespace Profiler
     {
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
-        ImPlot::SetCurrentContext( m_pImPlotContext );
 
         // Record interface draw commands
         Update( data );
