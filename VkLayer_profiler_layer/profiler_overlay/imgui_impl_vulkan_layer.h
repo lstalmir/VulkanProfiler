@@ -42,7 +42,7 @@ struct ImGui_ImplVulkan_InitInfo
     void                (*CheckVkResultFn)(VkResult err);
 
     VkLayerInstanceDispatchTable* pInstanceDispatchTable;
-    VkLayerDispatchTable* pDispatchTable;
+    VkLayerDeviceDispatchTable* pDispatchTable;
 };
 
 class ImGui_ImplVulkan_Context
@@ -60,7 +60,7 @@ public:
 private:
     // Callbacks
     VkLayerInstanceDispatchTable m_InstanceDispatchTable;
-    VkLayerDispatchTable     m_DispatchTable;
+    VkLayerDeviceDispatchTable m_DispatchTable;
 
     // Vulkan data
     ImGui_ImplVulkan_InitInfo m_VulkanInitInfo;

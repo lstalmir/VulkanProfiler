@@ -165,10 +165,8 @@ namespace Profiler
 
         if( device )
         {
-            auto& dd = DeviceDispatch.Get( device );
-
             // Get function address from the next layer
-            return dd.Device.Callbacks.GetDeviceProcAddr( device, pName );
+            return DeviceDispatch.Get( device ).Device.Callbacks.GetProcAddr( pName );
         }
 
         // Undefined behaviour according to spec - VkDevice handle cannot be null

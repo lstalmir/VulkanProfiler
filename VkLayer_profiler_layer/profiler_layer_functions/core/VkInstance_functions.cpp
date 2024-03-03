@@ -79,8 +79,13 @@ namespace Profiler
             return deviceFunction;
         }
 
-        // Get address from the next layer
-        return InstanceDispatch.Get( instance ).Instance.Callbacks.GetInstanceProcAddr( instance, pName );
+        if( instance )
+        {
+            // Get address from the next layer
+            return InstanceDispatch.Get( instance ).Instance.Callbacks.GetProcAddr( pName );
+        }
+
+        return nullptr;
     }
 
     /***********************************************************************************\

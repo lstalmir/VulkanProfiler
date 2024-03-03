@@ -98,28 +98,31 @@ class DispatchTableGenerator:
         out.write( "#pragma once\n" )
         out.write( "#include <vulkan/vulkan.h>\n" )
         out.write( "#include <vulkan/vk_layer.h>\n\n" )
-        out.write( "typedef struct VkLayerInstanceDispatchTable {\n" )
-        for extension, commands in self.instance_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  PFN_vk{0} {0};\n" )
-        out.write( "} VkLayerInstanceDispatchTable;\n\n" )
-        out.write( "typedef struct VkLayerDispatchTable {\n" )
-        for extension, commands in self.device_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  PFN_vk{0} {0};\n" )
-        out.write( "} VkLayerDeviceDispatchTable;\n\n" )
-        out.write( "inline void init_layer_instance_dispatch_table( VkInstance instance, PFN_vkGetInstanceProcAddr gpa, VkLayerInstanceDispatchTable& dt ) {\n" )
-        for extension, commands in self.instance_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  dt.{0} = (PFN_vk{0}) gpa( instance, \"vk{0}\" );\n" )
-        out.write( "}\n\n" )
-        out.write( "inline void init_layer_device_dispatch_table( VkDevice device, PFN_vkGetDeviceProcAddr gpa, VkLayerDeviceDispatchTable& dt ) {\n" )
-        for extension, commands in self.device_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  dt.{0} = (PFN_vk{0}) gpa( device, \"vk{0}\" );\n" )
-        out.write( "}\n" )
+        self.write_commands_struct( out, self.instance_dispatch_table, "VkLayerInstanceDispatchTable", "VkInstance", "PFN_vkGetInstanceProcAddr" )
+        self.write_commands_struct( out, self.device_dispatch_table,   "VkLayerDeviceDispatchTable",   "VkDevice",   "PFN_vkGetDeviceProcAddr" )
 
-    def write_extension_commands( self, out: io.TextIOBase, extension: str, commands: list, format: str ):
+    def write_commands_struct( self, out: io.TextIOBase, dispatch_table: dict, name: str, handle_type: str, get_proc_addr_type: str ):
+        items = dispatch_table.items()  
+        out.write( f"struct {name} {{\n" )
+        for extension, commands in items:
+            self.write_extension_commands( out, extension, commands, "  PFN_vk{0} {0};\n" )
+        out.write( "\n" )
+        out.write( "  PFN_vkVoidFunction GetProcAddr( const char* pName ) const {\n" )
+        for extension, commands in items:
+            self.write_extension_commands( out, extension, commands, "    if( !strcmp( pName, \"vk{0}\" ) ) return (PFN_vkVoidFunction) {0};\n" )
+        out.write( "    return (PFN_vkVoidFunction) nullptr;\n" )
+        out.write( "  }\n\n" )
+        out.write( f"  void Init( {handle_type} handle, {get_proc_addr_type} gpa ) {{\n" )
+        for extension, commands in items:
+            self.write_extension_commands( out, extension, commands, "    {0} = (PFN_vk{0}) gpa( handle, \"vk{0}\" );\n" )
+        out.write( "  }\n" )
+        out.write( "};\n\n" )
+
+    def write_extension_commands( self, out: io.TextIOBase, extension: str, commands: list, fmt: str ):
         if extension is not None:
             out.write( "  #ifdef " + extension + "\n" )
         for cmd in commands:
-            out.write( str.format( format, cmd.name ) )
+            out.write( fmt.format( cmd.name ) )
         if extension is not None:
             out.write( "  #endif\n" )
 
