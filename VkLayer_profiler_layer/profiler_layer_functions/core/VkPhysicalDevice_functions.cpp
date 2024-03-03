@@ -215,7 +215,7 @@ namespace Profiler
         // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
         // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
         // vkEnumerateDeviceExtensionProperties implementation.
-        auto id = InstanceDispatch.Get( physicalDevice );
+        auto& id = InstanceDispatch.Get( physicalDevice );
 
         VkResult result = VK_SUCCESS;
 
