@@ -32,6 +32,11 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM
 static ConcurrentMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
 static HHOOK g_GetMessageHook;
 
+namespace Profiler
+{
+    extern std::mutex s_ImGuiMutex;
+}
+
 static RECT ImGui_ImplWin32_Context_GetVirtualScreenRect()
 {
     static bool hasRect = false;
@@ -136,6 +141,9 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd )
             InitError();
         }
     }
+
+    // Get the current ImGui context.
+    m_pImGuiContext = ImGui::GetCurrentContext();
 }
 
 /***********************************************************************************\
@@ -235,6 +243,10 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
 
             if( g_pWin32Contexts.find( msg.hwnd, &context ) )
             {
+                // Switch to the context associated with the target window
+                std::scoped_lock lk( Profiler::s_ImGuiMutex );
+                ImGui::SetCurrentContext( context->m_pImGuiContext );
+
                 ImGuiIO& io = ImGui::GetIO();
 
                 // Translate the message so that character input is handled correctly

@@ -91,7 +91,6 @@ namespace Profiler
 
         OSWindowHandle m_Window;
 
-        static std::mutex s_ImGuiMutex;
         ImGuiContext* m_pImGuiContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;

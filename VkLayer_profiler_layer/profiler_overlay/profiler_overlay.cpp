@@ -72,7 +72,7 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 namespace Profiler
 {
     // Define static members
-    std::mutex ProfilerOverlayOutput::s_ImGuiMutex;
+    std::mutex s_ImGuiMutex;
 
     struct ProfilerOverlayOutput::PerformanceGraphColumn : ImGuiX::HistogramColumnData
     {
@@ -681,6 +681,9 @@ namespace Profiler
         // Reinitialize ImGui
         if( (m_pImGuiContext) )
         {
+            std::scoped_lock lk( s_ImGuiMutex );
+            ImGui::SetCurrentContext( m_pImGuiContext );
+
             if( result == VK_SUCCESS )
             {
                 // Reinit window
@@ -717,10 +720,14 @@ namespace Profiler
         const VkQueue_Object& queue,
         VkPresentInfoKHR* pPresentInfo )
     {
+        std::scoped_lock lk( s_ImGuiMutex );
+        ImGui::SetCurrentContext( m_pImGuiContext );
+
         // Record interface draw commands
         Update( data );
 
-        if( ImGui::GetDrawData() )
+        ImDrawData* pDrawData = ImGui::GetDrawData();
+        if( pDrawData )
         {
             // Grab command buffer for overlay commands
             const uint32_t imageIndex = pPresentInfo->pImageIndices[ 0 ];
@@ -751,7 +758,7 @@ namespace Profiler
             }
 
             // Record Imgui Draw Data and draw funcs into command buffer
-            m_pImGuiVulkanContext->RenderDrawData( ImGui::GetDrawData(), commandBuffer );
+            m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
 
             // Submit command buffer
             m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
@@ -789,9 +796,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Update( const DeviceProfilerFrameData& data )
     {
-        std::scoped_lock lk( s_ImGuiMutex );
-        ImGui::SetCurrentContext( m_pImGuiContext );
-
         m_pImGuiVulkanContext->NewFrame();
 
         m_pImGuiWindowContext->NewFrame();
