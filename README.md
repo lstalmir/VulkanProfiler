@@ -41,7 +41,7 @@ On Windows, install [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/).
 On Linux (Debian-based systems), install libvulkan-dev and glslang-tools packages.
 
 ## Usage
-To enable the layer add `"VK_LAYER_PROFILER"` to the layer list in VkInstanceCreateInfo or to the VK_INSTANCE_LAYERS environment variable. The later method allows to profile applications without the need to modify the source code and is recommended for manual analysis.
+To enable the layer add `"VK_LAYER_profiler"` to the layer list in VkInstanceCreateInfo or to the VK_INSTANCE_LAYERS environment variable. The later method allows to profile applications without the need to modify the source code and is recommended for manual analysis.
 
 ### Configuration
 The layer can be configured to handle more specific use cases. The following table describes the options available to the user.
