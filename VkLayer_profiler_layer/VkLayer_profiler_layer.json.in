@@ -1,10 +1,10 @@
 {
     "file_format_version": "1.0.0",
     "layer": {
-        "name": "VK_LAYER_profiler",
+        "name": "@PROFILER_LAYER_NAME@",
         "type": "GLOBAL",
         "library_path": "@THIS_DIR@$<TARGET_FILE_NAME:@PROFILER_LAYER_PROJECTNAME@>",
-        "api_version": "1.1.106",
+        "api_version": "@PROFILER_LAYER_API_VERSION@",
         "implementation_version": "@PROFILER_LAYER_VER_BUILD@",
         "description": "@PROFILER_LAYER_FILEDESCRIPTION@",
         "instance_extensions": [
