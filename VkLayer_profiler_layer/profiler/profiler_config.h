@@ -51,5 +51,6 @@ namespace Profiler
         void LoadFromFile( const std::filesystem::path& filename );
         void LoadFromCreateInfo( const VkProfilerCreateInfoEXT* pCreateInfo );
         void LoadFromEnvironment();
+        void LoadFromLayerSettings( const ProfilerLayerSettings& settings );
     };
 }

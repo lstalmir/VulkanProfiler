@@ -138,4 +138,14 @@ namespace Profiler
             m_SyncMode = static_cast<VkProfilerSyncModeEXT>( std::stoi( syncMode.value() ) );
         }
     }
+
+    void DeviceProfilerConfig::LoadFromLayerSettings( const ProfilerLayerSettings& settings )
+    {
+        m_EnableOverlay = settings.enable_overlay;
+        m_EnablePerformanceQueryExtension = settings.enable_performance_query_ext;
+        m_EnableRenderPassBeginEndProfiling = settings.enable_render_pass_begin_end_profiling;
+        m_SetStablePowerState = settings.set_stable_power_state;
+        m_SamplingMode = static_cast<VkProfilerModeEXT>(settings.sampling_mode.value);
+        m_SyncMode = static_cast<VkProfilerSyncModeEXT>(settings.sync_mode.value);
+    }
 }

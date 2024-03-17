@@ -50,6 +50,9 @@ namespace Profiler
         // Get function addresses
         id.Instance.Callbacks.Initialize( instance, pfnGetInstanceProcAddr );
 
+        // Load settings
+        id.Instance.LayerSettings.LoadFromVulkanLayerSettings( pCreateInfo, pAllocator );
+
         // Fill additional callbacks
         id.Instance.SetInstanceLoaderData = pfnSetInstanceLoaderData;
         id.Instance.Callbacks.CreateDevice = reinterpret_cast<PFN_vkCreateDevice>(

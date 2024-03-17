@@ -119,6 +119,7 @@ add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common
     INTERFACE Vulkan-Headers
     INTERFACE VulkanUtilityHeaders
+    INTERFACE VulkanLayerSettings
     INTERFACE SPIRV-Headers
     INTERFACE farmhash
     INTERFACE fmt

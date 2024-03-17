@@ -20,6 +20,7 @@
 
 #pragma once
 #include "vk_dispatch_tables.h"
+#include "vk_layer_config.h"
 #include "VkPhysicalDevice_object.h"
 #include "VkSurfaceKhr_object.h"
 #include <unordered_map>
@@ -31,6 +32,9 @@ namespace Profiler
     struct VkInstance_Object
     {
         VkInstance Handle;
+
+        // Layer settings
+        ProfilerLayerSettings LayerSettings;
 
         // Dispatch tables
         VkLayerInstanceDispatchTable Callbacks;
