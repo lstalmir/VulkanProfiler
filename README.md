@@ -107,7 +107,7 @@ Supported synchronization modes are described in the table below:
 Synchronization mode can be changed in the runtime using either the `vkSetProfilerSyncModeEXT` function or by selecting it in the "Settings" tab of the overlay.
 
 ### Integration
-The layer can be integrated into the application and provide performance data e.g.: for runtime optimizations or as a base tool for more advanced proling.
+The layer can be integrated into the application and provide performance data e.g.: for runtime optimizations or as a base tool for more advanced profiling.
 The package contains a header with an unregistered extension that can be used to control the profiler and collect the data programatically.
 
 The layer can be configured using both VkLayerSettingsCreateInfoEXT (since Vulkan 1.3.275) and VkProfilerCreateInfoEXT.
