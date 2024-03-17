@@ -97,29 +97,42 @@ class DispatchTableGenerator:
     def write_commands( self, out: io.TextIOBase ):
         out.write( "#pragma once\n" )
         out.write( "#include <vulkan/vulkan.h>\n" )
-        out.write( "#include <vulkan/vk_layer.h>\n\n" )
-        out.write( "typedef struct VkLayerInstanceDispatchTable {\n" )
-        for extension, commands in self.instance_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  PFN_vk{0} {0};\n" )
-        out.write( "} VkLayerInstanceDispatchTable;\n\n" )
-        out.write( "typedef struct VkLayerDispatchTable {\n" )
-        for extension, commands in self.device_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  PFN_vk{0} {0};\n" )
-        out.write( "} VkLayerDeviceDispatchTable;\n\n" )
-        out.write( "inline void init_layer_instance_dispatch_table( VkInstance instance, PFN_vkGetInstanceProcAddr gpa, VkLayerInstanceDispatchTable& dt ) {\n" )
-        for extension, commands in self.instance_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  dt.{0} = (PFN_vk{0}) gpa( instance, \"vk{0}\" );\n" )
-        out.write( "}\n\n" )
-        out.write( "inline void init_layer_device_dispatch_table( VkDevice device, PFN_vkGetDeviceProcAddr gpa, VkLayerDeviceDispatchTable& dt ) {\n" )
-        for extension, commands in self.device_dispatch_table.items():
-            self.write_extension_commands( out, extension, commands, "  dt.{0} = (PFN_vk{0}) gpa( device, \"vk{0}\" );\n" )
-        out.write( "}\n" )
+        out.write( "#include <vulkan/vk_layer.h>\n" )
+        out.write( "#include <string.h>\n\n" )
+        self.write_commands_struct( out, self.instance_dispatch_table, "VkLayerInstanceDispatchTable", "VkInstance", "GetInstanceProcAddr" )
+        self.write_commands_struct( out, self.device_dispatch_table,   "VkLayerDeviceDispatchTable",   "VkDevice",   "GetDeviceProcAddr" )
+
+    def write_commands_struct( self, out: io.TextIOBase, dispatch_table: dict, name: str, handle_type: str, get_proc_addr: str ):
+        items = dispatch_table.items()  
+        out.write( f"struct {name} {{\n" )
+
+        # Declare all known commands
+        for extension, commands in items:
+            self.write_extension_commands( out, extension, commands, "  PFN_vk{name} {name};\n" )
+        out.write( "\n" )
+
+        # Initialize the known commands
+        out.write( f"  void Initialize( {handle_type} handle, PFN_vk{get_proc_addr} gpa ) {{\n" )
+        for extension, commands in items:
+            self.write_extension_commands( out, extension, commands, "    {name} = (PFN_vk{name}) gpa( handle, \"vk{name}\" );\n" )
+        out.write( "  }\n\n" )
+        
+        # GetProcAddr of the known command or call the next layer
+        out.write( f"  PFN_vkVoidFunction Get( {handle_type} handle, const char* pName ) const {{\n" )
+        out.write( "    // Try to return the loaded function address first to avoid unnecessary calls to the next layer.\n" )
+        for extension, commands in items:
+            self.write_extension_commands( out, extension, commands, "    if( !strcmp( \"vk{name}\", pName ) ) return (PFN_vkVoidFunction) {name};\n" )
+        out.write( "    // Function not found in the cache, invoke next layer.\n" )
+        out.write( "    // The function could have been added in the newer Vulkan version, so this layer may be unaware of it.\n" )
+        out.write( f"    return {get_proc_addr}( handle, pName );\n" )
+        out.write( "  }\n" )
+        out.write( "};\n\n" )
 
     def write_extension_commands( self, out: io.TextIOBase, extension: str, commands: list, format: str ):
         if extension is not None:
             out.write( "  #ifdef " + extension + "\n" )
         for cmd in commands:
-            out.write( str.format( format, cmd.name ) )
+            out.write( str.format( format, name=cmd.name ) )
         if extension is not None:
             out.write( "  #endif\n" )
 

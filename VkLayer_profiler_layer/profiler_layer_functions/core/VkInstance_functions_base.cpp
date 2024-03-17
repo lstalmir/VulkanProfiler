@@ -48,7 +48,7 @@ namespace Profiler
         id.Instance.ApplicationInfo.apiVersion = pCreateInfo->pApplicationInfo->apiVersion;
 
         // Get function addresses
-        init_layer_instance_dispatch_table( instance, pfnGetInstanceProcAddr, id.Instance.Callbacks );
+        id.Instance.Callbacks.Initialize( instance, pfnGetInstanceProcAddr );
 
         // Fill additional callbacks
         id.Instance.SetInstanceLoaderData = pfnSetInstanceLoaderData;
