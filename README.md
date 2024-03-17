@@ -48,11 +48,11 @@ The layer can be configured to handle more specific use cases. The following tab
 
 | Option | Default | Description |
 | ------ | ------- | ----------- |
-| enable_overlay | true | Displays an interactive overlay with the collected data on the application's window. The profiler will set color attachment bit in the swapchain's image usage flags. |
-| enable_performance_query_ext | true | Available on Intel graphics cards. Enables VK_INTEL_performance_query device extension and collects more detailed metrics. |
-| enable_render_pass_begin_end_profiling | false | Measures time of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode. |
-| sampling_mode | drawcall | Controls the frequency of inserting timestamp queries. More frequent queries may impact performance of the applicaiton (but not the peformance of the measured region). See table with available sampling modes for more details. |
-| sync_mode | present | Controls the frequency of collecting data from the submitted command buffers. More frequect synchronization points may impact performance of the application. See table with available synchronization modes for more details. |
+| *BOOL*<br>enable_overlay | true | Displays an interactive overlay with the collected data on the application's window. The profiler will set color attachment bit in the swapchain's image usage flags. |
+| *BOOL*<br>enable_performance_query_ext | true | Available on Intel graphics cards. Enables VK_INTEL_performance_query device extension and collects more detailed metrics. |
+| *BOOL*<br>enable_render_pass_begin_end_profiling | false | Measures time of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode. |
+| *ENUM*<br>sampling_mode | drawcall | Controls the frequency of inserting timestamp queries. More frequent queries may impact performance of the applicaiton (but not the peformance of the measured region). See table with available sampling modes for more details. |
+| *ENUM*<br>sync_mode | present | Controls the frequency of collecting data from the submitted command buffers. More frequect synchronization points may impact performance of the application. See table with available synchronization modes for more details. |
 
 The profiler loads the configuration from the sources below, in the following order (which implies the priority of each source):
 1. VkLayerSettingsCreateInfoEXT - Provided as a pNext to VkInstanceCreateInfo. See [Integration](#integration).
@@ -84,25 +84,25 @@ The easiest way to configure the layer is to use the [Vulkan Configurator](https
 
 #### Sampling modes
 Supported sampling modes are described in the following table:
-| Mode | Setting | VkProfilerModeEXT | Description |
-| ---- | ------- | ----------------- | ----------- |
-| 0    | drawcall | VK_PROFILER_MODE_PER_DRAWCALL_EXT | The profiler will measure GPU time of each command. |
-| 1    | pipeline | VK_PROFILER_MODE_PER_PIPELINE_EXT | The profiler will measure time of each continuous pipeline usage. Note: the profiler defines a pipeline as a unique tuple of shaders and does not include fixed-function pipeline state settings, like depth test or blending. |
-| 2    | renderpass | VK_PROFILER_MODE_PER_RENDER_PASS_EXT | The profiler will measure time of each VkRenderPass. Consecutive compute dispatches will be measured as a 'compute pass', and consecutive copy operations (copy, clear, blit, resolve, fill and update) will be measured as a 'copy pass'. |
-| 3    | commandbuffer | VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT | The profiler will measure time of each submitted VkCommandBuffer. |
+| # | Setting | Description |
+| ---- | ------- | ----------- |
+| 0    | drawcall | `VK_PROFILER_MODE_PER_DRAWCALL_EXT`<br>The profiler will measure GPU time of each command. |
+| 1    | pipeline | `VK_PROFILER_MODE_PER_PIPELINE_EXT`<br>The profiler will measure time of each continuous pipeline usage. Note: the profiler defines a pipeline as a unique tuple of shaders and does not include fixed-function pipeline state settings, like depth test or blending. |
+| 2    | renderpass | `VK_PROFILER_MODE_PER_RENDER_PASS_EXT`<br>The profiler will measure time of each VkRenderPass. Consecutive compute dispatches will be measured as a 'compute pass', and consecutive copy operations (copy, clear, blit, resolve, fill and update) will be measured as a 'copy pass'. |
+| 3    | commandbuffer | `VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT`<br>The profiler will measure time of each submitted VkCommandBuffer. |
 
 There are also 2 sampling modes which are defined, but not currently supported:
-| Mode | Setting | VkProfilerModeEXT | Description |
-| ---- | ------- | ----------------- | ----------- |
-| 4    | submit | VK_PROFILER_MODE_PER_SUBMIT_BIT | The profiler will measure GPU time of each vkQueueSubmit. |
-| 5    | present | VK_PROFILER_MODE_PER_FRAME_BIT | The profiler will measure GPU time of each frame, separated by vkQueuePresentKHR. |
+| # | Setting | Description |
+| ---- | ------- | ----------- |
+| 4    | submit | `VK_PROFILER_MODE_PER_SUBMIT_BIT`<br>The profiler will measure GPU time of each vkQueueSubmit. |
+| 5    | present | `VK_PROFILER_MODE_PER_FRAME_BIT`<br>The profiler will measure GPU time of each frame, separated by vkQueuePresentKHR. |
 
 #### Sync mode
 Supported synchronization modes are described in the table below:
-| Mode | Setting | VkProfilerSyncModeEXT | Description |
-| ---- | ------- | --------------------- | ----------- |
-| 0    | present | VK_PROFILER_SYNC_MODE_PRESENT_EXT | Collects the data on vkQueuePresentKHR. Inserts a vkDeviceWaitIdle before the call is forwarded to the ICD. |
-| 1    | submit | VK_PROFILER_SYNC_MODE_SUBMIT_EXT | Collects the data on vkQueueSubmit. Inserts a fence after the submitted commands and waits until it is signaled. |
+| # | Setting | Description |
+| ---- | ------- | ----------- |
+| 0    | present | `VK_PROFILER_SYNC_MODE_PRESENT_EXT`<br>Collects the data on vkQueuePresentKHR. Inserts a vkDeviceWaitIdle before the call is forwarded to the ICD. |
+| 1    | submit | `VK_PROFILER_SYNC_MODE_SUBMIT_EXT`<br>Collects the data on vkQueueSubmit. Inserts a fence after the submitted commands and waits until it is signaled. |
 
 Synchronization mode can be changed in the runtime using either the `vkSetProfilerSyncModeEXT` function or by selecting it in the "Settings" tab of the overlay.
 
