@@ -1,5 +1,5 @@
 {
-    "file_format_version": "1.0.0",
+    "file_format_version": "1.2.0",
     "layer": {
         "name": "@PROFILER_LAYER_NAME@",
         "type": "GLOBAL",
@@ -47,6 +47,52 @@
                     "vkDebugMarkerSetObjectTagEXT"
                 ]
             }
-        ]
+        ],
+        "features": {
+            "settings": [
+                {
+                    "key": "enable_overlay",
+                    "label": "Enable overlay",
+                    "description": "Show an interactive overlay window with data on top of the profiled application.",
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
+                    "key": "enable_performance_query_ext",
+                    "label": "Enable performance query extensions",
+                    "description": "Enable vendor-specific extensions for collection of additional performance data.",
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
+                    "key": "enable_render_pass_begin_end_profiling",
+                    "label": "Enable VkRenderBass begin and end profiling",
+                    "description": "Insert timestamp queries before and after vkCmdBeginRenderPass and vkCmdEndRenderPass when sampling mode is at most per render pass.",
+                    "type": "BOOL",
+                    "default": false
+                },
+                {
+                    "key": "set_stable_power_state",
+                    "label": "Set stable power state",
+                    "description": "Use DirectX12 API to set stable power state for GPU time measurements.",
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
+                    "key": "sampling_mode",
+                    "label": "Sampling mode",
+                    "description": "Level of timestamp data collection.",
+                    "type": "INT",
+                    "default": 0
+                },
+                {
+                    "key": "sync_mode",
+                    "label": "Synchronization mode",
+                    "description": "Frequency of data collection.",
+                    "type": "INT",
+                    "default": 0
+                }
+            ]
+        }
     }
 }
