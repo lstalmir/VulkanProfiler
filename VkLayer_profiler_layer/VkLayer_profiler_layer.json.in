@@ -7,6 +7,7 @@
         "api_version": "@PROFILER_LAYER_API_VERSION@",
         "implementation_version": "@PROFILER_LAYER_VER_BUILD@",
         "description": "@PROFILER_LAYER_FILEDESCRIPTION@",
+        "platforms": [ "WINDOWS", "LINUX" ],
         "instance_extensions": [
             {
                 "name": "VK_EXT_debug_utils",
@@ -54,6 +55,7 @@
                     "key": "enable_overlay",
                     "label": "Enable overlay",
                     "description": "Show an interactive overlay window with data on top of the profiled application.",
+                    "env": "VKPROF_enable_overlay",
                     "type": "BOOL",
                     "default": true
                 },
@@ -61,13 +63,15 @@
                     "key": "enable_performance_query_ext",
                     "label": "Enable performance query extensions",
                     "description": "Enable vendor-specific extensions for collection of additional performance data.",
+                    "env": "VKPROF_enable_performance_query_ext",
                     "type": "BOOL",
                     "default": true
                 },
                 {
                     "key": "enable_render_pass_begin_end_profiling",
-                    "label": "Enable VkRenderBass begin and end profiling",
+                    "label": "Enable VkRenderPass begin and end profiling",
                     "description": "Insert timestamp queries before and after vkCmdBeginRenderPass and vkCmdEndRenderPass when sampling mode is at most per render pass.",
+                    "env": "VKPROF_enable_render_pass_begin_end_profiling",
                     "type": "BOOL",
                     "default": false
                 },
@@ -75,6 +79,8 @@
                     "key": "set_stable_power_state",
                     "label": "Set stable power state",
                     "description": "Use DirectX12 API to set stable power state for GPU time measurements.",
+                    "env": "VKPROF_set_stable_power_state",
+                    "platforms": [ "WINDOWS" ],
                     "type": "BOOL",
                     "default": true
                 },
@@ -82,15 +88,51 @@
                     "key": "sampling_mode",
                     "label": "Sampling mode",
                     "description": "Level of timestamp data collection.",
-                    "type": "INT",
-                    "default": 0
+                    "env": "VKPROF_sampling_mode",
+                    "type": "ENUM",
+                    "default": "drawcall",
+                    "flags": [
+                        {
+                            "key": "drawcall",
+                            "label": "Per Drawcall",
+                            "description": "Instrument each draw command separately (highest overhead)."
+                        },
+                        {
+                            "key": "pipeline",
+                            "label": "Per VkPipeline",
+                            "description": "Instrument each VkPipeline object change."
+                        },
+                        {
+                            "key": "renderpass",
+                            "label": "Per VkRenderPass",
+                            "description": "Instrument each VkRenderPass object change."
+                        },
+                        {
+                            "key": "commandbuffer",
+                            "label": "Per VkCommandBuffer",
+                            "description": "Instrument each VkCommandBuffer object change (lowest overhead)."
+                        }
+                    ]
                 },
                 {
                     "key": "sync_mode",
                     "label": "Synchronization mode",
                     "description": "Frequency of data collection.",
-                    "type": "INT",
-                    "default": 0
+                    "env": "VKPROF_sync_mode",
+                    "type": "ENUM",
+                    "default": "present",
+                    "flags": [
+                        {
+                            "key": "present",
+                            "label": "On Present",
+                            "description": "Synchronize and collect data on each present (lower overhead)."
+                        },
+                        {
+                            "key": "submit",
+                            "label": "On Submit",
+                            "description": "Synchronize and collect data on each submit (higher overhead)."
+                        }
+                    ]
                 }
             ]
         }

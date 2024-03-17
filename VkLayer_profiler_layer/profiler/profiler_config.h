@@ -20,7 +20,7 @@
 
 #pragma once
 #include "profiler_ext/VkProfilerEXT.h"
-
+#include <vk_layer_config.h>
 #include <filesystem>
 
 namespace Profiler

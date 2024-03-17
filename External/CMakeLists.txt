@@ -56,6 +56,9 @@ target_include_directories (metrics-discovery
 add_subdirectory (Vulkan-Headers)
 set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers" PARENT_SCOPE)
 
+# KhronosGroup/Vulkan-Utility-Libraries
+add_subdirectory (Vulkan-Utility-Libraries)
+
 # KhronosGroup/SPIRV-Headers
 add_subdirectory (SPIRV-Headers)
 
