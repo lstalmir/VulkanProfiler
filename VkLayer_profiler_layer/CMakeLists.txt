@@ -27,7 +27,8 @@ set (PROFILER_LAYER_VER_MINOR 0)
 set (PROFILER_LAYER_VER_BUILD 9999)
 set (PROFILER_LAYER_VER_PATCH 0)
 set (PROFILER_LAYER_VER_IMPLEMENTATION 1)
-set (PROFILER_LAYER_NAME VK_LAYER_profiler)
+set (PROFILER_LAYER_NAME VK_LAYER_PROFILER_unified)
+set (PROFILER_LAYER_API_VERSION "1.1.106")
 set (PROFILER_LAYER_PROJECTNAME VkLayer_profiler_layer)
 set (PROFILER_LAYER_COMPANYNAME )
 set (PROFILER_LAYER_FILEDESCRIPTION "Simple Vulkan(R) Profiling Layer")
@@ -43,8 +44,31 @@ if (PROFILER_GEN_VERSION_INFO_RESULT STREQUAL "0")
     include ("${CMAKE_BINARY_DIR}/profiler_version.cmake")
 endif ()
 
+# Get Vulkan headers version
+function (get_vulkan_api_version)
+    set (vulkan_ver_major 1)
+    set (vulkan_ver_minor 1)
+    set (vulkan_ver_headers 106)
+
+    set (vulkan_core_path "${VULKAN_HEADERS_INSTALL_DIR}/include/vulkan/vulkan_core.h")
+    if (EXISTS ${vulkan_core_path})
+        file (READ ${vulkan_core_path} ver)
+        if (ver MATCHES "#define[ ]+VK_HEADER_VERSION_COMPLETE[ ]+VK_MAKE_API_VERSION\\([ ]*[0-9]+,[ ]*([0-9]+),[ ]*([0-9]+),[ ]*VK_HEADER_VERSION[ ]*\\)")
+            set (vulkan_ver_major ${CMAKE_MATCH_1})
+            set (vulkan_ver_minor ${CMAKE_MATCH_2})
+        endif ()
+        if (ver MATCHES "#define[ ]+VK_HEADER_VERSION[ ]+([0-9]+)")
+            set (vulkan_ver_headers ${CMAKE_MATCH_1})
+        endif ()
+    endif ()
+
+    set (PROFILER_LAYER_API_VERSION "${vulkan_ver_major}.${vulkan_ver_minor}.${vulkan_ver_headers}" PARENT_SCOPE)
+endfunction ()
+get_vulkan_api_version ()
+
 project (${PROFILER_LAYER_PROJECTNAME})
 message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}.${PROFILER_LAYER_VER_PATCH}")
+message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
 
 # Generate dispatch tables
 add_custom_command (
