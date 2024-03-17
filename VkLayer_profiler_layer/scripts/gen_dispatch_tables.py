@@ -97,7 +97,8 @@ class DispatchTableGenerator:
     def write_commands( self, out: io.TextIOBase ):
         out.write( "#pragma once\n" )
         out.write( "#include <vulkan/vulkan.h>\n" )
-        out.write( "#include <vulkan/vk_layer.h>\n\n" )
+        out.write( "#include <vulkan/vk_layer.h>\n" )
+        out.write( "#include <string.h>\n\n" )
         self.write_commands_struct( out, self.instance_dispatch_table, "VkLayerInstanceDispatchTable", "VkInstance", "GetInstanceProcAddr" )
         self.write_commands_struct( out, self.device_dispatch_table,   "VkLayerDeviceDispatchTable",   "VkDevice",   "GetDeviceProcAddr" )
 
