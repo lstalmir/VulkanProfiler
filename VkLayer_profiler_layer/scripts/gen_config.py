@@ -54,9 +54,9 @@ class LayerSetting:
 
     def c_assign_from_string( self, string ):
         if self.type == "BOOL":
-            return f"ProfilerStringFunctions::TryParseBool({string}, {self.key})"
+            return f"bool_t::TryParse({string}.c_str(), {self.key})"
         if self.type == "ENUM":
-            return f"{self.key} = {self.c_type()}({string})"
+            return f"{self.c_type()}::TryParse({string}.c_str(), {self.key})"
         if self.type == "STRING":
             return f"{self.key} = {string}"
         return f"{self.key} = static_cast<{self.c_type()}>(std::stoi({string}))"
@@ -99,9 +99,21 @@ if __name__ == "__main__":
     with open( args.output, mode="w" ) as out:
         out.write( "#pragma once\n" )
         out.write( "#include <vulkan/layer/vk_layer_settings.hpp>\n" )
-        out.write( "#include <string>\n\n" )
+        out.write( "#include <string>\n" )
+        out.write( "#include <fstream>\n" )
+        out.write( "#include <filesystem>\n\n" )
         out.write( "#include \"profiler/profiler_helpers.h\"\n\n" )
         out.write( "namespace Profiler {\n\n" )
+
+        out.write( "struct bool_t {\n" )
+        out.write( "  static bool TryParse(const char* pName, bool& out) {\n" )
+        out.write( "    if(!strcmp(pName, \"1\") || !strcmp(pName, \"yes\") || !strcmp(pName, \"true\"))\n" )
+        out.write( "      return (out = true), true;\n" )
+        out.write( "    if(!strcmp(pName, \"0\") || !strcmp(pName, \"no\") || !strcmp(pName, \"false\"))\n" )
+        out.write( "      return (out = false), true;\n" )
+        out.write( "    return false;\n" )
+        out.write( "  }\n" )
+        out.write( "};\n\n" )
 
         # Declare enums
         for setting in layer.settings:
@@ -115,9 +127,12 @@ if __name__ == "__main__":
                 out.write( "  } value;\n\n" )
                 out.write( f"  {typename}(int v) : value(static_cast<value_t>(v)) {{}}\n" )
                 out.write( f"  {typename}(const std::string& name) : {typename}(name.c_str()) {{}}\n" )
-                out.write( f"  {typename}(const char* pName) : value({setting.c_default()}) {{\n" )
-                for flag in setting.flags:
-                    out.write( f"    if(!strcmp(\"{flag.key}\", pName)) {{ value = {flag.key}; return; }}\n" )
+                out.write( f"  {typename}(const char* pName) : value({setting.c_default()}) {{ TryParse(pName, *this); }}\n" )
+                out.write( "  operator value_t() const { return value; }\n\n" )
+                out.write( f"  static bool TryParse(const char* pName, {typename}& out) {{\n" )
+                for idx, flag in enumerate(setting.flags):
+                    out.write( f"    if(!strcmp(\"{idx}\", pName) || !strcmp(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
+                out.write( "    return false;\n" )
                 out.write( "  }\n" )
                 out.write( "};\n\n" )
 
@@ -156,6 +171,22 @@ if __name__ == "__main__":
                 out.write( "    }\n" )
                 out.write( end_platforms( setting.platforms ) )
         out.write( "  }\n\n" )
+        
+        out.write( "  // Support legacy config file\n" )
+        out.write( "  void LoadFromFile(const std::filesystem::path& path) {\n" )
+        out.write( "    std::ifstream in(path);\n" )
+        out.write( "    std::string name, value;\n" )
+        out.write( "    while(in) {\n" )
+        out.write( "      in >> name >> value;\n" )
+        out.write( "      if(!name.empty()) {\n" )
+        for setting in layer.settings:
+            out.write( f"        if(!strcmp(name.c_str(), \"{setting.key}\")) {{\n" )
+            out.write( f"          {setting.c_assign_from_string('value')};\n" )
+            out.write(  "          continue;\n" )
+            out.write(  "        }\n" )
+        out.write( "      }\n" )
+        out.write( "    }\n" )
+        out.write( "  }\n" )
 
         out.write( "};\n\n" )
         out.write( "}\n" )
