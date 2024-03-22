@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
         fetch-depth: 0
@@ -52,7 +52,7 @@ jobs:
 
     - name: Publish artifacts
       if: matrix.build_type == 'Release'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{runner.os}}-${{matrix.build_type}}-${{runner.arch}}
         path: ${{github.workspace}}/install
