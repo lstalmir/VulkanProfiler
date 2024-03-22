@@ -170,7 +170,7 @@ namespace Profiler
         Get list of optional device extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const VkProfilerCreateInfoEXT* pCreateInfo )
+    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo )
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
@@ -179,9 +179,9 @@ namespace Profiler
 
         // Load configuration that will be used by the profiler.
         DeviceProfilerConfig config;
-        DeviceProfiler::LoadConfiguration( pCreateInfo, &config );
+        DeviceProfiler::LoadConfiguration( settings, pCreateInfo, &config );
 
-        if( config.m_EnablePerformanceQueryExtension )
+        if( config.m_EnablePerformanceQueryExt )
         {
             // Enable MDAPI data collection on Intel GPUs
             deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
@@ -216,8 +216,10 @@ namespace Profiler
         Loads the configuration structure from all available sources.
 
     \***********************************************************************************/
-    void DeviceProfiler::LoadConfiguration( const VkProfilerCreateInfoEXT* pCreateInfo, DeviceProfilerConfig* pConfig )
+    void DeviceProfiler::LoadConfiguration( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo, DeviceProfilerConfig* pConfig )
     {
+        *pConfig = DeviceProfilerConfig( settings );
+
         // Load configuration from file (if exists).
         const std::filesystem::path& configFilename =
             ProfilerPlatformFunctions::GetApplicationDir() / "VK_LAYER_profiler_config.ini";
@@ -252,7 +254,7 @@ namespace Profiler
         m_CurrentFrame = 0;
 
         // Configure the profiler.
-        DeviceProfiler::LoadConfiguration( pCreateInfo, &m_Config );
+        DeviceProfiler::LoadConfiguration( pDevice->pInstance->LayerSettings, pCreateInfo, &m_Config );
 
         // Check if preemption is enabled
         // It may break the results

@@ -22,3 +22,6 @@
 [submodule "External/metrics-discovery"]
 	path = External/metrics-discovery
 	url = https://github.com/intel/metrics-discovery
+[submodule "External/Vulkan-Utility-Libraries"]
+	path = External/Vulkan-Utility-Libraries
+	url = https://github.com/KhronosGroup/Vulkan-Utility-Libraries

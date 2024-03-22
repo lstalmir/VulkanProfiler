@@ -70,6 +70,37 @@ project (${PROFILER_LAYER_PROJECTNAME})
 message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}.${PROFILER_LAYER_VER_PATCH}")
 message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
 
+# Generate layer manifest file
+set (json
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
+    )
+
+if (WIN32)
+    # WA: Windows uses backslash as directory separator, which needs to be
+    # escaped twice (once here and once in the json, thus 4 backslashes)
+    set (THIS_DIR ".\\\\")
+else ()
+    set (THIS_DIR "./")
+endif ()
+
+configure_file (
+    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in
+    ${json}_configured
+    @ONLY)
+    
+file (GENERATE
+    OUTPUT ${json}
+    INPUT ${json}_configured)
+    
+add_custom_command (
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py
+        ${json}
+        --output ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
+    DEPENDS ${json}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py)
+
 # Generate dispatch tables
 add_custom_command (
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
@@ -81,11 +112,14 @@ add_custom_command (
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py)
 
 add_custom_target (profiler_codegen
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
 
 add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common
     INTERFACE Vulkan-Headers
+    INTERFACE VulkanUtilityHeaders
+    INTERFACE VulkanLayerSettings
     INTERFACE SPIRV-Headers
     INTERFACE farmhash
     INTERFACE fmt
@@ -114,10 +148,6 @@ set (resource
 
 set (generated
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h
-    )
-
-set (json
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
     )
 
 set (helper_functions
@@ -190,19 +220,6 @@ configure_file (
     ${generated}
     @ONLY)
 
-if (WIN32)
-    # WA: Windows uses backslash as directory separator, which needs to be
-    # escaped twice (once here and once in the json, thus 4 backslashes)
-    set (THIS_DIR ".\\\\")
-else ()
-    set (THIS_DIR "./")
-endif ()
-
-configure_file (
-    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in
-    ${json}_configured
-    @ONLY)
-
 add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
     ${helper_functions}
@@ -216,10 +233,6 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.cpp"
     "VkLayer_profiler_layer.def"
     ${resource})
-
-file (GENERATE
-    OUTPUT ${json}
-    INPUT ${json}_configured)
 
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib

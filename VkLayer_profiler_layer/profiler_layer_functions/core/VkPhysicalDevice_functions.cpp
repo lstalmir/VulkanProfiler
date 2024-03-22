@@ -117,7 +117,9 @@ namespace Profiler
         }
 
         // Enable available optional device extensions
-        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions( pProfilerCreateInfo );
+        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions(
+            id.Instance.LayerSettings,
+            pProfilerCreateInfo );
 
         for( uint32_t i = 0; i < availableExtensionCount; ++i )
         {

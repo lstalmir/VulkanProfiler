@@ -64,10 +64,10 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const VkProfilerCreateInfoEXT* );
+        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT* );
         static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
 
-        static void LoadConfiguration( const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
+        static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
         VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
 
