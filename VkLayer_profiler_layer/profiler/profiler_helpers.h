@@ -427,6 +427,13 @@ namespace Profiler
             }
             return length;
         }
+
+        static constexpr bool TryParseBool( const std::string& value, bool& out )
+        {
+            if( value == "1" || value == "yes" || value == "true" ) return (out = true), true;
+            if( value == "0" || value == "no" || value == "false" ) return (out = false), true;
+            return false;
+        }
     };
     
     /***********************************************************************************\

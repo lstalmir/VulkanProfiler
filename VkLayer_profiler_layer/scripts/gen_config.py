@@ -33,6 +33,7 @@ class LayerSetting:
         self.key = str(j["key"])
         self.label = str(j["label"])
         self.description = str(j["description"])
+        self.env = str(j["env"]) if "env" in j.keys() else None
         self.type = str(j["type"])
         self.default = j["default"]
         self.platforms = list(j["platforms"] if "platforms" in j.keys() else [])
@@ -45,11 +46,20 @@ class LayerSetting:
         return self.type.lower()
 
     def c_default( self ):
-        if isinstance( self.default, bool ):
+        if self.type == "BOOL":
             return "true" if self.default else "false"
         if self.type == "ENUM":
             return f"{self.c_type()}::{self.default}"
         return str( self.default )
+
+    def c_assign_from_string( self, string ):
+        if self.type == "BOOL":
+            return f"ProfilerStringFunctions::TryParseBool({string}, {self.key})"
+        if self.type == "ENUM":
+            return f"{self.key} = {self.c_type()}({string})"
+        if self.type == "STRING":
+            return f"{self.key} = {string}"
+        return f"{self.key} = static_cast<{self.c_type()}>(std::stoi({string}))"
 
 class LayerInfo:
     def __init__( self, j: dict ):
@@ -60,11 +70,6 @@ def get_layer_info( path: str ):
     with open( path ) as file:
         manifest_json = json.load( file )
     return LayerInfo( manifest_json["layer"] )
-
-def get_setting_value( value ):
-    if isinstance( value, bool ):
-        return "true" if value else "false"
-    return str( value )
 
 def begin_platforms( platforms: list[str] ):
     ifdef = ""
@@ -94,7 +99,8 @@ if __name__ == "__main__":
     with open( args.output, mode="w" ) as out:
         out.write( "#pragma once\n" )
         out.write( "#include <vulkan/layer/vk_layer_settings.hpp>\n" )
-        out.write( "#include <string.h>\n\n" )
+        out.write( "#include <string>\n\n" )
+        out.write( "#include \"profiler/profiler_helpers.h\"\n\n" )
         out.write( "namespace Profiler {\n\n" )
 
         # Declare enums
@@ -120,6 +126,7 @@ if __name__ == "__main__":
             out.write( f"  // {setting.description}\n" )
             out.write( f"  {setting.c_type()} {setting.key} = {setting.c_default()};\n" )
         out.write( "\n" )
+
         out.write( "  // Support Vulkan layer settings\n" )
         out.write( "  void LoadFromVulkanLayerSettings(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator) {\n" )
         out.write( "    const VkLayerSettingsCreateInfoEXT* pLayerSettingsCreateInfo = vkuFindLayerSettingsCreateInfo(pCreateInfo);\n\n" )
@@ -137,6 +144,18 @@ if __name__ == "__main__":
             out.write( "    }\n" )
             out.write( end_platforms( setting.platforms ) )
         out.write( "    vkuDestroyLayerSettingSet(layerSettingSet, pAllocator);\n" )
-        out.write( "  }\n" )
+        out.write( "  }\n\n" )
+
+        out.write( "  // Support loading from environment\n" )
+        out.write( "  void LoadFromEnvironment() {\n" )
+        for setting in layer.settings:
+            if setting.env is not None:
+                out.write( begin_platforms( setting.platforms ) )
+                out.write( f"    if(auto var = ProfilerPlatformFunctions::GetEnvironmentVar(\"{setting.env}\"); var.has_value()) {{\n" )
+                out.write( f"      {setting.c_assign_from_string('var.value()')};\n" )
+                out.write( "    }\n" )
+                out.write( end_platforms( setting.platforms ) )
+        out.write( "  }\n\n" )
+
         out.write( "};\n\n" )
         out.write( "}\n" )
