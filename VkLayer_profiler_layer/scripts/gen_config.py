@@ -45,6 +45,10 @@ class LayerSetting:
             return f"{self.key}_t"
         return self.type.lower()
 
+    def c_name( self ):
+        words = [v.capitalize() for v in self.key.split('_')]
+        return f"m_{''.join(words)}"
+
     def c_default( self ):
         if self.type == "BOOL":
             return "true" if self.default else "false"
@@ -54,12 +58,12 @@ class LayerSetting:
 
     def c_assign_from_string( self, string ):
         if self.type == "BOOL":
-            return f"bool_t::TryParse({string}.c_str(), {self.key})"
+            return f"bool_t::TryParse({string}.c_str(), {self.c_name()})"
         if self.type == "ENUM":
-            return f"{self.c_type()}::TryParse({string}.c_str(), {self.key})"
+            return f"{self.c_type()}::TryParse({string}.c_str(), {self.c_name()})"
         if self.type == "STRING":
-            return f"{self.key} = {string}"
-        return f"{self.key} = static_cast<{self.c_type()}>(std::stoi({string}))"
+            return f"{self.c_name()} = {string}"
+        return f"{self.c_name()} = static_cast<{self.c_type()}>(std::stoi({string}))"
 
 class LayerInfo:
     def __init__( self, j: dict ):
@@ -139,7 +143,7 @@ if __name__ == "__main__":
         out.write( "struct ProfilerLayerSettings {\n" )
         for setting in layer.settings:
             out.write( f"  // {setting.description}\n" )
-            out.write( f"  {setting.c_type()} {setting.key} = {setting.c_default()};\n" )
+            out.write( f"  {setting.c_type()} {setting.c_name()} = {setting.c_default()};\n" )
         out.write( "\n" )
 
         out.write( "  // Support Vulkan layer settings\n" )
@@ -153,9 +157,9 @@ if __name__ == "__main__":
             if setting.type == "ENUM":
                 out.write( "      std::string value;\n" )
                 out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", value);\n" )
-                out.write( f"      {setting.key} = {setting.c_type()}(value);\n" )
+                out.write( f"      {setting.c_name()} = {setting.c_type()}(value);\n" )
             else:
-                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", {setting.key});\n" )
+                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", {setting.c_name()});\n" )
             out.write( "    }\n" )
             out.write( end_platforms( setting.platforms ) )
         out.write( "    vkuDestroyLayerSettingSet(layerSettingSet, pAllocator);\n" )

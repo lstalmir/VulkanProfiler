@@ -21,36 +21,14 @@
 #pragma once
 #include "profiler_ext/VkProfilerEXT.h"
 #include <vk_layer_config.h>
-#include <filesystem>
 
 namespace Profiler
 {
-    class DeviceProfilerConfig
+    struct DeviceProfilerConfig : public ProfilerLayerSettings
     {
-    public:
-        // Whether to display the interactive overlay on the application's window.
-        bool m_EnableOverlay = true;
+        DeviceProfilerConfig() = default;
+        DeviceProfilerConfig( const ProfilerLayerSettings& settings );
 
-        // Whether to enable VK_INTEL_performance_query extension.
-        bool m_EnablePerformanceQueryExtension = true;
-
-        // Whether to enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode.
-        bool m_EnableRenderPassBeginEndProfiling = false;
-
-        // Whether to try to stabilize GPU frequency by setting stable power state via D3D12 device (Windows 10+ only).
-        bool m_SetStablePowerState = true;
-
-        // Frequency of sending timestamp queries in command buffers recorded by the application.
-        VkProfilerModeEXT m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
-
-        // Frequency of reading the timestamp queries.
-        VkProfilerSyncModeEXT m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
-
-    public:
-        void SaveToFile( const std::filesystem::path& filename ) const;
-        void LoadFromFile( const std::filesystem::path& filename );
         void LoadFromCreateInfo( const VkProfilerCreateInfoEXT* pCreateInfo );
-        void LoadFromEnvironment();
-        void LoadFromLayerSettings( const ProfilerLayerSettings& settings );
     };
 }

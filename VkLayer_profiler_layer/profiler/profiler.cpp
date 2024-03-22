@@ -181,7 +181,7 @@ namespace Profiler
         DeviceProfilerConfig config;
         DeviceProfiler::LoadConfiguration( settings, pCreateInfo, &config );
 
-        if( config.m_EnablePerformanceQueryExtension )
+        if( config.m_EnablePerformanceQueryExt )
         {
             // Enable MDAPI data collection on Intel GPUs
             deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
@@ -218,7 +218,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::LoadConfiguration( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo, DeviceProfilerConfig* pConfig )
     {
-        pConfig->LoadFromLayerSettings( settings );
+        *pConfig = DeviceProfilerConfig( settings );
 
         // Load configuration from file (if exists).
         const std::filesystem::path& configFilename =
