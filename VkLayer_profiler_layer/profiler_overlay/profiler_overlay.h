@@ -178,6 +178,17 @@ namespace Profiler
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
 
+        enum class TimeUnit
+        {
+            eMilliseconds,
+            eMicroseconds,
+            eNanoseconds
+        };
+
+        TimeUnit m_TimeUnit;
+        VkProfilerModeEXT m_SamplingMode;
+        VkProfilerSyncModeEXT m_SyncMode;
+
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
 

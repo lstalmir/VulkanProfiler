@@ -118,6 +118,9 @@ namespace Profiler
         , m_Pause( false )
         , m_ShowDebugLabels( true )
         , m_ShowShaderCapabilities( true )
+        , m_TimeUnit( TimeUnit::eMilliseconds )
+        , m_SamplingMode( VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+        , m_SyncMode( VK_PROFILER_SYNC_MODE_PRESENT_EXT )
         , m_SelectedFrameBrowserNodeIndex( { 0xFFFF } )
         , m_ScrollToSelectedFrameBrowserNode( false )
         , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
@@ -295,6 +298,13 @@ namespace Profiler
             result = (m_pStringSerializer = new (std::nothrow) DeviceProfilerStringSerializer( device ))
                          ? VK_SUCCESS
                          : VK_ERROR_OUT_OF_HOST_MEMORY;
+        }
+
+        // Initialize settings
+        if( result == VK_SUCCESS )
+        {
+            vkGetProfilerModeEXT( m_pDevice->Handle, &m_SamplingMode );
+            vkGetProfilerSyncModeEXT( m_pDevice->Handle, &m_SyncMode );
         }
 
         // Don't leave object in partly-initialized state if something went wrong
@@ -1951,20 +1961,39 @@ namespace Profiler
             ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
         }
 
+        // Select sampling mode (constant in runtime for now)
+        ImGui::BeginDisabled();
+        {
+            static const char* samplingGroupOptions[] = {
+                "Drawcall",
+                "Pipeline",
+                "Render pass",
+                "Command buffer"
+            };
+
+            int samplingModeSelectedOption = static_cast<int>(m_SamplingMode);
+            if( ImGui::Combo( "Sampling mode", &samplingModeSelectedOption, samplingGroupOptions, 4 ) )
+            {
+                assert( false );
+            }
+        }
+        ImGui::EndDisabled();
+
         // Select synchronization mode
         {
             static const char* syncGroupOptions[] = {
                 Lang::Present,
                 Lang::Submit };
 
-            static int syncModeSelectedOption = 0;
-            int previousSyncModeSelectedOption = syncModeSelectedOption;
-
-            ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 );
-
-            if( syncModeSelectedOption != previousSyncModeSelectedOption )
+            int syncModeSelectedOption = static_cast<int>(m_SyncMode);
+            if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
             {
-                vkSetProfilerSyncModeEXT( m_pDevice->Handle, (VkProfilerSyncModeEXT)syncModeSelectedOption );
+                VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
+                VkResult result = vkSetProfilerSyncModeEXT( m_pDevice->Handle, syncMode );
+                if( result == VK_SUCCESS )
+                {
+                    m_SyncMode = syncMode;
+                }
             }
         }
 
@@ -1975,12 +2004,8 @@ namespace Profiler
                 Lang::Microseconds,
                 Lang::Nanoseconds };
 
-            static int timeUnitSelectedOption = 0;
-            int previousTimeUnitSelectedOption = timeUnitSelectedOption;
-
-            ImGui::Combo( Lang::TimeUnit, &timeUnitSelectedOption, timeUnitGroupOptions, 3 );
-
-            if( timeUnitSelectedOption != previousTimeUnitSelectedOption )
+            int timeUnitSelectedOption = static_cast<int>(m_TimeUnit);
+            if( ImGui::Combo( Lang::TimeUnit, &timeUnitSelectedOption, timeUnitGroupOptions, 3 ) )
             {
                 static float timeUnitFactors[] = {
                     1.0f,
@@ -1988,6 +2013,7 @@ namespace Profiler
                     1'000'000.0f
                 };
 
+                m_TimeUnit = static_cast<TimeUnit>(timeUnitSelectedOption);
                 m_TimestampDisplayUnit = timeUnitFactors[ timeUnitSelectedOption ];
                 m_pTimestampDisplayUnitStr = timeUnitGroupOptions[ timeUnitSelectedOption ];
             }
