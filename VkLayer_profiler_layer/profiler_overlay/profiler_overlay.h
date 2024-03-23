@@ -211,6 +211,13 @@ namespace Profiler
         int m_MainDockSpaceId;
         int m_PerformanceTabDockSpaceId;
 
+        bool m_PerformanceTabDocked;
+        bool m_TopPipelinesTabDocked;
+        bool m_PerformanceCountersTabDocked;
+        bool m_MemoryTabDocked;
+        bool m_StatisticsTabDocked;
+        bool m_SettingsTabDocked;
+
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 

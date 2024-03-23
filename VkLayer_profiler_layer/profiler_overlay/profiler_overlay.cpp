@@ -135,6 +135,14 @@ namespace Profiler
         , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
         , m_pStringSerializer( nullptr )
+        , m_MainDockSpaceId( 0 )
+        , m_PerformanceTabDockSpaceId( 0 )
+        , m_PerformanceTabDocked( true )
+        , m_TopPipelinesTabDocked( true )
+        , m_PerformanceCountersTabDocked( true )
+        , m_MemoryTabDocked( true )
+        , m_StatisticsTabDocked( true )
+        , m_SettingsTabDocked( true )
     {
     }
 
@@ -841,15 +849,44 @@ namespace Profiler
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
         m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId" );
 
-        ImU32 titleBgColor = ImGui::GetColorU32( { 0, 0, 0, 0 } );
-        ImGui::PushStyleColor( ImGuiCol_WindowBg, titleBgColor );
-        ImGui::PushStyleColor( ImGuiCol_TitleBg, titleBgColor );
-        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, titleBgColor );
+        ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
+        ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
+        ImU32 defaultTitleBgActive = ImGui::GetColorU32( ImGuiCol_TitleBgActive );
+        int numPushedColors = 0;
+
+        auto BeginDockingWindow = [&]( const char* pTitle, int dockSpaceId, bool& isDocked )
+            {
+                bool isOpen;
+                if( !isDocked )
+                {
+                    ImGui::PushStyleColor( ImGuiCol_WindowBg, defaultWindowBg );
+                    ImGui::PushStyleColor( ImGuiCol_TitleBg, defaultTitleBg );
+                    ImGui::PushStyleColor( ImGuiCol_TitleBgActive, defaultTitleBgActive );
+                    numPushedColors = 3;
+                }
+
+                ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
+
+                isOpen = ImGui::Begin( pTitle );
+                isDocked = ImGui::IsWindowDocked();
+                return isOpen;
+            };
+
+        auto EndDockingWindow = [&]()
+            {
+                ImGui::End();
+                ImGui::PopStyleColor( numPushedColors );
+                numPushedColors = 0;
+            };
+
+        ImU32 transparentColor = ImGui::GetColorU32( { 0, 0, 0, 0 } );
+        ImGui::PushStyleColor( ImGuiCol_WindowBg, transparentColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBg, transparentColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, transparentColor );
 
         ImGui::DockSpace( m_MainDockSpaceId );
 
-        ImGui::SetNextWindowDockID( m_MainDockSpaceId, ImGuiCond_FirstUseEver );
-        if( ImGui::Begin( Lang::Performance ) )
+        if( BeginDockingWindow( Lang::Performance, m_MainDockSpaceId, m_PerformanceTabDocked ) )
         {
             UpdatePerformanceTab();
         }
@@ -857,49 +894,43 @@ namespace Profiler
         {
             ImGui::DockSpace( m_PerformanceTabDockSpaceId, {}, ImGuiDockNodeFlags_KeepAliveOnly );
         }
-        ImGui::End();
+        EndDockingWindow();
 
         // Top pipelines
-        ImGui::SetNextWindowDockID( m_PerformanceTabDockSpaceId, ImGuiCond_FirstUseEver );
-        if( ImGui::Begin( Lang::TopPipelines ) )
+        if( BeginDockingWindow( Lang::TopPipelines, m_PerformanceTabDockSpaceId, m_TopPipelinesTabDocked ) )
         {
             UpdateTopPipelinesTab();
         }
-        ImGui::End();
+        EndDockingWindow();
 
-        ImGui::SetNextWindowDockID( m_PerformanceTabDockSpaceId, ImGuiCond_FirstUseEver );
-        if( ImGui::Begin( Lang::PerformanceCounters ) )
+        if( BeginDockingWindow( Lang::PerformanceCounters, m_PerformanceTabDockSpaceId, m_PerformanceCountersTabDocked ) )
         {
             UpdatePerformanceCountersTab();
         }
-        ImGui::End();
+        EndDockingWindow();
 
-        ImGui::SetNextWindowDockID( m_MainDockSpaceId, ImGuiCond_FirstUseEver );
-        if( ImGui::Begin( Lang::Memory ) )
+        if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryTabDocked ) )
         {
             UpdateMemoryTab();
         }
-        ImGui::End();
+        EndDockingWindow();
 
-        ImGui::SetNextWindowDockID( m_MainDockSpaceId, ImGuiCond_FirstUseEver );
-        if( ImGui::Begin( Lang::Statistics ) )
+        if( BeginDockingWindow( Lang::Statistics, m_MainDockSpaceId, m_StatisticsTabDocked ) )
         {
             UpdateStatisticsTab();
         }
-        ImGui::End();
+        EndDockingWindow();
 
-        ImGui::SetNextWindowDockID( m_MainDockSpaceId, ImGuiCond_FirstUseEver );
-        if( ImGui::Begin( Lang::Settings ) )
+        if( BeginDockingWindow( Lang::Settings, m_MainDockSpaceId, m_SettingsTabDocked ) )
         {
             UpdateSettingsTab();
         }
-        ImGui::End();
-
-        ImGui::PopStyleColor( 3 );
+        EndDockingWindow();
 
         // Draw other windows
         DrawTraceSerializationOutputWindow();
 
+        ImGui::PopStyleColor( 3 );
         ImGui::End();
 
         // Set initial tab
