@@ -24,10 +24,12 @@
         "device_extensions": [
             {
                 "name": "VK_EXT_profiler",
-                "spec_version": "2",
+                "spec_version": "3",
                 "entrypoints": [
                     "vkSetProfilerModeEXT",
+                    "vkGetProfilerModeEXT",
                     "vkSetProfilerSyncModeEXT",
+                    "vkGetProfilerSyncModeEXT",
                     "vkGetProfilerFrameDataEXT",
                     "vkFreeProfilerFrameDataEXT",
                     "vkFlushProfilerEXT",
