@@ -23,21 +23,13 @@
 
 #ifndef VK_EXT_profiler
 #define VK_EXT_profiler 1
-#define VK_EXT_PROFILER_SPEC_VERSION 1
+#define VK_EXT_PROFILER_SPEC_VERSION 3
 #define VK_EXT_PROFILER_EXTENSION_NAME "VK_EXT_profiler"
 
-enum VkProfilerResultEXT
-{
-};
-
-enum VkProfilerStructureTypeEXT
-{
-    VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT = 1000999000,
-    VK_STRUCTURE_TYPE_PROFILER_DATA_EXT = 1000999001,
-    VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT = 1000999002,
-    VK_STRUCTURE_TYPE_PROFILER_RENDER_PASS_DATA_EXT = 1000999003,
-    VK_PROFILER_STRUCTURE_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+#define VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT ((VkStructureType)1000999000)
+#define VK_STRUCTURE_TYPE_PROFILER_DATA_EXT ((VkStructureType)1000999001)
+#define VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT ((VkStructureType)1000999002)
+#define VK_STRUCTURE_TYPE_PROFILER_RENDER_PASS_DATA_EXT ((VkStructureType)1000999003)
 
 enum VkProfilerCreateFlagBitsEXT
 {
@@ -135,7 +127,7 @@ enum VkProfilerPerformanceCounterStorageEXT
 
 typedef struct VkProfilerCreateInfoEXT
 {
-    VkProfilerStructureTypeEXT sType;
+    VkStructureType sType;
     const void* pNext;
     VkProfilerCreateFlagsEXT flags;
     VkProfilerModeEXT samplingMode;
@@ -196,7 +188,7 @@ typedef union VkProfilerRegionPropertiesEXT
 
 typedef struct VkProfilerRegionDataEXT
 {
-    VkProfilerStructureTypeEXT sType;
+    VkStructureType sType;
     void* pNext;
     VkProfilerRegionTypeEXT regionType;
     VkProfilerRegionPropertiesEXT properties;
@@ -207,7 +199,7 @@ typedef struct VkProfilerRegionDataEXT
 
 typedef struct VkProfilerRenderPassDataEXT
 {
-    VkProfilerStructureTypeEXT sType;
+    VkStructureType sType;
     void* pNext;
     float beginDuration;
     float endDuration;
@@ -215,7 +207,7 @@ typedef struct VkProfilerRenderPassDataEXT
 
 typedef struct VkProfilerDataEXT
 {
-    VkProfilerStructureTypeEXT sType;
+    VkStructureType sType;
     void* pNext;
     VkProfilerRegionDataEXT frame;
 } VkProfilerDataEXT;
