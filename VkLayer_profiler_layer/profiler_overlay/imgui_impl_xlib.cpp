@@ -86,7 +86,7 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xlib";
-    io.ImeWindowHandle = (void*)m_InputWindow;
+    io.BackendPlatformUserData = this;
 
     // TODO: keyboard mapping to ImGui
 }
