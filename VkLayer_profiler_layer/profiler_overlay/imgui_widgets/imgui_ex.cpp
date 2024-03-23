@@ -127,7 +127,7 @@ namespace ImGuiX
         ImVec2 rb = origin; rb.x += textSize.x + 2; rb.y += textSize.y + 1;
 
         // Draw the background.
-        dl->AddRectFilled( lt, rb, color, rounding, (rounding > 0.f) ? ImDrawCornerFlags_All : ImDrawCornerFlags_None );
+        dl->AddRectFilled( lt, rb, color, rounding, (rounding > 0.f) ? ImDrawFlags_RoundCornersAll : ImDrawFlags_RoundCornersNone );
 
         // Draw the text.
         ImGui::TextUnformatted( text );
