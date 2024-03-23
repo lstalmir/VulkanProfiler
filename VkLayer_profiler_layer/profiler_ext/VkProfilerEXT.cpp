@@ -294,6 +294,22 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
 /***************************************************************************************\
 
 Function:
+    vkGetProfilerModeEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
+    VkDevice device,
+    VkProfilerModeEXT* pMode )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+    *pMode = static_cast<VkProfilerModeEXT>(dd.Profiler.m_Config.m_SamplingMode.value);
+}
+
+/***************************************************************************************\
+
+Function:
     vkSetProfilerSyncModeEXT
 
 Description:
@@ -305,6 +321,22 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
     return dd.Profiler.SetSyncMode( syncMode );
+}
+
+/***************************************************************************************\
+
+Function:
+    vkGetProfilerSyncModeEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerSyncModeEXT(
+    VkDevice device,
+    VkProfilerSyncModeEXT* pSyncMode )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+    *pSyncMode = static_cast<VkProfilerSyncModeEXT>(dd.Profiler.m_Config.m_SyncMode.value);
 }
 
 /***************************************************************************************\

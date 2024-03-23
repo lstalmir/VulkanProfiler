@@ -245,7 +245,9 @@ typedef struct VkProfilerPerformanceMetricsSetPropertiesEXT
 } VkProfilerPerformanceMetricsSetPropertiesEXT;
 
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerModeEXT )(VkDevice, VkProfilerModeEXT);
+typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerModeEXT )(VkDevice, VkProfilerModeEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT);
+typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
 typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkFreeProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
 typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkFlushProfilerEXT )(VkDevice);
@@ -259,9 +261,17 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
     VkDevice device,
     VkProfilerModeEXT mode );
 
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
+    VkDevice device,
+    VkProfilerModeEXT* pMode );
+
 VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
     VkDevice device,
     VkProfilerSyncModeEXT syncMode );
+
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerSyncModeEXT(
+    VkDevice device,
+    VkProfilerSyncModeEXT* pSyncMode );
 
 VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
     VkDevice device,

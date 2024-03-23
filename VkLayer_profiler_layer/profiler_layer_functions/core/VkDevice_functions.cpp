@@ -158,10 +158,16 @@ namespace Profiler
 
         // VK_EXT_profiler functions
         GETPROCADDR_EXT( vkSetProfilerModeEXT );
+        GETPROCADDR_EXT( vkGetProfilerModeEXT );
         GETPROCADDR_EXT( vkSetProfilerSyncModeEXT );
+        GETPROCADDR_EXT( vkGetProfilerSyncModeEXT );
         GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
         GETPROCADDR_EXT( vkFreeProfilerFrameDataEXT );
         GETPROCADDR_EXT( vkFlushProfilerEXT );
+        GETPROCADDR_EXT( vkEnumerateProfilerPerformanceMetricsSetsEXT );
+        GETPROCADDR_EXT( vkEnumerateProfilerPerformanceCounterPropertiesEXT );
+        GETPROCADDR_EXT( vkSetProfilerPerformanceMetricsSetEXT );
+        GETPROCADDR_EXT( vkGetProfilerActivePerformanceMetricsSetIndexEXT );
 
         if( device )
         {
