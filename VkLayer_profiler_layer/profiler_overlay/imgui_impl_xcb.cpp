@@ -74,7 +74,7 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window )
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xcb";
-    io.ImeWindowHandle = (void*)(size_t)m_InputWindow;
+    io.BackendPlatformUserData = this;
 }
 
 /***********************************************************************************\

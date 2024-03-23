@@ -218,6 +218,17 @@ namespace Profiler
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
+        // Dock space ids
+        int m_MainDockSpaceId;
+        int m_PerformanceTabDockSpaceId;
+
+        bool m_PerformanceTabDocked;
+        bool m_TopPipelinesTabDocked;
+        bool m_PerformanceCountersTabDocked;
+        bool m_MemoryTabDocked;
+        bool m_StatisticsTabDocked;
+        bool m_SettingsTabDocked;
+
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
@@ -226,6 +237,8 @@ namespace Profiler
 
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
+        void UpdateTopPipelinesTab();
+        void UpdatePerformanceCountersTab();
         void UpdateMemoryTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();

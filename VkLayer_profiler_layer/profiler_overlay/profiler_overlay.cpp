@@ -138,6 +138,14 @@ namespace Profiler
         , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
         , m_pStringSerializer( nullptr )
+        , m_MainDockSpaceId( 0 )
+        , m_PerformanceTabDockSpaceId( 0 )
+        , m_PerformanceTabDocked( true )
+        , m_TopPipelinesTabDocked( true )
+        , m_PerformanceCountersTabDocked( true )
+        , m_MemoryTabDocked( true )
+        , m_StatisticsTabDocked( true )
+        , m_SettingsTabDocked( true )
     {
     }
 
@@ -235,7 +243,7 @@ namespace Profiler
             io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
-            io.ConfigFlags = ImGuiConfigFlags_None;
+            io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
 
             InitializeImGuiDefaultFont();
             InitializeImGuiStyle();
@@ -811,7 +819,7 @@ namespace Profiler
         m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
-        ImGui::Begin( Lang::WindowName );
+        ImGui::Begin( Lang::WindowName, nullptr, ImGuiWindowFlags_NoDocking );
 
         // Update input clipping rect
         m_pImGuiWindowContext->UpdateWindowRect();
@@ -848,35 +856,98 @@ namespace Profiler
             m_Data = data;
         }
 
-        ImGui::BeginTabBar( "##tabs" );
+        m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
+        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId" );
 
-        if( ImGui::BeginTabItem( Lang::Performance ) )
+        ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
+        ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
+        ImU32 defaultTitleBgActive = ImGui::GetColorU32( ImGuiCol_TitleBgActive );
+        int numPushedColors = 0;
+
+        auto BeginDockingWindow = [&]( const char* pTitle, int dockSpaceId, bool& isDocked )
+            {
+                bool isOpen;
+                if( !isDocked )
+                {
+                    ImGui::PushStyleColor( ImGuiCol_WindowBg, defaultWindowBg );
+                    ImGui::PushStyleColor( ImGuiCol_TitleBg, defaultTitleBg );
+                    ImGui::PushStyleColor( ImGuiCol_TitleBgActive, defaultTitleBgActive );
+                    numPushedColors = 3;
+                }
+
+                ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
+
+                isOpen = ImGui::Begin( pTitle );
+                isDocked = ImGui::IsWindowDocked();
+                return isOpen;
+            };
+
+        auto EndDockingWindow = [&]()
+            {
+                ImGui::End();
+                ImGui::PopStyleColor( numPushedColors );
+                numPushedColors = 0;
+            };
+
+        ImU32 transparentColor = ImGui::GetColorU32( { 0, 0, 0, 0 } );
+        ImGui::PushStyleColor( ImGuiCol_WindowBg, transparentColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBg, transparentColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, transparentColor );
+
+        ImGui::DockSpace( m_MainDockSpaceId );
+
+        if( BeginDockingWindow( Lang::Performance, m_MainDockSpaceId, m_PerformanceTabDocked ) )
         {
             UpdatePerformanceTab();
-            ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( Lang::Memory ) )
+        else
+        {
+            ImGui::DockSpace( m_PerformanceTabDockSpaceId, {}, ImGuiDockNodeFlags_KeepAliveOnly );
+        }
+        EndDockingWindow();
+
+        // Top pipelines
+        if( BeginDockingWindow( Lang::TopPipelines, m_PerformanceTabDockSpaceId, m_TopPipelinesTabDocked ) )
+        {
+            UpdateTopPipelinesTab();
+        }
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::PerformanceCounters, m_PerformanceTabDockSpaceId, m_PerformanceCountersTabDocked ) )
+        {
+            UpdatePerformanceCountersTab();
+        }
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryTabDocked ) )
         {
             UpdateMemoryTab();
-            ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( Lang::Statistics ) )
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::Statistics, m_MainDockSpaceId, m_StatisticsTabDocked ) )
         {
             UpdateStatisticsTab();
-            ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( Lang::Settings ) )
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::Settings, m_MainDockSpaceId, m_SettingsTabDocked ) )
         {
             UpdateSettingsTab();
-            ImGui::EndTabItem();
         }
-
-        ImGui::EndTabBar();
+        EndDockingWindow();
 
         // Draw other windows
         DrawTraceSerializationOutputWindow();
 
+        ImGui::PopStyleColor( 3 );
         ImGui::End();
+
+        // Set initial tab
+        if( ImGui::GetFrameCount() == 1 )
+        {
+            ImGui::SetWindowFocus( Lang::Performance );
+        }
 
         // Draw foreground overlay
         ImDrawList* pForegroundDrawList = ImGui::GetForegroundDrawList();
@@ -1284,31 +1355,178 @@ namespace Profiler
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
         }
 
-        // Top pipelines
-        if( ImGui::CollapsingHeader( Lang::TopPipelines ) )
+        ImGui::DockSpace( m_PerformanceTabDockSpaceId );
+
+        // Force frame browser open
+        if( m_ScrollToSelectedFrameBrowserNode )
         {
-            uint32_t i = 0;
+            ImGui::SetNextItemOpen( true );
+        }
 
-            for( const auto& pipeline : m_Data.m_TopPipelines )
+        // Frame browser
+        ImGui::SetNextWindowDockID( m_PerformanceTabDockSpaceId );
+        if( ImGui::Begin( Lang::FrameBrowser ) )
+        {
+            // Select sort mode
             {
-                if( pipeline.m_Handle != VK_NULL_HANDLE )
+                static const char* sortOptions[] = {
+                    Lang::SubmissionOrder,
+                    Lang::DurationDescending,
+                    Lang::DurationAscending };
+
+                const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
+
+                ImGui::Text( Lang::Sort );
+                ImGui::SameLine();
+
+                if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
                 {
-                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+                    for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
+                    {
+                        if( ImGuiX::TSelectable( sortOptions[ i ], selectedOption, sortOptions[ i ] ) )
+                        {
+                            // Selection changed
+                            m_FrameBrowserSortMode = FrameBrowserSortMode( i );
+                        }
+                    }
 
-                    ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
-                    ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
-                        pipelineTicks * 100.f / m_Data.m_Ticks,
-                        pipelineTicks * m_TimestampPeriod.count() );
-
-                    // Print up to 10 top pipelines
-                    if( (++i) == 10 ) break;
+                    ImGui::EndCombo();
                 }
+            }
+
+            FrameBrowserTreeNodeIndex index = {
+                0x0,
+                0xFFFF,
+                0xFFFF,
+                0xFFFF,
+                0xFFFF,
+                0xFFFF,
+                0xFFFF,
+                0xFFFF };
+
+            // Enumerate submits in frame
+            for( const auto& submitBatch : m_Data.m_Submits )
+            {
+                const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
+
+                index.SubmitIndex = 0;
+                index.PrimaryCommandBufferIndex = 0;
+
+                char indexStr[ 2 * sizeof( index ) + 1 ] = {};
+                structtohex( indexStr, index );
+
+                if( m_ScrollToSelectedFrameBrowserNode &&
+                    (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) )
+                {
+                    ImGui::SetNextItemOpen( true );
+                }
+
+                if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
+                        queueName.c_str(),
+                        static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
+                {
+                    for( const auto& submit : submitBatch.m_Submits )
+                    {
+                        structtohex( indexStr, index );
+
+                        if( m_ScrollToSelectedFrameBrowserNode &&
+                            (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
+                            (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) )
+                        {
+                            ImGui::SetNextItemOpen( true );
+                        }
+
+                        const bool inSubmitSubtree =
+                            (submitBatch.m_Submits.size() > 1) &&
+                            (ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.SubmitIndex ));
+
+                        if( (inSubmitSubtree) || (submitBatch.m_Submits.size() == 1) )
+                        {
+                            index.PrimaryCommandBufferIndex = 0;
+
+                            // Sort frame browser data
+                            std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
+                                SortFrameBrowserData( submit.m_CommandBuffers );
+
+                            // Enumerate command buffers in submit
+                            for( const auto* pCommandBuffer : pCommandBuffers )
+                            {
+                                PrintCommandBuffer( *pCommandBuffer, index );
+                                index.PrimaryCommandBufferIndex++;
+                            }
+
+                            // Invalidate command buffer index
+                            index.PrimaryCommandBufferIndex = 0xFFFF;
+                        }
+
+                        if( inSubmitSubtree )
+                        {
+                            // Finish submit subtree
+                            ImGui::TreePop();
+                        }
+
+                        index.SubmitIndex++;
+                    }
+
+                    // Finish submit batch subtree
+                    ImGui::TreePop();
+
+                    // Invalidate submit index
+                    index.SubmitIndex = 0xFFFF;
+                }
+
+                index.SubmitBatchIndex++;
             }
         }
 
+        ImGui::End();
+
+        m_ScrollToSelectedFrameBrowserNode = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateTopPipelinesTab
+
+    Description:
+        Updates "Top pipelines" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateTopPipelinesTab()
+    {
+        uint32_t i = 0;
+
+        for( const auto& pipeline : m_Data.m_TopPipelines )
+        {
+            if( pipeline.m_Handle != VK_NULL_HANDLE )
+            {
+                const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+
+                ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
+                ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
+                    pipelineTicks * 100.f / m_Data.m_Ticks,
+                    pipelineTicks * m_TimestampPeriod.count() );
+
+                // Print up to 10 top pipelines
+                if( (++i) == 10 ) break;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceCountersTab
+
+    Description:
+        Updates "Performance Counters" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
+    {
         // Vendor-specific
-        if( !m_Data.m_VendorMetrics.empty() &&
-            ImGui::CollapsingHeader( Lang::PerformanceCounters ) )
+        if( !m_Data.m_VendorMetrics.empty() )
         {
             std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
@@ -1342,7 +1560,7 @@ namespace Profiler
             // Show a combo box that allows the user to select the filter the profiled range.
             ImGui::Text( "Range" );
             ImGui::SameLine( 100.f );
-            if( ImGui::BeginCombo( "PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
+            if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
                 if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
                 {
@@ -1353,7 +1571,7 @@ namespace Profiler
                 // Enumerate command buffers.
                 for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
                 {
-                    std::string commandBufferName = m_pStringSerializer->GetName(commandBuffer);
+                    std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
 
                     if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
                     {
@@ -1368,7 +1586,7 @@ namespace Profiler
             // Show a combo box that allows the user to change the active metrics set.
             ImGui::Text( "Metrics set" );
             ImGui::SameLine( 100.f );
-            if( ImGui::BeginCombo( "PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
+            if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
             {
                 // Enumerate metrics sets.
                 for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
@@ -1395,7 +1613,7 @@ namespace Profiler
             // Show a search box for filtering metrics sets to find specific metrics.
             ImGui::Text( "Filter" );
             ImGui::SameLine( 100.f );
-            if( ImGui::InputText( "PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
+            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype(m_VendorMetricFilter)> ) )
             {
                 try
                 {
@@ -1526,129 +1744,6 @@ namespace Profiler
                 ImGui::EndTable();
             }
         }
-
-        // Force frame browser open
-        if( m_ScrollToSelectedFrameBrowserNode )
-        {
-            ImGui::SetNextItemOpen( true );
-        }
-
-        // Frame browser
-        if( ImGui::CollapsingHeader( Lang::FrameBrowser ) )
-        {
-            // Select sort mode
-            {
-                static const char* sortOptions[] = {
-                    Lang::SubmissionOrder,
-                    Lang::DurationDescending,
-                    Lang::DurationAscending };
-
-                const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
-
-                ImGui::Text( Lang::Sort );
-                ImGui::SameLine();
-
-                if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
-                {
-                    for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
-                    {
-                        if( ImGuiX::TSelectable( sortOptions[ i ], selectedOption, sortOptions[ i ] ) )
-                        {
-                            // Selection changed
-                            m_FrameBrowserSortMode = FrameBrowserSortMode( i );
-                        }
-                    }
-
-                    ImGui::EndCombo();
-                }
-            }
-
-            FrameBrowserTreeNodeIndex index = {
-                0x0,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF };
-
-            // Enumerate submits in frame
-            for( const auto& submitBatch : m_Data.m_Submits )
-            {
-                const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
-
-                index.SubmitIndex = 0;
-                index.PrimaryCommandBufferIndex = 0;
-
-                char indexStr[ 2 * sizeof( index ) + 1 ] = {};
-                structtohex( indexStr, index );
-
-                if( m_ScrollToSelectedFrameBrowserNode &&
-                    (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) )
-                {
-                    ImGui::SetNextItemOpen( true );
-                }
-
-                if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
-                        queueName.c_str(),
-                        static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
-                {
-                    for( const auto& submit : submitBatch.m_Submits )
-                    {
-                        structtohex( indexStr, index );
-
-                        if( m_ScrollToSelectedFrameBrowserNode &&
-                            (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
-                            (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) )
-                        {
-                            ImGui::SetNextItemOpen( true );
-                        }
-
-                        const bool inSubmitSubtree =
-                            (submitBatch.m_Submits.size() > 1) &&
-                            (ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.SubmitIndex ));
-
-                        if( (inSubmitSubtree) || (submitBatch.m_Submits.size() == 1) )
-                        {
-                            index.PrimaryCommandBufferIndex = 0;
-
-                            // Sort frame browser data
-                            std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
-                                SortFrameBrowserData( submit.m_CommandBuffers );
-
-                            // Enumerate command buffers in submit
-                            for( const auto* pCommandBuffer : pCommandBuffers )
-                            {
-                                PrintCommandBuffer( *pCommandBuffer, index );
-                                index.PrimaryCommandBufferIndex++;
-                            }
-
-                            // Invalidate command buffer index
-                            index.PrimaryCommandBufferIndex = 0xFFFF;
-                        }
-
-                        if( inSubmitSubtree )
-                        {
-                            // Finish submit subtree
-                            ImGui::TreePop();
-                        }
-
-                        index.SubmitIndex++;
-                    }
-
-                    // Finish submit batch subtree
-                    ImGui::TreePop();
-
-                    // Invalidate submit index
-                    index.SubmitIndex = 0xFFFF;
-                }
-
-                index.SubmitBatchIndex++;
-            }
-        }
-
-        m_ScrollToSelectedFrameBrowserNode = false;
     }
 
     /***********************************************************************************\
