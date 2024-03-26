@@ -77,17 +77,17 @@ namespace Profiler
 
             for( uint32_t queueIndex = 0; queueIndex < queueCreateInfo.queueCount; ++queueIndex )
             {
-                VkQueue_Object queueObject;
+                VkQueue_Object* queueObject = new VkQueue_Object();
 
                 // Get queue handle
                 dd.Device.Callbacks.GetDeviceQueue(
-                    device, queueCreateInfo.queueFamilyIndex, queueIndex, &queueObject.Handle );
+                    device, queueCreateInfo.queueFamilyIndex, queueIndex, &queueObject->Handle );
 
-                queueObject.Flags = queueProperties.queueFlags;
-                queueObject.Family = queueCreateInfo.queueFamilyIndex;
-                queueObject.Index = queueIndex;
+                queueObject->Flags = queueProperties.queueFlags;
+                queueObject->Family = queueCreateInfo.queueFamilyIndex;
+                queueObject->Index = queueIndex;
 
-                dd.Device.Queues.emplace( queueObject.Handle, queueObject );
+                dd.Device.Queues.emplace( queueObject->Handle, queueObject );
             }
         }
 
@@ -132,6 +132,12 @@ namespace Profiler
         dd.Profiler.Destroy();
         // Destroy the overlay
         dd.Overlay.Destroy();
+
+        // Destroy the queue objects
+        for( auto& [_, queueObject] : dd.Device.Queues )
+        {
+            delete queueObject;
+        }
 
         DeviceDispatch.Erase( device );
     }

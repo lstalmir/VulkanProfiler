@@ -50,7 +50,7 @@ namespace Profiler
 
         VkDevice_debug_Object Debug;
 
-        std::unordered_map<VkQueue, VkQueue_Object> Queues;
+        std::unordered_map<VkQueue, VkQueue_Object*> Queues;
 
         // Enabled extensions
         std::unordered_set<std::string> EnabledExtensions;

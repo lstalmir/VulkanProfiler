@@ -776,6 +776,8 @@ namespace Profiler
                 info.pSignalSemaphores = &semaphore;
 
                 m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
+
+                std::scoped_lock lk2( m_pGraphicsQueue->Mutex );
                 m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
             }
 
@@ -1192,6 +1194,7 @@ namespace Profiler
             info.commandBufferCount = 1;
             info.pCommandBuffers = &m_CommandBuffers[ 0 ];
 
+            std::scoped_lock lk(m_pGraphicsQueue->Mutex);
             result = m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, m_CommandFences[ 0 ] );
         }
 

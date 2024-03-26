@@ -55,14 +55,14 @@ namespace Profiler
         // Command pool for each queue family
         std::unordered_map<uint32_t, VkCommandPool> m_CommandPools;
         // Command buffer for each queue
-        std::unordered_map<VkQueue, VkCommandBuffer> m_CommandBuffers;
+        std::unordered_map<VkQueue_Object*, VkCommandBuffer> m_CommandBuffers;
 
         uint32_t m_TimestampQueryPoolSize;
         VkQueryPool m_TimestampQueryPool;
         // Resources needed to reset query pool
         VkCommandBuffer m_TimestampQueryPoolResetCommandBuffer;
         VkSemaphore m_TimestampQueryPoolResetSemaphore;
-        VkQueue m_TimestampQueryPoolResetQueue;
+        VkQueue_Object* m_TimestampQueryPoolResetQueue;
 
         bool m_SynchronizationTimestampsSent;
 

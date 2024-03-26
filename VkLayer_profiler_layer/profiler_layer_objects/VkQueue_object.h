@@ -21,6 +21,7 @@
 #pragma once
 #include "vk_dispatch_tables.h"
 #include <stdint.h>
+#include <shared_mutex>
 
 namespace Profiler
 {
@@ -30,5 +31,10 @@ namespace Profiler
         VkQueueFlags Flags;
         uint32_t Family;
         uint32_t Index;
+
+        // Mutex used for synchronization within the layer.
+        // Acquired exclusively only when the profiler wants to access the queue from another thread.
+        // Otherwise the synchronization is up to the application and a shared lock is acquired.
+        std::shared_mutex Mutex;
     };
 }

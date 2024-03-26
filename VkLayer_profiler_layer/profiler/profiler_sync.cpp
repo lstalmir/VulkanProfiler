@@ -66,17 +66,17 @@ namespace Profiler
         VkCommandPoolCreateInfo commandPoolCreateInfo = {};
         commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 
-        for( const auto& queue : m_pDevice->Queues )
+        for( const auto& [_, queue] : m_pDevice->Queues )
         {
-            if( !m_CommandPools.count( queue.second.Family ) )
+            if( !m_CommandPools.count( queue->Family ) )
             {
-                commandPoolCreateInfo.queueFamilyIndex = queue.second.Family;
+                commandPoolCreateInfo.queueFamilyIndex = queue->Family;
 
                 VkCommandPool commandPool = VK_NULL_HANDLE;
                 DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateCommandPool(
                     m_pDevice->Handle, &commandPoolCreateInfo, nullptr, &commandPool ) );
 
-                m_CommandPools.insert( std::pair( queue.second.Family, commandPool ) );
+                m_CommandPools.insert( std::pair( queue->Family, commandPool ) );
             }
         }
 
@@ -86,17 +86,17 @@ namespace Profiler
         commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         commandBufferAllocateInfo.commandBufferCount = 1;
 
-        for( const auto& queue : m_pDevice->Queues )
+        for( auto& [_, queue] : m_pDevice->Queues )
         {
             // Get command pool created in the previous step
-            commandBufferAllocateInfo.commandPool = m_CommandPools.at( queue.second.Family );
+            commandBufferAllocateInfo.commandPool = m_CommandPools.at( queue->Family );
 
             VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
             DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.AllocateCommandBuffers(
                 m_pDevice->Handle, &commandBufferAllocateInfo, &commandBuffer ) );
 
             // Created object must be stored to ensure it is destroyed when next call fails.
-            m_CommandBuffers.insert( std::pair( queue.second.Handle, commandBuffer ) );
+            m_CommandBuffers.insert( std::pair( queue, commandBuffer ) );
 
             DESTROYANDRETURNONFAIL( m_pDevice->SetDeviceLoaderData(
                 m_pDevice->Handle, commandBuffer ) );
@@ -114,14 +114,14 @@ namespace Profiler
         // Select queue used for resetting the query pool
         commandBufferAllocateInfo.commandPool = VK_NULL_HANDLE;
 
-        for( const auto& queue : m_pDevice->Queues )
+        for( auto& [_, queue] : m_pDevice->Queues )
         {
-            if( (queue.second.Flags & VK_QUEUE_GRAPHICS_BIT) ||
-                (queue.second.Flags & VK_QUEUE_COMPUTE_BIT) )
+            if( (queue->Flags & VK_QUEUE_GRAPHICS_BIT) ||
+                (queue->Flags & VK_QUEUE_COMPUTE_BIT) )
             {
-                m_TimestampQueryPoolResetQueue = queue.second.Handle;
+                m_TimestampQueryPoolResetQueue = queue;
                 // Use command pool created for the queue family
-                commandBufferAllocateInfo.commandPool = m_CommandPools.at( queue.second.Family );
+                commandBufferAllocateInfo.commandPool = m_CommandPools.at( queue->Family );
                 break;
             }
         }
@@ -268,8 +268,11 @@ namespace Profiler
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = &m_TimestampQueryPoolResetSemaphore;
         
-        m_pDevice->Callbacks.QueueSubmit(
-            m_TimestampQueryPoolResetQueue, 1, &submitInfo, VK_NULL_HANDLE );
+        {
+            std::scoped_lock lk(m_TimestampQueryPoolResetQueue->Mutex);
+            m_pDevice->Callbacks.QueueSubmit(
+                m_TimestampQueryPoolResetQueue->Handle, 1, &submitInfo, VK_NULL_HANDLE);
+        }
 
         // Insert timestamps when the pool is ready
         VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -282,7 +285,9 @@ namespace Profiler
         for( const auto& [commandQueue, commandBuffer] : m_CommandBuffers )
         {
             submitInfo.pCommandBuffers = &commandBuffer;
-            m_pDevice->Callbacks.QueueSubmit( commandQueue, 1, &submitInfo, VK_NULL_HANDLE );
+
+            std::scoped_lock lk(commandQueue->Mutex);
+            m_pDevice->Callbacks.QueueSubmit( commandQueue->Handle, 1, &submitInfo, VK_NULL_HANDLE );
         }
 
         m_SynchronizationTimestampsSent = true;
@@ -315,18 +320,18 @@ namespace Profiler
             // Assign queries to the queues
             size_t currentTimestampIndex = 0;
 
-            for( const auto& commandBuffer : m_CommandBuffers )
+            for( auto& [queue, _] : m_CommandBuffers )
             {
-                perQueueTimestamps.insert( std::pair( commandBuffer.first, timestamps[ currentTimestampIndex ] ) );
+                perQueueTimestamps.insert( std::pair( queue->Handle, timestamps[ currentTimestampIndex ] ) );
                 currentTimestampIndex++;
             }
         }
         else
         {
             // Synchronization timestamps not sent, return zeros
-            for( const auto& commandBuffer : m_CommandBuffers )
+            for( auto& [queue, _] : m_CommandBuffers )
             {
-                perQueueTimestamps.insert( std::pair( commandBuffer.first, 0 ) );
+                perQueueTimestamps.insert( std::pair( queue->Handle, 0 ) );
             }
         }
 

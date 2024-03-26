@@ -40,7 +40,14 @@ namespace Profiler
         dd.Profiler.PreSubmitCommandBuffers( queue );
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
+        VkResult result;
+        {
+            // Make sure the profiler doesn't access the queue until this function exits.
+            VkQueue_Object* queueObject = dd.Device.Queues.at(queue);
+            std::shared_lock lk(queueObject->Mutex);
+
+            result = dd.Device.Callbacks.QueueSubmit(queue, submitCount, pSubmits, fence);
+        }
 
         dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
         return result;
@@ -64,7 +71,14 @@ namespace Profiler
         dd.Profiler.PreSubmitCommandBuffers( queue );
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
+        VkResult result;
+        {
+            // Make sure the profiler doesn't access the queue until this function exits.
+            VkQueue_Object* queueObject = dd.Device.Queues.at(queue);
+            std::shared_lock lk(queueObject->Mutex);
+
+            result = dd.Device.Callbacks.QueueSubmit2(queue, submitCount, pSubmits, fence);
+        }
 
         dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
         return result;

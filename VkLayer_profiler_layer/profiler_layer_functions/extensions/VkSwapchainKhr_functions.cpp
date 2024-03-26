@@ -77,13 +77,13 @@ namespace Profiler
             if( !dd.Overlay.IsAvailable() )
             {
                 // Select graphics queue for the overlay draw commands
-                VkQueue graphicsQueue = nullptr;
+                VkQueue_Object* graphicsQueue = nullptr;
 
-                for( auto& it : dd.Device.Queues )
+                for( auto& [_, queue] : dd.Device.Queues )
                 {
-                    if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
+                    if( queue->Flags & VK_QUEUE_GRAPHICS_BIT )
                     {
-                        graphicsQueue = it.second.Handle;
+                        graphicsQueue = queue;
                         break;
                     }
                 }
@@ -99,7 +99,7 @@ namespace Profiler
                     // Initialize overlay for the first time
                     result = dd.Overlay.Initialize(
                         dd.Device,
-                        dd.Device.Queues.at( graphicsQueue ),
+                        *graphicsQueue,
                         dd.Device.Swapchains.at( *pSwapchain ),
                         pCreateInfo );
                 }
@@ -162,7 +162,7 @@ namespace Profiler
         // Create mutable copy of present info
         VkPresentInfoKHR presentInfo = *pPresentInfo;
         // Get present queue wrapper
-        VkQueue_Object& presentQueue = dd.Device.Queues[ queue ];
+        VkQueue_Object& presentQueue = *dd.Device.Queues.at( queue );
 
         dd.Profiler.FinishFrame();
 
@@ -172,6 +172,9 @@ namespace Profiler
             // Display overlay
             dd.Overlay.Present( dd.Profiler.GetData(), presentQueue, &presentInfo );
         }
+
+        // Make sure the profiler doesn't access the queue until this function exits.
+        std::shared_lock lk(presentQueue.Mutex);
 
         // Present the image
         return dd.Device.Callbacks.QueuePresentKHR( queue, &presentInfo );
