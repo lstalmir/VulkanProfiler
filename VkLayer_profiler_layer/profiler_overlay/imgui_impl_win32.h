@@ -40,15 +40,21 @@ public:
 
 private:
     HWND m_AppWindow;
+    HHOOK m_hGetMessageHook;
     ImGuiContext* m_pImGuiContext;
     int m_RawMouseX;
     int m_RawMouseY;
     int m_RawMouseButtons;
-
-    void InitError();
+    bool m_HasCapture;
+    bool m_EnableCapture;
+    bool m_WindowMoveLoop;
 
     static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
 
     static bool IsMouseMessage( const MSG& );
     static bool IsKeyboardMessage( const MSG& );
+
+    friend HWND ImGui_ImplWin32_Context_GetCapture();
+    friend HWND ImGui_ImplWin32_Context_SetCapture( HWND );
+    friend BOOL ImGui_ImplWin32_Context_ReleaseCapture();
 };

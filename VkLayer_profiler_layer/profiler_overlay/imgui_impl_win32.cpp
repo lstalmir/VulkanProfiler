@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,11 +26,10 @@
 
 #include "profiler/profiler_helpers.h"
 
-// Use implementation provided by the ImGui
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM, LPARAM );
+typedef std::unordered_map<HWND, ImGui_ImplWin32_Context*> ImGui_ImplWin32_ContextMap;
 
-static ConcurrentMap<HWND, ImGui_ImplWin32_Context*> g_pWin32Contexts;
-static HHOOK g_GetMessageHook;
+static ImGui_ImplWin32_ContextMap g_pWin32Contexts;
+static ImGui_ImplWin32_Context*   g_pWin32CurrentContext;
 
 namespace Profiler
 {
@@ -99,6 +98,60 @@ static constexpr LPARAM ImGui_ImplWin32_Context_MakeMousePositionLParam( POINT p
 static_assert( GET_X_LPARAM( ImGui_ImplWin32_Context_MakeMousePositionLParam({ -10, 20 }) ) == -10 );
 static_assert( GET_Y_LPARAM( ImGui_ImplWin32_Context_MakeMousePositionLParam({ -10, 20 }) ) == 20 );
 
+HWND ImGui_ImplWin32_Context_GetCapture()
+{
+    assert( g_pWin32CurrentContext );
+
+    // Prevent ImGui from acquiring the capture if the window is being moved down and
+    // cursor is over the ImGui window.
+    if( g_pWin32CurrentContext->m_EnableCapture )
+    {
+        return ::GetCapture();
+    }
+
+    // Return the handle to trick ImGui into thinking it has the capture.
+    return g_pWin32CurrentContext->m_AppWindow;
+}
+
+HWND ImGui_ImplWin32_Context_SetCapture( HWND hWnd )
+{
+    assert( g_pWin32CurrentContext );
+
+    // Check the capture state only on the first button down message.
+    g_pWin32CurrentContext->m_EnableCapture = ImGui::GetIO().WantCaptureMouse;
+
+    // ImGui incorrectly captures the mouse when the application's window is moved.
+    // This leads to reverting to the previous position, making the window immovable.
+    // To avoid this, begin capture only if the mouse is over the overlay.
+    if( g_pWin32CurrentContext->m_EnableCapture )
+    {
+        g_pWin32CurrentContext->m_HasCapture = true;
+        return SetCapture( hWnd );
+    }
+
+    return nullptr;
+}
+
+BOOL ImGui_ImplWin32_Context_ReleaseCapture()
+{
+    assert( g_pWin32CurrentContext );
+
+    // Mouse up received, so try to capture again on next mouse down message.
+    g_pWin32CurrentContext->m_EnableCapture = true;
+
+    // Release the capture only if the overlay window acquired it.
+    // Otherwise we would release capture acquired by the application.
+    if( g_pWin32CurrentContext->m_HasCapture )
+    {
+        g_pWin32CurrentContext->m_HasCapture = false;
+        return ReleaseCapture();
+    }
+
+    return true;
+}
+
+LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM, LPARAM );
+
 /***********************************************************************************\
 
 Function:
@@ -108,42 +161,55 @@ Description:
     Constructor.
 
 \***********************************************************************************/
-ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd )
+ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
     : m_AppWindow( hWnd )
+    , m_hGetMessageHook( nullptr )
+    , m_pImGuiContext( nullptr )
     , m_RawMouseX( 0 )
     , m_RawMouseY( 0 )
     , m_RawMouseButtons( 0 )
+    , m_HasCapture( false )
+    , m_EnableCapture( true )
+    , m_WindowMoveLoop( false )
 {
-    // Context is a kind of lock for processing - WindowProc will invoke ImGui implementation as long
-    // as this context resides in the map
-    g_pWin32Contexts.insert( m_AppWindow, this );
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
+    // Access to map controlled with s_ImGuiMutex.
+    g_pWin32Contexts.emplace( m_AppWindow, this );
 
     if( !ImGui_ImplWin32_Init( m_AppWindow ) )
     {
-        InitError();
-    }
-
-    if( !g_GetMessageHook )
-    {
-        HINSTANCE hProfilerDllInstance =
-            static_cast<HINSTANCE>( Profiler::ProfilerPlatformFunctions::GetLibraryInstanceHandle() );
-
-        // Register a global window hook on GetMessage/PeekMessage function.
-        g_GetMessageHook = SetWindowsHookEx(
-            WH_GETMESSAGE,
-            ImGui_ImplWin32_Context::GetMessageHook,
-            hProfilerDllInstance,
-            0 /*dwThreadId*/ );
-
-        if( !g_GetMessageHook )
-        {
-            // Failed to register hook on GetMessage.
-            InitError();
-        }
+        throw;
     }
 
     // Get the current ImGui context.
+    // It must happen after the backend has been initialized to indicate the initialization was successful.
     m_pImGuiContext = ImGui::GetCurrentContext();
+
+    HINSTANCE hProfilerDllInstance =
+        static_cast<HINSTANCE>( Profiler::ProfilerPlatformFunctions::GetLibraryInstanceHandle() );
+
+    // Get thread owning the window.
+    DWORD dwWindowThreadId = GetWindowThreadProcessId( hWnd, nullptr );
+
+    // Register a window hook on GetMessage/PeekMessage function.
+    m_hGetMessageHook = SetWindowsHookEx(
+        WH_GETMESSAGE,
+        ImGui_ImplWin32_Context::GetMessageHook,
+        hProfilerDllInstance,
+        dwWindowThreadId );
+
+    if( !m_hGetMessageHook )
+    {
+        // Failed to register hook on GetMessage.
+        throw;
+    }
+}
+catch (...)
+{
+    // Cleanup the partially initialized context.
+    ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context();
+    throw;
 }
 
 /***********************************************************************************\
@@ -157,10 +223,23 @@ Description:
 \***********************************************************************************/
 ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
 {
-    // Erase context from map
-    g_pWin32Contexts.remove( m_AppWindow );
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
 
-    ImGui_ImplWin32_Shutdown();
+    // Unhook from the window
+    if( m_hGetMessageHook )
+    {
+        UnhookWindowsHookEx( m_hGetMessageHook );
+    }
+
+    // Uninitialize the backend
+    if( m_pImGuiContext )
+    {
+        ImGui::SetCurrentContext( m_pImGuiContext );
+        ImGui_ImplWin32_Shutdown();
+    }
+
+    // Erase context from map
+    g_pWin32Contexts.erase( m_AppWindow );
 }
 
 /***********************************************************************************\
@@ -205,21 +284,6 @@ float ImGui_ImplWin32_Context::GetDPIScale() const
 /***********************************************************************************\
 
 Function:
-    InitError
-
-Description:
-    Cleanup from partially initialized state
-
-\***********************************************************************************/
-void ImGui_ImplWin32_Context::InitError()
-{
-    ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context();
-    throw;
-}
-
-/***********************************************************************************\
-
-Function:
     GetMessageHook
 
 Description:
@@ -238,13 +302,15 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
 
         if( msg.hwnd )
         {
-            // Process message in ImGui
-            ImGui_ImplWin32_Context* context = nullptr;
+            std::scoped_lock lk( Profiler::s_ImGuiMutex );
 
-            if( g_pWin32Contexts.find( msg.hwnd, &context ) )
+            auto it = g_pWin32Contexts.find( msg.hwnd );
+            if( it != g_pWin32Contexts.end() )
             {
                 // Switch to the context associated with the target window
-                std::scoped_lock lk( Profiler::s_ImGuiMutex );
+                ImGui_ImplWin32_Context* context = it->second;
+                g_pWin32CurrentContext = context;
+
                 ImGui::SetCurrentContext( context->m_pImGuiContext );
 
                 ImGuiIO& io = ImGui::GetIO();
@@ -252,7 +318,7 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                 // Translate the message so that character input is handled correctly
                 std::queue<MSG> translatedMsgs;
                 translatedMsgs.push( msg );
-                TranslateMessage( &translatedMsgs.front() );
+                //TranslateMessage( &translatedMsgs.front() );
 
                 // Capture raw input events
                 if( translatedMsgs.front().message == WM_INPUT )
@@ -338,10 +404,34 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                     MSG translatedMsg = translatedMsgs.front();
                     translatedMsgs.pop();
 
+                    // Ignore all messages sent during window move.
+                    if( translatedMsg.message == WM_ENTERSIZEMOVE )
+                    {
+                        context->m_WindowMoveLoop = true;
+                    }
+                    if( translatedMsg.message == WM_EXITSIZEMOVE )
+                    {
+                        context->m_WindowMoveLoop = false;
+                    }
+                    if( context->m_WindowMoveLoop )
+                    {
+                        continue;
+                    }
+
                     // Capture mouse and keyboard events
                     if( (IsMouseMessage( translatedMsg )) ||
                         (IsKeyboardMessage( translatedMsg )) )
                     {
+                        //// Don't notify on mouse events targeted outsize of the window, unless the capture is active.
+                        //if( IsMouseMessage( translatedMsg ) && !context->m_HasCapture )
+                        //{
+                        //    int y = GET_Y_LPARAM( translatedMsg.lParam );
+                        //    if( y < 0 )
+                        //    {
+                        //        continue;
+                        //    }
+                        //}
+
                         ImGui_ImplWin32_WndProcHandler( translatedMsg.hwnd, translatedMsg.message, translatedMsg.wParam, translatedMsg.lParam );
 
                         // Don't pass captured events to the application
@@ -349,12 +439,16 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                     }
                 }
 
-                // Resize window
-                if( msg.message == WM_SIZE )
+                // Resize window.
+                // WM_SIZE may not be submitted if the application doesn't call DefWindowProc on WM_WINDOWPOSCHANGED.
+                if( msg.message == WM_WINDOWPOSCHANGED )
                 {
-                    io.DisplaySize.x = LOWORD( msg.lParam );
-                    io.DisplaySize.y = HIWORD( msg.lParam );
+                    const WINDOWPOS* pWindowPos = reinterpret_cast<const WINDOWPOS*>( msg.lParam );
+                    io.DisplaySize.x = static_cast<float>( pWindowPos->cx );
+                    io.DisplaySize.y = static_cast<float>( pWindowPos->cy );
                 }
+
+                g_pWin32CurrentContext = nullptr;
             }
         }
     }
@@ -399,3 +493,15 @@ bool ImGui_ImplWin32_Context::IsKeyboardMessage( const MSG& msg )
 {
     return (msg.message >= WM_KEYFIRST) && (msg.message <= WM_KEYLAST);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+// Override mouse capture functions with custom wrappers.
+//#define GetCapture ImGui_ImplWin32_Context_GetCapture
+//#define SetCapture ImGui_ImplWin32_Context_SetCapture
+//#define ReleaseCapture ImGui_ImplWin32_Context_ReleaseCapture
+
+// Include the actual backend implementation.
+#include <backends/imgui_impl_win32.cpp>
+
+/////////////////////////////////////////////////////////////////////////////////////
