@@ -28,7 +28,7 @@ namespace
 {
     ImU8 ComponentLerp( ImU8 a, ImU8 b, float s )
     {
-        return (a * (1 - s)) + (b * s);
+        return static_cast<ImU8>((a * (1 - s)) + (b * s));
     }
 }
 

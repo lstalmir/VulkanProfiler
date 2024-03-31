@@ -255,10 +255,10 @@ namespace ImGuiX
 
             char scale[ 16 ] = { 0 };
             if( range < 100000.f )
-                sprintf( scale, "%.0f", range );
+                snprintf( scale, sizeof( scale ), "%.0f", range );
 
             else if( range < 10000000000000.f )
-                sprintf( scale, "%.0fk", ceilf( range / 1000.f ) );
+                snprintf( scale, sizeof( scale ), "%.0fk", ceilf( range / 1000.f ) );
 
             RenderText( inner_bb.Min, scale );
         }
