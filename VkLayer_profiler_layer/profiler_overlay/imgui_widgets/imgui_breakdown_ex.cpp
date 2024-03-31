@@ -128,10 +128,13 @@ namespace ImGuiX
                 window->DrawList->AddRectFilled( pos0, pos1, col_base + random() );
 
                 {
-                    char overlayText[ 64 ] = {};
-                    sprintf( overlayText, "%.2f MB (%.1f%%)",
-                        values[ (v1_idx + values_offset) % values_count ] / 1048576.f,
-                        values[ (v1_idx + values_offset) % values_count ] * 100.f / x_size );
+                    char overlayText[ 64 ] = "0.00 MB";
+                    if( x_size )
+                    {
+                        snprintf( overlayText, sizeof( overlayText ), "%.2f MB (%.1f%%)",
+                            values[ (v1_idx + values_offset) % values_count ] / 1048576.f,
+                            values[ (v1_idx + values_offset) % values_count ] * 100.f / x_size );
+                    }
 
                     RenderTextClipped( posMin, posMax, overlayText, overlayText + 64, nullptr );
                 }
