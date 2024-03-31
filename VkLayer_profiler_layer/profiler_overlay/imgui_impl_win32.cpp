@@ -137,8 +137,8 @@ Description:
 
 \***********************************************************************************/
 ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
-    : m_hWindow( hWnd )
-    , m_hGetMessageHook( nullptr )
+    : m_AppWindow( hWnd )
+    , m_GetMessageHook( nullptr )
     , m_pImGuiContext( nullptr )
     , m_RawMouseX( 0 )
     , m_RawMouseY( 0 )
@@ -147,9 +147,9 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
     std::scoped_lock lk( Profiler::s_ImGuiMutex );
 
     // Access to map controlled with s_ImGuiMutex.
-    g_pWin32Contexts.emplace( m_hWindow, this );
+    g_pWin32Contexts.emplace( m_AppWindow, this );
 
-    if( !ImGui_ImplWin32_Init( m_hWindow ) )
+    if( !ImGui_ImplWin32_Init( m_AppWindow ) )
     {
         throw;
     }
@@ -165,13 +165,13 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
     DWORD dwWindowThreadId = GetWindowThreadProcessId( hWnd, nullptr );
 
     // Register a window hook on GetMessage/PeekMessage function.
-    m_hGetMessageHook = SetWindowsHookEx(
+    m_GetMessageHook = SetWindowsHookEx(
         WH_GETMESSAGE,
         ImGui_ImplWin32_Context::GetMessageHook,
         hProfilerDllInstance,
         dwWindowThreadId );
 
-    if( !m_hGetMessageHook )
+    if( !m_GetMessageHook )
     {
         // Failed to register hook on GetMessage.
         throw;
@@ -198,9 +198,9 @@ ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
     std::scoped_lock lk( Profiler::s_ImGuiMutex );
 
     // Unhook from the window
-    if( m_hGetMessageHook )
+    if( m_GetMessageHook )
     {
-        UnhookWindowsHookEx( m_hGetMessageHook );
+        UnhookWindowsHookEx( m_GetMessageHook );
     }
 
     // Uninitialize the backend
@@ -211,7 +211,7 @@ ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
     }
 
     // Erase context from map
-    g_pWin32Contexts.erase( m_hWindow );
+    g_pWin32Contexts.erase( m_AppWindow );
 }
 
 /***********************************************************************************\
@@ -224,7 +224,7 @@ Description:
 \***********************************************************************************/
 HWND ImGui_ImplWin32_Context::GetWindow() const
 {
-    return m_hWindow;
+    return m_AppWindow;
 }
 
 /***********************************************************************************\
@@ -263,7 +263,7 @@ Description:
 \***********************************************************************************/
 float ImGui_ImplWin32_Context::GetDPIScale() const
 {
-    return ImGui_ImplWin32_GetDpiScaleForHwnd( m_hWindow );
+    return ImGui_ImplWin32_GetDpiScaleForHwnd( m_AppWindow );
 }
 
 /***********************************************************************************\

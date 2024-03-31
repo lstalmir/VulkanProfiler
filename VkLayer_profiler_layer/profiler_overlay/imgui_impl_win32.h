@@ -38,8 +38,8 @@ public:
     float       GetDPIScale() const override;
 
 private:
-    HWND m_hWindow;
-    HHOOK m_hGetMessageHook;
+    HWND m_AppWindow;
+    HHOOK m_GetMessageHook;
     ImGuiContext* m_pImGuiContext;
     int m_RawMouseX;
     int m_RawMouseY;
