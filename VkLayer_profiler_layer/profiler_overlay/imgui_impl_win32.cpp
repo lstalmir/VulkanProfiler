@@ -395,15 +395,6 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                     translatedMsgs.pop();
                 }
 
-                // Resize window.
-                // WM_SIZE may not be submitted if the application doesn't call DefWindowProc on WM_WINDOWPOSCHANGED.
-                if( msg.message == WM_WINDOWPOSCHANGED )
-                {
-                    const WINDOWPOS* pWindowPos = reinterpret_cast<const WINDOWPOS*>( msg.lParam );
-                    io.DisplaySize.x = static_cast<float>( pWindowPos->cx );
-                    io.DisplaySize.y = static_cast<float>( pWindowPos->cy );
-                }
-
                 g_pWin32CurrentContext = nullptr;
             }
         }
