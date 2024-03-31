@@ -32,23 +32,18 @@ public:
     ImGui_ImplWin32_Context( HWND hWnd );
     ~ImGui_ImplWin32_Context();
 
+    HWND        GetWindow() const;
     const char* GetName() const override;
-
-    void NewFrame() override;
-
-    float GetDPIScale() const override;
+    void        NewFrame() override;
+    float       GetDPIScale() const override;
 
 private:
     HWND m_AppWindow;
+    HHOOK m_GetMessageHook;
     ImGuiContext* m_pImGuiContext;
     int m_RawMouseX;
     int m_RawMouseY;
     int m_RawMouseButtons;
 
-    void InitError();
-
     static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
-
-    static bool IsMouseMessage( const MSG& );
-    static bool IsKeyboardMessage( const MSG& );
 };
