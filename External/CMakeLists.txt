@@ -26,7 +26,7 @@ set (CMAKE_FOLDER External)
 if (MSVC)
     add_compile_options (/W0)
 else ()
-    add_compile_options (-Wno)
+    add_compile_options (-w)
 endif ()
 
 # fmtlib/fmt
