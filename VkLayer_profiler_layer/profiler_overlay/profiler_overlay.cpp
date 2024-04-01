@@ -140,12 +140,12 @@ namespace Profiler
         , m_pStringSerializer( nullptr )
         , m_MainDockSpaceId( 0 )
         , m_PerformanceTabDockSpaceId( 0 )
-        , m_PerformanceTabDocked( true )
-        , m_TopPipelinesTabDocked( true )
-        , m_PerformanceCountersTabDocked( true )
-        , m_MemoryTabDocked( true )
-        , m_StatisticsTabDocked( true )
-        , m_SettingsTabDocked( true )
+        , m_PerformanceWindowState{ true, true }
+        , m_TopPipelinesWindowState{ true, true }
+        , m_PerformanceCountersWindowState{ true, true }
+        , m_MemoryWindowState{ true, true }
+        , m_StatisticsWindowState{ true, true }
+        , m_SettingsWindowState{ true, true }
     {
     }
 
@@ -819,10 +819,25 @@ namespace Profiler
         m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
-        ImGui::Begin( Lang::WindowName, nullptr, ImGuiWindowFlags_NoDocking );
+        ImGui::Begin( Lang::WindowName, nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
         m_pImGuiWindowContext->UpdateWindowRect();
+
+        if( ImGui::BeginMenuBar() )
+        {
+            if( ImGui::BeginMenu( "Windows" ) )
+            {
+                ImGui::MenuItem( "Performance##MenuItem", nullptr, &m_PerformanceWindowState.Open);
+                ImGui::MenuItem( "Top pipelines##MenuItem", nullptr, &m_TopPipelinesWindowState.Open);
+                ImGui::MenuItem( "Performance counters##MenuItem", nullptr, &m_PerformanceCountersWindowState.Open);
+                ImGui::MenuItem( "Memory##MenuItem", nullptr, &m_MemoryWindowState.Open);
+                ImGui::MenuItem( "Statistics##MenuItem", nullptr, &m_StatisticsWindowState.Open);
+                ImGui::MenuItem( "Settings##MenuItem", nullptr, &m_SettingsWindowState.Open);
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenuBar();
+        }
 
         // GPU properties
         ImGui::Text( "%s: %s", Lang::Device, m_pDevice->pPhysicalDevice->Properties.deviceName );
@@ -863,30 +878,38 @@ namespace Profiler
         ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
         ImU32 defaultTitleBgActive = ImGui::GetColorU32( ImGuiCol_TitleBgActive );
         int numPushedColors = 0;
+        bool isOpen = false;
+        bool isExpanded = false;
 
-        auto BeginDockingWindow = [&]( const char* pTitle, int dockSpaceId, bool& isDocked )
+        auto BeginDockingWindow = [&]( const char* pTitle, int dockSpaceId, WindowState& state )
             {
-                bool isOpen;
-                if( !isDocked )
+                isExpanded = false;
+                if( isOpen = state.Open )
                 {
-                    ImGui::PushStyleColor( ImGuiCol_WindowBg, defaultWindowBg );
-                    ImGui::PushStyleColor( ImGuiCol_TitleBg, defaultTitleBg );
-                    ImGui::PushStyleColor( ImGuiCol_TitleBgActive, defaultTitleBgActive );
-                    numPushedColors = 3;
+                    if( !state.Docked )
+                    {
+                        ImGui::PushStyleColor( ImGuiCol_WindowBg, defaultWindowBg );
+                        ImGui::PushStyleColor( ImGuiCol_TitleBg, defaultTitleBg );
+                        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, defaultTitleBgActive );
+                        numPushedColors = 3;
+                    }
+
+                    ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
+
+                    isExpanded = ImGui::Begin( pTitle, &state.Open );
+                    state.Docked = ImGui::IsWindowDocked();
                 }
-
-                ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
-
-                isOpen = ImGui::Begin( pTitle );
-                isDocked = ImGui::IsWindowDocked();
-                return isOpen;
+                return isExpanded;
             };
 
         auto EndDockingWindow = [&]()
             {
-                ImGui::End();
-                ImGui::PopStyleColor( numPushedColors );
-                numPushedColors = 0;
+                if( isOpen )
+                {
+                    ImGui::End();
+                    ImGui::PopStyleColor( numPushedColors );
+                    numPushedColors = 0;
+                }
             };
 
         ImU32 transparentColor = ImGui::GetColorU32( { 0, 0, 0, 0 } );
@@ -896,7 +919,7 @@ namespace Profiler
 
         ImGui::DockSpace( m_MainDockSpaceId );
 
-        if( BeginDockingWindow( Lang::Performance, m_MainDockSpaceId, m_PerformanceTabDocked ) )
+        if( BeginDockingWindow( Lang::Performance, m_MainDockSpaceId, m_PerformanceWindowState ) )
         {
             UpdatePerformanceTab();
         }
@@ -907,31 +930,31 @@ namespace Profiler
         EndDockingWindow();
 
         // Top pipelines
-        if( BeginDockingWindow( Lang::TopPipelines, m_PerformanceTabDockSpaceId, m_TopPipelinesTabDocked ) )
+        if( BeginDockingWindow( Lang::TopPipelines, m_PerformanceTabDockSpaceId, m_TopPipelinesWindowState ) )
         {
             UpdateTopPipelinesTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::PerformanceCounters, m_PerformanceTabDockSpaceId, m_PerformanceCountersTabDocked ) )
+        if( BeginDockingWindow( Lang::PerformanceCounters, m_PerformanceTabDockSpaceId, m_PerformanceCountersWindowState ) )
         {
             UpdatePerformanceCountersTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryTabDocked ) )
+        if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryWindowState ) )
         {
             UpdateMemoryTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::Statistics, m_MainDockSpaceId, m_StatisticsTabDocked ) )
+        if( BeginDockingWindow( Lang::Statistics, m_MainDockSpaceId, m_StatisticsWindowState ) )
         {
             UpdateStatisticsTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::Settings, m_MainDockSpaceId, m_SettingsTabDocked ) )
+        if( BeginDockingWindow( Lang::Settings, m_MainDockSpaceId, m_SettingsWindowState ) )
         {
             UpdateSettingsTab();
         }
