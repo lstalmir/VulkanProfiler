@@ -21,6 +21,7 @@
 #pragma once
 #include <map>
 #include <mutex>
+#include <memory>
 
 namespace Profiler
 {
