@@ -260,6 +260,7 @@ namespace Profiler
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Trace serialization helpers
+        void SaveTrace();
         void DrawTraceSerializationOutputWindow();
 
         // Frame browser helpers

@@ -826,14 +826,23 @@ namespace Profiler
 
         if( ImGui::BeginMenuBar() )
         {
-            if( ImGui::BeginMenu( "Windows" ) )
+            if( ImGui::BeginMenu( Lang::FileMenu ) )
             {
-                ImGui::MenuItem( "Performance##MenuItem", nullptr, &m_PerformanceWindowState.Open);
-                ImGui::MenuItem( "Top pipelines##MenuItem", nullptr, &m_TopPipelinesWindowState.Open);
-                ImGui::MenuItem( "Performance counters##MenuItem", nullptr, &m_PerformanceCountersWindowState.Open);
-                ImGui::MenuItem( "Memory##MenuItem", nullptr, &m_MemoryWindowState.Open);
-                ImGui::MenuItem( "Statistics##MenuItem", nullptr, &m_StatisticsWindowState.Open);
-                ImGui::MenuItem( "Settings##MenuItem", nullptr, &m_SettingsWindowState.Open);
+                if( ImGui::MenuItem( Lang::Save ) )
+                {
+                    SaveTrace();
+                }
+                ImGui::EndMenu();
+            }
+
+            if( ImGui::BeginMenu( Lang::WindowMenu ) )
+            {
+                ImGui::MenuItem( Lang::PerformanceMenuItem, nullptr, &m_PerformanceWindowState.Open);
+                ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, &m_TopPipelinesWindowState.Open);
+                ImGui::MenuItem( Lang::PerformanceCountersMenuItem, nullptr, &m_PerformanceCountersWindowState.Open);
+                ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, &m_MemoryWindowState.Open);
+                ImGui::MenuItem( Lang::StatisticsMenuItem, nullptr, &m_StatisticsWindowState.Open);
+                ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, &m_SettingsWindowState.Open);
                 ImGui::EndMenu();
             }
             ImGui::EndMenuBar();
@@ -847,19 +856,7 @@ namespace Profiler
             VK_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
 
         // Save results to file
-        if( ImGui::Button( Lang::Save ) )
-        {
-            DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
-            DeviceProfilerTraceSerializationResult result = serializer.Serialize( data );
-
-            m_SerializationSucceeded = result.m_Succeeded;
-            m_SerializationMessage = result.m_Message;
-
-            // Display message box
-            m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
-            m_SerializationOutputWindowSize = { 0, 0 };
-            m_SerializationWindowVisible = false;
-        }
+        if( ImGui::Button( Lang::Save ) ) SaveTrace();
 
         // Keep results
         ImGui::SameLine();
@@ -1581,7 +1578,7 @@ namespace Profiler
             }
 
             // Show a combo box that allows the user to select the filter the profiled range.
-            ImGui::Text( "Range" );
+            ImGui::TextUnformatted( Lang::PerformanceCountersRange );
             ImGui::SameLine( 100.f );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
@@ -1607,7 +1604,7 @@ namespace Profiler
             }
 
             // Show a combo box that allows the user to change the active metrics set.
-            ImGui::Text( "Metrics set" );
+            ImGui::TextUnformatted( Lang::PerformanceCountersSet );
             ImGui::SameLine( 100.f );
             if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
             {
@@ -1634,7 +1631,7 @@ namespace Profiler
             }
 
             // Show a search box for filtering metrics sets to find specific metrics.
-            ImGui::Text( "Filter" );
+            ImGui::TextUnformatted( Lang::PerformanceCountersFilter );
             ImGui::SameLine( 100.f );
             if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype(m_VendorMetricFilter)> ) )
             {
@@ -1677,7 +1674,7 @@ namespace Profiler
             if( pVendorMetrics->empty() )
             {
                 // Vendor metrics not available.
-                ImGui::Text( "Performance metrics are not available for the selected command buffer." );
+                ImGui::TextUnformatted( Lang::PerformanceCountersNotAvailableForCommandBuffer );
             }
 
             const auto& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
@@ -1766,6 +1763,10 @@ namespace Profiler
 
                 ImGui::EndTable();
             }
+        }
+        else
+        {
+            ImGui::TextUnformatted( Lang::PerformanceCountesrNotAvailable );
         }
     }
 
@@ -1979,7 +1980,7 @@ namespace Profiler
     {
         // Set interface scaling.
         float interfaceScale = ImGui::GetIO().FontGlobalScale;
-        if( ImGui::InputFloat( "Interface scale", &interfaceScale ) )
+        if( ImGui::InputFloat( Lang::InterfaceScale, &interfaceScale ) )
         {
             ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
         }
@@ -1995,7 +1996,7 @@ namespace Profiler
             };
 
             int samplingModeSelectedOption = static_cast<int>(m_SamplingMode);
-            if( ImGui::Combo( "Sampling mode", &samplingModeSelectedOption, samplingGroupOptions, 4 ) )
+            if( ImGui::Combo( Lang::SamplingMode, &samplingModeSelectedOption, samplingGroupOptions, 4 ) )
             {
                 assert( false );
             }
@@ -2377,6 +2378,29 @@ namespace Profiler
         m_ScrollToSelectedFrameBrowserNode = true;
 
         m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveTrace
+
+    Description:
+        Saves current frame trace to a file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SaveTrace()
+    {
+        DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
+        DeviceProfilerTraceSerializationResult result = serializer.Serialize( m_Data );
+
+        m_SerializationSucceeded = result.m_Succeeded;
+        m_SerializationMessage = result.m_Message;
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
     }
 
     /***********************************************************************************\
