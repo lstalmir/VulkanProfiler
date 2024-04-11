@@ -24,12 +24,14 @@ project (profiler_overlay)
 
 set (headers
     "profiler_overlay.h"
-    "lang/en_us.h"
-    "lang/pl_pl.h"
+    "lang/lang.h"
     )
 
 set (sources
     "profiler_overlay.cpp"
+    "lang/lang.cpp"
+    "lang/en_us.inl"
+    "lang/pl_pl.inl"
     )
 
 set (imgui

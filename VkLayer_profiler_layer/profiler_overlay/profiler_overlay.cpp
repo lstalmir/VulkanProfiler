@@ -36,16 +36,6 @@
 #include "imgui_widgets/imgui_table_ex.h"
 #include "imgui_widgets/imgui_ex.h"
 
-// Languages
-#include "lang/en_us.h"
-#include "lang/pl_pl.h"
-
-#if 1
-using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
-#else
-using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
-#endif
-
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "imgui_impl_win32.h"
 #endif
@@ -90,7 +80,9 @@ namespace Profiler
 
     \***********************************************************************************/
     ProfilerOverlayOutput::ProfilerOverlayOutput()
-        : m_pDevice( nullptr )
+        : m_pLang( &GetLanguage() )
+        , m_LangID( Lang::eDefault )
+        , m_pDevice( nullptr )
         , m_pGraphicsQueue( nullptr )
         , m_pSwapchain( nullptr )
         , m_Window()
@@ -112,7 +104,7 @@ namespace Profiler
         , m_VendorMetricFilter()
         , m_TimestampPeriod( 0 )
         , m_TimestampDisplayUnit( 1.0f )
-        , m_pTimestampDisplayUnitStr( Lang::Milliseconds )
+        , m_pTimestampDisplayUnitStr( m_pLang->Milliseconds )
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_Pause( false )
@@ -819,48 +811,48 @@ namespace Profiler
         m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
-        ImGui::Begin( Lang::WindowName, nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
+        ImGui::Begin( m_pLang->WindowName, nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
         m_pImGuiWindowContext->UpdateWindowRect();
 
         if( ImGui::BeginMenuBar() )
         {
-            if( ImGui::BeginMenu( Lang::FileMenu ) )
+            if( ImGui::BeginMenu( m_pLang->FileMenu ) )
             {
-                if( ImGui::MenuItem( Lang::Save ) )
+                if( ImGui::MenuItem( m_pLang->Save ) )
                 {
                     SaveTrace();
                 }
                 ImGui::EndMenu();
             }
 
-            if( ImGui::BeginMenu( Lang::WindowMenu ) )
+            if( ImGui::BeginMenu( m_pLang->WindowMenu ) )
             {
-                ImGui::MenuItem( Lang::PerformanceMenuItem, nullptr, &m_PerformanceWindowState.Open);
-                ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, &m_TopPipelinesWindowState.Open);
-                ImGui::MenuItem( Lang::PerformanceCountersMenuItem, nullptr, &m_PerformanceCountersWindowState.Open);
-                ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, &m_MemoryWindowState.Open);
-                ImGui::MenuItem( Lang::StatisticsMenuItem, nullptr, &m_StatisticsWindowState.Open);
-                ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, &m_SettingsWindowState.Open);
+                ImGui::MenuItem( m_pLang->PerformanceMenuItem, nullptr, &m_PerformanceWindowState.Open);
+                ImGui::MenuItem( m_pLang->TopPipelinesMenuItem, nullptr, &m_TopPipelinesWindowState.Open);
+                ImGui::MenuItem( m_pLang->PerformanceCountersMenuItem, nullptr, &m_PerformanceCountersWindowState.Open);
+                ImGui::MenuItem( m_pLang->MemoryMenuItem, nullptr, &m_MemoryWindowState.Open);
+                ImGui::MenuItem( m_pLang->StatisticsMenuItem, nullptr, &m_StatisticsWindowState.Open);
+                ImGui::MenuItem( m_pLang->SettingsMenuItem, nullptr, &m_SettingsWindowState.Open);
                 ImGui::EndMenu();
             }
             ImGui::EndMenuBar();
         }
 
         // GPU properties
-        ImGui::Text( "%s: %s", Lang::Device, m_pDevice->pPhysicalDevice->Properties.deviceName );
+        ImGui::Text( "%s: %s", m_pLang->Device, m_pDevice->pPhysicalDevice->Properties.deviceName );
 
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
             VK_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
             VK_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
 
         // Save results to file
-        if( ImGui::Button( Lang::Save ) ) SaveTrace();
+        if( ImGui::Button( m_pLang->Save ) ) SaveTrace();
 
         // Keep results
         ImGui::SameLine();
-        ImGui::Checkbox( Lang::Pause, &m_Pause );
+        ImGui::Checkbox( m_pLang->Pause, &m_Pause );
 
         if( !m_Pause )
         {
@@ -916,7 +908,7 @@ namespace Profiler
 
         ImGui::DockSpace( m_MainDockSpaceId );
 
-        if( BeginDockingWindow( Lang::Performance, m_MainDockSpaceId, m_PerformanceWindowState ) )
+        if( BeginDockingWindow( m_pLang->Performance, m_MainDockSpaceId, m_PerformanceWindowState ) )
         {
             UpdatePerformanceTab();
         }
@@ -927,31 +919,31 @@ namespace Profiler
         EndDockingWindow();
 
         // Top pipelines
-        if( BeginDockingWindow( Lang::TopPipelines, m_PerformanceTabDockSpaceId, m_TopPipelinesWindowState ) )
+        if( BeginDockingWindow( m_pLang->TopPipelines, m_PerformanceTabDockSpaceId, m_TopPipelinesWindowState ) )
         {
             UpdateTopPipelinesTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::PerformanceCounters, m_PerformanceTabDockSpaceId, m_PerformanceCountersWindowState ) )
+        if( BeginDockingWindow( m_pLang->PerformanceCounters, m_PerformanceTabDockSpaceId, m_PerformanceCountersWindowState ) )
         {
             UpdatePerformanceCountersTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryWindowState ) )
+        if( BeginDockingWindow( m_pLang->Memory, m_MainDockSpaceId, m_MemoryWindowState ) )
         {
             UpdateMemoryTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::Statistics, m_MainDockSpaceId, m_StatisticsWindowState ) )
+        if( BeginDockingWindow( m_pLang->Statistics, m_MainDockSpaceId, m_StatisticsWindowState ) )
         {
             UpdateStatisticsTab();
         }
         EndDockingWindow();
 
-        if( BeginDockingWindow( Lang::Settings, m_MainDockSpaceId, m_SettingsWindowState ) )
+        if( BeginDockingWindow( m_pLang->Settings, m_MainDockSpaceId, m_SettingsWindowState ) )
         {
             UpdateSettingsTab();
         }
@@ -966,7 +958,7 @@ namespace Profiler
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
         {
-            ImGui::SetWindowFocus( Lang::Performance );
+            ImGui::SetWindowFocus( m_pLang->Performance );
         }
 
         // Draw foreground overlay
@@ -1322,23 +1314,23 @@ namespace Profiler
             const Milliseconds gpuTimeMs = m_Data.m_Ticks * m_TimestampPeriod;
             const Milliseconds cpuTimeMs = m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp;
 
-            ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
-            ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
-            ImGuiX::TextAlignRight( "%.1f %s", m_Data.m_CPU.m_FramesPerSec, Lang::FPS );
+            ImGui::Text( "%s: %.2f ms", m_pLang->GPUTime, gpuTimeMs.count() );
+            ImGui::Text( "%s: %.2f ms", m_pLang->CPUTime, cpuTimeMs.count() );
+            ImGuiX::TextAlignRight( "%.1f %s", m_Data.m_CPU.m_FramesPerSec, m_pLang->FPS );
         }
 
         // Histogram
         {
             static const char* groupOptions[] = {
-                Lang::RenderPasses,
-                Lang::Pipelines,
-                Lang::Drawcalls };
+                m_pLang->RenderPasses,
+                m_pLang->Pipelines,
+                m_pLang->Drawcalls };
 
             const char* selectedOption = groupOptions[ (size_t)m_HistogramGroupMode ];
 
             // Select group mode
             {
-                if( ImGui::BeginCombo( Lang::HistogramGroups, selectedOption, ImGuiComboFlags_NoPreview ) )
+                if( ImGui::BeginCombo( m_pLang->HistogramGroups, selectedOption, ImGuiComboFlags_NoPreview ) )
                 {
                     for( size_t i = 0; i < std::extent_v<decltype(groupOptions)>; ++i )
                     {
@@ -1360,7 +1352,7 @@ namespace Profiler
             char pHistogramDescription[ 32 ];
             snprintf( pHistogramDescription, sizeof( pHistogramDescription ),
                 "%s (%s)",
-                Lang::GPUCycles,
+                m_pLang->GPUCycles,
                 selectedOption );
 
             ImGui::PushItemWidth( -1 );
@@ -1385,18 +1377,18 @@ namespace Profiler
 
         // Frame browser
         ImGui::SetNextWindowDockID( m_PerformanceTabDockSpaceId );
-        if( ImGui::Begin( Lang::FrameBrowser ) )
+        if( ImGui::Begin( m_pLang->FrameBrowser ) )
         {
             // Select sort mode
             {
                 static const char* sortOptions[] = {
-                    Lang::SubmissionOrder,
-                    Lang::DurationDescending,
-                    Lang::DurationAscending };
+                    m_pLang->SubmissionOrder,
+                    m_pLang->DurationDescending,
+                    m_pLang->DurationAscending };
 
                 const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
 
-                ImGui::Text( Lang::Sort );
+                ImGui::Text( m_pLang->Sort );
                 ImGui::SameLine();
 
                 if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
@@ -1578,7 +1570,7 @@ namespace Profiler
             }
 
             // Show a combo box that allows the user to select the filter the profiled range.
-            ImGui::TextUnformatted( Lang::PerformanceCountersRange );
+            ImGui::TextUnformatted( m_pLang->PerformanceCountersRange );
             ImGui::SameLine( 100.f );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
@@ -1604,7 +1596,7 @@ namespace Profiler
             }
 
             // Show a combo box that allows the user to change the active metrics set.
-            ImGui::TextUnformatted( Lang::PerformanceCountersSet );
+            ImGui::TextUnformatted( m_pLang->PerformanceCountersSet );
             ImGui::SameLine( 100.f );
             if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
             {
@@ -1631,7 +1623,7 @@ namespace Profiler
             }
 
             // Show a search box for filtering metrics sets to find specific metrics.
-            ImGui::TextUnformatted( Lang::PerformanceCountersFilter );
+            ImGui::TextUnformatted( m_pLang->PerformanceCountersFilter );
             ImGui::SameLine( 100.f );
             if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype(m_VendorMetricFilter)> ) )
             {
@@ -1674,7 +1666,7 @@ namespace Profiler
             if( pVendorMetrics->empty() )
             {
                 // Vendor metrics not available.
-                ImGui::TextUnformatted( Lang::PerformanceCountersNotAvailableForCommandBuffer );
+                ImGui::TextUnformatted( m_pLang->PerformanceCountersNotAvailableForCommandBuffer );
             }
 
             const auto& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
@@ -1688,8 +1680,8 @@ namespace Profiler
                     (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
 
                 // Headers
-                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( m_pLang->Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableSetupColumn( m_pLang->Frame, ImGuiTableColumnFlags_WidthStretch );
                 ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
                 ImGui::TableHeadersRow();
 
@@ -1766,7 +1758,7 @@ namespace Profiler
         }
         else
         {
-            ImGui::TextUnformatted( Lang::PerformanceCountesrNotAvailable );
+            ImGui::TextUnformatted( m_pLang->PerformanceCountesrNotAvailable );
         }
     }
 
@@ -1784,13 +1776,13 @@ namespace Profiler
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pDevice->pPhysicalDevice->MemoryProperties;
 
-        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
+        if( ImGui::CollapsingHeader( m_pLang->MemoryHeapUsage ) )
         {
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
-                ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+                ImGui::Text( "%s %u", m_pLang->MemoryHeap, i );
 
-                ImGuiX::TextAlignRight( "%u %s", m_Data.m_Memory.m_Heaps[ i ].m_AllocationCount, Lang::Allocations );
+                ImGuiX::TextAlignRight( "%u %s", m_Data.m_Memory.m_Heaps[ i ].m_AllocationCount, m_pLang->Allocations );
 
                 float usage = 0.f;
                 char usageStr[ 64 ] = {};
@@ -1837,8 +1829,8 @@ namespace Profiler
                         // Prepare descriptor for memory type
                         std::stringstream sstr;
 
-                        sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
+                        sstr << m_pLang->MemoryTypeIndex << " " << typeIndex << "\n"
+                             << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << m_pLang->Allocations << "\n";
 
                         if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
                         {
@@ -1914,55 +1906,55 @@ namespace Profiler
     {
         // Draw count statistics
         {
-            ImGui::TextUnformatted( Lang::DrawCalls );
+            ImGui::TextUnformatted( m_pLang->DrawCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawCount );
 
-            ImGui::TextUnformatted( Lang::DrawCallsIndirect );
+            ImGui::TextUnformatted( m_pLang->DrawCallsIndirect );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawIndirectCount );
 
-            ImGui::TextUnformatted( Lang::DispatchCalls );
+            ImGui::TextUnformatted( m_pLang->DispatchCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchCount );
 
-            ImGui::TextUnformatted( Lang::DispatchCallsIndirect );
+            ImGui::TextUnformatted( m_pLang->DispatchCallsIndirect );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
             
-            ImGui::TextUnformatted( Lang::TraceRaysCalls );
+            ImGui::TextUnformatted( m_pLang->TraceRaysCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysCount );
 
-            ImGui::TextUnformatted( Lang::TraceRaysIndirectCalls );
+            ImGui::TextUnformatted( m_pLang->TraceRaysIndirectCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysIndirectCount );
 
-            ImGui::TextUnformatted( Lang::CopyBufferCalls );
+            ImGui::TextUnformatted( m_pLang->CopyBufferCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferCount );
 
-            ImGui::TextUnformatted( Lang::CopyBufferToImageCalls );
+            ImGui::TextUnformatted( m_pLang->CopyBufferToImageCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferToImageCount );
 
-            ImGui::TextUnformatted( Lang::CopyImageCalls );
+            ImGui::TextUnformatted( m_pLang->CopyImageCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageCount );
 
-            ImGui::TextUnformatted( Lang::CopyImageToBufferCalls );
+            ImGui::TextUnformatted( m_pLang->CopyImageToBufferCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageToBufferCount );
 
-            ImGui::TextUnformatted( Lang::PipelineBarriers );
+            ImGui::TextUnformatted( m_pLang->PipelineBarriers );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_PipelineBarrierCount );
 
-            ImGui::TextUnformatted( Lang::ColorClearCalls );
+            ImGui::TextUnformatted( m_pLang->ColorClearCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ClearColorCount );
 
-            ImGui::TextUnformatted( Lang::DepthStencilClearCalls );
+            ImGui::TextUnformatted( m_pLang->DepthStencilClearCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ClearDepthStencilCount );
 
-            ImGui::TextUnformatted( Lang::ResolveCalls );
+            ImGui::TextUnformatted( m_pLang->ResolveCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ResolveCount );
 
-            ImGui::TextUnformatted( Lang::BlitCalls );
+            ImGui::TextUnformatted( m_pLang->BlitCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_BlitImageCount );
 
-            ImGui::TextUnformatted( Lang::FillBufferCalls );
+            ImGui::TextUnformatted( m_pLang->FillBufferCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_FillBufferCount );
 
-            ImGui::TextUnformatted( Lang::UpdateBufferCalls );
+            ImGui::TextUnformatted( m_pLang->UpdateBufferCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_UpdateBufferCount );
         }
     }
@@ -1980,9 +1972,29 @@ namespace Profiler
     {
         // Set interface scaling.
         float interfaceScale = ImGui::GetIO().FontGlobalScale;
-        if( ImGui::InputFloat( Lang::InterfaceScale, &interfaceScale ) )
+        if( ImGui::InputFloat( m_pLang->InterfaceScale, &interfaceScale ) )
         {
             ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
+        }
+
+        // Select overlay language
+        {
+            static std::vector<const char*> languageOptions;
+            if (languageOptions.empty())
+            {
+                // Initialize list of available languages
+                for (int i = 0; i < Lang::eCount; ++i)
+                {
+                    languageOptions.push_back( GetLanguage( Lang::ID( i ) ).Language );
+                }
+            }
+
+            int languageSelectedOption = static_cast<int>(m_LangID);
+            if( ImGui::Combo( m_pLang->Language, &languageSelectedOption, languageOptions.data(), static_cast<int>(languageOptions.size()) ) )
+            {
+                m_LangID = Lang::ID( languageSelectedOption );
+                m_pLang = &GetLanguage( m_LangID );
+            }
         }
 
         // Select sampling mode (constant in runtime for now)
@@ -1996,7 +2008,7 @@ namespace Profiler
             };
 
             int samplingModeSelectedOption = static_cast<int>(m_SamplingMode);
-            if( ImGui::Combo( Lang::SamplingMode, &samplingModeSelectedOption, samplingGroupOptions, 4 ) )
+            if( ImGui::Combo( m_pLang->SamplingMode, &samplingModeSelectedOption, samplingGroupOptions, 4 ) )
             {
                 assert( false );
             }
@@ -2006,11 +2018,11 @@ namespace Profiler
         // Select synchronization mode
         {
             static const char* syncGroupOptions[] = {
-                Lang::Present,
-                Lang::Submit };
+                m_pLang->Present,
+                m_pLang->Submit };
 
             int syncModeSelectedOption = static_cast<int>(m_SyncMode);
-            if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
+            if( ImGui::Combo( m_pLang->SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
             {
                 VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
                 VkResult result = vkSetProfilerSyncModeEXT( m_pDevice->Handle, syncMode );
@@ -2024,12 +2036,12 @@ namespace Profiler
         // Select time display unit.
         {
             static const char* timeUnitGroupOptions[] = {
-                Lang::Milliseconds,
-                Lang::Microseconds,
-                Lang::Nanoseconds };
+                m_pLang->Milliseconds,
+                m_pLang->Microseconds,
+                m_pLang->Nanoseconds };
 
             int timeUnitSelectedOption = static_cast<int>(m_TimeUnit);
-            if( ImGui::Combo( Lang::TimeUnit, &timeUnitSelectedOption, timeUnitGroupOptions, 3 ) )
+            if( ImGui::Combo( m_pLang->TimeUnit, &timeUnitSelectedOption, timeUnitGroupOptions, 3 ) )
             {
                 static float timeUnitFactors[] = {
                     1.0f,
@@ -2044,10 +2056,10 @@ namespace Profiler
         }
 
         // Display debug labels in frame browser.
-        ImGui::Checkbox( Lang::ShowDebugLabels, &m_ShowDebugLabels );
+        ImGui::Checkbox( m_pLang->ShowDebugLabels, &m_ShowDebugLabels );
 
         // Display shader capability badges in frame browser.
-        ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
+        ImGui::Checkbox( m_pLang->ShowShaderCapabilities, &m_ShowShaderCapabilities );
     }
 
     /***********************************************************************************\
@@ -2963,7 +2975,7 @@ namespace Profiler
         if (ImGui::IsItemHovered())
         {
             ImGui::BeginTooltip();
-            ImGui::Text( Lang::ShaderCapabilityTooltipFmt, longName );
+            ImGui::Text( m_pLang->ShaderCapabilityTooltipFmt, longName );
             ImGui::EndTooltip();
         }
     }

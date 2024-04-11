@@ -35,6 +35,8 @@
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
 
+#include "lang/lang.h"
+
 struct ImGuiContext;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
@@ -85,6 +87,9 @@ namespace Profiler
             VkPresentInfoKHR* pPresentInfo );
 
     private:
+        const Lang* m_pLang;
+        Lang::ID m_LangID;
+
         VkDevice_Object* m_pDevice;
         VkQueue_Object* m_pGraphicsQueue;
         VkSwapchainKhr_Object* m_pSwapchain;
