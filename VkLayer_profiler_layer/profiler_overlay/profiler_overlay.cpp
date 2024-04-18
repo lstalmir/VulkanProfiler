@@ -856,7 +856,10 @@ namespace Profiler
             VK_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
 
         // Save results to file
-        if( ImGui::Button( Lang::Save ) ) SaveTrace();
+        if( ImGui::Button( Lang::Save ) )
+        {
+            SaveTrace();
+        }
 
         // Keep results
         ImGui::SameLine();
@@ -957,11 +960,11 @@ namespace Profiler
         }
         EndDockingWindow();
 
-        // Draw other windows
-        DrawTraceSerializationOutputWindow();
-
         ImGui::PopStyleColor( 3 );
         ImGui::End();
+
+        // Draw other windows
+        DrawTraceSerializationOutputWindow();
 
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
@@ -2442,6 +2445,8 @@ namespace Profiler
                     ImGuiWindowFlags_NoResize |
                     ImGuiWindowFlags_NoTitleBar |
                     ImGuiWindowFlags_NoCollapse |
+                    ImGuiWindowFlags_NoDocking |
+                    ImGuiWindowFlags_NoFocusOnAppearing |
                     ImGuiWindowFlags_NoSavedSettings |
                     ImGuiWindowFlags_AlwaysAutoResize );
 
