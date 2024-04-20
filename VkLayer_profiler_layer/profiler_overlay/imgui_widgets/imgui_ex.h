@@ -108,4 +108,16 @@ namespace ImGuiX
         }
         return false;
     }
+
+    /*************************************************************************\
+
+    Function:
+        GetWindowDockSpaceID
+
+    Description:
+        Returns ID of the dock space the current window is docked into.
+        Returns 0 if the window is not docked to any dock space.
+
+    \*************************************************************************/
+    ImGuiID GetWindowDockSpaceID();
 }

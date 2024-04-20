@@ -20,6 +20,9 @@
 
 #pragma once
 
+#define PROFILER_MENU      "##Menu"
+#define PROFILER_MENU_ITEM "##MenuItem"
+
 namespace Profiler
 {
     struct DeviceProfilerOverlayLanguage_Base
@@ -31,6 +34,16 @@ namespace Profiler
         inline static constexpr char Instance[] = "Instance";
         inline static constexpr char Pause[] = "Pause";
         inline static constexpr char Save[] = "Save trace";
+
+        // Menu
+        inline static constexpr char FileMenu[] = "File" PROFILER_MENU;
+        inline static constexpr char WindowMenu[] = "Window" PROFILER_MENU;
+        inline static constexpr char PerformanceMenuItem[] = "Performance" PROFILER_MENU_ITEM;
+        inline static constexpr char PerformanceCountersMenuItem[] = "Performance counters" PROFILER_MENU_ITEM;
+        inline static constexpr char TopPipelinesMenuItem[] = "Top pipelines" PROFILER_MENU_ITEM;
+        inline static constexpr char MemoryMenuItem[] = "Memory" PROFILER_MENU_ITEM;
+        inline static constexpr char StatisticsMenuItem[] = "Statistics" PROFILER_MENU_ITEM;
+        inline static constexpr char SettingsMenuItem[] = "Settings" PROFILER_MENU_ITEM;
 
         // Tabs
         inline static constexpr char Performance[] = "Performance";
@@ -61,6 +74,12 @@ namespace Profiler
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
 
+        inline static constexpr char PerformanceCountersFilter[] = "Filter";
+        inline static constexpr char PerformanceCountersRange[] = "Range";
+        inline static constexpr char PerformanceCountersSet[] = "Metrics set";
+        inline static constexpr char PerformanceCountesrNotAvailable[] = "Performance metrics are not available.";
+        inline static constexpr char PerformanceCountersNotAvailableForCommandBuffer[] = "Performance metrics are not available for the selected command buffer.";
+
         // Memory tab
         inline static constexpr char MemoryHeapUsage[] = "Memory heap usage";
         inline static constexpr char MemoryHeap[] = "Heap";
@@ -89,7 +108,9 @@ namespace Profiler
         // Settings tab
         inline static constexpr char Present[] = "Present";
         inline static constexpr char Submit[] = "Submit";
+        inline static constexpr char SamplingMode[] = "Sampling mode";
         inline static constexpr char SyncMode[] = "Sync mode";
+        inline static constexpr char InterfaceScale[] = "Interface scale";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
         inline static constexpr char ShowShaderCapabilities[] = "Show shader capabilities";
         inline static constexpr char TimeUnit[] = "Time unit";

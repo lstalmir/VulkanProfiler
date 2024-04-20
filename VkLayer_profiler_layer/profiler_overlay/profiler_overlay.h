@@ -26,6 +26,7 @@
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include "profiler_overlay_settings.h"
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>
@@ -85,6 +86,8 @@ namespace Profiler
             VkPresentInfoKHR* pPresentInfo );
 
     private:
+        OverlaySettings m_Settings;
+
         VkDevice_Object* m_pDevice;
         VkQueue_Object* m_pGraphicsQueue;
         VkSwapchainKhr_Object* m_pSwapchain;
@@ -218,6 +221,23 @@ namespace Profiler
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
+        // Dock space ids
+        int m_MainDockSpaceId;
+        int m_PerformanceTabDockSpaceId;
+
+        struct WindowState
+        {
+            bool* pOpen;
+            bool Docked;
+        };
+
+        WindowState m_PerformanceWindowState;
+        WindowState m_TopPipelinesWindowState;
+        WindowState m_PerformanceCountersWindowState;
+        WindowState m_MemoryWindowState;
+        WindowState m_StatisticsWindowState;
+        WindowState m_SettingsWindowState;
+
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
@@ -226,6 +246,8 @@ namespace Profiler
 
         void Update( const DeviceProfilerFrameData& );
         void UpdatePerformanceTab();
+        void UpdateTopPipelinesTab();
+        void UpdatePerformanceCountersTab();
         void UpdateMemoryTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
@@ -241,6 +263,7 @@ namespace Profiler
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Trace serialization helpers
+        void SaveTrace();
         void DrawTraceSerializationOutputWindow();
 
         // Frame browser helpers

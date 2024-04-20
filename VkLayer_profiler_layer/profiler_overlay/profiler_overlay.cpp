@@ -138,6 +138,14 @@ namespace Profiler
         , m_RayTracingPipelineColumnColor( 0 )
         , m_InternalPipelineColumnColor( 0 )
         , m_pStringSerializer( nullptr )
+        , m_MainDockSpaceId( 0 )
+        , m_PerformanceTabDockSpaceId( 0 )
+        , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true}
+        , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true}
+        , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true}
+        , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true}
+        , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true}
+        , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true}
     {
     }
 
@@ -231,11 +239,14 @@ namespace Profiler
 
             ImGui::SetCurrentContext( m_pImGuiContext );
 
+            // Register settings handler to the new context
+            m_Settings.RegisterHandler();
+
             ImGuiIO& io = ImGui::GetIO();
             io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
-            io.ConfigFlags = ImGuiConfigFlags_None;
+            io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
 
             InitializeImGuiDefaultFont();
             InitializeImGuiStyle();
@@ -811,10 +822,34 @@ namespace Profiler
         m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
-        ImGui::Begin( Lang::WindowName );
+        ImGui::Begin( Lang::WindowName, nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
         m_pImGuiWindowContext->UpdateWindowRect();
+
+        if( ImGui::BeginMenuBar() )
+        {
+            if( ImGui::BeginMenu( Lang::FileMenu ) )
+            {
+                if( ImGui::MenuItem( Lang::Save ) )
+                {
+                    SaveTrace();
+                }
+                ImGui::EndMenu();
+            }
+
+            if( ImGui::BeginMenu( Lang::WindowMenu ) )
+            {
+                ImGui::MenuItem( Lang::PerformanceMenuItem, nullptr, m_PerformanceWindowState.pOpen );
+                ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, m_TopPipelinesWindowState.pOpen );
+                ImGui::MenuItem( Lang::PerformanceCountersMenuItem, nullptr, m_PerformanceCountersWindowState.pOpen );
+                ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, m_MemoryWindowState.pOpen );
+                ImGui::MenuItem( Lang::StatisticsMenuItem, nullptr, m_StatisticsWindowState.pOpen );
+                ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, m_SettingsWindowState.pOpen );
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenuBar();
+        }
 
         // GPU properties
         ImGui::Text( "%s: %s", Lang::Device, m_pDevice->pPhysicalDevice->Properties.deviceName );
@@ -826,16 +861,7 @@ namespace Profiler
         // Save results to file
         if( ImGui::Button( Lang::Save ) )
         {
-            DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
-            DeviceProfilerTraceSerializationResult result = serializer.Serialize( data );
-
-            m_SerializationSucceeded = result.m_Succeeded;
-            m_SerializationMessage = result.m_Message;
-
-            // Display message box
-            m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
-            m_SerializationOutputWindowSize = { 0, 0 };
-            m_SerializationWindowVisible = false;
+            SaveTrace();
         }
 
         // Keep results
@@ -848,35 +874,110 @@ namespace Profiler
             m_Data = data;
         }
 
-        ImGui::BeginTabBar( "##tabs" );
+        m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
+        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId" );
 
-        if( ImGui::BeginTabItem( Lang::Performance ) )
+        ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
+        ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
+        ImU32 defaultTitleBgActive = ImGui::GetColorU32( ImGuiCol_TitleBgActive );
+        int numPushedColors = 0;
+        bool isOpen = false;
+        bool isExpanded = false;
+
+        auto BeginDockingWindow = [&]( const char* pTitle, int dockSpaceId, WindowState& state )
+            {
+                isExpanded = false;
+                if( isOpen = (!state.pOpen || *state.pOpen) )
+                {
+                    if( !state.Docked )
+                    {
+                        ImGui::PushStyleColor( ImGuiCol_WindowBg, defaultWindowBg );
+                        ImGui::PushStyleColor( ImGuiCol_TitleBg, defaultTitleBg );
+                        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, defaultTitleBgActive );
+                        numPushedColors = 3;
+                    }
+
+                    ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
+
+                    isExpanded = ImGui::Begin( pTitle, state.pOpen );
+
+                    ImGuiID dockSpaceId = ImGuiX::GetWindowDockSpaceID();
+                    state.Docked = ImGui::IsWindowDocked() &&
+                        (dockSpaceId == m_MainDockSpaceId ||
+                            dockSpaceId == m_PerformanceTabDockSpaceId);
+                }
+                return isExpanded;
+            };
+
+        auto EndDockingWindow = [&]()
+            {
+                if( isOpen )
+                {
+                    ImGui::End();
+                    ImGui::PopStyleColor( numPushedColors );
+                    numPushedColors = 0;
+                }
+            };
+
+        ImU32 transparentColor = ImGui::GetColorU32( { 0, 0, 0, 0 } );
+        ImGui::PushStyleColor( ImGuiCol_WindowBg, transparentColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBg, transparentColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, transparentColor );
+
+        ImGui::DockSpace( m_MainDockSpaceId );
+
+        if( BeginDockingWindow( Lang::Performance, m_MainDockSpaceId, m_PerformanceWindowState ) )
         {
             UpdatePerformanceTab();
-            ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( Lang::Memory ) )
+        else
+        {
+            ImGui::DockSpace( m_PerformanceTabDockSpaceId, {}, ImGuiDockNodeFlags_KeepAliveOnly );
+        }
+        EndDockingWindow();
+
+        // Top pipelines
+        if( BeginDockingWindow( Lang::TopPipelines, m_PerformanceTabDockSpaceId, m_TopPipelinesWindowState ) )
+        {
+            UpdateTopPipelinesTab();
+        }
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::PerformanceCounters, m_PerformanceTabDockSpaceId, m_PerformanceCountersWindowState ) )
+        {
+            UpdatePerformanceCountersTab();
+        }
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryWindowState ) )
         {
             UpdateMemoryTab();
-            ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( Lang::Statistics ) )
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::Statistics, m_MainDockSpaceId, m_StatisticsWindowState ) )
         {
             UpdateStatisticsTab();
-            ImGui::EndTabItem();
         }
-        if( ImGui::BeginTabItem( Lang::Settings ) )
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::Settings, m_MainDockSpaceId, m_SettingsWindowState ) )
         {
             UpdateSettingsTab();
-            ImGui::EndTabItem();
         }
+        EndDockingWindow();
 
-        ImGui::EndTabBar();
+        ImGui::PopStyleColor( 3 );
+        ImGui::End();
 
         // Draw other windows
         DrawTraceSerializationOutputWindow();
 
-        ImGui::End();
+        // Set initial tab
+        if( ImGui::GetFrameCount() == 1 )
+        {
+            ImGui::SetWindowFocus( Lang::Performance );
+        }
 
         // Draw foreground overlay
         ImDrawList* pForegroundDrawList = ImGui::GetForegroundDrawList();
@@ -1284,248 +1385,7 @@ namespace Profiler
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
         }
 
-        // Top pipelines
-        if( ImGui::CollapsingHeader( Lang::TopPipelines ) )
-        {
-            uint32_t i = 0;
-
-            for( const auto& pipeline : m_Data.m_TopPipelines )
-            {
-                if( pipeline.m_Handle != VK_NULL_HANDLE )
-                {
-                    const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
-
-                    ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
-                    ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
-                        pipelineTicks * 100.f / m_Data.m_Ticks,
-                        pipelineTicks * m_TimestampPeriod.count() );
-
-                    // Print up to 10 top pipelines
-                    if( (++i) == 10 ) break;
-                }
-            }
-        }
-
-        // Vendor-specific
-        if( !m_Data.m_VendorMetrics.empty() &&
-            ImGui::CollapsingHeader( Lang::PerformanceCounters ) )
-        {
-            std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
-
-            // Data source
-            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_Data.m_VendorMetrics;
-
-            bool performanceQueryResultsFiltered = false;
-
-            // Find the first command buffer that matches the filter.
-            // TODO: Aggregation.
-            for( const auto& submitBatch : m_Data.m_Submits )
-            {
-                for( const auto& submit : submitBatch.m_Submits )
-                {
-                    for( const auto& commandBuffer : submit.m_CommandBuffers )
-                    {
-                        if( (performanceQueryResultsFiltered == false) &&
-                            (commandBuffer.m_Handle != VK_NULL_HANDLE) &&
-                            (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
-                        {
-                            // Use the data from this command buffer.
-                            pVendorMetrics = &commandBuffer.m_PerformanceQueryResults;
-                            performanceQueryResultsFiltered = true;
-                        }
-
-                        uniqueCommandBuffers.insert( commandBuffer.m_Handle );
-                    }
-                }
-            }
-
-            // Show a combo box that allows the user to select the filter the profiled range.
-            ImGui::Text( "Range" );
-            ImGui::SameLine( 100.f );
-            if( ImGui::BeginCombo( "PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
-            {
-                if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
-                {
-                    // Selection changed.
-                    m_PerformanceQueryCommandBufferFilterName = "Frame";
-                }
-
-                // Enumerate command buffers.
-                for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
-                {
-                    std::string commandBufferName = m_pStringSerializer->GetName(commandBuffer);
-
-                    if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
-                    {
-                        // Selection changed.
-                        m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
-                    }
-                }
-
-                ImGui::EndCombo();
-            }
-
-            // Show a combo box that allows the user to change the active metrics set.
-            ImGui::Text( "Metrics set" );
-            ImGui::SameLine( 100.f );
-            if( ImGui::BeginCombo( "PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
-            {
-                // Enumerate metrics sets.
-                for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
-                {
-                    if( m_VendorMetricsSetVisibility[ metricsSetIndex ] )
-                    {
-                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
-
-                        if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
-                        {
-                            // Notify the profiler.
-                            if( vkSetProfilerPerformanceMetricsSetEXT( m_pDevice->Handle, metricsSetIndex ) == VK_SUCCESS )
-                            {
-                                // Refresh the performance metric properties.
-                                m_ActiveMetricsSetIndex = metricsSetIndex;
-                            }
-                        }
-                    }
-                }
-
-                ImGui::EndCombo();
-            }
-
-            // Show a search box for filtering metrics sets to find specific metrics.
-            ImGui::Text( "Filter" );
-            ImGui::SameLine( 100.f );
-            if( ImGui::InputText( "PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
-            {
-                try
-                {
-                    // Text changed, construct a regex from the string and find the matching metrics sets.
-                    std::regex regexFilter( m_VendorMetricFilter );
-
-                    // Enumerate only sets that match the query.
-                    for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
-                    {
-                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
-
-                        // Match by metrics set name.
-                        if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
-                        {
-                            m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
-                            continue;
-                        }
-
-                        m_VendorMetricsSetVisibility[ metricsSetIndex ] = false;
-
-                        // Match by metric name.
-                        for( const auto& metric : metricsSet.m_Metrics )
-                        {
-                            if( std::regex_search( metric.shortName, regexFilter ) )
-                            {
-                                m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch( ... )
-                {
-                    // Regex compilation failed, don't change the visibility of the sets.
-                }
-            }
-
-            if( pVendorMetrics->empty() )
-            {
-                // Vendor metrics not available.
-                ImGui::Text( "Performance metrics are not available for the selected command buffer." );
-            }
-
-            const auto& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
-            if( pVendorMetrics->size() == activeMetricsSet.m_Metrics.size() )
-            {
-                const auto& vendorMetrics = *pVendorMetrics;
-
-                ImGui::BeginTable( "Performance counters table",
-                    /* columns_count */ 3,
-                    ImGuiTableFlags_NoClip |
-                    (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
-
-                // Headers
-                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
-                ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableHeadersRow();
-
-                for( uint32_t i = 0; i < vendorMetrics.size(); ++i )
-                {
-                    const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[ i ];
-                    const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = activeMetricsSet.m_Metrics[ i ];
-
-                    ImGui::TableNextColumn();
-                    {
-                        ImGui::Text( "%s", metricProperties.shortName );
-
-                        if( ImGui::IsItemHovered() &&
-                            metricProperties.description[ 0 ] )
-                        {
-                            ImGui::BeginTooltip();
-                            ImGui::PushTextWrapPos( 350.f );
-                            ImGui::TextUnformatted( metricProperties.description );
-                            ImGui::PopTextWrapPos();
-                            ImGui::EndTooltip();
-                        }
-                    }
-
-                    ImGui::TableNextColumn();
-                    {
-                        const float columnWidth = ImGuiX::TableGetColumnWidth();
-                        switch( metricProperties.storage )
-                        {
-                        case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
-                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
-                            break;
-
-                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
-                            ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
-                            break;
-
-                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
-                            ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
-                            break;
-                        }
-                    }
-
-                    ImGui::TableNextColumn();
-                    {
-                        const char* pUnitString = "???";
-
-                        assert( metricProperties.unit < 11 );
-                        static const char* const ppUnitString[ 11 ] =
-                        {
-                            "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
-                            "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
-                            "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
-                            "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
-                            "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
-                            "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
-                            "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
-                            "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
-                            "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
-                            "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
-                            "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
-                        };
-
-                        if( metricProperties.unit < 11 )
-                        {
-                            pUnitString = ppUnitString[ metricProperties.unit ];
-                        }
-
-                        ImGui::TextUnformatted( pUnitString );
-                    }
-                }
-
-                ImGui::EndTable();
-            }
-        }
+        ImGui::DockSpace( m_PerformanceTabDockSpaceId );
 
         // Force frame browser open
         if( m_ScrollToSelectedFrameBrowserNode )
@@ -1534,7 +1394,8 @@ namespace Profiler
         }
 
         // Frame browser
-        if( ImGui::CollapsingHeader( Lang::FrameBrowser ) )
+        ImGui::SetNextWindowDockID( m_PerformanceTabDockSpaceId );
+        if( ImGui::Begin( Lang::FrameBrowser ) )
         {
             // Select sort mode
             {
@@ -1648,7 +1509,275 @@ namespace Profiler
             }
         }
 
+        ImGui::End();
+
         m_ScrollToSelectedFrameBrowserNode = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateTopPipelinesTab
+
+    Description:
+        Updates "Top pipelines" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateTopPipelinesTab()
+    {
+        uint32_t i = 0;
+
+        for( const auto& pipeline : m_Data.m_TopPipelines )
+        {
+            if( pipeline.m_Handle != VK_NULL_HANDLE )
+            {
+                const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+
+                ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
+                ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
+                    pipelineTicks * 100.f / m_Data.m_Ticks,
+                    pipelineTicks * m_TimestampPeriod.count() );
+
+                // Print up to 10 top pipelines
+                if( (++i) == 10 ) break;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceCountersTab
+
+    Description:
+        Updates "Performance Counters" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
+    {
+        // Vendor-specific
+        if( !m_Data.m_VendorMetrics.empty() )
+        {
+            std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
+
+            // Data source
+            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_Data.m_VendorMetrics;
+
+            bool performanceQueryResultsFiltered = false;
+
+            // Find the first command buffer that matches the filter.
+            // TODO: Aggregation.
+            for( const auto& submitBatch : m_Data.m_Submits )
+            {
+                for( const auto& submit : submitBatch.m_Submits )
+                {
+                    for( const auto& commandBuffer : submit.m_CommandBuffers )
+                    {
+                        if( (performanceQueryResultsFiltered == false) &&
+                            (commandBuffer.m_Handle != VK_NULL_HANDLE) &&
+                            (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
+                        {
+                            // Use the data from this command buffer.
+                            pVendorMetrics = &commandBuffer.m_PerformanceQueryResults;
+                            performanceQueryResultsFiltered = true;
+                        }
+
+                        uniqueCommandBuffers.insert( commandBuffer.m_Handle );
+                    }
+                }
+            }
+
+            // Show a combo box that allows the user to select the filter the profiled range.
+            ImGui::TextUnformatted( Lang::PerformanceCountersRange );
+            ImGui::SameLine( 100.f );
+            if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
+            {
+                if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+                {
+                    // Selection changed.
+                    m_PerformanceQueryCommandBufferFilterName = "Frame";
+                }
+
+                // Enumerate command buffers.
+                for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
+                {
+                    std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
+
+                    if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
+                    {
+                        // Selection changed.
+                        m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            // Show a combo box that allows the user to change the active metrics set.
+            ImGui::TextUnformatted( Lang::PerformanceCountersSet );
+            ImGui::SameLine( 100.f );
+            if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
+            {
+                // Enumerate metrics sets.
+                for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
+                {
+                    if( m_VendorMetricsSetVisibility[ metricsSetIndex ] )
+                    {
+                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
+
+                        if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
+                        {
+                            // Notify the profiler.
+                            if( vkSetProfilerPerformanceMetricsSetEXT( m_pDevice->Handle, metricsSetIndex ) == VK_SUCCESS )
+                            {
+                                // Refresh the performance metric properties.
+                                m_ActiveMetricsSetIndex = metricsSetIndex;
+                            }
+                        }
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            // Show a search box for filtering metrics sets to find specific metrics.
+            ImGui::TextUnformatted( Lang::PerformanceCountersFilter );
+            ImGui::SameLine( 100.f );
+            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype(m_VendorMetricFilter)> ) )
+            {
+                try
+                {
+                    // Text changed, construct a regex from the string and find the matching metrics sets.
+                    std::regex regexFilter( m_VendorMetricFilter );
+
+                    // Enumerate only sets that match the query.
+                    for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
+                    {
+                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
+
+                        // Match by metrics set name.
+                        if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
+                        {
+                            m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
+                            continue;
+                        }
+
+                        m_VendorMetricsSetVisibility[ metricsSetIndex ] = false;
+
+                        // Match by metric name.
+                        for( const auto& metric : metricsSet.m_Metrics )
+                        {
+                            if( std::regex_search( metric.shortName, regexFilter ) )
+                            {
+                                m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch( ... )
+                {
+                    // Regex compilation failed, don't change the visibility of the sets.
+                }
+            }
+
+            if( pVendorMetrics->empty() )
+            {
+                // Vendor metrics not available.
+                ImGui::TextUnformatted( Lang::PerformanceCountersNotAvailableForCommandBuffer );
+            }
+
+            const auto& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
+            if( pVendorMetrics->size() == activeMetricsSet.m_Metrics.size() )
+            {
+                const auto& vendorMetrics = *pVendorMetrics;
+
+                ImGui::BeginTable( "Performance counters table",
+                    /* columns_count */ 3,
+                    ImGuiTableFlags_NoClip |
+                    (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
+
+                // Headers
+                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableHeadersRow();
+
+                for( uint32_t i = 0; i < vendorMetrics.size(); ++i )
+                {
+                    const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[ i ];
+                    const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = activeMetricsSet.m_Metrics[ i ];
+
+                    ImGui::TableNextColumn();
+                    {
+                        ImGui::Text( "%s", metricProperties.shortName );
+
+                        if( ImGui::IsItemHovered() &&
+                            metricProperties.description[ 0 ] )
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::PushTextWrapPos( 350.f );
+                            ImGui::TextUnformatted( metricProperties.description );
+                            ImGui::PopTextWrapPos();
+                            ImGui::EndTooltip();
+                        }
+                    }
+
+                    ImGui::TableNextColumn();
+                    {
+                        const float columnWidth = ImGuiX::TableGetColumnWidth();
+                        switch( metricProperties.storage )
+                        {
+                        case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
+                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
+                            break;
+
+                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                            ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
+                            break;
+
+                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                            ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
+                            break;
+                        }
+                    }
+
+                    ImGui::TableNextColumn();
+                    {
+                        const char* pUnitString = "???";
+
+                        assert( metricProperties.unit < 11 );
+                        static const char* const ppUnitString[ 11 ] =
+                        {
+                            "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
+                            "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
+                            "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
+                            "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
+                            "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
+                            "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
+                            "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
+                            "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
+                            "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
+                            "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
+                            "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
+                        };
+
+                        if( metricProperties.unit < 11 )
+                        {
+                            pUnitString = ppUnitString[ metricProperties.unit ];
+                        }
+
+                        ImGui::TextUnformatted( pUnitString );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+        }
+        else
+        {
+            ImGui::TextUnformatted( Lang::PerformanceCountesrNotAvailable );
+        }
     }
 
     /***********************************************************************************\
@@ -1861,7 +1990,7 @@ namespace Profiler
     {
         // Set interface scaling.
         float interfaceScale = ImGui::GetIO().FontGlobalScale;
-        if( ImGui::InputFloat( "Interface scale", &interfaceScale ) )
+        if( ImGui::InputFloat( Lang::InterfaceScale, &interfaceScale ) )
         {
             ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
         }
@@ -1877,7 +2006,7 @@ namespace Profiler
             };
 
             int samplingModeSelectedOption = static_cast<int>(m_SamplingMode);
-            if( ImGui::Combo( "Sampling mode", &samplingModeSelectedOption, samplingGroupOptions, 4 ) )
+            if( ImGui::Combo( Lang::SamplingMode, &samplingModeSelectedOption, samplingGroupOptions, 4 ) )
             {
                 assert( false );
             }
@@ -2264,6 +2393,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SaveTrace
+
+    Description:
+        Saves current frame trace to a file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SaveTrace()
+    {
+        DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
+        DeviceProfilerTraceSerializationResult result = serializer.Serialize( m_Data );
+
+        m_SerializationSucceeded = result.m_Succeeded;
+        m_SerializationMessage = result.m_Message;
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DrawTraceSerializationOutputWindow
 
     Description:
@@ -2300,6 +2452,8 @@ namespace Profiler
                     ImGuiWindowFlags_NoResize |
                     ImGuiWindowFlags_NoTitleBar |
                     ImGuiWindowFlags_NoCollapse |
+                    ImGuiWindowFlags_NoDocking |
+                    ImGuiWindowFlags_NoFocusOnAppearing |
                     ImGuiWindowFlags_NoSavedSettings |
                     ImGuiWindowFlags_AlwaysAutoResize );
 
