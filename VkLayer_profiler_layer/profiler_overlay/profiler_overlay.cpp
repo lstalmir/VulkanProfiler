@@ -140,12 +140,12 @@ namespace Profiler
         , m_pStringSerializer( nullptr )
         , m_MainDockSpaceId( 0 )
         , m_PerformanceTabDockSpaceId( 0 )
-        , m_PerformanceWindowState{ true, true }
-        , m_TopPipelinesWindowState{ true, true }
-        , m_PerformanceCountersWindowState{ true, true }
-        , m_MemoryWindowState{ true, true }
-        , m_StatisticsWindowState{ true, true }
-        , m_SettingsWindowState{ true, true }
+        , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true}
+        , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true}
+        , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true}
+        , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true}
+        , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true}
+        , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true}
     {
     }
 
@@ -238,6 +238,9 @@ namespace Profiler
             m_pImGuiContext = ImGui::CreateContext();
 
             ImGui::SetCurrentContext( m_pImGuiContext );
+
+            // Register settings handler to the new context
+            m_Settings.RegisterHandler();
 
             ImGuiIO& io = ImGui::GetIO();
             io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
@@ -837,12 +840,12 @@ namespace Profiler
 
             if( ImGui::BeginMenu( Lang::WindowMenu ) )
             {
-                ImGui::MenuItem( Lang::PerformanceMenuItem, nullptr, &m_PerformanceWindowState.Open);
-                ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, &m_TopPipelinesWindowState.Open);
-                ImGui::MenuItem( Lang::PerformanceCountersMenuItem, nullptr, &m_PerformanceCountersWindowState.Open);
-                ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, &m_MemoryWindowState.Open);
-                ImGui::MenuItem( Lang::StatisticsMenuItem, nullptr, &m_StatisticsWindowState.Open);
-                ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, &m_SettingsWindowState.Open);
+                ImGui::MenuItem( Lang::PerformanceMenuItem, nullptr, m_PerformanceWindowState.pOpen );
+                ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, m_TopPipelinesWindowState.pOpen );
+                ImGui::MenuItem( Lang::PerformanceCountersMenuItem, nullptr, m_PerformanceCountersWindowState.pOpen );
+                ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, m_MemoryWindowState.pOpen );
+                ImGui::MenuItem( Lang::StatisticsMenuItem, nullptr, m_StatisticsWindowState.pOpen );
+                ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, m_SettingsWindowState.pOpen );
                 ImGui::EndMenu();
             }
             ImGui::EndMenuBar();
@@ -884,7 +887,7 @@ namespace Profiler
         auto BeginDockingWindow = [&]( const char* pTitle, int dockSpaceId, WindowState& state )
             {
                 isExpanded = false;
-                if( isOpen = state.Open )
+                if( isOpen = (!state.pOpen || *state.pOpen) )
                 {
                     if( !state.Docked )
                     {
@@ -896,7 +899,7 @@ namespace Profiler
 
                     ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
 
-                    isExpanded = ImGui::Begin( pTitle, &state.Open );
+                    isExpanded = ImGui::Begin( pTitle, state.pOpen );
                     state.Docked = ImGui::IsWindowDocked();
                 }
                 return isExpanded;

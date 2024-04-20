@@ -26,6 +26,7 @@
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include "profiler_overlay_settings.h"
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>
@@ -85,6 +86,8 @@ namespace Profiler
             VkPresentInfoKHR* pPresentInfo );
 
     private:
+        OverlaySettings m_Settings;
+
         VkDevice_Object* m_pDevice;
         VkQueue_Object* m_pGraphicsQueue;
         VkSwapchainKhr_Object* m_pSwapchain;
@@ -224,7 +227,7 @@ namespace Profiler
 
         struct WindowState
         {
-            bool Open;
+            bool* pOpen;
             bool Docked;
         };
 
