@@ -900,7 +900,11 @@ namespace Profiler
                     ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
 
                     isExpanded = ImGui::Begin( pTitle, state.pOpen );
-                    state.Docked = ImGui::IsWindowDocked();
+
+                    ImGuiID dockSpaceId = ImGuiX::GetWindowDockSpaceID();
+                    state.Docked = ImGui::IsWindowDocked() &&
+                        (dockSpaceId == m_MainDockSpaceId ||
+                            dockSpaceId == m_PerformanceTabDockSpaceId);
                 }
                 return isExpanded;
             };
