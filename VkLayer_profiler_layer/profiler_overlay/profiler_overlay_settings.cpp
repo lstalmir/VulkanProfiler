@@ -22,6 +22,7 @@
 #include "VkLayer_profiler_layer.generated.h"
 
 #include <string_view>
+#include <utility>
 
 #include <imgui_internal.h>
 
@@ -261,9 +262,9 @@ namespace Profiler
     void* OverlaySettings::ReadEntry( ImGuiContext*, ImGuiSettingsHandler* pHandler, const char* pEntry )
     {
         OverlaySettings* pSettings = static_cast<OverlaySettings*>(pHandler->UserData);
-        if( !strcmp( pEntry, "Settings" ) )
+        if( !strcmp( pEntry, m_scSettingsEntry ) )
         {
-            return m_scSettingsEntryTag;
+            return (void*)m_scSettingsEntry;
         }
         return nullptr;
     }
@@ -281,7 +282,7 @@ namespace Profiler
     {
         OverlaySettings* pSettings = static_cast<OverlaySettings*>(pHandler->UserData);
 
-        if( pTag == m_scSettingsEntryTag )
+        if( pTag == m_scSettingsEntry )
         {
             std::string_view line( pLine );
 
@@ -314,7 +315,7 @@ namespace Profiler
         OverlaySettings* pSettings = static_cast<OverlaySettings*>(pHandler->UserData);
 
         // Settings entry.
-        pOut->appendf( "[%s][Settings]\n", pHandler->TypeName );
+        pOut->appendf( "[%s][%s]\n", pHandler->TypeName, m_scSettingsEntry );
 
         Setting* pSetting = pSettings->m_pSettings;
         while( pSetting )

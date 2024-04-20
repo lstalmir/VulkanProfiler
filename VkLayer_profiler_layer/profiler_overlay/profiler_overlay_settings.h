@@ -38,7 +38,7 @@ namespace Profiler
     \***********************************************************************************/
     class OverlaySettings
     {
-        static constexpr void* m_scSettingsEntryTag = (void*)1;
+        inline static const char* m_scSettingsEntry = "Settings";
 
     public:
         OverlaySettings();
