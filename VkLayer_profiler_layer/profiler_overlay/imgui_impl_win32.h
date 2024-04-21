@@ -39,7 +39,7 @@ public:
 
 private:
     HWND m_AppWindow;
-    HHOOK m_GetMessageHook;
+    DWORD m_AppWindowThreadId;
     ImGuiContext* m_pImGuiContext;
     int m_RawMouseX;
     int m_RawMouseY;
