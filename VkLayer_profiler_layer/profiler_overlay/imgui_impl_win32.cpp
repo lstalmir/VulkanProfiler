@@ -450,8 +450,9 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
                     // Pass the message to ImGui backend.
                     ImGui_ImplWin32_WndProcHandler( translatedMsg.hwnd, translatedMsg.message, translatedMsg.wParam, translatedMsg.lParam );
 
-                    // Don't pass captured events to the application
-                    filterMessage |= io.WantCaptureMouse || io.WantCaptureKeyboard;
+                    // Don't pass captured keyboard and mouse events to the application.
+                    filterMessage |= (io.WantCaptureMouse && translatedMsg.message >= WM_MOUSEFIRST && translatedMsg.message <= WM_MOUSELAST) ||
+                                     (io.WantCaptureKeyboard && translatedMsg.message >= WM_KEYFIRST && translatedMsg.message <= WM_KEYLAST);
 
                     translatedMsgs.pop();
                 }
