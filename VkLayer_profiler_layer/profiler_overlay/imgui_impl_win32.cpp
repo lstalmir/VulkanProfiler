@@ -26,11 +26,20 @@
 
 #include "profiler/profiler_helpers.h"
 
+struct ImGui_ImplWin32_Context_Hook
+{
+    HHOOK Handle;
+    int   Refs;
+};
+
 typedef std::unordered_map<HWND, ImGui_ImplWin32_Context*> ImGui_ImplWin32_ContextMap;
+typedef std::unordered_map<DWORD, ImGui_ImplWin32_Context_Hook> ImGui_ImplWin32_ThreadHooksMap;
 
 static ImGui_ImplWin32_ContextMap g_pWin32Contexts;
 static ImGui_ImplWin32_Context*   g_pWin32CurrentContext;
 static ImGui_ImplWin32_Context*   g_pWin32CapturedContext;
+
+static ImGui_ImplWin32_ThreadHooksMap g_Win32ThreadHooks;
 
 namespace Profiler
 {
@@ -124,6 +133,25 @@ static BOOL ImGui_ImplWin32_Context_ReleaseCapture()
     return true;
 }
 
+// Helper functions for handling key messages.
+static constexpr WORD ImGui_ImplWin32_Context_GetVirtualKey( WPARAM wParam )
+{
+    return LOWORD( wParam );
+}
+
+static constexpr WORD ImGui_ImplWin32_Context_GetScanCode( LPARAM lParam )
+{
+    WORD keyFlags = HIWORD( lParam );
+    WORD scanCode = LOBYTE( keyFlags );
+
+    if( (keyFlags & KF_EXTENDED) != 0 )
+    {
+        scanCode = MAKEWORD( scanCode, 0xe0 );
+    }
+
+    return scanCode;
+}
+
 // Defined in imgui_impl_win32.cpp
 LRESULT ImGui_ImplWin32_WndProcHandler( HWND, UINT, WPARAM, LPARAM );
 
@@ -138,7 +166,7 @@ Description:
 \***********************************************************************************/
 ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
     : m_AppWindow( hWnd )
-    , m_GetMessageHook( nullptr )
+    , m_AppWindowThreadId( 0 )
     , m_pImGuiContext( nullptr )
     , m_RawMouseX( 0 )
     , m_RawMouseY( 0 )
@@ -162,19 +190,25 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
         static_cast<HINSTANCE>( Profiler::ProfilerPlatformFunctions::GetLibraryInstanceHandle() );
 
     // Get thread owning the window.
-    DWORD dwWindowThreadId = GetWindowThreadProcessId( hWnd, nullptr );
+    m_AppWindowThreadId = GetWindowThreadProcessId( hWnd, nullptr );
 
-    // Register a window hook on GetMessage/PeekMessage function.
-    m_GetMessageHook = SetWindowsHookEx(
-        WH_GETMESSAGE,
-        ImGui_ImplWin32_Context::GetMessageHook,
-        hProfilerDllInstance,
-        dwWindowThreadId );
+    auto& hook = g_Win32ThreadHooks[ m_AppWindowThreadId ];
+    hook.Refs++;
 
-    if( !m_GetMessageHook )
+    if( !hook.Handle )
     {
-        // Failed to register hook on GetMessage.
-        throw;
+        // Register a window hook on GetMessage/PeekMessage function.
+        hook.Handle = SetWindowsHookEx(
+            WH_GETMESSAGE,
+            ImGui_ImplWin32_Context::GetMessageHook,
+            hProfilerDllInstance,
+            m_AppWindowThreadId );
+
+        if( !hook.Handle )
+        {
+            // Failed to register hook on GetMessage.
+            throw;
+        }
     }
 }
 catch (...)
@@ -198,9 +232,12 @@ ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
     std::scoped_lock lk( Profiler::s_ImGuiMutex );
 
     // Unhook from the window
-    if( m_GetMessageHook )
+    auto& hook = g_Win32ThreadHooks[ m_AppWindowThreadId ];
+    hook.Refs--;
+
+    if( !hook.Refs && hook.Handle )
     {
-        UnhookWindowsHookEx( m_GetMessageHook );
+        UnhookWindowsHookEx( hook.Handle );
     }
 
     // Uninitialize the backend
@@ -299,12 +336,36 @@ LRESULT CALLBACK ImGui_ImplWin32_Context::GetMessageHook( int nCode, WPARAM wPar
 
                 ImGuiIO& io = ImGui::GetIO();
 
-                // Translate the message so that character input is handled correctly
                 std::queue<MSG> translatedMsgs;
                 translatedMsgs.push( msg );
 
+                // Translate the message so that character input is handled correctly
+                if( msg.message == WM_KEYDOWN )
+                {
+                    WORD virtualKey = ImGui_ImplWin32_Context_GetVirtualKey( msg.wParam );
+                    WORD scanCode = ImGui_ImplWin32_Context_GetScanCode( msg.lParam );
+
+                    BYTE keyboardState[ 256 ];
+                    if( GetKeyboardState( keyboardState ) )
+                    {
+                        WCHAR chars[ 8 ];
+                        int charCount = ToUnicode( virtualKey, scanCode, keyboardState, chars, ARRAYSIZE( chars ), 0 );
+                        if( charCount < 0 )
+                        {
+                            translatedMsgs.push( { msg.hwnd, WM_DEADCHAR, virtualKey, msg.lParam, msg.time, msg.pt } );
+                        }
+
+                        MSG charMsg = { msg.hwnd, WM_CHAR, 0, msg.lParam, msg.time, msg.pt };
+                        for( int i = 0; i < charCount; ++i )
+                        {
+                            charMsg.wParam = static_cast<WPARAM>(chars[ i ]);
+                            translatedMsgs.push( charMsg );
+                        }
+                    }
+                }
+
                 // Capture raw input events
-                if( translatedMsgs.front().message == WM_INPUT )
+                if( msg.message == WM_INPUT )
                 {
                     MSG inputMsg = translatedMsgs.front();
                     translatedMsgs.pop();
