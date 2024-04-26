@@ -112,6 +112,8 @@ namespace Profiler
         std::vector<VkFence> m_CommandFences;
         std::vector<VkSemaphore> m_CommandSemaphores;
 
+        std::string m_Title;
+
         uint32_t m_ActiveMetricsSetIndex;
 
         struct VendorMetricsSet
