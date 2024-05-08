@@ -32,11 +32,21 @@ namespace Profiler
         inline static constexpr char Pause[] = u8"Wstrzymaj";
         inline static constexpr char Save[] = u8"Zapisz dane";
 
+        // Menu
+        inline static constexpr char FileMenu[] = u8"Plik" PROFILER_MENU;
+        inline static constexpr char WindowMenu[] = u8"Okno" PROFILER_MENU;
+        inline static constexpr char PerformanceMenuItem[] = u8"Wydajność" PROFILER_MENU_ITEM;
+        inline static constexpr char PerformanceCountersMenuItem[] = u8"Liczniki wydajności" PROFILER_MENU_ITEM;
+        inline static constexpr char TopPipelinesMenuItem[] = u8"Najdłuższe stany potoku" PROFILER_MENU_ITEM;
+        inline static constexpr char MemoryMenuItem[] = u8"Pamięć" PROFILER_MENU_ITEM;
+        inline static constexpr char StatisticsMenuItem[] = u8"Statystyki" PROFILER_MENU_ITEM;
+        inline static constexpr char SettingsMenuItem[] = u8"Ustawienia" PROFILER_MENU_ITEM;
+
         // Tabs
-        inline static constexpr char Performance[] = u8"Wydajność";
-        inline static constexpr char Memory[] = u8"Pamięć";
-        inline static constexpr char Statistics[] = u8"Statystyki";
-        inline static constexpr char Settings[] = u8"Ustawienia";
+        inline static constexpr char Performance[] = u8"Wydajność###Performance";
+        inline static constexpr char Memory[] = u8"Pamięć###Memory";
+        inline static constexpr char Statistics[] = u8"Statystyki###Statistics";
+        inline static constexpr char Settings[] = u8"Ustawienia###Settings";
 
         // Performance tab
         inline static constexpr char GPUTime[] = u8"Czas GPU";
@@ -46,11 +56,11 @@ namespace Profiler
         inline static constexpr char Drawcalls[] = u8"Komendy";
         inline static constexpr char HistogramGroups[] = u8"Grupowanie histogramu";
         inline static constexpr char GPUCycles[] = u8"Cykle GPU";
-        inline static constexpr char TopPipelines[] = u8"Najdłuższe stany potoku";
-        inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności";
+        inline static constexpr char TopPipelines[] = u8"Najdłuższe stany potoku###Top pipelines";
+        inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności###Performance counters";
         inline static constexpr char Metric[] = u8"Metryka";
         inline static constexpr char Frame[] = u8"Ramka";
-        inline static constexpr char FrameBrowser[] = u8"Przeglądarka ramki";
+        inline static constexpr char FrameBrowser[] = u8"Przeglądarka ramki###Frame browser";
         inline static constexpr char SubmissionOrder[] = u8"Kolejność wykonania";
         inline static constexpr char DurationDescending[] = u8"Malejący czas wykonania";
         inline static constexpr char DurationAscending[] = u8"Rosnący czas wykonania";
@@ -59,6 +69,12 @@ namespace Profiler
         inline static constexpr char Container[] = u8"Kontener";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
+
+        inline static constexpr char PerformanceCountersFilter[] = u8"Filtr";
+        inline static constexpr char PerformanceCountersRange[] = u8"Zakres";
+        inline static constexpr char PerformanceCountersSet[] = u8"Zbiór metryk";
+        inline static constexpr char PerformanceCountesrNotAvailable[] = u8"Liczniki wydajności nie są dostępne.";
+        inline static constexpr char PerformanceCountersNotAvailableForCommandBuffer[] = u8"Liczniki wydajności nie są dostępne dla wybranego bufora komend.";
 
         // Memory tab
         inline static constexpr char MemoryHeapUsage[] = u8"Wykorzystanie stert pamięci";
@@ -88,7 +104,9 @@ namespace Profiler
         // Settings tab
         inline static constexpr char Present[] = u8"Co ramkę";
         inline static constexpr char Submit[] = u8"Co przesłanie komend";
-        inline static constexpr char SyncMode[] = u8"Moment synchronizacji";
+        inline static constexpr char SamplingMode[] = u8"Częstotliwość próbkowania";
+        inline static constexpr char SyncMode[] = u8"Częstotliwość synchronizacji";
+        inline static constexpr char InterfaceScale[] = u8"Skala interfejsu";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
         inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
         inline static constexpr char TimeUnit[] = u8"Jednostka czasu";

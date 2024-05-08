@@ -21,6 +21,9 @@
 #include "profiler_overlay_settings.h"
 #include "VkLayer_profiler_layer.generated.h"
 
+#include <fstream>
+#include <filesystem>
+#include <regex>
 #include <string_view>
 #include <utility>
 
@@ -180,6 +183,57 @@ namespace Profiler
         handler.WriteAllFn = WriteAll;
         handler.UserData = this;
         ImGui::AddSettingsHandler( &handler );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Validate
+
+    Description:
+        Checks if the saved settings file is compatible with the current version of
+        the layer.
+
+    \***********************************************************************************/
+    void OverlaySettings::Validate( const char* pFileName )
+    {
+        std::ifstream ini( pFileName );
+
+        if( ini.is_open() )
+        {
+            std::string line;
+            std::regex windowSectionRegex( R"(\[Window\]\[(.+)\])" );
+
+            bool isValid = true;
+            while( std::getline( ini, line ) )
+            {
+                std::smatch sm;
+                if( std::regex_match( line, sm, windowSectionRegex ) )
+                {
+                    std::string name = sm.str( 1 );
+                    if( name == "Debug##Default" )
+                    {
+                        continue;
+                    }
+
+                    std::string prefix = name.substr( 0, 3 );
+                    if( prefix != "###" )
+                    {
+                        // All windows should use '###' operator for identification.
+                        isValid = false;
+                        break;
+                    }
+                }
+            }
+
+            ini.close();
+
+            if( !isValid )
+            {
+                // File is not valid, remove it and use default settings.
+                std::filesystem::remove( pFileName );
+            }
+        }
     }
 
     /***********************************************************************************\

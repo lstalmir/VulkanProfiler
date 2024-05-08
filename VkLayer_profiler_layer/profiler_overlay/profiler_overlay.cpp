@@ -260,6 +260,8 @@ namespace Profiler
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
 
+            m_Settings.Validate( io.IniFilename );
+
             InitializeImGuiDefaultFont();
             InitializeImGuiStyle();
         }

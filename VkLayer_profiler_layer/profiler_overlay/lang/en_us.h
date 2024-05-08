@@ -46,10 +46,10 @@ namespace Profiler
         inline static constexpr char SettingsMenuItem[] = "Settings" PROFILER_MENU_ITEM;
 
         // Tabs
-        inline static constexpr char Performance[] = "Performance";
-        inline static constexpr char Memory[] = "Memory";
-        inline static constexpr char Statistics[] = "Statistics";
-        inline static constexpr char Settings[] = "Settings";
+        inline static constexpr char Performance[] = "Performance###Performance";
+        inline static constexpr char Memory[] = "Memory###Memory";
+        inline static constexpr char Statistics[] = "Statistics###Statistics";
+        inline static constexpr char Settings[] = "Settings###Settings";
 
         // Performance tab
         inline static constexpr char GPUTime[] = "GPU Time";
@@ -60,11 +60,11 @@ namespace Profiler
         inline static constexpr char Drawcalls[] = "Drawcalls";
         inline static constexpr char HistogramGroups[] = "Histogram groups";
         inline static constexpr char GPUCycles[] = "GPU Cycles";
-        inline static constexpr char TopPipelines[] = "Top pipelines";
-        inline static constexpr char PerformanceCounters[] = "Performance counters";
+        inline static constexpr char TopPipelines[] = "Top pipelines###Top pipelines";
+        inline static constexpr char PerformanceCounters[] = "Performance counters###Performance counters";
         inline static constexpr char Metric[] = "Metric";
         inline static constexpr char Frame[] = "Frame";
-        inline static constexpr char FrameBrowser[] = "Frame browser";
+        inline static constexpr char FrameBrowser[] = "Frame browser###Frame browser";
         inline static constexpr char SubmissionOrder[] = "Submission order";
         inline static constexpr char DurationDescending[] = "Duration descending";
         inline static constexpr char DurationAscending[] = "Duration ascending";
