@@ -20,18 +20,36 @@
 
 #pragma once
 #include "profiler_helpers.h"
+#include <algorithm>
 #include <array>
+#include <vector>
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 #include <spirv/unified1/spirv.h>
 
 namespace Profiler
 {
+    struct ProfilerShaderModule
+    {
+        uint32_t m_Hash = 0;
+        std::vector<uint32_t> m_Bytecode = {};
+        std::vector<SpvCapability> m_Capabilities = {};
+    };
+
+    struct ProfilerShader
+    {
+        uint32_t m_Hash = 0;
+        uint32_t m_Index = 0;
+        VkShaderStageFlagBits m_Stage = {};
+        std::string m_EntryPoint = {};
+        std::shared_ptr<ProfilerShaderModule> m_pShaderModule = nullptr;
+    };
+
     struct ProfilerShaderTuple
     {
         uint32_t m_Hash = 0;
 
-        BitsetArray<VkShaderStageFlagBits, uint32_t, 32> m_Stages = {};
+        std::vector<ProfilerShader> m_Shaders = {};
 
         inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
         {
@@ -42,12 +60,32 @@ namespace Profiler
         {
             return !operator==( rh );
         }
-    };
 
-    struct ProfilerShaderModule
-    {
-        uint32_t                   m_Hash = 0;
-        std::vector<SpvCapability> m_Capabilities = {};
+        inline const ProfilerShader* GetFirstShaderAtStage( VkShaderStageFlagBits stage ) const
+        {
+            const size_t stageCount = m_Shaders.size();
+            for( size_t i = 0; i < stageCount; ++i )
+            {
+                if( m_Shaders[ i ].m_Stage == stage )
+                {
+                    return &m_Shaders[ i ];
+                }
+            }
+            return nullptr;
+        }
+
+        inline const ProfilerShader* GetShaderAtIndex( uint32_t index ) const
+        {
+            const size_t stageCount = m_Shaders.size();
+            for( size_t i = 0; i < stageCount; ++i )
+            {
+                if( m_Shaders[ i ].m_Index == index )
+                {
+                    return &m_Shaders[ i ];
+                }
+            }
+            return nullptr;
+        }
     };
 }
 

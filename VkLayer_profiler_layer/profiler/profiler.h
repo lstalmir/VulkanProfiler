@@ -147,7 +147,7 @@ namespace Profiler
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;
 
-        ConcurrentMap<VkShaderModule, ProfilerShaderModule> m_ShaderModules;
+        ConcurrentMap<VkShaderModule, std::shared_ptr<ProfilerShaderModule>> m_pShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
 
         ConcurrentMap<VkDeferredOperationKHR, DeferredOperationCallback> m_DeferredOperationCallbacks;
@@ -170,7 +170,7 @@ namespace Profiler
         void ReleasePerformanceConfigurationINTEL();
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
-        
+
         void SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages );
         void SetDefaultObjectName( const DeviceProfilerPipeline& pipeline );
 
