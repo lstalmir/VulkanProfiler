@@ -46,7 +46,7 @@ static constexpr const char* g_scDefaultFonts[] = {
 
 static constexpr const char* g_scCodeFonts[] = {
 #ifdef WIN32
-    "consolas.ttf",
+    "consola.ttf",
     "cour.ttf",
 #endif
 #ifdef __linux__
