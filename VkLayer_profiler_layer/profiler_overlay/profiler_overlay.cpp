@@ -177,11 +177,9 @@ namespace Profiler
         m_pSwapchain = &swapchain;
 
         // Set main window title
-        m_Title = fmt::format( "{0} - {1} (Vulkan {2}.{3})###VkProfiler",
+        m_Title = fmt::format( "{0} - {1}###VkProfiler",
             Lang::WindowName,
-            m_pDevice->pPhysicalDevice->Properties.deviceName,
-            VK_API_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
-            VK_API_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
+            m_pDevice->pPhysicalDevice->Properties.deviceName );
 
         // Create descriptor pool
         if( result == VK_SUCCESS )
@@ -874,6 +872,10 @@ namespace Profiler
         // Keep results
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
+
+        ImGuiX::TextAlignRight( "Vulkan %u.%u",
+            VK_API_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
+            VK_API_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
 
         if( !m_Pause )
         {
