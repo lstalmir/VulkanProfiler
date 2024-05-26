@@ -21,6 +21,11 @@
 #include "profiler_overlay_fonts.h"
 #include "profiler/profiler_helpers.h"
 
+#include <filesystem>
+#include <fstream>
+#include <vector>
+#include <string>
+
 #include <imgui.h>
 
 #ifdef WIN32
