@@ -25,3 +25,9 @@
 [submodule "External/Vulkan-Utility-Libraries"]
 	path = External/Vulkan-Utility-Libraries
 	url = https://github.com/KhronosGroup/Vulkan-Utility-Libraries
+[submodule "External/SPIRV-Tools"]
+	path = External/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools
+[submodule "External/ImGuiColorTextEdit"]
+	path = External/ImGuiColorTextEdit
+	url = https://github.com/BalazsJako/ImGuiColorTextEdit
