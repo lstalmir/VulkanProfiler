@@ -22,6 +22,8 @@
 #include "imgui_window.h"
 #include <xcb/xcb.h>
 
+struct ImGuiContext;
+
 class ImGui_ImplXcb_Context : public ImGui_Window_Context
 {
 public:
@@ -34,11 +36,10 @@ public:
     void UpdateWindowRect() override;
 
 private:
+    ImGuiContext* m_pImGuiContext;
     xcb_connection_t* m_Connection;
     xcb_window_t m_AppWindow;
     xcb_window_t m_InputWindow;
-
-    void InitError();
 
     xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
 
