@@ -29,6 +29,8 @@
 #include <fstream>
 #include <regex>
 
+#include <fmt/format.h>
+
 #include "utils/lockable_unordered_map.h"
 
 #include "imgui_widgets/imgui_breakdown_ex.h"
@@ -108,6 +110,8 @@ namespace Profiler
         , m_CommandBuffers()
         , m_CommandFences()
         , m_CommandSemaphores()
+        , m_Title( Lang::WindowName )
+        , m_ActiveMetricsSetIndex( UINT32_MAX )
         , m_VendorMetricsSets()
         , m_VendorMetricFilter()
         , m_TimestampPeriod( 0 )
@@ -128,6 +132,7 @@ namespace Profiler
         , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
         , m_PerformanceQueryCommandBufferFilterName( "Frame" )
         , m_SerializationSucceeded( false )
+        , m_SerializationWindowVisible( false )
         , m_SerializationMessage()
         , m_SerializationOutputWindowSize( { 0, 0 } )
         , m_SerializationOutputWindowDuration( std::chrono::seconds( 4 ) )
@@ -170,6 +175,11 @@ namespace Profiler
         m_pDevice = &device;
         m_pGraphicsQueue = &graphicsQueue;
         m_pSwapchain = &swapchain;
+
+        // Set main window title
+        m_Title = fmt::format( "{0} - {1}###VkProfiler",
+            Lang::WindowName,
+            m_pDevice->pPhysicalDevice->Properties.deviceName );
 
         // Create descriptor pool
         if( result == VK_SUCCESS )
@@ -247,6 +257,8 @@ namespace Profiler
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
+
+            m_Settings.Validate( io.IniFilename );
 
             InitializeImGuiDefaultFont();
             InitializeImGuiStyle();
@@ -822,7 +834,7 @@ namespace Profiler
         m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
-        ImGui::Begin( Lang::WindowName, nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
+        ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
         m_pImGuiWindowContext->UpdateWindowRect();
@@ -851,13 +863,6 @@ namespace Profiler
             ImGui::EndMenuBar();
         }
 
-        // GPU properties
-        ImGui::Text( "%s: %s", Lang::Device, m_pDevice->pPhysicalDevice->Properties.deviceName );
-
-        ImGuiX::TextAlignRight( "Vulkan %u.%u",
-            VK_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
-            VK_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
-
         // Save results to file
         if( ImGui::Button( Lang::Save ) )
         {
@@ -868,11 +873,18 @@ namespace Profiler
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
+        ImGuiX::TextAlignRight( "Vulkan %u.%u",
+            VK_API_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
+            VK_API_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
+
         if( !m_Pause )
         {
             // Update data
             m_Data = data;
         }
+
+        // Add padding
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
         m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId" );
