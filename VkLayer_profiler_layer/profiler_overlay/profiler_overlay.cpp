@@ -51,9 +51,6 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "imgui_impl_win32.h"
 #endif
-#ifdef WIN32
-#include <ShlObj.h> // SHGetKnownFolderPath
-#endif
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 #include <wayland-client.h>
@@ -367,6 +364,7 @@ namespace Profiler
 
         if( m_pImGuiContext )
         {
+            std::scoped_lock imGuiLock( s_ImGuiMutex );
             ImGui::DestroyContext( m_pImGuiContext );
             m_pImGuiContext = nullptr;
         }
@@ -834,6 +832,8 @@ namespace Profiler
         m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
+        ImGui::PushFont( m_Fonts.GetDefaultFont() );
+
         ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
@@ -1001,6 +1001,7 @@ namespace Profiler
             pForegroundDrawList->AddCircleFilled( ImGui::GetIO().MousePos, 2.f, 0xffffffff, 4 );
         }
 
+        ImGui::PopFont();
         ImGui::Render();
     }
 
@@ -1095,119 +1096,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::InitializeImGuiDefaultFont()
     {
-        ImGuiIO& io = ImGui::GetIO();
-
-        // Absolute path to the selected font
-        std::filesystem::path fontPath;
-
-#ifdef WIN32
-        {
-            // Locate system fonts directory
-            std::filesystem::path fontsPath;
-
-            PWSTR pFontsDirectoryPath = nullptr;
-
-            if( SUCCEEDED( SHGetKnownFolderPath( FOLDERID_Fonts, KF_FLAG_DEFAULT, nullptr, &pFontsDirectoryPath ) ) )
-            {
-                fontsPath = pFontsDirectoryPath;
-                CoTaskMemFree( pFontsDirectoryPath );
-            }
-
-            // List of fonts to use (in this order)
-            const char* fonts[] = {
-                "segoeui.ttf",
-                "tahoma.ttf" };
-
-            for( const char* font : fonts )
-            {
-                fontPath = fontsPath / font;
-                if( std::filesystem::exists( fontPath ) )
-                    break;
-                else fontPath = "";
-            }
-        }
-#endif
-#ifdef __linux__
-        {
-            // Linux distros use multiple font directories (or X server, TODO)
-            std::vector<std::filesystem::path> fontDirectories = {
-                "/usr/share/fonts",
-                "/usr/local/share/fonts",
-                "~/.fonts" };
-
-            // Some systems may have these directories specified in conf file
-            // https://stackoverflow.com/questions/3954223/platform-independent-way-to-get-font-directory
-            const char* fontConfigurationFiles[] = {
-                "/etc/fonts/fonts.conf",
-                "/etc/fonts/local.conf" };
-
-            std::vector<std::filesystem::path> configurationDirectories = {};
-
-            for( const char* fontConfigurationFile : fontConfigurationFiles )
-            {
-                if( std::filesystem::exists( fontConfigurationFile ) )
-                {
-                    // Try to open configuration file for reading
-                    std::ifstream conf( fontConfigurationFile );
-
-                    if( conf.is_open() )
-                    {
-                        std::string line;
-
-                        // conf is XML file, read line by line and find <dir> tag
-                        while( std::getline( conf, line ) )
-                        {
-                            const size_t dirTagOpen = line.find( "<dir>" );
-                            const size_t dirTagClose = line.find( "</dir>" );
-
-                            // TODO: tags can be in different lines
-                            if( (dirTagOpen != std::string::npos) && (dirTagClose != std::string::npos) )
-                            {
-                                configurationDirectories.push_back( line.substr( dirTagOpen + 5, dirTagClose - dirTagOpen - 5 ) );
-                            }
-                        }
-                    }
-                }
-            }
-
-            if( !configurationDirectories.empty() )
-            {
-                // Override predefined font directories
-                fontDirectories = configurationDirectories;
-            }
-
-            // List of fonts to use (in this order)
-            const char* fonts[] = {
-                "Ubuntu-R.ttf",
-                "LiberationSans-Regural.ttf",
-                "DejaVuSans.ttf" };
-
-            for( const char* font : fonts )
-            {
-                for( const std::filesystem::path& fontDirectory : fontDirectories )
-                {
-                    fontPath = ProfilerPlatformFunctions::FindFile( fontDirectory, font );
-                    if( !fontPath.empty() )
-                        break;
-                }
-                if( !fontPath.empty() )
-                    break;
-            }
-        }
-#endif
-
-        if( !fontPath.empty() )
-        {
-            // Include all glyphs in the font to support non-latin letters
-            const ImWchar range[] = { 0x20, 0xFFFF, 0 };
-
-            io.Fonts->AddFontFromFileTTF( fontPath.string().c_str(), 16.f, nullptr, range );
-        }
-
-        // Build atlas
-        unsigned char* tex_pixels = NULL;
-        int tex_w, tex_h;
-        io.Fonts->GetTexDataAsRGBA32( &tex_pixels, &tex_w, &tex_h );
+        m_Fonts.Initialize();
     }
 
     /***********************************************************************************\

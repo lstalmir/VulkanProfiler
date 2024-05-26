@@ -27,6 +27,7 @@
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include "profiler_overlay_settings.h"
+#include "profiler_overlay_fonts.h"
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>
@@ -97,6 +98,8 @@ namespace Profiler
         ImGuiContext* m_pImGuiContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
+
+        OverlayFonts m_Fonts;
 
         VkDescriptorPool m_DescriptorPool;
 
