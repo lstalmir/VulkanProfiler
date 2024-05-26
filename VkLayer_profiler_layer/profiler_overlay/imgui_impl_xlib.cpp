@@ -19,9 +19,15 @@
 // SOFTWARE.
 
 #include "imgui_impl_xlib.h"
+#include <mutex>
 #include <imgui.h>
 #include <stdlib.h>
 #include <X11/extensions/shape.h>
+
+namespace Profiler
+{
+    extern std::mutex s_ImGuiMutex;
+}
 
 /***********************************************************************************\
 
@@ -32,19 +38,22 @@ Description:
     Constructor.
 
 \***********************************************************************************/
-ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
-    : m_Display( nullptr )
+ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
+    : m_pImGuiContext( nullptr )
+    , m_Display( nullptr )
     , m_IM( None )
     , m_AppWindow( window )
     , m_InputWindow( None )
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     m_Display = XOpenDisplay( nullptr );
     if( !m_Display )
-        InitError();
+        throw;
 
     m_IM = XOpenIM( m_Display, nullptr, nullptr, nullptr );
     if( !m_IM )
-        InitError();
+        throw;
 
     XWindowAttributes windowAttributes;
     // TODO: error check
@@ -62,7 +71,7 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
         0, nullptr );
 
     if( !m_InputWindow )
-        InitError();
+        throw;
 
     // TODO: error check
     XMapWindow( m_Display, m_InputWindow );
@@ -80,7 +89,7 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
 
     // Start listening
     if( !XSelectInput( m_Display, m_InputWindow, inputEventMask ) )
-        InitError();
+        throw;
 
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
@@ -88,7 +97,15 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
     io.BackendPlatformName = "imgui_impl_xlib";
     io.BackendPlatformUserData = this;
 
+    m_pImGuiContext = ImGui::GetCurrentContext();
+
     // TODO: keyboard mapping to ImGui
+}
+catch (...)
+{
+    // Cleanup the partially initialized context.
+    ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context();
+    throw;
 }
 
 /***********************************************************************************\
@@ -102,6 +119,8 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     if( m_InputWindow ) XDestroyWindow( m_Display, m_InputWindow );
     m_InputWindow = None;
     m_AppWindow = None;
@@ -111,6 +130,15 @@ ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 
     if( m_Display ) XCloseDisplay( m_Display );
     m_Display = nullptr;
+
+    if( m_pImGuiContext )
+    {
+        ImGui::SetCurrentContext( m_pImGuiContext );
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags = 0;
+        io.BackendPlatformName = nullptr;
+        io.BackendPlatformUserData = nullptr;
+    }
 }
 
 /***********************************************************************************\
@@ -137,7 +165,11 @@ Description:
 \***********************************************************************************/
 void ImGui_ImplXlib_Context::NewFrame()
 {
-    if( !ImGui::GetCurrentContext() )
+    // Validate the current ImGui context.
+    ImGuiContext* pContext = ImGui::GetCurrentContext();
+    IM_ASSERT(pContext && "ImGui_ImplXlib_Context::NewFrame called when no ImGui context was set.");
+    IM_ASSERT(pContext == m_pImGuiContext && "ImGui_ImplXlib_Context::NewFrame called with different context than the one used for initialization.");
+    if( !pContext )
         return;
 
     ImGuiIO& io = ImGui::GetIO();
@@ -238,21 +270,6 @@ void ImGui_ImplXlib_Context::UpdateWindowRect()
         &inputRect, 1,
         ShapeSet,
         Unsorted );
-}
-
-/***********************************************************************************\
-
-Function:
-    InitError
-
-Description:
-    Cleanup from partially initialized state
-
-\***********************************************************************************/
-void ImGui_ImplXlib_Context::InitError()
-{
-    this->~ImGui_ImplXlib_Context();
-    throw;
 }
 
 /***********************************************************************************\
