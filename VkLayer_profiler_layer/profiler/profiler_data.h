@@ -709,16 +709,8 @@ namespace Profiler
         Contains data collected per-pipeline.
 
     \***********************************************************************************/
-    struct DeviceProfilerPipelineData
+    struct DeviceProfilerPipelineData : DeviceProfilerPipeline
     {
-        VkPipeline                                          m_Handle = {};
-        VkPipelineBindPoint                                 m_BindPoint = {};
-        ProfilerShaderTuple                                 m_ShaderTuple = {};
-        DeviceProfilerPipelineType                          m_Type = {};
-
-        bool                                                m_UsesRayQuery = false;
-        bool                                                m_UsesRayTracing = false;
-
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
@@ -726,12 +718,7 @@ namespace Profiler
         inline DeviceProfilerPipelineData() = default;
 
         inline DeviceProfilerPipelineData( const DeviceProfilerPipeline& pipeline )
-            : m_Handle( pipeline.m_Handle )
-            , m_BindPoint( pipeline.m_BindPoint )
-            , m_ShaderTuple( pipeline.m_ShaderTuple )
-            , m_Type( pipeline.m_Type )
-            , m_UsesRayQuery( pipeline.m_UsesRayQuery )
-            , m_UsesRayTracing( pipeline.m_UsesRayTracing )
+            : DeviceProfilerPipeline( pipeline )
         {
         }
 
