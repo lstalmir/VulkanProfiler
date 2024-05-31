@@ -24,6 +24,7 @@ project (profiler_overlay)
 
 set (headers
     "profiler_overlay.h"
+    "profiler_overlay_fonts.h"
     "profiler_overlay_settings.h"
     "profiler_overlay_shader_view.h"
     "lang/en_us.h"
@@ -32,6 +33,7 @@ set (headers
 
 set (sources
     "profiler_overlay.cpp"
+    "profiler_overlay_fonts.cpp"
     "profiler_overlay_settings.cpp"
     "profiler_overlay_shader_view.cpp"
     )

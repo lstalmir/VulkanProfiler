@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+// Copyright (c) 2024 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,28 +19,30 @@
 // SOFTWARE.
 
 #pragma once
-#include "imgui_window.h"
-#include <X11/Xlib.h>
 
-struct ImGuiContext;
+struct ImFont;
 
-class ImGui_ImplXlib_Context : public ImGui_Window_Context
+namespace Profiler
 {
-public:
-    ImGui_ImplXlib_Context( Window window );
-    ~ImGui_ImplXlib_Context();
+    /***********************************************************************************\
 
-    const char* GetName() const override;
+    Class:
+        OverlayFonts
 
-    void NewFrame() override;
-    void UpdateWindowRect() override;
+    Description:
+        Manages the fonts used by the overlay.
 
-private:
-    ImGuiContext* m_pImGuiContext;
-    Display* m_Display;
-    XIM m_IM;
-    Window m_AppWindow;
-    Window m_InputWindow;
+    \***********************************************************************************/
+    class OverlayFonts
+    {
+    public:
+        void Initialize();
 
-    void UpdateMousePos();
-};
+        ImFont* GetDefaultFont() const;
+        ImFont* GetCodeFont() const;
+
+    private:
+        ImFont* m_pDefaultFont = nullptr;
+        ImFont* m_pCodeFont = nullptr;
+    };
+}

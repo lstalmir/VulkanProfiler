@@ -21,8 +21,14 @@
 #include "imgui_impl_xcb.h"
 #include <imgui.h>
 #include <stdlib.h>
+#include <mutex>
 #include <unordered_set>
 #include <xcb/shape.h>
+
+namespace Profiler
+{
+    extern std::mutex s_ImGuiMutex;
+}
 
 /***********************************************************************************\
 
@@ -33,15 +39,18 @@ Description:
     Constructor.
 
 \***********************************************************************************/
-ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window )
-    : m_Connection( nullptr )
+ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
+    : m_pImGuiContext( nullptr )
+    , m_Connection( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( 0 )
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     // Connect to X server
     m_Connection = xcb_connect( nullptr, nullptr );
     if( xcb_connection_has_error( m_Connection ) )
-        InitError();
+        throw;
 
     m_InputWindow = xcb_generate_id( m_Connection );
 
@@ -75,6 +84,13 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window )
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xcb";
     io.BackendPlatformUserData = this;
+
+    m_pImGuiContext = ImGui::GetCurrentContext();
+}
+catch (...)
+{
+    ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context();
+    throw;
 }
 
 /***********************************************************************************\
@@ -88,12 +104,23 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     xcb_destroy_window( m_Connection, m_InputWindow );
     m_InputWindow = 0;
     m_AppWindow = 0;
 
     xcb_disconnect( m_Connection );
     m_Connection = nullptr;
+
+    if( m_pImGuiContext )
+    {
+        ImGui::SetCurrentContext( m_pImGuiContext );
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags = 0;
+        io.BackendPlatformName = nullptr;
+        io.BackendPlatformUserData = nullptr;
+    }
 }
 
 /***********************************************************************************\
@@ -119,7 +146,11 @@ Description:
 \***********************************************************************************/
 void ImGui_ImplXcb_Context::NewFrame()
 {
-    if( !ImGui::GetCurrentContext() )
+    // Validate the current ImGui context.
+    ImGuiContext* pContext = ImGui::GetCurrentContext();
+    IM_ASSERT(pContext && "ImGui_ImplXcb_Context::NewFrame called when no ImGui context was set.");
+    IM_ASSERT(pContext == m_pImGuiContext && "ImGui_ImplXcb_Context::NewFrame called with different context than the one used for initialization.");
+    if( !pContext )
         return;
 
     ImGuiIO& io = ImGui::GetIO();
@@ -231,20 +262,6 @@ void ImGui_ImplXcb_Context::UpdateWindowRect()
         m_InputWindow,
         0, 0,
         1, &inputRect );
-}
-
-/***********************************************************************************\
-
-Function:
-    InitError
-
-Description:
-
-\***********************************************************************************/
-void ImGui_ImplXcb_Context::InitError()
-{
-    this->~ImGui_ImplXcb_Context();
-    throw;
 }
 
 /***********************************************************************************\
