@@ -31,6 +31,7 @@ namespace Profiler
         : m_Fonts( fonts )
         , m_pTextEditor( nullptr )
         , m_pShaderRepresentations( 0 )
+        , m_CurrentTabIndex( -1 )
     {
         m_pTextEditor = std::make_unique<TextEditor>();
         m_pTextEditor->SetReadOnly( true );
@@ -101,9 +102,10 @@ namespace Profiler
         if( ImGui::BeginTabBar( "ShaderRepresentations", ImGuiTabBarFlags_None ) )
         {
             // Draw shader representations in tabs.
+            int tabIndex = 0;
             for( ShaderRepresentation* pShaderRepresentation : m_pShaderRepresentations )
             {
-                DrawShaderRepresentation( pShaderRepresentation );
+                DrawShaderRepresentation( tabIndex++, pShaderRepresentation );
             }
 
             ImGui::EndTabBar();
@@ -112,7 +114,7 @@ namespace Profiler
         ImGui::PopFont();
     }
 
-    void OverlayShaderView::DrawShaderRepresentation( ShaderRepresentation* pShaderRepresentation )
+    void OverlayShaderView::DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation )
     {
         if( ImGui::BeginTabItem( pShaderRepresentation->m_pName ) )
         {
@@ -124,10 +126,24 @@ namespace Profiler
                 return;
             }
 
+            // Update the text editor with the current tab.
+            if( m_CurrentTabIndex != tabIndex )
+            {
+                if( pShaderRepresentation->m_IsText )
+                {
+                    const char* pText = reinterpret_cast<const char*>(pShaderRepresentation->m_pData);
+
+                    // TODO: This creates a temporary copy of the shader representation.
+                    m_pTextEditor->SetText( std::string( pText, pText + pShaderRepresentation->m_DataSize ) );
+                }
+
+                m_CurrentTabIndex = tabIndex;
+            }
+
             // Print shader representation data.
             ImGui::PushFont( m_Fonts.GetCodeFont() );
 
-
+            m_pTextEditor->Render( "##ShaderRepresentationTextEdit" );
 
             ImGui::PopFont();
             ImGui::EndTabItem();

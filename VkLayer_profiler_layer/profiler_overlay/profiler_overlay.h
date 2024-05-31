@@ -28,6 +28,7 @@
 #include "profiler_helpers/profiler_time_helpers.h"
 #include "profiler_overlay_settings.h"
 #include "profiler_overlay_fonts.h"
+#include "profiler_overlay_shader_view.h"
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>
@@ -203,6 +204,12 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
 
+        // Cached inspector tab state.
+        DeviceProfilerPipeline m_InspectorPipeline;
+        OverlayShaderView m_InspectorShaderView;
+        std::vector<std::string> m_InspectorShaderStageNames;
+        size_t m_InspectorShaderStageIndex;
+
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
@@ -234,12 +241,14 @@ namespace Profiler
         {
             bool* pOpen;
             bool Docked;
+            bool Focus = false;
         };
 
         WindowState m_PerformanceWindowState;
         WindowState m_TopPipelinesWindowState;
         WindowState m_PerformanceCountersWindowState;
         WindowState m_MemoryWindowState;
+        WindowState m_InspectorWindowState;
         WindowState m_StatisticsWindowState;
         WindowState m_SettingsWindowState;
 
@@ -254,6 +263,7 @@ namespace Profiler
         void UpdateTopPipelinesTab();
         void UpdatePerformanceCountersTab();
         void UpdateMemoryTab();
+        void UpdateInspectorTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
 
@@ -270,6 +280,9 @@ namespace Profiler
         // Trace serialization helpers
         void SaveTrace();
         void DrawTraceSerializationOutputWindow();
+
+        // Inspector helpers
+        void Inspect( const DeviceProfilerPipeline& );
 
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );

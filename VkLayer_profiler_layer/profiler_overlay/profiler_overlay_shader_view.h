@@ -30,6 +30,15 @@ namespace Profiler
 {
     class OverlayFonts;
 
+    /***********************************************************************************\
+
+    Class:
+        OverlayShaderView
+
+    Description:
+        Handles shader representations rendering.
+
+    \***********************************************************************************/
     class OverlayShaderView
     {
     public:
@@ -54,9 +63,8 @@ namespace Profiler
 
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
-        int                                m_CurrentShaderRepresentation;
-        int                                m_SelectedShaderRepresentation;
+        int                                m_CurrentTabIndex;
 
-        void DrawShaderRepresentation( ShaderRepresentation* pShaderRepresentation );
+        void DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation );
     };
 }

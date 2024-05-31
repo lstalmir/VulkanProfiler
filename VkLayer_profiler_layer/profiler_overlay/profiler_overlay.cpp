@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "profiler_overlay.h"
+#include "profiler_overlay_shader_view.h"
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 
@@ -126,6 +127,10 @@ namespace Profiler
         , m_ScrollToSelectedFrameBrowserNode( false )
         , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
         , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
+        , m_InspectorPipeline()
+        , m_InspectorShaderView( m_Fonts )
+        , m_InspectorShaderStageNames( 0 )
+        , m_InspectorShaderStageIndex( 0 )
         , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
         , m_PerformanceQueryCommandBufferFilterName( "Frame" )
         , m_SerializationSucceeded( false )
@@ -146,6 +151,7 @@ namespace Profiler
         , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true}
         , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true}
         , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true}
+        , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true}
         , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true}
         , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true}
     {
@@ -856,6 +862,7 @@ namespace Profiler
                 ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, m_TopPipelinesWindowState.pOpen );
                 ImGui::MenuItem( Lang::PerformanceCountersMenuItem, nullptr, m_PerformanceCountersWindowState.pOpen );
                 ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, m_MemoryWindowState.pOpen );
+                ImGui::MenuItem( Lang::InspectorMenuItem, nullptr, m_InspectorWindowState.pOpen );
                 ImGui::MenuItem( Lang::StatisticsMenuItem, nullptr, m_StatisticsWindowState.pOpen );
                 ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, m_SettingsWindowState.pOpen );
                 ImGui::EndMenu();
@@ -909,6 +916,11 @@ namespace Profiler
                         numPushedColors = 3;
                     }
 
+                    if( state.Focus )
+                    {
+                        ImGui::SetNextWindowFocus();
+                    }
+
                     ImGui::SetNextWindowDockID( dockSpaceId, ImGuiCond_FirstUseEver );
 
                     isExpanded = ImGui::Begin( pTitle, state.pOpen );
@@ -917,6 +929,8 @@ namespace Profiler
                     state.Docked = ImGui::IsWindowDocked() &&
                         (dockSpaceId == m_MainDockSpaceId ||
                             dockSpaceId == m_PerformanceTabDockSpaceId);
+
+                    state.Focus = false;
                 }
                 return isExpanded;
             };
@@ -964,6 +978,12 @@ namespace Profiler
         if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryWindowState ) )
         {
             UpdateMemoryTab();
+        }
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::Inspector, m_MainDockSpaceId, m_InspectorWindowState ) )
+        {
+            UpdateInspectorTab();
         }
         EndDockingWindow();
 
@@ -1810,6 +1830,65 @@ namespace Profiler
                     memoryTypeDescriptorPointers.data() );
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateInspectorTab
+
+    Description:
+        Updates "Inspector" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateInspectorTab()
+    {
+        // Early out if no valid pipeline is selected.
+        if( !m_InspectorPipeline.m_Handle )
+        {
+            ImGui::TextUnformatted( "No pipeline selected for inspection." );
+            return;
+        }
+
+        // Enumerate shader stages in the inspected pipeline.
+        if( ImGui::BeginCombo( "##InspectorPipelineShaderStages", m_InspectorShaderStageNames[ m_InspectorShaderStageIndex ].c_str() ) )
+        {
+            const size_t stageCount = m_InspectorPipeline.m_ShaderTuple.m_Shaders.size();
+            for( size_t i = 0; i < stageCount; ++i )
+            {
+                ImGuiX::TSelectable( m_InspectorShaderStageNames[ i ].c_str(), m_InspectorShaderStageIndex, i );
+            }
+
+            ImGui::EndCombo();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Inspect
+
+    Description:
+        Sets the inspected pipeline and switches the view to the "Inspector" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::Inspect( const DeviceProfilerPipeline& pipeline )
+    {
+        m_InspectorPipeline = pipeline;
+
+        // Resolve inspected pipeline shader stage names.
+        m_InspectorShaderStageNames.clear();
+
+        for( const ProfilerShader& shader : m_InspectorPipeline.m_ShaderTuple.m_Shaders )
+        {
+            m_InspectorShaderStageNames.push_back( m_pStringSerializer->GetShaderName( shader ) );
+        }
+
+        m_InspectorShaderStageIndex = 0;
+
+        // Switch to the inspector tab.
+        *m_InspectorWindowState.pOpen = true;
+        m_InspectorWindowState.Focus = true;
     }
 
     /***********************************************************************************\
@@ -2730,6 +2809,16 @@ namespace Profiler
 
             inPipelineSubtree =
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
+
+            if( ImGui::BeginPopupContextItem() )
+            {
+                if( ImGui::MenuItem( Lang::Inspect, nullptr, nullptr ) )
+                {
+                    Inspect( pipeline );
+                }
+
+                ImGui::EndPopup();
+            }
         }
 
         if( m_ShowShaderCapabilities )
