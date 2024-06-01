@@ -310,6 +310,12 @@ namespace Profiler
             vkGetProfilerActivePerformanceMetricsSetIndexEXT( device.Handle, &m_ActiveMetricsSetIndex );
         }
 
+        // Initialize the disassembler in the shader view
+        if( result == VK_SUCCESS )
+        {
+            m_InspectorShaderView.SetTargetDevice( m_pDevice );
+        }
+
         // Initialize serializer
         if( result == VK_SUCCESS )
         {
@@ -1851,16 +1857,25 @@ namespace Profiler
         }
 
         // Enumerate shader stages in the inspected pipeline.
+        ImGui::PushItemWidth( -1 );
+
         if( ImGui::BeginCombo( "##InspectorPipelineShaderStages", m_InspectorShaderStageNames[ m_InspectorShaderStageIndex ].c_str() ) )
         {
             const size_t stageCount = m_InspectorPipeline.m_ShaderTuple.m_Shaders.size();
             for( size_t i = 0; i < stageCount; ++i )
             {
-                ImGuiX::TSelectable( m_InspectorShaderStageNames[ i ].c_str(), m_InspectorShaderStageIndex, i );
+                if( ImGuiX::TSelectable( m_InspectorShaderStageNames[ i ].c_str(), m_InspectorShaderStageIndex, i ) )
+                {
+                    // Select shader for inspection.
+                    InspectShaderStage( i );
+                }
             }
 
             ImGui::EndCombo();
         }
+
+        // Render the inspected shader view.
+        m_InspectorShaderView.Draw();
     }
 
     /***********************************************************************************\
@@ -1884,11 +1899,31 @@ namespace Profiler
             m_InspectorShaderStageNames.push_back( m_pStringSerializer->GetShaderName( shader ) );
         }
 
-        m_InspectorShaderStageIndex = 0;
+        InspectShaderStage( 0 );
 
         // Switch to the inspector tab.
         *m_InspectorWindowState.pOpen = true;
         m_InspectorWindowState.Focus = true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InspectShaderStage
+
+    Description:
+        Sets the inspected shader stage and updates the view.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::InspectShaderStage( size_t shaderIndex )
+    {
+        const ProfilerShader& shader = m_InspectorPipeline.m_ShaderTuple.m_Shaders[ shaderIndex ];
+        const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
+
+        m_InspectorShaderView.Clear();
+        m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
+
+        m_InspectorShaderStageIndex = shaderIndex;
     }
 
     /***********************************************************************************\

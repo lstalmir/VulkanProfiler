@@ -283,6 +283,7 @@ namespace Profiler
 
         // Inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
+        void InspectShaderStage( size_t );
 
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );

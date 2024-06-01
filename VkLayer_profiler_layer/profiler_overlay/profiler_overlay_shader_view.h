@@ -45,6 +45,14 @@ namespace Profiler
         OverlayShaderView( const OverlayFonts& fonts );
         ~OverlayShaderView();
 
+        OverlayShaderView( const OverlayShaderView& ) = delete;
+        OverlayShaderView( OverlayShaderView&& ) = delete;
+
+        void SetTargetDevice( struct VkDevice_Object* pDevice );
+
+        void Clear();
+
+        void AddBytecode( const uint32_t* pBinary, size_t wordCount );
         void AddShaderRepresentation( const char* pName, const void* pData, size_t dataSize, bool isText );
 
         void Draw();
@@ -62,6 +70,8 @@ namespace Profiler
         std::unique_ptr<TextEditor>        m_pTextEditor;
 
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
+
+        int                                m_SpvTargetEnv;
 
         int                                m_CurrentTabIndex;
 
