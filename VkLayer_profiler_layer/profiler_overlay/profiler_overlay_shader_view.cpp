@@ -23,10 +23,111 @@
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <spirv/unified1/spirv.h>
 #include <spirv-tools/libspirv.h>
 
 #include <imgui.h>
 #include <TextEditor.h>
+
+namespace
+{
+    struct Source
+    {
+        uint32_t            m_FilenameStringID;
+        SpvSourceLanguage   m_Language;
+        const char*         m_pData;
+    };
+
+    struct SourceList
+    {
+        std::vector<Source> m_Sources;
+        std::unordered_map<uint32_t, const char*> m_pStrings;
+    };
+
+    /***********************************************************************************\
+
+    Function:
+        GetSpirvOperand
+
+    Description:
+        Reads an operand of a SPIR-V instruction.
+
+    \***********************************************************************************/
+    template<typename T>
+    static T GetSpirvOperand( const spv_parsed_instruction_t* pInstruction, uint32_t operand )
+    {
+        if( operand < pInstruction->num_operands )
+        {
+            const uint32_t firstWord = pInstruction->operands[ operand ].offset;
+            return *reinterpret_cast<const T*>(pInstruction->words + firstWord);
+        }
+        return T();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSpirvOperand
+
+    Description:
+        Specialization that reads a string operand of a SPIR-V instruction.
+
+    \***********************************************************************************/
+    template<>
+    static const char* GetSpirvOperand( const spv_parsed_instruction_t* pInstruction, uint32_t operand )
+    {
+        if( operand < pInstruction->num_operands )
+        {
+            const uint32_t firstWord = pInstruction->operands[ operand ].offset;
+            return reinterpret_cast<const char*>(pInstruction->words + firstWord);
+        }
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSpirvSources
+
+    Description:
+        Reads all OpSource instructions and returns a list of shader sources associated
+        with the SPIR-V binary.
+
+    \***********************************************************************************/
+    static spv_result_t GetSpirvSources( void* pUserData, const spv_parsed_instruction_t* pInstruction )
+    {
+        SourceList* pSourceList = static_cast<SourceList*>(pUserData);
+        assert( pSourceList );
+
+        // OpStrings define paths to the embedded sources.
+        if( pInstruction->opcode == SpvOpString )
+        {
+            const uint32_t id = GetSpirvOperand<uint32_t>( pInstruction, 0 );
+            const char* pString = GetSpirvOperand<const char*>( pInstruction, 1 );
+            if( pString )
+            {
+                pSourceList->m_pStrings[ id ] = pString;
+            }
+            return SPV_SUCCESS;
+        }
+
+        // OpSources may contain embedded sources.
+        if( pInstruction->opcode == SpvOpSource )
+        {
+            const char* pData = GetSpirvOperand<const char*>( pInstruction, 3 );
+            if( pData )
+            {
+                Source& source = pSourceList->m_Sources.emplace_back();
+                source.m_Language = GetSpirvOperand<SpvSourceLanguage>( pInstruction, 0 );
+                source.m_FilenameStringID = GetSpirvOperand<uint32_t>( pInstruction, 2 );
+                source.m_pData = pData;
+            }
+            return SPV_SUCCESS;
+        }
+
+        return SPV_SUCCESS;
+    }
+}
 
 namespace Profiler
 {
@@ -154,6 +255,37 @@ namespace Profiler
         if( result == SPV_SUCCESS )
         {
             AddShaderRepresentation( "Disassembly", text->str, text->length, true );
+
+            // Parse shader sources that may be embedded into the binary.
+            SourceList sourceList;
+            spvBinaryParse( context, &sourceList, pBinary, wordCount, nullptr, GetSpirvSources, nullptr );
+
+            for( Source& source : sourceList.m_Sources )
+            {
+                size_t dataLength = 0;
+
+                // Calculate length of the embedded shader source.
+                if( source.m_pData )
+                {
+                    dataLength = strlen( source.m_pData );
+                }
+
+                // Extract filename of the embedded source.
+                const char* pFilename = sourceList.m_pStrings[ source.m_FilenameStringID ];
+                if( !pFilename || !strlen( pFilename ) )
+                {
+                    pFilename = "Source";
+                }
+
+                // Use the last path component for tab name.
+                const char* pBasename = strrchr( pFilename, '/' );
+                if( !pBasename )
+                {
+                    pBasename = strrchr( pFilename, '\\' );
+                }
+
+                AddShaderRepresentation( pBasename ? pBasename + 1 : pFilename, source.m_pData, dataLength, true );
+            }
         }
 
         spvTextDestroy( text );
