@@ -31,11 +31,6 @@
 #include <imgui.h>
 #include <TextEditor.h>
 
-namespace spvtools
-{
-    spv_result_t DisassembleInstruction( void*, const spv_parsed_instruction_t* );
-}
-
 namespace
 {
     struct Source
@@ -61,7 +56,7 @@ namespace
 
     \***********************************************************************************/
     template<typename T>
-    static T GetSpirvOperand( const spv_parsed_instruction_t* pInstruction, uint32_t operand )
+    T GetSpirvOperand( const spv_parsed_instruction_t* pInstruction, uint32_t operand )
     {
         if( operand < pInstruction->num_operands )
         {
@@ -81,7 +76,7 @@ namespace
 
     \***********************************************************************************/
     template<>
-    static const char* GetSpirvOperand( const spv_parsed_instruction_t* pInstruction, uint32_t operand )
+    const char* GetSpirvOperand( const spv_parsed_instruction_t* pInstruction, uint32_t operand )
     {
         if( operand < pInstruction->num_operands )
         {
