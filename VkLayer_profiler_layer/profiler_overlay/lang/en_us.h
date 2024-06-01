@@ -42,12 +42,14 @@ namespace Profiler
         inline static constexpr char PerformanceCountersMenuItem[] = "Performance counters" PROFILER_MENU_ITEM;
         inline static constexpr char TopPipelinesMenuItem[] = "Top pipelines" PROFILER_MENU_ITEM;
         inline static constexpr char MemoryMenuItem[] = "Memory" PROFILER_MENU_ITEM;
+        inline static constexpr char InspectorMenuItem[] = "Inspector" PROFILER_MENU_ITEM;
         inline static constexpr char StatisticsMenuItem[] = "Statistics" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = "Settings" PROFILER_MENU_ITEM;
 
         // Tabs
         inline static constexpr char Performance[] = "Performance###Performance";
         inline static constexpr char Memory[] = "Memory###Memory";
+        inline static constexpr char Inspector[] = "Inspector###Inspector";
         inline static constexpr char Statistics[] = "Statistics###Statistics";
         inline static constexpr char Settings[] = "Settings###Settings";
 
@@ -71,6 +73,7 @@ namespace Profiler
         inline static constexpr char Sort[] = "Sort";
         inline static constexpr char CustomStatistics[] = "Custom statistics";
         inline static constexpr char Container[] = "Container";
+        inline static constexpr char Inspect[] = "Inspect";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
 

@@ -69,6 +69,9 @@ add_subdirectory (Vulkan-Utility-Libraries)
 # KhronosGroup/SPIRV-Headers
 add_subdirectory (SPIRV-Headers)
 
+# KhronosGroup/SPIRV-Tools
+add_subdirectory (SPIRV-Tools)
+
 # nlohmann/json
 set (JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory (json)
@@ -93,3 +96,14 @@ target_include_directories (imgui
 
 target_link_libraries (imgui
     PUBLIC Vulkan-Headers)
+
+# BalazsJako/ImGuiColorTextEdit
+add_library (imguicolortextedit STATIC
+    ImGuiColorTextEdit/TextEditor.h
+    ImGuiColorTextEdit/TextEditor.cpp)
+
+target_include_directories (imguicolortextedit
+    PUBLIC ImGuiColorTextEdit)
+
+target_link_libraries (imguicolortextedit
+    PUBLIC imgui)

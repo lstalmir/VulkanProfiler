@@ -121,6 +121,7 @@ target_link_libraries (profiler_common
     INTERFACE VulkanUtilityHeaders
     INTERFACE VulkanLayerSettings
     INTERFACE SPIRV-Headers
+    INTERFACE SPIRV-Tools
     INTERFACE farmhash
     INTERFACE fmt
     INTERFACE nlohmann_json)

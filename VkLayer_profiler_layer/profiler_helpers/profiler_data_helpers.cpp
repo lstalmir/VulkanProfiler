@@ -524,6 +524,69 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetShaderName
+
+    Description:
+        Returns string representation of the shader.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShaderName( const ProfilerShader& shader ) const
+    {
+        return fmt::format( "{} {:08X} ({})",
+            GetShaderStageName( shader.m_Stage ),
+            shader.m_Hash,
+            shader.m_EntryPoint );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShaderStageName
+
+    Description:
+        Returns string representation of the shader stage.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShaderStageName( VkShaderStageFlagBits stage ) const
+    {
+        switch( stage )
+        {
+        case VK_SHADER_STAGE_VERTEX_BIT:
+            return "Vertex shader";
+        case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT:
+            return "Tessellation control shader";
+        case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT:
+            return "Tessellation evaluation shader";
+        case VK_SHADER_STAGE_GEOMETRY_BIT:
+            return "Geometry shader";
+        case VK_SHADER_STAGE_FRAGMENT_BIT:
+            return "Fragment shader";
+        case VK_SHADER_STAGE_COMPUTE_BIT:
+            return "Compute shader";
+        case VK_SHADER_STAGE_TASK_BIT_EXT:
+            return "Task shader";
+        case VK_SHADER_STAGE_MESH_BIT_EXT:
+            return "Mesh shader";
+        case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+            return "Ray generation shader";
+        case VK_SHADER_STAGE_ANY_HIT_BIT_KHR:
+            return "Ray any-hit shader";
+        case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
+            return "Ray closest-hit shader";
+        case VK_SHADER_STAGE_MISS_BIT_KHR:
+            return "Ray miss shader";
+        case VK_SHADER_STAGE_INTERSECTION_BIT_KHR:
+            return "Ray intersection shader";
+        case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+            return "Callable shader";
+        default:
+            return fmt::format( "Unknown shader stage ({})", static_cast<uint32_t>( stage ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetFormatName
 
     Description:
