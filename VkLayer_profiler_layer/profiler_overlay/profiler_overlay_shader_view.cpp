@@ -23,11 +23,18 @@
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <string_view>
+
 #include <spirv/unified1/spirv.h>
 #include <spirv-tools/libspirv.h>
 
 #include <imgui.h>
 #include <TextEditor.h>
+
+namespace spvtools
+{
+    spv_result_t DisassembleInstruction( void*, const spv_parsed_instruction_t* );
+}
 
 namespace
 {
@@ -126,6 +133,47 @@ namespace
         }
 
         return SPV_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RemoveSpirvSources
+
+    Description:
+        Removes inline sources from disassembled spirv code.
+
+    \***********************************************************************************/
+    static void RemoveSpirvSources( spv_text text )
+    {
+        std::string_view source( text->str, text->length );
+
+        auto offset = source.find( "OpSource" );
+        while( offset != source.npos )
+        {
+            source = source.substr( offset + 8 );
+
+            // Find end of the OpSource line and beginning of the source code.
+            auto eofOffset = source.find( '\n' );
+            auto codeOffset = source.find( '\"' );
+
+            if( codeOffset < eofOffset )
+            {
+                source = source.substr( codeOffset );
+
+                // Find end of the source code.
+                offset = source.find( "\n\"\n" );
+
+                if( offset != source.npos )
+                {
+                    // Remove the current range from the text.
+                    const size_t removeSize = (offset + 2);
+                    memmove( const_cast<char*>(source.data()), source.data() + removeSize, (source.length() + 1) - removeSize );
+                }
+            }
+
+            offset = source.find( "OpSource" );
+        }
     }
 }
 
@@ -254,6 +302,9 @@ namespace Profiler
 
         if( result == SPV_SUCCESS )
         {
+            // Remove inline OpSources, they will be moved to another tab.
+            RemoveSpirvSources( text );
+
             AddShaderRepresentation( "Disassembly", text->str, text->length, true );
 
             // Parse shader sources that may be embedded into the binary.
