@@ -170,6 +170,49 @@ namespace
             offset = source.find( "OpSource" );
         }
     }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSpirvLanguageDefinition
+
+    Description:
+        Returns a reference to the spirv language definition for syntax highlighting.
+
+    \***********************************************************************************/
+    static const TextEditor::LanguageDefinition& GetSpirvLanguageDefinition()
+    {
+        static bool initialized = false;
+        static TextEditor::LanguageDefinition languageDefinition;
+
+        if( !initialized )
+        {
+            // Initialize the language definition on the first call to this function.
+            languageDefinition.mName = "SPIR-V";
+
+            // Tokenizer.
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "L?\\\"(\\\\.|[^\\\"])*\\\"", TextEditor::PaletteIndex::String ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "\\'\\\\?[^\\']\\'", TextEditor::PaletteIndex::CharLiteral ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "Op[a-zA-Z0-9]+", TextEditor::PaletteIndex::Keyword ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[a-zA-Z_%][a-zA-Z0-9_]*", TextEditor::PaletteIndex::Identifier ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?[0-9]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[0-7]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]", TextEditor::PaletteIndex::Punctuation ) );
+
+            // Comments.
+            languageDefinition.mSingleLineComment = ";";
+            languageDefinition.mCommentStart = ";";
+            languageDefinition.mCommentEnd = "\n";
+
+            // Parser options.
+            languageDefinition.mAutoIndentation = true;
+            languageDefinition.mCaseSensitive = true;
+        }
+
+        return languageDefinition;
+    }
 }
 
 namespace Profiler
