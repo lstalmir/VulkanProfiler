@@ -33,6 +33,25 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        ShaderFormat
+
+    Description:
+        Format of the shader representation.
+
+    \***********************************************************************************/
+    enum class ShaderFormat
+    {
+        eText,
+        eBinary,
+        eSpirv,
+        eGlsl,
+        eHlsl,
+        eCpp
+    };
+
+    /***********************************************************************************\
+
+    Class:
         OverlayShaderView
 
     Description:
@@ -53,7 +72,7 @@ namespace Profiler
         void Clear();
 
         void AddBytecode( const uint32_t* pBinary, size_t wordCount );
-        void AddShaderRepresentation( const char* pName, const void* pData, size_t dataSize, bool isText );
+        void AddShaderRepresentation( const char* pName, const void* pData, size_t dataSize, ShaderFormat format );
 
         void Draw();
 
@@ -63,7 +82,7 @@ namespace Profiler
             char*                          m_pName;
             void*                          m_pData;
             size_t                         m_DataSize;
-            bool                           m_IsText;
+            ShaderFormat                   m_Format;
         };
 
         const OverlayFonts&                m_Fonts;

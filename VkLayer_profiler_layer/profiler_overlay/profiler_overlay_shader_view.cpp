@@ -170,6 +170,79 @@ namespace
             offset = source.find( "OpSource" );
         }
     }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSpirvSourceShaderFormat
+
+    Description:
+        Converts SpvSourceLanguage to ShaderFormat.
+
+    \***********************************************************************************/
+    static constexpr Profiler::ShaderFormat GetSpirvSourceShaderFormat( SpvSourceLanguage language )
+    {
+        switch( language )
+        {
+        case SpvSourceLanguageESSL:
+        case SpvSourceLanguageGLSL:
+            return Profiler::ShaderFormat::eGlsl;
+
+        case SpvSourceLanguageHLSL:
+            return Profiler::ShaderFormat::eHlsl;
+
+        case SpvSourceLanguageOpenCL_C:
+        case SpvSourceLanguageOpenCL_CPP:
+        case SpvSourceLanguageCPP_for_OpenCL:
+            return Profiler::ShaderFormat::eCpp;
+
+        default:
+            return Profiler::ShaderFormat::eText;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSpirvLanguageDefinition
+
+    Description:
+        Returns a reference to the spirv language definition for syntax highlighting.
+
+    \***********************************************************************************/
+    static const TextEditor::LanguageDefinition& GetSpirvLanguageDefinition()
+    {
+        static bool initialized = false;
+        static TextEditor::LanguageDefinition languageDefinition;
+
+        if( !initialized )
+        {
+            // Initialize the language definition on the first call to this function.
+            languageDefinition.mName = "SPIR-V";
+
+            // Tokenizer.
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "L?\\\"(\\\\.|[^\\\"])*\\\"", TextEditor::PaletteIndex::String ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "\\'\\\\?[^\\']\\'", TextEditor::PaletteIndex::CharLiteral ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "Op[a-zA-Z0-9]+", TextEditor::PaletteIndex::Keyword ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[a-zA-Z_%][a-zA-Z0-9_]*", TextEditor::PaletteIndex::Identifier ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?[0-9]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[0-7]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
+            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]", TextEditor::PaletteIndex::Punctuation ) );
+
+            // Comments.
+            languageDefinition.mSingleLineComment = ";";
+            languageDefinition.mCommentStart = ";";
+            languageDefinition.mCommentEnd = "\n";
+
+            // Parser options.
+            languageDefinition.mAutoIndentation = true;
+            languageDefinition.mCaseSensitive = true;
+        }
+
+        return languageDefinition;
+    }
 }
 
 namespace Profiler
@@ -300,7 +373,7 @@ namespace Profiler
             // Remove inline OpSources, they will be moved to another tab.
             RemoveSpirvSources( text );
 
-            AddShaderRepresentation( "Disassembly", text->str, text->length, true );
+            AddShaderRepresentation( "Disassembly", text->str, text->length, ShaderFormat::eSpirv );
 
             // Parse shader sources that may be embedded into the binary.
             SourceList sourceList;
@@ -330,7 +403,8 @@ namespace Profiler
                     pBasename = strrchr( pFilename, '\\' );
                 }
 
-                AddShaderRepresentation( pBasename ? pBasename + 1 : pFilename, source.m_pData, dataLength, true );
+                AddShaderRepresentation( pBasename ? pBasename + 1 : pFilename, source.m_pData, dataLength,
+                    GetSpirvSourceShaderFormat( source.m_Language ) );
             }
         }
 
@@ -347,7 +421,7 @@ namespace Profiler
         Adds a tab to the shader view with a text or binary shader representation.
 
     \***********************************************************************************/
-    void OverlayShaderView::AddShaderRepresentation( const char* pName, const void* pData, size_t dataSize, bool isText )
+    void OverlayShaderView::AddShaderRepresentation( const char* pName, const void* pData, size_t dataSize, ShaderFormat format )
     {
         size_t nameSize = strlen( pName ) + 1;
 
@@ -391,7 +465,7 @@ namespace Profiler
             pShaderRepresentation->m_DataSize = 0;
         }
 
-        pShaderRepresentation->m_IsText = isText;
+        pShaderRepresentation->m_Format = format;
 
         // Add the shader representation.
         m_pShaderRepresentations.push_back( pShaderRepresentation );
@@ -451,12 +525,32 @@ namespace Profiler
             // Update the text editor with the current tab.
             if( m_CurrentTabIndex != tabIndex )
             {
-                if( pShaderRepresentation->m_IsText )
+                if( pShaderRepresentation->m_Format != ShaderFormat::eBinary )
                 {
                     const char* pText = reinterpret_cast<const char*>(pShaderRepresentation->m_pData);
 
                     // TODO: This creates a temporary copy of the shader representation.
                     m_pTextEditor->SetText( std::string( pText, pText + pShaderRepresentation->m_DataSize ) );
+
+                    // Set syntax highlighting according to the format.
+                    switch( pShaderRepresentation->m_Format )
+                    {
+                    case ShaderFormat::eSpirv:
+                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition() );
+                        break;
+                    case ShaderFormat::eGlsl:
+                        m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition::GLSL() );
+                        break;
+                    case ShaderFormat::eHlsl:
+                        m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition::HLSL() );
+                        break;
+                    case ShaderFormat::eCpp:
+                        m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition::CPlusPlus() );
+                        break;
+                    default:
+                        m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition() );
+                        break;
+                    }
                 }
 
                 m_CurrentTabIndex = tabIndex;
