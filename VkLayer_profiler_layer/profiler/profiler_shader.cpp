@@ -1,15 +1,15 @@
 // Copyright (c) 2024 Lukasz Stalmirski
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -69,6 +69,9 @@ namespace Profiler
         VkShaderStageFlags m_Stages;
         uint32_t m_SubgroupSize;
 
+        /*******************************************************************************\
+          Calculates space required to store all relevant pipeline executable data.
+        \*******************************************************************************/
         static size_t CalculateSize(
             const VkPipelineExecutablePropertiesKHR* pProperties,
             uint32_t statisticsCount,
@@ -76,78 +79,143 @@ namespace Profiler
             uint32_t internalRepresentationsCount,
             const VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations )
         {
-            size_t requiredSize = sizeof( InternalData ) +
-                statisticsCount * sizeof( InternalData::Statistic ) +
-                internalRepresentationsCount * sizeof( InternalData::InternalRepresentation );
+            size_t requiredSize =
+                sizeof( InternalData ) +
+                sizeof( Statistic ) * statisticsCount +
+                sizeof( InternalRepresentation ) * internalRepresentationsCount;
 
+            // Reserve space for name and description of the executable.
             requiredSize += strlen( pProperties->name ) + 1;
             requiredSize += strlen( pProperties->description ) + 1;
 
+            // Reserve space for names and descriptions of shader statistics.
             for( uint32_t i = 0; i < statisticsCount; ++i )
             {
-                requiredSize += strlen( pStatistics[ i ].name ) + 1;
-                requiredSize += strlen( pStatistics[ i ].description ) + 1;
+                requiredSize += strlen( pStatistics[i].name ) + 1;
+                requiredSize += strlen( pStatistics[i].description ) + 1;
             }
 
+            // Reserve space for names, descriptions and data of internal representations.
             for( uint32_t i = 0; i < internalRepresentationsCount; ++i )
             {
-                requiredSize += strlen( pInternalRepresentations[ i ].name ) + 1;
-                requiredSize += strlen( pInternalRepresentations[ i ].description ) + 1;
-                requiredSize += pInternalRepresentations[ i ].dataSize;
+                requiredSize += strlen( pInternalRepresentations[i].name ) + 1;
+                requiredSize += strlen( pInternalRepresentations[i].description ) + 1;
+                requiredSize += pInternalRepresentations[i].dataSize;
             }
 
             return requiredSize;
         }
 
+        /*******************************************************************************\
+          Initializes the shader executable internal data.
+        \*******************************************************************************/
+        void Initialize(
+            size_t sizeOfThis,
+            const VkPipelineExecutablePropertiesKHR* pProperties,
+            uint32_t statisticsCount,
+            const VkPipelineExecutableStatisticKHR* pStatistics,
+            uint32_t internalRepresentationsCount,
+            const VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations)
+        {
+            // These must be set before GetDataOffset is called.
+            m_StatisticsCount = statisticsCount;
+            m_InternalRepresentationsCount = internalRepresentationsCount;
+
+            uint32_t offset = GetDataOffset();
+
+            // Fill shader properties.
+            m_NameOffset = AddString( pProperties->name, offset, sizeOfThis );
+            m_DescriptionOffset = AddString( pProperties->description, offset, sizeOfThis );
+            m_Stages = pProperties->stages;
+            m_SubgroupSize = pProperties->subgroupSize;
+
+            // Fill shader statistics.
+            Statistic* pStatDescs = GetFirstStatistic();
+            for( uint32_t i = 0; i < statisticsCount; ++i )
+            {
+                pStatDescs[i].m_NameOffset = AddString( pStatistics[i].name, offset, sizeOfThis );
+                pStatDescs[i].m_DescriptionOffset = AddString( pStatistics[i].description, offset, sizeOfThis );
+                pStatDescs[i].m_Format = pStatistics[i].format;
+                pStatDescs[i].m_Value = pStatistics[i].value;
+            }
+
+            // Fill shader internal representations.
+            InternalRepresentation* pReprDescs = GetFirstInternalRepresentation();
+            for( uint32_t i = 0; i < internalRepresentationsCount; ++i )
+            {
+                pReprDescs[i].m_NameOffset = AddString( pInternalRepresentations[i].name, offset, sizeOfThis );
+                pReprDescs[i].m_DescriptionOffset = AddString( pInternalRepresentations[i].description, offset, sizeOfThis );
+                pReprDescs[i].m_DataOffset = AddData( pInternalRepresentations[i].pData, pInternalRepresentations[i].dataSize, offset, sizeOfThis );
+                pReprDescs[i].m_DataSize = static_cast<uint32_t>( pInternalRepresentations[i].dataSize );
+                pReprDescs[i].m_IsText = pInternalRepresentations[i].isText;
+            }
+
+            // Verify that the structure has been correctly allocated and there were no overruns.
+            assert( offset == sizeOfThis );
+        }
+
+        /*******************************************************************************\
+          Returns offset of the variable-sized data that is placed after this structure,
+          the shader statistics array and the internal representations array.
+        \*******************************************************************************/
         uint32_t GetDataOffset() const
         {
             return sizeof( *this ) +
-                sizeof( Statistic ) * m_StatisticsCount +
-                sizeof( InternalRepresentation ) * m_InternalRepresentationsCount;
+                   sizeof( Statistic ) * m_StatisticsCount +
+                   sizeof( InternalRepresentation ) * m_InternalRepresentationsCount;
         }
 
-        uint32_t AddString( const char* pString, uint32_t& dataOffset )
+        /*******************************************************************************\
+          Copies the null-terminated pString into [this] + dataOffset.
+          Increments the dataOffset by the length+1 of the copied string.
+        \*******************************************************************************/
+        uint32_t AddString( const char* pString, uint32_t& offset, size_t sizeOfThis )
         {
-            return AddData( pString, strlen( pString ) + 1, dataOffset );
+            return AddData( pString, strlen( pString ) + 1, offset, sizeOfThis );
         }
 
-        uint32_t AddData( const void* pData, size_t size, uint32_t& dataOffset )
+        /*******************************************************************************\
+          Copies the data into [this] + dataOffset.
+          Increments the dataOffset by the size of the copied data.
+        \*******************************************************************************/
+        uint32_t AddData( const void* pData, size_t size, uint32_t& offset, size_t sizeOfThis )
         {
-            uint32_t offset = dataOffset;
-            memcpy( reinterpret_cast<char*>(this) + offset, pData, size );
-            dataOffset += static_cast<uint32_t>(size);
-            return offset;
+            (void)sizeOfThis;
+            assert( offset + size <= sizeOfThis );
+            memcpy( reinterpret_cast<char*>( this ) + offset, pData, size );
+            return std::exchange( offset, offset + size );
         }
 
+        /*******************************************************************************\
+          Returns the null-terminated string that is stored at [this] + offset.
+        \*******************************************************************************/
         const char* GetString( uint32_t offset ) const
         {
-            return reinterpret_cast<const char*>(this) + offset;
+            return reinterpret_cast<const char*>( this ) + offset;
         }
 
+        /*******************************************************************************\
+          Returns the data that is stored at [this] + offset.
+        \*******************************************************************************/
         const void* GetData( uint32_t offset ) const
         {
-            return reinterpret_cast<const std::byte*>(this) + offset;
+            return reinterpret_cast<const std::byte*>( this ) + offset;
         }
 
+        /*******************************************************************************\
+          Returns address of the shader statistics array.
+        \*******************************************************************************/
         Statistic* GetFirstStatistic()
         {
-            return reinterpret_cast<Statistic*>(this + 1);
+            return reinterpret_cast<Statistic*>( this + 1 );
         }
 
+        /*******************************************************************************\
+          Returns address of the shader internal representations array.
+        \*******************************************************************************/
         InternalRepresentation* GetFirstInternalRepresentation()
         {
-            return reinterpret_cast<InternalRepresentation*>(GetFirstStatistic() + m_StatisticsCount);
-        }
-
-        void* operator new(size_t count, size_t internalDataSize)
-        {
-            assert( count == sizeof( InternalData ) );
-            return malloc( internalDataSize );
-        }
-
-        void operator delete( void* ptr )
-        {
-            free( ptr );
+            return reinterpret_cast<InternalRepresentation*>( GetFirstStatistic() + m_StatisticsCount );
         }
     };
 
@@ -174,47 +242,20 @@ namespace Profiler
             internalRepresentationsCount,
             pInternalRepresentations );
 
-        InternalData* pInternalData = new (internalDataSize) InternalData();
-        if( !pInternalData )
+        m_pInternalData.reset( static_cast<InternalData*>( malloc( internalDataSize ) ), free );
+        if( !m_pInternalData )
         {
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
-        m_pInternalData.reset( pInternalData );
+        m_pInternalData->Initialize(
+            internalDataSize,
+            pProperties,
+            statisticsCount,
+            pStatistics,
+            internalRepresentationsCount,
+            pInternalRepresentations );
 
-        // These must be set before GetDataOffset is called.
-        m_pInternalData->m_StatisticsCount = statisticsCount;
-        m_pInternalData->m_InternalRepresentationsCount = internalRepresentationsCount;
-
-        // Fill shader properties.
-        uint32_t dataOffset = m_pInternalData->GetDataOffset();
-        m_pInternalData->m_NameOffset = m_pInternalData->AddString( pProperties->name, dataOffset );
-        m_pInternalData->m_DescriptionOffset = m_pInternalData->AddString( pProperties->description, dataOffset );
-        m_pInternalData->m_Stages = pProperties->stages;
-        m_pInternalData->m_SubgroupSize = pProperties->subgroupSize;
-
-        // Fill shader statistics.
-        InternalData::Statistic* pStatDescs = m_pInternalData->GetFirstStatistic();
-        for( uint32_t i = 0; i < statisticsCount; ++i )
-        {
-            pStatDescs[ i ].m_NameOffset = m_pInternalData->AddString( pStatistics[ i ].name, dataOffset );
-            pStatDescs[ i ].m_DescriptionOffset = m_pInternalData->AddString( pStatistics[ i ].description, dataOffset );
-            pStatDescs[ i ].m_Format = pStatistics[ i ].format;
-            pStatDescs[ i ].m_Value = pStatistics[ i ].value;
-        }
-
-        // Fill shader internal representations.
-        InternalData::InternalRepresentation* pReprDescs = m_pInternalData->GetFirstInternalRepresentation();
-        for( uint32_t i = 0; i < internalRepresentationsCount; ++i )
-        {
-            pReprDescs[ i ].m_NameOffset = m_pInternalData->AddString( pInternalRepresentations[ i ].name, dataOffset );
-            pReprDescs[ i ].m_DescriptionOffset = m_pInternalData->AddString( pInternalRepresentations[ i ].description, dataOffset );
-            pReprDescs[ i ].m_DataOffset = m_pInternalData->AddData( pInternalRepresentations[ i ].pData, pInternalRepresentations[ i ].dataSize, dataOffset );
-            pReprDescs[ i ].m_DataSize = static_cast<uint32_t>(pInternalRepresentations[ i ].dataSize);
-            pReprDescs[ i ].m_IsText = pInternalRepresentations[ i ].isText;
-        }
-
-        assert( dataOffset == internalDataSize );
         return VK_SUCCESS;
     }
 
@@ -317,7 +358,7 @@ namespace Profiler
         ProfilerShaderStatistic stat;
         if( index < GetStatisticsCount() )
         {
-            auto& statDesc = m_pInternalData->GetFirstStatistic()[ index ];
+            auto& statDesc = m_pInternalData->GetFirstStatistic()[index];
             stat.m_pName = m_pInternalData->GetString( statDesc.m_NameOffset );
             stat.m_pDescription = m_pInternalData->GetString( statDesc.m_DescriptionOffset );
             stat.m_Format = statDesc.m_Format;
@@ -354,11 +395,11 @@ namespace Profiler
         ProfilerShaderInternalRepresentation repr;
         if( index < GetInternalRepresentationsCount() )
         {
-            auto& reprDesc = m_pInternalData->GetFirstInternalRepresentation()[ index ];
+            auto& reprDesc = m_pInternalData->GetFirstInternalRepresentation()[index];
             repr.m_pName = m_pInternalData->GetString( reprDesc.m_NameOffset );
             repr.m_pDescription = m_pInternalData->GetString( reprDesc.m_DescriptionOffset );
             repr.m_pData = m_pInternalData->GetData( reprDesc.m_DataOffset );
-            repr.m_DataSize = static_cast<size_t>(reprDesc.m_DataSize);
+            repr.m_DataSize = static_cast<size_t>( reprDesc.m_DataSize );
             repr.m_IsText = reprDesc.m_IsText;
         }
         return repr;
