@@ -152,12 +152,16 @@ namespace Profiler
         , m_MemoryManager()
         , m_DataAggregator()
         , m_CurrentFrame( 0 )
+        , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
         , m_Allocations()
         , m_pCommandBuffers()
         , m_pCommandPools()
+        , m_SubmitFence( VK_NULL_HANDLE )
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
+        , m_PipelineExecutablePropertiesEnabled( false )
+        , m_pStablePowerStateHandle( nullptr )
     {
     }
 
@@ -185,6 +189,12 @@ namespace Profiler
         {
             // Enable MDAPI data collection on Intel GPUs
             deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+        }
+
+        if( config.m_EnablePipelineExecutablePropertiesExt )
+        {
+            // Enable pipeline executable properties capture
+            deviceExtensions.insert( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
         }
 
         return deviceExtensions;
@@ -284,6 +294,11 @@ namespace Profiler
         {
             InitializeINTEL();
         }
+
+        // Capture pipeline statistics and internal representations for debugging
+        m_PipelineExecutablePropertiesEnabled =
+            m_Config.m_EnablePipelineExecutablePropertiesExt &&
+            m_pDevice->EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
 
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
@@ -551,6 +566,22 @@ namespace Profiler
     DeviceProfilerRenderPass& DeviceProfiler::GetRenderPass( VkRenderPass renderPass )
     {
         return m_RenderPasses.at( renderPass );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ShouldCapturePipelineExecutableProperties
+
+    Description:
+        Checks whether pipeline executable properties should be captured.
+        The feature is enabled only if VK_KHR_pipeline_executable_properties extension
+        is enabled and it is not disabled in the configuration.
+
+    \***********************************************************************************/
+    bool DeviceProfiler::ShouldCapturePipelineExecutableProperties() const
+    {
+        return m_PipelineExecutablePropertiesEnabled;
     }
 
     /***********************************************************************************\

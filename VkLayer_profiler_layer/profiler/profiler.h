@@ -83,6 +83,8 @@ namespace Profiler
         DeviceProfilerPipeline& GetPipeline( VkPipeline pipeline );
         DeviceProfilerRenderPass& GetRenderPass( VkRenderPass renderPass );
 
+        bool ShouldCapturePipelineExecutableProperties() const;
+
         void CreateCommandPool( VkCommandPool, const VkCommandPoolCreateInfo* );
         void DestroyCommandPool( VkCommandPool );
 
@@ -161,6 +163,10 @@ namespace Profiler
         ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
 
         DeviceProfilerSynchronization m_Synchronization;
+
+        // Whether VK_KHR_pipeline_executable_properties is available for the profiled device.
+        // In such case the internal representations of pipelines may be inspected to give more insight on potential performance issues.
+        bool                    m_PipelineExecutablePropertiesEnabled;
 
         void*                   m_pStablePowerStateHandle;
 
