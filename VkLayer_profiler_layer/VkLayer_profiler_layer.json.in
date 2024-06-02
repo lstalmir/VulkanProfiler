@@ -75,7 +75,7 @@
                     "description": "Capture VkPipeline's executable properties and internal shader representations for more detailed insights into the shaders executed on the GPU.",
                     "env": "VKPROF_enable_pipeline_executable_properties_ext",
                     "type": "BOOL",
-                    "default": true
+                    "default": false
                 },
                 {
                     "key": "enable_render_pass_begin_end_profiling",
