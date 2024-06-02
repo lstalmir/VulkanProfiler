@@ -45,11 +45,55 @@ namespace Profiler
         std::shared_ptr<ProfilerShaderModule> m_pShaderModule = nullptr;
     };
 
+    struct ProfilerShaderStatistic
+    {
+        const char* m_pName = nullptr;
+        const char* m_pDescription = nullptr;
+        VkPipelineExecutableStatisticFormatKHR m_Format = {};
+        VkPipelineExecutableStatisticValueKHR m_Value = {};
+    };
+
+    struct ProfilerShaderInternalRepresentation
+    {
+        const char* m_pName = nullptr;
+        const char* m_pDescription = nullptr;
+        const void* m_pData = nullptr;
+        size_t m_DataSize = 0;
+        bool m_IsText = false;
+    };
+
+    struct ProfilerShaderExecutable
+    {
+        struct InternalData;
+        std::shared_ptr<InternalData> m_pInternalData = nullptr;
+
+        VkResult Initialize(
+            const VkPipelineExecutablePropertiesKHR* pProperties,
+            uint32_t statisticsCount,
+            const VkPipelineExecutableStatisticKHR* pStatistics,
+            uint32_t internalRepresentationsCount,
+            const VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations );
+
+        bool Initialized() const;
+
+        const char* GetName() const;
+        const char* GetDescription() const;
+        VkShaderStageFlags GetStages() const;
+        uint32_t GetSubgroupSize() const;
+
+        uint32_t GetStatisticsCount() const;
+        ProfilerShaderStatistic GetStatistic( uint32_t index ) const;
+
+        uint32_t GetInternalRepresentationsCount() const;
+        ProfilerShaderInternalRepresentation GetInternalRepresentation( uint32_t index ) const;
+    };
+
     struct ProfilerShaderTuple
     {
         uint32_t m_Hash = 0;
 
         std::vector<ProfilerShader> m_Shaders = {};
+        std::vector<ProfilerShaderExecutable> m_ShaderExecutables = {};
 
         inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
         {

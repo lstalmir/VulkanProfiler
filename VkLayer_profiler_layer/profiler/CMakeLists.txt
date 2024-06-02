@@ -49,6 +49,7 @@ set (sources
     "profiler_data_aggregator.cpp"
     "profiler_memory_manager.cpp"
     "profiler_query_pool.cpp"
+    "profiler_shader.cpp"
     "profiler_sync.cpp"
     # Windows
     "profiler_helpers_windows.cpp"
