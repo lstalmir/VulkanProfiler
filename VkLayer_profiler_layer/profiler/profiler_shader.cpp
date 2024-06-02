@@ -109,14 +109,16 @@ namespace Profiler
         /*******************************************************************************\
           Initializes the shader executable internal data.
         \*******************************************************************************/
-        void Initialize(
+        VkResult Initialize(
             size_t sizeOfThis,
             const VkPipelineExecutablePropertiesKHR* pProperties,
             uint32_t statisticsCount,
             const VkPipelineExecutableStatisticKHR* pStatistics,
             uint32_t internalRepresentationsCount,
-            const VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations)
+            VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations )
         {
+            bool complete = true;
+
             // These must be set before GetDataOffset is called.
             m_StatisticsCount = statisticsCount;
             m_InternalRepresentationsCount = internalRepresentationsCount;
@@ -148,10 +150,22 @@ namespace Profiler
                 pReprDescs[i].m_DataOffset = AddData( pInternalRepresentations[i].pData, pInternalRepresentations[i].dataSize, offset, sizeOfThis );
                 pReprDescs[i].m_DataSize = static_cast<uint32_t>( pInternalRepresentations[i].dataSize );
                 pReprDescs[i].m_IsText = pInternalRepresentations[i].isText;
+
+                if( pInternalRepresentations[i].dataSize && !pInternalRepresentations[i].pData )
+                {
+                    // Return memory location of the internal representation in the input structure
+                    // to write directly into it in the next call to ICD.
+                    pInternalRepresentations[i].pData = reinterpret_cast<std::byte*>( this ) + pReprDescs[i].m_DataOffset;
+
+                    // Internal representations must be fetched by the caller.
+                    complete = false;
+                }
             }
 
             // Verify that the structure has been correctly allocated and there were no overruns.
             assert( offset == sizeOfThis );
+
+            return complete ? VK_SUCCESS : VK_INCOMPLETE;
         }
 
         /*******************************************************************************\
@@ -175,15 +189,22 @@ namespace Profiler
         }
 
         /*******************************************************************************\
-          Copies the data into [this] + dataOffset.
+          Copies the data into [this] + dataOffset if pData is a valid pointer.
           Increments the dataOffset by the size of the copied data.
         \*******************************************************************************/
         uint32_t AddData( const void* pData, size_t size, uint32_t& offset, size_t sizeOfThis )
         {
             (void)sizeOfThis;
             assert( offset + size <= sizeOfThis );
-            memcpy( reinterpret_cast<char*>( this ) + offset, pData, size );
-            return std::exchange( offset, offset + size );
+
+            // If pData is valid, copy it to the internal structure.
+            // Otherwise, only allocate the memory and return the offset.
+            if( pData )
+            {
+                memcpy( reinterpret_cast<char*>( this ) + offset, pData, size );
+            }
+
+            return std::exchange( offset, offset + static_cast<uint32_t>( size ) );
         }
 
         /*******************************************************************************\
@@ -233,7 +254,7 @@ namespace Profiler
         uint32_t statisticsCount,
         const VkPipelineExecutableStatisticKHR* pStatistics,
         uint32_t internalRepresentationsCount,
-        const VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations )
+        VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations )
     {
         size_t internalDataSize = InternalData::CalculateSize(
             pProperties,
@@ -248,15 +269,13 @@ namespace Profiler
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
-        m_pInternalData->Initialize(
+        return m_pInternalData->Initialize(
             internalDataSize,
             pProperties,
             statisticsCount,
             pStatistics,
             internalRepresentationsCount,
             pInternalRepresentations );
-
-        return VK_SUCCESS;
     }
 
     /***********************************************************************************\

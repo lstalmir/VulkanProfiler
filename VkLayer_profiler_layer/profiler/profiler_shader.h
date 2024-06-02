@@ -72,7 +72,7 @@ namespace Profiler
             uint32_t statisticsCount,
             const VkPipelineExecutableStatisticKHR* pStatistics,
             uint32_t internalRepresentationsCount,
-            const VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations );
+            VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations );
 
         bool Initialized() const;
 

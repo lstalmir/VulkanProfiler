@@ -1337,12 +1337,23 @@ namespace Profiler
                 }
 
                 // Initialize the shader executable
-                pipeline.m_ShaderTuple.m_ShaderExecutables[ i ].Initialize(
+                result = pipeline.m_ShaderTuple.m_ShaderExecutables[ i ].Initialize(
                     &pipelineExecutables[ i ],
                     executableStatisticsCount,
                     executableStatistics.data(),
                     executableInternalRepresentationsCount,
                     executableInternalRepresentations.data() );
+
+                if( result == VK_INCOMPLETE )
+                {
+                    // Call vkGetPipelineExecutableInternalRepresentationsKHR to write the internal representations
+                    // to the shader executable's internal memory.
+                    m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                        m_pDevice->Handle,
+                        &executableInfo,
+                        &executableInternalRepresentationsCount,
+                        executableInternalRepresentations.data() );
+                }
             }
         }
 
