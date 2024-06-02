@@ -70,6 +70,14 @@
                     "default": true
                 },
                 {
+                    "key": "enable_pipeline_executable_properties_ext",
+                    "label": "Enable pipeline executable properties extension",
+                    "description": "Capture VkPipeline's executable properties and internal shader representations for more detailed insights into the shaders executed on the GPU.",
+                    "env": "VKPROF_enable_pipeline_executable_properties_ext",
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
                     "key": "enable_render_pass_begin_end_profiling",
                     "label": "Enable VkRenderPass begin and end profiling",
                     "description": "Insert timestamp queries before and after vkCmdBeginRenderPass and vkCmdEndRenderPass when sampling mode is at most per render pass.",
