@@ -1247,6 +1247,116 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages )
     {
+        // Capture pipeline executable properties
+        if( ShouldCapturePipelineExecutableProperties() )
+        {
+            VkPipelineInfoKHR pipelineInfo = {};
+            pipelineInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
+            pipelineInfo.pipeline = pipeline.m_Handle;
+
+            // Get number of executables collected for this pipeline
+            uint32_t pipelineExecutablesCount = 0;
+            VkResult result = m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
+                m_pDevice->Handle,
+                &pipelineInfo,
+                &pipelineExecutablesCount,
+                nullptr );
+
+            std::vector<VkPipelineExecutablePropertiesKHR> pipelineExecutables( 0 );
+            if( result == VK_SUCCESS && pipelineExecutablesCount > 0 )
+            {
+                pipelineExecutables.resize( pipelineExecutablesCount );
+                m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
+                    m_pDevice->Handle,
+                    &pipelineInfo,
+                    &pipelineExecutablesCount,
+                    pipelineExecutables.data() );
+            }
+
+            // Preallocate space for the shader executables
+            pipeline.m_ShaderTuple.m_ShaderExecutables.resize( pipelineExecutablesCount );
+
+            std::vector<VkPipelineExecutableStatisticKHR> executableStatistics( 0 );
+            std::vector<VkPipelineExecutableInternalRepresentationKHR> executableInternalRepresentations( 0 );
+
+            for( uint32_t i = 0; i < pipelineExecutablesCount; ++i )
+            {
+                VkPipelineExecutableInfoKHR executableInfo = {};
+                executableInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
+                executableInfo.executableIndex = i;
+                executableInfo.pipeline = pipeline.m_Handle;
+
+                // Enumerate shader statistics for the executable
+                uint32_t executableStatisticsCount = 0;
+                result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
+                    m_pDevice->Handle,
+                    &executableInfo,
+                    &executableStatisticsCount,
+                    nullptr );
+
+                executableStatistics.clear();
+
+                if( result == VK_SUCCESS && executableStatisticsCount > 0 )
+                {
+                    executableStatistics.resize( executableStatisticsCount );
+                    result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
+                        m_pDevice->Handle,
+                        &executableInfo,
+                        &executableStatisticsCount,
+                        executableStatistics.data() );
+
+                    if( result != VK_SUCCESS )
+                    {
+                        executableStatistics.clear();
+                    }
+                }
+
+                // Enumerate shader internal representations
+                uint32_t executableInternalRepresentationsCount = 0;
+                result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                    m_pDevice->Handle,
+                    &executableInfo,
+                    &executableInternalRepresentationsCount,
+                    nullptr );
+
+                executableInternalRepresentations.clear();
+
+                if( result == VK_SUCCESS && executableInternalRepresentationsCount > 0 )
+                {
+                    executableInternalRepresentations.resize( executableInternalRepresentationsCount );
+                    result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                        m_pDevice->Handle,
+                        &executableInfo,
+                        &executableInternalRepresentationsCount,
+                        executableInternalRepresentations.data() );
+
+                    if( result != VK_SUCCESS )
+                    {
+                        executableInternalRepresentations.clear();
+                    }
+                }
+
+                // Initialize the shader executable
+                result = pipeline.m_ShaderTuple.m_ShaderExecutables[ i ].Initialize(
+                    &pipelineExecutables[ i ],
+                    executableStatisticsCount,
+                    executableStatistics.data(),
+                    executableInternalRepresentationsCount,
+                    executableInternalRepresentations.data() );
+
+                if( result == VK_INCOMPLETE )
+                {
+                    // Call vkGetPipelineExecutableInternalRepresentationsKHR to write the internal representations
+                    // to the shader executable's internal memory.
+                    m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
+                        m_pDevice->Handle,
+                        &executableInfo,
+                        &executableInternalRepresentationsCount,
+                        executableInternalRepresentations.data() );
+                }
+            }
+        }
+
         // Preallocate memory for the pipeline shader stages
         pipeline.m_ShaderTuple.m_Shaders.resize( stageCount );
 
