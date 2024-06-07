@@ -39,10 +39,12 @@ namespace Profiler
         void Initialize();
 
         ImFont* GetDefaultFont() const;
+        ImFont* GetBoldFont() const;
         ImFont* GetCodeFont() const;
 
     private:
         ImFont* m_pDefaultFont = nullptr;
+        ImFont* m_pBoldFont = nullptr;
         ImFont* m_pCodeFont = nullptr;
     };
 }

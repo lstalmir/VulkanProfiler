@@ -111,9 +111,23 @@ add_custom_command (
     DEPENDS ${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py)
 
+add_custom_command (
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_tables.py
+        ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
+        ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
+        ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
+        ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
+    DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
+    DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_tables.py)
+
 add_custom_target (profiler_codegen
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h)
 
 add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common

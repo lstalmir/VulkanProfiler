@@ -31,6 +31,8 @@
 #include <imgui.h>
 #include <TextEditor.h>
 
+#include <spv_docs.h>
+
 namespace
 {
     struct Source
@@ -210,7 +212,7 @@ namespace
         Returns a reference to the spirv language definition for syntax highlighting.
 
     \***********************************************************************************/
-    static const TextEditor::LanguageDefinition& GetSpirvLanguageDefinition()
+    static const TextEditor::LanguageDefinition& GetSpirvLanguageDefinition( const Profiler::OverlayFonts& fonts )
     {
         static bool initialized = false;
         static TextEditor::LanguageDefinition languageDefinition;
@@ -219,6 +221,49 @@ namespace
         {
             // Initialize the language definition on the first call to this function.
             languageDefinition.mName = "SPIR-V";
+
+            // Documentation.
+            languageDefinition.mTooltip = [fonts]( const std::string& id )
+                {
+                    const Profiler::SpirvOpCodeDesc* pDesc = nullptr;
+                    for( const Profiler::SpirvOpCodeDesc& spvOp : Profiler::SpirvOps )
+                    {
+                        if( !strcmp( spvOp.m_pName, id.c_str() ) )
+                        {
+                            pDesc = &spvOp;
+                            break;
+                        }
+                    }
+
+                    if( pDesc )
+                    {
+                        ImGui::SetNextWindowSize( { 600, -1 } );
+                        ImGui::BeginTooltip();
+
+                        ImGui::PushFont( fonts.GetBoldFont() );
+                        ImGui::TextUnformatted( pDesc->m_pName );
+                        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+                        ImGui::PopFont();
+
+                        ImGui::PushFont( fonts.GetDefaultFont() );
+                        ImGui::TextWrapped( "%s", pDesc->m_pDoc );
+                        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
+
+                        ImGui::PushStyleColor( ImGuiCol_TableRowBg, { 1.0f, 1.0f, 1.0f, 0.025f } );
+                        ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg );
+                        for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+                        {
+                            ImGui::TableNextColumn();
+                            ImGui::TextUnformatted( pDesc->m_pOperands[i] );
+                        }
+                        ImGui::EndTable();
+                        ImGui::PopStyleColor();
+
+                        ImGui::PopFont();
+
+                        ImGui::EndTooltip();
+                    }
+                };
 
             // Tokenizer.
             languageDefinition.mTokenRegexStrings.push_back( std::pair( "L?\\\"(\\\\.|[^\\\"])*\\\"", TextEditor::PaletteIndex::String ) );
@@ -536,7 +581,7 @@ namespace Profiler
                     switch( pShaderRepresentation->m_Format )
                     {
                     case ShaderFormat::eSpirv:
-                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition() );
+                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Fonts ) );
                         break;
                     case ShaderFormat::eGlsl:
                         m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition::GLSL() );
