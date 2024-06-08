@@ -37,6 +37,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
     - id: gen_build_configs
       run: |
         oses=$(python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/gen_build_configs.py \
@@ -65,6 +68,10 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
     - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
     - name: Configure CMake
@@ -117,6 +124,10 @@ jobs:
         packages: extra-cmake-modules libvulkan-dev libx11-dev libxext-dev libxrandr-dev libx11-xcb-dev libxcb-shape0-dev
         version: 1.0
 
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
     - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
     - name: Configure CMake
