@@ -36,36 +36,42 @@ class SpirvDocumentationParser:
                 print("BeautifulSoup module not found. SPIR-V documentation will not be available in this build.")
 
         self.doc = None
+        self.license = None
+        self.ops_doc_index = {}
+
         if self.bs is not None:
             with open( spirv_spec_path ) as f:
                 self.doc = self.bs.BeautifulSoup( f, "html.parser" )
 
+            for a in self.doc.findAll( "a" ):
+                try:
+                    self.ops_doc_index[a["id"]] = a.parent
+                except KeyError:
+                    pass
+
     @staticmethod
-    def normalize( s: str, first: int = 0 ):
-        lines = s.splitlines()[first:]
-        lines = [line for line in lines if len(line) > 0]
+    def normalize( s: str, skip_lines: int = 0 ):
+        lines = filter( len, s.splitlines()[skip_lines:] )
         s = "\\n".join( lines )
         s = s.replace("\"", "\\\"")
         return s
 
-    def get_op_doc( self, op: str ) -> str:
+    def get_op_doc( self, op: str ):
+        op_doc, op_operands = "", []
         try:
-            return SpirvDocumentationParser.normalize( self.doc.find("a", id=op).parent.text, 1 )
+            doc_tag = self.ops_doc_index[op]
+            op_doc = SpirvDocumentationParser.normalize( doc_tag.text, skip_lines=1 )
+            op_operands = [SpirvDocumentationParser.normalize( operand.text )
+                for operand in doc_tag.findParent( "tr" ).findNextSibling( "tr" )
+                if operand != "\n"]
         except:
-            return ""
-
-    def get_op_operands( self, op: str ) -> list:
-        try:
-            return [SpirvDocumentationParser.normalize( operand.text )
-                    for operand in self.doc.find("a", id=op).findParent("tr").findNextSibling("tr")
-                    if operand != "\n"]
-        except:
-            return []
+            pass
+        return op_doc, op_operands
 
     def get_license( self ) -> str:
         try:
-            preamble = self.doc.find("div", id="preamble")
-            paragraphs = preamble.findAll("div", {"class": "paragraph"})
+            preamble = self.doc.find( "div", id="preamble" )
+            paragraphs = preamble.findAll( "div", {"class": "paragraph"} )
             paragraphs = [p.text for p in paragraphs]
             return "".join( paragraphs )
         except:
@@ -80,9 +86,6 @@ def get_spirv_ops( spirv_json_path: str ) -> list:
     raise KeyError()
 
 def gen_spirv_docs( spirv_json_path: str, spirv_grammar_path: str, spirv_spec_path: str, out_license_path: str, out_header_path: str ):
-    with open( spirv_json_path ) as f:
-        spirv_json = json.load( f )
-
     spirv_docs = SpirvDocumentationParser( spirv_spec_path )
 
     # Write license file
@@ -106,16 +109,12 @@ def gen_spirv_docs( spirv_json_path: str, spirv_grammar_path: str, spirv_spec_pa
         h.write( "};\n\n" )
 
         h.write( "static constexpr SpirvOpCodeDesc SpirvOps[] = {\n" )
-        for enum in spirv_json["spv"]["enum"]:
-            if enum["Name"] == "Op":
-                for name in enum["Values"].keys():
-                    doc = spirv_docs.get_op_doc( name )
-                    operands = spirv_docs.get_op_operands( name )
-                    operands_count = len( operands )
-                    h.write( f"  {{ Spv{name}, \"{name}\", \"{doc}\", {operands_count}, {{" )
-                    h.write( ",".join( [f"\"{operand}\"" for operand in operands] ) )
-                    h.write( "} },\n" )
-                break
+        for name in get_spirv_ops( spirv_json_path ):
+            doc, operands = spirv_docs.get_op_doc( name )
+            operands_count = len( operands )
+            h.write( f"  {{ Spv{name}, \"{name}\", \"{doc}\", {operands_count}, {{" )
+            h.write( ",".join( [f"\"{operand}\"" for operand in operands] ) )
+            h.write( "} },\n" )
         h.write( "};\n" )
 
         h.write( "} // namespace Profiler\n" )
