@@ -65,6 +65,9 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
+    - uses: actions/setup-python@v5
+    - run: pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory.
       run: cmake -B ${{github.workspace}}/build
@@ -114,6 +117,9 @@ jobs:
       with:
         packages: extra-cmake-modules libvulkan-dev libx11-dev libxext-dev libxrandr-dev libx11-xcb-dev libxcb-shape0-dev
         version: 1.0
+
+    - uses: actions/setup-python@v5
+    - run: pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
