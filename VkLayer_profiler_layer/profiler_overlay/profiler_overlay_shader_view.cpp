@@ -223,12 +223,12 @@ namespace
             languageDefinition.mName = "SPIR-V";
 
             // Documentation.
-            languageDefinition.mTooltip = [fonts]( const std::string& id )
+            languageDefinition.mTooltip = [fonts]( const char* identifier )
                 {
                     const Profiler::SpirvOpCodeDesc* pDesc = nullptr;
                     for( const Profiler::SpirvOpCodeDesc& spvOp : Profiler::SpirvOps )
                     {
-                        if( !strcmp( spvOp.m_pName, id.c_str() ) )
+                        if( !strcmp( spvOp.m_pName, identifier ) )
                         {
                             pDesc = &spvOp;
                             break;

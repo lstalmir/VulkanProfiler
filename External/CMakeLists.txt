@@ -97,13 +97,13 @@ target_include_directories (imgui
 target_link_libraries (imgui
     PUBLIC Vulkan-Headers)
 
-# BalazsJako/ImGuiColorTextEdit
-add_library (imguicolortextedit STATIC
-    ImGuiColorTextEdit/TextEditor.h
-    ImGuiColorTextEdit/TextEditor.cpp)
+# lstalmir/imgui-text-editor
+add_library (imgui-text-editor STATIC
+    imgui-text-editor/TextEditor.h
+    imgui-text-editor/TextEditor.cpp)
 
-target_include_directories (imguicolortextedit
-    PUBLIC ImGuiColorTextEdit)
+target_include_directories (imgui-text-editor
+    PUBLIC imgui-text-editor)
 
-target_link_libraries (imguicolortextedit
+target_link_libraries (imgui-text-editor
     PUBLIC imgui)
