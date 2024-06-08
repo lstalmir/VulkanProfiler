@@ -23,7 +23,7 @@ import os
 import json
 
 class SpirvDocumentationParser:
-    def __init__( self, spirv_doc_path: str ):
+    def __init__( self, spirv_spec_path: str ):
         self.bs = None
         try:
             import BeautifulSoup as bs
@@ -37,7 +37,7 @@ class SpirvDocumentationParser:
 
         self.doc = None
         if self.bs is not None:
-            with open( spirv_doc_path ) as f:
+            with open( spirv_spec_path ) as f:
                 self.doc = self.bs.BeautifulSoup( f, "html.parser" )
 
     @staticmethod
@@ -70,11 +70,11 @@ def get_spirv_ops( spirv_json_path: str ) -> list:
             return enum["Values"].keys()
     raise KeyError()
 
-def gen_spirv_tables( spirv_json_path: str, spirv_grammar_path: str, spirv_doc_path: str, out_header_path: str ):
+def gen_spirv_docs( spirv_json_path: str, spirv_grammar_path: str, spirv_spec_path: str, out_header_path: str ):
     with open( spirv_json_path ) as f:
         spirv_json = json.load( f )
 
-    spirv_docs = SpirvDocumentationParser( spirv_doc_path )
+    spirv_docs = SpirvDocumentationParser( spirv_spec_path )
 
     with open( out_header_path, "w" ) as h:
         h.write( "#pragma once\n" )
@@ -97,8 +97,7 @@ def gen_spirv_tables( spirv_json_path: str, spirv_grammar_path: str, spirv_doc_p
                     operands = spirv_docs.get_op_operands( name )
                     operands_count = len( operands )
                     h.write( f"  {{ Spv{name}, \"{name}\", \"{doc}\", {operands_count}, {{ " )
-                    for operand in operands:
-                        h.write( f"\"{operand}\", " )
+                    h.write( ", ".join( [f"\"{operand}\"" for operand in operands] ) )
                     h.write( "} },\n" )
                 break
         h.write( "};\n" )
@@ -106,8 +105,8 @@ def gen_spirv_tables( spirv_json_path: str, spirv_grammar_path: str, spirv_doc_p
         h.write( "} // namespace Profiler\n" )
 
 if __name__ == "__main__":
-    gen_spirv_tables(
+    gen_spirv_docs(
         spirv_json_path=os.path.abspath( sys.argv[1] ),
         spirv_grammar_path=os.path.abspath( sys.argv[2] ),
-        spirv_doc_path=os.path.abspath( sys.argv[3] ),
+        spirv_spec_path=os.path.abspath( sys.argv[3] ),
         out_header_path=os.path.abspath( sys.argv[4] ) )
