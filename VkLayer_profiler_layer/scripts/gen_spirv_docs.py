@@ -62,6 +62,15 @@ class SpirvDocumentationParser:
         except:
             return []
 
+    def get_license( self ) -> str:
+        try:
+            preamble = self.doc.find("div", id="preamble")
+            paragraphs = preamble.findAll("div", {"class": "paragraph"})
+            paragraphs = [p.text for p in paragraphs]
+            return "".join( paragraphs )
+        except:
+            return ""
+
 def get_spirv_ops( spirv_json_path: str ) -> list:
     with open( spirv_json_path ) as f:
         spirv_json = json.load( f )
@@ -70,13 +79,20 @@ def get_spirv_ops( spirv_json_path: str ) -> list:
             return enum["Values"].keys()
     raise KeyError()
 
-def gen_spirv_docs( spirv_json_path: str, spirv_grammar_path: str, spirv_spec_path: str, out_header_path: str ):
+def gen_spirv_docs( spirv_json_path: str, spirv_grammar_path: str, spirv_spec_path: str, out_license_path: str, out_header_path: str ):
     with open( spirv_json_path ) as f:
         spirv_json = json.load( f )
 
     spirv_docs = SpirvDocumentationParser( spirv_spec_path )
 
-    with open( out_header_path, "w" ) as h:
+    # Write license file
+    spirv_docs_license = spirv_docs.get_license()
+    if len( spirv_docs_license ) > 0:
+        with open( out_license_path, "w", encoding="utf-8" ) as l:
+            l.write( spirv_docs_license )
+
+    # Write header file
+    with open( out_header_path, "w", encoding="utf-8" ) as h:
         h.write( "#pragma once\n" )
         h.write( "#include <spirv/unified1/spirv.h>\n\n" )
 
@@ -96,8 +112,8 @@ def gen_spirv_docs( spirv_json_path: str, spirv_grammar_path: str, spirv_spec_pa
                     doc = spirv_docs.get_op_doc( name )
                     operands = spirv_docs.get_op_operands( name )
                     operands_count = len( operands )
-                    h.write( f"  {{ Spv{name}, \"{name}\", \"{doc}\", {operands_count}, {{ " )
-                    h.write( ", ".join( [f"\"{operand}\"" for operand in operands] ) )
+                    h.write( f"  {{ Spv{name}, \"{name}\", \"{doc}\", {operands_count}, {{" )
+                    h.write( ",".join( [f"\"{operand}\"" for operand in operands] ) )
                     h.write( "} },\n" )
                 break
         h.write( "};\n" )
@@ -105,8 +121,18 @@ def gen_spirv_docs( spirv_json_path: str, spirv_grammar_path: str, spirv_spec_pa
         h.write( "} // namespace Profiler\n" )
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json", type=str, dest="json", required=True)
+    parser.add_argument("--grammar", type=str, dest="grammar", default="", required=False)
+    parser.add_argument("--spec", type=str, dest="spec", required=True)
+    parser.add_argument("--out-license", type=str, dest="out_license", required=True)
+    parser.add_argument("--out-header", type=str, dest="out_header", required=True)
+    args = parser.parse_args()
+
     gen_spirv_docs(
-        spirv_json_path=os.path.abspath( sys.argv[1] ),
-        spirv_grammar_path=os.path.abspath( sys.argv[2] ),
-        spirv_spec_path=os.path.abspath( sys.argv[3] ),
-        out_header_path=os.path.abspath( sys.argv[4] ) )
+        spirv_json_path = args.json,
+        spirv_grammar_path = args.grammar,
+        spirv_spec_path = args.spec,
+        out_license_path = args.out_license,
+        out_header_path = args.out_header )

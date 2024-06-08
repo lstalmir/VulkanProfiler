@@ -72,6 +72,9 @@ add_subdirectory (SPIRV-Headers)
 # KhronosGroup/SPIRV-Tools
 add_subdirectory (SPIRV-Tools)
 
+# SPIRV-Specification
+add_subdirectory (SPIRV-Specification)
+
 # nlohmann/json
 set (JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory (json)

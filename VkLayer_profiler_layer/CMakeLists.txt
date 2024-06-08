@@ -113,12 +113,14 @@ add_custom_command (
 
 add_custom_command (
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+        ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
     COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py
-        ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
-        ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
-        ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
-        ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+        --json ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
+        --grammar ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
+        --spec ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
+        --out-license ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
+        --out-header ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
     DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
     DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
     DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
