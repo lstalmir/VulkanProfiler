@@ -212,7 +212,7 @@ namespace
         Returns a reference to the spirv language definition for syntax highlighting.
 
     \***********************************************************************************/
-    static const TextEditor::LanguageDefinition& GetSpirvLanguageDefinition( const Profiler::OverlayFonts& fonts )
+    static TextEditor::LanguageDefinition GetSpirvLanguageDefinition( const Profiler::OverlayFonts& fonts, bool& showSpirvDocs )
     {
         static bool initialized = false;
         static TextEditor::LanguageDefinition languageDefinition;
@@ -221,49 +221,6 @@ namespace
         {
             // Initialize the language definition on the first call to this function.
             languageDefinition.mName = "SPIR-V";
-
-            // Documentation.
-            languageDefinition.mTooltip = [fonts]( const char* identifier )
-                {
-                    const Profiler::SpirvOpCodeDesc* pDesc = nullptr;
-                    for( const Profiler::SpirvOpCodeDesc& spvOp : Profiler::SpirvOps )
-                    {
-                        if( !strcmp( spvOp.m_pName, identifier ) )
-                        {
-                            pDesc = &spvOp;
-                            break;
-                        }
-                    }
-
-                    if( pDesc )
-                    {
-                        ImGui::SetNextWindowSize( { 600, -1 } );
-                        ImGui::BeginTooltip();
-
-                        ImGui::PushFont( fonts.GetBoldFont() );
-                        ImGui::TextUnformatted( pDesc->m_pName );
-                        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
-                        ImGui::PopFont();
-
-                        ImGui::PushFont( fonts.GetDefaultFont() );
-                        ImGui::TextWrapped( "%s", pDesc->m_pDoc );
-                        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
-
-                        ImGui::PushStyleColor( ImGuiCol_TableRowBg, { 1.0f, 1.0f, 1.0f, 0.025f } );
-                        ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg );
-                        for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
-                        {
-                            ImGui::TableNextColumn();
-                            ImGui::TextUnformatted( pDesc->m_pOperands[i] );
-                        }
-                        ImGui::EndTable();
-                        ImGui::PopStyleColor();
-
-                        ImGui::PopFont();
-
-                        ImGui::EndTooltip();
-                    }
-                };
 
             // Tokenizer.
             languageDefinition.mTokenRegexStrings.push_back( std::pair( "L?\\\"(\\\\.|[^\\\"])*\\\"", TextEditor::PaletteIndex::String ) );
@@ -286,6 +243,64 @@ namespace
             languageDefinition.mCaseSensitive = true;
         }
 
+        // Documentation.
+        languageDefinition.mTooltip = [fonts, &showSpirvDocs]( const char* identifier )
+            {
+                if( !showSpirvDocs )
+                {
+                    return;
+                }
+
+                // Find the instruction desc.
+                const Profiler::SpirvOpCodeDesc* pDesc = nullptr;
+                for( const Profiler::SpirvOpCodeDesc& spvOp : Profiler::SpirvOps )
+                {
+                    if( !strcmp( spvOp.m_pName, identifier ) )
+                    {
+                        pDesc = &spvOp;
+                        break;
+                    }
+                }
+
+                // Show the tooltip.
+                if( pDesc )
+                {
+                    ImGui::SetNextWindowSize( { 600, -1 } );
+                    ImGui::BeginTooltip();
+
+                    // Opcode name.
+                    ImGui::PushFont( fonts.GetBoldFont() );
+                    ImGui::TextUnformatted( pDesc->m_pName );
+                    ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+                    ImGui::PopFont();
+
+                    // Description.
+                    ImGui::PushFont( fonts.GetDefaultFont() );
+                    ImGui::TextWrapped( "%s", pDesc->m_pDoc );
+                    ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
+
+                    // Operands.
+                    ImGui::PushStyleColor( ImGuiCol_TableRowBg, { 1.0f, 1.0f, 1.0f, 0.025f } );
+                    ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg );
+                    for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+                    {
+                        ImGui::TableNextColumn();
+                        ImGui::TextUnformatted( pDesc->m_pOperands[ i ] );
+                    }
+                    ImGui::EndTable();
+                    ImGui::PopStyleColor();
+
+                    // Documentation source.
+                    ImGui::PushStyleColor( ImGuiCol_Text, { 0.4f, 0.4f, 0.4f, 1.0f } );
+                    ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
+                    ImGui::TextUnformatted( "From: https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html" );
+                    ImGui::PopStyleColor();
+
+                    ImGui::PopFont();
+                    ImGui::EndTooltip();
+                }
+            };
+
         return languageDefinition;
     }
 }
@@ -306,6 +321,7 @@ namespace Profiler
         , m_pTextEditor( nullptr )
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
+        , m_ShowSpirvDocs( true )
         , m_CurrentTabIndex( -1 )
     {
         m_pTextEditor = std::make_unique<TextEditor>();
@@ -542,6 +558,9 @@ namespace Profiler
             ImGui::EndTabBar();
         }
 
+        ImGui::SameLine( 0, 10 );
+        ImGui::Checkbox( "Show SPIR-V documentation tooltips", &m_ShowSpirvDocs );
+
         ImGui::PopStyleVar();
         ImGui::PopFont();
     }
@@ -581,7 +600,7 @@ namespace Profiler
                     switch( pShaderRepresentation->m_Format )
                     {
                     case ShaderFormat::eSpirv:
-                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Fonts ) );
+                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Fonts, m_ShowSpirvDocs ) );
                         break;
                     case ShaderFormat::eGlsl:
                         m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition::GLSL() );
