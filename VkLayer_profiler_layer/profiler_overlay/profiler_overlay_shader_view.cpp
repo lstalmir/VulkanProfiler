@@ -31,7 +31,13 @@
 #include <imgui.h>
 #include <TextEditor.h>
 
+#ifndef PROFILER_BUILD_SPIRV_DOCS
+#define PROFILER_BUILD_SPIRV_DOCS 0
+#endif
+
+#if PROFILER_BUILD_SPIRV_DOCS
 #include <spv_docs.h>
+#endif
 
 namespace
 {
@@ -212,7 +218,9 @@ namespace
         Returns a reference to the spirv language definition for syntax highlighting.
 
     \***********************************************************************************/
-    static TextEditor::LanguageDefinition GetSpirvLanguageDefinition( const Profiler::OverlayFonts& fonts, bool& showSpirvDocs )
+    static TextEditor::LanguageDefinition GetSpirvLanguageDefinition(
+        [[maybe_unused]] const Profiler::OverlayFonts& fonts,
+        [[maybe_unused]] bool& showSpirvDocs )
     {
         static bool initialized = false;
         static TextEditor::LanguageDefinition languageDefinition;
@@ -243,6 +251,7 @@ namespace
             languageDefinition.mCaseSensitive = true;
         }
 
+#if PROFILER_BUILD_SPIRV_DOCS
         // Documentation.
         languageDefinition.mTooltip = [fonts, &showSpirvDocs]( const char* identifier )
             {
@@ -265,7 +274,7 @@ namespace
                 // Show the tooltip.
                 if( pDesc )
                 {
-                    ImGui::SetNextWindowSize( { 600, -1 } );
+                    ImGui::SetNextWindowSizeConstraints( { 600, 0 }, { FLT_MAX, FLT_MAX } );
                     ImGui::BeginTooltip();
 
                     // Opcode name.
@@ -275,31 +284,42 @@ namespace
                     ImGui::PopFont();
 
                     // Description.
+                    const char* pDoc = pDesc->m_pDoc;
+                    if( !pDoc || !*pDoc )
+                    {
+                        pDoc = "No documentation available for this instruction.";
+                    }
+
                     ImGui::PushFont( fonts.GetDefaultFont() );
-                    ImGui::TextWrapped( "%s", pDesc->m_pDoc );
-                    ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
+                    ImGui::TextWrapped( "%s", pDoc );
 
                     // Operands.
-                    ImGui::PushStyleColor( ImGuiCol_TableRowBg, { 1.0f, 1.0f, 1.0f, 0.025f } );
-                    ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg );
-                    for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+                    if( pDesc->m_OperandsCount )
                     {
-                        ImGui::TableNextColumn();
-                        ImGui::TextUnformatted( pDesc->m_pOperands[ i ] );
+                        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
+
+                        ImGui::PushStyleColor( ImGuiCol_TableRowBg, { 1.0f, 1.0f, 1.0f, 0.025f } );
+                        ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg );
+                        for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+                        {
+                            ImGui::TableNextColumn();
+                            ImGui::TextUnformatted( pDesc->m_pOperands[ i ] );
+                        }
+                        ImGui::EndTable();
+                        ImGui::PopStyleColor();
                     }
-                    ImGui::EndTable();
-                    ImGui::PopStyleColor();
 
                     // Documentation source.
                     ImGui::PushStyleColor( ImGuiCol_Text, { 0.4f, 0.4f, 0.4f, 1.0f } );
                     ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
-                    ImGui::TextUnformatted( "From: https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html" );
+                    ImGui::TextUnformatted( "From: " PROFILER_SPIRV_DOCS_URL );
                     ImGui::PopStyleColor();
 
                     ImGui::PopFont();
                     ImGui::EndTooltip();
                 }
             };
+#endif // PROFILER_BUILD_SPIRV_DOCS
 
         return languageDefinition;
     }
@@ -321,7 +341,7 @@ namespace Profiler
         , m_pTextEditor( nullptr )
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
-        , m_ShowSpirvDocs( true )
+        , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
         , m_CurrentTabIndex( -1 )
     {
         m_pTextEditor = std::make_unique<TextEditor>();
@@ -558,8 +578,11 @@ namespace Profiler
             ImGui::EndTabBar();
         }
 
+#if PROFILER_BUILD_SPIRV_DOCS
+        // Allow the user to disable the tooltips with documentation.
         ImGui::SameLine( 0, 10 );
         ImGui::Checkbox( "Show SPIR-V documentation tooltips", &m_ShowSpirvDocs );
+#endif
 
         ImGui::PopStyleVar();
         ImGui::PopFont();

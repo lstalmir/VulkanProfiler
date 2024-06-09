@@ -20,5 +20,22 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-file (DOWNLOAD https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html
-    "${CMAKE_CURRENT_LIST_DIR}/SPIRV.html")
+if (BUILD_SPIRV_DOCS)
+    message ("Downloading SPIR-V documentation from ${SPIRV_DOCS_URL}")
+    file (DOWNLOAD "${SPIRV_DOCS_URL}" "${CMAKE_CURRENT_LIST_DIR}/SPIRV.html"
+          STATUS SPIRV_DOCS_DOWNLOAD_STATUS)
+
+    list (GET SPIRV_DOCS_DOWNLOAD_STATUS 0 SPIRV_DOCS_DOWNLOAD_STATUS_CODE)
+    list (GET SPIRV_DOCS_DOWNLOAD_STATUS 1 SPIRV_DOCS_DOWNLOAD_STATUS_MSG)
+
+    if (NOT SPIRV_DOCS_DOWNLOAD_STATUS_CODE EQUAL 0)
+        message ("Error ${SPIRV_DOCS_DOWNLOAD_STATUS_CODE}: ${SPIRV_DOCS_DOWNLOAD_STATUS_MSG}")
+        message ("SPIR-V documentation will be disabled in this build")
+        set (BUILD_SPIRV_DOCS OFF CACHE BOOL "" FORCE)
+    endif ()
+endif ()
+
+if (NOT BUILD_SPIRV_DOCS)
+    file (REMOVE "${CMAKE_CURRENT_LIST_DIR}/SPIRV.html")
+    file (REMOVE "${CMAKE_CURRENT_LIST_DIR}/LICENSE")
+endif ()
