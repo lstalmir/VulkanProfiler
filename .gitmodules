@@ -28,6 +28,6 @@
 [submodule "External/SPIRV-Tools"]
 	path = External/SPIRV-Tools
 	url = https://github.com/KhronosGroup/SPIRV-Tools
-[submodule "External/ImGuiColorTextEdit"]
-	path = External/ImGuiColorTextEdit
-	url = https://github.com/BalazsJako/ImGuiColorTextEdit
+[submodule "External/imgui-text-editor"]
+	path = External/imgui-text-editor
+	url = https://github.com/lstalmir/imgui-text-editor

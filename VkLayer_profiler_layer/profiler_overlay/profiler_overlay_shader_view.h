@@ -91,6 +91,7 @@ namespace Profiler
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
         int                                m_SpvTargetEnv;
+        bool                               m_ShowSpirvDocs;
 
         int                                m_CurrentTabIndex;
 

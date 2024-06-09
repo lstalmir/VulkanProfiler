@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2023 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2024 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,9 @@ set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Options
 option (BUILD_TESTS "Build tests." ON)
+option (BUILD_SPIRV_DOCS "Build SPIR-V documentation into the disassembly view." ON)
+set    (SPIRV_DOCS_URL "https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html"
+            CACHE STRING "URL of the SPIR-V documentation page.")
 
 # Platform-specific configuration and dependencies.
 include (CMake/platform.cmake)

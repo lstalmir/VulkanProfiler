@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2023 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2024 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -100,6 +100,7 @@ add_custom_command (
         --output ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
     DEPENDS ${json}
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py)
+list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h)
 
 # Generate dispatch tables
 add_custom_command (
@@ -110,10 +111,29 @@ add_custom_command (
         ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py)
+list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
+
+if (BUILD_SPIRV_DOCS)
+    # Generate SPIR-V documentation
+    add_custom_command (
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+            ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py
+            --json ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
+            --grammar ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
+            --spec ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
+            --out-license ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
+            --out-header ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
+        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
+        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py)
+    list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h)
+endif ()
 
 add_custom_target (profiler_codegen
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
+    DEPENDS ${PROFILER_CODEGEN_FILES})
 
 add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common
@@ -130,6 +150,12 @@ target_include_directories (profiler_common
     INTERFACE ${CMAKE_CURRENT_BINARY_DIR}
     INTERFACE utils)
 add_dependencies (profiler_common profiler_codegen)
+
+if (BUILD_SPIRV_DOCS)
+    target_compile_definitions (profiler_common INTERFACE
+        PROFILER_BUILD_SPIRV_DOCS
+        PROFILER_SPIRV_DOCS_URL="${SPIRV_DOCS_URL}")
+endif ()
 
 # Include implementation of the layer
 add_subdirectory (profiler)

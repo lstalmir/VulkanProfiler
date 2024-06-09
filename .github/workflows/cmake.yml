@@ -37,12 +37,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
     - id: gen_build_configs
       run: |
-        oses=$(python ${{github.workspace}}/VkLayer_profiler_layer/scripts/gen_build_configs.py \
+        oses=$(python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/gen_build_configs.py \
             "windows=${{ inputs.build_os_windows }}" \
             "linux=${{ inputs.build_os_linux }}")
-        build_types=$(python ${{github.workspace}}/VkLayer_profiler_layer/scripts/gen_build_configs.py \
+        build_types=$(python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/gen_build_configs.py \
             "Release=${{ inputs.build_config_release }}" \
             "Debug=${{ inputs.build_config_debug }}")
         echo "config={\"matrix\":{\"build_type\":$build_types},\"oses\":$oses}"
@@ -64,6 +67,12 @@ jobs:
       with:
         submodules: recursive
         fetch-depth: 0
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory.
@@ -114,6 +123,12 @@ jobs:
       with:
         packages: extra-cmake-modules libvulkan-dev libx11-dev libxext-dev libxrandr-dev libx11-xcb-dev libxcb-shape0-dev
         version: 1.0
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.

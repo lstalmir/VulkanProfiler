@@ -95,7 +95,7 @@ add_library (profiler_overlay
 target_link_libraries (profiler_overlay
     PUBLIC profiler_common
     PRIVATE imgui
-    PRIVATE imguicolortextedit
+    PRIVATE imgui-text-editor
     PRIVATE profiler
     PRIVATE profiler_helpers)
 

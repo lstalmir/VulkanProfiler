@@ -44,6 +44,18 @@ static constexpr const char* g_scDefaultFonts[] = {
     "DejaVuSans.ttf",
 };
 
+static constexpr const char* g_scBoldFonts[] = {
+#ifdef WIN32
+    "segoeuib.ttf",
+    "tahomabd.ttf",
+#endif
+#ifdef __linux__
+    "Ubuntu-B.ttf",
+    "LiberationSans-Bold.ttf",
+#endif
+    "DejaVuSansBold.ttf",
+};
+
 static constexpr const char* g_scCodeFonts[] = {
 #ifdef WIN32
     "consola.ttf",
@@ -193,11 +205,13 @@ namespace Profiler
         ImFontAtlas* fonts = ImGui::GetIO().Fonts;
         ImFont* defaultFont = fonts->AddFontDefault();
         m_pDefaultFont = defaultFont;
+        m_pBoldFont = defaultFont;
         m_pCodeFont = defaultFont;
 
         // Find font files
         OverlayFontFinder fontFinder;
         std::filesystem::path defaultFontPath = fontFinder.GetFirstSupportedFont( g_scDefaultFonts, std::size( g_scDefaultFonts ) );
+        std::filesystem::path boldFontPath = fontFinder.GetFirstSupportedFont( g_scBoldFonts, std::size( g_scBoldFonts ) );
         std::filesystem::path codeFontPath = fontFinder.GetFirstSupportedFont( g_scCodeFonts, std::size( g_scCodeFonts ) );
 
         // Include all glyphs in the font to support non-latin letters
@@ -209,10 +223,16 @@ namespace Profiler
                 defaultFontPath.string().c_str(), 16.0f, nullptr, fontGlyphRange );
         }
 
+        if( !boldFontPath.empty() )
+        {
+            m_pBoldFont = fonts->AddFontFromFileTTF(
+                boldFontPath.string().c_str(), 16.0f, nullptr, fontGlyphRange );
+        }
+
         if( !codeFontPath.empty() )
         {
             m_pCodeFont = fonts->AddFontFromFileTTF(
-                codeFontPath.string().c_str(), 16.0f, nullptr, fontGlyphRange );
+                codeFontPath.string().c_str(), 12.0f, nullptr, fontGlyphRange );
         }
 
         // Build atlas
@@ -233,6 +253,20 @@ namespace Profiler
     ImFont* OverlayFonts::GetDefaultFont() const
     {
         return m_pDefaultFont;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBoldFont
+
+    Description:
+        Returns the bold font.
+
+    \***********************************************************************************/
+    ImFont* OverlayFonts::GetBoldFont() const
+    {
+        return m_pBoldFont;
     }
 
     /***********************************************************************************\
