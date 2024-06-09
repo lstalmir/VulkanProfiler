@@ -566,6 +566,9 @@ namespace Profiler
         ImGui::PushFont( m_Fonts.GetDefaultFont() );
         ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, 0.0f );
 
+        [[maybe_unused]]
+        ImVec2 cp = ImGui::GetCursorPos();
+
         if( ImGui::BeginTabBar( "ShaderRepresentations", ImGuiTabBarFlags_None ) )
         {
             // Draw shader representations in tabs.
@@ -579,9 +582,18 @@ namespace Profiler
         }
 
 #if PROFILER_BUILD_SPIRV_DOCS
-        // Allow the user to disable the tooltips with documentation.
-        ImGui::SameLine( 0, 10 );
-        ImGui::Checkbox( "Show SPIR-V documentation tooltips", &m_ShowSpirvDocs );
+        if( (m_CurrentTabIndex < m_pShaderRepresentations.size()) &&
+            (m_pShaderRepresentations[m_CurrentTabIndex]->m_Format == ShaderFormat::eSpirv) )
+        {
+            const char* pSpirvDocsText = "Show SPIR-V documentation";
+
+            ImVec2 spirvDocsTextSize = ImGui::CalcTextSize( pSpirvDocsText );
+            float spirvDocsCheckboxSize = spirvDocsTextSize.x + 2 * spirvDocsTextSize.y + 5;
+
+            // Allow the user to disable the tooltips with documentation.
+            ImGui::SetCursorPos( ImVec2( ImGui::GetWindowSize().x - spirvDocsCheckboxSize, cp.y ) );
+            ImGui::Checkbox( pSpirvDocsText, &m_ShowSpirvDocs );
+        }
 #endif
 
         ImGui::PopStyleVar();
