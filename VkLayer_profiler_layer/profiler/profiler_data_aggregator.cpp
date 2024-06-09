@@ -351,6 +351,12 @@ namespace Profiler
                         continue;
                     }
 
+                    if( commandBufferData.m_PerformanceQueryResults.empty() )
+                    {
+                        // No performance query data collected for this command buffer.
+                        continue;
+                    }
+
                     for( uint32_t i = 0; i < metricCount; ++i )
                     {
                         // Get metric accumulator
