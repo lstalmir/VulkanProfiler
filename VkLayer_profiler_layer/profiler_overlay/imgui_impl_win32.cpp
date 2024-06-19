@@ -28,8 +28,8 @@
 
 struct ImGui_ImplWin32_Context_Hook
 {
-    HHOOK Handle;
-    int   Refs;
+    HHOOK Handle = NULL;
+    int   Refs = 0;
 };
 
 typedef std::unordered_map<HWND, ImGui_ImplWin32_Context*> ImGui_ImplWin32_ContextMap;
@@ -238,6 +238,7 @@ ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
     if( !hook.Refs && hook.Handle )
     {
         UnhookWindowsHookEx( hook.Handle );
+        g_Win32ThreadHooks.erase( m_AppWindowThreadId );
     }
 
     // Uninitialize the backend
