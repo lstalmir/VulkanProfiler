@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,6 @@
 #include <mutex>
 #include <imgui.h>
 #include <stdlib.h>
-#include <X11/extensions/shape.h>
 
 namespace Profiler
 {
@@ -183,6 +182,17 @@ void ImGui_ImplXlib_Context::NewFrame()
     // Update OS mouse position
     UpdateMousePos();
 
+    // Update input capture rects
+    XShapeCombineRectangles(
+        m_Display,
+        m_InputWindow,
+        ShapeInput,
+        0, 0,
+        m_InputRects.data(),
+        m_InputRects.size(),
+        ShapeSet,
+        Unsorted );
+
     // Handle incoming input events
     // Don't block if there are no pending events
     while( XEventsQueued( m_Display, QueuedAlready ) )
@@ -237,12 +247,15 @@ void ImGui_ImplXlib_Context::NewFrame()
         }
         }
     }
+
+    // Rebuild input capture rects on each frame
+    m_InputRects.clear();
 }
 
 /***********************************************************************************\
 
 Function:
-    UpdateWindowRect
+    AddInputCaptureRect
 
 Description:
     X-platform implementations require setting input clipping rects to pass messages
@@ -250,26 +263,14 @@ Description:
     when g.CurrentWindow is set.
 
 \***********************************************************************************/
-void ImGui_ImplXlib_Context::UpdateWindowRect()
+void ImGui_ImplXlib_Context::AddInputCaptureRect( int x, int y, int width, int height )
 {
     // Set input clipping rectangle
-    ImVec2 pos = ImGui::GetWindowPos();
-    ImVec2 size = ImGui::GetWindowSize();
-
-    XRectangle inputRect = {};
-    inputRect.x = pos.x;
-    inputRect.y = pos.y;
-    inputRect.width = size.x;
-    inputRect.height = size.y;
-
-    XShapeCombineRectangles(
-        m_Display,
-        m_InputWindow,
-        ShapeInput,
-        0, 0,
-        &inputRect, 1,
-        ShapeSet,
-        Unsorted );
+    XRectangle& inputRect = m_InputRects.emplace_back();
+    inputRect.x = x;
+    inputRect.y = y;
+    inputRect.width = width;
+    inputRect.height = height;
 }
 
 /***********************************************************************************\

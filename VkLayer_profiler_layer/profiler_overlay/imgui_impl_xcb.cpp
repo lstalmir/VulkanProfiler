@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,6 @@
 #include <imgui.h>
 #include <stdlib.h>
 #include <mutex>
-#include <unordered_set>
-#include <xcb/shape.h>
 
 namespace Profiler
 {
@@ -163,6 +161,17 @@ void ImGui_ImplXcb_Context::NewFrame()
     // Update OS mouse position
     UpdateMousePos();
 
+    // Update input capture rects
+    xcb_shape_rectangles(
+        m_Connection,
+        XCB_SHAPE_SO_SET,
+        XCB_SHAPE_SK_INPUT,
+        XCB_CLIP_ORDERING_UNSORTED,
+        m_InputWindow,
+        0, 0,
+        m_InputRects.size(),
+        m_InputRects.data() );
+
     // Handle incoming input events
     // Don't block if there are no pending events
     xcb_generic_event_t* event = nullptr;
@@ -229,12 +238,15 @@ void ImGui_ImplXcb_Context::NewFrame()
     }
 
     xcb_flush( m_Connection );
+
+    // Rebuild input capture rects on each frame
+    m_InputRects.clear();
 }
 
 /***********************************************************************************\
 
 Function:
-    UpdateWindowRect
+    AddInputCaptureRect
 
 Description:
     X-platform implementations require setting input clipping rects to pass messages
@@ -242,26 +254,14 @@ Description:
     when g.CurrentWindow is set.
 
 \***********************************************************************************/
-void ImGui_ImplXcb_Context::UpdateWindowRect()
+void ImGui_ImplXcb_Context::AddInputCaptureRect( int x, int y, int width, int height )
 {
     // Set input clipping rectangle
-    ImVec2 pos = ImGui::GetWindowPos();
-    ImVec2 size = ImGui::GetWindowSize();
-
-    xcb_rectangle_t inputRect = {};
-    inputRect.x = pos.x;
-    inputRect.y = pos.y;
-    inputRect.width = size.x;
-    inputRect.height = size.y;
-
-    xcb_shape_rectangles(
-        m_Connection,
-        XCB_SHAPE_SO_SET,
-        XCB_SHAPE_SK_INPUT,
-        XCB_CLIP_ORDERING_UNSORTED,
-        m_InputWindow,
-        0, 0,
-        1, &inputRect );
+    xcb_rectangle_t& inputRect = m_InputRects.emplace_back();
+    inputRect.x = x;
+    inputRect.y = y;
+    inputRect.width = width;
+    inputRect.height = height;
 }
 
 /***********************************************************************************\
