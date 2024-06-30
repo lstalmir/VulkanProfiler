@@ -21,6 +21,7 @@
 #include "profiler_shader.h"
 
 #include <assert.h>
+#include <utility>
 
 namespace Profiler
 {

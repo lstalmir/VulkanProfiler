@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -849,7 +849,9 @@ namespace Profiler
         ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
-        m_pImGuiWindowContext->UpdateWindowRect();
+        ImVec2 pos = ImGui::GetWindowPos();
+        ImVec2 size = ImGui::GetWindowSize();
+        m_pImGuiWindowContext->AddInputCaptureRect( pos.x, pos.y, size.x, size.y );
 
         if( ImGui::BeginMenuBar() )
         {
@@ -935,6 +937,14 @@ namespace Profiler
                     state.Docked = ImGui::IsWindowDocked() &&
                         (dockSpaceId == m_MainDockSpaceId ||
                             dockSpaceId == m_PerformanceTabDockSpaceId);
+                    
+                    if( !state.Docked )
+                    {
+                        // Add input clipping rect for this window
+                        ImVec2 pos = ImGui::GetWindowPos();
+                        ImVec2 size = ImGui::GetWindowSize();
+                        m_pImGuiWindowContext->AddInputCaptureRect( pos.x, pos.y, size.x, size.y );
+                    }
 
                     state.Focus = false;
                 }

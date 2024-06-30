@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,7 +20,9 @@
 
 #pragma once
 #include "imgui_window.h"
+#include <vector>
 #include <X11/Xlib.h>
+#include <X11/extensions/shape.h>
 
 struct ImGuiContext;
 
@@ -33,7 +35,7 @@ public:
     const char* GetName() const override;
 
     void NewFrame() override;
-    void UpdateWindowRect() override;
+    void AddInputCaptureRect( int x, int y, int width, int height ) override;
 
 private:
     ImGuiContext* m_pImGuiContext;
@@ -41,6 +43,7 @@ private:
     XIM m_IM;
     Window m_AppWindow;
     Window m_InputWindow;
+    std::vector<XRectangle> m_InputRects;
 
     void UpdateMousePos();
 };
