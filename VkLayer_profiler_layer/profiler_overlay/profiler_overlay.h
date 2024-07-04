@@ -153,34 +153,50 @@ namespace Profiler
 
         HistogramGroupMode m_HistogramGroupMode;
 
-        struct FrameBrowserTreeNodeIndex
+#if 0
+        enum class FrameBrowserTreeNodeType : uint32_t
         {
-            uint16_t SubmitBatchIndex;
-            uint16_t SubmitIndex;
-            uint16_t PrimaryCommandBufferIndex;
-            uint16_t SecondaryCommandBufferIndex;
-            uint16_t RenderPassIndex;
-            uint16_t SubpassIndex;
-            uint16_t PipelineIndex;
-            uint16_t DrawcallIndex;
+            eSubmitBatch,
+            eSubmit,
+            eCommandBuffer,
+            eRenderPass,
+            eSubpass,
+            ePipeline,
+            eDrawcall
+        };
 
-            inline bool operator==( const FrameBrowserTreeNodeIndex& index ) const
+        struct FrameBrowserTreeNodeIndexData
+        {
+            FrameBrowserTreeNodeType m_Type;
+            uint32_t m_Row;
+
+            inline bool operator==( const FrameBrowserTreeNodeIndexData& other ) const
             {
-                return SubmitBatchIndex == index.SubmitBatchIndex
-                    && SubmitIndex == index.SubmitIndex
-                    && PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex
-                    && SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex
-                    && RenderPassIndex == index.RenderPassIndex
-                    && SubpassIndex == index.SubpassIndex
-                    && PipelineIndex == index.PipelineIndex
-                    && DrawcallIndex == index.DrawcallIndex;
+                return (m_Type == other.m_Type) && (m_Row == other.m_Row);
             }
 
-            inline bool operator!=( const FrameBrowserTreeNodeIndex& index ) const
+            inline bool operator!=( const FrameBrowserTreeNodeIndexData& other ) const
             {
-                return !operator==( index );
+                return !operator==( other );
             }
         };
+
+        struct FrameBrowserTreeNodeIndex
+        {
+            FrameBrowserTreeNodeIndex* m_pParent = nullptr;
+            FrameBrowserTreeNodeIndexData m_Data = {};
+
+            void Store( std::vector<FrameBrowserTreeNodeIndexData>& data ) const
+            {
+                if( m_pParent )
+                {
+                    m_pParent->Store( data );
+                }
+                data.push_back( m_Data );
+            }
+        };
+#endif
+        typedef std::vector<uint32_t> FrameBrowserTreeNodeIndex;
 
         DeviceProfilerFrameData m_Data;
         bool m_Pause;
@@ -200,6 +216,10 @@ namespace Profiler
 
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
+        bool ScrollToSelectedFrameBrowserNode( const FrameBrowserTreeNodeIndex& index ) const;
+
+        std::vector<char> m_FrameBrowserNodeIndexStr;
+        const char* GetFrameBrowserNodeIndexStr( const FrameBrowserTreeNodeIndex& index );
 
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
@@ -270,10 +290,10 @@ namespace Profiler
         // Performance graph helpers
         struct PerformanceGraphColumn;
         void GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
         void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 
@@ -286,11 +306,11 @@ namespace Profiler
         void InspectShaderStage( size_t );
 
         // Frame browser helpers
-        void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );
-        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex );
-        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex, bool );
-        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
-        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex );
+        void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
+        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex& );
+        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool );
+        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex& );
+        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex& );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         template<typename Data>

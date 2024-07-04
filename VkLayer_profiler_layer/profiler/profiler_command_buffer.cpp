@@ -643,11 +643,13 @@ namespace Profiler
                     if( pPreviousSubpassData != nullptr )
                     {
                         if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                            (pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE) &&
-                            !pPreviousSubpassData->m_Pipelines.empty() )
+                            (pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE ||
+                                pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT) &&
+                            !pPreviousSubpassData->m_Data.empty() &&
+                            (pPreviousSubpassData->m_Data.back().GetType() == DeviceProfilerSubpassDataType::ePipeline) )
                         {
-                            pPreviousSubpassData->m_EndTimestamp =
-                                pPreviousSubpassData->m_Pipelines.back().m_EndTimestamp;
+                            auto& pipeline = std::get<DeviceProfilerPipelineData>( pPreviousSubpassData->m_Data.back() );
+                            pPreviousSubpassData->m_EndTimestamp = pipeline.m_EndTimestamp;
                         }
                         else
                         {
@@ -720,9 +722,6 @@ namespace Profiler
     {
         if( m_ProfilingEnabled )
         {
-            // Secondary command buffers must be executed on primary command buffers
-            assert( m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY );
-
             // Ensure there is a render pass and subpass with VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS flag
             SetupCommandBufferForSecondaryBuffers();
 
@@ -731,7 +730,10 @@ namespace Profiler
 
             for( uint32_t i = 0; i < count; ++i )
             {
-                currentSubpass.m_SecondaryCommandBuffers.push_back( { pCommandBuffers[ i ], VK_COMMAND_BUFFER_LEVEL_SECONDARY } );
+                currentSubpass.m_Data.push_back( DeviceProfilerCommandBufferData{
+                    pCommandBuffers[ i ],
+                    VK_COMMAND_BUFFER_LEVEL_SECONDARY
+                    } );
 
                 // Add command buffer reference
                 m_SecondaryCommandBuffers.insert( pCommandBuffers[ i ] );
@@ -824,14 +826,19 @@ namespace Profiler
 
                     for( auto& subpass : renderPass.m_Subpasses )
                     {
-                        if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
-                        {
-                            subpass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_BeginTimestamp.m_Index );
+                        subpass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_BeginTimestamp.m_Index );
 
-                            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
+                        for( auto& data : subpass.m_Data )
+                        {
+                            // With VK_EXT_nested_command_buffers, it is possible to insert both command buffers and
+                            // inline commands in the same subpass.
+                            switch( data.GetType() )
                             {
-                                for( auto& pipeline : subpass.m_Pipelines )
+                            case DeviceProfilerSubpassDataType::ePipeline:
+                            {
+                                if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
                                 {
+                                    auto& pipeline = std::get<DeviceProfilerPipelineData>( data );
                                     pipeline.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_BeginTimestamp.m_Index );
 
                                     if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
@@ -856,15 +863,11 @@ namespace Profiler
 
                                     pipeline.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_EndTimestamp.m_Index );
                                 }
+                                break;
                             }
-
-                            subpass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp.m_Index );
-                        }
-
-                        else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
-                        {
-                            for( auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
+                            case DeviceProfilerSubpassDataType::eCommandBuffer:
                             {
+                                auto& commandBuffer = std::get<DeviceProfilerCommandBufferData>( data );
                                 VkCommandBuffer handle = commandBuffer.m_Handle;
                                 ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
 
@@ -881,15 +884,12 @@ namespace Profiler
 
                                 // Collect secondary command buffer stats
                                 m_Data.m_Stats += commandBuffer.m_Stats;
+                                break;
+                            }
                             }
                         }
-                        else
-                        {
-                            ProfilerPlatformFunctions::WriteDebug(
-                                "%s - Unsupported VkSubpassContents enum value (%u)\n",
-                                __FUNCTION__,
-                                subpass.m_Contents );
-                        }
+
+                        subpass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp.m_Index );
                     }
 
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
@@ -1159,7 +1159,8 @@ namespace Profiler
 
         // Check if current subpass allows inline commands
         if( !m_pCurrentSubpassData ||
-            (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE) )
+            ((m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE) &&
+                (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT)) )
         {
             m_pCurrentSubpassData = &m_pCurrentRenderPassData->m_Subpasses.emplace_back();
             m_pCurrentSubpassData->m_Index = m_CurrentSubpassIndex;
@@ -1175,7 +1176,7 @@ namespace Profiler
             ((m_pCurrentPipelineData->m_Handle == VK_NULL_HANDLE) &&
                 (m_pCurrentPipelineData->m_Type != pipeline.m_Type)) )
         {
-            m_pCurrentPipelineData = &m_pCurrentSubpassData->m_Pipelines.emplace_back( pipeline );
+            m_pCurrentPipelineData = &std::get<DeviceProfilerPipelineData>( m_pCurrentSubpassData->m_Data.emplace_back( pipeline ) );
             return true;
         }
 
@@ -1202,7 +1203,8 @@ namespace Profiler
 
         // Check if current subpass allows secondary command buffers
         if( !m_pCurrentSubpassData ||
-            (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS) )
+            ((m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS) &&
+                (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT)) )
         {
             m_pCurrentSubpassData = &m_pCurrentRenderPassData->m_Subpasses.emplace_back();
             m_pCurrentSubpassData->m_Index = m_CurrentSubpassIndex;
@@ -1239,27 +1241,5 @@ namespace Profiler
         default:
             return DeviceProfilerRenderPassType::eCopy;
         }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetCurrentPipeline
-
-    Description:
-        Get currently profiled pipeline.
-
-    \***********************************************************************************/
-    DeviceProfilerPipelineData& ProfilerCommandBuffer::GetCurrentPipeline()
-    {
-        assert( m_pCurrentRenderPassData );
-        assert( !m_pCurrentRenderPassData->m_Subpasses.empty() );
-
-        DeviceProfilerSubpassData& currentSubpass = m_pCurrentRenderPassData->m_Subpasses.back();
-
-        assert( !currentSubpass.m_Pipelines.empty() );
-        assert( currentSubpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE );
-
-        return currentSubpass.m_Pipelines.back();
     }
 }

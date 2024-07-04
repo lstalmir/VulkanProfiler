@@ -1361,55 +1361,41 @@ namespace Profiler
                 }
             }
 
-            FrameBrowserTreeNodeIndex index = {
-                0x0,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF,
-                0xFFFF };
+            FrameBrowserTreeNodeIndex index;
+            index.emplace_back( 0 );
 
             // Enumerate submits in frame
             for( const auto& submitBatch : m_Data.m_Submits )
             {
                 const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
 
-                index.SubmitIndex = 0;
-                index.PrimaryCommandBufferIndex = 0;
-
-                char indexStr[ 2 * sizeof( index ) + 1 ] = {};
-                structtohex( indexStr, index );
-
-                if( m_ScrollToSelectedFrameBrowserNode &&
-                    (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) )
+                if( ScrollToSelectedFrameBrowserNode( index ) )
                 {
                     ImGui::SetNextItemOpen( true );
                 }
 
+                const char* indexStr = GetFrameBrowserNodeIndexStr( index );
                 if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
                         queueName.c_str(),
                         static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
                 {
+                    index.emplace_back( 0 );
+
                     for( const auto& submit : submitBatch.m_Submits )
                     {
-                        structtohex( indexStr, index );
-
-                        if( m_ScrollToSelectedFrameBrowserNode &&
-                            (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
-                            (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) )
+                        if( ScrollToSelectedFrameBrowserNode( index ) )
                         {
                             ImGui::SetNextItemOpen( true );
                         }
 
+                        const char* indexStr = GetFrameBrowserNodeIndexStr( index );
                         const bool inSubmitSubtree =
                             (submitBatch.m_Submits.size() > 1) &&
-                            (ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.SubmitIndex ));
+                            (ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.back() ));
 
                         if( (inSubmitSubtree) || (submitBatch.m_Submits.size() == 1) )
                         {
-                            index.PrimaryCommandBufferIndex = 0;
+                            index.emplace_back( 0 );
 
                             // Sort frame browser data
                             std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
@@ -1419,11 +1405,10 @@ namespace Profiler
                             for( const auto* pCommandBuffer : pCommandBuffers )
                             {
                                 PrintCommandBuffer( *pCommandBuffer, index );
-                                index.PrimaryCommandBufferIndex++;
+                                index.back()++;
                             }
 
-                            // Invalidate command buffer index
-                            index.PrimaryCommandBufferIndex = 0xFFFF;
+                            index.pop_back();
                         }
 
                         if( inSubmitSubtree )
@@ -1432,17 +1417,17 @@ namespace Profiler
                             ImGui::TreePop();
                         }
 
-                        index.SubmitIndex++;
+                        index.back()++;
                     }
 
                     // Finish submit batch subtree
                     ImGui::TreePop();
 
                     // Invalidate submit index
-                    index.SubmitIndex = 0xFFFF;
+                    index.pop_back();
                 }
 
-                index.SubmitBatchIndex++;
+                index.back()++;
             }
         }
 
@@ -1468,7 +1453,7 @@ namespace Profiler
         {
             if( pipeline.m_Handle != VK_NULL_HANDLE )
             {
-                const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+                const uint64_t pipelineTicks = GetDuration( pipeline );
 
                 ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
                 ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
@@ -2096,40 +2081,36 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& columns ) const
     {
-        FrameBrowserTreeNodeIndex index = {
-            0x0,
-            0xFFFF,
-            0xFFFF,
-            0xFFFF,
-            0xFFFF,
-            0xFFFF,
-            0xFFFF,
-            0xFFFF };
+        FrameBrowserTreeNodeIndex index;
+        index.emplace_back( 0 );
 
         // Enumerate submits batches in frame
         for( const auto& submitBatch : m_Data.m_Submits )
         {
-            index.SubmitIndex = 0;
+            index.emplace_back( 0 );
 
             // Enumerate submits in submit batch
             for( const auto& submit : submitBatch.m_Submits )
             {
-                index.PrimaryCommandBufferIndex = 0;
+                index.emplace_back( 0 );
 
                 // Enumerate command buffers in submit
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     GetPerformanceGraphColumns( commandBuffer, index, columns );
-                    index.PrimaryCommandBufferIndex++;
+                    index.back()++;
                 }
 
-                index.PrimaryCommandBufferIndex = 0xFFFF;
-                index.SubmitIndex++;
+                index.pop_back();
+                index.back()++;
             }
 
-            index.SubmitIndex = 0xFFFF;
-            index.SubmitBatchIndex++;
+            index.pop_back();
+            index.back()++;
         }
+
+        index.pop_back();
+        assert( index.empty() );
     }
 
     /***********************************************************************************\
@@ -2143,23 +2124,19 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetPerformanceGraphColumns(
         const DeviceProfilerCommandBufferData& data,
-        FrameBrowserTreeNodeIndex index,
+        FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        // RenderPassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
-        const bool renderPassContinue = (index.RenderPassIndex != 0xFFFF);
-
-        if( !renderPassContinue )
-        {
-            index.RenderPassIndex = 0;
-        }
+        index.emplace_back( 0 );
 
         // Enumerate render passes in command buffer
         for( const auto& renderPass : data.m_RenderPasses )
         {
             GetPerformanceGraphColumns( renderPass, index, columns );
-            index.RenderPassIndex++;
+            index.back()++;
         }
+
+        index.pop_back();
     }
 
     /***********************************************************************************\
@@ -2173,16 +2150,13 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetPerformanceGraphColumns(
         const DeviceProfilerRenderPassData& data,
-        FrameBrowserTreeNodeIndex index,
+        FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        // RenderPassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
-        const bool renderPassContinue = (index.SubpassIndex != 0xFFFF);
-
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             (data.m_Handle != VK_NULL_HANDLE || data.m_Dynamic) )
         {
-            const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
+            const float cycleCount = static_cast<float>(GetDuration( data ));
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -2197,44 +2171,35 @@ namespace Profiler
         }
         else
         {
-            if( !renderPassContinue )
-            {
-                index.SubpassIndex = 0;
-            }
+            index.emplace_back( 0 );
+            if( data.HasBeginCommand() )
+                index.back()++;
 
             // Enumerate subpasses in render pass
             for( const auto& subpass : data.m_Subpasses )
             {
-                if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+                index.emplace_back( 0 );
+
+                for( const auto& data : subpass.m_Data )
                 {
-                    index.PipelineIndex = 0;
-
-                    // Enumerate pipelines in subpass
-                    for( const auto& pipeline : subpass.m_Pipelines )
+                    switch( data.GetType() )
                     {
-                        GetPerformanceGraphColumns( pipeline, index, columns );
-                        index.PipelineIndex++;
-                    }
+                    case DeviceProfilerSubpassDataType::ePipeline:
+                        GetPerformanceGraphColumns( std::get<DeviceProfilerPipelineData>( data ), index, columns );
+                        break;
 
-                    index.PipelineIndex = 0xFFFF;
+                    case DeviceProfilerSubpassDataType::eCommandBuffer:
+                        GetPerformanceGraphColumns( std::get<DeviceProfilerCommandBufferData>( data ), index, columns );
+                        break;
+                    }
+                    index.back()++;
                 }
 
-                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
-                {
-                    index.SecondaryCommandBufferIndex = 0;
-
-                    // Enumerate secondary command buffers
-                    for( const auto& commandBuffer : subpass.m_SecondaryCommandBuffers )
-                    {
-                        GetPerformanceGraphColumns( commandBuffer, index, columns );
-                        index.SecondaryCommandBufferIndex++;
-                    }
-
-                    index.SecondaryCommandBufferIndex = 0xFFFF;
-                }
-
-                index.SubpassIndex++;
+                index.pop_back();
+                index.back()++;
             }
+
+            index.pop_back();
         }
     }
 
@@ -2249,14 +2214,14 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetPerformanceGraphColumns(
         const DeviceProfilerPipelineData& data,
-        FrameBrowserTreeNodeIndex index,
+        FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
         if( (m_HistogramGroupMode <= HistogramGroupMode::ePipeline) &&
             ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
             (data.m_Handle != VK_NULL_HANDLE) )
         {
-            const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
+            const float cycleCount = static_cast<float>(GetDuration( data ));
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
@@ -2289,14 +2254,16 @@ namespace Profiler
         }
         else
         {
-            index.DrawcallIndex = 0;
+            index.emplace_back( 0 );
 
             // Enumerate drawcalls in pipeline
             for( const auto& drawcall : data.m_Drawcalls )
             {
                 GetPerformanceGraphColumns( drawcall, index, columns );
-                index.DrawcallIndex++;
+                index.back()++;
             }
+
+            index.pop_back();
         }
     }
 
@@ -2311,10 +2278,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetPerformanceGraphColumns(
         const DeviceProfilerDrawcall& data,
-        FrameBrowserTreeNodeIndex index,
+        FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        const float cycleCount = static_cast<float>( data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value );
+        const float cycleCount = static_cast<float>(GetDuration( data ));
 
         PerformanceGraphColumn column = {};
         column.x = cycleCount;
@@ -2366,7 +2333,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerRenderPassData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( renderPassData );
-            regionCycleCount = renderPassData.m_EndTimestamp.m_Value - renderPassData.m_BeginTimestamp.m_Value;
+            regionCycleCount = GetDuration( renderPassData );
             break;
         }
 
@@ -2376,7 +2343,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerPipelineData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = pipelineData.m_EndTimestamp.m_Value - pipelineData.m_BeginTimestamp.m_Value;
+            regionCycleCount = GetDuration( pipelineData );
             break;
         }
 
@@ -2386,7 +2353,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerDrawcall*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = pipelineData.m_EndTimestamp.m_Value - pipelineData.m_BeginTimestamp.m_Value;
+            regionCycleCount = GetDuration( pipelineData );
             break;
         }
         }
@@ -2413,6 +2380,59 @@ namespace Profiler
         m_ScrollToSelectedFrameBrowserNode = true;
 
         m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ScrollToSelectedFrameBrowserNode
+
+    Description:
+        Checks if the frame browser should scroll to the node at the given index
+        (or its child).
+
+    \***********************************************************************************/
+    bool ProfilerOverlayOutput::ScrollToSelectedFrameBrowserNode( const FrameBrowserTreeNodeIndex& index ) const
+    {
+        if( !m_ScrollToSelectedFrameBrowserNode )
+        {
+            return false;
+        }
+
+        if( m_SelectedFrameBrowserNodeIndex.size() != index.size() )
+        {
+            return false;
+        }
+
+        return memcmp( m_SelectedFrameBrowserNodeIndex.data(),
+            index.data(),
+            index.size() * sizeof( FrameBrowserTreeNodeIndex::value_type ) ) == 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameBrowserNodeIndexStr
+
+    Description:
+        Returns pointer to a string representation of the index.
+        The pointer remains valid until the next call to this function.
+
+    \***********************************************************************************/
+    const char* ProfilerOverlayOutput::GetFrameBrowserNodeIndexStr( const FrameBrowserTreeNodeIndex& index )
+    {
+        // Allocate size for the string.
+        m_FrameBrowserNodeIndexStr.resize(
+            (index.size() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
+
+        datatohex(
+            m_FrameBrowserNodeIndexStr.data(),
+            m_FrameBrowserNodeIndexStr.size(),
+            index.data(),
+            index.size() );
+
+        m_FrameBrowserNodeIndexStr.back() = 0;
+        return m_FrameBrowserNodeIndexStr.data();
     }
 
     /***********************************************************************************\
@@ -2514,32 +2534,21 @@ namespace Profiler
         Writes command buffer data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex index )
+    void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex& index )
     {
-        const uint64_t commandBufferTicks = (cmdBuffer.m_EndTimestamp.m_Value - cmdBuffer.m_BeginTimestamp.m_Value);
+        const uint64_t commandBufferTicks = GetDuration( cmdBuffer );
 
         // Mark hotspots with color
         DrawSignificanceRect( (float)commandBufferTicks / m_Data.m_Ticks, index );
 
-        char indexStr[ 2 * sizeof( index ) + 1 ] = {};
-        structtohex( indexStr, index );
-
-        if( (m_ScrollToSelectedFrameBrowserNode) &&
-            (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) &&
-            (((cmdBuffer.m_Level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) &&
-                  (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex)) ||
-                ((cmdBuffer.m_Level == VK_COMMAND_BUFFER_LEVEL_SECONDARY) &&
-                    (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
-                    (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
-                    (m_SelectedFrameBrowserNodeIndex.SubpassIndex == index.SubpassIndex) &&
-                    (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex))) )
+        if( ScrollToSelectedFrameBrowserNode( index ) )
         {
             // Tree contains selected node
             ImGui::SetNextItemOpen( true );
             ImGui::SetScrollHereY();
         }
 
+        const char* indexStr = GetFrameBrowserNodeIndexStr( index );
         if( ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( cmdBuffer.m_Handle ).c_str() ) )
         {
             // Command buffer opened
@@ -2549,21 +2558,16 @@ namespace Profiler
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
                 SortFrameBrowserData( cmdBuffer.m_RenderPasses );
 
-            // RenderPassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
-            const bool renderPassContinue = (index.RenderPassIndex != 0xFFFF);
-
-            if( !renderPassContinue )
-            {
-                index.RenderPassIndex = 0;
-            }
+            index.emplace_back( 0 );
 
             // Enumerate render passes in command buffer
             for( const DeviceProfilerRenderPassData* pRenderPass : pRenderPasses )
             {
                 PrintRenderPass( *pRenderPass, index );
-                index.RenderPassIndex++;
+                index.back()++;
             }
 
+            index.pop_back();
             ImGui::TreePop();
         }
         else
@@ -2587,9 +2591,9 @@ namespace Profiler
     template<typename Data>
     void ProfilerOverlayOutput::PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex )
     {
-        const uint64_t commandTicks = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value);
+        const uint64_t commandTicks = GetDuration( data );
 
-        index.DrawcallIndex = drawcallIndex;
+        index.emplace_back( drawcallIndex );
 
         if( (m_ScrollToSelectedFrameBrowserNode) &&
             (m_SelectedFrameBrowserNodeIndex == index) )
@@ -2600,7 +2604,7 @@ namespace Profiler
         // Mark hotspots with color
         DrawSignificanceRect( (float)commandTicks / m_Data.m_Ticks, index );
 
-        index.DrawcallIndex = 0xFFFF;
+        index.pop_back();
 
         // Print command's name
         ImGui::TextUnformatted( m_pStringSerializer->GetName( data, dynamic ).c_str() );
@@ -2617,31 +2621,22 @@ namespace Profiler
         Writes render pass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex index )
+    void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex& index )
     {
         const bool isValidRenderPass = (renderPass.m_Type != DeviceProfilerRenderPassType::eNone);
 
         if( isValidRenderPass )
         {
-            const uint64_t renderPassTicks = (renderPass.m_EndTimestamp.m_Value - renderPass.m_BeginTimestamp.m_Value);
+            const uint64_t renderPassTicks = GetDuration( renderPass );
 
             // Mark hotspots with color
             DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
         }
 
-        char indexStr[ 2 * sizeof( index ) + 1 ] = {};
-        structtohex( indexStr, index );
-
         // At least one subpass must be present
         assert( !renderPass.m_Subpasses.empty() );
 
-        if( (m_ScrollToSelectedFrameBrowserNode) &&
-            (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
-            (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
-            ((index.SecondaryCommandBufferIndex == 0xFFFF) ||
-                (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex)) )
+        if( ScrollToSelectedFrameBrowserNode( index ) )
         {
             // Tree contains selected node
             ImGui::SetNextItemOpen( true );
@@ -2651,6 +2646,7 @@ namespace Profiler
         bool inRenderPassSubtree;
         if( isValidRenderPass )
         {
+            const char* indexStr = GetFrameBrowserNodeIndexStr( index );
             inRenderPassSubtree = ImGui::TreeNode( indexStr, "%s",
                 m_pStringSerializer->GetName( renderPass ).c_str() );
         }
@@ -2662,6 +2658,8 @@ namespace Profiler
 
         if( inRenderPassSubtree )
         {
+            index.emplace_back( 0 );
+
             // Render pass subtree opened
             if( isValidRenderPass )
             {
@@ -2670,6 +2668,7 @@ namespace Profiler
                 if( renderPass.HasBeginCommand() )
                 {
                     PrintRenderPassCommand( renderPass.m_Begin, renderPass.m_Dynamic, index, 0 );
+                    index.back()++;
                 }
             }
 
@@ -2677,24 +2676,11 @@ namespace Profiler
             std::list<const DeviceProfilerSubpassData*> pSubpasses =
                 SortFrameBrowserData( renderPass.m_Subpasses );
 
-            // SubpassIndex may be already set if we're processing secondary command buffer with RENDER_PASS_CONTINUE_BIT set.
-            const bool renderPassContinue = (index.SubpassIndex != 0xFFFF);
-
-            if( !renderPassContinue )
-            {
-                index.SubpassIndex = 0;
-            }
-
             // Enumerate subpasses
             for( const DeviceProfilerSubpassData* pSubpass : pSubpasses )
             {
                 PrintSubpass( *pSubpass, index, (pSubpasses.size() == 1) );
-                index.SubpassIndex++;
-            }
-
-            if( !renderPassContinue )
-            {
-                index.SubpassIndex = 0xFFFF;
+                index.back()++;
             }
 
             if( isValidRenderPass )
@@ -2706,6 +2692,8 @@ namespace Profiler
 
                 ImGui::TreePop();
             }
+
+            index.pop_back();
         }
 
         if( isValidRenderPass && !inRenderPassSubtree )
@@ -2724,9 +2712,9 @@ namespace Profiler
         Writes subpass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex index, bool isOnlySubpass )
+    void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex& index, bool isOnlySubpass )
     {
-        const uint64_t subpassTicks = (subpass.m_EndTimestamp.m_Value - subpass.m_BeginTimestamp.m_Value);
+        const uint64_t subpassTicks = GetDuration( subpass );
         bool inSubpassSubtree = false;
 
         if( !isOnlySubpass )
@@ -2734,22 +2722,14 @@ namespace Profiler
             // Mark hotspots with color
             DrawSignificanceRect( (float)subpassTicks / m_Data.m_Ticks, index );
 
-            char indexStr[ 2 * sizeof( index ) + 1 ] = {};
-            structtohex( indexStr, index );
-
-            if( (m_ScrollToSelectedFrameBrowserNode) &&
-                (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SubpassIndex == index.SubpassIndex) )
+            if( ScrollToSelectedFrameBrowserNode( index ) )
             {
                 // Tree contains selected node
                 ImGui::SetNextItemOpen( true );
                 ImGui::SetScrollHereY();
             }
 
+            const char* indexStr = GetFrameBrowserNodeIndexStr( index );
             inSubpassSubtree =
                 (subpass.m_Index != -1) &&
                 (ImGui::TreeNode( indexStr, "Subpass #%u", subpass.m_Index ));
@@ -2765,37 +2745,30 @@ namespace Profiler
             isOnlySubpass ||
             (subpass.m_Index == -1) )
         {
-            if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+            index.emplace_back( 0 );
+
+            // Sort frame browser data
+            std::list<const DeviceProfilerSubpassData::Data*> pDataSorted =
+                SortFrameBrowserData( subpass.m_Data );
+
+            // Enumerate pipelines and secondary command buffers in the subpass
+            for( const DeviceProfilerSubpassData::Data* pData : pDataSorted )
             {
-                // Sort frame browser data
-                std::list<const DeviceProfilerPipelineData*> pPipelines =
-                    SortFrameBrowserData( subpass.m_Pipelines );
-
-                index.PipelineIndex = 0;
-
-                // Enumerate pipelines in subpass
-                for( const DeviceProfilerPipelineData* pPipeline : pPipelines )
+                switch( pData->GetType() )
                 {
-                    PrintPipeline( *pPipeline, index );
-                    index.PipelineIndex++;
+                case DeviceProfilerSubpassDataType::ePipeline:
+                    PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index );
+                    break;
+
+                case DeviceProfilerSubpassDataType::eCommandBuffer:
+                    PrintCommandBuffer( std::get<DeviceProfilerCommandBufferData>( *pData ), index );
+                    break;
                 }
+
+                index.back()++;
             }
 
-            else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
-            {
-                // Sort command buffers
-                std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
-                    SortFrameBrowserData( subpass.m_SecondaryCommandBuffers );
-
-                index.SecondaryCommandBufferIndex = 0;
-
-                // Enumerate command buffers in subpass
-                for( const DeviceProfilerCommandBufferData* pCommandBuffer : pCommandBuffers )
-                {
-                    PrintCommandBuffer( *pCommandBuffer, index );
-                    index.SecondaryCommandBufferIndex++;
-                }
-            }
+            index.pop_back();
         }
 
         if( inSubpassSubtree )
@@ -2820,9 +2793,9 @@ namespace Profiler
         Writes pipeline data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex index )
+    void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex& index )
     {
-        const uint64_t pipelineTicks = (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+        const uint64_t pipelineTicks = GetDuration( pipeline );
 
         const bool printPipelineInline =
             (pipeline.m_Handle == VK_NULL_HANDLE) ||
@@ -2835,23 +2808,14 @@ namespace Profiler
             // Mark hotspots with color
             DrawSignificanceRect( (float)pipelineTicks / m_Data.m_Ticks, index );
 
-            char indexStr[ 2 * sizeof( index ) + 1 ] = {};
-            structtohex( indexStr, index );
-
-            if( (m_ScrollToSelectedFrameBrowserNode) &&
-                (m_SelectedFrameBrowserNodeIndex.SubmitBatchIndex == index.SubmitBatchIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SubmitIndex == index.SubmitIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.RenderPassIndex == index.RenderPassIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.SubpassIndex == index.SubpassIndex) &&
-                (m_SelectedFrameBrowserNodeIndex.PipelineIndex == index.PipelineIndex) )
+            if( ScrollToSelectedFrameBrowserNode( index ) )
             {
                 // Tree contains selected node
                 ImGui::SetNextItemOpen( true );
                 ImGui::SetScrollHereY();
             }
 
+            const char* indexStr = GetFrameBrowserNodeIndexStr( index );
             inPipelineSubtree =
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
 
@@ -2892,14 +2856,16 @@ namespace Profiler
             std::list<const DeviceProfilerDrawcall*> pDrawcalls =
                 SortFrameBrowserData( pipeline.m_Drawcalls );
 
-            index.DrawcallIndex = 0;
+            index.emplace_back( 0 );
 
             // Enumerate drawcalls in pipeline
             for( const DeviceProfilerDrawcall* pDrawcall : pDrawcalls )
             {
                 PrintDrawcall( *pDrawcall, index );
-                index.DrawcallIndex++;
+                index.back()++;
             }
+
+            index.pop_back();
         }
 
         if( inPipelineSubtree )
@@ -2924,14 +2890,13 @@ namespace Profiler
         Writes drawcall data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall, FrameBrowserTreeNodeIndex index )
+    void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall, FrameBrowserTreeNodeIndex& index )
     {
         if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
-            const uint64_t drawcallTicks = (drawcall.m_EndTimestamp.m_Value - drawcall.m_BeginTimestamp.m_Value);
+            const uint64_t drawcallTicks = GetDuration( drawcall );
 
-            if( (m_ScrollToSelectedFrameBrowserNode) &&
-                (m_SelectedFrameBrowserNodeIndex == index) )
+            if( ScrollToSelectedFrameBrowserNode( index ) )
             {
                 ImGui::SetScrollHereY();
             }
@@ -3065,7 +3030,7 @@ namespace Profiler
     {
         if( ( data.m_BeginTimestamp.m_Value != UINT64_MAX ) && ( data.m_EndTimestamp.m_Value != UINT64_MAX ) )
         {
-            const uint64_t ticks = data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value;
+            const uint64_t ticks = GetDuration( data );
 
             // Print the duration
             ImGuiX::TextAlignRight( "%.2f %s",

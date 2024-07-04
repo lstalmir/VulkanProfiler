@@ -182,6 +182,21 @@ public:
         return SerializeSubregions( data.m_Drawcalls, &RegionBuilder::SerializeDrawcall, out );
     }
 
+    // Subpass contents serialization helper
+    inline VkResult SerializeSubpassContents( const DeviceProfilerSubpassData::Data& data, VkProfilerRegionDataEXT& out )
+    {
+        switch( data.GetType() )
+        {
+        case DeviceProfilerSubpassDataType::ePipeline:
+            return SerializePipeline( std::get<DeviceProfilerPipelineData>( data ), out );
+        case DeviceProfilerSubpassDataType::eCommandBuffer:
+            return SerializeCommandBuffer( std::get<DeviceProfilerCommandBufferData>( data ), out );
+        default:
+            assert( !"Invalid subpass contents" );
+            return VK_ERROR_UNKNOWN;
+        }
+    }
+
     // Subpass serialization helper
     inline VkResult SerializeSubpass( const DeviceProfilerSubpassData& data, VkProfilerRegionDataEXT& out )
     {
@@ -191,18 +206,7 @@ public:
         out.duration = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
         out.properties.subpass.index = data.m_Index;
         out.properties.subpass.contents = data.m_Contents;
-
-        switch( data.m_Contents )
-        {
-        case VK_SUBPASS_CONTENTS_INLINE:
-            return SerializeSubregions( data.m_Pipelines, &RegionBuilder::SerializePipeline, out );
-
-        case VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS:
-            return SerializeSubregions( data.m_SecondaryCommandBuffers, &RegionBuilder::SerializeCommandBuffer, out );
-        }
-
-        assert( !"Invalid subpass contents" );
-        return VK_ERROR_UNKNOWN;
+        return SerializeSubregions( data.m_Data, &RegionBuilder::SerializeSubpassContents, out );
     }
 
     // VkRenderPass serialization helper

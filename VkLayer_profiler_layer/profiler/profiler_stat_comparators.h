@@ -22,16 +22,23 @@
 
 namespace Profiler
 {
+    // Range duration getter
+    template<typename Data>
+    inline uint64_t GetDuration( const Data& a )
+    {
+        return (a.GetEndTimestamp().m_Value - a.GetBeginTimestamp().m_Value);
+    }
+
     // Range duration comparator
     template<typename Data>
     inline bool DurationDesc( const Data& a, const Data& b )
     {
-        return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) > (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
+        return (GetDuration( a ) > GetDuration( b ));
     }
 
     template<typename Data>
     inline bool DurationAsc( const Data& a, const Data& b )
     {
-        return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) < (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
+        return (GetDuration( a ) < GetDuration( b ));
     }
 }

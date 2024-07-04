@@ -490,19 +490,16 @@ namespace Profiler
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
-                if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
+                for( const auto& data : subpass.m_Data )
                 {
-                    for( const auto& pipeline : subpass.m_Pipelines )
+                    switch( data.GetType() )
                     {
-                        CollectPipeline( pipeline, aggregatedPipelines );
-                    }
-                }
-
-                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
-                {
-                    for( const auto& secondaryCommandBuffer : subpass.m_SecondaryCommandBuffers )
-                    {
-                        CollectPipelinesFromCommandBuffer( secondaryCommandBuffer, aggregatedPipelines );
+                    case DeviceProfilerSubpassDataType::ePipeline:
+                        CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines );
+                        break;
+                    case DeviceProfilerSubpassDataType::eCommandBuffer:
+                        CollectPipelinesFromCommandBuffer( std::get<DeviceProfilerCommandBufferData>( data ), aggregatedPipelines );
+                        break;
                     }
                 }
             }
