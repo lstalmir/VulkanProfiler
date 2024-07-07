@@ -190,8 +190,8 @@ namespace Profiler
         VkLayerInstanceDispatchTable IDT;
         VkLayerDeviceDispatchTable DT;
 
-        init_layer_instance_dispatch_table( Vk.Instance, vkGetInstanceProcAddr, IDT );
-        init_layer_device_dispatch_table( Vk.Device, vkGetDeviceProcAddr, DT );
+        IDT.Initialize( Vk.Instance, vkGetInstanceProcAddr );
+        DT.Initialize( Vk.Device, vkGetDeviceProcAddr );
 
         // Initialize simple triangle app
         VulkanSimpleTriangle simpleTriangle( &Vk, IDT, DT );

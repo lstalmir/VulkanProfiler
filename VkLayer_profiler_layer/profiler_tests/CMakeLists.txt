@@ -40,6 +40,9 @@ if (BUILD_TESTS)
         "profiler_command_buffer_tests.cpp"
         "profiler_extensions_tests.cpp"
         "profiler_memory_tests.cpp"
+        "profiler_testing_common.h"
+        "profiler_vulkan_simple_triangle.h"
+        "profiler_vulkan_state.h"
         )
 
     add_executable (profiler_tests
@@ -53,5 +56,9 @@ if (BUILD_TESTS)
         PRIVATE gtest_main
         PRIVATE profiler
         PRIVATE VkLayer_profiler_layer_lib
+        )
+        
+    target_include_directories (profiler_tests
+        PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
         )
 endif (BUILD_TESTS)

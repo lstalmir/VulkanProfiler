@@ -41,7 +41,7 @@ namespace Profiler
     public:
         inline VulkanSimpleTriangle( VulkanState* Vk,
             const VkLayerInstanceDispatchTable& IDT,
-            const VkLayerDispatchTable& DT )
+            const VkLayerDeviceDispatchTable& DT )
             : RenderPass( VK_NULL_HANDLE )
             , Framebuffer( VK_NULL_HANDLE )
             , FramebufferImage( VK_NULL_HANDLE )

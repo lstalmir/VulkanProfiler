@@ -55,7 +55,7 @@ namespace Profiler
     protected:
         VulkanState* Vk = {};
 
-        VkLayerDispatchTable DT = {};
+        VkLayerDeviceDispatchTable DT = {};
         VkLayerInstanceDispatchTable IDT = {};
 
         DeviceProfiler* Prof = {};
@@ -65,12 +65,31 @@ namespace Profiler
         {
             Test::SetUp();
 
-            Vk = new VulkanState;
-            DT = Vk->GetLayerDispatchTable();
-            IDT = Vk->GetLayerInstanceDispatchTable();
+            VulkanState::CreateInfo createInfo;
+            SetUpVulkan( createInfo );
 
-            auto& dd = VkDevice_Functions::DeviceDispatch.Get( Vk->Device );
-            Prof = &dd.Profiler;
+            try
+            {
+                Vk = new VulkanState( createInfo );
+                DT = Vk->GetLayerDispatchTable();
+                IDT = Vk->GetLayerInstanceDispatchTable();
+
+                auto& dd = VkDevice_Functions::DeviceDispatch.Get( Vk->Device );
+                Prof = &dd.Profiler;
+            }
+            catch( const VulkanError& error )
+            {
+                if( (error.Result == VK_ERROR_FEATURE_NOT_PRESENT) ||
+                    (error.Result == VK_ERROR_EXTENSION_NOT_PRESENT) ||
+                    (error.Result == VK_ERROR_LAYER_NOT_PRESENT) )
+                {
+                    GTEST_SKIP() << "Required extension, feature or layer is not present (" << error.Message << ")";
+                }
+                else
+                {
+                    GTEST_FAIL() << "Failed to set up Vulkan. " << error.Message << " (VkResult = " << error.Result << ")";
+                }
+            }
         }
 
         // Executed after each test
@@ -80,5 +99,8 @@ namespace Profiler
 
             Test::TearDown();
         }
+
+        // Overridden in tests that require specific extensions or features
+        inline virtual void SetUpVulkan( VulkanState::CreateInfo& createInfo ) {}
     };
 }
