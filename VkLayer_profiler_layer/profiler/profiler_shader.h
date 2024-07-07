@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <array>
 #include <vector>
+#include <set>
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 #include <spirv/unified1/spirv.h>
@@ -33,7 +34,10 @@ namespace Profiler
     {
         uint32_t m_Hash = 0;
         std::vector<uint32_t> m_Bytecode = {};
-        std::vector<SpvCapability> m_Capabilities = {};
+        std::set<SpvCapability> m_Capabilities = {};
+
+        ProfilerShaderModule() = default;
+        ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize );
     };
 
     struct ProfilerShader
@@ -130,6 +134,11 @@ namespace Profiler
             }
             return nullptr;
         }
+
+        bool UsesRayQuery() const;
+        bool UsesRayTracing() const;
+
+        void UpdateHash();
     };
 }
 

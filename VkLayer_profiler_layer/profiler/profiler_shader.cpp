@@ -23,6 +23,8 @@
 #include <assert.h>
 #include <utility>
 
+#include <farmhash.h>
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -423,5 +425,126 @@ namespace Profiler
             repr.m_IsText = reprDesc.m_IsText;
         }
         return repr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ProfilerShaderModule
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
+    ProfilerShaderModule::ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize )
+    {
+        // Compute shader code hash to use later
+        m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( pBytecode ), bytecodeSize );
+
+        // Save the bytecode to display the shader's disassembly
+        m_Bytecode.resize( bytecodeSize / sizeof( uint32_t ) );
+        memcpy( m_Bytecode.data(), pBytecode, bytecodeSize );
+
+        // Enumerate capabilities of the shader module
+        const uint32_t* pCurrentWord = pBytecode + 5; // skip header bytes
+        const uint32_t* pLastWord = pBytecode + ( bytecodeSize / sizeof( uint32_t ) ) - 1;
+
+        while( (pCurrentWord < pLastWord) &&
+               ((*pCurrentWord & 0xffff) == SpvOpCapability) )
+        {
+            assert( (*pCurrentWord >> 16) == 2 );
+
+            m_Capabilities.insert( static_cast<SpvCapability>( *(pCurrentWord + 1) ) );
+            pCurrentWord += 2; // SpvOpCapability is 2 words long
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UsesRayQuery
+
+    Description:
+        Checks if any of the shaders in the tuple uses ray query capability.
+
+    \***********************************************************************************/
+    bool ProfilerShaderTuple::UsesRayQuery() const
+    {
+        for( const ProfilerShader& shader : m_Shaders )
+        {
+            if( !shader.m_pShaderModule )
+            {
+                continue;
+            }
+
+            auto& capabilities = shader.m_pShaderModule->m_Capabilities;
+            if( capabilities.count( SpvCapabilityRayQueryKHR ) ||
+                capabilities.count( SpvCapabilityRayQueryProvisionalKHR ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UsesRayTracing
+
+    Description:
+        Checks if any of the shaders in the tuple uses ray tracing capability.
+
+    \***********************************************************************************/
+    bool ProfilerShaderTuple::UsesRayTracing() const
+    {
+        for( const ProfilerShader& shader : m_Shaders )
+        {
+            if( !shader.m_pShaderModule )
+            {
+                continue;
+            }
+
+            auto& capabilities = shader.m_pShaderModule->m_Capabilities;
+            if( capabilities.count( SpvCapabilityRayTracingKHR ) ||
+                capabilities.count( SpvCapabilityRayTracingProvisionalKHR ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateHash
+
+    Description:
+        Recalculate shader tuple hash for the current set of shaders.
+
+    \***********************************************************************************/
+    void ProfilerShaderTuple::UpdateHash()
+    {
+        const size_t stageCount = m_Shaders.size();
+
+        // Sort the shaders in the pipeline by stage
+        std::sort( m_Shaders.begin(), m_Shaders.end(),
+            []( const ProfilerShader& a, const ProfilerShader& b ) {
+                return a.m_Stage < b.m_Stage;
+            } );
+
+        // Compute aggregated tuple hash for fast comparison
+        std::vector<uint32_t> shaderHashes( stageCount );
+        for( uint32_t i = 0; i < stageCount; ++i )
+        {
+            shaderHashes[i] = m_Shaders[i].m_Hash;
+        }
+
+        m_Hash = Farmhash::Fingerprint32(
+            reinterpret_cast<const char*>( shaderHashes.data() ),
+            sizeof( uint32_t ) * shaderHashes.size() );
     }
 }

@@ -71,6 +71,7 @@ namespace Profiler
         void NextSubpass( VkSubpassContents );
 
         void BindPipeline( const DeviceProfilerPipeline& );
+        void BindShaders( uint32_t, const VkShaderStageFlagBits*, const VkShaderEXT* );
 
         void PreCommand( const DeviceProfilerDrawcall& );
         void PostCommand( const DeviceProfilerDrawcall& );

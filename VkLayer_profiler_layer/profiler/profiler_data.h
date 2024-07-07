@@ -723,6 +723,18 @@ namespace Profiler
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
+
+        bool                                                m_UsesShaderObjects = false;
+
+        inline void Finalize()
+        {
+            // Prefetch shader capabilities.
+            m_UsesRayQuery = m_ShaderTuple.UsesRayQuery();
+            m_UsesRayTracing = m_ShaderTuple.UsesRayTracing();
+
+            // Calculate pipeline hash.
+            m_ShaderTuple.UpdateHash();
+        }
     };
 
     /***********************************************************************************\
