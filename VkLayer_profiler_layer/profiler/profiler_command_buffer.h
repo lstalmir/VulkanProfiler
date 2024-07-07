@@ -119,7 +119,7 @@ namespace Profiler
 
         void IncrementStat( const DeviceProfilerDrawcall& );
 
-        bool SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
+        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline&, DeviceProfilerPipelineData** );
         void SetupCommandBufferForSecondaryBuffers();
 
         DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;

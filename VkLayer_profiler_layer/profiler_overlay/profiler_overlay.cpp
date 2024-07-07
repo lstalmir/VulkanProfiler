@@ -2399,7 +2399,7 @@ namespace Profiler
             return false;
         }
 
-        if( m_SelectedFrameBrowserNodeIndex.size() != index.size() )
+        if( m_SelectedFrameBrowserNodeIndex.size() < index.size() )
         {
             return false;
         }

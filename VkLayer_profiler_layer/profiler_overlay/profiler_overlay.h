@@ -153,50 +153,7 @@ namespace Profiler
 
         HistogramGroupMode m_HistogramGroupMode;
 
-#if 0
-        enum class FrameBrowserTreeNodeType : uint32_t
-        {
-            eSubmitBatch,
-            eSubmit,
-            eCommandBuffer,
-            eRenderPass,
-            eSubpass,
-            ePipeline,
-            eDrawcall
-        };
-
-        struct FrameBrowserTreeNodeIndexData
-        {
-            FrameBrowserTreeNodeType m_Type;
-            uint32_t m_Row;
-
-            inline bool operator==( const FrameBrowserTreeNodeIndexData& other ) const
-            {
-                return (m_Type == other.m_Type) && (m_Row == other.m_Row);
-            }
-
-            inline bool operator!=( const FrameBrowserTreeNodeIndexData& other ) const
-            {
-                return !operator==( other );
-            }
-        };
-
-        struct FrameBrowserTreeNodeIndex
-        {
-            FrameBrowserTreeNodeIndex* m_pParent = nullptr;
-            FrameBrowserTreeNodeIndexData m_Data = {};
-
-            void Store( std::vector<FrameBrowserTreeNodeIndexData>& data ) const
-            {
-                if( m_pParent )
-                {
-                    m_pParent->Store( data );
-                }
-                data.push_back( m_Data );
-            }
-        };
-#endif
-        typedef std::vector<uint32_t> FrameBrowserTreeNodeIndex;
+        typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
         DeviceProfilerFrameData m_Data;
         bool m_Pause;

@@ -553,38 +553,36 @@ namespace Profiler
         {
             const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
 
-            bool pipelineChanged = false;
-
             // Insert a timestamp in per-render pass mode if command is recorded outside of the render pass
             // and the internal render pass has changed.
             DeviceProfilerRenderPassData* pPreviousRenderPassData = m_pCurrentRenderPassData;
             DeviceProfilerSubpassData* pPreviousSubpassData = m_pCurrentSubpassData;
 
-            // Save pointer to the previous pipeline to update the end timestamp if needed.
-            DeviceProfilerPipelineData* pPreviousPipelineData = m_pCurrentPipelineData;
+            // Pointer to the previous pipeline to update the end timestamp if needed.
+            DeviceProfilerPipelineData* pPreviousPipelineData = nullptr;
 
             // Setup pipeline
             switch( pipelineType )
             {
             case DeviceProfilerPipelineType::eNone:
             case DeviceProfilerPipelineType::eDebug:
-                pipelineChanged = SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
+                SetupCommandBufferForStatCounting( { VK_NULL_HANDLE }, &pPreviousPipelineData );
                 break;
 
             case DeviceProfilerPipelineType::eGraphics:
-                pipelineChanged = SetupCommandBufferForStatCounting( m_GraphicsPipeline );
+                SetupCommandBufferForStatCounting( m_GraphicsPipeline, &pPreviousPipelineData );
                 break;
 
             case DeviceProfilerPipelineType::eCompute:
-                pipelineChanged = SetupCommandBufferForStatCounting( m_ComputePipeline );
+                SetupCommandBufferForStatCounting( m_ComputePipeline, &pPreviousPipelineData );
                 break;
 
             case DeviceProfilerPipelineType::eRayTracingKHR:
-                pipelineChanged = SetupCommandBufferForStatCounting( m_RayTracingPipeline );
+                SetupCommandBufferForStatCounting( m_RayTracingPipeline, &pPreviousPipelineData );
                 break;
 
             default: // Internal pipelines
-                pipelineChanged = SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ) );
+                SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ), &pPreviousPipelineData );
                 break;
             }
 
@@ -596,7 +594,7 @@ namespace Profiler
 
             if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                    (pipelineChanged)) ||
+                    (m_pCurrentPipelineData != pPreviousPipelineData)) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
                     (pPreviousRenderPassData != m_pCurrentRenderPassData)) )
             {
@@ -1135,14 +1133,37 @@ namespace Profiler
         SetupCommandBufferForStatCounting
 
     Description:
+        Returns pointer to the previous pipeline data in ppPreviousPipelineData.
 
-    Returns:
-        True, if the pipeline has changed.
+        This is because appending to a vector may invalidate it, so caching previous
+        state and calling this function may result in writing to a deallocated memory
+        previously owned by the vector.
 
     \***********************************************************************************/
-    bool ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline )
+    void ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline, DeviceProfilerPipelineData** ppPreviousPipelineData )
     {
         const DeviceProfilerRenderPassType renderPassType = GetRenderPassTypeFromPipelineType( pipeline.m_Type );
+
+        // Save index of the current pipeline
+        size_t previousPipelineIndex = SIZE_MAX;
+        DeviceProfilerSubpassData* pPreviousSubpassData = nullptr;
+
+        if( m_pCurrentPipelineData )
+        {
+            assert( m_pCurrentSubpassData );
+            pPreviousSubpassData = m_pCurrentSubpassData;
+            previousPipelineIndex = m_pCurrentSubpassData->m_Data.size();
+
+            while( (previousPipelineIndex--) > 0 )
+            {
+                auto& data = m_pCurrentSubpassData->m_Data[previousPipelineIndex];
+                if( (data.GetType() == DeviceProfilerSubpassDataType::ePipeline) &&
+                    (&std::get<DeviceProfilerPipelineData>( data ) == m_pCurrentPipelineData) )
+                {
+                    break;
+                }
+            }
+        }
 
         // Check if we're in render pass
         if( !m_pCurrentRenderPassData ||
@@ -1177,10 +1198,13 @@ namespace Profiler
                 (m_pCurrentPipelineData->m_Type != pipeline.m_Type)) )
         {
             m_pCurrentPipelineData = &std::get<DeviceProfilerPipelineData>( m_pCurrentSubpassData->m_Data.emplace_back( pipeline ) );
-            return true;
         }
 
-        return false;
+        // Return previous pipeline
+        if( pPreviousSubpassData && previousPipelineIndex != SIZE_MAX )
+        {
+            (*ppPreviousPipelineData) = &std::get<DeviceProfilerPipelineData>( pPreviousSubpassData->m_Data[previousPipelineIndex] );
+        }
     }
 
     /***********************************************************************************\
