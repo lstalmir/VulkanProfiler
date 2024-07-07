@@ -490,19 +490,38 @@ namespace Profiler
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
+                // Treat data as pipelines if subpass contents are inline-only.
                 if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                 {
-                    for( const auto& pipeline : subpass.m_Pipelines )
+                    for( const auto& data : subpass.m_Data )
                     {
-                        CollectPipeline( pipeline, aggregatedPipelines );
+                        CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines );
                     }
                 }
 
+                // Treat data as secondary command buffers if subpass contents are secondary command buffers only.
                 else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
                 {
-                    for( const auto& secondaryCommandBuffer : subpass.m_SecondaryCommandBuffers )
+                    for( const auto& data : subpass.m_Data )
                     {
-                        CollectPipelinesFromCommandBuffer( secondaryCommandBuffer, aggregatedPipelines );
+                        CollectPipelinesFromCommandBuffer( std::get<DeviceProfilerCommandBufferData>( data ), aggregatedPipelines );
+                    }
+                }
+
+                // With VK_EXT_nested_command_buffer, it is possible to insert both command buffers and inline commands in the same subpass.
+                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT )
+                {
+                    for( const auto& data : subpass.m_Data )
+                    {
+                        switch( data.GetType() )
+                        {
+                        case DeviceProfilerSubpassDataType::ePipeline:
+                            CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines );
+                            break;
+                        case DeviceProfilerSubpassDataType::eCommandBuffer:
+                            CollectPipelinesFromCommandBuffer( std::get<DeviceProfilerCommandBufferData>( data ), aggregatedPipelines );
+                            break;
+                        }
                     }
                 }
             }

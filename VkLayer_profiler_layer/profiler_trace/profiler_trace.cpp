@@ -364,36 +364,23 @@ namespace Profiler
                 m_CommandQueue ) );
         }
 
-        switch( data.m_Contents )
+        for( const auto& data : data.m_Data )
         {
-        case VK_SUBPASS_CONTENTS_INLINE:
-        {
-            for( const auto& pipelineData : data.m_Pipelines )
+            if( data.GetBeginTimestamp().m_Value == UINT64_MAX )
             {
-                if( pipelineData.m_BeginTimestamp.m_Value != UINT64_MAX )
-                {
-                    // Serialize the pipelines
-                    Serialize( pipelineData );
-                }
+                continue;
             }
-            break;
-        }
 
-        case VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS:
-        {
-            for( const auto& commandBufferData : data.m_SecondaryCommandBuffers )
+            switch( data.GetType() )
             {
-                // Serialize the command buffer
-                Serialize( commandBufferData );
-            }
-            break;
-        }
+            case DeviceProfilerSubpassDataType::ePipeline:
+                Serialize( std::get<DeviceProfilerPipelineData>( data ) );
+                break;
 
-        default:
-        {
-            assert( !"Unsupported VkSubpassContents enum value" );
-            break;
-        }
+            case DeviceProfilerSubpassDataType::eCommandBuffer:
+                Serialize( std::get<DeviceProfilerCommandBufferData>( data ) );
+                break;
+            }
         }
 
         if( !isOnlySubpassInRenderPass )

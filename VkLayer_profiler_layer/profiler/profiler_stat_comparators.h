@@ -22,16 +22,44 @@
 
 namespace Profiler
 {
-    // Range duration comparator
+    // Range duration getter
     template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
+    inline uint64_t GetDuration( const Data& a )
     {
-        return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) > (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
+        return (a.GetEndTimestamp().m_Value - a.GetBeginTimestamp().m_Value);
     }
 
+    // Extracts a specific type from an std::variant
+    template<typename TypeHint, typename Data>
+    struct DataCast
+    {
+        inline constexpr auto& operator()( const Data& data ) const
+        {
+            return std::get<TypeHint>( data );
+        }
+    };
+
     template<typename Data>
+    struct DataCast<std::nullptr_t, Data>
+    {
+        inline constexpr auto& operator()( const Data& data ) const
+        {
+            return data;
+        }
+    };
+
+    // Range duration comparator
+    template<typename TypeHint = std::nullptr_t, typename Data>
+    inline bool DurationDesc( const Data& a, const Data& b )
+    {
+        constexpr DataCast<TypeHint, Data> dataCast;
+        return (GetDuration( dataCast( a ) ) > GetDuration( dataCast( b ) ));
+    }
+
+    template<typename TypeHint = std::nullptr_t, typename Data>
     inline bool DurationAsc( const Data& a, const Data& b )
     {
-        return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) < (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
+        constexpr DataCast<TypeHint, Data> dataCast;
+        return (GetDuration( dataCast( a ) ) < GetDuration( dataCast( b ) ));
     }
 }

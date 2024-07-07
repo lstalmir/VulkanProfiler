@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include <assert.h>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -213,6 +214,33 @@ namespace Profiler
         {
             const int byte = reinterpret_cast<const char*>(&value)[ i ] & 0xFF;
 
+            pBuffer[ 2 * i ] = hexDigits[ byte >> 4 ];
+            pBuffer[ 2 * i + 1 ] = hexDigits[ byte & 0xF ];
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        datatohex
+
+    Description:
+        Convert data to hexadecimal string.
+
+    \***********************************************************************************/
+    template<typename T>
+    PROFILER_FORCE_INLINE void datatohex( char *pBuffer, size_t bufferSize, const T* pData, size_t dataCount )
+    {
+        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert(sizeof( hexDigits ) == 16);
+
+        const size_t dataSize = dataCount * sizeof( T );
+
+        assert( pBuffer != nullptr );
+        assert( bufferSize >= (2 * dataSize) );
+        for( int i = 0; i < dataSize; ++i )
+        {
+            const int byte = reinterpret_cast<const char*>(pData)[ i ] & 0xFF;
             pBuffer[ 2 * i ] = hexDigits[ byte >> 4 ];
             pBuffer[ 2 * i + 1 ] = hexDigits[ byte & 0xF ];
         }

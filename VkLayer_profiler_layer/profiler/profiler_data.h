@@ -25,6 +25,7 @@
 #include <vector>
 #include <list>
 #include <deque>
+#include <variant>
 #include <unordered_map>
 #include <cstring>
 #include <vulkan/vulkan.h>
@@ -128,6 +129,27 @@ namespace Profiler
         eCompute,
         eRayTracing,
         eCopy
+    };
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerSubpassDataType
+
+    Description:
+        Supported types of subpass data.
+
+        In core Vulkan, only either inline pipelines, or only secondary command buffers
+        are allowed in a subpass. With VK_EXT_nested_command_buffers subpass may contain
+        both pipelines and command buffers.
+
+        This enum must be kept in sync with order of structures in the std::variant that
+        holds the data.
+
+    \***********************************************************************************/
+    enum class DeviceProfilerSubpassDataType : uint32_t
+    {
+        ePipeline,
+        eCommandBuffer
     };
 
     /***********************************************************************************\
@@ -500,6 +522,9 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
+
         inline DeviceProfilerPipelineType GetPipelineType() const
         {
             // Pipeline type is encoded in DeviceProfilerDrawcallType
@@ -726,6 +751,9 @@ namespace Profiler
         {
             return m_ShaderTuple == rh.m_ShaderTuple;
         }
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -759,8 +787,11 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
-        ContainerType<struct DeviceProfilerPipelineData>    m_Pipelines = {};
-        std::list<struct DeviceProfilerCommandBufferData>   m_SecondaryCommandBuffers = {};
+        struct Data;
+        std::vector<Data>                                   m_Data = {};
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -797,6 +828,9 @@ namespace Profiler
         VkAttachmentLoadOp                                  m_StencilAttachmentLoadOp = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -815,6 +849,9 @@ namespace Profiler
         VkAttachmentStoreOp                                 m_StencilAttachmentStoreOp = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -842,6 +879,9 @@ namespace Profiler
 
         bool HasBeginCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
         bool HasEndCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -867,6 +907,9 @@ namespace Profiler
         uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
 
         uint64_t                                            m_ProfilerCpuOverheadNs = {};
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -886,6 +929,9 @@ namespace Profiler
 
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -989,6 +1035,53 @@ namespace Profiler
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
 
         std::unordered_map<VkQueue, uint64_t>               m_SyncTimestamps = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerSubpassData::Data
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerSubpassData::Data : public std::variant<
+        DeviceProfilerPipelineData,
+        DeviceProfilerCommandBufferData>
+    {
+        // Use std::variant's constructors.
+        using std::variant<DeviceProfilerPipelineData, DeviceProfilerCommandBufferData>::variant;
+
+        constexpr DeviceProfilerSubpassDataType GetType() const
+        {
+            return static_cast<DeviceProfilerSubpassDataType>(index());
+        }
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const
+        {
+            switch( GetType() )
+            {
+            case DeviceProfilerSubpassDataType::ePipeline:
+                return std::get<DeviceProfilerPipelineData>( *this ).GetBeginTimestamp();
+            case DeviceProfilerSubpassDataType::eCommandBuffer:
+                return std::get<DeviceProfilerCommandBufferData>( *this ).GetBeginTimestamp();
+            default:
+                return DeviceProfilerTimestamp();
+            }
+        }
+
+        inline DeviceProfilerTimestamp GetEndTimestamp() const
+        {
+            switch( GetType() )
+            {
+            case DeviceProfilerSubpassDataType::ePipeline:
+                return std::get<DeviceProfilerPipelineData>( *this ).GetEndTimestamp();
+            case DeviceProfilerSubpassDataType::eCommandBuffer:
+                return std::get<DeviceProfilerCommandBufferData>( *this ).GetEndTimestamp();
+            default:
+                return DeviceProfilerTimestamp();
+            }
+        }
     };
 }
 
