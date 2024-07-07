@@ -280,7 +280,7 @@ namespace Profiler
         void PrintDuration( const Data& data );
 
         // Sort frame browser data
-        template<typename Data>
+        template<typename TypeHint = std::nullptr_t, typename Data>
         auto SortFrameBrowserData( const Data& data ) const
         {
             using Subdata = typename Data::value_type;
@@ -296,11 +296,11 @@ namespace Profiler
 
             case FrameBrowserSortMode::eDurationDescending:
                 pSortedData.sort( []( const Subdata* a, const Subdata* b )
-                    { return DurationDesc( *a, *b ); } ); break;
+                    { return DurationDesc<TypeHint>( *a, *b ); } ); break;
 
             case FrameBrowserSortMode::eDurationAscending:
                 pSortedData.sort( []( const Subdata* a, const Subdata* b )
-                    { return DurationAsc( *a, *b ); } ); break;
+                    { return DurationAsc<TypeHint>( *a, *b ); } ); break;
             }
 
             return pSortedData;

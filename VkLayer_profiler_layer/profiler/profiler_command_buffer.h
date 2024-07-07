@@ -123,5 +123,8 @@ namespace Profiler
         void SetupCommandBufferForSecondaryBuffers();
 
         DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;
+
+        void ResolveSubpassPipelineData( DeviceProfilerSubpassData&, size_t );
+        void ResolveSubpassSecondaryCommandBufferData( DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
     };
 }

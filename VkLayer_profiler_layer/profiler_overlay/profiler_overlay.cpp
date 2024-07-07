@@ -2180,19 +2180,43 @@ namespace Profiler
             {
                 index.emplace_back( 0 );
 
-                for( const auto& data : subpass.m_Data )
+                // Treat data as pipelines if subpass contents are inline-only.
+                if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                 {
-                    switch( data.GetType() )
+                    for( const auto& data : subpass.m_Data )
                     {
-                    case DeviceProfilerSubpassDataType::ePipeline:
                         GetPerformanceGraphColumns( std::get<DeviceProfilerPipelineData>( data ), index, columns );
-                        break;
-
-                    case DeviceProfilerSubpassDataType::eCommandBuffer:
-                        GetPerformanceGraphColumns( std::get<DeviceProfilerCommandBufferData>( data ), index, columns );
-                        break;
+                        index.back()++;
                     }
-                    index.back()++;
+                }
+
+                // Treat data as secondary command buffers if subpass contents are secondary command buffers only.
+                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                {
+                    for( const auto& data : subpass.m_Data )
+                    {
+                        GetPerformanceGraphColumns( std::get<DeviceProfilerCommandBufferData>( data ), index, columns );
+                        index.back()++;
+                    }
+                }
+
+                // With VK_EXT_nested_command_buffer, it is possible to insert both command buffers and inline commands in the same subpass.
+                else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT )
+                {
+                    for( const auto& data : subpass.m_Data )
+                    {
+                        switch( data.GetType() )
+                        {
+                        case DeviceProfilerSubpassDataType::ePipeline:
+                            GetPerformanceGraphColumns( std::get<DeviceProfilerPipelineData>( data ), index, columns );
+                            break;
+
+                        case DeviceProfilerSubpassDataType::eCommandBuffer:
+                            GetPerformanceGraphColumns( std::get<DeviceProfilerCommandBufferData>( data ), index, columns );
+                            break;
+                        }
+                        index.back()++;
+                    }
                 }
 
                 index.pop_back();
@@ -2747,25 +2771,55 @@ namespace Profiler
         {
             index.emplace_back( 0 );
 
-            // Sort frame browser data
-            std::list<const DeviceProfilerSubpassData::Data*> pDataSorted =
-                SortFrameBrowserData( subpass.m_Data );
-
-            // Enumerate pipelines and secondary command buffers in the subpass
-            for( const DeviceProfilerSubpassData::Data* pData : pDataSorted )
+            // Treat data as pipelines if subpass contents are inline-only.
+            if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
             {
-                switch( pData->GetType() )
+                // Sort frame browser data
+                std::list<const DeviceProfilerSubpassData::Data*> pDataSorted =
+                    SortFrameBrowserData<DeviceProfilerPipelineData>( subpass.m_Data );
+
+                for( const DeviceProfilerSubpassData::Data* pData : pDataSorted )
                 {
-                case DeviceProfilerSubpassDataType::ePipeline:
                     PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index );
-                    break;
-
-                case DeviceProfilerSubpassDataType::eCommandBuffer:
-                    PrintCommandBuffer( std::get<DeviceProfilerCommandBufferData>( *pData ), index );
-                    break;
+                    index.back()++;
                 }
+            }
 
-                index.back()++;
+            // Treat data as secondary command buffers if subpass contents are secondary command buffers only.
+            else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+            {
+                // Sort frame browser data
+                std::list<const DeviceProfilerSubpassData::Data*> pDataSorted =
+                    SortFrameBrowserData<DeviceProfilerCommandBufferData>( subpass.m_Data );
+
+                for( const DeviceProfilerSubpassData::Data* pData : pDataSorted )
+                {
+                    PrintCommandBuffer( std::get<DeviceProfilerCommandBufferData>( *pData ), index );
+                    index.back()++;
+                }
+            }
+
+            // With VK_EXT_nested_command_buffer, it is possible to insert both command buffers and inline commands in the same subpass.
+            else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT )
+            {
+                // Sort frame browser data
+                std::list<const DeviceProfilerSubpassData::Data*> pDataSorted =
+                    SortFrameBrowserData( subpass.m_Data );
+
+                for( const DeviceProfilerSubpassData::Data* pData : pDataSorted )
+                {
+                    switch( pData->GetType() )
+                    {
+                    case DeviceProfilerSubpassDataType::ePipeline:
+                        PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index );
+                        break;
+
+                    case DeviceProfilerSubpassDataType::eCommandBuffer:
+                        PrintCommandBuffer( std::get<DeviceProfilerCommandBufferData>( *pData ), index );
+                        break;
+                    }
+                    index.back()++;
+                }
             }
 
             index.pop_back();

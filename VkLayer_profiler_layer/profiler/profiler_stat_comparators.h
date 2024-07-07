@@ -29,16 +29,37 @@ namespace Profiler
         return (a.GetEndTimestamp().m_Value - a.GetBeginTimestamp().m_Value);
     }
 
-    // Range duration comparator
-    template<typename Data>
-    inline bool DurationDesc( const Data& a, const Data& b )
+    // Extracts a specific type from an std::variant
+    template<typename TypeHint, typename Data>
+    struct DataCast
     {
-        return (GetDuration( a ) > GetDuration( b ));
-    }
+        inline constexpr auto& operator()( const Data& data ) const
+        {
+            return std::get<TypeHint>( data );
+        }
+    };
 
     template<typename Data>
+    struct DataCast<std::nullptr_t, Data>
+    {
+        inline constexpr auto& operator()( const Data& data ) const
+        {
+            return data;
+        }
+    };
+
+    // Range duration comparator
+    template<typename TypeHint = std::nullptr_t, typename Data>
+    inline bool DurationDesc( const Data& a, const Data& b )
+    {
+        constexpr DataCast<TypeHint, Data> dataCast;
+        return (GetDuration( dataCast( a ) ) > GetDuration( dataCast( b ) ));
+    }
+
+    template<typename TypeHint = std::nullptr_t, typename Data>
     inline bool DurationAsc( const Data& a, const Data& b )
     {
-        return (GetDuration( a ) < GetDuration( b ));
+        constexpr DataCast<TypeHint, Data> dataCast;
+        return (GetDuration( dataCast( a ) ) < GetDuration( dataCast( b ) ));
     }
 }

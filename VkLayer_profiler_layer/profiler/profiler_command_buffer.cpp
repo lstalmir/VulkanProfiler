@@ -824,80 +824,79 @@ namespace Profiler
 
                     for( auto& subpass : renderPass.m_Subpasses )
                     {
+                        const size_t subpassDataCount = subpass.m_Data.size();
+
                         // Keep track of the first and last subpass data type.
                         // If it is a secondary command buffer, the timestamp queries are allocated from another query pool and their values have already been resolved.
                         bool firstTimestampFromSecondaryCommandBuffer = false;
                         bool lastTimestampFromSecondaryCommandBuffer = false;
 
-                        const size_t subpassDataSize = subpass.m_Data.size();
-                        for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataSize; ++subpassDataIndex )
+                        // Treat data as pipelines if subpass contents are inline-only.
+                        if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE )
                         {
-                            auto& data = subpass.m_Data[subpassDataIndex];
-
-                            // With VK_EXT_nested_command_buffer, it is possible to insert both command buffers and inline commands in the same subpass.
-                            switch( data.GetType() )
+                            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
                             {
-                            case DeviceProfilerSubpassDataType::ePipeline:
-                            {
-                                if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
+                                for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataCount; ++subpassDataIndex )
                                 {
-                                    auto& pipeline = std::get<DeviceProfilerPipelineData>( data );
-                                    pipeline.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_BeginTimestamp.m_Index );
+                                    ResolveSubpassPipelineData(
+                                        subpass,
+                                        subpassDataIndex );
+                                }
+                            }
+                        }
 
-                                    if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+                        // Treat data as secondary command buffers if subpass contents are secondary command buffers only.
+                        else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                        {
+                            for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataCount; ++subpassDataIndex )
+                            {
+                                ResolveSubpassSecondaryCommandBufferData(
+                                    subpass,
+                                    subpassDataIndex,
+                                    subpassDataCount,
+                                    firstTimestampFromSecondaryCommandBuffer,
+                                    lastTimestampFromSecondaryCommandBuffer );
+                            }
+                        }
+
+                        // With VK_EXT_nested_command_buffer, it is possible to insert both command buffers and inline commands in the same subpass.
+                        else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT )
+                        {
+                            for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataCount; ++subpassDataIndex )
+                            {
+                                auto& data = subpass.m_Data[subpassDataIndex];
+                                switch( data.GetType() )
+                                {
+                                case DeviceProfilerSubpassDataType::ePipeline:
+                                {
+                                    if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
                                     {
-                                        for( auto& drawcall : pipeline.m_Drawcalls )
-                                        {
-                                            // Don't collect data for debug labels
-                                            if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
-                                            {
-                                                // Update drawcall timestamps
-                                                drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
-                                                drawcall.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_EndTimestamp.m_Index );
-                                            }
-                                            else
-                                            {
-                                                // Provide timestamps for debug commands
-                                                drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
-                                                drawcall.m_EndTimestamp.m_Value = drawcall.m_BeginTimestamp.m_Value;
-                                            }
-                                        }
+                                        ResolveSubpassPipelineData(
+                                            subpass,
+                                            subpassDataIndex );
                                     }
-
-                                    pipeline.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_EndTimestamp.m_Index );
+                                    break;
                                 }
-                                break;
-                            }
-                            case DeviceProfilerSubpassDataType::eCommandBuffer:
-                            {
-                                auto& commandBuffer = std::get<DeviceProfilerCommandBufferData>( data );
-                                VkCommandBuffer handle = commandBuffer.m_Handle;
-                                ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
-
-                                // Collect secondary command buffer data
-                                commandBuffer = profilerCommandBuffer.GetData();
-                                assert( commandBuffer.m_Handle == handle );
-
-                                // Include profiling time of the secondary command buffer
-                                m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
-
-                                // Propagate timestamps from command buffer to subpass
-                                if( subpassDataIndex == 0 )
+                                case DeviceProfilerSubpassDataType::eCommandBuffer:
                                 {
-                                    subpass.m_BeginTimestamp = commandBuffer.m_BeginTimestamp;
-                                    firstTimestampFromSecondaryCommandBuffer = true;
+                                    ResolveSubpassSecondaryCommandBufferData(
+                                        subpass,
+                                        subpassDataIndex,
+                                        subpassDataCount,
+                                        firstTimestampFromSecondaryCommandBuffer,
+                                        lastTimestampFromSecondaryCommandBuffer );
+                                    break;
                                 }
-                                if( subpassDataIndex == subpassDataSize - 1 )
-                                {
-                                    subpass.m_EndTimestamp = commandBuffer.m_EndTimestamp;
-                                    lastTimestampFromSecondaryCommandBuffer = true;
                                 }
+                            }
+                        }
 
-                                // Collect secondary command buffer stats
-                                m_Data.m_Stats += commandBuffer.m_Stats;
-                                break;
-                            }
-                            }
+                        else
+                        {
+                            ProfilerPlatformFunctions::WriteDebug(
+                                "%s - Unsupported VkSubpassContents enum value (%u)\n",
+                                __FUNCTION__,
+                                subpass.m_Contents );
                         }
 
                         // Resolve subpass begin and end timestamps if not inherited from the secondary command buffers.
@@ -935,6 +934,91 @@ namespace Profiler
         }
 
         return m_Data;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveSubpassPipelineData
+
+    Description:
+        Read timestamps for all drawcalls in the pipeline.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ResolveSubpassPipelineData( DeviceProfilerSubpassData& subpass, size_t subpassDataIndex )
+    {
+        auto& data = subpass.m_Data[subpassDataIndex];
+        assert( data.GetType() == DeviceProfilerSubpassDataType::ePipeline );
+
+        auto& pipeline = std::get<DeviceProfilerPipelineData>( data );
+        pipeline.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_BeginTimestamp.m_Index );
+        pipeline.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_EndTimestamp.m_Index );
+
+        if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+        {
+            for( auto& drawcall : pipeline.m_Drawcalls )
+            {
+                // Don't collect data for debug labels
+                if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
+                {
+                    // Update drawcall timestamps
+                    drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
+                    drawcall.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_EndTimestamp.m_Index );
+                }
+                else
+                {
+                    // Provide timestamps for debug commands
+                    drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
+                    drawcall.m_EndTimestamp.m_Value = drawcall.m_BeginTimestamp.m_Value;
+                }
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveSubpassSecondaryCommandBufferData
+
+    Description:
+        Get data from the secondary command buffer.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ResolveSubpassSecondaryCommandBufferData(
+        DeviceProfilerSubpassData& subpass,
+        size_t subpassDataIndex,
+        size_t subpassDataCount,
+        bool& firstTimestampFromSecondaryCommandBuffer,
+        bool& lastTimestampFromSecondaryCommandBuffer )
+    {
+        auto& data = subpass.m_Data[subpassDataIndex];
+        assert( data.GetType() == DeviceProfilerSubpassDataType::eCommandBuffer );
+
+        auto& commandBuffer = std::get<DeviceProfilerCommandBufferData>( data );
+        VkCommandBuffer handle = commandBuffer.m_Handle;
+        ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
+
+        // Collect secondary command buffer data
+        commandBuffer = profilerCommandBuffer.GetData();
+        assert( commandBuffer.m_Handle == handle );
+
+        // Include profiling time of the secondary command buffer
+        m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
+
+        // Propagate timestamps from command buffer to subpass
+        if( subpassDataIndex == 0 )
+        {
+            subpass.m_BeginTimestamp = commandBuffer.m_BeginTimestamp;
+            firstTimestampFromSecondaryCommandBuffer = true;
+        }
+        if( subpassDataIndex == subpassDataCount - 1 )
+        {
+            subpass.m_EndTimestamp = commandBuffer.m_EndTimestamp;
+            lastTimestampFromSecondaryCommandBuffer = true;
+        }
+
+        // Collect secondary command buffer stats
+        m_Data.m_Stats += commandBuffer.m_Stats;
     }
 
     /***********************************************************************************\
