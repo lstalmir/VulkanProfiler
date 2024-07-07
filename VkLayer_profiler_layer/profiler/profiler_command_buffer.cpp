@@ -824,12 +824,17 @@ namespace Profiler
 
                     for( auto& subpass : renderPass.m_Subpasses )
                     {
-                        subpass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_BeginTimestamp.m_Index );
+                        // Keep track of the first and last subpass data type.
+                        // If it is a secondary command buffer, the timestamp queries are allocated from another query pool and their values have already been resolved.
+                        bool firstTimestampFromSecondaryCommandBuffer = false;
+                        bool lastTimestampFromSecondaryCommandBuffer = false;
 
-                        for( auto& data : subpass.m_Data )
+                        const size_t subpassDataSize = subpass.m_Data.size();
+                        for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataSize; ++subpassDataIndex )
                         {
-                            // With VK_EXT_nested_command_buffers, it is possible to insert both command buffers and
-                            // inline commands in the same subpass.
+                            auto& data = subpass.m_Data[subpassDataIndex];
+
+                            // With VK_EXT_nested_command_buffer, it is possible to insert both command buffers and inline commands in the same subpass.
                             switch( data.GetType() )
                             {
                             case DeviceProfilerSubpassDataType::ePipeline:
@@ -877,8 +882,16 @@ namespace Profiler
                                 m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
 
                                 // Propagate timestamps from command buffer to subpass
-                                subpass.m_BeginTimestamp = commandBuffer.m_BeginTimestamp;
-                                subpass.m_EndTimestamp = commandBuffer.m_EndTimestamp;
+                                if( subpassDataIndex == 0 )
+                                {
+                                    subpass.m_BeginTimestamp = commandBuffer.m_BeginTimestamp;
+                                    firstTimestampFromSecondaryCommandBuffer = true;
+                                }
+                                if( subpassDataIndex == subpassDataSize - 1 )
+                                {
+                                    subpass.m_EndTimestamp = commandBuffer.m_EndTimestamp;
+                                    lastTimestampFromSecondaryCommandBuffer = true;
+                                }
 
                                 // Collect secondary command buffer stats
                                 m_Data.m_Stats += commandBuffer.m_Stats;
@@ -887,7 +900,15 @@ namespace Profiler
                             }
                         }
 
-                        subpass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp.m_Index );
+                        // Resolve subpass begin and end timestamps if not inherited from the secondary command buffers.
+                        if( !firstTimestampFromSecondaryCommandBuffer )
+                        {
+                            subpass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_BeginTimestamp.m_Index );
+                        }
+                        if( !lastTimestampFromSecondaryCommandBuffer )
+                        {
+                            subpass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp.m_Index );
+                        }
                     }
 
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
