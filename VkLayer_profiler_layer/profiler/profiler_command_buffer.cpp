@@ -809,8 +809,9 @@ namespace Profiler
             {
                 for( auto& renderPass : m_Data.m_RenderPasses )
                 {
-                    // Update render pass begin timestamp
-                    renderPass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_BeginTimestamp.m_Index );
+                    // If this is a secondary command buffer and render pass starts with a nested command buffers,
+                    // use the timestamp of the nested command buffer as a begin point of the render pass.
+                    bool renderPassStartsWithNestedCommandBuffer = false;
 
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
                         ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
@@ -822,8 +823,10 @@ namespace Profiler
                         renderPass.m_Begin.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_EndTimestamp.m_Index );
                     }
 
-                    for( auto& subpass : renderPass.m_Subpasses )
+                    const size_t subpassCount = renderPass.m_Subpasses.size();
+                    for( size_t subpassIndex = 0; subpassIndex < subpassCount; ++subpassIndex )
                     {
+                        auto& subpass = renderPass.m_Subpasses[subpassIndex];
                         const size_t subpassDataCount = subpass.m_Data.size();
 
                         // Keep track of the first and last subpass data type.
@@ -908,6 +911,13 @@ namespace Profiler
                         {
                             subpass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp.m_Index );
                         }
+
+                        // Pass the subpass begin timestamp to render pass.
+                        if( subpassIndex == 0 && firstTimestampFromSecondaryCommandBuffer )
+                        {
+                            renderPass.m_BeginTimestamp = subpass.m_BeginTimestamp;
+                            renderPassStartsWithNestedCommandBuffer = true;
+                        }
                     }
 
                     if( ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
@@ -918,6 +928,12 @@ namespace Profiler
                         // Get vkCmdEndRenderPass time
                         renderPass.m_End.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_BeginTimestamp.m_Index );
                         renderPass.m_End.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_EndTimestamp.m_Index );
+                    }
+
+                    // Resolve timestamp queries at the beginning and end of the render pass.
+                    if( !renderPassStartsWithNestedCommandBuffer )
+                    {
+                        renderPass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_BeginTimestamp.m_Index );
                     }
 
                     renderPass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_EndTimestamp.m_Index );
