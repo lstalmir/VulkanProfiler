@@ -541,6 +541,111 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        BindShaders
+
+    Description:
+        Sets shader objects for the subsequent drawcalls.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::BindShaders( uint32_t shaderCount, const VkShaderStageFlagBits* pStages, const VkShaderEXT* pShaders )
+    {
+        constexpr VkShaderStageFlags allGraphicsShaderStages =
+            VK_SHADER_STAGE_ALL_GRAPHICS |
+            VK_SHADER_STAGE_TASK_BIT_EXT |
+            VK_SHADER_STAGE_MESH_BIT_EXT;
+
+        constexpr VkShaderStageFlags allComputeShaderStages =
+            VK_SHADER_STAGE_COMPUTE_BIT;
+
+        // Check which pipelines have been impacted to recalculate the hashes.
+        bool graphicsPipelineChanged = false;
+        bool computePipelineChanged = false;
+
+        for( uint32_t i = 0; i < shaderCount; ++i )
+        {
+            // Update appropriate pipeline state.
+            DeviceProfilerPipeline* pPipeline = nullptr;
+            DeviceProfilerPipelineType pipelineType = DeviceProfilerPipelineType::eNone;
+            VkPipelineBindPoint pipelineBindPoint = {};
+            VkShaderStageFlagBits stage = pStages[i];
+
+            if( stage & allGraphicsShaderStages )
+            {
+                pPipeline = &m_GraphicsPipeline;
+                pipelineType = DeviceProfilerPipelineType::eGraphics;
+                pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+                graphicsPipelineChanged = true;
+            }
+            else if( stage & allComputeShaderStages )
+            {
+                pPipeline = &m_ComputePipeline;
+                pipelineType = DeviceProfilerPipelineType::eCompute;
+                pipelineBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+                computePipelineChanged = true;
+            }
+
+            if( pPipeline != nullptr )
+            {
+                // When shader objects are used, the pipeline bound at the corresponding bind point is unbound.
+                if( !pPipeline->m_UsesShaderObjects )
+                {
+                    pPipeline->m_Handle = VK_NULL_HANDLE;
+                    pPipeline->m_BindPoint = pipelineBindPoint;
+                    pPipeline->m_Type = pipelineType;
+                    pPipeline->m_ShaderTuple.m_Hash = 0;
+                    pPipeline->m_ShaderTuple.m_Shaders.clear();
+                    pPipeline->m_ShaderTuple.m_ShaderExecutables.clear();
+                    pPipeline->m_UsesRayQuery = false;
+                    pPipeline->m_UsesRayTracing = false;
+                    pPipeline->m_UsesShaderObjects = true;
+                }
+
+                // Bind the shader object to the pipeline.
+                VkShaderEXT shaderHandle = pShaders ? pShaders[i] : VK_NULL_HANDLE;
+
+                bool stageBound = false;
+                for( auto it = pPipeline->m_ShaderTuple.m_Shaders.begin(), end = pPipeline->m_ShaderTuple.m_Shaders.end(); it != end; ++it )
+                {
+                    if( it->m_Stage == stage )
+                    {
+                        if( shaderHandle != VK_NULL_HANDLE )
+                        {
+                            // Override existing shader stage with a new object.
+                            *it = m_Profiler.GetShader( shaderHandle );
+                            stageBound = true;
+                        }
+                        else
+                        {
+                            // Unbind the shader object from the pipeline.
+                            pPipeline->m_ShaderTuple.m_Shaders.erase( it );
+                        }
+                        break;
+                    }
+                }
+
+                if( !stageBound && (shaderHandle != VK_NULL_HANDLE) )
+                {
+                    // Bind the shader to a new shader stage.
+                    pPipeline->m_ShaderTuple.m_Shaders.push_back( m_Profiler.GetShader( shaderHandle ) );
+                }
+            }
+        }
+
+        // Refresh pipelines after changing the shaders.
+        if( graphicsPipelineChanged )
+        {
+            m_GraphicsPipeline.Finalize();
+        }
+
+        if( computePipelineChanged )
+        {
+            m_ComputePipeline.Finalize();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         PreCommand
 
     Description:
@@ -1316,7 +1421,9 @@ namespace Profiler
         if( !m_pCurrentPipelineData ||
             (m_pCurrentPipelineData->m_Handle != pipeline.m_Handle) ||
             ((m_pCurrentPipelineData->m_Handle == VK_NULL_HANDLE) &&
-                (m_pCurrentPipelineData->m_Type != pipeline.m_Type)) )
+                (m_pCurrentPipelineData->m_Type != pipeline.m_Type)) ||
+            ((m_pCurrentPipelineData->m_UsesShaderObjects || pipeline.m_UsesShaderObjects) &&
+                (m_pCurrentPipelineData->m_ShaderTuple.m_Hash != pipeline.m_ShaderTuple.m_Hash)) )
         {
             m_pCurrentPipelineData = &std::get<DeviceProfilerPipelineData>( m_pCurrentSubpassData->m_Data.emplace_back( pipeline ) );
         }

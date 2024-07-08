@@ -569,6 +569,13 @@ namespace Profiler
     }
 
     /***********************************************************************************\
+    \***********************************************************************************/
+    ProfilerShader& DeviceProfiler::GetShader( VkShaderEXT handle )
+    {
+        return m_Shaders.at( handle );
+    }
+
+    /***********************************************************************************\
 
     Function:
         ShouldCapturePipelineExecutableProperties
@@ -836,29 +843,10 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
     {
-        std::shared_ptr<ProfilerShaderModule> pShaderModule = std::make_shared<ProfilerShaderModule>();
-
-        // Compute shader code hash to use later
-        pShaderModule->m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>(pCreateInfo->pCode), pCreateInfo->codeSize );
-
-        // Save the bytecode to display the shader's disassembly
-        pShaderModule->m_Bytecode.resize( pCreateInfo->codeSize / sizeof(uint32_t) );
-        memcpy( pShaderModule->m_Bytecode.data(), pCreateInfo->pCode, pCreateInfo->codeSize );
-
-        // Enumerate capabilities of the shader module
-        const uint32_t* pCurrentWord = pCreateInfo->pCode + 5; // skip header bytes
-        const uint32_t* pLastWord = pCreateInfo->pCode + (pCreateInfo->codeSize / sizeof(uint32_t)) - 1;
-
-        while ((pCurrentWord < pLastWord) &&
-            ((*pCurrentWord & 0xffff) == SpvOpCapability))
-        {
-            assert((*pCurrentWord >> 16) == 2);
-
-            pShaderModule->m_Capabilities.push_back(static_cast<SpvCapability>(*(pCurrentWord + 1)));
-            pCurrentWord += 2; // SpvOpCapability is 2 words long
-        }
-
-        m_pShaderModules.insert( module, std::move( pShaderModule ) );
+        m_pShaderModules.insert( module,
+            std::make_shared<ProfilerShaderModule>(
+                pCreateInfo->pCode,
+                pCreateInfo->codeSize ) );
     }
 
     /***********************************************************************************\
@@ -872,6 +860,51 @@ namespace Profiler
     void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
     {
         m_pShaderModules.remove( module );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateShader
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateShader( VkShaderEXT handle, const VkShaderCreateInfoEXT* pCreateInfo )
+    {
+        ProfilerShader shader;
+        shader.m_Index = UINT32_MAX;
+        shader.m_Stage = pCreateInfo->stage;
+        shader.m_EntryPoint = pCreateInfo->pName;
+
+        if( pCreateInfo->codeType == VK_SHADER_CODE_TYPE_SPIRV_EXT )
+        {
+            // Create a shader module for the shader.
+            shader.m_pShaderModule = std::make_shared<ProfilerShaderModule>(
+                reinterpret_cast<const uint32_t*>( pCreateInfo->pCode ),
+                pCreateInfo->codeSize );
+
+            shader.m_Hash = shader.m_pShaderModule->m_Hash;
+        }
+
+        // Hash the entrypoint and append it to the final hash
+        shader.m_Hash ^= Farmhash::Fingerprint32( shader.m_EntryPoint.data(), shader.m_EntryPoint.length() );
+
+        // Save the shader
+        m_Shaders.insert( handle, std::move( shader ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyShader
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyShader( VkShaderEXT handle )
+    {
+        m_Shaders.remove( handle );
     }
 
     /***********************************************************************************\
@@ -1374,39 +1407,10 @@ namespace Profiler
 
             // Hash the entrypoint and append it to the final hash
             shader.m_Hash ^= Farmhash::Fingerprint32( shader.m_EntryPoint.data(), shader.m_EntryPoint.length() );
-
-            // Check if the stage uses ray query or ray tracing capabilities
-            for( SpvCapability capability : sm->m_Capabilities )
-            {
-                if( (capability == SpvCapabilityRayQueryKHR) ||
-                    (capability == SpvCapabilityRayQueryProvisionalKHR) )
-                {
-                    pipeline.m_UsesRayQuery = true;
-                }
-                if( (capability == SpvCapabilityRayTracingKHR) ||
-                    (capability == SpvCapabilityRayTracingProvisionalKHR) )
-                {
-                    pipeline.m_UsesRayTracing = true;
-                }
-            }
         }
 
-        // Sort the shaders in the pipeline by stage
-        std::sort( pipeline.m_ShaderTuple.m_Shaders.begin(), pipeline.m_ShaderTuple.m_Shaders.end(),
-            []( const ProfilerShader& a, const ProfilerShader& b ) {
-                return a.m_Stage < b.m_Stage;
-            } );
-
-        // Compute aggregated tuple hash for fast comparison
-        std::vector<uint32_t> shaderHashes( stageCount );
-        for( uint32_t i = 0; i < stageCount; ++i )
-        {
-            shaderHashes[ i ] = pipeline.m_ShaderTuple.m_Shaders[ i ].m_Hash;
-        }
-
-        pipeline.m_ShaderTuple.m_Hash = Farmhash::Fingerprint32(
-            reinterpret_cast<const char*>(shaderHashes.data()),
-            sizeof( uint32_t ) * shaderHashes.size() );
+        // Finalize pipeline creation
+        pipeline.Finalize();
     }
 
     /***********************************************************************************\
@@ -1473,41 +1477,29 @@ namespace Profiler
     {
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
-            const ProfilerShader* pVS = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_VERTEX_BIT );
-            const ProfilerShader* pPS = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_FRAGMENT_BIT );
-
-            // Vertex and pixel shader hashes
-            char pPipelineDebugName[ 25 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, (pVS ? pVS->m_Hash : 0) );
-            u32tohex( pPipelineDebugName + 16, (pPS ? pPS->m_Hash : 0) );
-
-            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert(
+                pipeline.m_Handle,
+                pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_VERTEX_BIT |
+                    VK_SHADER_STAGE_FRAGMENT_BIT ) );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
         {
-            const ProfilerShader* pCS = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_COMPUTE_BIT );
-
-            // Compute shader hash
-            char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, (pCS ? pCS->m_Hash : 0) );
-
-            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert(
+                pipeline.m_Handle,
+                pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_COMPUTE_BIT ) );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
         {
-            const ProfilerShader* pRaygenShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_RAYGEN_BIT_KHR );
-            const ProfilerShader* pAnyHitShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_ANY_HIT_BIT_KHR );
-            const ProfilerShader* pClosestHitShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR );
-
-            // Ray tracing shader hash
-            char pPipelineDebugName[ 75 ] = "RGEN=XXXXXXXX, aHIT=XXXXXXXX, cHIT=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 5, (pRaygenShader ? pRaygenShader->m_Hash : 0) );
-            u32tohex( pPipelineDebugName + 20, (pAnyHitShader ? pAnyHitShader->m_Hash : 0) );
-            u32tohex( pPipelineDebugName + 35, (pClosestHitShader ? pClosestHitShader->m_Hash : 0) );
-
-            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert(
+                pipeline.m_Handle,
+                pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                    VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR ) );
         }
     }
 

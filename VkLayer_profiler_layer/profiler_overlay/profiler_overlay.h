@@ -274,7 +274,7 @@ namespace Profiler
         void PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex );
 
         void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
-        void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
+        void DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... );
 
         template<typename Data>
         void PrintDuration( const Data& data );

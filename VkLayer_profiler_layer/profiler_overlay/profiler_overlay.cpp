@@ -1845,7 +1845,7 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdateInspectorTab()
     {
         // Early out if no valid pipeline is selected.
-        if( !m_InspectorPipeline.m_Handle )
+        if( !m_InspectorPipeline.m_Handle && !m_InspectorPipeline.m_UsesShaderObjects )
         {
             ImGui::TextUnformatted( "No pipeline selected for inspection." );
             return;
@@ -1913,10 +1913,15 @@ namespace Profiler
     void ProfilerOverlayOutput::InspectShaderStage( size_t shaderIndex )
     {
         const ProfilerShader& shader = m_InspectorPipeline.m_ShaderTuple.m_Shaders[ shaderIndex ];
-        const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
 
         m_InspectorShaderView.Clear();
-        m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
+
+        // Shader module may not be available if the VkShaderEXT has been created directly from a binary.
+        if( shader.m_pShaderModule )
+        {
+            const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
+            m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
+        }
 
         m_InspectorShaderStageIndex = shaderIndex;
     }
@@ -2449,13 +2454,11 @@ namespace Profiler
         m_FrameBrowserNodeIndexStr.resize(
             (index.size() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
 
-        datatohex(
+        ProfilerStringFunctions::Hex(
             m_FrameBrowserNodeIndexStr.data(),
-            m_FrameBrowserNodeIndexStr.size(),
             index.data(),
             index.size() );
 
-        m_FrameBrowserNodeIndexStr.back() = 0;
         return m_FrameBrowserNodeIndexStr.data();
     }
 
@@ -2852,7 +2855,8 @@ namespace Profiler
         const uint64_t pipelineTicks = GetDuration( pipeline );
 
         const bool printPipelineInline =
-            (pipeline.m_Handle == VK_NULL_HANDLE) ||
+            ((pipeline.m_Handle == VK_NULL_HANDLE) &&
+                !pipeline.m_UsesShaderObjects) ||
             ((pipeline.m_ShaderTuple.m_Hash & 0xFFFF) == 0);
 
         bool inPipelineSubtree = false;
@@ -2886,15 +2890,20 @@ namespace Profiler
 
         if( m_ShowShaderCapabilities )
         {
+            if( pipeline.m_UsesShaderObjects )
+            {
+                static ImU32 shaderObjectsColor = IM_COL32( 104, 25, 133, 255 );
+                DrawBadge( shaderObjectsColor, "SO", Lang::ShaderObjectsTooltip );
+            }
             if( pipeline.m_UsesRayQuery )
             {
-                static ImU32 rayQueryCapabilityColor = ImGui::GetColorU32({ 0.52f, 0.32f, 0.1f, 1.f });
-                DrawShaderCapabilityBadge( rayQueryCapabilityColor, "RQ", "Ray Query" );
+                static ImU32 rayQueryCapabilityColor = IM_COL32( 133, 82, 25, 255 );
+                DrawBadge( rayQueryCapabilityColor, "RQ", Lang::ShaderCapabilityTooltipFmt, "Ray Query" );
             }
             if( pipeline.m_UsesRayTracing )
             {
-                static ImU32 rayTracingCapabilityColor = ImGui::GetColorU32({ 0.1f, 0.43f, 0.52f, 1.0f });
-                DrawShaderCapabilityBadge( rayTracingCapabilityColor, "RT", "Ray Tracing" );
+                static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
+                DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
             }
         }
 
@@ -3019,18 +3028,23 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName )
+    void ProfilerOverlayOutput::DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... )
     {
         assert( m_ShowShaderCapabilities );
-        
+
         ImGui::SameLine();
         ImGuiX::BadgeUnformatted( color, 5.f, shortName );
 
         if (ImGui::IsItemHovered())
         {
+            va_list args;
+            va_start( args, fmt );
+
             ImGui::BeginTooltip();
-            ImGui::Text( Lang::ShaderCapabilityTooltipFmt, longName );
+            ImGui::TextV( fmt, args );
             ImGui::EndTooltip();
+
+            va_end( args );
         }
     }
 

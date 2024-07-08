@@ -31,6 +31,7 @@
 #include "VkDynamicRenderingKhr_functions.h"
 #include "VkPipelineExecutablePropertiesKhr_functions.h"
 #include "VkRayTracingPipelineKhr_functions.h"
+#include "VkShaderObjectExt_functions.h"
 #include "VkSwapchainKhr_functions.h"
 #include "VkSynchronization2Khr_functions.h"
 
@@ -58,6 +59,7 @@ namespace Profiler
         , VkDynamicRenderingKhr_Functions
         , VkPipelineExecutablePropertiesKhr_Functions
         , VkRayTracingPipelineKhr_Functions
+        , VkShaderObjectExt_Functions
         , VkSwapchainKhr_Functions
         , VkSynchronization2Khr_Functions
     {

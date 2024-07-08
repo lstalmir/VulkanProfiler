@@ -221,6 +221,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkPipelineExecutablePropertiesKhr_functions.h"
     "profiler_layer_functions/extensions/VkRayTracingPipelineKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkRayTracingPipelineKhr_functions.h"
+    "profiler_layer_functions/extensions/VkShaderObjectExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkShaderObjectExt_functions.h"
     "profiler_layer_functions/extensions/VkSurfaceKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkSwapchainKhr_functions.cpp"

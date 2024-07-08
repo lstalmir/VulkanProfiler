@@ -147,6 +147,11 @@ namespace Profiler
         GETPROCADDR( CmdCopyAccelerationStructureToMemoryKHR );
         GETPROCADDR( CmdCopyMemoryToAccelerationStructureKHR );
 
+        // VK_EXT_shader_object functions
+        GETPROCADDR( CreateShadersEXT );
+        GETPROCADDR( DestroyShaderEXT );
+        GETPROCADDR( CmdBindShadersEXT );
+
         // VK_KHR_swapchain functions
         GETPROCADDR( QueuePresentKHR );
         GETPROCADDR( CreateSwapchainKHR );

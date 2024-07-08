@@ -82,6 +82,7 @@ namespace Profiler
         DeviceProfilerCommandPool& GetCommandPool( VkCommandPool commandPool );
         DeviceProfilerPipeline& GetPipeline( VkPipeline pipeline );
         DeviceProfilerRenderPass& GetRenderPass( VkRenderPass renderPass );
+        ProfilerShader& GetShader( VkShaderEXT shader );
 
         bool ShouldCapturePipelineExecutableProperties() const;
 
@@ -103,6 +104,8 @@ namespace Profiler
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
         void DestroyShaderModule( VkShaderModule );
+        void CreateShader( VkShaderEXT, const VkShaderCreateInfoEXT* );
+        void DestroyShader( VkShaderEXT );
 
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo* );
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
@@ -151,6 +154,7 @@ namespace Profiler
 
         ConcurrentMap<VkShaderModule, std::shared_ptr<ProfilerShaderModule>> m_pShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
+        ConcurrentMap<VkShaderEXT, ProfilerShader> m_Shaders;
 
         ConcurrentMap<VkDeferredOperationKHR, DeferredOperationCallback> m_DeferredOperationCallbacks;
 

@@ -76,6 +76,7 @@ namespace Profiler
         inline static constexpr char Inspect[] = "Inspect";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
+        inline static constexpr char ShaderObjectsTooltip[] = "Pipeline constructed from VkShaderEXT objects passed via vkCmdBindShadersEXT.";
 
         inline static constexpr char PerformanceCountersFilter[] = "Filter";
         inline static constexpr char PerformanceCountersRange[] = "Range";
