@@ -1845,7 +1845,7 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdateInspectorTab()
     {
         // Early out if no valid pipeline is selected.
-        if( !m_InspectorPipeline.m_Handle )
+        if( !m_InspectorPipeline.m_Handle && !m_InspectorPipeline.m_UsesShaderObjects )
         {
             ImGui::TextUnformatted( "No pipeline selected for inspection." );
             return;
@@ -1913,10 +1913,15 @@ namespace Profiler
     void ProfilerOverlayOutput::InspectShaderStage( size_t shaderIndex )
     {
         const ProfilerShader& shader = m_InspectorPipeline.m_ShaderTuple.m_Shaders[ shaderIndex ];
-        const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
 
         m_InspectorShaderView.Clear();
-        m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
+
+        // Shader module may not be available if the VkShaderEXT has been created directly from a binary.
+        if( shader.m_pShaderModule )
+        {
+            const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
+            m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
+        }
 
         m_InspectorShaderStageIndex = shaderIndex;
     }
