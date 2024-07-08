@@ -408,7 +408,8 @@ namespace Profiler
         const std::string eventName = m_pStringSerializer->GetName( data );
 
         const bool isValidPipeline =
-            (data.m_Handle) &&
+            (data.m_Handle ||
+                data.m_UsesShaderObjects) &&
             ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0);
 
         if( isValidPipeline )
