@@ -252,6 +252,23 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline ) const
     {
+        // Construct the pipeline's name dynamically from the shaders.
+        if( pipeline.m_UsesShaderObjects )
+        {
+            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
+            {
+                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_VERTEX_BIT |
+                    VK_SHADER_STAGE_FRAGMENT_BIT );
+            }
+
+            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
+            {
+                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_COMPUTE_BIT );
+            }
+        }
+
         return GetName( pipeline.m_Handle );
     }
 
@@ -493,7 +510,8 @@ namespace Profiler
         }
 
         char pointer[ 19 ] = "0x0000000000000000";
-        u64tohex( pointer + 2, static_cast<uint64_t>( reinterpret_cast<uintptr_t>( ptr ) ) );
+        char* pPointerStr = pointer + 2;
+        ProfilerStringFunctions::Hex( pPointerStr, static_cast<uint64_t>( reinterpret_cast<uintptr_t>( ptr ) ) );
 
         return pointer;
     }
@@ -514,9 +532,10 @@ namespace Profiler
         const uint8_t B = static_cast<uint8_t>( pColor[ 2 ] * 255.f );
 
         char color[ 8 ] = "#XXXXXX";
-        u8tohex( color + 1, R );
-        u8tohex( color + 3, G );
-        u8tohex( color + 5, B );
+        char* pColorStr = color + 1;
+        pColorStr = ProfilerStringFunctions::Hex( pColorStr, R );
+        pColorStr = ProfilerStringFunctions::Hex( pColorStr, G );
+        pColorStr = ProfilerStringFunctions::Hex( pColorStr, B );
 
         return color;
     }

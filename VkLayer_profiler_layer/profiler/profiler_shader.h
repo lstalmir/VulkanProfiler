@@ -139,6 +139,8 @@ namespace Profiler
         bool UsesRayTracing() const;
 
         void UpdateHash();
+
+        std::string GetShaderStageHashesString( VkShaderStageFlags stages, bool skipEmptyStages = false ) const;
     };
 }
 

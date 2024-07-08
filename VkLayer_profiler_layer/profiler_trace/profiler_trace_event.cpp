@@ -37,7 +37,7 @@ namespace Profiler
         using namespace std::literals;
 
         char queueHexHandle[ 32 ] = {};
-        Profiler::u64tohex( queueHexHandle, reinterpret_cast<uint64_t>(m_Queue) );
+        ProfilerStringFunctions::Hex( queueHexHandle, reinterpret_cast<uint64_t>(m_Queue) );
 
         jsonObject = {
             { "name", m_Name },

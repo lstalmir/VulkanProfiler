@@ -1477,41 +1477,29 @@ namespace Profiler
     {
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
-            const ProfilerShader* pVS = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_VERTEX_BIT );
-            const ProfilerShader* pPS = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_FRAGMENT_BIT );
-
-            // Vertex and pixel shader hashes
-            char pPipelineDebugName[ 25 ] = "VS=XXXXXXXX, PS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, (pVS ? pVS->m_Hash : 0) );
-            u32tohex( pPipelineDebugName + 16, (pPS ? pPS->m_Hash : 0) );
-
-            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert(
+                pipeline.m_Handle,
+                pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_VERTEX_BIT |
+                    VK_SHADER_STAGE_FRAGMENT_BIT ) );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
         {
-            const ProfilerShader* pCS = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_COMPUTE_BIT );
-
-            // Compute shader hash
-            char pPipelineDebugName[ 12 ] = "CS=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 3, (pCS ? pCS->m_Hash : 0) );
-
-            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert(
+                pipeline.m_Handle,
+                pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_COMPUTE_BIT ) );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
         {
-            const ProfilerShader* pRaygenShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_RAYGEN_BIT_KHR );
-            const ProfilerShader* pAnyHitShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_ANY_HIT_BIT_KHR );
-            const ProfilerShader* pClosestHitShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR );
-
-            // Ray tracing shader hash
-            char pPipelineDebugName[ 75 ] = "RGEN=XXXXXXXX, aHIT=XXXXXXXX, cHIT=XXXXXXXX";
-            u32tohex( pPipelineDebugName + 5, (pRaygenShader ? pRaygenShader->m_Hash : 0) );
-            u32tohex( pPipelineDebugName + 20, (pAnyHitShader ? pAnyHitShader->m_Hash : 0) );
-            u32tohex( pPipelineDebugName + 35, (pClosestHitShader ? pClosestHitShader->m_Hash : 0) );
-
-            m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, pPipelineDebugName );
+            m_pDevice->Debug.ObjectNames.insert(
+                pipeline.m_Handle,
+                pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                    VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR ) );
         }
     }
 

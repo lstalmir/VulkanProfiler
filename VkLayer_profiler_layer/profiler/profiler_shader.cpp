@@ -547,4 +547,65 @@ namespace Profiler
             reinterpret_cast<const char*>( shaderHashes.data() ),
             sizeof( uint32_t ) * shaderHashes.size() );
     }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShaderStageHashesString
+
+    Description:
+        Construct a string with selected shader stage hahes.
+
+    \***********************************************************************************/
+    std::string ProfilerShaderTuple::GetShaderStageHashesString( VkShaderStageFlags stages, bool skipEmptyStages ) const
+    {
+        char buffer[256] = { 0 };
+        char* pBuffer = buffer;
+        bool isFirstStage = true;
+
+        // Array of prefixes for each shader stage, must be kept in sync with VkShaderStageFlagBits.
+        static const char* pStagePrefixes[32] = {
+            "VS", "HS", "DS", "GS", "PS",
+            "CS",
+            "TASK", "MESH",
+            "RGEN", "aHIT", "cHIT", "MISS", "ISEC", "CALL",
+            "SUBP",
+            "CULL"
+        };
+
+        // Iterate over all bits in the stages mask.
+        const uint32_t stageBitCount = sizeof( VkShaderStageFlags ) * 8;
+        for( uint32_t i = 0; i < stageBitCount; ++i )
+        {
+            VkShaderStageFlagBits stage = static_cast<VkShaderStageFlagBits>( 1U << i );
+            if( !(stages & stage) )
+            {
+                // Stage not requested.
+                continue;
+            }
+
+            const ProfilerShader* pShader = GetFirstShaderAtStage( stage );
+            if( !pShader && skipEmptyStages )
+            {
+                // Stage not present.
+                continue;
+            }
+
+            const char* pShaderPrefix = pStagePrefixes[i];
+            assert( pShaderPrefix );
+
+            if( !isFirstStage )
+            {
+                // Separate shader stages with comma.
+                pBuffer = ProfilerStringFunctions::Append( pBuffer, ", " );
+            }
+
+            pBuffer = ProfilerStringFunctions::Append( pBuffer, pShaderPrefix );
+            pBuffer = ProfilerStringFunctions::Append( pBuffer, '=' );
+            pBuffer = ProfilerStringFunctions::Hex( pBuffer, pShader ? pShader->m_Hash : 0U );
+            isFirstStage = false;
+        }
+
+        return buffer;
+    }
 }

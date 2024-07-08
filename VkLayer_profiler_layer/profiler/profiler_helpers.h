@@ -105,150 +105,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        u8tohex
-
-    Description:
-        Convert 8-bit unsigned number to hexadecimal string.
-
-    \***********************************************************************************/
-    PROFILER_FORCE_INLINE void u8tohex( char* pBuffer, uint8_t value )
-    {
-        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-        static_assert(sizeof( hexDigits ) == 16);
-
-        for( int i = 0; i < 2; ++i )
-        {
-            // Begin with most significant bit:
-            // out[0] = hex[ (V >> 28) & 0xF ]
-            // out[1] = hex[ (V >> 24) & 0xF ] ...
-            pBuffer[ i ] = hexDigits[ (value >> (8 - ((i + 1) << 2))) & 0xF ];
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        u16tohex
-
-    Description:
-        Convert 16-bit unsigned number to hexadecimal string.
-
-    \***********************************************************************************/
-    PROFILER_FORCE_INLINE void u16tohex( char* pBuffer, uint16_t value )
-    {
-        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-        static_assert(sizeof( hexDigits ) == 16);
-
-        for( int i = 0; i < 4; ++i )
-        {
-            // Begin with most significant bit:
-            // out[0] = hex[ (V >> 28) & 0xF ]
-            // out[1] = hex[ (V >> 24) & 0xF ] ...
-            pBuffer[ i ] = hexDigits[ (value >> (16 - ((i + 1) << 2))) & 0xF ];
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        u32tohex
-
-    Description:
-        Convert 32-bit unsigned number to hexadecimal string.
-
-    \***********************************************************************************/
-    PROFILER_FORCE_INLINE void u32tohex( char* pBuffer, uint32_t value )
-    {
-        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-        static_assert( sizeof( hexDigits ) == 16 );
-
-        for( int i = 0; i < 8; ++i )
-        {
-            // Begin with most significant bit:
-            // out[0] = hex[ (V >> 28) & 0xF ]
-            // out[1] = hex[ (V >> 24) & 0xF ] ...
-            pBuffer[ i ] = hexDigits[ (value >> (32 - ((i + 1) << 2))) & 0xF ];
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        u64tohex
-
-    Description:
-        Convert 64-bit unsigned number to hexadecimal string.
-
-    \***********************************************************************************/
-    PROFILER_FORCE_INLINE void u64tohex( char* pBuffer, uint64_t value )
-    {
-        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-        static_assert( sizeof( hexDigits ) == 16 );
-
-        for( int i = 0; i < 16; ++i )
-        {
-            // Begin with most significant bit:
-            // out[0] = hex[ (V >> 60) & 0xF ]
-            // out[1] = hex[ (V >> 56) & 0xF ]
-            pBuffer[ i ] = hexDigits[ (value >> (64 - ((i + 1) << 2))) & 0xF ];
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        structtohex
-
-    Description:
-        Convert structure to hexadecimal string.
-
-    \***********************************************************************************/
-    template<typename T, size_t Size>
-    PROFILER_FORCE_INLINE void structtohex( char( &pBuffer )[ Size ], const T& value )
-    {
-        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-        static_assert(sizeof( hexDigits ) == 16);
-        static_assert(sizeof( T ) <= (Size / 2));
-
-        for( int i = 0; i < sizeof( T ); ++i )
-        {
-            const int byte = reinterpret_cast<const char*>(&value)[ i ] & 0xFF;
-
-            pBuffer[ 2 * i ] = hexDigits[ byte >> 4 ];
-            pBuffer[ 2 * i + 1 ] = hexDigits[ byte & 0xF ];
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        datatohex
-
-    Description:
-        Convert data to hexadecimal string.
-
-    \***********************************************************************************/
-    template<typename T>
-    PROFILER_FORCE_INLINE void datatohex( char *pBuffer, size_t bufferSize, const T* pData, size_t dataCount )
-    {
-        static const char hexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-        static_assert(sizeof( hexDigits ) == 16);
-
-        const size_t dataSize = dataCount * sizeof( T );
-
-        assert( pBuffer != nullptr );
-        assert( bufferSize >= (2 * dataSize) );
-        for( int i = 0; i < dataSize; ++i )
-        {
-            const int byte = reinterpret_cast<const char*>(pData)[ i ] & 0xFF;
-            pBuffer[ 2 * i ] = hexDigits[ byte >> 4 ];
-            pBuffer[ 2 * i + 1 ] = hexDigits[ byte & 0xF ];
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
         DigitCount
 
     Description:
@@ -455,6 +311,60 @@ namespace Profiler
             }
             return length;
         }
+
+        template<typename CharT>
+        static CharT* Append( CharT* pBuffer, const CharT* pString )
+        {
+            while( *pString )
+                *pBuffer++ = *pString++;
+            *pBuffer = 0;
+            return pBuffer;
+        }
+
+        template<typename CharT>
+        static CharT* Append( CharT* pBuffer, CharT ch )
+        {
+            *pBuffer++ = ch;
+            *pBuffer = 0;
+            return pBuffer;
+        }
+
+        template<typename CharT, typename T>
+        static std::enable_if_t<std::is_integral_v<T>, CharT*> Hex( CharT* pBuffer, T value )
+        {
+            static constexpr size_t bitcount = sizeof( T ) * 8;
+            static constexpr size_t wordcount = bitcount / 4;
+
+            for( size_t i = 0; i < wordcount; ++i )
+            {
+                // Begin with most significant bit:
+                // out[0] = hex[ (V >> 60) & 0xF ]
+                // out[1] = hex[ (V >> 56) & 0xF ]
+                *pBuffer++ = m_scHexDigits[( value >> (bitcount - ((i + 1) << 2)) ) & 0xF];
+            }
+
+            *pBuffer = 0;
+            return pBuffer;
+        }
+
+        template<typename CharT, typename T>
+        static CharT* Hex( CharT* pBuffer, const T* pData, size_t dataCount = 1 )
+        {
+            const size_t dataSize = dataCount * sizeof( T );
+
+            for( int i = 0; i < dataSize; ++i )
+            {
+                const int byte = reinterpret_cast<const char*>( pData )[i] & 0xFF;
+                *pBuffer++ = m_scHexDigits[byte >> 4];
+                *pBuffer++ = m_scHexDigits[byte & 0xF];
+            }
+
+            *pBuffer = 0;
+            return pBuffer;
+        }
+
+        static constexpr char m_scHexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        static_assert( sizeof( m_scHexDigits ) == 16 );
     };
     
     /***********************************************************************************\
