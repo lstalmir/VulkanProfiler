@@ -573,11 +573,29 @@ namespace Profiler
             "CULL"
         };
 
+        // Order of shader stage appearance in the string.
+        static const int shaderStageOrder[33] = {
+            0, 1, 2, 3,             // Legacy 3D pipeline.
+            6, 7,                   // Mesh pipeline.
+            4,                      // Fragment shader.
+            5,                      // Compute shader.
+            8, 9, 10, 11, 12, 13,   // Ray tracing pipeline.
+            14, 15,                 // HUAWEI extensions.
+            -1
+        };
+
         // Iterate over all bits in the stages mask.
         const uint32_t stageBitCount = sizeof( VkShaderStageFlags ) * 8;
         for( uint32_t i = 0; i < stageBitCount; ++i )
         {
-            VkShaderStageFlagBits stage = static_cast<VkShaderStageFlagBits>( 1U << i );
+            int index = shaderStageOrder[i];
+            if( index == -1 )
+            {
+                // Last supported stage reached.
+                break;
+            }
+
+            VkShaderStageFlagBits stage = static_cast<VkShaderStageFlagBits>( 1U << index );
             if( !(stages & stage) )
             {
                 // Stage not requested.
@@ -591,7 +609,7 @@ namespace Profiler
                 continue;
             }
 
-            const char* pShaderPrefix = pStagePrefixes[i];
+            const char* pShaderPrefix = pStagePrefixes[index];
             assert( pShaderPrefix );
 
             if( !isFirstStage )
