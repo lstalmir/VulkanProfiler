@@ -131,6 +131,30 @@ namespace Profiler
                 { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride }
             };
 
+        case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
+            return {
+                { "taskCount", drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount },
+                { "firstTask", drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask }
+            };
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
+            return {
+                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ) },
+                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset },
+                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount },
+                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride }
+            };
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
+            return {
+                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ) },
+                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset },
+                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ) },
+                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset },
+                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount },
+                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride }
+            };
+
         case DeviceProfilerDrawcallType::eDispatch:
             return {
                 { "groupCountX", drawcall.m_Payload.m_Dispatch.m_GroupCountX },
