@@ -93,6 +93,8 @@ namespace Profiler
         // Statistics tab
         inline static constexpr char DrawCalls[] = "Draw calls";
         inline static constexpr char DrawCallsIndirect[] = "Draw calls (indirect)";
+        inline static constexpr char DrawMeshTasksCalls[] = "Draw mesh tasks calls";
+        inline static constexpr char DrawMeshTasksIndirectCalls[] = "Draw mesh tasks calls (indirect)";
         inline static constexpr char DispatchCalls[] = "Dispatch calls";
         inline static constexpr char DispatchCallsIndirect[] = "Dispatch calls (indirect)";
         inline static constexpr char TraceRaysCalls[] = "Trace rays calls";

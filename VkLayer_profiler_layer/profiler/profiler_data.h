@@ -686,6 +686,8 @@ namespace Profiler
     {
         uint32_t m_DrawCount = {};
         uint32_t m_DrawIndirectCount = {};
+        uint32_t m_DrawMeshTasksCount = {};
+        uint32_t m_DrawMeshTasksIndirectCount = {};
         uint32_t m_DispatchCount = {};
         uint32_t m_DispatchIndirectCount = {};
         uint32_t m_CopyBufferCount = {};
@@ -712,6 +714,8 @@ namespace Profiler
         {
             m_DrawCount += rh.m_DrawCount;
             m_DrawIndirectCount += rh.m_DrawIndirectCount;
+            m_DrawMeshTasksCount += rh.m_DrawMeshTasksCount;
+            m_DrawMeshTasksIndirectCount += rh.m_DrawMeshTasksIndirectCount;
             m_DispatchCount += rh.m_DispatchCount;
             m_DispatchIndirectCount += rh.m_DispatchIndirectCount;
             m_CopyBufferCount += rh.m_CopyBufferCount;

@@ -1945,6 +1945,12 @@ namespace Profiler
             ImGui::TextUnformatted( Lang::DrawCallsIndirect );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawIndirectCount );
 
+            ImGui::TextUnformatted( Lang::DrawMeshTasksCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawMeshTasksCount );
+
+            ImGui::TextUnformatted( Lang::DrawMeshTasksIndirectCalls );
+            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawMeshTasksIndirectCount );
+
             ImGui::TextUnformatted( Lang::DispatchCalls );
             ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchCount );
 
