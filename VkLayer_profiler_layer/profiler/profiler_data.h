@@ -61,6 +61,9 @@ namespace Profiler
         eDrawMeshTasks = 0x00010006,
         eDrawMeshTasksIndirect = 0x00010007,
         eDrawMeshTasksIndirectCount = 0x00010008,
+        eDrawMeshTasksNV = 0x00010009,
+        eDrawMeshTasksIndirectNV = 0x0001000A,
+        eDrawMeshTasksIndirectCountNV = 0x0001000B,
         eDispatch = 0x00020000,
         eDispatchIndirect = 0x00020001,
         eCopyBuffer = 0x00030000,
@@ -250,6 +253,22 @@ namespace Profiler
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksNvPayload
+    {
+        uint32_t m_TaskCount;
+        uint32_t m_FirstTask;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
+    {
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
+    {
     };
 
     struct DeviceProfilerDrawcallDispatchPayload
@@ -515,6 +534,9 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksPayload, m_DrawMeshTasks );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectPayload, m_DrawMeshTasksIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload, m_DrawMeshTasksIndirectCount );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksNvPayload, m_DrawMeshTasksNV );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload, m_DrawMeshTasksIndirectNV );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload, m_DrawMeshTasksIndirectCountNV );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchPayload, m_Dispatch );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchIndirectPayload, m_DispatchIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyBufferPayload, m_CopyBuffer );

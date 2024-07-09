@@ -1285,10 +1285,13 @@ namespace Profiler
             m_Stats.m_DrawIndirectCount++;
             break;
         case DeviceProfilerDrawcallType::eDrawMeshTasks:
+        case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
             m_Stats.m_DrawMeshTasksCount++;
             break;
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
             m_Stats.m_DrawMeshTasksIndirectCount++;
             break;
         case DeviceProfilerDrawcallType::eDispatch:
