@@ -136,6 +136,11 @@ namespace Profiler
         GETPROCADDR( CmdDrawIndirectCountKHR );
         GETPROCADDR( CmdDrawIndexedIndirectCountKHR );
 
+        // VK_EXT_mesh_shader functions
+        GETPROCADDR( CmdDrawMeshTasksEXT );
+        GETPROCADDR( CmdDrawMeshTasksIndirectEXT );
+        GETPROCADDR( CmdDrawMeshTasksIndirectCountEXT );
+
         // VK_KHR_ray_tracing_pipeline functions
         GETPROCADDR( CreateRayTracingPipelinesKHR );
         GETPROCADDR( CmdTraceRaysKHR );

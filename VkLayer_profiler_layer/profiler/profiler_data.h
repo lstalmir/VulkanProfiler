@@ -58,6 +58,9 @@ namespace Profiler
         eDrawIndexedIndirect = 0x00010003,
         eDrawIndirectCount = 0x00010004,
         eDrawIndexedIndirectCount = 0x00010005,
+        eDrawMeshTasks = 0x00010006,
+        eDrawMeshTasksIndirect = 0x00010007,
+        eDrawMeshTasksIndirectCount = 0x00010008,
         eDispatch = 0x00020000,
         eDispatchIndirect = 0x00020001,
         eCopyBuffer = 0x00030000,
@@ -222,6 +225,31 @@ namespace Profiler
     struct DeviceProfilerDrawcallDrawIndexedIndirectCountPayload
         : DeviceProfilerDrawcallDrawIndirectCountPayload
     {
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksPayload
+    {
+        uint32_t m_GroupCountX;
+        uint32_t m_GroupCountY;
+        uint32_t m_GroupCountZ;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
+    {
+        VkBuffer m_Buffer;
+        VkDeviceSize m_Offset;
+        uint32_t m_DrawCount;
+        uint32_t m_Stride;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
+    {
+        VkBuffer m_Buffer;
+        VkDeviceSize m_Offset;
+        VkBuffer m_CountBuffer;
+        VkDeviceSize m_CountOffset;
+        uint32_t m_MaxDrawCount;
+        uint32_t m_Stride;
     };
 
     struct DeviceProfilerDrawcallDispatchPayload
@@ -484,6 +512,9 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndexedIndirectPayload, m_DrawIndexedIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndirectCountPayload, m_DrawIndirectCount );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndexedIndirectCountPayload, m_DrawIndexedIndirectCount );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksPayload, m_DrawMeshTasks );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectPayload, m_DrawMeshTasksIndirect );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload, m_DrawMeshTasksIndirectCount );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchPayload, m_Dispatch );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchIndirectPayload, m_DispatchIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyBufferPayload, m_CopyBuffer );
@@ -655,6 +686,8 @@ namespace Profiler
     {
         uint32_t m_DrawCount = {};
         uint32_t m_DrawIndirectCount = {};
+        uint32_t m_DrawMeshTasksCount = {};
+        uint32_t m_DrawMeshTasksIndirectCount = {};
         uint32_t m_DispatchCount = {};
         uint32_t m_DispatchIndirectCount = {};
         uint32_t m_CopyBufferCount = {};
@@ -681,6 +714,8 @@ namespace Profiler
         {
             m_DrawCount += rh.m_DrawCount;
             m_DrawIndirectCount += rh.m_DrawIndirectCount;
+            m_DrawMeshTasksCount += rh.m_DrawMeshTasksCount;
+            m_DrawMeshTasksIndirectCount += rh.m_DrawMeshTasksIndirectCount;
             m_DispatchCount += rh.m_DispatchCount;
             m_DispatchIndirectCount += rh.m_DispatchIndirectCount;
             m_CopyBufferCount += rh.m_CopyBufferCount;

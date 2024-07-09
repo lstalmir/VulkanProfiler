@@ -29,6 +29,7 @@
 #include "VkDrawIndirectCountAmd_functions.h"
 #include "VkDrawIndirectCountKhr_functions.h"
 #include "VkDynamicRenderingKhr_functions.h"
+#include "VkMeshShaderExt_functions.h"
 #include "VkPipelineExecutablePropertiesKhr_functions.h"
 #include "VkRayTracingPipelineKhr_functions.h"
 #include "VkShaderObjectExt_functions.h"
@@ -57,6 +58,7 @@ namespace Profiler
         , VkDrawIndirectCountAmd_Functions
         , VkDrawIndirectCountKhr_Functions
         , VkDynamicRenderingKhr_Functions
+        , VkMeshShaderExt_Functions
         , VkPipelineExecutablePropertiesKhr_Functions
         , VkRayTracingPipelineKhr_Functions
         , VkShaderObjectExt_Functions

@@ -1481,7 +1481,10 @@ namespace Profiler
                 pipeline.m_Handle,
                 pipeline.m_ShaderTuple.GetShaderStageHashesString(
                     VK_SHADER_STAGE_VERTEX_BIT |
-                    VK_SHADER_STAGE_FRAGMENT_BIT ) );
+                    VK_SHADER_STAGE_TASK_BIT_EXT |
+                    VK_SHADER_STAGE_MESH_BIT_EXT |
+                    VK_SHADER_STAGE_FRAGMENT_BIT,
+                    true /*skipEmptyStages*/ ) );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )

@@ -39,12 +39,14 @@ namespace Profiler
         inline static constexpr char PerformanceCountersMenuItem[] = u8"Liczniki wydajności" PROFILER_MENU_ITEM;
         inline static constexpr char TopPipelinesMenuItem[] = u8"Najdłuższe stany potoku" PROFILER_MENU_ITEM;
         inline static constexpr char MemoryMenuItem[] = u8"Pamięć" PROFILER_MENU_ITEM;
+        inline static constexpr char InspectorMenuItem[] = u8"Inspektor" PROFILER_MENU_ITEM;
         inline static constexpr char StatisticsMenuItem[] = u8"Statystyki" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = u8"Ustawienia" PROFILER_MENU_ITEM;
 
         // Tabs
         inline static constexpr char Performance[] = u8"Wydajność###Performance";
         inline static constexpr char Memory[] = u8"Pamięć###Memory";
+        inline static constexpr char Inspector[] = u8"Inspektor###Inspector";
         inline static constexpr char Statistics[] = u8"Statystyki###Statistics";
         inline static constexpr char Settings[] = u8"Ustawienia###Settings";
 
@@ -69,6 +71,7 @@ namespace Profiler
         inline static constexpr char Container[] = u8"Kontener";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
+        inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
 
         inline static constexpr char PerformanceCountersFilter[] = u8"Filtr";
         inline static constexpr char PerformanceCountersRange[] = u8"Zakres";
@@ -85,6 +88,8 @@ namespace Profiler
         // Statistics tab
         inline static constexpr char DrawCalls[] = u8"Komendy rysujące";
         inline static constexpr char DrawCallsIndirect[] = u8"Komendy rysujące (typu indirect)";
+        inline static constexpr char DrawMeshTasksCalls[] = u8"Komendy rysujące mesh";
+        inline static constexpr char DrawMeshTasksIndirectCalls[] = u8"Komendy rysujące mesh (typu indirect)";
         inline static constexpr char DispatchCalls[] = u8"Komendy obliczeniowe";
         inline static constexpr char DispatchCallsIndirect[] = u8"Komendy obliczeniowe (typu indirect)";
         inline static constexpr char TraceRaysCalls[] = u8"Komendy śledzenia promieni";
