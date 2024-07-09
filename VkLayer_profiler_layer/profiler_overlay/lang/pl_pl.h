@@ -71,7 +71,7 @@ namespace Profiler
         inline static constexpr char Container[] = u8"Kontener";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
-        inline static constexpr char ShaderObjectsTooltip[] = u8"Pipeline constructed from VkShaderEXT objects passed via vkCmdBindShadersEXT.";
+        inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
 
         inline static constexpr char PerformanceCountersFilter[] = u8"Filtr";
         inline static constexpr char PerformanceCountersRange[] = u8"Zakres";
@@ -88,8 +88,8 @@ namespace Profiler
         // Statistics tab
         inline static constexpr char DrawCalls[] = u8"Komendy rysujące";
         inline static constexpr char DrawCallsIndirect[] = u8"Komendy rysujące (typu indirect)";
-        inline static constexpr char DrawMeshTasksCalls[] = u8"Komendy rysujące MESH";
-        inline static constexpr char DrawMeshTasksIndirectCalls[] = u8"Komendy rysujące MESH (typu indirect)";
+        inline static constexpr char DrawMeshTasksCalls[] = u8"Komendy rysujące mesh";
+        inline static constexpr char DrawMeshTasksIndirectCalls[] = u8"Komendy rysujące mesh (typu indirect)";
         inline static constexpr char DispatchCalls[] = u8"Komendy obliczeniowe";
         inline static constexpr char DispatchCallsIndirect[] = u8"Komendy obliczeniowe (typu indirect)";
         inline static constexpr char TraceRaysCalls[] = u8"Komendy śledzenia promieni";
