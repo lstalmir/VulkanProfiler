@@ -679,63 +679,195 @@ namespace Profiler
         DeviceProfilerDrawcallStats
 
     Description:
-        Stores number of drawcalls.
+        Stores number and summarized times (total, min and max) of each drawcall type.
 
     \***********************************************************************************/
     struct DeviceProfilerDrawcallStats
     {
-        uint32_t m_DrawCount = {};
-        uint32_t m_DrawIndirectCount = {};
-        uint32_t m_DrawMeshTasksCount = {};
-        uint32_t m_DrawMeshTasksIndirectCount = {};
-        uint32_t m_DispatchCount = {};
-        uint32_t m_DispatchIndirectCount = {};
-        uint32_t m_CopyBufferCount = {};
-        uint32_t m_CopyBufferToImageCount = {};
-        uint32_t m_CopyImageCount = {};
-        uint32_t m_CopyImageToBufferCount = {};
-        uint32_t m_ClearColorCount = {};
-        uint32_t m_ClearDepthStencilCount = {};
-        uint32_t m_ResolveCount = {};
-        uint32_t m_BlitImageCount = {};
-        uint32_t m_FillBufferCount = {};
-        uint32_t m_UpdateBufferCount = {};
-        uint32_t m_TraceRaysCount = {};
-        uint32_t m_TraceRaysIndirectCount = {};
-        uint32_t m_BuildAccelerationStructuresCount = {};
-        uint32_t m_BuildAccelerationStructuresIndirectCount = {};
-        uint32_t m_CopyAccelerationStructureCount = {};
-        uint32_t m_CopyAccelerationStructureToMemoryCount = {};
-        uint32_t m_CopyMemoryToAccelerationStructureCount = {};
-        uint32_t m_PipelineBarrierCount = {};
-
-        // Stat aggregation helper
-        inline DeviceProfilerDrawcallStats& operator+=( const DeviceProfilerDrawcallStats& rh )
+        struct Stats
         {
-            m_DrawCount += rh.m_DrawCount;
-            m_DrawIndirectCount += rh.m_DrawIndirectCount;
-            m_DrawMeshTasksCount += rh.m_DrawMeshTasksCount;
-            m_DrawMeshTasksIndirectCount += rh.m_DrawMeshTasksIndirectCount;
-            m_DispatchCount += rh.m_DispatchCount;
-            m_DispatchIndirectCount += rh.m_DispatchIndirectCount;
-            m_CopyBufferCount += rh.m_CopyBufferCount;
-            m_CopyBufferToImageCount += rh.m_CopyBufferToImageCount;
-            m_CopyImageCount += rh.m_CopyImageCount;
-            m_CopyImageToBufferCount += rh.m_CopyImageToBufferCount;
-            m_ClearColorCount += rh.m_ClearColorCount;
-            m_ClearDepthStencilCount += rh.m_ClearDepthStencilCount;
-            m_ResolveCount += rh.m_ResolveCount;
-            m_BlitImageCount += rh.m_BlitImageCount;
-            m_FillBufferCount += rh.m_FillBufferCount;
-            m_UpdateBufferCount += rh.m_UpdateBufferCount;
-            m_TraceRaysCount += rh.m_TraceRaysCount;
-            m_TraceRaysIndirectCount += rh.m_TraceRaysIndirectCount;
-            m_BuildAccelerationStructuresCount += rh.m_BuildAccelerationStructuresCount;
-            m_BuildAccelerationStructuresIndirectCount += rh.m_BuildAccelerationStructuresIndirectCount;
-            m_CopyAccelerationStructureCount += rh.m_CopyAccelerationStructureCount;
-            m_CopyAccelerationStructureToMemoryCount += rh.m_CopyAccelerationStructureToMemoryCount;
-            m_CopyMemoryToAccelerationStructureCount += rh.m_CopyMemoryToAccelerationStructureCount;
-            m_PipelineBarrierCount += rh.m_PipelineBarrierCount;
+            uint64_t m_Count = 0;
+            uint64_t m_TicksSum = 0;
+            uint64_t m_TicksMax = 0;
+            uint64_t m_TicksMin = 0;
+
+            inline uint64_t GetTicksAvg() const
+            {
+                return m_Count ? (m_TicksSum / m_Count) : 0;
+            }
+
+            inline void AddTicks( uint64_t ticks )
+            {
+                if( m_TicksSum == 0 )
+                {
+                    m_TicksMax = ticks;
+                    m_TicksMin = ticks;
+                }
+                else
+                {
+                    m_TicksMax = std::max( m_TicksMax, ticks );
+                    m_TicksMin = std::min( m_TicksMin, ticks );
+                }
+
+                m_TicksSum += ticks;
+            }
+
+            inline void AddStats( const Stats& stats )
+            {
+                m_Count += stats.m_Count;
+
+                if( m_TicksSum == 0 )
+                {
+                    m_TicksMax = stats.m_TicksMax;
+                    m_TicksMin = stats.m_TicksMin;
+                }
+                else
+                {
+                    m_TicksMax = std::max( m_TicksMax, stats.m_TicksMax );
+                    m_TicksMin = std::min( m_TicksMin, stats.m_TicksMin );
+                }
+
+                m_TicksSum += stats.m_TicksSum;
+            }
+        };
+
+        Stats m_DrawStats = {};
+        Stats m_DrawIndirectStats = {};
+        Stats m_DrawMeshTasksStats = {};
+        Stats m_DrawMeshTasksIndirectStats = {};
+        Stats m_DispatchStats = {};
+        Stats m_DispatchIndirectStats = {};
+        Stats m_CopyBufferStats = {};
+        Stats m_CopyBufferToImageStats = {};
+        Stats m_CopyImageStats = {};
+        Stats m_CopyImageToBufferStats = {};
+        Stats m_ClearColorStats = {};
+        Stats m_ClearDepthStencilStats = {};
+        Stats m_ResolveStats = {};
+        Stats m_BlitImageStats = {};
+        Stats m_FillBufferStats = {};
+        Stats m_UpdateBufferStats = {};
+        Stats m_TraceRaysStats = {};
+        Stats m_TraceRaysIndirectStats = {};
+        Stats m_BuildAccelerationStructuresStats = {};
+        Stats m_BuildAccelerationStructuresIndirectStats = {};
+        Stats m_CopyAccelerationStructureStats = {};
+        Stats m_CopyAccelerationStructureToMemoryStats = {};
+        Stats m_CopyMemoryToAccelerationStructureStats = {};
+        Stats m_PipelineBarrierStats = {};
+
+        // Stat iteration helpers.
+        inline Stats* begin() { return reinterpret_cast<Stats*>(this); }
+        inline Stats* end() { return reinterpret_cast<Stats*>(this + 1); }
+
+        inline const Stats* begin() const { return reinterpret_cast<const Stats*>(this); }
+        inline const Stats* end() const { return reinterpret_cast<const Stats*>(this + 1); }
+
+        inline constexpr size_t size() const { return sizeof( *this ) / sizeof( Stats ); }
+
+        inline Stats* data() { return begin(); }
+        inline const Stats* data() const { return begin(); }
+
+        // Return stats for the given drawcall type.
+        inline Stats* GetStats( DeviceProfilerDrawcallType type )
+        {
+            switch( type )
+            {
+            case DeviceProfilerDrawcallType::eDraw:
+            case DeviceProfilerDrawcallType::eDrawIndexed:
+                return &m_DrawStats;
+            case DeviceProfilerDrawcallType::eDrawIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndirectCount:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+                return &m_DrawIndirectStats;
+            case DeviceProfilerDrawcallType::eDrawMeshTasks:
+                return &m_DrawMeshTasksStats;
+            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
+            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
+                return &m_DrawMeshTasksIndirectStats;
+            case DeviceProfilerDrawcallType::eDispatch:
+                return &m_DispatchStats;
+            case DeviceProfilerDrawcallType::eDispatchIndirect:
+                return &m_DispatchIndirectStats;
+            case DeviceProfilerDrawcallType::eCopyBuffer:
+                return &m_CopyBufferStats;
+            case DeviceProfilerDrawcallType::eCopyBufferToImage:
+                return &m_CopyBufferToImageStats;
+            case DeviceProfilerDrawcallType::eCopyImage:
+                return &m_CopyImageStats;
+            case DeviceProfilerDrawcallType::eCopyImageToBuffer:
+                return &m_CopyImageToBufferStats;
+            case DeviceProfilerDrawcallType::eClearColorImage:
+            case DeviceProfilerDrawcallType::eClearAttachments:
+                return &m_ClearColorStats;
+            case DeviceProfilerDrawcallType::eClearDepthStencilImage:
+                return &m_ClearDepthStencilStats;
+            case DeviceProfilerDrawcallType::eResolveImage:
+                return &m_ResolveStats;
+            case DeviceProfilerDrawcallType::eBlitImage:
+                return &m_BlitImageStats;
+            case DeviceProfilerDrawcallType::eFillBuffer:
+                return &m_FillBufferStats;
+            case DeviceProfilerDrawcallType::eUpdateBuffer:
+                return &m_UpdateBufferStats;
+            case DeviceProfilerDrawcallType::eTraceRaysKHR:
+                return &m_TraceRaysStats;
+            case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+                return &m_TraceRaysIndirectStats;
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+                return &m_BuildAccelerationStructuresStats;
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+                return &m_BuildAccelerationStructuresIndirectStats;
+            case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+                return &m_CopyAccelerationStructureStats;
+            case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+                return &m_CopyAccelerationStructureToMemoryStats;
+            case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+                return &m_CopyMemoryToAccelerationStructureStats;
+            default:
+                return nullptr;
+            }
+        }
+
+        // Increment count of specific drawcall type.
+        void AddCount( DeviceProfilerDrawcallType type, uint64_t count )
+        {
+            Stats* pStats = GetStats( type );
+            if( pStats )
+            {
+                pStats->m_Count += count;
+            }
+        }
+
+        // Increment total, min and max ticks of the specific drawcall type.
+        void AddTicks( DeviceProfilerDrawcallType type, uint64_t ticks )
+        {
+            Stats* pStats = GetStats( type );
+            if( pStats )
+            {
+                pStats->AddTicks( ticks );
+            }
+        }
+
+        // Increment all stats with stats from the other structure.
+        void AddStats( const DeviceProfilerDrawcallStats& stats )
+        {
+            Stats* pStat = begin();
+            Stats const* pOtherStat = stats.begin();
+
+            Stats* pEnd = end();
+            while( pStat != pEnd )
+            {
+                pStat->AddStats( *pOtherStat );
+                pStat++;
+                pOtherStat++;
+            }
+        }
+
+        DeviceProfilerDrawcallStats& operator+=( const DeviceProfilerDrawcallStats& stats )
+        {
+            AddStats( stats );
             return *this;
         }
     };
@@ -918,6 +1050,9 @@ namespace Profiler
 
         DeviceProfilerRenderPassType                        m_Type = {};
         bool                                                m_Dynamic = {};
+        bool                                                m_ClearsColorAttachments = {};
+        bool                                                m_ClearsDepthStencilAttachments = {};
+        bool                                                m_ResolvesAttachments = {};
 
         DeviceProfilerRenderPassBeginData                   m_Begin = {};
         DeviceProfilerRenderPassEndData                     m_End = {};

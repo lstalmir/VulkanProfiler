@@ -118,8 +118,6 @@ namespace Profiler
 
         void EndSubpass();
 
-        void IncrementStat( const DeviceProfilerDrawcall& );
-
         void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline&, DeviceProfilerPipelineData** );
         void SetupCommandBufferForSecondaryBuffers();
 

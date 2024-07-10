@@ -1939,62 +1939,34 @@ namespace Profiler
     {
         // Draw count statistics
         {
-            ImGui::TextUnformatted( Lang::DrawCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawCount );
+            auto PrintStats = [&]( const char* pName, const DeviceProfilerDrawcallStats::Stats& stats )
+                {
+                    ImGui::TextUnformatted( pName );
+                    ImGuiX::TextAlignRight( "%u\t%.2f %s",
+                        stats.m_Count,
+                        m_TimestampDisplayUnit * stats.m_TicksSum * m_TimestampPeriod.count(),
+                        m_pTimestampDisplayUnitStr );
+                };
 
-            ImGui::TextUnformatted( Lang::DrawCallsIndirect );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawIndirectCount );
-
-            ImGui::TextUnformatted( Lang::DrawMeshTasksCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawMeshTasksCount );
-
-            ImGui::TextUnformatted( Lang::DrawMeshTasksIndirectCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawMeshTasksIndirectCount );
-
-            ImGui::TextUnformatted( Lang::DispatchCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchCount );
-
-            ImGui::TextUnformatted( Lang::DispatchCallsIndirect );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
-            
-            ImGui::TextUnformatted( Lang::TraceRaysCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysCount );
-
-            ImGui::TextUnformatted( Lang::TraceRaysIndirectCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysIndirectCount );
-
-            ImGui::TextUnformatted( Lang::CopyBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferCount );
-
-            ImGui::TextUnformatted( Lang::CopyBufferToImageCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferToImageCount );
-
-            ImGui::TextUnformatted( Lang::CopyImageCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageCount );
-
-            ImGui::TextUnformatted( Lang::CopyImageToBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageToBufferCount );
-
-            ImGui::TextUnformatted( Lang::PipelineBarriers );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_PipelineBarrierCount );
-
-            ImGui::TextUnformatted( Lang::ColorClearCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ClearColorCount );
-
-            ImGui::TextUnformatted( Lang::DepthStencilClearCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ClearDepthStencilCount );
-
-            ImGui::TextUnformatted( Lang::ResolveCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ResolveCount );
-
-            ImGui::TextUnformatted( Lang::BlitCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_BlitImageCount );
-
-            ImGui::TextUnformatted( Lang::FillBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_FillBufferCount );
-
-            ImGui::TextUnformatted( Lang::UpdateBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_UpdateBufferCount );
+            PrintStats( Lang::DrawCalls, m_Data.m_Stats.m_DrawStats );
+            PrintStats( Lang::DrawCallsIndirect, m_Data.m_Stats.m_DrawIndirectStats );
+            PrintStats( Lang::DrawMeshTasksCalls, m_Data.m_Stats.m_DrawMeshTasksStats );
+            PrintStats( Lang::DrawMeshTasksIndirectCalls, m_Data.m_Stats.m_DrawMeshTasksIndirectStats );
+            PrintStats( Lang::DispatchCalls, m_Data.m_Stats.m_DispatchStats );
+            PrintStats( Lang::DispatchCallsIndirect, m_Data.m_Stats.m_DispatchIndirectStats );
+            PrintStats( Lang::TraceRaysCalls, m_Data.m_Stats.m_TraceRaysStats );
+            PrintStats( Lang::TraceRaysIndirectCalls, m_Data.m_Stats.m_TraceRaysIndirectStats );
+            PrintStats( Lang::CopyBufferCalls, m_Data.m_Stats.m_CopyBufferStats );
+            PrintStats( Lang::CopyBufferToImageCalls, m_Data.m_Stats.m_CopyBufferToImageStats );
+            PrintStats( Lang::CopyImageCalls, m_Data.m_Stats.m_CopyImageStats );
+            PrintStats( Lang::CopyImageToBufferCalls, m_Data.m_Stats.m_CopyImageToBufferStats );
+            PrintStats( Lang::PipelineBarriers, m_Data.m_Stats.m_PipelineBarrierStats );
+            PrintStats( Lang::ColorClearCalls, m_Data.m_Stats.m_ClearColorStats );
+            PrintStats( Lang::DepthStencilClearCalls, m_Data.m_Stats.m_ClearDepthStencilStats );
+            PrintStats( Lang::ResolveCalls, m_Data.m_Stats.m_ResolveStats );
+            PrintStats( Lang::BlitCalls, m_Data.m_Stats.m_BlitImageStats );
+            PrintStats( Lang::FillBufferCalls, m_Data.m_Stats.m_FillBufferStats );
+            PrintStats( Lang::UpdateBufferCalls, m_Data.m_Stats.m_UpdateBufferStats );
         }
     }
 
