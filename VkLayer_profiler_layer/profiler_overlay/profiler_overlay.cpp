@@ -1941,12 +1941,86 @@ namespace Profiler
         {
             auto PrintStats = [&]( const char* pName, const DeviceProfilerDrawcallStats::Stats& stats )
                 {
-                    ImGui::TextUnformatted( pName );
-                    ImGuiX::TextAlignRight( "%u\t%.2f %s",
-                        stats.m_Count,
-                        m_TimestampDisplayUnit * stats.m_TicksSum * m_TimestampPeriod.count(),
-                        m_pTimestampDisplayUnitStr );
+                    ImGui::TableNextRow();
+
+                    // Stat name
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( pName );
+                    }
+
+                    // Count
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "%u",
+                            stats.m_Count );
+                    }
+
+                    auto PrintDuration = [&]( uint64_t ticks )
+                        {
+                            if( stats.m_TicksSum > 0 )
+                            {
+                                ImGuiX::TextAlignRight(
+                                    ImGuiX::TableGetColumnWidth(),
+                                    "%.2f %s",
+                                    m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
+                                    m_pTimestampDisplayUnitStr );
+                            }
+                            else
+                            {
+                                ImGuiX::TextAlignRight(
+                                    ImGuiX::TableGetColumnWidth(),
+                                    "-" );
+                            }
+                        };
+
+                    // Total duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintDuration( stats.m_TicksSum );
+                    }
+
+                    // Min duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintDuration( stats.m_TicksMin );
+                    }
+
+                    // Max duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintDuration( stats.m_TicksMax );
+                    }
+
+                    // Average duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintDuration( stats.GetTicksAvg() );
+                    }
                 };
+
+            ImGui::BeginTable( "##StatisticsTable", 6, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Hideable | ImGuiTableFlags_ContextMenuInBody | ImGuiTableFlags_NoClip | ImGuiTableFlags_SizingStretchProp );
+            ImGui::TableSetupColumn( "Name", ImGuiTableColumnFlags_NoHide, 3.0f );
+            ImGui::TableSetupColumn( "Count", 0, 1.0f );
+            ImGui::TableSetupColumn( "Total", 0, 1.0f );
+            ImGui::TableSetupColumn( "Min", 0, 1.0f );
+            ImGui::TableSetupColumn( "Max", 0, 1.0f );
+            ImGui::TableSetupColumn( "Avg", 0, 1.0f );
+
+            ImGui::TableNextRow( ImGuiTableRowFlags_Headers );
+            ImGui::TableNextColumn();
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Count" );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Total" );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Min" );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Max" );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Avg" );
 
             PrintStats( Lang::DrawCalls, m_Data.m_Stats.m_DrawStats );
             PrintStats( Lang::DrawCallsIndirect, m_Data.m_Stats.m_DrawIndirectStats );
@@ -1967,6 +2041,7 @@ namespace Profiler
             PrintStats( Lang::BlitCalls, m_Data.m_Stats.m_BlitImageStats );
             PrintStats( Lang::FillBufferCalls, m_Data.m_Stats.m_FillBufferStats );
             PrintStats( Lang::UpdateBufferCalls, m_Data.m_Stats.m_UpdateBufferStats );
+            ImGui::EndTable();
         }
     }
 
