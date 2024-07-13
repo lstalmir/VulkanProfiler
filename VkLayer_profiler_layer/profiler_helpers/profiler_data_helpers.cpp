@@ -153,6 +153,27 @@ namespace Profiler
                 drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount,
                 drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride );
 
+        case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
+            return fmt::format( "vkCmdDrawMeshTasksNV ({}, {})",
+                drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount,
+                drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask );
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
+            return fmt::format( "vkCmdDrawMeshTasksIndirectNV ({}, {}, {}, {})",
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride );
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
+            return fmt::format( "vkCmdDrawMeshTasksIndirectCountNV ({}, {}, {}, {}, {}, {})",
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset,
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride );
+
         case DeviceProfilerDrawcallType::eDispatch:
             return fmt::format( "vkCmdDispatch ({}, {}, {})",
                 drawcall.m_Payload.m_Dispatch.m_GroupCountX,
@@ -461,6 +482,15 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
             return "vkCmdDrawMeshTasksIndirectCountEXT";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
+            return "vkCmdDrawMeshTasksNV";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
+            return "vkCmdDrawMeshTasksIndirectNV";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
+            return "vkCmdDrawMeshTasksIndirectCountNV";
 
         case DeviceProfilerDrawcallType::eDispatch:
             return "vkCmdDispatch";
