@@ -86,6 +86,14 @@ namespace Profiler
         inline static constexpr char MemoryTypeIndex[] = u8"Indeks typu pamięci";
 
         // Statistics tab
+        inline static constexpr char ShowEmptyStatistics[] = u8"Pokaż puste statystyki...";
+        inline static constexpr char HideEmptyStatistics[] = u8"Ukryj puste statystyki";
+        inline static constexpr char StatName[] = u8"Nazwa";
+        inline static constexpr char StatCount[] = u8"Liczba";
+        inline static constexpr char StatTotal[] = u8"Razem";
+        inline static constexpr char StatMin[] = u8"Min";
+        inline static constexpr char StatMax[] = u8"Max";
+        inline static constexpr char StatAvg[] = u8"Śr.";
         inline static constexpr char DrawCalls[] = u8"Komendy rysujące";
         inline static constexpr char DrawCallsIndirect[] = u8"Komendy rysujące (typu indirect)";
         inline static constexpr char DrawMeshTasksCalls[] = u8"Komendy rysujące mesh";
