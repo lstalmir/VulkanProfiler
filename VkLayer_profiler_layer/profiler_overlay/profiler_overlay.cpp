@@ -120,6 +120,7 @@ namespace Profiler
         , m_Pause( false )
         , m_ShowDebugLabels( true )
         , m_ShowShaderCapabilities( true )
+        , m_ShowEmptyStatistics( false )
         , m_TimeUnit( TimeUnit::eMilliseconds )
         , m_SamplingMode( VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         , m_SyncMode( VK_PROFILER_SYNC_MODE_PRESENT_EXT )
@@ -1939,8 +1940,31 @@ namespace Profiler
     {
         // Draw count statistics
         {
+            auto PrintStatsDuration = [&]( const DeviceProfilerDrawcallStats::Stats& stats, uint64_t ticks )
+                {
+                    if( stats.m_TicksSum > 0 )
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "%.2f %s",
+                            m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
+                            m_pTimestampDisplayUnitStr );
+                    }
+                    else
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "-" );
+                    }
+                };
+
             auto PrintStats = [&]( const char* pName, const DeviceProfilerDrawcallStats::Stats& stats )
                 {
+                    if( stats.m_Count == 0 && !m_ShowEmptyStatistics )
+                    {
+                        return;
+                    }
+
                     ImGui::TableNextRow();
 
                     // Stat name
@@ -1958,69 +1982,61 @@ namespace Profiler
                             stats.m_Count );
                     }
 
-                    auto PrintDuration = [&]( uint64_t ticks )
-                        {
-                            if( stats.m_TicksSum > 0 )
-                            {
-                                ImGuiX::TextAlignRight(
-                                    ImGuiX::TableGetColumnWidth(),
-                                    "%.2f %s",
-                                    m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
-                                    m_pTimestampDisplayUnitStr );
-                            }
-                            else
-                            {
-                                ImGuiX::TextAlignRight(
-                                    ImGuiX::TableGetColumnWidth(),
-                                    "-" );
-                            }
-                        };
-
                     // Total duration
                     if( ImGui::TableNextColumn() )
                     {
-                        PrintDuration( stats.m_TicksSum );
+                        PrintStatsDuration( stats, stats.m_TicksSum );
                     }
 
                     // Min duration
                     if( ImGui::TableNextColumn() )
                     {
-                        PrintDuration( stats.m_TicksMin );
+                        PrintStatsDuration( stats, stats.m_TicksMin );
                     }
 
                     // Max duration
                     if( ImGui::TableNextColumn() )
                     {
-                        PrintDuration( stats.m_TicksMax );
+                        PrintStatsDuration( stats, stats.m_TicksMax );
                     }
 
                     // Average duration
                     if( ImGui::TableNextColumn() )
                     {
-                        PrintDuration( stats.GetTicksAvg() );
+                        PrintStatsDuration( stats, stats.GetTicksAvg() );
                     }
                 };
 
-            ImGui::BeginTable( "##StatisticsTable", 6, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Hideable | ImGuiTableFlags_ContextMenuInBody | ImGuiTableFlags_NoClip | ImGuiTableFlags_SizingStretchProp );
-            ImGui::TableSetupColumn( "Name", ImGuiTableColumnFlags_NoHide, 3.0f );
-            ImGui::TableSetupColumn( "Count", 0, 1.0f );
-            ImGui::TableSetupColumn( "Total", 0, 1.0f );
-            ImGui::TableSetupColumn( "Min", 0, 1.0f );
-            ImGui::TableSetupColumn( "Max", 0, 1.0f );
-            ImGui::TableSetupColumn( "Avg", 0, 1.0f );
+            ImGui::BeginTable( "##StatisticsTable", 6,
+                ImGuiTableFlags_BordersInnerH |
+                ImGuiTableFlags_PadOuterX |
+                ImGuiTableFlags_Hideable |
+                ImGuiTableFlags_ContextMenuInBody |
+                ImGuiTableFlags_NoClip |
+                ImGuiTableFlags_SizingStretchProp );
 
-            ImGui::TableNextRow( ImGuiTableRowFlags_Headers );
+            ImGui::TableSetupColumn( Lang::StatName, ImGuiTableColumnFlags_NoHide, 3.0f );
+            ImGui::TableSetupColumn( Lang::StatCount, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatTotal, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatMin, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatMax, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatAvg, 0, 1.0f );
+            ImGui::TableNextRow();
+
+            ImGui::PushFont( m_Fonts.GetBoldFont() );
             ImGui::TableNextColumn();
+            ImGui::TextUnformatted( Lang::StatName );
             ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Count" );
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatCount );
             ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Total" );
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatTotal );
             ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Min" );
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMin );
             ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Max" );
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMax );
             ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Avg" );
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
+            ImGui::PopFont();
 
             PrintStats( Lang::DrawCalls, m_Data.m_Stats.m_DrawStats );
             PrintStats( Lang::DrawCallsIndirect, m_Data.m_Stats.m_DrawIndirectStats );
@@ -2041,6 +2057,24 @@ namespace Profiler
             PrintStats( Lang::BlitCalls, m_Data.m_Stats.m_BlitImageStats );
             PrintStats( Lang::FillBufferCalls, m_Data.m_Stats.m_FillBufferStats );
             PrintStats( Lang::UpdateBufferCalls, m_Data.m_Stats.m_UpdateBufferStats );
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            if( m_ShowEmptyStatistics )
+            {
+                if( ImGui::TextLink( Lang::HideEmptyStatistics ) )
+                {
+                    m_ShowEmptyStatistics = false;
+                }
+            }
+            else
+            {
+                if( ImGui::TextLink( Lang::ShowEmptyStatistics ) )
+                {
+                    m_ShowEmptyStatistics = true;
+                }
+            }
+
             ImGui::EndTable();
         }
     }
