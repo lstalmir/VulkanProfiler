@@ -856,6 +856,24 @@ namespace Profiler
         }
 
         // Increment count of specific drawcall type.
+        void AddCount( const DeviceProfilerDrawcall& drawcall )
+        {
+            uint32_t count = 1;
+            switch( drawcall.m_Type )
+            {
+            case DeviceProfilerDrawcallType::eClearAttachments:
+                count = drawcall.m_Payload.m_ClearAttachments.m_Count;
+                break;
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+                count = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+                break;
+            }
+
+            AddCount( drawcall.m_Type, count );
+        }
+
+        // Increment count of specific drawcall type.
         void AddCount( DeviceProfilerDrawcallType type, uint64_t count )
         {
             Stats* pStats = GetStats( type );

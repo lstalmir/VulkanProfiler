@@ -721,7 +721,7 @@ namespace Profiler
             m_pCurrentDrawcallData = &m_pCurrentPipelineData->m_Drawcalls.emplace_back( drawcall );
 
             // Increment drawcall stats
-            m_Stats.AddCount( drawcall.m_Type, 1 );
+            m_Stats.AddCount( drawcall );
 
             if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
