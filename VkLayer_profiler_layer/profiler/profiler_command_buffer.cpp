@@ -21,6 +21,7 @@
 #include "profiler_command_buffer.h"
 #include "profiler.h"
 #include "profiler_helpers.h"
+#include "profiler_stat_comparators.h"
 #include <algorithm>
 #include <assert.h>
 
@@ -279,8 +280,17 @@ namespace Profiler
             m_pCurrentRenderPassData->m_Type = m_pCurrentRenderPass->m_Type;
 
             // Clears issued when render pass begins
-            m_Stats.m_ClearColorCount += m_pCurrentRenderPass->m_ClearColorAttachmentCount;
-            m_Stats.m_ClearDepthStencilCount += m_pCurrentRenderPass->m_ClearDepthStencilAttachmentCount;
+            if( m_pCurrentRenderPass->m_ClearColorAttachmentCount != 0 )
+            {
+                m_Stats.m_ClearColorStats.m_Count += m_pCurrentRenderPass->m_ClearColorAttachmentCount;
+                m_pCurrentRenderPassData->m_ClearsColorAttachments = true;
+            }
+
+            if( m_pCurrentRenderPass->m_ClearDepthStencilAttachmentCount != 0 )
+            {
+                m_Stats.m_ClearDepthStencilStats.m_Count += m_pCurrentRenderPass->m_ClearDepthStencilAttachmentCount;
+                m_pCurrentRenderPassData->m_ClearsDepthStencilAttachments = true;
+            }
 
             PreBeginRenderPassCommonEpilog();
         }
@@ -405,8 +415,9 @@ namespace Profiler
             // Helper function to accumulate common attachment operations.
             auto AccumulateAttachmentOperations = [&](
                 const VkRenderingAttachmentInfo* pAttachmentInfo,
-                uint32_t& clearCounter,
-                uint32_t& resolveCounter )
+                bool& clearFlag,
+                DeviceProfilerDrawcallStats::Stats& clearStats,
+                DeviceProfilerDrawcallStats::Stats& resolveStats )
             {
                 // Attachment operations are ignored if imageView is null.
                 if( (pAttachmentInfo != nullptr) &&
@@ -414,13 +425,15 @@ namespace Profiler
                 {
                     if( pAttachmentInfo->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR )
                     {
-                        clearCounter++;
+                        clearStats.m_Count++;
+                        clearFlag = true;
                     }
 
                     if( (pAttachmentInfo->resolveMode != VK_RESOLVE_MODE_NONE) &&
                         (pAttachmentInfo->resolveImageView != VK_NULL_HANDLE) )
                     {
-                        resolveCounter++;
+                        resolveStats.m_Count++;
+                        m_pCurrentRenderPassData->m_ResolvesAttachments = true;
                     }
                 }
             };
@@ -428,11 +441,24 @@ namespace Profiler
             // Clears and resolves issued when rendering begins.
             for( uint32_t i = 0; i < pRenderingInfo->colorAttachmentCount; ++i )
             {
-                AccumulateAttachmentOperations( &pRenderingInfo->pColorAttachments[i], m_Stats.m_ClearColorCount, m_Stats.m_ResolveCount );
+                AccumulateAttachmentOperations(
+                    &pRenderingInfo->pColorAttachments[i],
+                    m_pCurrentRenderPassData->m_ClearsColorAttachments,
+                    m_Stats.m_ClearColorStats,
+                    m_Stats.m_ResolveStats );
             }
 
-            AccumulateAttachmentOperations( pRenderingInfo->pDepthAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount );
-            AccumulateAttachmentOperations( pRenderingInfo->pStencilAttachment, m_Stats.m_ClearDepthStencilCount, m_Stats.m_ResolveCount );
+            AccumulateAttachmentOperations(
+                pRenderingInfo->pDepthAttachment,
+                m_pCurrentRenderPassData->m_ClearsDepthStencilAttachments,
+                m_Stats.m_ClearDepthStencilStats,
+                m_Stats.m_ResolveStats );
+
+            AccumulateAttachmentOperations(
+                pRenderingInfo->pStencilAttachment,
+                m_pCurrentRenderPassData->m_ClearsDepthStencilAttachments,
+                m_Stats.m_ClearDepthStencilStats,
+                m_Stats.m_ResolveStats );
 
             PreBeginRenderPassCommonEpilog();
         }
@@ -695,7 +721,7 @@ namespace Profiler
             m_pCurrentDrawcallData = &m_pCurrentPipelineData->m_Drawcalls.emplace_back( drawcall );
 
             // Increment drawcall stats
-            IncrementStat( drawcall );
+            m_Stats.AddCount( drawcall );
 
             if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) ||
                 ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
@@ -861,7 +887,10 @@ namespace Profiler
         if( m_ProfilingEnabled )
         {
             // Pipeline barriers can occur only outside of the render pass, increment command buffer stats
-            m_Stats.m_PipelineBarrierCount += memoryBarrierCount + bufferMemoryBarrierCount + imageMemoryBarrierCount;
+            m_Stats.m_PipelineBarrierStats.m_Count +=
+                memoryBarrierCount +
+                bufferMemoryBarrierCount +
+                imageMemoryBarrierCount;
         }
     }
 
@@ -879,7 +908,7 @@ namespace Profiler
         if( m_ProfilingEnabled )
         {
             // Pipeline barriers can occur only outside of the render pass, increment command buffer stats
-            m_Stats.m_PipelineBarrierCount +=
+            m_Stats.m_PipelineBarrierStats.m_Count +=
                 pDependencyInfo->memoryBarrierCount +
                 pDependencyInfo->bufferMemoryBarrierCount +
                 pDependencyInfo->imageMemoryBarrierCount;
@@ -926,6 +955,18 @@ namespace Profiler
                         // Get vkCmdBeginRenderPass time
                         renderPass.m_Begin.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_BeginTimestamp.m_Index );
                         renderPass.m_Begin.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_EndTimestamp.m_Index );
+
+                        // Increment clear time stats
+                        uint64_t renderPassBeginDuration = GetDuration( renderPass.m_Begin );
+
+                        if( renderPass.m_ClearsColorAttachments )
+                        {
+                            m_Data.m_Stats.m_ClearColorStats.AddTicks( renderPassBeginDuration );
+                        }
+                        if( renderPass.m_ClearsDepthStencilAttachments )
+                        {
+                            m_Data.m_Stats.m_ClearDepthStencilStats.AddTicks( renderPassBeginDuration );
+                        }
                     }
 
                     const size_t subpassCount = renderPass.m_Subpasses.size();
@@ -1033,6 +1074,13 @@ namespace Profiler
                         // Get vkCmdEndRenderPass time
                         renderPass.m_End.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_BeginTimestamp.m_Index );
                         renderPass.m_End.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_EndTimestamp.m_Index );
+
+                        // Increment resolve time if resolves were done on render pass end.
+                        // TODO: This isn't necessarilly correct as the resolves may happen on end of subpass.
+                        if( renderPass.m_ResolvesAttachments )
+                        {
+                            m_Stats.m_ResolveStats.AddTicks( GetDuration( renderPass.m_End ) );
+                        }
                     }
 
                     // Resolve timestamp queries at the beginning and end of the render pass.
@@ -1085,6 +1133,9 @@ namespace Profiler
                     // Update drawcall timestamps
                     drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
                     drawcall.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_EndTimestamp.m_Index );
+
+                    // Increment drawcall stats
+                    m_Data.m_Stats.AddTicks( drawcall.m_Type, GetDuration( drawcall ) );
                 }
                 else
                 {
@@ -1230,7 +1281,8 @@ namespace Profiler
             // m_pCurrentRenderPass may be null in case of dynamic rendering.
             if( m_pCurrentRenderPass )
             {
-                m_Stats.m_ResolveCount += m_pCurrentRenderPass->m_Subpasses[m_CurrentSubpassIndex].m_ResolveCount;
+                m_Stats.m_ResolveStats.m_Count +=
+                    m_pCurrentRenderPass->m_Subpasses[m_CurrentSubpassIndex].m_ResolveCount;
             }
 
             // Send timestamp query at the end of the subpass.
@@ -1258,108 +1310,6 @@ namespace Profiler
             // Clear per-subpass pointers.
             m_pCurrentSubpassData = nullptr;
             m_pCurrentPipelineData = nullptr;
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        IncrementStat
-
-    Description:
-        Increment drawcall stats for given drawcall.
-
-    \***********************************************************************************/
-    void ProfilerCommandBuffer::IncrementStat( const DeviceProfilerDrawcall& drawcall )
-    {
-        switch( drawcall.m_Type )
-        {
-        case DeviceProfilerDrawcallType::eDraw:
-        case DeviceProfilerDrawcallType::eDrawIndexed:
-            m_Stats.m_DrawCount++;
-            break;
-        case DeviceProfilerDrawcallType::eDrawIndirect:
-        case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-        case DeviceProfilerDrawcallType::eDrawIndirectCount:
-        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            m_Stats.m_DrawIndirectCount++;
-            break;
-        case DeviceProfilerDrawcallType::eDrawMeshTasks:
-        case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
-            m_Stats.m_DrawMeshTasksCount++;
-            break;
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-            m_Stats.m_DrawMeshTasksIndirectCount++;
-            break;
-        case DeviceProfilerDrawcallType::eDispatch:
-            m_Stats.m_DispatchCount++;
-            break;
-        case DeviceProfilerDrawcallType::eDispatchIndirect:
-            m_Stats.m_DispatchIndirectCount++;
-            break;
-        case DeviceProfilerDrawcallType::eCopyBuffer:
-            m_Stats.m_CopyBufferCount++;
-            break;
-        case DeviceProfilerDrawcallType::eCopyBufferToImage:
-            m_Stats.m_CopyBufferToImageCount++;
-            break;
-        case DeviceProfilerDrawcallType::eCopyImage:
-            m_Stats.m_CopyImageCount++;
-            break;
-        case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-            m_Stats.m_CopyImageToBufferCount++;
-            break;
-        case DeviceProfilerDrawcallType::eClearAttachments:
-            m_Stats.m_ClearColorCount += drawcall.m_Payload.m_ClearAttachments.m_Count;
-            break;
-        case DeviceProfilerDrawcallType::eClearColorImage:
-            m_Stats.m_ClearColorCount++;
-            break;
-        case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-            m_Stats.m_ClearDepthStencilCount++;
-            break;
-        case DeviceProfilerDrawcallType::eResolveImage:
-            m_Stats.m_ResolveCount++;
-            break;
-        case DeviceProfilerDrawcallType::eBlitImage:
-            m_Stats.m_BlitImageCount++;
-            break;
-        case DeviceProfilerDrawcallType::eFillBuffer:
-            m_Stats.m_FillBufferCount++;
-            break;
-        case DeviceProfilerDrawcallType::eUpdateBuffer:
-            m_Stats.m_UpdateBufferCount++;
-            break;
-        case DeviceProfilerDrawcallType::eTraceRaysKHR:
-            m_Stats.m_TraceRaysCount++;
-            break;
-        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            m_Stats.m_TraceRaysIndirectCount++;
-            break;
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
-            m_Stats.m_BuildAccelerationStructuresCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
-            break;
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
-            m_Stats.m_BuildAccelerationStructuresIndirectCount += drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
-            break;
-        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
-            m_Stats.m_CopyAccelerationStructureCount++;
-            break;
-        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
-            m_Stats.m_CopyAccelerationStructureToMemoryCount++;
-            break;
-        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
-            m_Stats.m_CopyMemoryToAccelerationStructureCount++;
-            break;
-        case DeviceProfilerDrawcallType::eBeginDebugLabel:
-        case DeviceProfilerDrawcallType::eEndDebugLabel:
-        case DeviceProfilerDrawcallType::eInsertDebugLabel:
-            break;
-        default:
-            assert( !"IncrementStat(...) called with unknown drawcall type" );
         }
     }
 

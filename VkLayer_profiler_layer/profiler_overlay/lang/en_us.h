@@ -91,6 +91,14 @@ namespace Profiler
         inline static constexpr char MemoryTypeIndex[] = "Memory type index";
 
         // Statistics tab
+        inline static constexpr char ShowEmptyStatistics[] = "Show empty statistics...";
+        inline static constexpr char HideEmptyStatistics[] = "Hide empty statistics";
+        inline static constexpr char StatName[] = "Name";
+        inline static constexpr char StatCount[] = "Count";
+        inline static constexpr char StatTotal[] = "Total";
+        inline static constexpr char StatMin[] = "Min";
+        inline static constexpr char StatMax[] = "Max";
+        inline static constexpr char StatAvg[] = "Avg";
         inline static constexpr char DrawCalls[] = "Draw calls";
         inline static constexpr char DrawCallsIndirect[] = "Draw calls (indirect)";
         inline static constexpr char DrawMeshTasksCalls[] = "Draw mesh tasks calls";

@@ -159,6 +159,7 @@ namespace Profiler
         bool m_Pause;
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
+        bool m_ShowEmptyStatistics;
 
         enum class TimeUnit
         {

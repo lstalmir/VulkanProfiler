@@ -120,6 +120,7 @@ namespace Profiler
         , m_Pause( false )
         , m_ShowDebugLabels( true )
         , m_ShowShaderCapabilities( true )
+        , m_ShowEmptyStatistics( false )
         , m_TimeUnit( TimeUnit::eMilliseconds )
         , m_SamplingMode( VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         , m_SyncMode( VK_PROFILER_SYNC_MODE_PRESENT_EXT )
@@ -1939,62 +1940,142 @@ namespace Profiler
     {
         // Draw count statistics
         {
-            ImGui::TextUnformatted( Lang::DrawCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawCount );
+            auto PrintStatsDuration = [&]( const DeviceProfilerDrawcallStats::Stats& stats, uint64_t ticks )
+                {
+                    if( stats.m_TicksSum > 0 )
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "%.2f %s",
+                            m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
+                            m_pTimestampDisplayUnitStr );
+                    }
+                    else
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "-" );
+                    }
+                };
 
-            ImGui::TextUnformatted( Lang::DrawCallsIndirect );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawIndirectCount );
+            auto PrintStats = [&]( const char* pName, const DeviceProfilerDrawcallStats::Stats& stats )
+                {
+                    if( stats.m_Count == 0 && !m_ShowEmptyStatistics )
+                    {
+                        return;
+                    }
 
-            ImGui::TextUnformatted( Lang::DrawMeshTasksCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawMeshTasksCount );
+                    ImGui::TableNextRow();
 
-            ImGui::TextUnformatted( Lang::DrawMeshTasksIndirectCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DrawMeshTasksIndirectCount );
+                    // Stat name
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( pName );
+                    }
 
-            ImGui::TextUnformatted( Lang::DispatchCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchCount );
+                    // Count
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "%u",
+                            stats.m_Count );
+                    }
 
-            ImGui::TextUnformatted( Lang::DispatchCallsIndirect );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_DispatchIndirectCount );
-            
-            ImGui::TextUnformatted( Lang::TraceRaysCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysCount );
+                    // Total duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintStatsDuration( stats, stats.m_TicksSum );
+                    }
 
-            ImGui::TextUnformatted( Lang::TraceRaysIndirectCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_TraceRaysIndirectCount );
+                    // Min duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintStatsDuration( stats, stats.m_TicksMin );
+                    }
 
-            ImGui::TextUnformatted( Lang::CopyBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferCount );
+                    // Max duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintStatsDuration( stats, stats.m_TicksMax );
+                    }
 
-            ImGui::TextUnformatted( Lang::CopyBufferToImageCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyBufferToImageCount );
+                    // Average duration
+                    if( ImGui::TableNextColumn() )
+                    {
+                        PrintStatsDuration( stats, stats.GetTicksAvg() );
+                    }
+                };
 
-            ImGui::TextUnformatted( Lang::CopyImageCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageCount );
+            ImGui::BeginTable( "##StatisticsTable", 6,
+                ImGuiTableFlags_BordersInnerH |
+                ImGuiTableFlags_PadOuterX |
+                ImGuiTableFlags_Hideable |
+                ImGuiTableFlags_ContextMenuInBody |
+                ImGuiTableFlags_NoClip |
+                ImGuiTableFlags_SizingStretchProp );
 
-            ImGui::TextUnformatted( Lang::CopyImageToBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_CopyImageToBufferCount );
+            ImGui::TableSetupColumn( Lang::StatName, ImGuiTableColumnFlags_NoHide, 3.0f );
+            ImGui::TableSetupColumn( Lang::StatCount, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatTotal, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatMin, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatMax, 0, 1.0f );
+            ImGui::TableSetupColumn( Lang::StatAvg, 0, 1.0f );
+            ImGui::TableNextRow();
 
-            ImGui::TextUnformatted( Lang::PipelineBarriers );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_PipelineBarrierCount );
+            ImGui::PushFont( m_Fonts.GetBoldFont() );
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted( Lang::StatName );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatCount );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatTotal );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMin );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMax );
+            ImGui::TableNextColumn();
+            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
+            ImGui::PopFont();
 
-            ImGui::TextUnformatted( Lang::ColorClearCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ClearColorCount );
+            PrintStats( Lang::DrawCalls, m_Data.m_Stats.m_DrawStats );
+            PrintStats( Lang::DrawCallsIndirect, m_Data.m_Stats.m_DrawIndirectStats );
+            PrintStats( Lang::DrawMeshTasksCalls, m_Data.m_Stats.m_DrawMeshTasksStats );
+            PrintStats( Lang::DrawMeshTasksIndirectCalls, m_Data.m_Stats.m_DrawMeshTasksIndirectStats );
+            PrintStats( Lang::DispatchCalls, m_Data.m_Stats.m_DispatchStats );
+            PrintStats( Lang::DispatchCallsIndirect, m_Data.m_Stats.m_DispatchIndirectStats );
+            PrintStats( Lang::TraceRaysCalls, m_Data.m_Stats.m_TraceRaysStats );
+            PrintStats( Lang::TraceRaysIndirectCalls, m_Data.m_Stats.m_TraceRaysIndirectStats );
+            PrintStats( Lang::CopyBufferCalls, m_Data.m_Stats.m_CopyBufferStats );
+            PrintStats( Lang::CopyBufferToImageCalls, m_Data.m_Stats.m_CopyBufferToImageStats );
+            PrintStats( Lang::CopyImageCalls, m_Data.m_Stats.m_CopyImageStats );
+            PrintStats( Lang::CopyImageToBufferCalls, m_Data.m_Stats.m_CopyImageToBufferStats );
+            PrintStats( Lang::PipelineBarriers, m_Data.m_Stats.m_PipelineBarrierStats );
+            PrintStats( Lang::ColorClearCalls, m_Data.m_Stats.m_ClearColorStats );
+            PrintStats( Lang::DepthStencilClearCalls, m_Data.m_Stats.m_ClearDepthStencilStats );
+            PrintStats( Lang::ResolveCalls, m_Data.m_Stats.m_ResolveStats );
+            PrintStats( Lang::BlitCalls, m_Data.m_Stats.m_BlitImageStats );
+            PrintStats( Lang::FillBufferCalls, m_Data.m_Stats.m_FillBufferStats );
+            PrintStats( Lang::UpdateBufferCalls, m_Data.m_Stats.m_UpdateBufferStats );
 
-            ImGui::TextUnformatted( Lang::DepthStencilClearCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ClearDepthStencilCount );
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            if( m_ShowEmptyStatistics )
+            {
+                if( ImGui::TextLink( Lang::HideEmptyStatistics ) )
+                {
+                    m_ShowEmptyStatistics = false;
+                }
+            }
+            else
+            {
+                if( ImGui::TextLink( Lang::ShowEmptyStatistics ) )
+                {
+                    m_ShowEmptyStatistics = true;
+                }
+            }
 
-            ImGui::TextUnformatted( Lang::ResolveCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_ResolveCount );
-
-            ImGui::TextUnformatted( Lang::BlitCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_BlitImageCount );
-
-            ImGui::TextUnformatted( Lang::FillBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_FillBufferCount );
-
-            ImGui::TextUnformatted( Lang::UpdateBufferCalls );
-            ImGuiX::TextAlignRight( "%u", m_Data.m_Stats.m_UpdateBufferCount );
+            ImGui::EndTable();
         }
     }
 
