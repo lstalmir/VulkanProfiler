@@ -926,6 +926,13 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerPipeline
     {
+        union CreateInfo
+        {
+            VkGraphicsPipelineCreateInfo                    m_GraphicsPipelineCreateInfo;
+            VkComputePipelineCreateInfo                     m_ComputePipelineCreateInfo;
+            VkRayTracingPipelineCreateInfoKHR               m_RayTracingPipelineCreateInfoKHR;
+        };
+
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
@@ -936,6 +943,8 @@ namespace Profiler
 
         bool                                                m_UsesShaderObjects = false;
 
+        std::shared_ptr<CreateInfo>                         m_pCreateInfo = nullptr;
+
         inline void Finalize()
         {
             // Prefetch shader capabilities.
@@ -945,6 +954,8 @@ namespace Profiler
             // Calculate pipeline hash.
             m_ShaderTuple.UpdateHash();
         }
+
+        static std::shared_ptr<CreateInfo> CopyPipelineCreateInfo( const VkGraphicsPipelineCreateInfo* pCreateInfo );
     };
 
     /***********************************************************************************\

@@ -764,6 +764,8 @@ namespace Profiler
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultObjectName( profilerPipeline );
 
+            profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
+
             m_Pipelines.insert( pPipelines[i], profilerPipeline );
         }
     }
