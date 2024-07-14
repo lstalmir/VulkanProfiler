@@ -1961,6 +1961,339 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawInspectorPipelineState()
     {
+        if( m_InspectorPipeline.m_pCreateInfo == nullptr )
+        {
+            ImGui::TextUnformatted( Lang::PipelineStateNotAvailable );
+            return;
+        }
+
+        switch( m_InspectorPipeline.m_Type )
+        {
+        case DeviceProfilerPipelineType::eGraphics:
+            DrawInspectorGraphicsPipelineState();
+            break;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorGraphicsPipelineState
+
+    Description:
+        Draws the inspected graphics pipeline state.
+
+    \***********************************************************************************/
+    template<typename T>
+    static void DrawPipelineStateValue( const char* pName, const char* pFormat, T&& value, const VkPipelineDynamicStateCreateInfo* pDynamicStateInfo = nullptr, VkDynamicState dynamicState = {} )
+    {
+        ImGui::TableNextRow();
+
+        if( ImGui::TableNextColumn() )
+        {
+            ImGui::TextUnformatted( pName);
+        }
+
+        if( ImGui::TableNextColumn() )
+        {
+            bool isDynamicState = false;
+            if( pDynamicStateInfo != nullptr )
+            {
+                for( uint32_t i = 0; i < pDynamicStateInfo->dynamicStateCount; ++i )
+                {
+                    if( pDynamicStateInfo->pDynamicStates[ i ] == dynamicState )
+                    {
+                        isDynamicState = true;
+                        break;
+                    }
+                }
+            }
+
+            if( !isDynamicState )
+            {
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), pFormat, value );
+            }
+            else
+            {
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Dynamic" );
+            }
+        }
+    }
+
+    void ProfilerOverlayOutput::DrawInspectorGraphicsPipelineState()
+    {
+        assert( m_InspectorPipeline.m_Type == DeviceProfilerPipelineType::eGraphics );
+        assert( m_InspectorPipeline.m_pCreateInfo != nullptr );
+        const VkGraphicsPipelineCreateInfo& gci = m_InspectorPipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo;
+
+        // VkPipelineVertexInputStateCreateInfo
+        ImGui::BeginDisabled( gci.pVertexInputState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) )
+        {
+            if( ImGui::BeginTable( "##VertexInputState", 6, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                ImGui::TableNextRow();
+                ImGui::PushFont( m_Fonts.GetBoldFont() );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Location" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Binding" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Format" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Offset" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Stride" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Input rate" );
+                ImGui::PopFont();
+
+                const VkPipelineVertexInputStateCreateInfo& state = *gci.pVertexInputState;
+                for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
+                {
+                    const VkVertexInputAttributeDescription* pAttribute = &state.pVertexAttributeDescriptions[ i ];
+                    const VkVertexInputBindingDescription* pBinding = nullptr;
+
+                    // Find the binding description of the current attribute.
+                    for( uint32_t j = 0; j < state.vertexBindingDescriptionCount; ++j )
+                    {
+                        if( state.pVertexBindingDescriptions[ j ].binding == pAttribute->binding )
+                        {
+                            pBinding = &state.pVertexBindingDescriptions[ j ];
+                            break;
+                        }
+                    }
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->location );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->binding );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->format );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->offset );
+
+                    if( pBinding != nullptr )
+                    {
+                        ImGui::TableNextColumn(); ImGui::Text( "%u", pBinding->stride );
+                        ImGui::TableNextColumn(); ImGui::Text( "%u", pBinding->inputRate );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineInputAssemblyStateCreateInfo
+        ImGui::BeginDisabled( gci.pInputAssemblyState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) )
+        {
+            if( ImGui::BeginTable( "##InputAssemblyState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                const VkPipelineInputAssemblyStateCreateInfo& state = *gci.pInputAssemblyState;
+                DrawPipelineStateValue( "Topology", "%u", state.topology, gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY_EXT );
+                DrawPipelineStateValue( "Primitive restart", "%u", state.primitiveRestartEnable, gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE_EXT );
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineTessellationStateCreateInfo
+        ImGui::BeginDisabled( gci.pTessellationState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateTessellation ) )
+        {
+            if( ImGui::BeginTable( "##TessellationState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                const VkPipelineTessellationStateCreateInfo& state = *gci.pTessellationState;
+                DrawPipelineStateValue( "Patch control points", "%u", state.patchControlPoints, gci.pDynamicState, VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT );
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineViewportStateCreateInfo
+        ImGui::BeginDisabled( gci.pViewportState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) )
+        {
+            if( ImGui::BeginTable( "##ViewportState", 11, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                ImGui::TableNextRow();
+                ImGui::PushFont( m_Fonts.GetBoldFont() );
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Viewport" );
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Scissor" );
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn();
+                ImGui::TableNextColumn();
+                ImGui::PopFont();
+
+                ImGui::TableNextRow();
+                ImGui::PushFont( m_Fonts.GetBoldFont() );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "#" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "X" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Y" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Width" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Height" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Min depth" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Max depth" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "X" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Y" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Width" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Height" );
+                ImGui::PopFont();
+
+                const VkPipelineViewportStateCreateInfo& state = *gci.pViewportState;
+                assert( state.viewportCount == state.scissorCount );
+
+                for( uint32_t i = 0; i < state.viewportCount; ++i )
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", i );
+
+                    const VkViewport* pViewport = (state.pViewports ? &state.pViewports[i] : nullptr);
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->x );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->y );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->width );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->height );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->minDepth );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->maxDepth );
+
+                    const VkRect2D* pScissor = (state.pScissors ? &state.pScissors[i] : nullptr);
+                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->offset.x );
+                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->offset.y );
+                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->extent.width );
+                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->extent.height );
+                }
+
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineRasterizationStateCreateInfo
+        ImGui::BeginDisabled( gci.pRasterizationState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) )
+        {
+            if( ImGui::BeginTable( "##VertexInputState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                const VkPipelineRasterizationStateCreateInfo& state = *gci.pRasterizationState;
+                DrawPipelineStateValue( "Depth clamp enable", "%u", state.depthClampEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT );
+                DrawPipelineStateValue( "Rasterizer discard enable", "%u", state.rasterizerDiscardEnable, gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE_EXT );
+                DrawPipelineStateValue( "Polygon mode", "%u", state.polygonMode, gci.pDynamicState, VK_DYNAMIC_STATE_POLYGON_MODE_EXT );
+                DrawPipelineStateValue( "Cull mode", "%u", state.cullMode, gci.pDynamicState, VK_DYNAMIC_STATE_CULL_MODE_EXT );
+                DrawPipelineStateValue( "Front face", "%u", state.frontFace, gci.pDynamicState, VK_DYNAMIC_STATE_FRONT_FACE_EXT );
+                DrawPipelineStateValue( "Depth bias enable", "%u", state.depthBiasEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Depth bias constant factor", "%f", state.depthBiasConstantFactor, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Depth bias clamp", "%f", state.depthBiasClamp, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Depth bias slope factor", "%f", state.depthBiasSlopeFactor, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Line width", "%f", state.lineWidth, gci.pDynamicState, VK_DYNAMIC_STATE_LINE_WIDTH );
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineMultisampleStateCreateInfo
+        ImGui::BeginDisabled( gci.pMultisampleState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) )
+        {
+            if( ImGui::BeginTable( "##MultisampleState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                const VkPipelineMultisampleStateCreateInfo& state = *gci.pMultisampleState;
+                DrawPipelineStateValue( "Rasterization samples", "%u", state.rasterizationSamples, gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT );
+                DrawPipelineStateValue( "Sample shading enable", "%u", state.sampleShadingEnable );
+                DrawPipelineStateValue( "Min sample shading", "%u", state.minSampleShading );
+                DrawPipelineStateValue( "Sample mask", "0x%08X", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF, gci.pDynamicState, VK_DYNAMIC_STATE_SAMPLE_MASK_EXT );
+                DrawPipelineStateValue( "Alpha to coverage enable", "%u", state.alphaToCoverageEnable, gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT );
+                DrawPipelineStateValue( "Alpha to one enable", "%u", state.alphaToOneEnable, gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT );
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineDepthStencilStateCreateInfo
+        ImGui::BeginDisabled( gci.pDepthStencilState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) )
+        {
+            if( ImGui::BeginTable( "##DepthStencilState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                const VkPipelineDepthStencilStateCreateInfo& state = *gci.pDepthStencilState;
+                DrawPipelineStateValue( "Depth test enable", "%u", state.depthTestEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT );
+                DrawPipelineStateValue( "Depth write enable", "%u", state.depthWriteEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT );
+                DrawPipelineStateValue( "Depth compare op", "%u", state.depthCompareOp, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT );
+                DrawPipelineStateValue( "Depth bounds test enable", "%u", state.depthBoundsTestEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT );
+                DrawPipelineStateValue( "Min depth bounds", "%f", state.minDepthBounds, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS );
+                DrawPipelineStateValue( "Max depth bounds", "%f", state.maxDepthBounds, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS );
+                DrawPipelineStateValue( "Stencil test enable", "%u", state.stencilTestEnable, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE_EXT );
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                if( ImGui::TreeNodeEx( "Front face stencil op", ImGuiTreeNodeFlags_SpanAllColumns ) )
+                {
+                    DrawPipelineStateValue( "Fail op", "%u", state.front.failOp );
+                    DrawPipelineStateValue( "Pass op", "%u", state.front.passOp );
+                    DrawPipelineStateValue( "Depth fail op", "%u", state.front.depthFailOp );
+                    DrawPipelineStateValue( "Compare op", "%u", state.front.compareOp );
+                    DrawPipelineStateValue( "Compare mask", "0x%02X", state.front.compareMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK );
+                    DrawPipelineStateValue( "Write mask", "0x%02X", state.front.writeMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK );
+                    DrawPipelineStateValue( "Reference", "0x%02X", state.front.reference, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_REFERENCE );
+                    ImGui::TreePop();
+                }
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                if( ImGui::TreeNodeEx( "Back face stencil op", ImGuiTreeNodeFlags_SpanAllColumns ) )
+                {
+                    DrawPipelineStateValue( "Fail op", "%u", state.back.failOp );
+                    DrawPipelineStateValue( "Pass op", "%u", state.back.passOp );
+                    DrawPipelineStateValue( "Depth fail op", "%u", state.back.depthFailOp );
+                    DrawPipelineStateValue( "Compare op", "%u", state.back.compareOp );
+                    DrawPipelineStateValue( "Compare mask", "0x%02X", state.back.compareMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK );
+                    DrawPipelineStateValue( "Write mask", "0x%02X", state.back.writeMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK );
+                    DrawPipelineStateValue( "Reference", "0x%02X", state.back.reference, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_REFERENCE );
+                    ImGui::TreePop();
+                }
+
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineColorBlendStateCreateInfo
+        ImGui::BeginDisabled( gci.pColorBlendState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) )
+        {
+            if( ImGui::BeginTable( "##VertexInputState", 9, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            {
+                ImGui::TableNextRow();
+                ImGui::PushFont( m_Fonts.GetBoldFont() );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Attachment" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Enable" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Src color factor" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Dst color factor" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Color op" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Src alpha factor" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Dst alpha factor" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Alpha op" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Write mask" );
+                ImGui::PopFont();
+
+                const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
+                for( uint32_t i = 0; i < state.attachmentCount; ++i )
+                {
+                    const VkPipelineColorBlendAttachmentState& attachment = state.pAttachments[ i ];
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", i );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.blendEnable );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.srcColorBlendFactor );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.dstColorBlendFactor );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.colorBlendOp );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.dstAlphaBlendFactor );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.dstAlphaBlendFactor );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.alphaBlendOp );
+                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.colorWriteMask );
+                }
+
+                ImGui::EndTable();
+            }
+        }
+        ImGui::EndDisabled();
     }
 
     /***********************************************************************************\

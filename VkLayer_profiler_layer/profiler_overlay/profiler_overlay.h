@@ -273,6 +273,7 @@ namespace Profiler
         void SelectInspectorShaderStage( size_t );
         void DrawInspectorShaderStage();
         void DrawInspectorPipelineState();
+        void DrawInspectorGraphicsPipelineState();
         void SetInspectorTabIndex( size_t );
 
         // Frame browser helpers

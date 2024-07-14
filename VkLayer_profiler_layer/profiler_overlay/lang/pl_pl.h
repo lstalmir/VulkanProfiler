@@ -116,6 +116,7 @@ namespace Profiler
 
         // Inspector tab
         inline static constexpr char PipelineState[] = u8"Stan potoku";
+        inline static constexpr char PipelineStateNotAvailable[] = u8"Informacje o stanie potoku nie są dostępne.";
 
         // Settings tab
         inline static constexpr char Present[] = u8"Co ramkę";

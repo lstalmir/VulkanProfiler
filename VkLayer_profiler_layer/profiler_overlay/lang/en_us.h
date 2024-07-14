@@ -121,6 +121,15 @@ namespace Profiler
 
         // Inspector tab
         inline static constexpr char PipelineState[] = "Pipeline state";
+        inline static constexpr char PipelineStateNotAvailable[] = "Pipeline state info is not available for this pipeline.";
+        inline static constexpr char PipelineStateVertexInput[] = "Vertex input";
+        inline static constexpr char PipelineStateInputAssembly[] = "Input assembly";
+        inline static constexpr char PipelineStateTessellation[] = "Tessellation";
+        inline static constexpr char PipelineStateViewport[] = "Viewport";
+        inline static constexpr char PipelineStateRasterization[] = "Rasterization";
+        inline static constexpr char PipelineStateMultisampling[] = "Multisampling";
+        inline static constexpr char PipelineStateDepthStencil[] = "Depth and stencil";
+        inline static constexpr char PipelineStateColorBlend[] = "Color blend";
 
         // Settings tab
         inline static constexpr char Present[] = "Present";
