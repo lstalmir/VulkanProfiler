@@ -34,6 +34,7 @@
 #include <vector>
 #include <stack>
 #include <mutex>
+#include <functional>
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
@@ -185,8 +186,16 @@ namespace Profiler
         // Cached inspector tab state.
         DeviceProfilerPipeline m_InspectorPipeline;
         OverlayShaderView m_InspectorShaderView;
-        std::vector<std::string> m_InspectorShaderStageNames;
-        size_t m_InspectorShaderStageIndex;
+
+        struct InspectorTab
+        {
+            std::string Name;
+            std::function<void()> Select;
+            std::function<void()> Draw;
+        };
+
+        std::vector<InspectorTab> m_InspectorTabs;
+        size_t m_InspectorTabIndex;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
@@ -261,7 +270,10 @@ namespace Profiler
 
         // Inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
-        void InspectShaderStage( size_t );
+        void SelectInspectorShaderStage( size_t );
+        void DrawInspectorShaderStage();
+        void DrawInspectorPipelineState();
+        void SetInspectorTabIndex( size_t );
 
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );

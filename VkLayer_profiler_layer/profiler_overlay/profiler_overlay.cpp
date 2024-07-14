@@ -130,8 +130,8 @@ namespace Profiler
         , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
         , m_InspectorPipeline()
         , m_InspectorShaderView( m_Fonts )
-        , m_InspectorShaderStageNames( 0 )
-        , m_InspectorShaderStageIndex( 0 )
+        , m_InspectorTabs( 0 )
+        , m_InspectorTabIndex( 0 )
         , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
         , m_PerformanceQueryCommandBufferFilterName( "Frame" )
         , m_SerializationSucceeded( false )
@@ -1852,26 +1852,30 @@ namespace Profiler
             return;
         }
 
-        // Enumerate shader stages in the inspected pipeline.
+        // Enumerate inspector tabs.
         ImGui::PushItemWidth( -1 );
 
-        if( ImGui::BeginCombo( "##InspectorPipelineShaderStages", m_InspectorShaderStageNames[ m_InspectorShaderStageIndex ].c_str() ) )
+        if( ImGui::BeginCombo( "##InspectorTabs", m_InspectorTabs[m_InspectorTabIndex].Name.c_str() ) )
         {
-            const size_t stageCount = m_InspectorPipeline.m_ShaderTuple.m_Shaders.size();
-            for( size_t i = 0; i < stageCount; ++i )
+            const size_t tabCount = m_InspectorTabs.size();
+            for( size_t i = 0; i < tabCount; ++i )
             {
-                if( ImGuiX::TSelectable( m_InspectorShaderStageNames[ i ].c_str(), m_InspectorShaderStageIndex, i ) )
+                if( ImGuiX::TSelectable( m_InspectorTabs[ i ].Name.c_str(), m_InspectorTabIndex, i ) )
                 {
-                    // Select shader for inspection.
-                    InspectShaderStage( i );
+                    // Change tab.
+                    SetInspectorTabIndex( i );
                 }
             }
 
             ImGui::EndCombo();
         }
 
-        // Render the inspected shader view.
-        m_InspectorShaderView.Draw();
+        // Render the inspector tab.
+        const InspectorTab& tab = m_InspectorTabs[m_InspectorTabIndex];
+        if( tab.Draw )
+        {
+            tab.Draw();
+        }
     }
 
     /***********************************************************************************\
@@ -1888,14 +1892,21 @@ namespace Profiler
         m_InspectorPipeline = pipeline;
 
         // Resolve inspected pipeline shader stage names.
-        m_InspectorShaderStageNames.clear();
+        m_InspectorTabs.clear();
+        m_InspectorTabs.push_back( { Lang::PipelineState,
+            nullptr,
+            std::bind( &ProfilerOverlayOutput::DrawInspectorPipelineState, this ) } );
 
-        for( const ProfilerShader& shader : m_InspectorPipeline.m_ShaderTuple.m_Shaders )
+        const size_t shaderCount = m_InspectorPipeline.m_ShaderTuple.m_Shaders.size();
+        const ProfilerShader* pShaders = m_InspectorPipeline.m_ShaderTuple.m_Shaders.data();
+        for( size_t shaderIndex = 0; shaderIndex < shaderCount; ++shaderIndex )
         {
-            m_InspectorShaderStageNames.push_back( m_pStringSerializer->GetShaderName( shader ) );
+            m_InspectorTabs.push_back( { m_pStringSerializer->GetShaderName( pShaders[shaderIndex] ),
+                std::bind( &ProfilerOverlayOutput::SelectInspectorShaderStage, this, shaderIndex ),
+                std::bind( &ProfilerOverlayOutput::DrawInspectorShaderStage, this ) } );
         }
 
-        InspectShaderStage( 0 );
+        SetInspectorTabIndex( 0 );
 
         // Switch to the inspector tab.
         *m_InspectorWindowState.pOpen = true;
@@ -1905,13 +1916,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        InspectShaderStage
+        SelectInspectorShaderStage
 
     Description:
         Sets the inspected shader stage and updates the view.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::InspectShaderStage( size_t shaderIndex )
+    void ProfilerOverlayOutput::SelectInspectorShaderStage( size_t shaderIndex )
     {
         const ProfilerShader& shader = m_InspectorPipeline.m_ShaderTuple.m_Shaders[ shaderIndex ];
 
@@ -1923,8 +1934,54 @@ namespace Profiler
             const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
             m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
         }
+    }
 
-        m_InspectorShaderStageIndex = shaderIndex;
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorShaderStage
+
+    Description:
+        Draws the inspected shader stage.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawInspectorShaderStage()
+    {
+        m_InspectorShaderView.Draw();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorPipelineState
+
+    Description:
+        Draws the inspected pipeline state.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawInspectorPipelineState()
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetInspectorTabIndex
+
+    Description:
+        Switches the inspector to another tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SetInspectorTabIndex( size_t index )
+    {
+        const InspectorTab& tab = m_InspectorTabs[index];
+        if( tab.Select )
+        {
+            // Call tab-specific setup callback.
+            tab.Select();
+        }
+
+        m_InspectorTabIndex = index;
     }
 
     /***********************************************************************************\

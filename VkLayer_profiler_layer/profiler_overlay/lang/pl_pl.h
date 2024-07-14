@@ -114,6 +114,9 @@ namespace Profiler
         inline static constexpr char FillBufferCalls[] = u8"Wypełnienia buforów";
         inline static constexpr char UpdateBufferCalls[] = u8"Aktualizacje buforów";
 
+        // Inspector tab
+        inline static constexpr char PipelineState[] = u8"Stan potoku";
+
         // Settings tab
         inline static constexpr char Present[] = u8"Co ramkę";
         inline static constexpr char Submit[] = u8"Co przesłanie komend";

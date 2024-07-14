@@ -119,6 +119,9 @@ namespace Profiler
         inline static constexpr char FillBufferCalls[] = "Fill buffer calls";
         inline static constexpr char UpdateBufferCalls[] = "Update buffer calls";
 
+        // Inspector tab
+        inline static constexpr char PipelineState[] = "Pipeline state";
+
         // Settings tab
         inline static constexpr char Present[] = "Present";
         inline static constexpr char Submit[] = "Submit";
