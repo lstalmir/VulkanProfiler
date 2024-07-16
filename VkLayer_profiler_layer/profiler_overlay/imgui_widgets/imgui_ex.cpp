@@ -207,4 +207,34 @@ namespace ImGuiX
 
         return pNode->ID;
     }
+
+    /*************************************************************************\
+
+    Function:
+        BeginPadding
+
+    Description:
+        Add a padding around the next element.
+
+    \*************************************************************************/
+    void BeginPadding( float top, float right, float left )
+    {
+        ImVec2 cp = ImGui::GetCursorPos();
+        cp.x += left;
+        cp.y += top;
+        ImGui::SetCursorPos( cp );
+
+        ImVec2 rc = ImGui::GetContentRegionMax();
+        ImGui::SetNextItemWidth( rc.x - (left + right) );
+    }
+
+    void BeginPadding( float all )
+    {
+        BeginPadding( all, all, all );
+    }
+
+    void EndPadding( float bottom )
+    {
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + bottom );
+    }
 }

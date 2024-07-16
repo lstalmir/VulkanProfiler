@@ -580,6 +580,30 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetBool
+
+    Description:
+        Returns string representation of a boolean value.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBool( VkBool32 value ) const
+    {
+        switch( value )
+        {
+        case VK_TRUE:
+            return "True";
+
+        case VK_FALSE:
+            return "False";
+
+        default:
+            return std::to_string( value );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetColorHex
 
     Description:
@@ -1197,6 +1221,362 @@ namespace Profiler
             return "None";
         }
         return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetVertexInputRateName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetVertexInputRateName( VkVertexInputRate rate ) const
+    {
+        switch( rate )
+        {
+        case VK_VERTEX_INPUT_RATE_VERTEX:
+            return "Per vertex";
+        case VK_VERTEX_INPUT_RATE_INSTANCE:
+            return "Per instance";
+        default:
+            return fmt::format( "Unknown rate ({})", static_cast<uint32_t>(rate) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPrimitiveTopologyName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetPrimitiveTopologyName( VkPrimitiveTopology topology ) const
+    {
+        switch( topology )
+        {
+        case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
+            return "Point list";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
+            return "Line list";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
+            return "Line strip";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+            return "Triangle list";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+            return "Triangle strip";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+            return "Triangle fan";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY:
+            return "Line list with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY:
+            return "Line strip with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY:
+            return "Triangle list with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY:
+            return "Triangle strip with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_PATCH_LIST:
+            return "Patch list";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(topology) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPolygonModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetPolygonModeName( VkPolygonMode mode ) const
+    {
+        switch( mode )
+        {
+        case VK_POLYGON_MODE_FILL:
+            return "Fill";
+        case VK_POLYGON_MODE_LINE:
+            return "Line";
+        case VK_POLYGON_MODE_POINT:
+            return "Point";
+        case VK_POLYGON_MODE_FILL_RECTANGLE_NV:
+            return "Fill rectangle";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(mode) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCullModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetCullModeName( VkCullModeFlags mode ) const
+    {
+        switch( mode )
+        {
+        case VK_CULL_MODE_NONE:
+            return "None";
+        case VK_CULL_MODE_FRONT_BIT:
+            return "Front";
+        case VK_CULL_MODE_BACK_BIT:
+            return "Back";
+        case VK_CULL_MODE_FRONT_AND_BACK:
+            return "All";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(mode) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrontFaceName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetFrontFaceName( VkFrontFace mode ) const
+    {
+        switch( mode )
+        {
+        case VK_FRONT_FACE_COUNTER_CLOCKWISE:
+            return "Counter-clockwise";
+        case VK_FRONT_FACE_CLOCKWISE:
+            return "Clockwise";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(mode) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBlendFactorName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBlendFactorName( VkBlendFactor factor ) const
+    {
+        switch( factor )
+        {
+        case VK_BLEND_FACTOR_ZERO:
+            return "Zero";
+        case VK_BLEND_FACTOR_ONE:
+            return "One";
+        case VK_BLEND_FACTOR_SRC_COLOR:
+            return "Src color";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR:
+            return "1 - Src color";
+        case VK_BLEND_FACTOR_DST_COLOR:
+            return "Dst color";
+        case VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR:
+            return "1 - Dst color";
+        case VK_BLEND_FACTOR_SRC_ALPHA:
+            return "Src alpha";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:
+            return "1 - Src alpha";
+        case VK_BLEND_FACTOR_DST_ALPHA:
+            return "Dst alpha";
+        case VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA:
+            return "1 - Dst alpha";
+        case VK_BLEND_FACTOR_CONSTANT_COLOR:
+            return "Constant";
+        case VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR:
+            return "1 - Constant";
+        case VK_BLEND_FACTOR_SRC_ALPHA_SATURATE:
+            return "Src alpha (sat)";
+        case VK_BLEND_FACTOR_SRC1_COLOR:
+            return "Src1 color";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR:
+            return "1 - Src1 color";
+        case VK_BLEND_FACTOR_SRC1_ALPHA:
+            return "Src1 alpha";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA:
+            return "1 - Src1 alpha";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(factor) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBlendOpName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBlendOpName( VkBlendOp op ) const
+    {
+        switch( op )
+        {
+        case VK_BLEND_OP_ADD:
+            return "Add";
+        case VK_BLEND_OP_SUBTRACT:
+            return "Sub";
+        case VK_BLEND_OP_REVERSE_SUBTRACT:
+            return "Rev sub";
+        case VK_BLEND_OP_MIN:
+            return "Min";
+        case VK_BLEND_OP_MAX:
+            return "Max";
+        case VK_BLEND_OP_ZERO_EXT:
+            return "Zero";
+        case VK_BLEND_OP_SRC_EXT:
+            return "Src";
+        case VK_BLEND_OP_DST_EXT:
+            return "Dst";
+        case VK_BLEND_OP_SRC_OVER_EXT:
+            return "Src over";
+        case VK_BLEND_OP_DST_OVER_EXT:
+            return "Dst over";
+        case VK_BLEND_OP_SRC_IN_EXT:
+            return "Src in";
+        case VK_BLEND_OP_DST_IN_EXT:
+            return "Dst in";
+        case VK_BLEND_OP_SRC_OUT_EXT:
+            return "Src out";
+        case VK_BLEND_OP_DST_OUT_EXT:
+            return "Dst out";
+        case VK_BLEND_OP_SRC_ATOP_EXT:
+            return "Src atop";
+        case VK_BLEND_OP_DST_ATOP_EXT:
+            return "Dst atop";
+        case VK_BLEND_OP_XOR_EXT:
+            return "Xor";
+        case VK_BLEND_OP_MULTIPLY_EXT:
+            return "Mul";
+        case VK_BLEND_OP_SCREEN_EXT:
+            return "Screen";
+        case VK_BLEND_OP_OVERLAY_EXT:
+            return "Overlay";
+        case VK_BLEND_OP_DARKEN_EXT:
+            return "Darken";
+        case VK_BLEND_OP_LIGHTEN_EXT:
+            return "Lighten";
+        case VK_BLEND_OP_COLORDODGE_EXT:
+            return "Color dodge";
+        case VK_BLEND_OP_COLORBURN_EXT:
+            return "Color burn";
+        case VK_BLEND_OP_HARDLIGHT_EXT:
+            return "Hard light";
+        case VK_BLEND_OP_SOFTLIGHT_EXT:
+            return "Soft light";
+        case VK_BLEND_OP_DIFFERENCE_EXT:
+            return "Difference";
+        case VK_BLEND_OP_EXCLUSION_EXT:
+            return "Exclusion";
+        case VK_BLEND_OP_INVERT_EXT:
+            return "Invert";
+        case VK_BLEND_OP_INVERT_RGB_EXT:
+            return "Invert RGB";
+        case VK_BLEND_OP_LINEARDODGE_EXT:
+            return "Linear dodge";
+        case VK_BLEND_OP_LINEARBURN_EXT:
+            return "Linear burn";
+        case VK_BLEND_OP_VIVIDLIGHT_EXT:
+            return "Vivid light";
+        case VK_BLEND_OP_LINEARLIGHT_EXT:
+            return "Linear light";
+        case VK_BLEND_OP_PINLIGHT_EXT:
+            return "Pin light";
+        case VK_BLEND_OP_HARDMIX_EXT:
+            return "Hard mix";
+        case VK_BLEND_OP_HSL_HUE_EXT:
+            return "HSL hue";
+        case VK_BLEND_OP_HSL_SATURATION_EXT:
+            return "HSL saturation";
+        case VK_BLEND_OP_HSL_COLOR_EXT:
+            return "HSL color";
+        case VK_BLEND_OP_HSL_LUMINOSITY_EXT:
+            return "HSL luminosity";
+        case VK_BLEND_OP_PLUS_EXT:
+            return "Plus";
+        case VK_BLEND_OP_PLUS_CLAMPED_EXT:
+            return "Plus clamped";
+        case VK_BLEND_OP_PLUS_CLAMPED_ALPHA_EXT:
+            return "Plus clamped alpha";
+        case VK_BLEND_OP_PLUS_DARKER_EXT:
+            return "Plus darker";
+        case VK_BLEND_OP_MINUS_EXT:
+            return "Minus";
+        case VK_BLEND_OP_MINUS_CLAMPED_EXT:
+            return "Minus clamped";
+        case VK_BLEND_OP_CONTRAST_EXT:
+            return "Contrast";
+        case VK_BLEND_OP_INVERT_OVG_EXT:
+            return "Invert OVG";
+        case VK_BLEND_OP_RED_EXT:
+            return "Red";
+        case VK_BLEND_OP_GREEN_EXT:
+            return "Green";
+        case VK_BLEND_OP_BLUE_EXT:
+            return "Blue";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(op) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCompareOpName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetCompareOpName( VkCompareOp op ) const
+    {
+        switch( op )
+        {
+        case VK_COMPARE_OP_NEVER:
+            return "Never";
+        case VK_COMPARE_OP_LESS:
+            return "Less";
+        case VK_COMPARE_OP_EQUAL:
+            return "Equal";
+        case VK_COMPARE_OP_LESS_OR_EQUAL:
+            return "Less or equal";
+        case VK_COMPARE_OP_GREATER:
+            return "Greater";
+        case VK_COMPARE_OP_NOT_EQUAL:
+            return "Not equal";
+        case VK_COMPARE_OP_GREATER_OR_EQUAL:
+            return "Greater or equal";
+        case VK_COMPARE_OP_ALWAYS:
+            return "Always";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(op) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetColorComponentFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetColorComponentFlagNames( VkColorComponentFlags flags ) const
+    {
+        char mask[ 5 ] = "____";
+        if( flags & VK_COLOR_COMPONENT_R_BIT )
+            mask[ 0 ] = 'R';
+        if( flags & VK_COLOR_COMPONENT_G_BIT )
+            mask[ 1 ] = 'G';
+        if( flags & VK_COLOR_COMPONENT_B_BIT )
+            mask[ 2 ] = 'B';
+        if( flags & VK_COLOR_COMPONENT_A_BIT )
+            mask[ 3 ] = 'A';
+        return mask;
     }
 
     /***********************************************************************************\

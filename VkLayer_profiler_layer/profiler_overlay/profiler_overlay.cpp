@@ -1967,6 +1967,8 @@ namespace Profiler
             return;
         }
 
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+
         switch( m_InspectorPipeline.m_Type )
         {
         case DeviceProfilerPipelineType::eGraphics:
@@ -1991,7 +1993,7 @@ namespace Profiler
 
         if( ImGui::TableNextColumn() )
         {
-            ImGui::TextUnformatted( pName);
+            ImGui::TextUnformatted( pName );
         }
 
         if( ImGui::TableNextColumn() )
@@ -2011,11 +2013,18 @@ namespace Profiler
 
             if( !isDynamicState )
             {
-                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), pFormat, value );
+                //ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), pFormat, value );
+                ImGui::Text( pFormat, value );
             }
             else
             {
-                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Dynamic" );
+                //ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Dynamic" );
+                ImGui::TextUnformatted( "<Dynamic>" );
+
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip( "This state is set dynamically." );
+                }
             }
         }
     }
@@ -2026,12 +2035,30 @@ namespace Profiler
         assert( m_InspectorPipeline.m_pCreateInfo != nullptr );
         const VkGraphicsPipelineCreateInfo& gci = m_InspectorPipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo;
 
+        const ImGuiTableFlags tableFlags =
+            //ImGuiTableFlags_BordersInnerH |
+            ImGuiTableFlags_PadOuterX |
+            ImGuiTableFlags_SizingStretchSame;
+
+        const float contentPaddingTop = 2.0f;
+        const float contentPaddingLeft = 5.0f;
+        const float contentPaddingRight = 10.0f;
+        const float contentPaddingBottom = 10.0f;
+
         // VkPipelineVertexInputStateCreateInfo
         ImGui::BeginDisabled( gci.pVertexInputState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) )
         {
-            if( ImGui::BeginTable( "##VertexInputState", 6, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##VertexInputState", 6, tableFlags ) )
             {
+                ImGui::TableSetupColumn( "Location" );
+                ImGui::TableSetupColumn( "Binding" );
+                ImGui::TableSetupColumn( "Format", 0, 3.0f );
+                ImGui::TableSetupColumn( "Offset" );
+                ImGui::TableSetupColumn( "Stride" );
+                ImGui::TableSetupColumn( "Input rate", 0, 1.5f );
+
                 ImGui::TableNextRow();
                 ImGui::PushFont( m_Fonts.GetBoldFont() );
                 ImGui::TableNextColumn(); ImGui::TextUnformatted( "Location" );
@@ -2061,18 +2088,19 @@ namespace Profiler
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->location );
                     ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->binding );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->format );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetFormatName( pAttribute->format ).c_str() );
                     ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->offset );
 
                     if( pBinding != nullptr )
                     {
                         ImGui::TableNextColumn(); ImGui::Text( "%u", pBinding->stride );
-                        ImGui::TableNextColumn(); ImGui::Text( "%u", pBinding->inputRate );
+                        ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetVertexInputRateName( pBinding->inputRate ).c_str() );
                     }
                 }
 
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
 
@@ -2080,13 +2108,17 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pInputAssemblyState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) )
         {
-            if( ImGui::BeginTable( "##InputAssemblyState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##InputAssemblyState", 2, tableFlags ) )
             {
+                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+
                 const VkPipelineInputAssemblyStateCreateInfo& state = *gci.pInputAssemblyState;
-                DrawPipelineStateValue( "Topology", "%u", state.topology, gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY_EXT );
-                DrawPipelineStateValue( "Primitive restart", "%u", state.primitiveRestartEnable, gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE_EXT );
+                DrawPipelineStateValue( "Topology", "%s", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY_EXT);
+                DrawPipelineStateValue( "Primitive restart", "%s", m_pStringSerializer->GetBool( state.primitiveRestartEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE_EXT);
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
 
@@ -2094,12 +2126,17 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pTessellationState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateTessellation ) )
         {
-            if( ImGui::BeginTable( "##TessellationState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( 5, 10, 10 );
+
+            if( ImGui::BeginTable( "##TessellationState", 2, tableFlags ) )
             {
+                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+
                 const VkPipelineTessellationStateCreateInfo& state = *gci.pTessellationState;
                 DrawPipelineStateValue( "Patch control points", "%u", state.patchControlPoints, gci.pDynamicState, VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT );
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
 
@@ -2107,21 +2144,13 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pViewportState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) )
         {
-            if( ImGui::BeginTable( "##ViewportState", 11, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##ViewportState", 11, tableFlags ) )
             {
                 ImGui::TableNextRow();
                 ImGui::PushFont( m_Fonts.GetBoldFont() );
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Viewport" );
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Scissor" );
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn();
+                ImGui::TableSetColumnIndex( 1 ); ImGui::TextUnformatted( "Viewport" );
+                ImGui::TableSetColumnIndex( 7 ); ImGui::TextUnformatted( "Scissor" );
                 ImGui::PopFont();
 
                 ImGui::TableNextRow();
@@ -2131,8 +2160,8 @@ namespace Profiler
                 ImGui::TableNextColumn(); ImGui::TextUnformatted( "Y" );
                 ImGui::TableNextColumn(); ImGui::TextUnformatted( "Width" );
                 ImGui::TableNextColumn(); ImGui::TextUnformatted( "Height" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Min depth" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Max depth" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Min Z" );
+                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Max Z" );
                 ImGui::TableNextColumn(); ImGui::TextUnformatted( "X" );
                 ImGui::TableNextColumn(); ImGui::TextUnformatted( "Y" );
                 ImGui::TableNextColumn(); ImGui::TextUnformatted( "Width" );
@@ -2148,12 +2177,12 @@ namespace Profiler
                     ImGui::TableNextColumn(); ImGui::Text( "%u", i );
 
                     const VkViewport* pViewport = (state.pViewports ? &state.pViewports[i] : nullptr);
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->x );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->y );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->width );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->height );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->minDepth );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%f", pViewport->maxDepth );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->x );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->y );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->width );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->height );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->minDepth );
+                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->maxDepth );
 
                     const VkRect2D* pScissor = (state.pScissors ? &state.pScissors[i] : nullptr);
                     ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->offset.x );
@@ -2164,6 +2193,7 @@ namespace Profiler
 
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
 
@@ -2171,21 +2201,25 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pRasterizationState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) )
         {
-            if( ImGui::BeginTable( "##VertexInputState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##RasterizationState", 2, tableFlags ) )
             {
+                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+
                 const VkPipelineRasterizationStateCreateInfo& state = *gci.pRasterizationState;
-                DrawPipelineStateValue( "Depth clamp enable", "%u", state.depthClampEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT );
-                DrawPipelineStateValue( "Rasterizer discard enable", "%u", state.rasterizerDiscardEnable, gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE_EXT );
-                DrawPipelineStateValue( "Polygon mode", "%u", state.polygonMode, gci.pDynamicState, VK_DYNAMIC_STATE_POLYGON_MODE_EXT );
-                DrawPipelineStateValue( "Cull mode", "%u", state.cullMode, gci.pDynamicState, VK_DYNAMIC_STATE_CULL_MODE_EXT );
-                DrawPipelineStateValue( "Front face", "%u", state.frontFace, gci.pDynamicState, VK_DYNAMIC_STATE_FRONT_FACE_EXT );
-                DrawPipelineStateValue( "Depth bias enable", "%u", state.depthBiasEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Depth clamp enable", "%s", m_pStringSerializer->GetBool( state.depthClampEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT);
+                DrawPipelineStateValue( "Rasterizer discard enable", "%s", m_pStringSerializer->GetBool( state.rasterizerDiscardEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE_EXT);
+                DrawPipelineStateValue( "Polygon mode", "%s", m_pStringSerializer->GetPolygonModeName( state.polygonMode ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_POLYGON_MODE_EXT);
+                DrawPipelineStateValue( "Cull mode", "%s", m_pStringSerializer->GetCullModeName( state.cullMode ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_CULL_MODE_EXT);
+                DrawPipelineStateValue( "Front face", "%s", m_pStringSerializer->GetFrontFaceName( state.frontFace ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_FRONT_FACE_EXT);
+                DrawPipelineStateValue( "Depth bias enable", "%s", m_pStringSerializer->GetBool( state.depthBiasEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS);
                 DrawPipelineStateValue( "Depth bias constant factor", "%f", state.depthBiasConstantFactor, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
                 DrawPipelineStateValue( "Depth bias clamp", "%f", state.depthBiasClamp, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
                 DrawPipelineStateValue( "Depth bias slope factor", "%f", state.depthBiasSlopeFactor, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
                 DrawPipelineStateValue( "Line width", "%f", state.lineWidth, gci.pDynamicState, VK_DYNAMIC_STATE_LINE_WIDTH );
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
 
@@ -2193,17 +2227,21 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pMultisampleState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) )
         {
-            if( ImGui::BeginTable( "##MultisampleState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##MultisampleState", 2, tableFlags ) )
             {
+                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+
                 const VkPipelineMultisampleStateCreateInfo& state = *gci.pMultisampleState;
                 DrawPipelineStateValue( "Rasterization samples", "%u", state.rasterizationSamples, gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT );
-                DrawPipelineStateValue( "Sample shading enable", "%u", state.sampleShadingEnable );
+                DrawPipelineStateValue( "Sample shading enable", "%s", m_pStringSerializer->GetBool( state.sampleShadingEnable ).c_str() );
                 DrawPipelineStateValue( "Min sample shading", "%u", state.minSampleShading );
                 DrawPipelineStateValue( "Sample mask", "0x%08X", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF, gci.pDynamicState, VK_DYNAMIC_STATE_SAMPLE_MASK_EXT );
-                DrawPipelineStateValue( "Alpha to coverage enable", "%u", state.alphaToCoverageEnable, gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT );
-                DrawPipelineStateValue( "Alpha to one enable", "%u", state.alphaToOneEnable, gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT );
+                DrawPipelineStateValue( "Alpha to coverage enable", "%s", m_pStringSerializer->GetBool( state.alphaToCoverageEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT);
+                DrawPipelineStateValue( "Alpha to one enable", "%s", m_pStringSerializer->GetBool( state.alphaToOneEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT);
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
 
@@ -2211,16 +2249,19 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pDepthStencilState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) )
         {
-            if( ImGui::BeginTable( "##DepthStencilState", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##DepthStencilState", 2, tableFlags ) )
             {
+                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+
                 const VkPipelineDepthStencilStateCreateInfo& state = *gci.pDepthStencilState;
-                DrawPipelineStateValue( "Depth test enable", "%u", state.depthTestEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT );
-                DrawPipelineStateValue( "Depth write enable", "%u", state.depthWriteEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT );
-                DrawPipelineStateValue( "Depth compare op", "%u", state.depthCompareOp, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT );
-                DrawPipelineStateValue( "Depth bounds test enable", "%u", state.depthBoundsTestEnable, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT );
+                DrawPipelineStateValue( "Depth test enable", "%s", m_pStringSerializer->GetBool( state.depthTestEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT);
+                DrawPipelineStateValue( "Depth write enable", "%s", m_pStringSerializer->GetBool( state.depthWriteEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT);
+                DrawPipelineStateValue( "Depth compare op", "%s", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT);
+                DrawPipelineStateValue( "Depth bounds test enable", "%s", m_pStringSerializer->GetBool( state.depthBoundsTestEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT);
                 DrawPipelineStateValue( "Min depth bounds", "%f", state.minDepthBounds, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS );
                 DrawPipelineStateValue( "Max depth bounds", "%f", state.maxDepthBounds, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS );
-                DrawPipelineStateValue( "Stencil test enable", "%u", state.stencilTestEnable, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE_EXT );
+                DrawPipelineStateValue( "Stencil test enable", "%s", m_pStringSerializer->GetBool( state.stencilTestEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE_EXT);
 
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -2229,7 +2270,7 @@ namespace Profiler
                     DrawPipelineStateValue( "Fail op", "%u", state.front.failOp );
                     DrawPipelineStateValue( "Pass op", "%u", state.front.passOp );
                     DrawPipelineStateValue( "Depth fail op", "%u", state.front.depthFailOp );
-                    DrawPipelineStateValue( "Compare op", "%u", state.front.compareOp );
+                    DrawPipelineStateValue( "Compare op", "%s", m_pStringSerializer->GetCompareOpName( state.front.compareOp ).c_str() );
                     DrawPipelineStateValue( "Compare mask", "0x%02X", state.front.compareMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK );
                     DrawPipelineStateValue( "Write mask", "0x%02X", state.front.writeMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK );
                     DrawPipelineStateValue( "Reference", "0x%02X", state.front.reference, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_REFERENCE );
@@ -2243,7 +2284,7 @@ namespace Profiler
                     DrawPipelineStateValue( "Fail op", "%u", state.back.failOp );
                     DrawPipelineStateValue( "Pass op", "%u", state.back.passOp );
                     DrawPipelineStateValue( "Depth fail op", "%u", state.back.depthFailOp );
-                    DrawPipelineStateValue( "Compare op", "%u", state.back.compareOp );
+                    DrawPipelineStateValue( "Compare op", "%s", m_pStringSerializer->GetCompareOpName( state.back.compareOp ).c_str() );
                     DrawPipelineStateValue( "Compare mask", "0x%02X", state.back.compareMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK );
                     DrawPipelineStateValue( "Write mask", "0x%02X", state.back.writeMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK );
                     DrawPipelineStateValue( "Reference", "0x%02X", state.back.reference, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_REFERENCE );
@@ -2252,6 +2293,7 @@ namespace Profiler
 
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
 
@@ -2259,7 +2301,8 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pColorBlendState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) )
         {
-            if( ImGui::BeginTable( "##VertexInputState", 9, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchSame ) )
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##ColorBlendState", 9, tableFlags ) )
             {
                 ImGui::TableNextRow();
                 ImGui::PushFont( m_Fonts.GetBoldFont() );
@@ -2280,18 +2323,19 @@ namespace Profiler
                     const VkPipelineColorBlendAttachmentState& attachment = state.pAttachments[ i ];
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn(); ImGui::Text( "%u", i );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.blendEnable );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.srcColorBlendFactor );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.dstColorBlendFactor );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.colorBlendOp );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.dstAlphaBlendFactor );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.dstAlphaBlendFactor );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.alphaBlendOp );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", attachment.colorWriteMask );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBool( attachment.blendEnable ).c_str() );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ).c_str() );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ).c_str() );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ).c_str() );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ).c_str() );
+                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ).c_str() );
                 }
 
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
     }
