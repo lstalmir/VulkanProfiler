@@ -2045,6 +2045,8 @@ namespace Profiler
         const float contentPaddingRight = 10.0f;
         const float contentPaddingBottom = 10.0f;
 
+        ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
         // VkPipelineVertexInputStateCreateInfo
         ImGui::BeginDisabled( gci.pVertexInputState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) )
@@ -2338,6 +2340,8 @@ namespace Profiler
             ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
+
+        ImGui::PopStyleColor();
     }
 
     /***********************************************************************************\
