@@ -2061,6 +2061,8 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pVertexInputState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) )
         {
+            const VkPipelineVertexInputStateCreateInfo& state = *gci.pVertexInputState;
+
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##VertexInputState", 6, tableFlags ) )
             {
@@ -2072,7 +2074,6 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Input rate", 0, 1.5f );
                 ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
 
-                const VkPipelineVertexInputStateCreateInfo& state = *gci.pVertexInputState;
                 for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
                 {
                     const VkVertexInputAttributeDescription* pAttribute = &state.pVertexAttributeDescriptions[ i ];
@@ -2103,6 +2104,13 @@ namespace Profiler
 
                 ImGui::EndTable();
             }
+
+            if( state.vertexAttributeDescriptionCount == 0 )
+            {
+                ImGuiX::BeginPadding( 0, 0, contentPaddingLeft + 4 );
+                ImGui::TextUnformatted( "No vertex data on input." );
+            }
+
             ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
@@ -2147,10 +2155,12 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pViewportState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) )
         {
+            const float firstColumnWidth = ImGui::CalcTextSize( "00 (Dynamic)" ).x + 5;
+
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##Viewports", 7, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Viewport" );
+                ImGui::TableSetupColumn( "Viewport", ImGuiTableColumnFlags_WidthFixed, firstColumnWidth );
                 ImGui::TableSetupColumn( "X" );
                 ImGui::TableSetupColumn( "Y" );
                 ImGui::TableSetupColumn( "Width" );
@@ -2190,7 +2200,7 @@ namespace Profiler
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##Scissors", 7, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Scissor" );
+                ImGui::TableSetupColumn( "Scissor", ImGuiTableColumnFlags_WidthFixed, firstColumnWidth );
                 ImGui::TableSetupColumn( "X" );
                 ImGui::TableSetupColumn( "Y" );
                 ImGui::TableSetupColumn( "Width" );
@@ -2329,21 +2339,25 @@ namespace Profiler
         ImGui::BeginDisabled( gci.pColorBlendState == nullptr );
         if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) )
         {
+            const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
+
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##ColorBlendState", 9, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Attachment" );
+                const float indexColumnWidth = ImGui::CalcTextSize( "000" ).x + 5;
+                const float maskColumnWidth = ImGui::CalcTextSize( "RGBA" ).x + 5;
+
+                ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed, indexColumnWidth );
                 ImGui::TableSetupColumn( "Enable" );
-                ImGui::TableSetupColumn( "Src color factor" );
-                ImGui::TableSetupColumn( "Dst color factor" );
+                ImGui::TableSetupColumn( "Src color" );
+                ImGui::TableSetupColumn( "Dst color" );
                 ImGui::TableSetupColumn( "Color op" );
-                ImGui::TableSetupColumn( "Src alpha factor" );
-                ImGui::TableSetupColumn( "Dst alpha factor" );
+                ImGui::TableSetupColumn( "Src alpha" );
+                ImGui::TableSetupColumn( "Dst alpha" );
                 ImGui::TableSetupColumn( "Alpha op" );
-                ImGui::TableSetupColumn( "Write mask" );
+                ImGui::TableSetupColumn( "Mask", ImGuiTableColumnFlags_WidthFixed, maskColumnWidth );
                 ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
 
-                const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
                 for( uint32_t i = 0; i < state.attachmentCount; ++i )
                 {
                     const VkPipelineColorBlendAttachmentState& attachment = state.pAttachments[ i ];
@@ -2361,6 +2375,13 @@ namespace Profiler
 
                 ImGui::EndTable();
             }
+
+            if( state.attachmentCount == 0 )
+            {
+                ImGuiX::BeginPadding( 0, 0, contentPaddingLeft + 4 );
+                ImGui::TextUnformatted( "No color attachments on output." );
+            }
+
             ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
