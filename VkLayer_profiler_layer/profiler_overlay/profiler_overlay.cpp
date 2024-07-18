@@ -2070,16 +2070,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Offset" );
                 ImGui::TableSetupColumn( "Stride" );
                 ImGui::TableSetupColumn( "Input rate", 0, 1.5f );
-
-                ImGui::TableNextRow();
-                ImGui::PushFont( m_Fonts.GetBoldFont() );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Location" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Binding" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Format" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Offset" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Stride" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Input rate" );
-                ImGui::PopFont();
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
 
                 const VkPipelineVertexInputStateCreateInfo& state = *gci.pVertexInputState;
                 for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
@@ -2098,15 +2089,15 @@ namespace Profiler
                     }
 
                     ImGui::TableNextRow();
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->location );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->binding );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetFormatName( pAttribute->format ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", pAttribute->offset );
+                    ImGuiX::TableTextColumn( "%u", pAttribute->location );
+                    ImGuiX::TableTextColumn( "%u", pAttribute->binding );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetFormatName( pAttribute->format ).c_str() );
+                    ImGuiX::TableTextColumn( "%u", pAttribute->offset );
 
                     if( pBinding != nullptr )
                     {
-                        ImGui::TableNextColumn(); ImGui::Text( "%u", pBinding->stride );
-                        ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetVertexInputRateName( pBinding->inputRate ).c_str() );
+                        ImGuiX::TableTextColumn( "%u", pBinding->stride );
+                        ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetVertexInputRateName( pBinding->inputRate ).c_str() );
                     }
                 }
 
@@ -2157,50 +2148,75 @@ namespace Profiler
         if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
-            if( ImGui::BeginTable( "##ViewportState", 11, tableFlags ) )
+            if( ImGui::BeginTable( "##Viewports", 7, tableFlags ) )
             {
-                ImGui::TableNextRow();
-                ImGui::PushFont( m_Fonts.GetBoldFont() );
-                ImGui::TableSetColumnIndex( 1 ); ImGui::TextUnformatted( "Viewport" );
-                ImGui::TableSetColumnIndex( 7 ); ImGui::TextUnformatted( "Scissor" );
-                ImGui::PopFont();
+                ImGui::TableSetupColumn( "Viewport" );
+                ImGui::TableSetupColumn( "X" );
+                ImGui::TableSetupColumn( "Y" );
+                ImGui::TableSetupColumn( "Width" );
+                ImGui::TableSetupColumn( "Height" );
+                ImGui::TableSetupColumn( "Min Z" );
+                ImGui::TableSetupColumn( "Max Z" );
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
 
-                ImGui::TableNextRow();
-                ImGui::PushFont( m_Fonts.GetBoldFont() );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "#" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "X" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Y" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Width" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Height" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Min Z" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Max Z" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "X" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Y" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Width" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Height" );
-                ImGui::PopFont();
+                const char* format = "%u";
+                if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_VIEWPORT ) )
+                {
+                    format = "%u (Dynamic)";
+                }
 
                 const VkPipelineViewportStateCreateInfo& state = *gci.pViewportState;
-                assert( state.viewportCount == state.scissorCount );
-
                 for( uint32_t i = 0; i < state.viewportCount; ++i )
                 {
                     ImGui::TableNextRow();
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", i );
+                    ImGuiX::TableTextColumn( format, i );
 
                     const VkViewport* pViewport = (state.pViewports ? &state.pViewports[i] : nullptr);
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->x );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->y );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->width );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->height );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->minDepth );
-                    ImGui::TableNextColumn(); if( pViewport ) ImGui::Text( "%.2f", pViewport->maxDepth );
+                    if( pViewport )
+                    {
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->x );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->y );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->width );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->height );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->minDepth );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->maxDepth );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##Scissors", 7, tableFlags ) )
+            {
+                ImGui::TableSetupColumn( "Scissor" );
+                ImGui::TableSetupColumn( "X" );
+                ImGui::TableSetupColumn( "Y" );
+                ImGui::TableSetupColumn( "Width" );
+                ImGui::TableSetupColumn( "Height" );
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+
+                const char* format = "%u";
+                if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_SCISSOR ) )
+                {
+                    format = "%u (Dynamic)";
+                }
+
+                const VkPipelineViewportStateCreateInfo& state = *gci.pViewportState;
+                for( uint32_t i = 0; i < state.scissorCount; ++i )
+                {
+                    ImGui::TableNextRow();
+                    ImGuiX::TableTextColumn( format, i );
 
                     const VkRect2D* pScissor = (state.pScissors ? &state.pScissors[i] : nullptr);
-                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->offset.x );
-                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->offset.y );
-                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->extent.width );
-                    ImGui::TableNextColumn(); if( pScissor ) ImGui::Text( "%u", pScissor->extent.height );
+                    if( pScissor )
+                    {
+                        ImGuiX::TableTextColumn( "%u", pScissor->offset.x );
+                        ImGuiX::TableTextColumn( "%u", pScissor->offset.y );
+                        ImGuiX::TableTextColumn( "%u", pScissor->extent.width );
+                        ImGuiX::TableTextColumn( "%u", pScissor->extent.height );
+                    }
                 }
 
                 ImGui::EndTable();
@@ -2316,33 +2332,31 @@ namespace Profiler
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##ColorBlendState", 9, tableFlags ) )
             {
-                ImGui::TableNextRow();
-                ImGui::PushFont( m_Fonts.GetBoldFont() );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Attachment" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Enable" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Src color factor" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Dst color factor" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Color op" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Src alpha factor" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Dst alpha factor" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Alpha op" );
-                ImGui::TableNextColumn(); ImGui::TextUnformatted( "Write mask" );
-                ImGui::PopFont();
+                ImGui::TableSetupColumn( "Attachment" );
+                ImGui::TableSetupColumn( "Enable" );
+                ImGui::TableSetupColumn( "Src color factor" );
+                ImGui::TableSetupColumn( "Dst color factor" );
+                ImGui::TableSetupColumn( "Color op" );
+                ImGui::TableSetupColumn( "Src alpha factor" );
+                ImGui::TableSetupColumn( "Dst alpha factor" );
+                ImGui::TableSetupColumn( "Alpha op" );
+                ImGui::TableSetupColumn( "Write mask" );
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
 
                 const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
                 for( uint32_t i = 0; i < state.attachmentCount; ++i )
                 {
                     const VkPipelineColorBlendAttachmentState& attachment = state.pAttachments[ i ];
                     ImGui::TableNextRow();
-                    ImGui::TableNextColumn(); ImGui::Text( "%u", i );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBool( attachment.blendEnable ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ).c_str() );
-                    ImGui::TableNextColumn(); ImGui::Text( "%s", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ).c_str() );
+                    ImGuiX::TableTextColumn( "%u", i );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBool( attachment.blendEnable ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ).c_str() );
                 }
 
                 ImGui::EndTable();

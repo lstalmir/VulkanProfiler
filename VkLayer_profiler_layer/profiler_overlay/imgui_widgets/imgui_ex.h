@@ -133,15 +133,4 @@ namespace ImGuiX
     void BeginPadding( float top, float right, float left );
     void BeginPadding( float all );
     void EndPadding( float bottom );
-
-    /*************************************************************************\
-
-    Function:
-        TableHeadersRow
-
-    Description:
-        Draw a headers row with custom styling and font.
-
-    \*************************************************************************/
-    void TableHeadersRow( ImFont* pFont );
 }
