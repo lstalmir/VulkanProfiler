@@ -26,6 +26,12 @@ struct HasPNext : std::false_type {};
 template<typename T>
 struct HasPNext<T, std::void_t<decltype(&T::pNext)>> : std::true_type {};
 
+size_t GetPNextChainSize( const void* pNext )
+{
+    // No pNext structures are captured right now.
+    return 0;
+}
+
 template<typename T>
 size_t GetStructureSize( const T* pStructure )
 {
@@ -38,12 +44,6 @@ size_t GetStructureSize( const T* pStructure )
     }
 
     return size;
-}
-
-size_t GetPNextChainSize( const void* pNext )
-{
-    // No pNext structures are captured right now.
-    return 0;
 }
 
 template<>
