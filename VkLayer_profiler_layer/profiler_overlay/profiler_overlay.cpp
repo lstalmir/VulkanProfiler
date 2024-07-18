@@ -1986,6 +1986,21 @@ namespace Profiler
         Draws the inspected graphics pipeline state.
 
     \***********************************************************************************/
+    static bool IsPipelineStateDynamic( const VkPipelineDynamicStateCreateInfo* pDynamicStateInfo, VkDynamicState dynamicState )
+    {
+        if( pDynamicStateInfo != nullptr )
+        {
+            for( uint32_t i = 0; i < pDynamicStateInfo->dynamicStateCount; ++i )
+            {
+                if( pDynamicStateInfo->pDynamicStates[i] == dynamicState )
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     template<typename T>
     static void DrawPipelineStateValue( const char* pName, const char* pFormat, T&& value, const VkPipelineDynamicStateCreateInfo* pDynamicStateInfo = nullptr, VkDynamicState dynamicState = {} )
     {
@@ -1998,34 +2013,22 @@ namespace Profiler
 
         if( ImGui::TableNextColumn() )
         {
-            bool isDynamicState = false;
-            if( pDynamicStateInfo != nullptr )
+            if( IsPipelineStateDynamic( pDynamicStateInfo, dynamicState ) )
             {
-                for( uint32_t i = 0; i < pDynamicStateInfo->dynamicStateCount; ++i )
-                {
-                    if( pDynamicStateInfo->pDynamicStates[ i ] == dynamicState )
-                    {
-                        isDynamicState = true;
-                        break;
-                    }
-                }
-            }
-
-            if( !isDynamicState )
-            {
-                //ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), pFormat, value );
-                ImGui::Text( pFormat, value );
-            }
-            else
-            {
-                //ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), "Dynamic" );
-                ImGui::TextUnformatted( "<Dynamic>" );
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                ImGui::TextUnformatted( "Dynamic" );
+                ImGui::PopStyleColor();
 
                 if( ImGui::IsItemHovered() )
                 {
                     ImGui::SetTooltip( "This state is set dynamically." );
                 }
             }
+        }
+
+        if( ImGui::TableNextColumn() )
+        {
+            ImGui::Text( pFormat, value );
         }
     }
 
@@ -2044,6 +2047,13 @@ namespace Profiler
         const float contentPaddingLeft = 5.0f;
         const float contentPaddingRight = 10.0f;
         const float contentPaddingBottom = 10.0f;
+
+        const float dynamicColumnWidth = ImGui::CalcTextSize( "Dynamic" ).x + 5;
+
+        auto SetupDefaultPipelineStateColumns = [&]() {
+            ImGui::TableSetupColumn( "Name", 0, 1.5f );
+            ImGui::TableSetupColumn( "Dynamic", ImGuiTableColumnFlags_WidthFixed, dynamicColumnWidth );
+        };
 
         ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
 
@@ -2111,9 +2121,9 @@ namespace Profiler
         if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
-            if( ImGui::BeginTable( "##InputAssemblyState", 2, tableFlags ) )
+            if( ImGui::BeginTable( "##InputAssemblyState", 3, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+                SetupDefaultPipelineStateColumns();
 
                 const VkPipelineInputAssemblyStateCreateInfo& state = *gci.pInputAssemblyState;
                 DrawPipelineStateValue( "Topology", "%s", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY_EXT);
@@ -2130,9 +2140,9 @@ namespace Profiler
         {
             ImGuiX::BeginPadding( 5, 10, 10 );
 
-            if( ImGui::BeginTable( "##TessellationState", 2, tableFlags ) )
+            if( ImGui::BeginTable( "##TessellationState", 3, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+                SetupDefaultPipelineStateColumns();
 
                 const VkPipelineTessellationStateCreateInfo& state = *gci.pTessellationState;
                 DrawPipelineStateValue( "Patch control points", "%u", state.patchControlPoints, gci.pDynamicState, VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT );
@@ -2204,9 +2214,9 @@ namespace Profiler
         if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
-            if( ImGui::BeginTable( "##RasterizationState", 2, tableFlags ) )
+            if( ImGui::BeginTable( "##RasterizationState", 3, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+                SetupDefaultPipelineStateColumns();
 
                 const VkPipelineRasterizationStateCreateInfo& state = *gci.pRasterizationState;
                 DrawPipelineStateValue( "Depth clamp enable", "%s", m_pStringSerializer->GetBool( state.depthClampEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT);
@@ -2230,9 +2240,9 @@ namespace Profiler
         if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
-            if( ImGui::BeginTable( "##MultisampleState", 2, tableFlags ) )
+            if( ImGui::BeginTable( "##MultisampleState", 3, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+                SetupDefaultPipelineStateColumns();
 
                 const VkPipelineMultisampleStateCreateInfo& state = *gci.pMultisampleState;
                 DrawPipelineStateValue( "Rasterization samples", "%u", state.rasterizationSamples, gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT );
@@ -2252,9 +2262,9 @@ namespace Profiler
         if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
-            if( ImGui::BeginTable( "##DepthStencilState", 2, tableFlags ) )
+            if( ImGui::BeginTable( "##DepthStencilState", 3, tableFlags ) )
             {
-                ImGui::TableSetupColumn( "Name", 0, 1.5f );
+                SetupDefaultPipelineStateColumns();
 
                 const VkPipelineDepthStencilStateCreateInfo& state = *gci.pDepthStencilState;
                 DrawPipelineStateValue( "Depth test enable", "%s", m_pStringSerializer->GetBool( state.depthTestEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT);
