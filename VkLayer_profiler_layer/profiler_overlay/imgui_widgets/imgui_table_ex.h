@@ -34,4 +34,29 @@ namespace ImGuiX
     \*************************************************************************/
     float TableGetColumnWidth(
         int column_index = -1 );
+
+    /*************************************************************************\
+
+    Function:
+        TableHeadersRow
+
+    Description:
+        Draw a headers row with custom styling and font.
+
+    \*************************************************************************/
+    void TableHeadersRow(
+        ImFont* font = nullptr );
+
+    /*************************************************************************\
+
+    Function:
+        TableTextColumn
+
+    Description:
+        Shortcut for TableNextColumn and formatted Text item.
+
+    \*************************************************************************/
+    bool TableTextColumn(
+        const char* format,
+        ... );
 }

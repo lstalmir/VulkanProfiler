@@ -130,8 +130,8 @@ namespace Profiler
         , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
         , m_InspectorPipeline()
         , m_InspectorShaderView( m_Fonts )
-        , m_InspectorShaderStageNames( 0 )
-        , m_InspectorShaderStageIndex( 0 )
+        , m_InspectorTabs( 0 )
+        , m_InspectorTabIndex( 0 )
         , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
         , m_PerformanceQueryCommandBufferFilterName( "Frame" )
         , m_SerializationSucceeded( false )
@@ -1852,26 +1852,30 @@ namespace Profiler
             return;
         }
 
-        // Enumerate shader stages in the inspected pipeline.
+        // Enumerate inspector tabs.
         ImGui::PushItemWidth( -1 );
 
-        if( ImGui::BeginCombo( "##InspectorPipelineShaderStages", m_InspectorShaderStageNames[ m_InspectorShaderStageIndex ].c_str() ) )
+        if( ImGui::BeginCombo( "##InspectorTabs", m_InspectorTabs[m_InspectorTabIndex].Name.c_str() ) )
         {
-            const size_t stageCount = m_InspectorPipeline.m_ShaderTuple.m_Shaders.size();
-            for( size_t i = 0; i < stageCount; ++i )
+            const size_t tabCount = m_InspectorTabs.size();
+            for( size_t i = 0; i < tabCount; ++i )
             {
-                if( ImGuiX::TSelectable( m_InspectorShaderStageNames[ i ].c_str(), m_InspectorShaderStageIndex, i ) )
+                if( ImGuiX::TSelectable( m_InspectorTabs[ i ].Name.c_str(), m_InspectorTabIndex, i ) )
                 {
-                    // Select shader for inspection.
-                    InspectShaderStage( i );
+                    // Change tab.
+                    SetInspectorTabIndex( i );
                 }
             }
 
             ImGui::EndCombo();
         }
 
-        // Render the inspected shader view.
-        m_InspectorShaderView.Draw();
+        // Render the inspector tab.
+        const InspectorTab& tab = m_InspectorTabs[m_InspectorTabIndex];
+        if( tab.Draw )
+        {
+            tab.Draw();
+        }
     }
 
     /***********************************************************************************\
@@ -1888,14 +1892,21 @@ namespace Profiler
         m_InspectorPipeline = pipeline;
 
         // Resolve inspected pipeline shader stage names.
-        m_InspectorShaderStageNames.clear();
+        m_InspectorTabs.clear();
+        m_InspectorTabs.push_back( { Lang::PipelineState,
+            nullptr,
+            std::bind( &ProfilerOverlayOutput::DrawInspectorPipelineState, this ) } );
 
-        for( const ProfilerShader& shader : m_InspectorPipeline.m_ShaderTuple.m_Shaders )
+        const size_t shaderCount = m_InspectorPipeline.m_ShaderTuple.m_Shaders.size();
+        const ProfilerShader* pShaders = m_InspectorPipeline.m_ShaderTuple.m_Shaders.data();
+        for( size_t shaderIndex = 0; shaderIndex < shaderCount; ++shaderIndex )
         {
-            m_InspectorShaderStageNames.push_back( m_pStringSerializer->GetShaderName( shader ) );
+            m_InspectorTabs.push_back( { m_pStringSerializer->GetShaderName( pShaders[shaderIndex] ),
+                std::bind( &ProfilerOverlayOutput::SelectInspectorShaderStage, this, shaderIndex ),
+                std::bind( &ProfilerOverlayOutput::DrawInspectorShaderStage, this ) } );
         }
 
-        InspectShaderStage( 0 );
+        SetInspectorTabIndex( 0 );
 
         // Switch to the inspector tab.
         *m_InspectorWindowState.pOpen = true;
@@ -1905,13 +1916,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        InspectShaderStage
+        SelectInspectorShaderStage
 
     Description:
         Sets the inspected shader stage and updates the view.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::InspectShaderStage( size_t shaderIndex )
+    void ProfilerOverlayOutput::SelectInspectorShaderStage( size_t shaderIndex )
     {
         const ProfilerShader& shader = m_InspectorPipeline.m_ShaderTuple.m_Shaders[ shaderIndex ];
 
@@ -1923,8 +1934,491 @@ namespace Profiler
             const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
             m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
         }
+    }
 
-        m_InspectorShaderStageIndex = shaderIndex;
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorShaderStage
+
+    Description:
+        Draws the inspected shader stage.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawInspectorShaderStage()
+    {
+        m_InspectorShaderView.Draw();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorPipelineState
+
+    Description:
+        Draws the inspected pipeline state.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawInspectorPipelineState()
+    {
+        if( m_InspectorPipeline.m_pCreateInfo == nullptr )
+        {
+            ImGui::TextUnformatted( Lang::PipelineStateNotAvailable );
+            return;
+        }
+
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+
+        switch( m_InspectorPipeline.m_Type )
+        {
+        case DeviceProfilerPipelineType::eGraphics:
+            DrawInspectorGraphicsPipelineState();
+            break;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorGraphicsPipelineState
+
+    Description:
+        Draws the inspected graphics pipeline state.
+
+    \***********************************************************************************/
+    static bool IsPipelineStateDynamic( const VkPipelineDynamicStateCreateInfo* pDynamicStateInfo, VkDynamicState dynamicState )
+    {
+        if( pDynamicStateInfo != nullptr )
+        {
+            for( uint32_t i = 0; i < pDynamicStateInfo->dynamicStateCount; ++i )
+            {
+                if( pDynamicStateInfo->pDynamicStates[i] == dynamicState )
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    template<typename T>
+    static void DrawPipelineStateValue( const char* pName, const char* pFormat, T&& value, const VkPipelineDynamicStateCreateInfo* pDynamicStateInfo = nullptr, VkDynamicState dynamicState = {} )
+    {
+        ImGui::TableNextRow();
+
+        if( ImGui::TableNextColumn() )
+        {
+            ImGui::TextUnformatted( pName );
+        }
+
+        if( ImGui::TableNextColumn() )
+        {
+            if( IsPipelineStateDynamic( pDynamicStateInfo, dynamicState ) )
+            {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                ImGui::TextUnformatted( "Dynamic" );
+                ImGui::PopStyleColor();
+
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip( "This state is set dynamically." );
+                }
+            }
+        }
+
+        if( ImGui::TableNextColumn() )
+        {
+            ImGui::Text( pFormat, value );
+        }
+    }
+
+    void ProfilerOverlayOutput::DrawInspectorGraphicsPipelineState()
+    {
+        assert( m_InspectorPipeline.m_Type == DeviceProfilerPipelineType::eGraphics );
+        assert( m_InspectorPipeline.m_pCreateInfo != nullptr );
+        const VkGraphicsPipelineCreateInfo& gci = m_InspectorPipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo;
+
+        const ImGuiTableFlags tableFlags =
+            //ImGuiTableFlags_BordersInnerH |
+            ImGuiTableFlags_PadOuterX |
+            ImGuiTableFlags_SizingStretchSame;
+
+        const float contentPaddingTop = 2.0f;
+        const float contentPaddingLeft = 5.0f;
+        const float contentPaddingRight = 10.0f;
+        const float contentPaddingBottom = 10.0f;
+
+        const float dynamicColumnWidth = ImGui::CalcTextSize( "Dynamic" ).x + 5;
+
+        auto SetupDefaultPipelineStateColumns = [&]() {
+            ImGui::TableSetupColumn( "Name", 0, 1.5f );
+            ImGui::TableSetupColumn( "Dynamic", ImGuiTableColumnFlags_WidthFixed, dynamicColumnWidth );
+        };
+
+        ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
+        // VkPipelineVertexInputStateCreateInfo
+        ImGui::BeginDisabled( gci.pVertexInputState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) )
+        {
+            const VkPipelineVertexInputStateCreateInfo& state = *gci.pVertexInputState;
+
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##VertexInputState", 6, tableFlags ) )
+            {
+                ImGui::TableSetupColumn( "Location" );
+                ImGui::TableSetupColumn( "Binding" );
+                ImGui::TableSetupColumn( "Format", 0, 3.0f );
+                ImGui::TableSetupColumn( "Offset" );
+                ImGui::TableSetupColumn( "Stride" );
+                ImGui::TableSetupColumn( "Input rate", 0, 1.5f );
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+
+                for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
+                {
+                    const VkVertexInputAttributeDescription* pAttribute = &state.pVertexAttributeDescriptions[ i ];
+                    const VkVertexInputBindingDescription* pBinding = nullptr;
+
+                    // Find the binding description of the current attribute.
+                    for( uint32_t j = 0; j < state.vertexBindingDescriptionCount; ++j )
+                    {
+                        if( state.pVertexBindingDescriptions[ j ].binding == pAttribute->binding )
+                        {
+                            pBinding = &state.pVertexBindingDescriptions[ j ];
+                            break;
+                        }
+                    }
+
+                    ImGui::TableNextRow();
+                    ImGuiX::TableTextColumn( "%u", pAttribute->location );
+                    ImGuiX::TableTextColumn( "%u", pAttribute->binding );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetFormatName( pAttribute->format ).c_str() );
+                    ImGuiX::TableTextColumn( "%u", pAttribute->offset );
+
+                    if( pBinding != nullptr )
+                    {
+                        ImGuiX::TableTextColumn( "%u", pBinding->stride );
+                        ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetVertexInputRateName( pBinding->inputRate ).c_str() );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+
+            if( state.vertexAttributeDescriptionCount == 0 )
+            {
+                ImGuiX::BeginPadding( 0, 0, contentPaddingLeft + 4 );
+                ImGui::TextUnformatted( "No vertex data on input." );
+            }
+
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineInputAssemblyStateCreateInfo
+        ImGui::BeginDisabled( gci.pInputAssemblyState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##InputAssemblyState", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkPipelineInputAssemblyStateCreateInfo& state = *gci.pInputAssemblyState;
+                DrawPipelineStateValue( "Topology", "%s", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY_EXT );
+                DrawPipelineStateValue( "Primitive restart", "%s", m_pStringSerializer->GetBool( state.primitiveRestartEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE_EXT );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineTessellationStateCreateInfo
+        ImGui::BeginDisabled( gci.pTessellationState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateTessellation ) )
+        {
+            ImGuiX::BeginPadding( 5, 10, 10 );
+
+            if( ImGui::BeginTable( "##TessellationState", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkPipelineTessellationStateCreateInfo& state = *gci.pTessellationState;
+                DrawPipelineStateValue( "Patch control points", "%u", state.patchControlPoints, gci.pDynamicState, VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineViewportStateCreateInfo
+        ImGui::BeginDisabled( gci.pViewportState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) )
+        {
+            const float firstColumnWidth = ImGui::CalcTextSize( "00 (Dynamic)" ).x + 5;
+
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##Viewports", 7, tableFlags ) )
+            {
+                ImGui::TableSetupColumn( "Viewport", ImGuiTableColumnFlags_WidthFixed, firstColumnWidth );
+                ImGui::TableSetupColumn( "X" );
+                ImGui::TableSetupColumn( "Y" );
+                ImGui::TableSetupColumn( "Width" );
+                ImGui::TableSetupColumn( "Height" );
+                ImGui::TableSetupColumn( "Min Z" );
+                ImGui::TableSetupColumn( "Max Z" );
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+
+                const char* format = "%u";
+                if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_VIEWPORT ) )
+                {
+                    format = "%u (Dynamic)";
+                }
+
+                const VkPipelineViewportStateCreateInfo& state = *gci.pViewportState;
+                for( uint32_t i = 0; i < state.viewportCount; ++i )
+                {
+                    ImGui::TableNextRow();
+                    ImGuiX::TableTextColumn( format, i );
+
+                    const VkViewport* pViewport = (state.pViewports ? &state.pViewports[i] : nullptr);
+                    if( pViewport )
+                    {
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->x );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->y );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->width );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->height );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->minDepth );
+                        ImGuiX::TableTextColumn( "%.2f", pViewport->maxDepth );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##Scissors", 7, tableFlags ) )
+            {
+                ImGui::TableSetupColumn( "Scissor", ImGuiTableColumnFlags_WidthFixed, firstColumnWidth );
+                ImGui::TableSetupColumn( "X" );
+                ImGui::TableSetupColumn( "Y" );
+                ImGui::TableSetupColumn( "Width" );
+                ImGui::TableSetupColumn( "Height" );
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+
+                const char* format = "%u";
+                if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_SCISSOR ) )
+                {
+                    format = "%u (Dynamic)";
+                }
+
+                const VkPipelineViewportStateCreateInfo& state = *gci.pViewportState;
+                for( uint32_t i = 0; i < state.scissorCount; ++i )
+                {
+                    ImGui::TableNextRow();
+                    ImGuiX::TableTextColumn( format, i );
+
+                    const VkRect2D* pScissor = (state.pScissors ? &state.pScissors[i] : nullptr);
+                    if( pScissor )
+                    {
+                        ImGuiX::TableTextColumn( "%u", pScissor->offset.x );
+                        ImGuiX::TableTextColumn( "%u", pScissor->offset.y );
+                        ImGuiX::TableTextColumn( "%u", pScissor->extent.width );
+                        ImGuiX::TableTextColumn( "%u", pScissor->extent.height );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineRasterizationStateCreateInfo
+        ImGui::BeginDisabled( gci.pRasterizationState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##RasterizationState", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkPipelineRasterizationStateCreateInfo& state = *gci.pRasterizationState;
+                DrawPipelineStateValue( "Depth clamp enable", "%s", m_pStringSerializer->GetBool( state.depthClampEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT );
+                DrawPipelineStateValue( "Rasterizer discard enable", "%s", m_pStringSerializer->GetBool( state.rasterizerDiscardEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE_EXT );
+                DrawPipelineStateValue( "Polygon mode", "%s", m_pStringSerializer->GetPolygonModeName( state.polygonMode ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_POLYGON_MODE_EXT );
+                DrawPipelineStateValue( "Cull mode", "%s", m_pStringSerializer->GetCullModeName( state.cullMode ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_CULL_MODE_EXT );
+                DrawPipelineStateValue( "Front face", "%s", m_pStringSerializer->GetFrontFaceName( state.frontFace ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_FRONT_FACE_EXT );
+                DrawPipelineStateValue( "Depth bias enable", "%s", m_pStringSerializer->GetBool( state.depthBiasEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE_EXT );
+                DrawPipelineStateValue( "Depth bias constant factor", "%f", state.depthBiasConstantFactor, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Depth bias clamp", "%f", state.depthBiasClamp, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Depth bias slope factor", "%f", state.depthBiasSlopeFactor, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BIAS );
+                DrawPipelineStateValue( "Line width", "%f", state.lineWidth, gci.pDynamicState, VK_DYNAMIC_STATE_LINE_WIDTH );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineMultisampleStateCreateInfo
+        ImGui::BeginDisabled( gci.pMultisampleState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##MultisampleState", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkPipelineMultisampleStateCreateInfo& state = *gci.pMultisampleState;
+                DrawPipelineStateValue( "Rasterization samples", "%u", state.rasterizationSamples, gci.pDynamicState, VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT );
+                DrawPipelineStateValue( "Sample shading enable", "%s", m_pStringSerializer->GetBool( state.sampleShadingEnable ).c_str() );
+                DrawPipelineStateValue( "Min sample shading", "%u", state.minSampleShading );
+                DrawPipelineStateValue( "Sample mask", "0x%08X", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF, gci.pDynamicState, VK_DYNAMIC_STATE_SAMPLE_MASK_EXT );
+                DrawPipelineStateValue( "Alpha to coverage enable", "%s", m_pStringSerializer->GetBool( state.alphaToCoverageEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT );
+                DrawPipelineStateValue( "Alpha to one enable", "%s", m_pStringSerializer->GetBool( state.alphaToOneEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineDepthStencilStateCreateInfo
+        ImGui::BeginDisabled( gci.pDepthStencilState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##DepthStencilState", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkPipelineDepthStencilStateCreateInfo& state = *gci.pDepthStencilState;
+                DrawPipelineStateValue( "Depth test enable", "%s", m_pStringSerializer->GetBool( state.depthTestEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE_EXT );
+                DrawPipelineStateValue( "Depth write enable", "%s", m_pStringSerializer->GetBool( state.depthWriteEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE_EXT );
+                DrawPipelineStateValue( "Depth compare op", "%s", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP_EXT );
+                DrawPipelineStateValue( "Depth bounds test enable", "%s", m_pStringSerializer->GetBool( state.depthBoundsTestEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE_EXT );
+                DrawPipelineStateValue( "Min depth bounds", "%f", state.minDepthBounds, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS );
+                DrawPipelineStateValue( "Max depth bounds", "%f", state.maxDepthBounds, gci.pDynamicState, VK_DYNAMIC_STATE_DEPTH_BOUNDS );
+                DrawPipelineStateValue( "Stencil test enable", "%s", m_pStringSerializer->GetBool( state.stencilTestEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE_EXT );
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                if( ImGui::TreeNodeEx( "Front face stencil op", ImGuiTreeNodeFlags_SpanAllColumns ) )
+                {
+                    DrawPipelineStateValue( "Fail op", "%u", state.front.failOp );
+                    DrawPipelineStateValue( "Pass op", "%u", state.front.passOp );
+                    DrawPipelineStateValue( "Depth fail op", "%u", state.front.depthFailOp );
+                    DrawPipelineStateValue( "Compare op", "%s", m_pStringSerializer->GetCompareOpName( state.front.compareOp ).c_str() );
+                    DrawPipelineStateValue( "Compare mask", "0x%02X", state.front.compareMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK );
+                    DrawPipelineStateValue( "Write mask", "0x%02X", state.front.writeMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK );
+                    DrawPipelineStateValue( "Reference", "0x%02X", state.front.reference, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_REFERENCE );
+                    ImGui::TreePop();
+                }
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                if( ImGui::TreeNodeEx( "Back face stencil op", ImGuiTreeNodeFlags_SpanAllColumns ) )
+                {
+                    DrawPipelineStateValue( "Fail op", "%u", state.back.failOp );
+                    DrawPipelineStateValue( "Pass op", "%u", state.back.passOp );
+                    DrawPipelineStateValue( "Depth fail op", "%u", state.back.depthFailOp );
+                    DrawPipelineStateValue( "Compare op", "%s", m_pStringSerializer->GetCompareOpName( state.back.compareOp ).c_str() );
+                    DrawPipelineStateValue( "Compare mask", "0x%02X", state.back.compareMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK );
+                    DrawPipelineStateValue( "Write mask", "0x%02X", state.back.writeMask, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK );
+                    DrawPipelineStateValue( "Reference", "0x%02X", state.back.reference, gci.pDynamicState, VK_DYNAMIC_STATE_STENCIL_REFERENCE );
+                    ImGui::TreePop();
+                }
+
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // VkPipelineColorBlendStateCreateInfo
+        ImGui::BeginDisabled( gci.pColorBlendState == nullptr );
+        if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) )
+        {
+            const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
+
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##ColorBlendState", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+                DrawPipelineStateValue( "Logic op enable", "%s", m_pStringSerializer->GetBool( state.logicOpEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_LOGIC_OP_ENABLE_EXT );
+                DrawPipelineStateValue( "Logic op", "%s", m_pStringSerializer->GetLogicOpName( state.logicOp ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_LOGIC_OP_EXT );
+                DrawPipelineStateValue( "Blend constants", "%s", m_pStringSerializer->GetVec4( state.blendConstants ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_BLEND_CONSTANTS );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##ColorBlendAttachments", 9, tableFlags ) )
+            {
+                const float indexColumnWidth = ImGui::CalcTextSize( "000" ).x + 5;
+                const float maskColumnWidth = ImGui::CalcTextSize( "RGBA" ).x + 5;
+
+                ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed, indexColumnWidth );
+                ImGui::TableSetupColumn( "Enable" );
+                ImGui::TableSetupColumn( "Src color" );
+                ImGui::TableSetupColumn( "Dst color" );
+                ImGui::TableSetupColumn( "Color op" );
+                ImGui::TableSetupColumn( "Src alpha" );
+                ImGui::TableSetupColumn( "Dst alpha" );
+                ImGui::TableSetupColumn( "Alpha op" );
+                ImGui::TableSetupColumn( "Mask", ImGuiTableColumnFlags_WidthFixed, maskColumnWidth );
+                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+
+                for( uint32_t i = 0; i < state.attachmentCount; ++i )
+                {
+                    const VkPipelineColorBlendAttachmentState& attachment = state.pAttachments[ i ];
+                    ImGui::TableNextRow();
+                    ImGuiX::TableTextColumn( "%u", i );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBool( attachment.blendEnable ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ).c_str() );
+                    ImGuiX::TableTextColumn( "%s", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ).c_str() );
+                }
+
+                ImGui::EndTable();
+            }
+
+            if( state.attachmentCount == 0 )
+            {
+                ImGuiX::BeginPadding( 0, 0, contentPaddingLeft + 4 );
+                ImGui::TextUnformatted( "No color attachments on output." );
+            }
+
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        ImGui::PopStyleColor();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetInspectorTabIndex
+
+    Description:
+        Switches the inspector to another tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SetInspectorTabIndex( size_t index )
+    {
+        const InspectorTab& tab = m_InspectorTabs[index];
+        if( tab.Select )
+        {
+            // Call tab-specific setup callback.
+            tab.Select();
+        }
+
+        m_InspectorTabIndex = index;
     }
 
     /***********************************************************************************\
