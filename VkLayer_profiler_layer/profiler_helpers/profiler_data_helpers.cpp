@@ -592,13 +592,29 @@ namespace Profiler
         {
         case VK_TRUE:
             return "True";
-
         case VK_FALSE:
             return "False";
-
         default:
             return std::to_string( value );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetVec4
+
+    Description:
+        Returns string representation of a 4-component vector.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetVec4( const float* pValue ) const
+    {
+        return fmt::format( "{:.2f}, {:.2f}, {:.2f}, {:.2f}",
+            pValue[ 0 ],
+            pValue[ 1 ],
+            pValue[ 2 ],
+            pValue[ 3 ] );
     }
 
     /***********************************************************************************\
@@ -1552,6 +1568,55 @@ namespace Profiler
             return "Greater or equal";
         case VK_COMPARE_OP_ALWAYS:
             return "Always";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(op) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLogicOpName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetLogicOpName( VkLogicOp op ) const
+    {
+        switch( op )
+        {
+        case VK_LOGIC_OP_CLEAR:
+            return "Clear";
+        case VK_LOGIC_OP_AND:
+            return "AND";
+        case VK_LOGIC_OP_AND_REVERSE:
+            return "AND (reverse)";
+        case VK_LOGIC_OP_COPY:
+            return "Copy";
+        case VK_LOGIC_OP_AND_INVERTED:
+            return "AND (inverted)";
+        case VK_LOGIC_OP_NO_OP:
+            return "No-op";
+        case VK_LOGIC_OP_XOR:
+            return "XOR";
+        case VK_LOGIC_OP_OR:
+            return "OR";
+        case VK_LOGIC_OP_NOR:
+            return "NOR";
+        case VK_LOGIC_OP_EQUIVALENT:
+            return "Equivalent";
+        case VK_LOGIC_OP_INVERT:
+            return "Invert";
+        case VK_LOGIC_OP_OR_REVERSE:
+            return "OR (reverse)";
+        case VK_LOGIC_OP_COPY_INVERTED:
+            return "Copy (inverted)";
+        case VK_LOGIC_OP_OR_INVERTED:
+            return "OR (inverted)";
+        case VK_LOGIC_OP_NAND:
+            return u8"NAND";
+        case VK_LOGIC_OP_SET:
+            return u8"Set";
         default:
             return fmt::format( "Unknown ({})", static_cast<uint32_t>(op) );
         }

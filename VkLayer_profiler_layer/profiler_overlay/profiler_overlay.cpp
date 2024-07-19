@@ -2342,7 +2342,18 @@ namespace Profiler
             const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
 
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
-            if( ImGui::BeginTable( "##ColorBlendState", 9, tableFlags ) )
+            if( ImGui::BeginTable( "##ColorBlendState", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+                DrawPipelineStateValue( "Logic op enable", "%s", m_pStringSerializer->GetBool( state.logicOpEnable ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_LOGIC_OP_ENABLE_EXT );
+                DrawPipelineStateValue( "Logic op", "%s", m_pStringSerializer->GetLogicOpName( state.logicOp ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_LOGIC_OP_EXT );
+                DrawPipelineStateValue( "Blend constants", "%s", m_pStringSerializer->GetVec4( state.blendConstants ).c_str(), gci.pDynamicState, VK_DYNAMIC_STATE_BLEND_CONSTANTS );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##ColorBlendAttachments", 9, tableFlags ) )
             {
                 const float indexColumnWidth = ImGui::CalcTextSize( "000" ).x + 5;
                 const float maskColumnWidth = ImGui::CalcTextSize( "RGBA" ).x + 5;

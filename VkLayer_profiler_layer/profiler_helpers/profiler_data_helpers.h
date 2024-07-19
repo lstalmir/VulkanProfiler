@@ -52,6 +52,7 @@ namespace Profiler
 
         std::string GetPointer( const void* ) const;
         std::string GetBool( VkBool32 ) const;
+        std::string GetVec4( const float* ) const;
 
         std::string GetColorHex( const float* ) const;
 
@@ -68,6 +69,7 @@ namespace Profiler
         std::string GetBlendFactorName( VkBlendFactor ) const;
         std::string GetBlendOpName( VkBlendOp ) const;
         std::string GetCompareOpName( VkCompareOp ) const;
+        std::string GetLogicOpName( VkLogicOp ) const;
         std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
