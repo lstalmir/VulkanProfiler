@@ -641,6 +641,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
+        PROFILER_SELF_TIME( m_pDevice );
+
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
         DeviceProfilerCommandPool& profilerCommandPool = GetCommandPool( commandPool );
@@ -667,6 +669,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
+        PROFILER_SELF_TIME( m_pDevice );
+
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
         for( uint32_t i = 0; i < count; ++i )
@@ -1035,6 +1039,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue )
     {
+        PROFILER_SELF_TIME( m_pDevice );
+
         if( m_MetricsApiINTEL.IsAvailable() )
         {
             AcquirePerformanceConfigurationINTEL( queue );
@@ -1053,6 +1059,8 @@ namespace Profiler
     template<typename SubmitInfoT>
     void DeviceProfiler::PostSubmitCommandBuffersImpl( VkQueue queue, uint32_t count, const SubmitInfoT* pSubmitInfo )
     {
+        PROFILER_SELF_TIME( m_pDevice );
+
         using T = SubmitInfoTraits<SubmitInfoT>;
 
         #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
@@ -1064,9 +1072,11 @@ namespace Profiler
         // Wait for the submitted command buffers to execute
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
         {
+            m_pDevice->m_ProfilerSelfTime.Begin( __FUNCTION__ " (sync)" );
             m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
             m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
             m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_SubmitFence );
+            m_pDevice->m_ProfilerSelfTime.End();
         }
 
         // Store submitted command buffers and get results
@@ -1163,6 +1173,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame()
     {
+        PROFILER_SELF_TIME( m_pDevice );
+
         std::scoped_lock lk( m_PresentMutex );
 
         // Update FPS counter

@@ -165,6 +165,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Aggregate()
     {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
         decltype(m_Submits) submits;
         decltype(m_Data) data;
 
@@ -244,6 +246,8 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerFrameData ProfilerDataAggregator::GetAggregatedData()
     {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
         LoadVendorMetricsProperties();
 
         DeviceProfilerFrameData frameData;
@@ -279,6 +283,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::LoadVendorMetricsProperties()
     {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
         if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
         {
             // Check if vendor metrics set has changed.
@@ -324,6 +330,8 @@ namespace Profiler
     \***********************************************************************************/
     std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerDataAggregator::AggregateVendorMetrics() const
     {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
         const uint32_t metricCount = static_cast<uint32_t>( m_VendorMetricProperties.size() );
 
         // No vendor metrics available
@@ -431,6 +439,8 @@ namespace Profiler
     \***********************************************************************************/
     ContainerType<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines() const
     {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
         // Identify pipelines by combined hash value
         std::unordered_map<uint32_t, DeviceProfilerPipelineData> aggregatedPipelines;
 
@@ -475,6 +485,8 @@ namespace Profiler
         const DeviceProfilerCommandBufferData& commandBuffer,
         std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
             (VkPipeline)DeviceProfilerPipelineType::eBeginRenderPass );
@@ -545,6 +557,8 @@ namespace Profiler
         const DeviceProfilerPipelineData& pipeline,
         std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
         auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
         if( it == aggregatedPipelines.end() )
         {

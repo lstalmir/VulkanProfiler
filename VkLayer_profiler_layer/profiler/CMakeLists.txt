@@ -35,6 +35,7 @@ set (headers
     "profiler_memory_manager.h"
     "profiler_query_pool.h"
     "profiler_resources.h"
+    "profiler_self_time.h"
     "profiler_shader.h"
     "profiler_stat_comparators.h"
     "profiler_sync.h"
@@ -50,6 +51,7 @@ set (sources
     "profiler_data_aggregator.cpp"
     "profiler_memory_manager.cpp"
     "profiler_query_pool.cpp"
+    "profiler_self_time.cpp"
     "profiler_shader.cpp"
     "profiler_sync.cpp"
     # Windows

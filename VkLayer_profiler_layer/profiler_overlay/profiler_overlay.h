@@ -238,6 +238,7 @@ namespace Profiler
         WindowState m_InspectorWindowState;
         WindowState m_StatisticsWindowState;
         WindowState m_SettingsWindowState;
+        WindowState m_SelfTimeWindowState;
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
@@ -253,6 +254,7 @@ namespace Profiler
         void UpdateInspectorTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
+        void UpdateSelfTimeTab();
 
         // Performance graph helpers
         struct PerformanceGraphColumn;
