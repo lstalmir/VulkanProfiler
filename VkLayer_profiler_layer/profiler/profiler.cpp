@@ -1096,10 +1096,7 @@ namespace Profiler
         std::scoped_lock lk( m_SubmitMutex );
         #endif
 
-        if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
-        {
-            m_DataAggregator.Aggregate();
-        }
+        m_DataAggregator.Aggregate();
 
         // Store submitted command buffers and get results
         DeviceProfilerSubmitBatch submitBatch;
@@ -1277,14 +1274,8 @@ namespace Profiler
 
         m_CurrentFrame++;
 
-        if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_PRESENT_EXT )
-        {
-            // Doesn't introduce in-frame CPU overhead but may cause some image-count-related issues disappear
-            //m_Synchronization.WaitForDevice();
-
-            // Collect data from the submitted command buffers
-            m_DataAggregator.Aggregate();
-        }
+        // Collect data from the submitted command buffers
+        m_DataAggregator.Aggregate();
 
         {
             std::scoped_lock lk2( m_DataMutex );

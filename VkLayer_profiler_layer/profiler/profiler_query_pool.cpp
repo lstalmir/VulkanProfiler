@@ -121,7 +121,8 @@ namespace Profiler
             m_QueryPool,
             0, queryCount,
             dst.GetBufferHandle(),
-            dstOffset, sizeof( uint64_t ),
+            dstOffset * sizeof( uint64_t ),
+            sizeof(uint64_t),
             VK_QUERY_RESULT_64_BIT );
     }
 
@@ -132,7 +133,7 @@ namespace Profiler
             m_QueryPool,
             0, queryCount,
             queryCount * sizeof( uint64_t ),
-            reinterpret_cast<std::byte*>(dst.GetCpuAllocation()) + dstOffset,
+            reinterpret_cast<std::byte*>(dst.GetCpuAllocation()) + (dstOffset * sizeof( uint64_t )),
             sizeof( uint64_t ),
             VK_QUERY_RESULT_64_BIT );
     }

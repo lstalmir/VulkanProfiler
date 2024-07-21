@@ -128,14 +128,14 @@ namespace Profiler
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
             {
                 m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, data, dstOffset, m_QueryPoolSize );
-                dstOffset += m_QueryPoolSize * sizeof( uint64_t );
+                dstOffset += m_QueryPoolSize;
             }
 
             // Copy data from the last query pool.
             if( m_CurrentQueryIndex != UINT32_MAX )
             {
                 m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, data, dstOffset, m_CurrentQueryIndex + 1 );
-                dstOffset += (m_CurrentQueryIndex + 1) * sizeof( uint64_t );
+                dstOffset += (m_CurrentQueryIndex + 1);
             }
         }
 
@@ -145,14 +145,14 @@ namespace Profiler
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
             {
                 m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataCpu( data, dstOffset, m_QueryPoolSize );
-                dstOffset += m_QueryPoolSize * sizeof( uint64_t );
+                dstOffset += m_QueryPoolSize;
             }
 
             // Copy data from the last query pool.
             if( m_CurrentQueryIndex != UINT32_MAX )
             {
                 m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataCpu( data, dstOffset, m_CurrentQueryIndex + 1 );
-                dstOffset += (m_CurrentQueryIndex + 1) * sizeof( uint64_t );
+                dstOffset += (m_CurrentQueryIndex + 1);
             }
         }
 

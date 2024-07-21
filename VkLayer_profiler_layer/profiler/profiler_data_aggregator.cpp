@@ -209,6 +209,8 @@ namespace Profiler
                         submitBatchIt->m_TimestampCopyCommandPool,
                         1, &submitBatchIt->m_TimestampCopyCommandBuffer );
 
+                    delete submitBatchIt->m_pTimestampData;
+
                     submitBatchIt = frame.m_PendingSubmits.erase( submitBatchIt );
                 }
                 else
