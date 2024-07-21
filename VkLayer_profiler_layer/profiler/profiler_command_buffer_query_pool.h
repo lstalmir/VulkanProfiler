@@ -87,6 +87,7 @@ namespace Profiler
                     0, (m_CurrentQueryIndex + 1) );
             }
 
+            m_AbsQueryIndex = UINT64_MAX;
             m_CurrentQueryIndex = UINT32_MAX;
             m_CurrentQueryPoolIndex = 0;
         }
@@ -121,39 +122,44 @@ namespace Profiler
             }
         }
 
-        PROFILER_FORCE_INLINE void ResolveTimestampsGpu( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void ResolveTimestampsGpu( VkCommandBuffer commandBuffer, TimestampQueryPoolData& data, uint32_t& dstOffset )
         {
             // Copy data from the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
             {
-                m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, m_QueryPoolSize );
+                m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, data, dstOffset, m_QueryPoolSize );
+                dstOffset += m_QueryPoolSize * sizeof( uint64_t );
             }
 
             // Copy data from the last query pool.
             if( m_CurrentQueryIndex != UINT32_MAX )
             {
-                m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, m_CurrentQueryIndex + 1 );
+                m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, data, dstOffset, m_CurrentQueryIndex + 1 );
+                dstOffset += (m_CurrentQueryIndex + 1) * sizeof( uint64_t );
             }
         }
 
-        PROFILER_FORCE_INLINE void ResolveTimestampsCpu()
+        PROFILER_FORCE_INLINE void ResolveTimestampsCpu( TimestampQueryPoolData& data, uint32_t& dstOffset )
         {
             // Copy data from the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
             {
-                m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataCpu( m_QueryPoolSize );
+                m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataCpu( data, dstOffset, m_QueryPoolSize );
+                dstOffset += m_QueryPoolSize * sizeof( uint64_t );
             }
 
             // Copy data from the last query pool.
             if( m_CurrentQueryIndex != UINT32_MAX )
             {
-                m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataCpu( m_CurrentQueryIndex + 1 );
+                m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataCpu( data, dstOffset, m_CurrentQueryIndex + 1 );
+                dstOffset += (m_CurrentQueryIndex + 1) * sizeof( uint64_t );
             }
         }
 
         PROFILER_FORCE_INLINE uint64_t WriteTimestamp( VkCommandBuffer commandBuffer, VkPipelineStageFlagBits stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT )
         {
             // Allocate query from the pool
+            m_AbsQueryIndex++;
             m_CurrentQueryIndex++;
 
             if( m_CurrentQueryIndex == m_QueryPoolSize )
@@ -176,16 +182,7 @@ namespace Profiler
                 m_CurrentQueryIndex );
 
             // Return index to the allocated query.
-            return ( static_cast<uint64_t>( m_CurrentQueryPoolIndex ) << 32 ) |
-                   ( static_cast<uint64_t>( m_CurrentQueryIndex ) & 0xFFFFFFFF );
-        }
-
-        PROFILER_FORCE_INLINE uint64_t GetTimestampData( uint64_t query ) const
-        {
-            const uint32_t queryPoolIndex = static_cast<uint32_t>( query >> 32 );
-            const uint32_t queryIndex = static_cast<uint32_t>( query & 0xFFFFFFFF );
-
-            return m_pQueryPools[ queryPoolIndex ]->GetQueryData( queryIndex );
+            return m_AbsQueryIndex;
         }
 
         PROFILER_FORCE_INLINE void GetPerformanceQueryData(
@@ -221,6 +218,11 @@ namespace Profiler
             }
         }
 
+        PROFILER_FORCE_INLINE uint64_t GetTimestampQueryCount() const
+        {
+            return (m_AbsQueryIndex + 1);
+        }
+
     protected:
         DeviceProfiler&                  m_Profiler;
         VkDevice_Object&                 m_Device;
@@ -231,6 +233,7 @@ namespace Profiler
         uint32_t                         m_QueryPoolSize;
         uint32_t                         m_CurrentQueryPoolIndex;
         uint32_t                         m_CurrentQueryIndex;
+        uint64_t                         m_AbsQueryIndex;
 
         VkQueryPool                      m_PerformanceQueryPoolINTEL;
         uint32_t                         m_PerformanceQueryMetricsSetIndexINTEL;

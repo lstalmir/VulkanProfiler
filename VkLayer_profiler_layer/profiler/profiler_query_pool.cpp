@@ -22,15 +22,73 @@
 #include "profiler_memory_manager.h"
 #include "profiler.h"
 
-#define VKPROF_USE_GPU_TIMESTAMP_BUFFER 0
-
 namespace Profiler
 {
+    TimestampQueryPoolData::TimestampQueryPoolData( DeviceProfiler& profiler, uint32_t commandBufferCount, uint32_t queryCount )
+        : m_Profiler( profiler )
+        , m_Buffer( VK_NULL_HANDLE )
+        , m_Allocation( VK_NULL_HANDLE )
+        , m_AllocationInfo()
+        , m_pCpuAllocation( nullptr )
+        , m_pCommandBufferOffsets( nullptr )
+    {
+        // Create the staging buffer.
+        VkBufferCreateInfo bufferCreateInfo = {};
+        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bufferCreateInfo.size = queryCount * sizeof( uint64_t );
+
+        VmaAllocationCreateInfo allocationCreateInfo = {};
+        allocationCreateInfo.flags =
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT |
+            VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        allocationCreateInfo.usage =
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+
+        VkResult result = m_Profiler.m_MemoryManager.AllocateBuffer(
+            bufferCreateInfo,
+            allocationCreateInfo,
+            &m_Buffer,
+            &m_Allocation,
+            &m_AllocationInfo );
+
+        if( result != VK_SUCCESS )
+        {
+            // Fallback to CPU allocation.
+            m_pCpuAllocation = malloc( bufferCreateInfo.size );
+
+            if( m_pCpuAllocation != nullptr )
+            {
+                memset( &m_AllocationInfo, 0, sizeof( m_AllocationInfo ) );
+                m_AllocationInfo.size = bufferCreateInfo.size;
+                m_AllocationInfo.pMappedData = m_pCpuAllocation;
+            }
+        }
+
+        // Allocate array of offsets to the first query of each submitted command buffer.
+        m_pCommandBufferOffsets = static_cast<uint32_t*>(malloc( commandBufferCount * sizeof( uint32_t ) ));
+    }
+
+    TimestampQueryPoolData::~TimestampQueryPoolData()
+    {
+        if( m_Buffer != VK_NULL_HANDLE )
+        {
+            m_Profiler.m_MemoryManager.FreeBuffer(
+                m_Buffer,
+                m_Allocation );
+        }
+
+        if( m_pCpuAllocation )
+        {
+            free( m_pCpuAllocation );
+        }
+
+        free( m_pCommandBufferOffsets );
+    }
+
     TimestampQueryPool::TimestampQueryPool( DeviceProfiler& profiler, uint32_t queryCount )
         : m_Profiler( profiler )
         , m_QueryPool( VK_NULL_HANDLE )
-        , m_QueryResultsBuffer( VK_NULL_HANDLE )
-        , m_QueryResultsBufferAllocation( { nullptr } )
     {
         // Create the command pool.
         VkQueryPoolCreateInfo queryPoolCreateInfo = {};
@@ -43,42 +101,6 @@ namespace Profiler
             &queryPoolCreateInfo,
             nullptr,
             &m_QueryPool );
-
-#if VKPROF_USE_GPU_TIMESTAMP_BUFFER
-        // Create the staging buffer.
-        VkBufferCreateInfo bufferCreateInfo = {};
-        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        bufferCreateInfo.size = queryCount * sizeof( uint64_t );
-
-        m_Profiler.m_pDevice->Callbacks.CreateBuffer(
-            m_Profiler.m_pDevice->Handle,
-            &bufferCreateInfo,
-            nullptr,
-            &m_QueryResultsBuffer );
-
-        // Allocate memory for the buffer.
-        VkMemoryRequirements bufferMemoryRequirements;
-        m_Profiler.m_pDevice->Callbacks.GetBufferMemoryRequirements(
-            m_Profiler.m_pDevice->Handle,
-            m_QueryResultsBuffer,
-            &bufferMemoryRequirements );
-
-        m_Profiler.m_MemoryManager.AllocateMemory(
-            bufferMemoryRequirements,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-            &m_QueryResultsBufferAllocation );
-
-        m_Profiler.m_pDevice->Callbacks.BindBufferMemory(
-            m_Profiler.m_pDevice->Handle,
-            m_QueryResultsBuffer,
-            m_QueryResultsBufferAllocation.m_pPool->m_DeviceMemory,
-            m_QueryResultsBufferAllocation.m_Offset );
-#else
-        m_QueryResultsBufferAllocation.m_Size = sizeof( uint64_t ) * queryCount;
-        m_QueryResultsBufferAllocation.m_pMappedMemory =
-            malloc( m_QueryResultsBufferAllocation.m_Size );
-#endif
     }
 
     TimestampQueryPool::~TimestampQueryPool()
@@ -90,49 +112,28 @@ namespace Profiler
                 m_QueryPool,
                 nullptr );
         }
-
-#if VKPROF_USE_GPU_TIMESTAMP_BUFFER
-        if( m_QueryResultsBuffer != VK_NULL_HANDLE )
-        {
-            m_Profiler.m_pDevice->Callbacks.DestroyBuffer(
-                m_Profiler.m_pDevice->Handle,
-                m_QueryResultsBuffer,
-                nullptr );
-        }
-
-        if( m_QueryResultsBufferAllocation.m_pPool != nullptr )
-        {
-            m_Profiler.m_MemoryManager.FreeMemory( &m_QueryResultsBufferAllocation );
-        }
-#else
-        free( m_QueryResultsBufferAllocation.m_pMappedMemory );
-#endif
     }
 
-    void TimestampQueryPool::ResolveQueryDataGpu( VkCommandBuffer commandBuffer, uint32_t queryCount )
+    void TimestampQueryPool::ResolveQueryDataGpu( VkCommandBuffer commandBuffer, TimestampQueryPoolData& dst, uint32_t dstOffset, uint32_t queryCount )
     {
-#if VKPROF_USE_GPU_TIMESTAMP_BUFFER
         m_Profiler.m_pDevice->Callbacks.CmdCopyQueryPoolResults(
             commandBuffer,
             m_QueryPool,
             0, queryCount,
-            m_QueryResultsBuffer,
-            0, sizeof( uint64_t ),
+            dst.GetBufferHandle(),
+            dstOffset, sizeof( uint64_t ),
             VK_QUERY_RESULT_64_BIT );
-#endif
     }
 
-    void TimestampQueryPool::ResolveQueryDataCpu( uint32_t queryCount )
+    void TimestampQueryPool::ResolveQueryDataCpu( TimestampQueryPoolData& dst, uint32_t dstOffset, uint32_t queryCount )
     {
-#if !VKPROF_USE_GPU_TIMESTAMP_BUFFER
         m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
             m_Profiler.m_pDevice->Handle,
             m_QueryPool,
             0, queryCount,
-            m_QueryResultsBufferAllocation.m_Size,
-            m_QueryResultsBufferAllocation.m_pMappedMemory,
+            queryCount * sizeof( uint64_t ),
+            reinterpret_cast<std::byte*>(dst.GetCpuAllocation()) + dstOffset,
             sizeof( uint64_t ),
             VK_QUERY_RESULT_64_BIT );
-#endif
     }
 }

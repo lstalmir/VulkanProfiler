@@ -23,7 +23,10 @@
 #include "profiler_command_buffer.h"
 #include <list>
 #include <map>
+#include <queue>
 #include <mutex>
+#include <thread>
+#include <condition_variable>
 #include <unordered_set>
 #include <unordered_map>
 // Import extension structures
@@ -32,10 +35,11 @@
 namespace Profiler
 {
     class DeviceProfiler;
+    class TimestampQueryPoolData;
 
     struct DeviceProfilerSubmit
     {
-        std::vector<ProfilerCommandBuffer*>             m_pCommandBuffers;
+        std::vector<ProfilerCommandBuffer*>             m_pCommandBuffers = {};
         std::vector<VkSemaphore>                        m_SignalSemaphores = {};
         std::vector<VkSemaphore>                        m_WaitSemaphores = {};
     };
@@ -46,6 +50,14 @@ namespace Profiler
         ContainerType<DeviceProfilerSubmit>             m_Submits = {};
         std::chrono::high_resolution_clock::time_point  m_Timestamp = {};
         uint32_t                                        m_ThreadId = {};
+
+        TimestampQueryPoolData*                         m_pTimestampData = {};
+
+        VkCommandPool                                   m_TimestampCopyCommandPool = {};
+        VkCommandBuffer                                 m_TimestampCopyCommandBuffer = {};
+        VkFence                                         m_TimestampCopyFence = {};
+
+        uint32_t                                        m_SubmitBatchDataIndex = 0;
     };
 
     /***********************************************************************************\
@@ -59,35 +71,43 @@ namespace Profiler
     \***********************************************************************************/
     class ProfilerDataAggregator
     {
+        struct Frame
+        {
+            uint32_t                                  m_FrameIndex;
+            std::list<DeviceProfilerSubmitBatch>      m_PendingSubmits;
+            std::deque<DeviceProfilerSubmitBatchData> m_CompleteSubmits;
+        };
+
     public:
         VkResult Initialize( DeviceProfiler* );
+        void Destroy();
+
+        void SetFrameIndex( uint32_t i ) { m_FrameIndex = i; }
 
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
-        void AppendData( ProfilerCommandBuffer*, const DeviceProfilerCommandBufferData& );
-        
         void Aggregate();
-        void Reset();
 
-        DeviceProfilerFrameData GetAggregatedData();
+        const DeviceProfilerFrameData& GetAggregatedData() const { return m_CurrentFrameData; }
 
     private:
         DeviceProfiler* m_pProfiler;
 
-        ContainerType<DeviceProfilerSubmitBatch> m_Submits;
-        ContainerType<DeviceProfilerSubmitBatchData> m_AggregatedData;
-
-        std::unordered_map<ProfilerCommandBuffer*, DeviceProfilerCommandBufferData> m_Data;
+        DeviceProfilerFrameData m_CurrentFrameData;
+        std::list<Frame> m_NextFrames;
 
         std::mutex m_Mutex;
+        uint32_t m_FrameIndex;
 
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
         uint32_t                                               m_VendorMetricsSetIndex;
 
         void LoadVendorMetricsProperties();
-        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics() const;
+        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics(
+            const Frame& ) const;
 
-        ContainerType<DeviceProfilerPipelineData> CollectTopPipelines() const;
+        ContainerType<DeviceProfilerPipelineData> CollectTopPipelines(
+            const Frame& ) const;
 
         void CollectPipelinesFromCommandBuffer(
             const DeviceProfilerCommandBufferData&,
@@ -96,5 +116,13 @@ namespace Profiler
         void CollectPipeline(
             const DeviceProfilerPipelineData&,
             std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
+
+        void ResolveSubmitBatchData(
+            const DeviceProfilerSubmitBatch&,
+            DeviceProfilerSubmitBatchData& ) const;
+
+        void ResolveFrameData(
+            const Frame&,
+            DeviceProfilerFrameData& ) const;
     };
 }

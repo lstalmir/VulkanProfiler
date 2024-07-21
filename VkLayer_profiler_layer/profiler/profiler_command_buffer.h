@@ -51,7 +51,7 @@ namespace Profiler
         DeviceProfilerCommandPool& GetCommandPool() const;
         VkCommandBuffer GetHandle() const;
 
-        void Submit();
+        void Submit( uint32_t&, uint32_t& );
 
         void Begin( const VkCommandBufferBeginInfo* );
         void End();
@@ -82,7 +82,11 @@ namespace Profiler
             uint32_t, const VkImageMemoryBarrier* );
         void PipelineBarrier( const VkDependencyInfo* );
 
-        const DeviceProfilerCommandBufferData& GetData();
+        void CopyTimestampQueryData( VkCommandBuffer, TimestampQueryPoolData&, uint32_t&, uint32_t& );
+
+        const DeviceProfilerCommandBufferData& GetData(
+            const TimestampQueryPoolData&,
+            uint32_t& );
 
     protected:
         DeviceProfiler&                     m_Profiler;
@@ -123,7 +127,7 @@ namespace Profiler
 
         DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;
 
-        void ResolveSubpassPipelineData( DeviceProfilerSubpassData&, size_t );
-        void ResolveSubpassSecondaryCommandBufferData( DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
+        void ResolveSubpassPipelineData( const TimestampQueryPoolData&, uint32_t, DeviceProfilerSubpassData&, size_t );
+        void ResolveSubpassSecondaryCommandBufferData( const TimestampQueryPoolData&, uint32_t&, DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
     };
 }

@@ -334,6 +334,23 @@ namespace Profiler
             ProfilerPlatformFunctions::SetStablePowerState( m_pDevice, &m_pStablePowerStateHandle );
         }
 
+        for( const auto& [queue, queueObj] : m_pDevice->Queues )
+        {
+            VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+            commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            commandPoolCreateInfo.queueFamilyIndex = queueObj.Family;
+
+            VkCommandPool commandPool = VK_NULL_HANDLE;
+            m_pDevice->Callbacks.CreateCommandPool(
+                m_pDevice->Handle,
+                &commandPoolCreateInfo,
+                nullptr,
+                &commandPool );
+
+            m_QueueCommandPools.emplace( queue, commandPool );
+        }
+
         return VK_SUCCESS;
     }
 
@@ -479,15 +496,25 @@ namespace Profiler
         m_Synchronization.Destroy();
         m_MemoryManager.Destroy();
 
+        m_DataAggregator.Destroy();
+
         if( m_SubmitFence != VK_NULL_HANDLE )
         {
             m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
             m_SubmitFence = VK_NULL_HANDLE;
         }
-        
+
         if( m_pStablePowerStateHandle != nullptr )
         {
             ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
+        }
+
+        for( auto [queue, commandPool] : m_QueueCommandPools )
+        {
+            m_pDevice->Callbacks.DestroyCommandPool(
+                m_pDevice->Handle,
+                commandPool,
+                nullptr );
         }
 
         m_CurrentFrame = 0;
@@ -1069,14 +1096,9 @@ namespace Profiler
         std::scoped_lock lk( m_SubmitMutex );
         #endif
 
-        // Wait for the submitted command buffers to execute
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
         {
-            m_pDevice->m_ProfilerSelfTime.Begin( __FUNCTION__ " (sync)" );
-            m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
-            m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
-            m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_SubmitFence );
-            m_pDevice->m_ProfilerSelfTime.End();
+            m_DataAggregator.Aggregate();
         }
 
         // Store submitted command buffers and get results
@@ -1084,6 +1106,10 @@ namespace Profiler
         submitBatch.m_Handle = queue;
         submitBatch.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
         submitBatch.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+
+        // Count all submitted command buffers and timestamp queries, including secondary command buffers
+        uint32_t commandBufferCount = 0;
+        uint32_t queryCount = 0;
 
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
@@ -1101,8 +1127,10 @@ namespace Profiler
                 VkCommandBuffer commandBuffer = T::CommandBuffer( submitInfo, commandBufferIdx );
                 auto& profilerCommandBuffer = GetCommandBuffer( commandBuffer );
 
-                // Dirty command buffer profiling data
-                profilerCommandBuffer.Submit();
+                // Dirty command buffer profiling data and collect number of secondary command buffers and timestamp queries
+                profilerCommandBuffer.Submit(
+                    commandBufferCount,
+                    queryCount );
 
                 submit.m_pCommandBuffers.push_back( &profilerCommandBuffer );
             }
@@ -1122,6 +1150,67 @@ namespace Profiler
             submitBatch.m_Submits.push_back( submit );
         }
 
+        // Get a command pool for timestamp data copy
+        submitBatch.m_TimestampCopyCommandPool = m_QueueCommandPools.at( queue );
+
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        commandBufferAllocateInfo.commandBufferCount = 1;
+        commandBufferAllocateInfo.commandPool = submitBatch.m_TimestampCopyCommandPool;
+
+        VkResult result = m_pDevice->Callbacks.AllocateCommandBuffers(
+            m_pDevice->Handle,
+            &commandBufferAllocateInfo,
+            &submitBatch.m_TimestampCopyCommandBuffer );
+        assert( result == VK_SUCCESS );
+
+        // Command buffers are dispatchable handles, update pointers to parent's dispatch table
+        result = m_pDevice->SetDeviceLoaderData( m_pDevice->Handle, submitBatch.m_TimestampCopyCommandBuffer );
+        assert( result == VK_SUCCESS );
+
+        VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+        commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        result = m_pDevice->Callbacks.BeginCommandBuffer(
+            submitBatch.m_TimestampCopyCommandBuffer,
+            &commandBufferBeginInfo );
+        assert( result == VK_SUCCESS );
+
+        VkFenceCreateInfo fenceCreateInfo = {};
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+        result = m_pDevice->Callbacks.CreateFence(
+            m_pDevice->Handle,
+            &fenceCreateInfo,
+            nullptr,
+            &submitBatch.m_TimestampCopyFence );
+        assert( result == VK_SUCCESS );
+
+        // Allocate a buffer for the timestamp data and collect the results at the end of submit
+        submitBatch.m_pTimestampData = new TimestampQueryPoolData( *this, commandBufferCount, queryCount );
+
+        uint32_t dstOffset = 0;
+        uint32_t commandBufferIndex = 0;
+
+        for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
+        {
+            DeviceProfilerSubmit& submit = submitBatch.m_Submits[ submitIdx ];
+
+            for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+            {
+                // Copy timestamps to a staging buffer
+                pCommandBuffer->CopyTimestampQueryData(
+                    submitBatch.m_TimestampCopyCommandBuffer,
+                    *submitBatch.m_pTimestampData,
+                    dstOffset,
+                    commandBufferIndex );
+            }
+        }
+
+        m_pDevice->Callbacks.EndCommandBuffer( submitBatch.m_TimestampCopyCommandBuffer );
+
         m_DataAggregator.AppendSubmit( submitBatch );
 
         // Release performance configuration
@@ -1130,11 +1219,17 @@ namespace Profiler
             ReleasePerformanceConfigurationINTEL();
         }
 
-        if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
-        {
-            // Collect data from the submitted command buffers
-            m_DataAggregator.Aggregate();
-        }
+        // Submit the copy commands
+        VkSubmitInfo copySubmitInfo = {};
+        copySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        copySubmitInfo.commandBufferCount = 1;
+        copySubmitInfo.pCommandBuffers = &submitBatch.m_TimestampCopyCommandBuffer;
+
+        result = m_pDevice->Callbacks.QueueSubmit(
+            queue,
+            1, &copySubmitInfo,
+            submitBatch.m_TimestampCopyFence );
+        assert( result == VK_SUCCESS );
     }
 
     /***********************************************************************************\
@@ -1185,7 +1280,7 @@ namespace Profiler
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_PRESENT_EXT )
         {
             // Doesn't introduce in-frame CPU overhead but may cause some image-count-related issues disappear
-            m_Synchronization.WaitForDevice();
+            //m_Synchronization.WaitForDevice();
 
             // Collect data from the submitted command buffers
             m_DataAggregator.Aggregate();
@@ -1214,7 +1309,7 @@ namespace Profiler
         m_CpuTimestampCounter.Begin();
 
         // Prepare aggregator for the next frame
-        m_DataAggregator.Reset();
+        m_DataAggregator.SetFrameIndex( m_CurrentFrame );
 
         // Send synchronization timestamps
         m_Synchronization.SendSynchronizationTimestamps();
@@ -1559,7 +1654,7 @@ namespace Profiler
         auto it = m_pCommandBuffers.unsafe_find( commandBuffer );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.AppendData( it->second.get(), it->second->GetData() );
+        m_DataAggregator.Aggregate();
 
         return m_pCommandBuffers.unsafe_remove( it );
     }
@@ -1578,7 +1673,7 @@ namespace Profiler
         assert( !m_pCommandBuffers.try_lock() );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.AppendData( it->second.get(), it->second->GetData() );
+        m_DataAggregator.Aggregate();
 
         return m_pCommandBuffers.unsafe_remove( it );
     }

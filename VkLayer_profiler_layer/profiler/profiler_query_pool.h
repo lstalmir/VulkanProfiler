@@ -28,6 +28,52 @@ namespace Profiler
 {
     class DeviceProfiler;
 
+    class TimestampQueryPoolData
+    {
+    public:
+        TimestampQueryPoolData( DeviceProfiler& profiler, uint32_t commandBufferCount, uint32_t queryCount );
+        ~TimestampQueryPoolData();
+
+        TimestampQueryPoolData( const TimestampQueryPoolData& ) = delete;
+        TimestampQueryPoolData& operator=( const TimestampQueryPoolData& ) = delete;
+
+        TimestampQueryPoolData( TimestampQueryPoolData&& ) = delete;
+        TimestampQueryPoolData& operator=( TimestampQueryPoolData&& ) = delete;
+
+        VkBuffer GetBufferHandle() const
+        {
+            return m_Buffer;
+        }
+
+        uint64_t GetQueryData( uint64_t index ) const
+        {
+            return reinterpret_cast<const uint64_t*>(m_AllocationInfo.pMappedData)[ index ];
+        }
+
+        void* GetCpuAllocation() const
+        {
+            return m_pCpuAllocation;
+        }
+
+        void SetCommandBufferFirstTimestampOffset( uint32_t commandBufferIndex, uint32_t offset )
+        {
+            m_pCommandBufferOffsets[ commandBufferIndex ] = offset;
+        }
+
+        uint32_t GetCommandBufferFirstTimestampOffset( uint32_t commandBufferIndex ) const
+        {
+            return m_pCommandBufferOffsets[ commandBufferIndex ];
+        }
+
+    private:
+        DeviceProfiler&                m_Profiler;
+        VkBuffer                       m_Buffer;
+        VmaAllocation                  m_Allocation;
+        VmaAllocationInfo              m_AllocationInfo;
+        void*                          m_pCpuAllocation;
+        uint32_t*                      m_pCommandBufferOffsets;
+    };
+
     class TimestampQueryPool
     {
     public:
@@ -37,22 +83,12 @@ namespace Profiler
         TimestampQueryPool( const TimestampQueryPool& ) = delete;
 
         VkQueryPool GetQueryPoolHandle() const { return m_QueryPool; }
-        VkBuffer GetResultsBufferHandle() const { return m_QueryResultsBuffer; }
 
-        void ResolveQueryDataGpu( VkCommandBuffer, uint32_t );
-        void ResolveQueryDataCpu( uint32_t );
-
-        PROFILER_FORCE_INLINE uint64_t GetQueryData( uint32_t queryIndex ) const
-        {
-            return reinterpret_cast<const uint64_t*>( m_QueryResultsBufferAllocation.m_pMappedMemory )[ queryIndex ];
-        }
+        void ResolveQueryDataGpu( VkCommandBuffer commandBuffer, TimestampQueryPoolData& dst, uint32_t dstOffset, uint32_t queryCount );
+        void ResolveQueryDataCpu( TimestampQueryPoolData& dst, uint32_t dstOffset, uint32_t queryCount );
 
     private:
         DeviceProfiler&                m_Profiler;
-
         VkQueryPool                    m_QueryPool;
-
-        VkBuffer                       m_QueryResultsBuffer;
-        DeviceProfilerMemoryAllocation m_QueryResultsBufferAllocation;
     };
 }

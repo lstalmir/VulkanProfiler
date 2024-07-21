@@ -19,33 +19,15 @@
 // SOFTWARE.
 
 #pragma once
+#define VK_NO_PROTOTYPES
 #include <vulkan/vk_layer.h>
-#include <list>
-#include <vector>
+#include <vk_mem_alloc.h>
 #include <mutex>
+#include <unordered_map>
 
 namespace Profiler
 {
     struct VkDevice_Object;
-
-    struct DeviceProfilerMemoryPool
-    {
-        VkDeviceMemory m_DeviceMemory;
-        VkDeviceSize m_Size;
-        VkDeviceSize m_FreeSize;
-        uint32_t m_MemoryTypeIndex;
-        VkMemoryPropertyFlags m_Flags;
-        void* m_pMappedMemory;
-        std::vector<bool> m_Allocations;
-    };
-
-    struct DeviceProfilerMemoryAllocation
-    {
-        DeviceProfilerMemoryPool* m_pPool;
-        VkDeviceSize m_Offset;
-        VkDeviceSize m_Size;
-        void* m_pMappedMemory;
-    };
 
     class DeviceProfilerMemoryManager
     {
@@ -55,30 +37,22 @@ namespace Profiler
         VkResult Initialize( VkDevice_Object* pDevice );
         void Destroy();
 
-        VkResult AllocateMemory(
-            const VkMemoryRequirements& memoryRequirements,
-            VkMemoryPropertyFlags requiredFlags,
-            DeviceProfilerMemoryAllocation* pAllocation );
+        VkResult AllocateBuffer(
+            const VkBufferCreateInfo& bufferCreateInfo,
+            const VmaAllocationCreateInfo& allocationCreateInfo,
+            VkBuffer* pBuffer,
+            VmaAllocation* pAllocation,
+            VmaAllocationInfo* pAllocationInfo = nullptr );
 
-        void FreeMemory(
-            DeviceProfilerMemoryAllocation* pAllocation );
+        void FreeBuffer(
+            VkBuffer buffer,
+            VmaAllocation allocation );
 
     private:
         VkDevice_Object* m_pDevice;
+        VmaAllocator m_Allocator;
 
-        std::mutex m_MemoryAllocationMutex;
-
-        VkDeviceSize m_DefaultMemoryPoolSize;
-        VkDeviceSize m_DefaultMemoryBlockSize;
-
-        VkPhysicalDeviceMemoryProperties m_DeviceMemoryProperties;
-
-        std::list<DeviceProfilerMemoryPool> m_MemoryPools;
-
-        VkResult AllocatePool(
-            VkDeviceSize size,
-            uint32_t requiredTypeBits,
-            VkMemoryPropertyFlags requiredFlags,
-            DeviceProfilerMemoryPool** ppPool );
+        std::mutex m_AllocationMutex;
+        std::unordered_map<VkBuffer, VmaAllocation> m_BufferAllocations;
     };
 }
