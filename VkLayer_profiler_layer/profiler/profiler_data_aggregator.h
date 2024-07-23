@@ -58,6 +58,7 @@ namespace Profiler
         VkFence                                         m_TimestampCopyFence = {};
 
         uint32_t                                        m_SubmitBatchDataIndex = 0;
+        std::unordered_set<ProfilerCommandBuffer*>      m_pSubmittedCommandBuffers = {};
     };
 
     /***********************************************************************************\
@@ -85,7 +86,7 @@ namespace Profiler
         void SetFrameIndex( uint32_t i ) { m_FrameIndex = i; }
 
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
-        void Aggregate();
+        void Aggregate( ProfilerCommandBuffer* = nullptr );
 
         const DeviceProfilerFrameData& GetAggregatedData() const { return m_CurrentFrameData; }
 
@@ -122,7 +123,7 @@ namespace Profiler
             DeviceProfilerSubmitBatchData& ) const;
 
         void ResolveFrameData(
-            const Frame&,
+            Frame&,
             DeviceProfilerFrameData& ) const;
     };
 }

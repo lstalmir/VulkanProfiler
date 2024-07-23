@@ -1645,7 +1645,7 @@ namespace Profiler
         auto it = m_pCommandBuffers.unsafe_find( commandBuffer );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.Aggregate();
+        m_DataAggregator.Aggregate( it->second.get() );
 
         return m_pCommandBuffers.unsafe_remove( it );
     }
@@ -1664,7 +1664,7 @@ namespace Profiler
         assert( !m_pCommandBuffers.try_lock() );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.Aggregate();
+        m_DataAggregator.Aggregate( it->second.get() );
 
         return m_pCommandBuffers.unsafe_remove( it );
     }

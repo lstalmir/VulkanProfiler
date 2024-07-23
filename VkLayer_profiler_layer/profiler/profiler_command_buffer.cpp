@@ -250,6 +250,9 @@ namespace Profiler
 
         if( m_ProfilingEnabled )
         {
+            // The data must be collected before the command bufer is reused.
+            m_Profiler.m_DataAggregator.Aggregate( this );
+
             // Reset data
             m_Stats = {};
             m_Data.m_RenderPasses.clear();

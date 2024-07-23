@@ -164,6 +164,13 @@ namespace Profiler
         submitBatchData.m_Handle = submit.m_Handle;
         submitBatchData.m_ThreadId = submit.m_ThreadId;
         submitBatchData.m_Timestamp = submit.m_Timestamp;
+
+        for( const DeviceProfilerSubmit& _submit : submitBatch.m_Submits )
+        {
+            submitBatch.m_pSubmittedCommandBuffers.insert(
+                _submit.m_pCommandBuffers.begin(),
+                _submit.m_pCommandBuffers.end() );
+        }
     }
 
     /***********************************************************************************\
@@ -175,13 +182,44 @@ namespace Profiler
         Collect data from the submitted command buffers.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::Aggregate()
+    void ProfilerDataAggregator::Aggregate( ProfilerCommandBuffer* pWaitForCommandBuffer )
     {
         PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
 
         std::scoped_lock lk( m_Mutex );
 
         LoadVendorMetricsProperties();
+
+        // The synchronization may be required if a command buffer is being freed.
+        // In such case, the profiler has to wait for the timestamp data.
+        if( pWaitForCommandBuffer )
+        {
+            std::vector<VkFence> waitFences;
+
+            // Wait for all pending submits that reference the command buffer.
+            for( const Frame& frame : m_NextFrames )
+            {
+                for( const DeviceProfilerSubmitBatch& submitBatch : frame.m_PendingSubmits )
+                {
+                    if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
+                    {
+                        // Wait for this submit batch.
+                        waitFences.push_back( submitBatch.m_TimestampCopyFence );
+                    }
+                }
+            }
+
+            if( !waitFences.empty() )
+            {
+                // Wait for the fences.
+                m_pProfiler->m_pDevice->Callbacks.WaitForFences(
+                    m_pProfiler->m_pDevice->Handle,
+                    static_cast<uint32_t>(waitFences.size()),
+                    waitFences.data(),
+                    VK_TRUE,
+                    UINT64_MAX );
+            }
+        }
 
         // Check if any submit has completed
         for( Frame& frame : m_NextFrames )
@@ -242,6 +280,16 @@ namespace Profiler
         }
     }
 
+    /***********************************************************************************\
+
+    Function:
+        ResolveSubmitBatchData
+
+    Description:
+        Collect timestamps sent by the command buffers in the submit batch and store
+        the results in the given data structure.
+
+    \***********************************************************************************/
     void ProfilerDataAggregator::ResolveSubmitBatchData(
         const DeviceProfilerSubmitBatch& submitBatch,
         DeviceProfilerSubmitBatchData& submitBatchData ) const
@@ -276,14 +324,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetAggregatedData
+        ResolveFrameData
 
     Description:
-        Merge similar command buffers and return aggregated results.
-        Prepare aggregator for the next profiling run.
+        Create summary of the frame and store it in the given data structure.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::ResolveFrameData( const Frame& frame, DeviceProfilerFrameData& frameData ) const
+    void ProfilerDataAggregator::ResolveFrameData( Frame& frame, DeviceProfilerFrameData& frameData ) const
     {
         PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
 
