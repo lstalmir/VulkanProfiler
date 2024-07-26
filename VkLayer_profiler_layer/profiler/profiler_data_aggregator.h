@@ -35,7 +35,7 @@
 namespace Profiler
 {
     class DeviceProfiler;
-    class TimestampQueryPoolData;
+    class DeviceProfilerQueryDataBuffer;
 
     struct DeviceProfilerSubmit
     {
@@ -51,11 +51,11 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point  m_Timestamp = {};
         uint32_t                                        m_ThreadId = {};
 
-        TimestampQueryPoolData*                         m_pTimestampData = {};
+        DeviceProfilerQueryDataBuffer*                  m_pDataBuffer = {};
 
-        VkCommandPool                                   m_TimestampCopyCommandPool = {};
-        VkCommandBuffer                                 m_TimestampCopyCommandBuffer = {};
-        VkFence                                         m_TimestampCopyFence = {};
+        VkCommandPool                                   m_DataCopyCommandPool = {};
+        VkCommandBuffer                                 m_DataCopyCommandBuffer = {};
+        VkFence                                         m_DataCopyFence = {};
 
         uint32_t                                        m_SubmitBatchDataIndex = 0;
         std::unordered_set<ProfilerCommandBuffer*>      m_pSubmittedCommandBuffers = {};
@@ -99,6 +99,9 @@ namespace Profiler
         std::mutex m_Mutex;
         uint32_t m_FrameIndex;
 
+        // Command pools used for copying query data
+        std::unordered_map<VkQueue, VkCommandPool> m_CopyCommandPools;
+
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
         uint32_t                                               m_VendorMetricsSetIndex;
@@ -125,5 +128,11 @@ namespace Profiler
         void ResolveFrameData(
             Frame&,
             DeviceProfilerFrameData& ) const;
+
+        void WriteQueryDataToGpuBuffer(
+            DeviceProfilerSubmitBatch& );
+
+        void WriteQueryDataToCpuBuffer(
+            DeviceProfilerSubmitBatch& );
     };
 }

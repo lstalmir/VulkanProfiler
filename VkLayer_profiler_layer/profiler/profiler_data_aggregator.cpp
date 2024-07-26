@@ -20,6 +20,7 @@
 
 #include "profiler_data_aggregator.h"
 #include "profiler.h"
+#include "profiler_query_pool.h"
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "intel/profiler_metrics_api.h"
@@ -121,7 +122,39 @@ namespace Profiler
     {
         m_pProfiler = pProfiler;
         m_VendorMetricsSetIndex = UINT32_MAX;
-        return VK_SUCCESS;
+
+        VkResult result = VK_SUCCESS;
+
+        // Create command pools to copy query data using GPU.
+        for( const auto& [queue, queueObj] : m_pProfiler->m_pDevice->Queues )
+        {
+            VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+            commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            commandPoolCreateInfo.queueFamilyIndex = queueObj.Family;
+
+            VkCommandPool commandPool = VK_NULL_HANDLE;
+            result = m_pProfiler->m_pDevice->Callbacks.CreateCommandPool(
+                m_pProfiler->m_pDevice->Handle,
+                &commandPoolCreateInfo,
+                nullptr,
+                &commandPool );
+
+            if( result != VK_SUCCESS )
+            {
+                break;
+            }
+
+            m_CopyCommandPools.emplace( queue, commandPool );
+        }
+
+        // Cleanup if initialization failed.
+        if( result != VK_SUCCESS )
+        {
+            Destroy();
+        }
+
+        return result;
     }
 
     /***********************************************************************************\
@@ -134,6 +167,16 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Destroy()
     {
+        for( auto [_, commandPool] : m_CopyCommandPools )
+        {
+            m_pProfiler->m_pDevice->Callbacks.DestroyCommandPool(
+                m_pProfiler->m_pDevice->Handle,
+                commandPool,
+                nullptr );
+        }
+
+        m_CopyCommandPools.clear();
+        m_pProfiler = nullptr;
     }
 
     /***********************************************************************************\
@@ -171,6 +214,23 @@ namespace Profiler
                 _submit.m_pCommandBuffers.begin(),
                 _submit.m_pCommandBuffers.end() );
         }
+
+        // Allocate a buffer for the query data.
+        uint64_t bufferSize = 0;
+
+        for( const ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+        {
+            bufferSize += pCommandBuffer->GetRequiredQueryDataBufferSize();
+        }
+
+        submitBatch.m_pDataBuffer = new DeviceProfilerQueryDataBuffer( *m_pProfiler, bufferSize );
+
+        // Try to copy the data using GPU.
+        // It may fallback to CPU allocation if the function fails to allocate the command buffer.
+        if( submitBatch.m_pDataBuffer->UsesGpuAllocation() )
+        {
+            WriteQueryDataToGpuBuffer( submitBatch );
+        }
     }
 
     /***********************************************************************************\
@@ -204,7 +264,7 @@ namespace Profiler
                     if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                     {
                         // Wait for this submit batch.
-                        waitFences.push_back( submitBatch.m_TimestampCopyFence );
+                        waitFences.push_back( submitBatch.m_DataCopyFence );
                     }
                 }
             }
@@ -229,25 +289,35 @@ namespace Profiler
             {
                 VkResult result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
                     m_pProfiler->m_pDevice->Handle,
-                    submitBatchIt->m_TimestampCopyFence );
+                    submitBatchIt->m_DataCopyFence );
 
                 if( result == VK_SUCCESS )
                 {
+                    if( !submitBatchIt->m_pDataBuffer->UsesGpuAllocation() )
+                    {
+                        WriteQueryDataToCpuBuffer( *submitBatchIt );
+                    }
+
                     ResolveSubmitBatchData(
                         *submitBatchIt,
                         frame.m_CompleteSubmits[ submitBatchIt->m_SubmitBatchDataIndex ] );
 
-                    m_pProfiler->m_pDevice->Callbacks.DestroyFence(
-                        m_pProfiler->m_pDevice->Handle,
-                        submitBatchIt->m_TimestampCopyFence,
-                        nullptr );
+                    if( submitBatchIt->m_DataCopyFence )
+                    {
+                        m_pProfiler->m_pDevice->Callbacks.DestroyFence(
+                            m_pProfiler->m_pDevice->Handle,
+                            submitBatchIt->m_DataCopyFence,
+                            nullptr );
+                    }
+                    if( submitBatchIt->m_DataCopyCommandBuffer )
+                    {
+                        m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
+                            m_pProfiler->m_pDevice->Handle,
+                            submitBatchIt->m_DataCopyCommandPool,
+                            1, &submitBatchIt->m_DataCopyCommandBuffer );
+                    }
 
-                    m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
-                        m_pProfiler->m_pDevice->Handle,
-                        submitBatchIt->m_TimestampCopyCommandPool,
-                        1, &submitBatchIt->m_TimestampCopyCommandBuffer );
-
-                    delete submitBatchIt->m_pTimestampData;
+                    delete submitBatchIt->m_pDataBuffer;
 
                     submitBatchIt = frame.m_PendingSubmits.erase( submitBatchIt );
                 }
@@ -294,7 +364,9 @@ namespace Profiler
         const DeviceProfilerSubmitBatch& submitBatch,
         DeviceProfilerSubmitBatchData& submitBatchData ) const
     {
-        uint32_t commandBufferIndex = 0;
+        DeviceProfilerQueryDataBufferReader reader(
+            *m_pProfiler,
+            *submitBatch.m_pDataBuffer );
 
         for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
         {
@@ -308,9 +380,7 @@ namespace Profiler
             for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
             {
                 // Collect command buffer data
-                const DeviceProfilerCommandBufferData& commandBufferData = pCommandBuffer->GetData(
-                    *submitBatch.m_pTimestampData,
-                    commandBufferIndex );
+                const DeviceProfilerCommandBufferData& commandBufferData = pCommandBuffer->GetData( reader );
                 submitData.m_CommandBuffers.push_back( commandBufferData );
 
                 submitData.m_BeginTimestamp.m_Value = std::min(
@@ -656,5 +726,128 @@ namespace Profiler
 
         // Increase total pipeline time
         (*it).second.m_EndTimestamp.m_Value += (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteQueryDataToGpuBuffer
+
+    Description:
+        Allocate a command buffer, record copy commands and submit it for execution.
+        Fallback to a CPU allocation if the allocation or recording fails.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
+    {
+        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
+
+        // Get the command pool associated with the queue.
+        // It is implicitly synchronized by the application here.
+        submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+
+        // Allocate the command buffer.
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        commandBufferAllocateInfo.commandBufferCount = 1;
+        commandBufferAllocateInfo.commandPool = submitBatch.m_DataCopyCommandPool;
+
+        VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
+            m_pProfiler->m_pDevice->Handle,
+            &commandBufferAllocateInfo,
+            &submitBatch.m_DataCopyCommandBuffer );
+
+        if( result == VK_SUCCESS )
+        {
+            // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
+            result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
+                m_pProfiler->m_pDevice->Handle,
+                submitBatch.m_DataCopyCommandBuffer );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            // Begin recording commands to the copy command buffer.
+            VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+            commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
+                submitBatch.m_DataCopyCommandBuffer,
+                &commandBufferBeginInfo );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            // Create a fence for synchronization.
+            VkFenceCreateInfo fenceCreateInfo = {};
+            fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+            result = m_pProfiler->m_pDevice->Callbacks.CreateFence(
+                m_pProfiler->m_pDevice->Handle,
+                &fenceCreateInfo,
+                nullptr,
+                &submitBatch.m_DataCopyFence );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            // Write timestamp queries to the buffer using the GPU.
+            DeviceProfilerQueryDataBufferWriter writer(
+                *m_pProfiler,
+                *submitBatch.m_pDataBuffer,
+                submitBatch.m_DataCopyCommandBuffer );
+
+            for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+            {
+                pCommandBuffer->WriteQueryData( writer );
+            }
+
+            result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
+                submitBatch.m_DataCopyCommandBuffer );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            // Submit the copy commands.
+            VkSubmitInfo copySubmitInfo = {};
+            copySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            copySubmitInfo.commandBufferCount = 1;
+            copySubmitInfo.pCommandBuffers = &submitBatch.m_DataCopyCommandBuffer;
+
+            result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
+                submitBatch.m_Handle,
+                1, &copySubmitInfo,
+                submitBatch.m_DataCopyFence );
+        }
+
+        if( result != VK_SUCCESS )
+        {
+            // If any of the steps above has failed, fallback to CPU allocation and collect the data later.
+            submitBatch.m_pDataBuffer->FallbackToCpuAllocation();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteQueryDataToCpuBuffer
+
+    Description:
+        Copy the data from the query pools to the buffer.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
+    {
+        // Write timestamp queries to the buffer using the CPU.
+        DeviceProfilerQueryDataBufferWriter writer(
+            *m_pProfiler,
+            *submitBatch.m_pDataBuffer );
+
+        for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+        {
+            pCommandBuffer->WriteQueryData( writer );
+        }
     }
 }

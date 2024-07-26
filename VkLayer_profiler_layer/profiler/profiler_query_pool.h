@@ -24,71 +24,123 @@
 
 #include <vulkan/vk_layer.h>
 
+#include <map>
+
 namespace Profiler
 {
     class DeviceProfiler;
 
-    class TimestampQueryPoolData
+    struct DeviceProfilerQueryDataContext
     {
-    public:
-        TimestampQueryPoolData( DeviceProfiler& profiler, uint32_t commandBufferCount, uint32_t queryCount );
-        ~TimestampQueryPoolData();
-
-        TimestampQueryPoolData( const TimestampQueryPoolData& ) = delete;
-        TimestampQueryPoolData& operator=( const TimestampQueryPoolData& ) = delete;
-
-        TimestampQueryPoolData( TimestampQueryPoolData&& ) = delete;
-        TimestampQueryPoolData& operator=( TimestampQueryPoolData&& ) = delete;
-
-        VkBuffer GetBufferHandle() const
-        {
-            return m_Buffer;
-        }
-
-        uint64_t GetQueryData( uint64_t index ) const
-        {
-            return reinterpret_cast<const uint64_t*>(m_AllocationInfo.pMappedData)[ index ];
-        }
-
-        void* GetCpuAllocation() const
-        {
-            return m_pCpuAllocation;
-        }
-
-        void SetCommandBufferFirstTimestampOffset( uint32_t commandBufferIndex, uint32_t offset )
-        {
-            m_pCommandBufferOffsets[ commandBufferIndex ] = offset;
-        }
-
-        uint32_t GetCommandBufferFirstTimestampOffset( uint32_t commandBufferIndex ) const
-        {
-            return m_pCommandBufferOffsets[ commandBufferIndex ];
-        }
-
-    private:
-        DeviceProfiler&                m_Profiler;
-        VkBuffer                       m_Buffer;
-        VmaAllocation                  m_Allocation;
-        VmaAllocationInfo              m_AllocationInfo;
-        void*                          m_pCpuAllocation;
-        uint32_t*                      m_pCommandBufferOffsets;
+        uint32_t m_TimestampDataOffset = 0;
+        uint32_t m_TimestampDataSize = 0;
+        uint32_t m_PerformanceDataSize = 0;
+        uint32_t m_PerformanceDataMetricsSetIndex = 0;
+        VkQueryPool m_PerformanceQueryPool = VK_NULL_HANDLE;
     };
 
-    class TimestampQueryPool
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerQueryDataBuffer
+
+    Description:
+        An allocation that stores results of timestamp and performance queries.
+
+    \***********************************************************************************/
+    class DeviceProfilerQueryDataBuffer
     {
     public:
-        TimestampQueryPool( DeviceProfiler& profiler, uint32_t queryCount );
-        ~TimestampQueryPool();
+        DeviceProfilerQueryDataBuffer( DeviceProfiler& profiler, uint64_t size );
+        ~DeviceProfilerQueryDataBuffer();
 
-        TimestampQueryPool( const TimestampQueryPool& ) = delete;
+        DeviceProfilerQueryDataBuffer( const DeviceProfilerQueryDataBuffer& ) = delete;
+        DeviceProfilerQueryDataBuffer& operator=( const DeviceProfilerQueryDataBuffer& ) = delete;
 
-        VkQueryPool GetQueryPoolHandle() const { return m_QueryPool; }
+        DeviceProfilerQueryDataBuffer( DeviceProfilerQueryDataBuffer&& ) = delete;
+        DeviceProfilerQueryDataBuffer& operator=( DeviceProfilerQueryDataBuffer&& ) = delete;
 
-        void ResolveQueryDataGpu( VkCommandBuffer commandBuffer, TimestampQueryPoolData& dst, uint32_t dstOffset, uint32_t queryCount );
-        void ResolveQueryDataCpu( TimestampQueryPoolData& dst, uint32_t dstOffset, uint32_t queryCount );
+        void FallbackToCpuAllocation();
+
+        bool UsesGpuAllocation() const;
+        VkBuffer GetGpuBuffer() const;
+        uint8_t* GetCpuBuffer() const;
+        const uint8_t* GetMappedData() const;
+
+        DeviceProfilerQueryDataContext* CreateContext( const void* handle );
+        const DeviceProfilerQueryDataContext* GetContext( const void* handle ) const;
 
     private:
-        DeviceProfiler&                m_Profiler;
-        VkQueryPool                    m_QueryPool;
+        DeviceProfiler&   m_Profiler;
+        VkBuffer          m_Buffer;
+        VmaAllocation     m_Allocation;
+        VmaAllocationInfo m_AllocationInfo;
+        void*             m_pCpuAllocation;
+        std::map<const void*, DeviceProfilerQueryDataContext> m_Contexts;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerQueryDataBufferWriter
+
+    Description:
+        Helper class that can be used to store data into the buffer.
+
+    \***********************************************************************************/
+    class DeviceProfilerQueryDataBufferWriter
+    {
+    public:
+        explicit DeviceProfilerQueryDataBufferWriter(
+            DeviceProfiler& profiler,
+            DeviceProfilerQueryDataBuffer& dataBuffer,
+            VkCommandBuffer copyCommandBuffer = VK_NULL_HANDLE );
+
+        void SetContext( const void* handle );
+        void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount );
+        void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex );
+
+    private:
+        DeviceProfiler*                 m_pProfiler;
+        DeviceProfilerQueryDataBuffer*  m_pData;
+        DeviceProfilerQueryDataContext* m_pContext;
+        VkCommandBuffer                 m_CommandBuffer;
+        union {
+            VkBuffer                    m_GpuBuffer;
+            uint8_t*                    m_CpuBuffer;
+        };
+        uint32_t                        m_DataOffset;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerQueryDataBufferWriter
+
+    Description:
+        Helper class that can be used to read the data from the buffer.
+
+    \***********************************************************************************/
+    class DeviceProfilerQueryDataBufferReader
+    {
+    public:
+        explicit DeviceProfilerQueryDataBufferReader(
+            const DeviceProfiler& profiler,
+            const DeviceProfilerQueryDataBuffer& dataBuffer );
+
+        void SetContext( const void* handle );
+        uint64_t ReadTimestampQueryResult( uint64_t index ) const;
+        uint32_t GetPerformanceQueryMetricsSetIndex() const;
+        uint32_t GetPerformanceQueryResultSize() const;
+        const uint8_t* ReadPerformanceQueryResult();
+        bool HasPerformanceQueryResult() const;
+
+    private:
+        const DeviceProfiler*                 m_pProfiler;
+        const DeviceProfilerQueryDataBuffer*  m_pData;
+        const DeviceProfilerQueryDataContext* m_pContext;
+        const uint8_t*                        m_pMappedData;
+        const uint64_t*                       m_pMappedTimestampQueryData;
+        std::vector<uint8_t>                  m_PerformanceQueryData;
     };
 }

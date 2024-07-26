@@ -334,23 +334,6 @@ namespace Profiler
             ProfilerPlatformFunctions::SetStablePowerState( m_pDevice, &m_pStablePowerStateHandle );
         }
 
-        for( const auto& [queue, queueObj] : m_pDevice->Queues )
-        {
-            VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-            commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            commandPoolCreateInfo.queueFamilyIndex = queueObj.Family;
-
-            VkCommandPool commandPool = VK_NULL_HANDLE;
-            m_pDevice->Callbacks.CreateCommandPool(
-                m_pDevice->Handle,
-                &commandPoolCreateInfo,
-                nullptr,
-                &commandPool );
-
-            m_QueueCommandPools.emplace( queue, commandPool );
-        }
-
         return VK_SUCCESS;
     }
 
@@ -507,14 +490,6 @@ namespace Profiler
         if( m_pStablePowerStateHandle != nullptr )
         {
             ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
-        }
-
-        for( auto [queue, commandPool] : m_QueueCommandPools )
-        {
-            m_pDevice->Callbacks.DestroyCommandPool(
-                m_pDevice->Handle,
-                commandPool,
-                nullptr );
         }
 
         m_CurrentFrame = 0;
@@ -1104,10 +1079,6 @@ namespace Profiler
         submitBatch.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
         submitBatch.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
-        // Count all submitted command buffers and timestamp queries, including secondary command buffers
-        uint32_t commandBufferCount = 0;
-        uint32_t queryCount = 0;
-
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
             const SubmitInfoT& submitInfo = pSubmitInfo[ submitIdx ];
@@ -1125,9 +1096,7 @@ namespace Profiler
                 auto& profilerCommandBuffer = GetCommandBuffer( commandBuffer );
 
                 // Dirty command buffer profiling data and collect number of secondary command buffers and timestamp queries
-                profilerCommandBuffer.Submit(
-                    commandBufferCount,
-                    queryCount );
+                profilerCommandBuffer.Submit();
 
                 submit.m_pCommandBuffers.push_back( &profilerCommandBuffer );
             }
@@ -1147,86 +1116,13 @@ namespace Profiler
             submitBatch.m_Submits.push_back( submit );
         }
 
-        // Get a command pool for timestamp data copy
-        submitBatch.m_TimestampCopyCommandPool = m_QueueCommandPools.at( queue );
-
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        commandBufferAllocateInfo.commandBufferCount = 1;
-        commandBufferAllocateInfo.commandPool = submitBatch.m_TimestampCopyCommandPool;
-
-        VkResult result = m_pDevice->Callbacks.AllocateCommandBuffers(
-            m_pDevice->Handle,
-            &commandBufferAllocateInfo,
-            &submitBatch.m_TimestampCopyCommandBuffer );
-        assert( result == VK_SUCCESS );
-
-        // Command buffers are dispatchable handles, update pointers to parent's dispatch table
-        result = m_pDevice->SetDeviceLoaderData( m_pDevice->Handle, submitBatch.m_TimestampCopyCommandBuffer );
-        assert( result == VK_SUCCESS );
-
-        VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-        commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        result = m_pDevice->Callbacks.BeginCommandBuffer(
-            submitBatch.m_TimestampCopyCommandBuffer,
-            &commandBufferBeginInfo );
-        assert( result == VK_SUCCESS );
-
-        VkFenceCreateInfo fenceCreateInfo = {};
-        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-        result = m_pDevice->Callbacks.CreateFence(
-            m_pDevice->Handle,
-            &fenceCreateInfo,
-            nullptr,
-            &submitBatch.m_TimestampCopyFence );
-        assert( result == VK_SUCCESS );
-
-        // Allocate a buffer for the timestamp data and collect the results at the end of submit
-        submitBatch.m_pTimestampData = new TimestampQueryPoolData( *this, commandBufferCount, queryCount );
-
-        uint32_t dstOffset = 0;
-        uint32_t commandBufferIndex = 0;
-
-        for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
-        {
-            DeviceProfilerSubmit& submit = submitBatch.m_Submits[ submitIdx ];
-
-            for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
-            {
-                // Copy timestamps to a staging buffer
-                pCommandBuffer->CopyTimestampQueryData(
-                    submitBatch.m_TimestampCopyCommandBuffer,
-                    *submitBatch.m_pTimestampData,
-                    dstOffset,
-                    commandBufferIndex );
-            }
-        }
-
-        m_pDevice->Callbacks.EndCommandBuffer( submitBatch.m_TimestampCopyCommandBuffer );
-
-        m_DataAggregator.AppendSubmit( submitBatch );
-
         // Release performance configuration
         if( m_MetricsApiINTEL.IsAvailable() )
         {
             ReleasePerformanceConfigurationINTEL();
         }
 
-        // Submit the copy commands
-        VkSubmitInfo copySubmitInfo = {};
-        copySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        copySubmitInfo.commandBufferCount = 1;
-        copySubmitInfo.pCommandBuffers = &submitBatch.m_TimestampCopyCommandBuffer;
-
-        result = m_pDevice->Callbacks.QueueSubmit(
-            queue,
-            1, &copySubmitInfo,
-            submitBatch.m_TimestampCopyFence );
-        assert( result == VK_SUCCESS );
+        m_DataAggregator.AppendSubmit( submitBatch );
     }
 
     /***********************************************************************************\

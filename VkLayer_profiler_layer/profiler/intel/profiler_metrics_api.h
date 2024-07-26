@@ -34,14 +34,6 @@ namespace Profiler
 {
     class DeviceProfiler;
 
-    struct ProfilerMetricsReport_INTEL
-    {
-        std::vector<char> m_QueryResult = {};
-
-        // Intermediate values computed by the MD library.
-        std::vector<MetricsDiscovery::TTypedValue_1_0> m_IntermediateValues = {};
-    };
-
     struct ProfilerMetricsSet_INTEL
     {
         MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
@@ -94,7 +86,8 @@ namespace Profiler
 
         void ParseReport(
             uint32_t                                            metricsSetIndex,
-            ProfilerMetricsReport_INTEL&                        report,
+            uint32_t                                            reportSize,
+            const uint8_t*                                      pReport,
             std::vector<VkProfilerPerformanceCounterResultEXT>& results );
 
     private:
