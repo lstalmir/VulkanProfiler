@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <functional>
 
 // ImGuiColorTextEdit
 class TextEditor;
@@ -78,6 +79,9 @@ namespace Profiler
 
         void Draw();
 
+        typedef std::function<void( bool, const std::string& )> ShaderRepresentationSavedCallback;
+        void SetShaderRepresentationSavedCallback( ShaderRepresentationSavedCallback callback );
+
     private:
         struct ShaderRepresentation;
         struct ShaderExecutableRepresentation;
@@ -94,8 +98,12 @@ namespace Profiler
 
         int                                m_CurrentTabIndex;
 
+        ShaderRepresentationSavedCallback  m_ShaderRepresentationSavedCallback;
+
         void DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation );
         void DrawShaderStatistics( ShaderExecutableRepresentation* pShaderExecutable );
         bool SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat );
+
+        void SaveShaderRepresentation( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat );
     };
 }

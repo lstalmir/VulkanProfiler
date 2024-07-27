@@ -315,6 +315,11 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             m_InspectorShaderView.SetTargetDevice( m_pDevice );
+            m_InspectorShaderView.SetShaderRepresentationSavedCallback( std::bind(
+                &ProfilerOverlayOutput::ShaderRepresentationSaved,
+                this,
+                std::placeholders::_1,
+                std::placeholders::_2 ) );
         }
 
         // Initialize serializer
@@ -2428,6 +2433,26 @@ namespace Profiler
         }
 
         m_InspectorTabIndex = index;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ShaderRepresentationSaved
+
+    Description:
+        Called when a shader is saved.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::ShaderRepresentationSaved( bool succeeded, const std::string& message )
+    {
+        m_SerializationSucceeded = succeeded;
+        m_SerializationMessage = message;
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
     }
 
     /***********************************************************************************\

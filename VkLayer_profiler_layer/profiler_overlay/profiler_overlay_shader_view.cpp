@@ -25,6 +25,8 @@
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #include <string_view>
+#include <sstream>
+#include <filesystem>
 #include <inttypes.h>
 
 #include <spirv/unified1/spirv.h>
@@ -718,10 +720,16 @@ namespace Profiler
                 }
             }
 
+            // Draw a toolbar with options.
+            if( ImGui::Button( "Save" ) )
+            {
+                SaveShaderRepresentation( pShaderRepresentation, shaderRepresentationFormat );
+            }
 #if PROFILER_BUILD_SPIRV_DOCS
             if( shaderRepresentationFormat == ShaderFormat::eSpirv )
             {
                 // Allow the user to disable the tooltips with documentation.
+                ImGui::SameLine();
                 ImGui::Checkbox( "Show SPIR-V documentation", &m_ShowSpirvDocs );
             }
 #endif
@@ -874,5 +882,97 @@ namespace Profiler
         ImGui::EndDisabled();
 
         return internalRepresentationIndexChanged;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetShaderRepresentationSavedCallback
+
+    Description:
+        Sets the function called when a shader is saved.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SetShaderRepresentationSavedCallback( ShaderRepresentationSavedCallback callback )
+    {
+        m_ShaderRepresentationSavedCallback = callback;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveShaderRepresentation
+
+    Description:
+        Saves the shader representation to a file.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SaveShaderRepresentation( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat )
+    {
+        // Construct output path.
+        std::stringstream stringBuilder;
+        stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
+        stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
+        stringBuilder << "shader";
+
+        const char* pExtension = nullptr;
+        switch( shaderFormat )
+        {
+        default:
+        case ShaderFormat::eText:
+            pExtension = ".txt";
+            break;
+        case ShaderFormat::eBinary:
+            pExtension = ".bin";
+            break;
+        case ShaderFormat::eSpirv:
+            pExtension = ".spvasm";
+            break;
+        case ShaderFormat::eGlsl:
+            pExtension = ".glsl";
+            break;
+        case ShaderFormat::eHlsl:
+            pExtension = ".hlsl";
+            break;
+        case ShaderFormat::eCpp:
+            pExtension = ".cpp";
+            break;
+        }
+        if( pExtension )
+        {
+            stringBuilder << pExtension;
+        }
+
+        std::filesystem::path outputPath = stringBuilder.str();
+
+        // Open file for writing.
+        std::ios::openmode mode =
+            std::ios::out |
+            std::ios::trunc |
+            ((shaderFormat == ShaderFormat::eBinary) ? std::ios::binary : 0);
+
+        std::ofstream out( outputPath );
+        if( !out.is_open() )
+        {
+            if( m_ShaderRepresentationSavedCallback )
+            {
+                m_ShaderRepresentationSavedCallback(
+                    false,
+                    "Failed to open file for writing.\n" + outputPath.string() );
+            }
+            return;
+        }
+
+        // Write the shader.
+        out.write( static_cast<const char*>(pShaderRepresentation->m_pData), pShaderRepresentation->m_DataSize );
+        out.close();
+
+        // Notify the listener.
+        if( m_ShaderRepresentationSavedCallback )
+        {
+            m_ShaderRepresentationSavedCallback(
+                true,
+                "Shader written to:\n" + outputPath.string() );
+        }
     }
 }
