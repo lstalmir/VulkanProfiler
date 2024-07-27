@@ -1940,25 +1940,7 @@ namespace Profiler
         {
             if( executable.GetStages() & shader.m_Stage )
             {
-                const uint32_t internalRepresentationCount = executable.GetInternalRepresentationsCount();
-                for( uint32_t i = 0; i < internalRepresentationCount; ++i )
-                {
-                    const ProfilerShaderInternalRepresentation& internalRepresentation =
-                        executable.GetInternalRepresentation( i );
-
-                    const std::string internalRepresentationName = fmt::format(
-                        "{} {}",
-                        executable.GetName(),
-                        internalRepresentation.m_pName );
-
-                    m_InspectorShaderView.AddShaderRepresentation(
-                        internalRepresentationName.c_str(),
-                        internalRepresentation.m_pData,
-                        internalRepresentation.m_DataSize,
-                        internalRepresentation.m_IsText
-                            ? ShaderFormat::eText
-                            : ShaderFormat::eBinary );
-                }
+                m_InspectorShaderView.AddShaderExecutable( executable );
             }
         }
     }

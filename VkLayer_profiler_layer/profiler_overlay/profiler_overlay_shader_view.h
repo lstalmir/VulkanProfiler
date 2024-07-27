@@ -29,6 +29,7 @@ class TextEditor;
 namespace Profiler
 {
     class OverlayFonts;
+    struct ProfilerShaderExecutable;
 
     /***********************************************************************************\
 
@@ -73,17 +74,15 @@ namespace Profiler
 
         void AddBytecode( const uint32_t* pBinary, size_t wordCount );
         void AddShaderRepresentation( const char* pName, const void* pData, size_t dataSize, ShaderFormat format );
+        void AddShaderExecutable( const ProfilerShaderExecutable& executable );
 
         void Draw();
 
     private:
-        struct ShaderRepresentation
-        {
-            char*                          m_pName;
-            void*                          m_pData;
-            size_t                         m_DataSize;
-            ShaderFormat                   m_Format;
-        };
+        struct ShaderRepresentation;
+        struct ShaderExecutableRepresentation;
+
+        static constexpr ShaderFormat      m_scExecutableShaderFormat = ShaderFormat( -1 );
 
         const OverlayFonts&                m_Fonts;
         std::unique_ptr<TextEditor>        m_pTextEditor;
@@ -96,5 +95,7 @@ namespace Profiler
         int                                m_CurrentTabIndex;
 
         void DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation );
+        void DrawShaderStatistics( ShaderExecutableRepresentation* pShaderExecutable );
+        bool SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat );
     };
 }
