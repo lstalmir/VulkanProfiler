@@ -1934,6 +1934,15 @@ namespace Profiler
             const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
             m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
         }
+
+        // Enumerate shader internal representations associated with the selected stage.
+        for( const ProfilerShaderExecutable& executable : m_InspectorPipeline.m_ShaderTuple.m_ShaderExecutables )
+        {
+            if( executable.GetStages() & shader.m_Stage )
+            {
+                m_InspectorShaderView.AddShaderExecutable( executable );
+            }
+        }
     }
 
     /***********************************************************************************\
