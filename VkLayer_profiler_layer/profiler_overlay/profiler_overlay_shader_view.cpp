@@ -25,6 +25,7 @@
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #include <string_view>
+#include <inttypes.h>
 
 #include <spirv/unified1/spirv.h>
 #include <spirv-tools/libspirv.h>
@@ -777,13 +778,13 @@ namespace Profiler
                         switch( statistic.m_Format )
                         {
                         case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
-                            ImGui::Text( "%d", statistic.m_Value.b32 );
+                            ImGui::Text( "%s", statistic.m_Value.b32 ? "True" : "False" );
                             break;
                         case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
-                            ImGui::Text( "%lld", statistic.m_Value.i64 );
+                            ImGui::Text( "%" PRId64, statistic.m_Value.i64);
                             break;
                         case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
-                            ImGui::Text( "%llu", statistic.m_Value.u64 );
+                            ImGui::Text( "%" PRIu64, statistic.m_Value.u64 );
                             break;
                         case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_FLOAT64_KHR:
                             ImGui::Text( "%lf", statistic.m_Value.f64 );
