@@ -22,13 +22,17 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <functional>
 
 // ImGuiColorTextEdit
 class TextEditor;
+// ImGuiFileDialog
+namespace IGFD { class FileDialog; }
 
 namespace Profiler
 {
     class OverlayFonts;
+    struct ProfilerShaderExecutable;
 
     /***********************************************************************************\
 
@@ -67,27 +71,32 @@ namespace Profiler
         OverlayShaderView( const OverlayShaderView& ) = delete;
         OverlayShaderView( OverlayShaderView&& ) = delete;
 
+        void InitializeStyles();
         void SetTargetDevice( struct VkDevice_Object* pDevice );
+        void SetShaderName( const std::string& name );
 
         void Clear();
 
         void AddBytecode( const uint32_t* pBinary, size_t wordCount );
         void AddShaderRepresentation( const char* pName, const void* pData, size_t dataSize, ShaderFormat format );
+        void AddShaderExecutable( const ProfilerShaderExecutable& executable );
 
         void Draw();
 
+        typedef std::function<void( bool, const std::string& )> ShaderSavedCallback;
+        void SetShaderSavedCallback( ShaderSavedCallback callback );
+
     private:
-        struct ShaderRepresentation
-        {
-            char*                          m_pName;
-            void*                          m_pData;
-            size_t                         m_DataSize;
-            ShaderFormat                   m_Format;
-        };
+        struct ShaderRepresentation;
+        struct ShaderExecutableRepresentation;
+        struct ShaderExporter;
+
+        static constexpr ShaderFormat      m_scExecutableShaderFormat = ShaderFormat( -1 );
 
         const OverlayFonts&                m_Fonts;
         std::unique_ptr<TextEditor>        m_pTextEditor;
 
+        std::string                        m_ShaderName;
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
         int                                m_SpvTargetEnv;
@@ -95,6 +104,19 @@ namespace Profiler
 
         int                                m_CurrentTabIndex;
 
+        uint32_t                           m_DefaultWindowBgColor;
+        uint32_t                           m_DefaultTitleBgColor;
+        uint32_t                           m_DefaultTitleBgActiveColor;
+
+        std::unique_ptr<ShaderExporter>    m_pShaderExporter;
+        ShaderSavedCallback                m_ShaderSavedCallback;
+
         void DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation );
+        void DrawShaderStatistics( ShaderExecutableRepresentation* pShaderExecutable );
+        bool SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat );
+
+        void UpdateShaderExporter();
+        std::string GetDefaultShaderFileName( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat ) const;
+        void SaveShaderToFile( const std::string& path, ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat );
     };
 }

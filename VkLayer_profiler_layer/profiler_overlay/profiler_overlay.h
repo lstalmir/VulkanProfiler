@@ -277,6 +277,7 @@ namespace Profiler
         void DrawInspectorPipelineState();
         void DrawInspectorGraphicsPipelineState();
         void SetInspectorTabIndex( size_t );
+        void ShaderRepresentationSaved( bool, const std::string& );
 
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );

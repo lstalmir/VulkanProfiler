@@ -47,7 +47,7 @@ namespace Profiler
         OverlaySettings( const OverlaySettings& ) = delete;
         OverlaySettings( OverlaySettings&& ) = delete;
 
-        void RegisterHandler();
+        void InitializeHandlers();
         void Validate( const char* pFileName );
 
         bool* AddBool( const char* pName, bool defaultValue = false );

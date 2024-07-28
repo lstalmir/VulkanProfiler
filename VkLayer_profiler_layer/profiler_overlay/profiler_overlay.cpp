@@ -255,7 +255,7 @@ namespace Profiler
             ImGui::SetCurrentContext( m_pImGuiContext );
 
             // Register settings handler to the new context
-            m_Settings.RegisterHandler();
+            m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
             io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
@@ -315,7 +315,13 @@ namespace Profiler
         // Initialize the disassembler in the shader view
         if( result == VK_SUCCESS )
         {
+            m_InspectorShaderView.InitializeStyles();
             m_InspectorShaderView.SetTargetDevice( m_pDevice );
+            m_InspectorShaderView.SetShaderSavedCallback( std::bind(
+                &ProfilerOverlayOutput::ShaderRepresentationSaved,
+                this,
+                std::placeholders::_1,
+                std::placeholders::_2 ) );
         }
 
         // Initialize serializer
@@ -857,7 +863,11 @@ namespace Profiler
         // Update input clipping rect
         ImVec2 pos = ImGui::GetWindowPos();
         ImVec2 size = ImGui::GetWindowSize();
-        m_pImGuiWindowContext->AddInputCaptureRect( pos.x, pos.y, size.x, size.y );
+        m_pImGuiWindowContext->AddInputCaptureRect(
+            static_cast<int>(pos.x),
+            static_cast<int>(pos.y),
+            static_cast<int>(size.x),
+            static_cast<int>(size.y) );
 
         if( ImGui::BeginMenuBar() )
         {
@@ -949,7 +959,11 @@ namespace Profiler
                         // Add input clipping rect for this window
                         ImVec2 pos = ImGui::GetWindowPos();
                         ImVec2 size = ImGui::GetWindowSize();
-                        m_pImGuiWindowContext->AddInputCaptureRect( pos.x, pos.y, size.x, size.y );
+                        m_pImGuiWindowContext->AddInputCaptureRect(
+                            static_cast<int>(pos.x),
+                            static_cast<int>(pos.y),
+                            static_cast<int>(size.x),
+                            static_cast<int>(size.y) );
                     }
 
                     state.Focus = false;
@@ -1948,12 +1962,22 @@ namespace Profiler
         const ProfilerShader& shader = m_InspectorPipeline.m_ShaderTuple.m_Shaders[ shaderIndex ];
 
         m_InspectorShaderView.Clear();
+        m_InspectorShaderView.SetShaderName( m_pStringSerializer->GetShortShaderName( shader ) );
 
         // Shader module may not be available if the VkShaderEXT has been created directly from a binary.
         if( shader.m_pShaderModule )
         {
             const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
             m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
+        }
+
+        // Enumerate shader internal representations associated with the selected stage.
+        for( const ProfilerShaderExecutable& executable : m_InspectorPipeline.m_ShaderTuple.m_ShaderExecutables )
+        {
+            if( executable.GetStages() & shader.m_Stage )
+            {
+                m_InspectorShaderView.AddShaderExecutable( executable );
+            }
         }
     }
 
@@ -2444,6 +2468,26 @@ namespace Profiler
         }
 
         m_InspectorTabIndex = index;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ShaderRepresentationSaved
+
+    Description:
+        Called when a shader is saved.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::ShaderRepresentationSaved( bool succeeded, const std::string& message )
+    {
+        m_SerializationSucceeded = succeeded;
+        m_SerializationMessage = message;
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
     }
 
     /***********************************************************************************\

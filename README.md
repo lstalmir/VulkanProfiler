@@ -28,7 +28,7 @@ To build the layer create "cmake_build" folder in the project root directory and
 cmake .. && make all
 ```
 
-To install the layer copy `VkLayer_profiler_layer.so` and `VkLayer_profiler_layer.json` files to `~/.local/share/vulkan/explicit_layer.d` directory.
+To install the layer copy `libVkLayer_profiler_layer.so` and `VkLayer_profiler_layer.json` files to `~/.local/share/vulkan/explicit_layer.d` directory.
 
 ### Notes
 Installation of the layer can be avoided. To use the layer without installation set VK_LAYER_PATH environment variable to the directory containing layer files.
@@ -50,7 +50,9 @@ The layer can be configured to handle more specific use cases. The following tab
 | ------ | ------- | ----------- |
 | *BOOL*<br>enable_overlay | true | Displays an interactive overlay with the collected data on the application's window. The profiler will set color attachment bit in the swapchain's image usage flags. |
 | *BOOL*<br>enable_performance_query_ext | true | Available on Intel graphics cards. Enables VK_INTEL_performance_query device extension and collects more detailed metrics. |
+| *BOOL*<br>enable_pipeline_executable_properties_ext | false | Capture VkPipeline's executable properties and internal shader representations for more detailed insights into the shaders executed on the GPU. Enables VK_KHR_pipeline_executable_properties extension. |
 | *BOOL*<br>enable_render_pass_begin_end_profiling | false | Measures time of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode. |
+| *BOOL*<br>set_stable_power_state | true | Use DirectX12 API to set stable power state for GPU time measurements. |
 | *ENUM*<br>sampling_mode | drawcall | Controls the frequency of inserting timestamp queries. More frequent queries may impact performance of the applicaiton (but not the peformance of the measured region). See table with available sampling modes for more details. |
 | *ENUM*<br>sync_mode | present | Controls the frequency of collecting data from the submitted command buffers. More frequect synchronization points may impact performance of the application. See table with available synchronization modes for more details. |
 

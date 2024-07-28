@@ -20,16 +20,23 @@
 
 #include "profiler_overlay_shader_view.h"
 #include "profiler_overlay_fonts.h"
+#include "profiler/profiler_shader.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #include <string_view>
+#include <sstream>
+#include <filesystem>
+#include <inttypes.h>
 
 #include <spirv/unified1/spirv.h>
 #include <spirv-tools/libspirv.h>
 
 #include <imgui.h>
 #include <TextEditor.h>
+#include <ImGuiFileDialog.h>
+
+#include "imgui_widgets/imgui_ex.h"
 
 #ifndef PROFILER_BUILD_SPIRV_DOCS
 #define PROFILER_BUILD_SPIRV_DOCS 0
@@ -212,6 +219,50 @@ namespace
     /***********************************************************************************\
 
     Function:
+        GetShaderFileExtension
+
+    Description:
+        Returns an extension associated with the shader format.
+
+    \***********************************************************************************/
+    static constexpr const char* GetShaderFileExtension( Profiler::ShaderFormat shaderFormat )
+    {
+        switch( shaderFormat )
+        {
+        default:
+        case Profiler::ShaderFormat::eText:
+            return ".txt";
+        case Profiler::ShaderFormat::eBinary:
+            return ".bin";
+        case Profiler::ShaderFormat::eSpirv:
+            return ".spvasm";
+        case Profiler::ShaderFormat::eGlsl:
+            return ".glsl";
+        case Profiler::ShaderFormat::eHlsl:
+            return ".hlsl";
+        case Profiler::ShaderFormat::eCpp:
+            return ".cpp";
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        NormalizeShaderFileName
+
+    Description:
+        Converts all whitespaces in the input string to underscores in the output string.
+
+    \***********************************************************************************/
+    static std::string NormalizeShaderFileName( std::string nameComponent )
+    {
+        std::replace_if( nameComponent.begin(), nameComponent.end(), isspace, '_' );
+        return nameComponent;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetSpirvLanguageDefinition
 
     Description:
@@ -327,6 +378,29 @@ namespace
 
 namespace Profiler
 {
+    struct OverlayShaderView::ShaderRepresentation
+    {
+        const char*              m_pName;
+        const void*              m_pData;
+        size_t                   m_DataSize;
+        ShaderFormat             m_Format;
+    };
+
+    struct OverlayShaderView::ShaderExecutableRepresentation
+        : OverlayShaderView::ShaderRepresentation
+    {
+        ProfilerShaderExecutable m_Executable;
+        uint32_t                 m_InternalRepresentationIndex;
+    };
+
+    struct OverlayShaderView::ShaderExporter
+    {
+        IGFD::FileDialog       m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
+        ShaderRepresentation*  m_pShaderRepresentation;
+        ShaderFormat           m_ShaderFormat;
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -339,10 +413,16 @@ namespace Profiler
     OverlayShaderView::OverlayShaderView( const OverlayFonts& fonts )
         : m_Fonts( fonts )
         , m_pTextEditor( nullptr )
+        , m_ShaderName( "shader" )
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
         , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
         , m_CurrentTabIndex( -1 )
+        , m_DefaultWindowBgColor( 0 )
+        , m_DefaultTitleBgColor( 0 )
+        , m_DefaultTitleBgActiveColor( 0 )
+        , m_pShaderExporter( nullptr )
+        , m_ShaderSavedCallback( nullptr )
     {
         m_pTextEditor = std::make_unique<TextEditor>();
         m_pTextEditor->SetReadOnly( true );
@@ -361,6 +441,22 @@ namespace Profiler
     OverlayShaderView::~OverlayShaderView()
     {
         Clear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InitializeStyles
+
+    Description:
+        Configures the shader viewer for the current ImGui style.
+
+    \***********************************************************************************/
+    void OverlayShaderView::InitializeStyles()
+    {
+        m_DefaultWindowBgColor = ImGui::GetColorU32( ImGuiCol_WindowBg );
+        m_DefaultTitleBgColor = ImGui::GetColorU32( ImGuiCol_TitleBg );
+        m_DefaultTitleBgActiveColor = ImGui::GetColorU32( ImGuiCol_TitleBgActive );
     }
 
     /***********************************************************************************\
@@ -405,6 +501,21 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetShaderName
+
+    Description:
+        Sets the currently displayed shader name.
+        The name is used to construct file names when saving the representations to file.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SetShaderName( const std::string& name )
+    {
+        m_ShaderName = name;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Clear
 
     Description:
@@ -416,9 +527,17 @@ namespace Profiler
         // Free all shader representations.
         for( ShaderRepresentation* pShaderRepresentation : m_pShaderRepresentations )
         {
+            if( pShaderRepresentation->m_Format == m_scExecutableShaderFormat )
+            {
+                // Free the shader executable reference.
+                ShaderExecutableRepresentation* pShaderExecutable = static_cast<ShaderExecutableRepresentation*>(pShaderRepresentation);
+                pShaderExecutable->~ShaderExecutableRepresentation();
+            }
+
             free( pShaderRepresentation );
         }
 
+        m_ShaderName = "shader";
         m_pShaderRepresentations.clear();
 
         // Reset current tab index.
@@ -529,15 +648,17 @@ namespace Profiler
             dataSize = 0;
         }
 
-        pShaderRepresentation->m_pName = reinterpret_cast<char*>( pShaderRepresentation + 1 );
-        ProfilerStringFunctions::CopyString( pShaderRepresentation->m_pName, nameSize, pName, nameSize );
+        char* pShaderRepresentationName = reinterpret_cast<char*>( pShaderRepresentation + 1 );
+        ProfilerStringFunctions::CopyString( pShaderRepresentationName, nameSize, pName, nameSize );
+        pShaderRepresentation->m_pName = pShaderRepresentationName;
 
         if( pData && dataSize > 0 )
         {
             // Save shader representation data.
-            pShaderRepresentation->m_pData = pShaderRepresentation->m_pName + nameSize;
+            void* pShaderRepresentationData = pShaderRepresentationName + nameSize;
+            memcpy( pShaderRepresentationData, pData, dataSize );
+            pShaderRepresentation->m_pData = pShaderRepresentationData;
             pShaderRepresentation->m_DataSize = dataSize;
-            memcpy( pShaderRepresentation->m_pData, pData, dataSize );
         }
         else
         {
@@ -547,6 +668,39 @@ namespace Profiler
         }
 
         pShaderRepresentation->m_Format = format;
+
+        // Add the shader representation.
+        m_pShaderRepresentations.push_back( pShaderRepresentation );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AddShaderExecutable
+
+    Description:
+        Adds a tab with the shader executable.
+
+    \***********************************************************************************/
+    void OverlayShaderView::AddShaderExecutable( const ProfilerShaderExecutable& executable )
+    {
+        constexpr size_t shaderRepresentationSize = sizeof( ShaderExecutableRepresentation );
+
+        // Allocate the shader representation.
+        ShaderExecutableRepresentation* pShaderRepresentation = static_cast<ShaderExecutableRepresentation*>(malloc( shaderRepresentationSize ));
+        if( !pShaderRepresentation )
+        {
+            return;
+        }
+
+        // Call the constructor so that any non-primitive members are initialized.
+        new (pShaderRepresentation) ShaderExecutableRepresentation();
+        pShaderRepresentation->m_pName = executable.GetName();
+        pShaderRepresentation->m_pData = nullptr;
+        pShaderRepresentation->m_DataSize = 0;
+        pShaderRepresentation->m_Format = m_scExecutableShaderFormat;
+        pShaderRepresentation->m_Executable = executable;
+        pShaderRepresentation->m_InternalRepresentationIndex = UINT32_MAX;
 
         // Add the shader representation.
         m_pShaderRepresentations.push_back( pShaderRepresentation );
@@ -581,20 +735,7 @@ namespace Profiler
             ImGui::EndTabBar();
         }
 
-#if PROFILER_BUILD_SPIRV_DOCS
-        if( (m_CurrentTabIndex < m_pShaderRepresentations.size()) &&
-            (m_pShaderRepresentations[m_CurrentTabIndex]->m_Format == ShaderFormat::eSpirv) )
-        {
-            const char* pSpirvDocsText = "Show SPIR-V documentation";
-
-            ImVec2 spirvDocsTextSize = ImGui::CalcTextSize( pSpirvDocsText );
-            float spirvDocsCheckboxSize = spirvDocsTextSize.x + 2 * spirvDocsTextSize.y + 5;
-
-            // Allow the user to disable the tooltips with documentation.
-            ImGui::SetCursorPos( ImVec2( ImGui::GetWindowSize().x - spirvDocsCheckboxSize, cp.y ) );
-            ImGui::Checkbox( pSpirvDocsText, &m_ShowSpirvDocs );
-        }
-#endif
+        UpdateShaderExporter();
 
         ImGui::PopStyleVar();
         ImGui::PopFont();
@@ -603,7 +744,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Draw
+        DrawShaderRepresentation
 
     Description:
         Draws a tab with the shader representation.
@@ -613,18 +754,37 @@ namespace Profiler
     {
         if( ImGui::BeginTabItem( pShaderRepresentation->m_pName ) )
         {
+            ShaderFormat shaderRepresentationFormat = pShaderRepresentation->m_Format;
+
+            bool tabChanged = (m_CurrentTabIndex != tabIndex);
+            m_CurrentTabIndex = tabIndex;
+
+            // Print shader executable statistics and select the internal representation.
+            if( shaderRepresentationFormat == m_scExecutableShaderFormat )
+            {
+                ShaderExecutableRepresentation* pShaderExecutable = static_cast<ShaderExecutableRepresentation*>(pShaderRepresentation);
+                DrawShaderStatistics( pShaderExecutable );
+
+                if( SelectShaderInternalRepresentation( pShaderExecutable, &shaderRepresentationFormat ) )
+                {
+                    tabChanged = true;
+                }
+            }
+
             // Early out if shader representation data is not available.
             if( !pShaderRepresentation->m_pData )
             {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
                 ImGui::TextUnformatted( "Shader representation data not available." );
+                ImGui::PopStyleColor();
                 ImGui::EndTabItem();
                 return;
             }
 
             // Update the text editor with the current tab.
-            if( m_CurrentTabIndex != tabIndex )
+            if( tabChanged )
             {
-                if( pShaderRepresentation->m_Format != ShaderFormat::eBinary )
+                if( shaderRepresentationFormat != ShaderFormat::eBinary )
                 {
                     const char* pText = reinterpret_cast<const char*>(pShaderRepresentation->m_pData);
 
@@ -632,7 +792,7 @@ namespace Profiler
                     m_pTextEditor->SetText( std::string( pText, pText + pShaderRepresentation->m_DataSize ) );
 
                     // Set syntax highlighting according to the format.
-                    switch( pShaderRepresentation->m_Format )
+                    switch( shaderRepresentationFormat )
                     {
                     case ShaderFormat::eSpirv:
                         m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Fonts, m_ShowSpirvDocs ) );
@@ -651,9 +811,27 @@ namespace Profiler
                         break;
                     }
                 }
-
-                m_CurrentTabIndex = tabIndex;
             }
+
+            // Draw a toolbar with options.
+            if( ImGui::Button( "Save" ) )
+            {
+                m_pShaderExporter = std::make_unique<ShaderExporter>();
+                m_pShaderExporter->m_pShaderRepresentation = pShaderRepresentation;
+                m_pShaderExporter->m_ShaderFormat = shaderRepresentationFormat;
+            }
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Save current shader representation to file" );
+            }
+#if PROFILER_BUILD_SPIRV_DOCS
+            if( shaderRepresentationFormat == ShaderFormat::eSpirv )
+            {
+                // Allow the user to disable the tooltips with documentation.
+                ImGui::SameLine();
+                ImGui::Checkbox( "Show SPIR-V documentation", &m_ShowSpirvDocs );
+            }
+#endif
 
             // Print shader representation data.
             ImGui::PushFont( m_Fonts.GetCodeFont() );
@@ -662,6 +840,312 @@ namespace Profiler
 
             ImGui::PopFont();
             ImGui::EndTabItem();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawShaderStatistics
+
+    Description:
+        Draws a table with shader executable statistics.
+
+    \***********************************************************************************/
+    void OverlayShaderView::DrawShaderStatistics( ShaderExecutableRepresentation* pShaderExecutable )
+    {
+        ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
+        if( ImGui::CollapsingHeader( "Shader executable properties", ImGuiTreeNodeFlags_DefaultOpen ) )
+        {
+            ImGui::PushStyleVar( ImGuiStyleVar_CellPadding, ImVec2( 20, 1 ) );
+            if( ImGui::BeginTable( "###ShaderExecutableStatisticsTable", 2, ImGuiTableFlags_SizingFixedFit ) )
+            {
+                const uint32_t shaderStatisticsCount = pShaderExecutable->m_Executable.GetStatisticsCount();
+                for( uint32_t i = 0; i < shaderStatisticsCount; ++i )
+                {
+                    ProfilerShaderStatistic statistic = pShaderExecutable->m_Executable.GetStatistic( i );
+                    ImGui::TableNextRow();
+
+                    // Statistic name column.
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( statistic.m_pName );
+
+                        // Show a tooltip with a description of the statistic.
+                        if( ImGui::IsItemHovered() && statistic.m_pDescription )
+                        {
+                            ImGui::SetTooltip( "%s", statistic.m_pDescription );
+                        }
+                    }
+
+                    // Statistic value column.
+                    if( ImGui::TableNextColumn() )
+                    {
+                        switch( statistic.m_Format )
+                        {
+                        case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
+                            ImGui::Text( "%s", statistic.m_Value.b32 ? "True" : "False" );
+                            break;
+                        case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
+                            ImGui::Text( "%" PRId64, statistic.m_Value.i64);
+                            break;
+                        case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
+                            ImGui::Text( "%" PRIu64, statistic.m_Value.u64 );
+                            break;
+                        case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_FLOAT64_KHR:
+                            ImGui::Text( "%lf", statistic.m_Value.f64 );
+                            break;
+                        }
+                    }
+                }
+                ImGui::EndTable();
+            }
+            ImGui::PopStyleVar();
+        }
+        ImGui::PopStyleColor();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SelectShaderInternalRepresentation
+
+    Description:
+        Draws a combo box for selecting inspected shader internal representation.
+
+    \***********************************************************************************/
+    bool OverlayShaderView::SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat )
+    {
+        bool internalRepresentationIndexChanged = false;
+
+        // Overrides data pointer in the pShaderExecutable with the selected internalRepresentation.
+        auto SelectInternalRepresentation = [&]( const ProfilerShaderInternalRepresentation& internalRepresentation )
+            {
+                internalRepresentationIndexChanged = true;
+                pShaderExecutable->m_pData = internalRepresentation.m_pData;
+                pShaderExecutable->m_DataSize = internalRepresentation.m_DataSize;
+                *pShaderFormat = (internalRepresentation.m_IsText ? ShaderFormat::eText : ShaderFormat::eBinary);
+            };
+
+        // Disable the combo box if there are no available internal representations.
+        const uint32_t shaderInternalRepresentationsCount = pShaderExecutable->m_Executable.GetInternalRepresentationsCount();
+        ImGui::BeginDisabled( shaderInternalRepresentationsCount == 0 );
+
+        const char* pComboBoxText = "Shader internal representations";
+        if( shaderInternalRepresentationsCount > 0 )
+        {
+            // Initialize the index to the first available internal representation on the first call to this function.
+            bool initializeInternalRepresentationData = false;
+            if( pShaderExecutable->m_InternalRepresentationIndex == UINT32_MAX )
+            {
+                pShaderExecutable->m_InternalRepresentationIndex = 0;
+                initializeInternalRepresentationData = true;
+            }
+
+            ProfilerShaderInternalRepresentation internalRepresentation =
+                pShaderExecutable->m_Executable.GetInternalRepresentation( pShaderExecutable->m_InternalRepresentationIndex );
+
+            if( initializeInternalRepresentationData )
+            {
+                SelectInternalRepresentation( internalRepresentation );
+            }
+
+            // Display currently selected representation name in the combo box preview.
+            pComboBoxText = internalRepresentation.m_pName;
+        }
+
+        ImGui::PushItemWidth( -1 );
+        ImGui::PushStyleColor( ImGuiCol_FrameBg, IM_COL32( 40, 40, 43, 128 ) );
+        ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 40, 40, 43, 255 ) );
+
+        if( ImGui::BeginCombo( "###ShaderInternalRepresentationComboBox", pComboBoxText, ImGuiComboFlags_PopupAlignLeft ) )
+        {
+            // Combo box expanded, list all available internal representations.
+            for( uint32_t index = 0; index < shaderInternalRepresentationsCount; ++index )
+            {
+                ProfilerShaderInternalRepresentation internalRepresentation =
+                    pShaderExecutable->m_Executable.GetInternalRepresentation( index );
+
+                if( ImGuiX::TSelectable( internalRepresentation.m_pName, pShaderExecutable->m_InternalRepresentationIndex, index ) )
+                {
+                    // User has selected a new internal representation.
+                    SelectInternalRepresentation( internalRepresentation );
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        ImGui::PopStyleColor( 2 );
+        ImGui::EndDisabled();
+
+        return internalRepresentationIndexChanged;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetShaderSavedCallback
+
+    Description:
+        Sets the function called when a shader is saved.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SetShaderSavedCallback( ShaderSavedCallback callback )
+    {
+        m_ShaderSavedCallback = callback;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateShaderExporter
+
+    Description:
+        Saves the shader representation to a file.
+
+    \***********************************************************************************/
+    void OverlayShaderView::UpdateShaderExporter()
+    {
+        static const std::string scFileDialogId = "#ShaderSaveFileDialog";
+
+        // Early-out if shader exporter is not available.
+        if( m_pShaderExporter == nullptr )
+        {
+            return;
+        }
+
+        // Prevent the dialog from appearing transparent.
+        const int numPushedColors = 3;
+        ImGui::PushStyleColor( ImGuiCol_WindowBg, m_DefaultWindowBgColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBg, m_DefaultTitleBgColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, m_DefaultTitleBgActiveColor );
+
+        if( !m_pShaderExporter->m_FileDialog.IsOpened() )
+        {
+            // Configure the file dialog.
+            m_pShaderExporter->m_FileDialogConfig.fileName = GetDefaultShaderFileName(
+                m_pShaderExporter->m_pShaderRepresentation,
+                m_pShaderExporter->m_ShaderFormat );
+
+            m_pShaderExporter->m_FileDialogConfig.flags = ImGuiFileDialogFlags_Default;
+
+            // Set initial size and position of the dialog.
+            ImGuiIO& io = ImGui::GetIO();
+            ImVec2 size = io.DisplaySize;
+            float scale = io.FontGlobalScale;
+            size.x = std::min( size.x / 1.5f, 640.f * scale );
+            size.y = std::min( size.y / 1.25f, 480.f * scale );
+            ImGui::SetNextWindowSize( size );
+
+            ImVec2 pos = io.DisplaySize;
+            pos.x = (pos.x - size.x) / 2.0f;
+            pos.y = (pos.y - size.y) / 2.0f;
+            ImGui::SetNextWindowPos( pos );
+
+            // Show the file dialog.
+            m_pShaderExporter->m_FileDialog.OpenDialog(
+                scFileDialogId,
+                "Select shader save path",
+                ".*",
+                m_pShaderExporter->m_FileDialogConfig );
+        }
+
+        // Draw the file dialog until the user closes it.
+        bool closed = m_pShaderExporter->m_FileDialog.Display(
+            scFileDialogId,
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoSavedSettings );
+
+        if( closed )
+        {
+            if( m_pShaderExporter->m_FileDialog.IsOk() )
+            {
+                SaveShaderToFile(
+                    m_pShaderExporter->m_FileDialog.GetFilePathName(),
+                    m_pShaderExporter->m_pShaderRepresentation,
+                    m_pShaderExporter->m_ShaderFormat );
+            }
+
+            // Destroy the exporter.
+            m_pShaderExporter.reset();
+        }
+
+        ImGui::PopStyleColor( numPushedColors );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDefaultShaderFileName
+
+    Description:
+        Returns the default name of the file to write the shader to.
+
+    \***********************************************************************************/
+    std::string OverlayShaderView::GetDefaultShaderFileName( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat ) const
+    {
+        std::stringstream stringBuilder;
+        stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
+        stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
+        stringBuilder << m_ShaderName << "_";
+        stringBuilder << pShaderRepresentation->m_pName;
+
+        if( pShaderRepresentation->m_Format == m_scExecutableShaderFormat )
+        {
+            // Append internal representation name to the file name.
+            ShaderExecutableRepresentation* pShaderExecutableRepresentation = static_cast<ShaderExecutableRepresentation*>(pShaderRepresentation);
+            ProfilerShaderInternalRepresentation internalRepresentation = pShaderExecutableRepresentation->m_Executable.GetInternalRepresentation(
+                pShaderExecutableRepresentation->m_InternalRepresentationIndex );
+
+            stringBuilder << "_" << internalRepresentation.m_pName;
+        }
+
+        stringBuilder << GetShaderFileExtension( shaderFormat );
+        return NormalizeShaderFileName( stringBuilder.str() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveShaderToFile
+
+    Description:
+        Saves the shader representation to a file.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SaveShaderToFile( const std::string& path, ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat )
+    {
+        // Open file for writing.
+        std::ios::openmode mode =
+            std::ios::out |
+            std::ios::trunc |
+            ((shaderFormat == ShaderFormat::eBinary) ? std::ios::binary : std::ios::openmode());
+
+        std::ofstream out( path );
+        if( !out.is_open() )
+        {
+            if( m_ShaderSavedCallback )
+            {
+                m_ShaderSavedCallback(
+                    false,
+                    "Failed to open file for writing.\n" + path );
+            }
+            return;
+        }
+
+        // Write the shader.
+        out.write( static_cast<const char*>(pShaderRepresentation->m_pData), pShaderRepresentation->m_DataSize );
+        out.close();
+
+        // Notify the listener.
+        if( m_ShaderSavedCallback )
+        {
+            m_ShaderSavedCallback(
+                true,
+                "Shader written to:\n" + path );
         }
     }
 }
