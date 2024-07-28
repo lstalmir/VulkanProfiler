@@ -34,6 +34,7 @@
 
 #include <imgui.h>
 #include <TextEditor.h>
+#include <ImGuiFileDialog.h>
 
 #include "imgui_widgets/imgui_ex.h"
 
@@ -348,6 +349,14 @@ namespace Profiler
         uint32_t                 m_InternalRepresentationIndex;
     };
 
+    struct OverlayShaderView::ShaderExporter
+    {
+        IGFD::FileDialog       m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
+        ShaderRepresentation*  m_pShaderRepresentation;
+        ShaderFormat           m_ShaderFormat;
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -364,6 +373,11 @@ namespace Profiler
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
         , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
         , m_CurrentTabIndex( -1 )
+        , m_DefaultWindowBgColor( 0 )
+        , m_DefaultTitleBgColor( 0 )
+        , m_DefaultTitleBgActiveColor( 0 )
+        , m_pShaderExporter( nullptr )
+        , m_ShaderSavedCallback( nullptr )
     {
         m_pTextEditor = std::make_unique<TextEditor>();
         m_pTextEditor->SetReadOnly( true );
@@ -382,6 +396,22 @@ namespace Profiler
     OverlayShaderView::~OverlayShaderView()
     {
         Clear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InitializeStyles
+
+    Description:
+        Configures the shader viewer for the current ImGui style.
+
+    \***********************************************************************************/
+    void OverlayShaderView::InitializeStyles()
+    {
+        m_DefaultWindowBgColor = ImGui::GetColorU32( ImGuiCol_WindowBg );
+        m_DefaultTitleBgColor = ImGui::GetColorU32( ImGuiCol_TitleBg );
+        m_DefaultTitleBgActiveColor = ImGui::GetColorU32( ImGuiCol_TitleBgActive );
     }
 
     /***********************************************************************************\
@@ -644,6 +674,8 @@ namespace Profiler
             ImGui::EndTabBar();
         }
 
+        UpdateShaderExporter();
+
         ImGui::PopStyleVar();
         ImGui::PopFont();
     }
@@ -723,7 +755,9 @@ namespace Profiler
             // Draw a toolbar with options.
             if( ImGui::Button( "Save" ) )
             {
-                SaveShaderRepresentation( pShaderRepresentation, shaderRepresentationFormat );
+                m_pShaderExporter = std::make_unique<ShaderExporter>();
+                m_pShaderExporter->m_pShaderRepresentation = pShaderRepresentation;
+                m_pShaderExporter->m_ShaderFormat = shaderRepresentationFormat;
             }
 #if PROFILER_BUILD_SPIRV_DOCS
             if( shaderRepresentationFormat == ShaderFormat::eSpirv )
@@ -887,29 +921,107 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SetShaderRepresentationSavedCallback
+        SetShaderSavedCallback
 
     Description:
         Sets the function called when a shader is saved.
 
     \***********************************************************************************/
-    void OverlayShaderView::SetShaderRepresentationSavedCallback( ShaderRepresentationSavedCallback callback )
+    void OverlayShaderView::SetShaderSavedCallback( ShaderSavedCallback callback )
     {
-        m_ShaderRepresentationSavedCallback = callback;
+        m_ShaderSavedCallback = callback;
     }
 
     /***********************************************************************************\
 
     Function:
-        SaveShaderRepresentation
+        UpdateShaderExporter
 
     Description:
         Saves the shader representation to a file.
 
     \***********************************************************************************/
-    void OverlayShaderView::SaveShaderRepresentation( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat )
+    void OverlayShaderView::UpdateShaderExporter()
     {
-        // Construct output path.
+        static const std::string scFileDialogId = "#ShaderSaveFileDialog";
+
+        // Early-out if shader exporter is not available.
+        if( m_pShaderExporter == nullptr )
+        {
+            return;
+        }
+
+        // Prevent the dialog from appearing transparent.
+        const int numPushedColors = 3;
+        ImGui::PushStyleColor( ImGuiCol_WindowBg, m_DefaultWindowBgColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBg, m_DefaultTitleBgColor );
+        ImGui::PushStyleColor( ImGuiCol_TitleBgActive, m_DefaultTitleBgActiveColor );
+
+        if( !m_pShaderExporter->m_FileDialog.IsOpened() )
+        {
+            // Configure the file dialog.
+            m_pShaderExporter->m_FileDialogConfig.fileName = GetDefaultShaderFileName(
+                m_pShaderExporter->m_pShaderRepresentation,
+                m_pShaderExporter->m_ShaderFormat );
+
+            m_pShaderExporter->m_FileDialogConfig.flags = ImGuiFileDialogFlags_Default;
+
+            // Set initial size and position of the dialog.
+            ImGuiIO& io = ImGui::GetIO();
+            ImVec2 size = io.DisplaySize;
+            float scale = io.FontGlobalScale;
+            size.x = std::min( size.x / 1.5f, 640.f * scale );
+            size.y = std::min( size.y / 1.25f, 480.f * scale );
+            ImGui::SetNextWindowSize( size );
+
+            ImVec2 pos = io.DisplaySize;
+            pos.x = (pos.x - size.x) / 2.0f;
+            pos.y = (pos.y - size.y) / 2.0f;
+            ImGui::SetNextWindowPos( pos );
+
+            // Show the file dialog.
+            m_pShaderExporter->m_FileDialog.OpenDialog(
+                scFileDialogId,
+                "Select shader save path",
+                ".*",
+                m_pShaderExporter->m_FileDialogConfig );
+        }
+
+        // Draw the file dialog until the user closes it.
+        bool closed = m_pShaderExporter->m_FileDialog.Display(
+            scFileDialogId,
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoSavedSettings );
+
+        if( closed )
+        {
+            if( m_pShaderExporter->m_FileDialog.IsOk() )
+            {
+                SaveShaderToFile(
+                    m_pShaderExporter->m_FileDialog.GetFilePathName(),
+                    m_pShaderExporter->m_pShaderRepresentation,
+                    m_pShaderExporter->m_ShaderFormat );
+            }
+
+            // Destroy the exporter.
+            m_pShaderExporter.reset();
+        }
+
+        ImGui::PopStyleColor( numPushedColors );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDefaultShaderFileName
+
+    Description:
+        Returns the default name of the file to write the shader to.
+
+    \***********************************************************************************/
+    std::string OverlayShaderView::GetDefaultShaderFileName( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat )
+    {
         std::stringstream stringBuilder;
         stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
         stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
@@ -943,22 +1055,34 @@ namespace Profiler
             stringBuilder << pExtension;
         }
 
-        std::filesystem::path outputPath = stringBuilder.str();
+        return stringBuilder.str();
+    }
 
+    /***********************************************************************************\
+
+    Function:
+        SaveShaderToFile
+
+    Description:
+        Saves the shader representation to a file.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SaveShaderToFile( const std::string& path, ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat )
+    {
         // Open file for writing.
         std::ios::openmode mode =
             std::ios::out |
             std::ios::trunc |
-            ((shaderFormat == ShaderFormat::eBinary) ? std::ios::binary : 0);
+            ((shaderFormat == ShaderFormat::eBinary) ? std::ios::binary : std::ios::openmode());
 
-        std::ofstream out( outputPath );
+        std::ofstream out( path );
         if( !out.is_open() )
         {
-            if( m_ShaderRepresentationSavedCallback )
+            if( m_ShaderSavedCallback )
             {
-                m_ShaderRepresentationSavedCallback(
+                m_ShaderSavedCallback(
                     false,
-                    "Failed to open file for writing.\n" + outputPath.string() );
+                    "Failed to open file for writing.\n" + path );
             }
             return;
         }
@@ -968,11 +1092,11 @@ namespace Profiler
         out.close();
 
         // Notify the listener.
-        if( m_ShaderRepresentationSavedCallback )
+        if( m_ShaderSavedCallback )
         {
-            m_ShaderRepresentationSavedCallback(
+            m_ShaderSavedCallback(
                 true,
-                "Shader written to:\n" + outputPath.string() );
+                "Shader written to:\n" + path );
         }
     }
 }

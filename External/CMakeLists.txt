@@ -110,3 +110,15 @@ target_include_directories (imgui-text-editor
 
 target_link_libraries (imgui-text-editor
     PUBLIC imgui)
+
+# aiekick/ImGuiFileDialog
+add_library (imgui-file-dialog STATIC
+    imgui-file-dialog/ImGuiFileDialog.h
+    imgui-file-dialog/ImGuiFileDialog.cpp
+    imgui-file-dialog/ImGuiFileDialogConfig.h)
+
+target_include_directories (imgui-file-dialog
+    PUBLIC imgui-file-dialog)
+
+target_link_libraries (imgui-file-dialog
+    PUBLIC imgui)

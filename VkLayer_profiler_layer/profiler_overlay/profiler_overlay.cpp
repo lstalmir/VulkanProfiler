@@ -314,8 +314,9 @@ namespace Profiler
         // Initialize the disassembler in the shader view
         if( result == VK_SUCCESS )
         {
+            m_InspectorShaderView.InitializeStyles();
             m_InspectorShaderView.SetTargetDevice( m_pDevice );
-            m_InspectorShaderView.SetShaderRepresentationSavedCallback( std::bind(
+            m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
                 this,
                 std::placeholders::_1,
