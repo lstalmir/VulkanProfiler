@@ -201,7 +201,7 @@ namespace Profiler
         Frame& frame = m_NextFrames.back();
 
         DeviceProfilerSubmitBatch& submitBatch = frame.m_PendingSubmits.emplace_back( submit );
-        submitBatch.m_SubmitBatchDataIndex = frame.m_CompleteSubmits.size();
+        submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>(frame.m_CompleteSubmits.size());
 
         DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
         submitBatchData.m_Handle = submit.m_Handle;
