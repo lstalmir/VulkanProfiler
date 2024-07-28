@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Lukasz Stalmirski
+// Copyright (c) 2022-2024 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,15 @@
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Function:
+        DeviceProfilerQueryDataBuffer
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
     DeviceProfilerQueryDataBuffer::DeviceProfilerQueryDataBuffer( DeviceProfiler& profiler, uint64_t size )
         : m_Profiler( profiler )
         , m_Buffer( VK_NULL_HANDLE )
@@ -67,6 +76,15 @@ namespace Profiler
         }
     }
 
+    /***********************************************************************************\
+
+    Function:
+        ~DeviceProfilerQueryDataBuffer
+
+    Description:
+        Destructor.
+
+    \***********************************************************************************/
     DeviceProfilerQueryDataBuffer::~DeviceProfilerQueryDataBuffer()
     {
         if( m_Buffer != VK_NULL_HANDLE )
@@ -82,6 +100,15 @@ namespace Profiler
         }
     }
 
+    /***********************************************************************************\
+
+    Function:
+        FallbackToCpuAllocation
+
+    Description:
+        Releases GPU allocation and allocates a CPU memory for the query data.
+
+    \***********************************************************************************/
     void DeviceProfilerQueryDataBuffer::FallbackToCpuAllocation()
     {
         if( m_Buffer != VK_NULL_HANDLE )
@@ -102,31 +129,87 @@ namespace Profiler
         }
     }
 
+    /***********************************************************************************\
+
+    Function:
+        UsesGpuAllocation
+
+    Description:
+        Checks whether the buffer uses GPU allocation for storing the data.
+
+    \***********************************************************************************/
     bool DeviceProfilerQueryDataBuffer::UsesGpuAllocation() const
     {
         return m_Buffer != VK_NULL_HANDLE;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetGpuBuffer
+
+    Description:
+        Returns a handle to the GPU allocation.
+
+    \***********************************************************************************/
     VkBuffer DeviceProfilerQueryDataBuffer::GetGpuBuffer() const
     {
         return m_Buffer;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetCpuBuffer
+
+    Description:
+        Returns a pointer to the CPU allocation.
+
+    \***********************************************************************************/
     uint8_t* DeviceProfilerQueryDataBuffer::GetCpuBuffer() const
     {
         return reinterpret_cast<uint8_t*>(m_pCpuAllocation);
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetMappedData
+
+    Description:
+        Returns a pointer to a CPU-visible memory, which is either a mapped GPU allocation
+        or the CPU allocation.
+
+    \***********************************************************************************/
     const uint8_t* DeviceProfilerQueryDataBuffer::GetMappedData() const
     {
         return reinterpret_cast<const uint8_t*>(m_AllocationInfo.pMappedData);
     }
 
+    /***********************************************************************************\
+
+    Function:
+        CreateContext
+
+    Description:
+        Creates a query data context and associates it with the provided handle.
+
+    \***********************************************************************************/
     DeviceProfilerQueryDataContext* DeviceProfilerQueryDataBuffer::CreateContext( const void* handle )
     {
         return &m_Contexts.emplace( handle, DeviceProfilerQueryDataContext() ).first->second;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetContext
+
+    Description:
+        Returns the query data context associated with the provided handle, or nullptr
+        if none was found.
+
+    \***********************************************************************************/
     const DeviceProfilerQueryDataContext* DeviceProfilerQueryDataBuffer::GetContext( const void* handle ) const
     {
         auto contextIt = m_Contexts.find( handle );
@@ -137,6 +220,15 @@ namespace Profiler
         return nullptr;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        DeviceProfilerQueryDataBufferWriter
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
     DeviceProfilerQueryDataBufferWriter::DeviceProfilerQueryDataBufferWriter(
         DeviceProfiler& profiler,
         DeviceProfilerQueryDataBuffer& dataBuffer,
@@ -157,12 +249,32 @@ namespace Profiler
         }
     }
 
+    /***********************************************************************************\
+
+    Function:
+        SetContext
+
+    Description:
+        Sets the command buffer context for the subsequent write operations.
+
+    \***********************************************************************************/
     void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle )
     {
         m_pContext = m_pData->CreateContext( handle );
         m_pContext->m_TimestampDataOffset = m_DataOffset;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        WriteTimestampQueryResults
+
+    Description:
+        If a command buffer is available, the function copies the query pool results
+        using vkCmdCopyQueryPoolResults command. Otherwise, copies the query results
+        immediatelly to the CPU allocation of the data buffer.
+
+    \***********************************************************************************/
     void DeviceProfilerQueryDataBufferWriter::WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount )
     {
         uint32_t dataSize = (queryCount * sizeof( uint64_t ));
@@ -194,6 +306,16 @@ namespace Profiler
         m_DataOffset += dataSize;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        WritePerformanceQueryResults
+
+    Description:
+        Associates performance query report with the current command buffer context.
+        No data is copied at time of calling this function due to spec limitations.
+
+    \***********************************************************************************/
     void DeviceProfilerQueryDataBufferWriter::WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex )
     {
         uint32_t dataSize = m_pProfiler->m_MetricsApiINTEL.GetReportSize( metricsSetIndex );
@@ -203,6 +325,15 @@ namespace Profiler
         m_DataOffset += dataSize;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        DeviceProfilerQueryDataBufferReader
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
     DeviceProfilerQueryDataBufferReader::DeviceProfilerQueryDataBufferReader( const DeviceProfiler& profiler, const DeviceProfilerQueryDataBuffer& dataBuffer )
         : m_pProfiler( &profiler )
         , m_pData( &dataBuffer )
@@ -212,6 +343,15 @@ namespace Profiler
         , m_PerformanceQueryData( 0 )
     {}
 
+    /***********************************************************************************\
+
+    Function:
+        SetContext
+
+    Description:
+        Sets the command buffer context for the subsequent read operations.
+
+    \***********************************************************************************/
     void DeviceProfilerQueryDataBufferReader::SetContext( const void* handle )
     {
         m_pContext = m_pData->GetContext( handle );
@@ -219,21 +359,67 @@ namespace Profiler
         m_PerformanceQueryData.resize( m_pContext->m_PerformanceDataSize );
     }
 
+    /***********************************************************************************\
+
+    Function:
+        ReadTimestampQueryResult
+
+    Description:
+        Returns timestamp query value at the given index. The indices are counted
+        independently for each command buffer context.
+
+    \***********************************************************************************/
     uint64_t DeviceProfilerQueryDataBufferReader::ReadTimestampQueryResult( uint64_t queryIndex ) const
     {
         return m_pMappedTimestampQueryData[ queryIndex ];
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceQueryMetricsSetIndex
+
+    Description:
+        Returns index of the metrics set used to collect the performance query report.
+        It is only valid to call this function if HasPerformanceQueryResult returns true
+        for the current context.
+
+    \***********************************************************************************/
     uint32_t DeviceProfilerQueryDataBufferReader::GetPerformanceQueryMetricsSetIndex() const
     {
         return m_pContext->m_PerformanceDataMetricsSetIndex;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceQueryResultSize
+
+    Description:
+        Returns byte size of the performance query report collected for the current
+        context. It is only valid to call this function if HasPerformanceQueryResult
+        returns true for the current context.
+
+    \***********************************************************************************/
     uint32_t DeviceProfilerQueryDataBufferReader::GetPerformanceQueryResultSize() const
     {
         return m_pContext->m_PerformanceDataSize;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        ReadPerformanceQueryResult
+
+    Description:
+        Returns pointer to the performance query report collected for the current
+        context. It is only valid to call this function if HasPerformanceQueryResult
+        returns true for the current context.
+
+        Because of the spec limitations, the performance query results are always
+        collected on CPU when this function is called.
+
+    \***********************************************************************************/
     const uint8_t* DeviceProfilerQueryDataBufferReader::ReadPerformanceQueryResult()
     {
         // vkCmdCopyQueryPoolResults must not be used with Intel performance query pools.
@@ -253,6 +439,16 @@ namespace Profiler
         return m_PerformanceQueryData.data();
     }
 
+    /***********************************************************************************\
+
+    Function:
+        HasPerformanceQueryResult
+
+    Description:
+        Returns true if there is a performance query report collected for the current
+        command buffer context.
+
+    \***********************************************************************************/
     bool DeviceProfilerQueryDataBufferReader::HasPerformanceQueryResult() const
     {
         return m_pContext->m_PerformanceDataSize > 0;

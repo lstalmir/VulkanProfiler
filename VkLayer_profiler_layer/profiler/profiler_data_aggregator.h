@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,7 @@
 #include "profiler_command_buffer.h"
 #include <list>
 #include <map>
-#include <queue>
 #include <mutex>
-#include <thread>
-#include <condition_variable>
 #include <unordered_set>
 #include <unordered_map>
 // Import extension structures

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -967,8 +967,7 @@ namespace Profiler
         Returns structure containing ordered list of timestamps and statistics.
 
     \***********************************************************************************/
-    const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData(
-        DeviceProfilerQueryDataBufferReader& reader )
+    const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData( DeviceProfilerQueryDataBufferReader& reader )
     {
         if( m_ProfilingEnabled &&
             m_Dirty )
@@ -1057,8 +1056,8 @@ namespace Profiler
                         {
                             for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataCount; ++subpassDataIndex )
                             {
-                                auto& subpassData = subpass.m_Data[subpassDataIndex];
-                                switch( subpassData.GetType() )
+                                auto& data = subpass.m_Data[subpassDataIndex];
+                                switch( data.GetType() )
                                 {
                                 case DeviceProfilerSubpassDataType::ePipeline:
                                 {
@@ -1175,10 +1174,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::ResolveSubpassPipelineData( const DeviceProfilerQueryDataBufferReader& reader, DeviceProfilerSubpassData& subpass, size_t subpassDataIndex )
     {
-        auto& subpassData = subpass.m_Data[subpassDataIndex];
-        assert( subpassData.GetType() == DeviceProfilerSubpassDataType::ePipeline );
+        auto& data = subpass.m_Data[subpassDataIndex];
+        assert( data.GetType() == DeviceProfilerSubpassDataType::ePipeline );
 
-        auto& pipeline = std::get<DeviceProfilerPipelineData>( subpassData );
+        auto& pipeline = std::get<DeviceProfilerPipelineData>( data );
         pipeline.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( pipeline.m_BeginTimestamp.m_Index );
         pipeline.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( pipeline.m_EndTimestamp.m_Index );
 
@@ -1223,10 +1222,10 @@ namespace Profiler
         bool& firstTimestampFromSecondaryCommandBuffer,
         bool& lastTimestampFromSecondaryCommandBuffer )
     {
-        auto& subpassData = subpass.m_Data[subpassDataIndex];
-        assert( subpassData.GetType() == DeviceProfilerSubpassDataType::eCommandBuffer );
+        auto& data = subpass.m_Data[subpassDataIndex];
+        assert( data.GetType() == DeviceProfilerSubpassDataType::eCommandBuffer );
 
-        auto& commandBuffer = std::get<DeviceProfilerCommandBufferData>( subpassData );
+        auto& commandBuffer = std::get<DeviceProfilerCommandBufferData>( data );
         VkCommandBuffer handle = commandBuffer.m_Handle;
         ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
 
