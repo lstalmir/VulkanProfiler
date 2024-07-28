@@ -254,7 +254,7 @@ namespace Profiler
             ImGui::SetCurrentContext( m_pImGuiContext );
 
             // Register settings handler to the new context
-            m_Settings.RegisterHandler();
+            m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
             io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
