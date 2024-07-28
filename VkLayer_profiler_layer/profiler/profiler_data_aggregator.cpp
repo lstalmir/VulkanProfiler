@@ -227,9 +227,13 @@ namespace Profiler
 
         // Try to copy the data using GPU.
         // It may fallback to CPU allocation if the function fails to allocate the command buffer.
-        if( submitBatch.m_pDataBuffer->UsesGpuAllocation() )
+        bool succeeded = WriteQueryDataToGpuBuffer( submitBatch );
+        if( !succeeded )
         {
-            WriteQueryDataToGpuBuffer( submitBatch );
+            FreeDynamicAllocations( submitBatch );
+
+            // Fatal error, drop the packet.
+            frame.m_PendingSubmits.pop_back();
         }
     }
 
@@ -291,31 +295,20 @@ namespace Profiler
 
                 if( result == VK_SUCCESS )
                 {
+                    bool succeeded = true;
                     if( !submitBatchIt->m_pDataBuffer->UsesGpuAllocation() )
                     {
-                        WriteQueryDataToCpuBuffer( *submitBatchIt );
+                        succeeded = WriteQueryDataToCpuBuffer( *submitBatchIt );
                     }
 
-                    ResolveSubmitBatchData(
-                        *submitBatchIt,
-                        frame.m_CompleteSubmits[ submitBatchIt->m_SubmitBatchDataIndex ] );
-
-                    if( submitBatchIt->m_DataCopyFence )
+                    if( succeeded )
                     {
-                        m_pProfiler->m_pDevice->Callbacks.DestroyFence(
-                            m_pProfiler->m_pDevice->Handle,
-                            submitBatchIt->m_DataCopyFence,
-                            nullptr );
-                    }
-                    if( submitBatchIt->m_DataCopyCommandBuffer )
-                    {
-                        m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
-                            m_pProfiler->m_pDevice->Handle,
-                            submitBatchIt->m_DataCopyCommandPool,
-                            1, &submitBatchIt->m_DataCopyCommandBuffer );
+                        ResolveSubmitBatchData(
+                            *submitBatchIt,
+                            frame.m_CompleteSubmits[submitBatchIt->m_SubmitBatchDataIndex] );
                     }
 
-                    delete submitBatchIt->m_pDataBuffer;
+                    FreeDynamicAllocations( *submitBatchIt );
 
                     submitBatchIt = frame.m_PendingSubmits.erase( submitBatchIt );
                 }
@@ -717,6 +710,35 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        FreeDynamicAllocations
+
+    Description:
+        Frees all dynamic allocations of the submit batch.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::FreeDynamicAllocations( DeviceProfilerSubmitBatch& submitBatch )
+    {
+        if( submitBatch.m_DataCopyFence )
+        {
+            m_pProfiler->m_pDevice->Callbacks.DestroyFence(
+                m_pProfiler->m_pDevice->Handle,
+                submitBatch.m_DataCopyFence,
+                nullptr );
+        }
+        if( submitBatch.m_DataCopyCommandBuffer )
+        {
+            m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
+                m_pProfiler->m_pDevice->Handle,
+                submitBatch.m_DataCopyCommandPool,
+                1, &submitBatch.m_DataCopyCommandBuffer );
+        }
+
+        delete submitBatch.m_pDataBuffer;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteQueryDataToGpuBuffer
 
     Description:
@@ -724,93 +746,105 @@ namespace Profiler
         Fallback to a CPU allocation if the allocation or recording fails.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
+    bool ProfilerDataAggregator::WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
     {
-        // Get the command pool associated with the queue.
-        // It is implicitly synchronized by the application here.
-        submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+        // Always submit the fence to GPU to check for data availability later.
+        uint32_t submitCount = 0;
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        // Allocate the command buffer.
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        commandBufferAllocateInfo.commandBufferCount = 1;
-        commandBufferAllocateInfo.commandPool = submitBatch.m_DataCopyCommandPool;
-
-        VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
-            m_pProfiler->m_pDevice->Handle,
-            &commandBufferAllocateInfo,
-            &submitBatch.m_DataCopyCommandBuffer );
-
-        if( result == VK_SUCCESS )
+        // Try to copy using GPU if allocation is available.
+        if( submitBatch.m_pDataBuffer->UsesGpuAllocation() )
         {
-            // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
-            result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
+            // Get the command pool associated with the queue.
+            // It is implicitly synchronized by the application here.
+            submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+
+            // Allocate the command buffer.
+            VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+            commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            commandBufferAllocateInfo.commandBufferCount = 1;
+            commandBufferAllocateInfo.commandPool = submitBatch.m_DataCopyCommandPool;
+
+            VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
-                submitBatch.m_DataCopyCommandBuffer );
-        }
+                &commandBufferAllocateInfo,
+                &submitBatch.m_DataCopyCommandBuffer );
 
-        if( result == VK_SUCCESS )
-        {
-            // Begin recording commands to the copy command buffer.
-            VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-            commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-            result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
-                submitBatch.m_DataCopyCommandBuffer,
-                &commandBufferBeginInfo );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            // Create a fence for synchronization.
-            VkFenceCreateInfo fenceCreateInfo = {};
-            fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-            result = m_pProfiler->m_pDevice->Callbacks.CreateFence(
-                m_pProfiler->m_pDevice->Handle,
-                &fenceCreateInfo,
-                nullptr,
-                &submitBatch.m_DataCopyFence );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            // Write timestamp queries to the buffer using the GPU.
-            DeviceProfilerQueryDataBufferWriter writer(
-                *m_pProfiler,
-                *submitBatch.m_pDataBuffer,
-                submitBatch.m_DataCopyCommandBuffer );
-
-            for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+            if( result == VK_SUCCESS )
             {
-                pCommandBuffer->WriteQueryData( writer );
+                // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
+                result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
+                    m_pProfiler->m_pDevice->Handle,
+                    submitBatch.m_DataCopyCommandBuffer );
             }
 
-            result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
-                submitBatch.m_DataCopyCommandBuffer );
+            if( result == VK_SUCCESS )
+            {
+                // Begin recording commands to the copy command buffer.
+                VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+                commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+                result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
+                    submitBatch.m_DataCopyCommandBuffer,
+                    &commandBufferBeginInfo );
+            }
+
+            if( result == VK_SUCCESS )
+            {
+                // Write timestamp queries to the buffer using the GPU.
+                DeviceProfilerQueryDataBufferWriter writer(
+                    *m_pProfiler,
+                    *submitBatch.m_pDataBuffer,
+                    submitBatch.m_DataCopyCommandBuffer );
+
+                for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+                {
+                    pCommandBuffer->WriteQueryData( writer );
+                }
+
+                result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
+                    submitBatch.m_DataCopyCommandBuffer );
+            }
+
+            if( result == VK_SUCCESS )
+            {
+                // Submit the command buffer for execution.
+                submitCount = 1;
+                submitInfo.commandBufferCount = 1;
+                submitInfo.pCommandBuffers = &submitBatch.m_DataCopyCommandBuffer;
+            }
+
+            if( result != VK_SUCCESS )
+            {
+                // If any of the steps above has failed, fallback to CPU allocation and collect the data later.
+                submitBatch.m_pDataBuffer->FallbackToCpuAllocation();
+            }
         }
+
+        // Always submit the fence, which is required to check for data availability.
+        VkFenceCreateInfo fenceCreateInfo = {};
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+        VkResult result = m_pProfiler->m_pDevice->Callbacks.CreateFence(
+            m_pProfiler->m_pDevice->Handle,
+            &fenceCreateInfo,
+            nullptr,
+            &submitBatch.m_DataCopyFence );
 
         if( result == VK_SUCCESS )
         {
-            // Submit the copy commands.
-            VkSubmitInfo copySubmitInfo = {};
-            copySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            copySubmitInfo.commandBufferCount = 1;
-            copySubmitInfo.pCommandBuffers = &submitBatch.m_DataCopyCommandBuffer;
-
+            // Submit the fence, and optionally the command buffer, for execution.
             result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
                 submitBatch.m_Handle,
-                1, &copySubmitInfo,
+                submitCount,
+                &submitInfo,
                 submitBatch.m_DataCopyFence );
         }
 
-        if( result != VK_SUCCESS )
-        {
-            // If any of the steps above has failed, fallback to CPU allocation and collect the data later.
-            submitBatch.m_pDataBuffer->FallbackToCpuAllocation();
-        }
+        return (result == VK_SUCCESS);
     }
 
     /***********************************************************************************\
@@ -822,8 +856,14 @@ namespace Profiler
         Copy the data from the query pools to the buffer.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
+    bool ProfilerDataAggregator::WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
     {
+        // Drop the packet if the CPU buffer allocation failed.
+        if( submitBatch.m_pDataBuffer->GetCpuBuffer() == nullptr )
+        {
+            return false;
+        }
+
         // Write timestamp queries to the buffer using the CPU.
         DeviceProfilerQueryDataBufferWriter writer(
             *m_pProfiler,
@@ -833,5 +873,7 @@ namespace Profiler
         {
             pCommandBuffer->WriteQueryData( writer );
         }
+
+        return true;
     }
 }

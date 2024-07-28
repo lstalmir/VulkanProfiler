@@ -104,32 +104,17 @@ namespace Profiler
         uint32_t                                               m_VendorMetricsSetIndex;
 
         void LoadVendorMetricsProperties();
-        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics(
-            const Frame& ) const;
+        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics( const Frame& ) const;
 
-        ContainerType<DeviceProfilerPipelineData> CollectTopPipelines(
-            const Frame& ) const;
+        ContainerType<DeviceProfilerPipelineData> CollectTopPipelines( const Frame& ) const;
+        void CollectPipelinesFromCommandBuffer( const DeviceProfilerCommandBufferData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
+        void CollectPipeline( const DeviceProfilerPipelineData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
 
-        void CollectPipelinesFromCommandBuffer(
-            const DeviceProfilerCommandBufferData&,
-            std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
+        void ResolveSubmitBatchData( const DeviceProfilerSubmitBatch&, DeviceProfilerSubmitBatchData& ) const;
+        void ResolveFrameData( Frame&, DeviceProfilerFrameData& ) const;
 
-        void CollectPipeline(
-            const DeviceProfilerPipelineData&,
-            std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
-
-        void ResolveSubmitBatchData(
-            const DeviceProfilerSubmitBatch&,
-            DeviceProfilerSubmitBatchData& ) const;
-
-        void ResolveFrameData(
-            Frame&,
-            DeviceProfilerFrameData& ) const;
-
-        void WriteQueryDataToGpuBuffer(
-            DeviceProfilerSubmitBatch& );
-
-        void WriteQueryDataToCpuBuffer(
-            DeviceProfilerSubmitBatch& );
+        void FreeDynamicAllocations( DeviceProfilerSubmitBatch& );
+        bool WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& );
+        bool WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& );
     };
 }
