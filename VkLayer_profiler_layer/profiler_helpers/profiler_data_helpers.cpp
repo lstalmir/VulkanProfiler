@@ -751,7 +751,7 @@ namespace Profiler
         case VK_SHADER_STAGE_MESH_BIT_EXT:
             return "mesh";
         case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
-            return "rgen";
+            return "raygen";
         case VK_SHADER_STAGE_ANY_HIT_BIT_KHR:
             return "anyhit";
         case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
