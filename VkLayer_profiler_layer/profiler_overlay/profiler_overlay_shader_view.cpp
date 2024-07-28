@@ -219,6 +219,50 @@ namespace
     /***********************************************************************************\
 
     Function:
+        GetShaderFileExtension
+
+    Description:
+        Returns an extension associated with the shader format.
+
+    \***********************************************************************************/
+    static constexpr const char* GetShaderFileExtension( Profiler::ShaderFormat shaderFormat )
+    {
+        switch( shaderFormat )
+        {
+        default:
+        case Profiler::ShaderFormat::eText:
+            return ".txt";
+        case Profiler::ShaderFormat::eBinary:
+            return ".bin";
+        case Profiler::ShaderFormat::eSpirv:
+            return ".spvasm";
+        case Profiler::ShaderFormat::eGlsl:
+            return ".glsl";
+        case Profiler::ShaderFormat::eHlsl:
+            return ".hlsl";
+        case Profiler::ShaderFormat::eCpp:
+            return ".cpp";
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        NormalizeShaderFileName
+
+    Description:
+        Converts all whitespaces in the input string to underscores in the output string.
+
+    \***********************************************************************************/
+    static std::string NormalizeShaderFileName( std::string nameComponent )
+    {
+        std::replace_if( nameComponent.begin(), nameComponent.end(), isspace, '_' );
+        return nameComponent;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetSpirvLanguageDefinition
 
     Description:
@@ -369,6 +413,7 @@ namespace Profiler
     OverlayShaderView::OverlayShaderView( const OverlayFonts& fonts )
         : m_Fonts( fonts )
         , m_pTextEditor( nullptr )
+        , m_ShaderName( "shader" )
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
         , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
@@ -456,6 +501,21 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetShaderName
+
+    Description:
+        Sets the currently displayed shader name.
+        The name is used to construct file names when saving the representations to file.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SetShaderName( const std::string& name )
+    {
+        m_ShaderName = name;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Clear
 
     Description:
@@ -477,6 +537,7 @@ namespace Profiler
             free( pShaderRepresentation );
         }
 
+        m_ShaderName = "shader";
         m_pShaderRepresentations.clear();
 
         // Reset current tab index.
@@ -1020,42 +1081,26 @@ namespace Profiler
         Returns the default name of the file to write the shader to.
 
     \***********************************************************************************/
-    std::string OverlayShaderView::GetDefaultShaderFileName( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat )
+    std::string OverlayShaderView::GetDefaultShaderFileName( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat ) const
     {
         std::stringstream stringBuilder;
         stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
         stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
-        stringBuilder << "shader";
+        stringBuilder << m_ShaderName << "_";
+        stringBuilder << pShaderRepresentation->m_pName;
 
-        const char* pExtension = nullptr;
-        switch( shaderFormat )
+        if( pShaderRepresentation->m_Format == m_scExecutableShaderFormat )
         {
-        default:
-        case ShaderFormat::eText:
-            pExtension = ".txt";
-            break;
-        case ShaderFormat::eBinary:
-            pExtension = ".bin";
-            break;
-        case ShaderFormat::eSpirv:
-            pExtension = ".spvasm";
-            break;
-        case ShaderFormat::eGlsl:
-            pExtension = ".glsl";
-            break;
-        case ShaderFormat::eHlsl:
-            pExtension = ".hlsl";
-            break;
-        case ShaderFormat::eCpp:
-            pExtension = ".cpp";
-            break;
-        }
-        if( pExtension )
-        {
-            stringBuilder << pExtension;
+            // Append internal representation name to the file name.
+            ShaderExecutableRepresentation* pShaderExecutableRepresentation = static_cast<ShaderExecutableRepresentation*>(pShaderRepresentation);
+            ProfilerShaderInternalRepresentation internalRepresentation = pShaderExecutableRepresentation->m_Executable.GetInternalRepresentation(
+                pShaderExecutableRepresentation->m_InternalRepresentationIndex );
+
+            stringBuilder << "_" << internalRepresentation.m_pName;
         }
 
-        return stringBuilder.str();
+        stringBuilder << GetShaderFileExtension( shaderFormat );
+        return NormalizeShaderFileName( stringBuilder.str() );
     }
 
     /***********************************************************************************\

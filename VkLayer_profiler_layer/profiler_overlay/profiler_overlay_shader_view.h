@@ -73,6 +73,7 @@ namespace Profiler
 
         void InitializeStyles();
         void SetTargetDevice( struct VkDevice_Object* pDevice );
+        void SetShaderName( const std::string& name );
 
         void Clear();
 
@@ -95,6 +96,7 @@ namespace Profiler
         const OverlayFonts&                m_Fonts;
         std::unique_ptr<TextEditor>        m_pTextEditor;
 
+        std::string                        m_ShaderName;
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
         int                                m_SpvTargetEnv;
@@ -114,7 +116,7 @@ namespace Profiler
         bool SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat );
 
         void UpdateShaderExporter();
-        std::string GetDefaultShaderFileName( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat );
+        std::string GetDefaultShaderFileName( ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat ) const;
         void SaveShaderToFile( const std::string& path, ShaderRepresentation* pShaderRepresentation, ShaderFormat shaderFormat );
     };
 }

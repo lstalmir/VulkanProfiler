@@ -661,6 +661,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetShortShaderName
+
+    Description:
+        Returns short string representation of the shader.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShortShaderName( const ProfilerShader& shader ) const
+    {
+        return fmt::format( "{} {:08X} {}",
+            GetShortShaderStageName( shader.m_Stage ),
+            shader.m_Hash,
+            shader.m_EntryPoint );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetShaderStageName
 
     Description:
@@ -701,6 +718,52 @@ namespace Profiler
             return "Callable shader";
         default:
             return fmt::format( "Unknown shader stage ({})", static_cast<uint32_t>( stage ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShortShaderStageName
+
+    Description:
+        Returns short string representation of the shader stage.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShortShaderStageName( VkShaderStageFlagBits stage ) const
+    {
+        switch( stage )
+        {
+        case VK_SHADER_STAGE_VERTEX_BIT:
+            return "vs";
+        case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT:
+            return "tcs";
+        case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT:
+            return "tes";
+        case VK_SHADER_STAGE_GEOMETRY_BIT:
+            return "gs";
+        case VK_SHADER_STAGE_FRAGMENT_BIT:
+            return "ps";
+        case VK_SHADER_STAGE_COMPUTE_BIT:
+            return "cs";
+        case VK_SHADER_STAGE_TASK_BIT_EXT:
+            return "task";
+        case VK_SHADER_STAGE_MESH_BIT_EXT:
+            return "mesh";
+        case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+            return "rgen";
+        case VK_SHADER_STAGE_ANY_HIT_BIT_KHR:
+            return "anyhit";
+        case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
+            return "closesthit";
+        case VK_SHADER_STAGE_MISS_BIT_KHR:
+            return "miss";
+        case VK_SHADER_STAGE_INTERSECTION_BIT_KHR:
+            return "intersection";
+        case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+            return "callable";
+        default:
+            return fmt::to_string( static_cast<uint32_t>(stage) );
         }
     }
 

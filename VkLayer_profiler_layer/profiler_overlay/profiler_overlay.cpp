@@ -1933,6 +1933,7 @@ namespace Profiler
         const ProfilerShader& shader = m_InspectorPipeline.m_ShaderTuple.m_Shaders[ shaderIndex ];
 
         m_InspectorShaderView.Clear();
+        m_InspectorShaderView.SetShaderName( m_pStringSerializer->GetShortShaderName( shader ) );
 
         // Shader module may not be available if the VkShaderEXT has been created directly from a binary.
         if( shader.m_pShaderModule )
