@@ -858,7 +858,11 @@ namespace Profiler
         // Update input clipping rect
         ImVec2 pos = ImGui::GetWindowPos();
         ImVec2 size = ImGui::GetWindowSize();
-        m_pImGuiWindowContext->AddInputCaptureRect( pos.x, pos.y, size.x, size.y );
+        m_pImGuiWindowContext->AddInputCaptureRect(
+            static_cast<int>(pos.x),
+            static_cast<int>(pos.y),
+            static_cast<int>(size.x),
+            static_cast<int>(size.y) );
 
         if( ImGui::BeginMenuBar() )
         {
@@ -950,7 +954,11 @@ namespace Profiler
                         // Add input clipping rect for this window
                         ImVec2 pos = ImGui::GetWindowPos();
                         ImVec2 size = ImGui::GetWindowSize();
-                        m_pImGuiWindowContext->AddInputCaptureRect( pos.x, pos.y, size.x, size.y );
+                        m_pImGuiWindowContext->AddInputCaptureRect(
+                            static_cast<int>(pos.x),
+                            static_cast<int>(pos.y),
+                            static_cast<int>(size.x),
+                            static_cast<int>(size.y) );
                     }
 
                     state.Focus = false;
