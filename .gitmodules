@@ -31,3 +31,6 @@
 [submodule "External/imgui-text-editor"]
 	path = External/imgui-text-editor
 	url = https://github.com/lstalmir/imgui-text-editor
+[submodule "External/imgui-file-dialog"]
+	path = External/imgui-file-dialog
+	url = https://github.com/aiekick/ImGuiFileDialog

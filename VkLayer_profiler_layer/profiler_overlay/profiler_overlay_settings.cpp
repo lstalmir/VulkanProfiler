@@ -165,13 +165,14 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        RegisterHandler
+        InitializeHandlers
 
     Description:
         Adds an ImGui settings handler to the current context.
+        Disables ImGui table settings handler.
 
     \***********************************************************************************/
-    void OverlaySettings::RegisterHandler()
+    void OverlaySettings::InitializeHandlers()
     {
         ImGuiSettingsHandler handler = {};
         handler.TypeName = "Layer";
@@ -183,6 +184,9 @@ namespace Profiler
         handler.WriteAllFn = WriteAll;
         handler.UserData = this;
         ImGui::AddSettingsHandler( &handler );
+
+        // Disable selected default handlers.
+        ImGui::RemoveSettingsHandler( "Table" );
     }
 
     /***********************************************************************************\
