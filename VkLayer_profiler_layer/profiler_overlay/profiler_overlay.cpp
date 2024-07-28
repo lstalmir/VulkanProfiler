@@ -1296,20 +1296,19 @@ namespace Profiler
                 Lang::Pipelines,
                 Lang::Drawcalls };
 
-            const char* selectedOption = groupOptions[ (size_t)m_HistogramGroupMode ];
-
             // Select group mode
             {
-                if( ImGui::BeginCombo( Lang::HistogramGroups, selectedOption, ImGuiComboFlags_NoPreview ) )
+                if( ImGui::BeginCombo( Lang::HistogramGroups, nullptr, ImGuiComboFlags_NoPreview ) )
                 {
-                    for( size_t i = 0; i < std::extent_v<decltype(groupOptions)>; ++i )
-                    {
-                        if( ImGuiX::TSelectable( groupOptions[ i ], selectedOption, groupOptions[ i ] ) )
-                        {
-                            // Selection changed
-                            m_HistogramGroupMode = HistogramGroupMode( i );
-                        }
-                    }
+                    ImGuiX::TSelectable( Lang::RenderPasses, m_HistogramGroupMode, HistogramGroupMode::eRenderPass );
+
+                    ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_PIPELINE_EXT );
+                    ImGuiX::TSelectable( Lang::Pipelines, m_HistogramGroupMode, HistogramGroupMode::ePipeline );
+                    ImGui::EndDisabled();
+
+                    ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_DRAWCALL_EXT );
+                    ImGuiX::TSelectable( Lang::Drawcalls, m_HistogramGroupMode, HistogramGroupMode::eDrawcall );
+                    ImGui::EndDisabled();
 
                     ImGui::EndCombo();
                 }
@@ -1323,7 +1322,7 @@ namespace Profiler
             snprintf( pHistogramDescription, sizeof( pHistogramDescription ),
                 "%s (%s)",
                 Lang::GPUCycles,
-                selectedOption );
+                groupOptions[(size_t)m_HistogramGroupMode] );
 
             ImGui::PushItemWidth( -1 );
             ImGuiX::PlotHistogramEx(
@@ -2784,7 +2783,9 @@ namespace Profiler
         std::vector<PerformanceGraphColumn>& columns ) const
     {
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
-            (data.m_Handle != VK_NULL_HANDLE || data.m_Dynamic) )
+            ((data.m_Handle != VK_NULL_HANDLE) ||
+             (data.m_Dynamic == true) ||
+             (m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT)) )
         {
             const float cycleCount = static_cast<float>(GetDuration( data ));
 
@@ -2872,8 +2873,9 @@ namespace Profiler
         std::vector<PerformanceGraphColumn>& columns ) const
     {
         if( (m_HistogramGroupMode <= HistogramGroupMode::ePipeline) &&
-            ((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
-            (data.m_Handle != VK_NULL_HANDLE) )
+            ((((data.m_ShaderTuple.m_Hash & 0xFFFF) != 0) &&
+              (data.m_Handle != VK_NULL_HANDLE)) ||
+             (m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT)) )
         {
             const float cycleCount = static_cast<float>(GetDuration( data ));
 
