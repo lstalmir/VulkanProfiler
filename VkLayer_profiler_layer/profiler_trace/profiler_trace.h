@@ -24,9 +24,6 @@
 #include <vector>
 #include <string>
 
-// Defined in VkProfilerExt.h
-enum VkProfilerModeEXT;
-
 namespace Profiler
 {
     /*************************************************************************\
@@ -76,7 +73,7 @@ namespace Profiler
 
         DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
 
-        static std::string GetDefaultTraceFileName( VkProfilerModeEXT mode );
+        static std::string GetDefaultTraceFileName( int samplingMode );
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;

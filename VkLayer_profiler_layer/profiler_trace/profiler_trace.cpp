@@ -52,9 +52,9 @@ namespace
         the trace.
 
     \*************************************************************************/
-    static constexpr const char* GetSamplingModeComponent( VkProfilerModeEXT mode )
+    static constexpr const char* GetSamplingModeComponent( int samplingMode )
     {
-        switch( mode )
+        switch( samplingMode )
         {
         case VK_PROFILER_MODE_PER_DRAWCALL_EXT:
             return "drawcalls";
@@ -557,7 +557,7 @@ namespace Profiler
         ConstructTraceFileName
 
     \*************************************************************************/
-    std::string DeviceProfilerTraceSerializer::GetDefaultTraceFileName( VkProfilerModeEXT mode )
+    std::string DeviceProfilerTraceSerializer::GetDefaultTraceFileName( int samplingMode )
     {
         using namespace std::chrono;
 
@@ -576,7 +576,7 @@ namespace Profiler
         stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
         stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
         stringBuilder << std::put_time( &localTime, "%Y-%m-%d_%H-%M-%S" ) << "_" << ms.count();
-        stringBuilder << "_" << GetSamplingModeComponent( mode );
+        stringBuilder << "_" << GetSamplingModeComponent( samplingMode );
         stringBuilder << ".json";
 
         return stringBuilder.str();
