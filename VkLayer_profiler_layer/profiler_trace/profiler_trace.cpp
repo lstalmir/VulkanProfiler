@@ -35,8 +35,44 @@
 
 #include <nlohmann/json.hpp>
 
+#include "profiler_ext/VkProfilerEXT.h"
+
 // Alias commonly used types
 using json = nlohmann::json;
+
+namespace
+{
+    /*************************************************************************\
+
+    Function:
+        GetSamplingModeComponent
+
+    Description:
+        Returns a short description of the sampling mode used to generate
+        the trace.
+
+    \*************************************************************************/
+    static constexpr const char* GetSamplingModeComponent( VkProfilerModeEXT mode )
+    {
+        switch( mode )
+        {
+        case VK_PROFILER_MODE_PER_DRAWCALL_EXT:
+            return "drawcalls";
+        case VK_PROFILER_MODE_PER_PIPELINE_EXT:
+            return "pipelines";
+        case VK_PROFILER_MODE_PER_RENDER_PASS_EXT:
+            return "renderpasses";
+        case VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT:
+            return "commandbuffers";
+        case VK_PROFILER_MODE_PER_SUBMIT_EXT:
+            return "submits";
+        case VK_PROFILER_MODE_PER_FRAME_EXT:
+            return "frame";
+        default:
+            return "";
+        }
+    }
+}
 
 namespace Profiler
 {
@@ -87,7 +123,7 @@ namespace Profiler
         Write collected results to the trace file.
 
     \*************************************************************************/
-    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
+    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
         // Setup state for serialization
         m_pData = &data;
@@ -148,7 +184,7 @@ namespace Profiler
             GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
 
         // Write JSON file
-        SaveEventsToFile( result );
+        SaveEventsToFile( fileName, result );
 
         // Cleanup serializer state
         Cleanup();
@@ -521,7 +557,7 @@ namespace Profiler
         ConstructTraceFileName
 
     \*************************************************************************/
-    std::filesystem::path DeviceProfilerTraceSerializer::ConstructTraceFileName() const
+    std::string DeviceProfilerTraceSerializer::GetDefaultTraceFileName( VkProfilerModeEXT mode )
     {
         using namespace std::chrono;
 
@@ -540,9 +576,10 @@ namespace Profiler
         stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
         stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
         stringBuilder << std::put_time( &localTime, "%Y-%m-%d_%H-%M-%S" ) << "_" << ms.count();
+        stringBuilder << "_" << GetSamplingModeComponent( mode );
         stringBuilder << ".json";
 
-        return std::filesystem::absolute( stringBuilder.str() );
+        return stringBuilder.str();
     }
 
     /*************************************************************************\
@@ -551,7 +588,7 @@ namespace Profiler
         SaveEventsToFile
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::SaveEventsToFile( DeviceProfilerTraceSerializationResult& result )
+    void DeviceProfilerTraceSerializer::SaveEventsToFile( const std::string& fileName, DeviceProfilerTraceSerializationResult& result )
     {
         if( result.m_Succeeded )
         {
@@ -569,14 +606,13 @@ namespace Profiler
             }
 
             // Open output file
-            std::filesystem::path filename = ConstructTraceFileName();
-            std::ofstream out( filename );
+            std::ofstream out( fileName );
 
             if( !out.is_open() )
             {
                 // Failed to open file for writing
                 result.m_Succeeded = false;
-                result.m_Message = "Failed to open file\n" + filename.string();
+                result.m_Message = "Failed to open file\n" + fileName;
                 return;
             }
 
@@ -588,13 +624,13 @@ namespace Profiler
             {
                 // Failed to write data
                 result.m_Succeeded = false;
-                result.m_Message = "Failed to write file\n" + filename.string();
+                result.m_Message = "Failed to write file\n" + fileName;
                 return;
             }
 
             // Success
             result.m_Succeeded = true;
-            result.m_Message = "Saved trace to\n" + filename.string();
+            result.m_Message = "Saved trace to\n" + fileName;
         }
     }
 
