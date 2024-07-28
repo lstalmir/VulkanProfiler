@@ -28,6 +28,15 @@
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Function:
+        DeviceProfilerMemoryManager
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
     DeviceProfilerMemoryManager::DeviceProfilerMemoryManager()
         : m_pDevice( nullptr )
         , m_Allocator( VK_NULL_HANDLE )
@@ -36,6 +45,15 @@ namespace Profiler
     {
     }
 
+    /***********************************************************************************\
+
+    Function:
+        Initialize
+
+    Description:
+        Initializes the memory manager and creates the allocator.
+
+    \***********************************************************************************/
     VkResult DeviceProfilerMemoryManager::Initialize( VkDevice_Object* pDevice )
     {
         assert( !m_pDevice );
@@ -72,6 +90,15 @@ namespace Profiler
         return result;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Frees all allocations and destroys the allocator.
+
+    \***********************************************************************************/
     void DeviceProfilerMemoryManager::Destroy()
     {
         // Free all device memory allocations.
@@ -90,6 +117,15 @@ namespace Profiler
         m_Allocator = VK_NULL_HANDLE;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        AllocateBuffer
+
+    Description:
+        Creates a buffer object and automaticall binds memory to it.
+
+    \***********************************************************************************/
     VkResult DeviceProfilerMemoryManager::AllocateBuffer(
         const VkBufferCreateInfo& bufferCreateInfo,
         const VmaAllocationCreateInfo& allocationCreateInfo,
@@ -106,6 +142,15 @@ namespace Profiler
             pAllocationInfo );
     }
 
+    /***********************************************************************************\
+
+    Function:
+        FreeBuffer
+
+    Description:
+        Destroys the buffer and frees its memory.
+
+    \***********************************************************************************/
     void DeviceProfilerMemoryManager::FreeBuffer(
         VkBuffer buffer,
         VmaAllocation allocation )

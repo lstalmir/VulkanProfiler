@@ -29,6 +29,15 @@ namespace Profiler
 {
     struct VkDevice_Object;
 
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerMemoryManager
+
+    Description:
+        Manages GPU resources and allocations created internally by the profiling layer.
+
+    \***********************************************************************************/
     class DeviceProfilerMemoryManager
     {
     public:
