@@ -21,8 +21,8 @@
 #pragma once
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
-#include <filesystem>
 #include <vector>
+#include <string>
 
 namespace Profiler
 {
@@ -71,7 +71,9 @@ namespace Profiler
         DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
         ~DeviceProfilerTraceSerializer();
 
-        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
+        DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+
+        static std::string GetDefaultTraceFileName( int samplingMode );
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
@@ -111,8 +113,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerPipelineData& );
         void Serialize( const struct DeviceProfilerDrawcall& );
 
-        std::filesystem::path ConstructTraceFileName() const;
-        void SaveEventsToFile( DeviceProfilerTraceSerializationResult& );
+        void SaveEventsToFile( const std::string&, DeviceProfilerTraceSerializationResult& );
 
         void Cleanup();
     };

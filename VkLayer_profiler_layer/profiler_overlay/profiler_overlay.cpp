@@ -30,6 +30,8 @@
 #include <fstream>
 #include <regex>
 
+#include <ImGuiFileDialog.h>
+
 #include <fmt/format.h>
 
 #include "utils/lockable_unordered_map.h"
@@ -78,6 +80,13 @@ namespace Profiler
     {
         HistogramGroupMode groupMode;
         FrameBrowserTreeNodeIndex nodeIndex;
+    };
+
+    struct ProfilerOverlayOutput::TraceExporter
+    {
+        IGFD::FileDialog m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
+        DeviceProfilerFrameData m_Data;
     };
 
     /***********************************************************************************\
@@ -140,6 +149,7 @@ namespace Profiler
         , m_SerializationOutputWindowSize( { 0, 0 } )
         , m_SerializationOutputWindowDuration( std::chrono::seconds( 4 ) )
         , m_SerializationOutputWindowFadeOutDuration( std::chrono::seconds( 1 ) )
+        , m_pTraceExporter( nullptr )
         , m_RenderPassColumnColor( 0 )
         , m_GraphicsPipelineColumnColor( 0 )
         , m_ComputePipelineColumnColor( 0 )
@@ -155,6 +165,19 @@ namespace Profiler
         , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true}
         , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true}
         , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true}
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ~ProfilerOverlayOutput
+
+    Description:
+        Destructor.
+
+    \***********************************************************************************/
+    ProfilerOverlayOutput::~ProfilerOverlayOutput()
     {
     }
 
@@ -870,7 +893,8 @@ namespace Profiler
             {
                 if( ImGui::MenuItem( Lang::Save ) )
                 {
-                    SaveTrace();
+                    m_pTraceExporter = std::make_unique<TraceExporter>();
+                    m_pTraceExporter->m_Data = m_Data;
                 }
                 ImGui::EndMenu();
             }
@@ -892,7 +916,12 @@ namespace Profiler
         // Save results to file
         if( ImGui::Button( Lang::Save ) )
         {
-            SaveTrace();
+            m_pTraceExporter = std::make_unique<TraceExporter>();
+            m_pTraceExporter->m_Data = m_Data;
+        }
+        if( ImGui::IsItemHovered() )
+        {
+            ImGui::SetTooltip( "Save trace of the current frame to file" );
         }
 
         // Keep results
@@ -1034,7 +1063,8 @@ namespace Profiler
         ImGui::End();
 
         // Draw other windows
-        DrawTraceSerializationOutputWindow();
+        UpdateTraceExporter();
+        UpdateNotificationWindow();
 
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
@@ -3092,16 +3122,86 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SaveTrace
+        UpdateTraceExporter
 
     Description:
-        Saves current frame trace to a file.
+        Shows a file dialog if trace save was requested and saves it when OK is pressed.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::SaveTrace()
+    void ProfilerOverlayOutput::UpdateTraceExporter()
+    {
+        static const std::string scFileDialogId = "#TraceSaveFileDialog";
+
+        // Early-out if not requested.
+        if( m_pTraceExporter == nullptr )
+        {
+            return;
+        }
+
+        if( !m_pTraceExporter->m_FileDialog.IsOpened() )
+        {
+            // Initialize the file dialog on the first call to this function.
+            m_pTraceExporter->m_FileDialogConfig.fileName =
+                DeviceProfilerTraceSerializer::GetDefaultTraceFileName( m_SamplingMode );
+
+            m_pTraceExporter->m_FileDialogConfig.flags =
+                ImGuiFileDialogFlags_Default;
+
+            // Set initial size and position of the dialog.
+            ImGuiIO& io = ImGui::GetIO();
+            ImVec2 size = io.DisplaySize;
+            float scale = io.FontGlobalScale;
+            size.x = std::min( size.x / 1.5f, 640.f * scale );
+            size.y = std::min( size.y / 1.25f, 480.f * scale );
+            ImGui::SetNextWindowSize( size );
+
+            ImVec2 pos = io.DisplaySize;
+            pos.x = ( pos.x - size.x ) / 2.0f;
+            pos.y = ( pos.y - size.y ) / 2.0f;
+            ImGui::SetNextWindowPos( pos );
+
+            // Show the file dialog.
+            m_pTraceExporter->m_FileDialog.OpenDialog(
+                scFileDialogId,
+                "Select trace save path",
+                ".json",
+                m_pTraceExporter->m_FileDialogConfig );
+        }
+
+        // Draw the file dialog until the user closes it.
+        bool closed = m_pTraceExporter->m_FileDialog.Display(
+            scFileDialogId,
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoSavedSettings );
+
+        if( closed )
+        {
+            if( m_pTraceExporter->m_FileDialog.IsOk() )
+            {
+                SaveTraceToFile(
+                    m_pTraceExporter->m_FileDialog.GetFilePathName(),
+                    m_pTraceExporter->m_Data );
+            }
+
+            // Destroy the exporter.
+            m_pTraceExporter.reset();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveTraceToFile
+
+    Description:
+        Saves frame trace to a file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
         DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
-        DeviceProfilerTraceSerializationResult result = serializer.Serialize( m_Data );
+        DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
 
         m_SerializationSucceeded = result.m_Succeeded;
         m_SerializationMessage = result.m_Message;
@@ -3115,13 +3215,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        DrawTraceSerializationOutputWindow
+        UpdateNotificationWindow
 
     Description:
         Display window with serialization output.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::DrawTraceSerializationOutputWindow()
+    void ProfilerOverlayOutput::UpdateNotificationWindow()
     {
         using namespace std::chrono;
         using namespace std::chrono_literals;

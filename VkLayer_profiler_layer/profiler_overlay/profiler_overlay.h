@@ -66,6 +66,7 @@ namespace Profiler
     {
     public:
         ProfilerOverlayOutput();
+        ~ProfilerOverlayOutput();
 
         VkResult Initialize(
             VkDevice_Object& device,
@@ -211,6 +212,9 @@ namespace Profiler
         std::chrono::milliseconds m_SerializationOutputWindowDuration;
         std::chrono::milliseconds m_SerializationOutputWindowFadeOutDuration;
 
+        struct TraceExporter;
+        std::unique_ptr<TraceExporter> m_pTraceExporter;
+
         // Performance graph colors
         uint32_t m_RenderPassColumnColor;
         uint32_t m_GraphicsPipelineColumnColor;
@@ -265,8 +269,11 @@ namespace Profiler
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Trace serialization helpers
-        void SaveTrace();
-        void DrawTraceSerializationOutputWindow();
+        void UpdateTraceExporter();
+        void SaveTraceToFile( const std::string&, const DeviceProfilerFrameData& );
+
+        // Notifications
+        void UpdateNotificationWindow();
 
         // Inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
