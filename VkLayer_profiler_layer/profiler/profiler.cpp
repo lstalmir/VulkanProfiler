@@ -643,8 +643,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
         DeviceProfilerCommandPool& profilerCommandPool = GetCommandPool( commandPool );
@@ -671,8 +669,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
         for( uint32_t i = 0; i < count; ++i )
@@ -1041,8 +1037,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue )
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         if( m_MetricsApiINTEL.IsAvailable() )
         {
             AcquirePerformanceConfigurationINTEL( queue );
@@ -1061,8 +1055,6 @@ namespace Profiler
     template<typename SubmitInfoT>
     void DeviceProfiler::PostSubmitCommandBuffersImpl( VkQueue queue, uint32_t count, const SubmitInfoT* pSubmitInfo )
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         using T = SubmitInfoTraits<SubmitInfoT>;
 
         #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
@@ -1161,8 +1153,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         std::scoped_lock lk( m_PresentMutex );
 
         // Update FPS counter

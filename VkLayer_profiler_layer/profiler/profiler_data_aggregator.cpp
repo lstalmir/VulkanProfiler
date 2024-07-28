@@ -244,8 +244,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Aggregate( ProfilerCommandBuffer* pWaitForCommandBuffer )
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         std::scoped_lock lk( m_Mutex );
 
         LoadVendorMetricsProperties();
@@ -402,8 +400,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::ResolveFrameData( Frame& frame, DeviceProfilerFrameData& frameData ) const
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         frameData.m_TopPipelines = CollectTopPipelines( frame );
         frameData.m_VendorMetrics = AggregateVendorMetrics( frame );
 
@@ -434,8 +430,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::LoadVendorMetricsProperties()
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
         {
             // Check if vendor metrics set has changed.
@@ -482,8 +476,6 @@ namespace Profiler
     std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerDataAggregator::AggregateVendorMetrics(
         const Frame& frame ) const
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         const uint32_t metricCount = static_cast<uint32_t>( m_VendorMetricProperties.size() );
 
         // No vendor metrics available
@@ -592,8 +584,6 @@ namespace Profiler
     ContainerType<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines(
         const Frame& frame ) const
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         // Identify pipelines by combined hash value
         std::unordered_map<uint32_t, DeviceProfilerPipelineData> aggregatedPipelines;
 
@@ -638,8 +628,6 @@ namespace Profiler
         const DeviceProfilerCommandBufferData& commandBuffer,
         std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
             (VkPipeline)DeviceProfilerPipelineType::eBeginRenderPass );
@@ -710,8 +698,6 @@ namespace Profiler
         const DeviceProfilerPipelineData& pipeline,
         std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
         if( it == aggregatedPipelines.end() )
         {
@@ -740,8 +726,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
     {
-        PROFILER_SELF_TIME( m_pProfiler->m_pDevice );
-
         // Get the command pool associated with the queue.
         // It is implicitly synchronized by the application here.
         submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( submitBatch.m_Handle );

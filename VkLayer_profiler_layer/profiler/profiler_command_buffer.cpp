@@ -152,8 +152,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Begin( const VkCommandBufferBeginInfo* pBeginInfo )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( m_ProfilingEnabled )
         {
             // Restore initial state
@@ -184,8 +182,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::End()
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( m_ProfilingEnabled )
         {
             // Send global timestamp query for the whole command buffer.
@@ -241,8 +237,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Reset( VkCommandBufferResetFlags flags )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( m_ProfilingEnabled )
         {
             // The data must be collected before the command bufer is reused.
@@ -275,8 +269,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPass( const VkRenderPassBeginInfo* pBeginInfo, VkSubpassContents )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -316,8 +308,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents contents )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -345,8 +335,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreEndRenderPass()
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -375,8 +363,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostEndRenderPass()
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -416,8 +402,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRendering( const VkRenderingInfo* pRenderingInfo )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -534,8 +518,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::NextSubpass( VkSubpassContents contents )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -699,8 +681,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreCommand( const DeviceProfilerDrawcall& drawcall )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( m_ProfilingEnabled )
         {
             const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
@@ -835,8 +815,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostCommand( const DeviceProfilerDrawcall& drawcall )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( m_ProfilingEnabled )
         {
             // End timestamp query
@@ -872,8 +850,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::ExecuteCommands( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( m_ProfilingEnabled )
         {
             // Ensure there is a render pass and subpass with VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS flag
@@ -994,8 +970,6 @@ namespace Profiler
     const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData(
         DeviceProfilerQueryDataBufferReader& reader )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         if( m_ProfilingEnabled &&
             m_Dirty )
         {
@@ -1201,8 +1175,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::ResolveSubpassPipelineData( const DeviceProfilerQueryDataBufferReader& reader, DeviceProfilerSubpassData& subpass, size_t subpassDataIndex )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         auto& subpassData = subpass.m_Data[subpassDataIndex];
         assert( subpassData.GetType() == DeviceProfilerSubpassDataType::ePipeline );
 
@@ -1251,8 +1223,6 @@ namespace Profiler
         bool& firstTimestampFromSecondaryCommandBuffer,
         bool& lastTimestampFromSecondaryCommandBuffer )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         auto& subpassData = subpass.m_Data[subpassDataIndex];
         assert( subpassData.GetType() == DeviceProfilerSubpassDataType::eCommandBuffer );
 
@@ -1295,8 +1265,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPassCommonProlog()
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         // End the current render pass, if any.
         if( m_pCurrentRenderPassData != nullptr )
         {
@@ -1335,8 +1303,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPassCommonEpilog()
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         // Ensure there are free queries that can be used in the render pass.
         // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
         m_pQueryPool->PreallocateQueries( m_CommandBuffer );
@@ -1364,8 +1330,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::EndSubpass()
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         // Render pass must be already tracked
         assert( !m_Data.m_RenderPasses.empty() );
 
@@ -1424,8 +1388,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline, DeviceProfilerPipelineData** ppPreviousPipelineData )
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         const DeviceProfilerRenderPassType renderPassType = GetRenderPassTypeFromPipelineType( pipeline.m_Type );
 
         // Save index of the current pipeline
@@ -1503,8 +1465,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::SetupCommandBufferForSecondaryBuffers()
     {
-        PROFILER_SELF_TIME( m_Profiler.m_pDevice );
-
         // Check if we're in render pass
         if( !m_pCurrentRenderPassData )
         {

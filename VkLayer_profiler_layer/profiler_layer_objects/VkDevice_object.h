@@ -30,8 +30,6 @@
 
 #include "../utils/lockable_unordered_map.h"
 
-#include "profiler/profiler_self_time.h"
-
 namespace Profiler
 {
     struct VkDevice_debug_Object
@@ -45,9 +43,6 @@ namespace Profiler
 
         VkInstance_Object* pInstance;
         VkPhysicalDevice_Object* pPhysicalDevice;
-
-        // Self time.
-        DeviceProfilerSelfTime m_ProfilerSelfTime;
 
         // Dispatch tables
         VkLayerDeviceDispatchTable Callbacks;

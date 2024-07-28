@@ -155,7 +155,6 @@ namespace Profiler
         , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true}
         , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true}
         , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true}
-        , m_SelfTimeWindowState{ m_Settings.AddBool( "SelfTimeWindowOpen", true ), true}
     {
     }
 
@@ -771,8 +770,6 @@ namespace Profiler
         const VkQueue_Object& queue,
         VkPresentInfoKHR* pPresentInfo )
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
 
@@ -849,8 +846,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Update( const DeviceProfilerFrameData& data )
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         m_pImGuiVulkanContext->NewFrame();
 
         m_pImGuiWindowContext->NewFrame();
@@ -1032,12 +1027,6 @@ namespace Profiler
         if( BeginDockingWindow( Lang::Settings, m_MainDockSpaceId, m_SettingsWindowState ) )
         {
             UpdateSettingsTab();
-        }
-        EndDockingWindow();
-
-        if( BeginDockingWindow( "Self time###SelfTime", m_MainDockSpaceId, m_SelfTimeWindowState ) )
-        {
-            UpdateSelfTimeTab();
         }
         EndDockingWindow();
 
@@ -1290,8 +1279,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceTab()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         // Header
         {
             const Milliseconds gpuTimeMs = m_Data.m_Ticks * m_TimestampPeriod;
@@ -1475,8 +1462,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateTopPipelinesTab()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         uint32_t i = 0;
 
         for( const auto& pipeline : m_Data.m_TopPipelines )
@@ -1507,8 +1492,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         // Vendor-specific
         if( !m_Data.m_VendorMetrics.empty() )
         {
@@ -1745,8 +1728,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pDevice->pPhysicalDevice->MemoryProperties;
 
@@ -1878,8 +1859,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateInspectorTab()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         // Early out if no valid pipeline is selected.
         if( !m_InspectorPipeline.m_Handle && !m_InspectorPipeline.m_UsesShaderObjects )
         {
@@ -2006,8 +1985,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawInspectorPipelineState()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         if( m_InspectorPipeline.m_pCreateInfo == nullptr )
         {
             ImGui::TextUnformatted( Lang::PipelineStateNotAvailable );
@@ -2081,8 +2058,6 @@ namespace Profiler
 
     void ProfilerOverlayOutput::DrawInspectorGraphicsPipelineState()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         assert( m_InspectorPipeline.m_Type == DeviceProfilerPipelineType::eGraphics );
         assert( m_InspectorPipeline.m_pCreateInfo != nullptr );
         const VkGraphicsPipelineCreateInfo& gci = m_InspectorPipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo;
@@ -2501,8 +2476,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateStatisticsTab()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         // Draw count statistics
         {
             auto PrintStatsDuration = [&]( const DeviceProfilerDrawcallStats::Stats& stats, uint64_t ticks )
@@ -2655,8 +2628,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateSettingsTab()
     {
-        PROFILER_SELF_TIME( m_pDevice );
-
         // Set interface scaling.
         float interfaceScale = ImGui::GetIO().FontGlobalScale;
         if( ImGui::InputFloat( Lang::InterfaceScale, &interfaceScale ) )
@@ -2727,22 +2698,6 @@ namespace Profiler
 
         // Display shader capability badges in frame browser.
         ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
-    }
-
-    void ProfilerOverlayOutput::UpdateSelfTimeTab()
-    {
-        PROFILER_SELF_TIME( m_pDevice );
-
-        const float frameTime = float( m_pDevice->m_ProfilerSelfTime.GetFrameTime() );
-        for( const auto& [name, stats] : m_pDevice->m_ProfilerSelfTime.GetFunctionStats() )
-        {
-            ImGui::TextUnformatted( name );
-            ImGuiX::TextAlignRight( "%.2f (%.1f %%)",
-                (stats.m_FrameTime / 1'000'000.f),
-                (stats.m_FrameTime / frameTime) * 100.f );
-        }
-
-        m_pDevice->m_ProfilerSelfTime.Reset();
     }
 
     /***********************************************************************************\
