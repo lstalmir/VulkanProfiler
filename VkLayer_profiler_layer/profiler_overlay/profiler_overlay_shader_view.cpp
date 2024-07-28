@@ -820,6 +820,10 @@ namespace Profiler
                 m_pShaderExporter->m_pShaderRepresentation = pShaderRepresentation;
                 m_pShaderExporter->m_ShaderFormat = shaderRepresentationFormat;
             }
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Save current shader representation to file" );
+            }
 #if PROFILER_BUILD_SPIRV_DOCS
             if( shaderRepresentationFormat == ShaderFormat::eSpirv )
             {
