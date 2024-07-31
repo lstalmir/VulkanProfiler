@@ -182,6 +182,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        BeginNextFrame
+
+    Description:
+        Add new frame to the aggregator.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::BeginNextFrame( const DeviceProfilerFrame& frame )
+    {
+        std::scoped_lock lk( m_Mutex );
+
+        if( !m_NextFrames.empty() )
+        {
+            // Finalize the previous frame.
+            m_NextFrames.back().m_EndTimestamp = frame.m_Timestamp;
+        }
+
+        m_NextFrames.emplace_back( frame );
+        m_FrameIndex = frame.m_FrameIndex;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         AppendSubmit
 
     Description:
@@ -193,20 +216,17 @@ namespace Profiler
         std::scoped_lock lk( m_Mutex );
 
         // Append the submit to the last frame in the queue.
-        if( m_NextFrames.empty() || m_NextFrames.back().m_FrameIndex != m_FrameIndex )
-        {
-            m_NextFrames.push_back( { m_FrameIndex } );
-        }
-
+        assert( !m_NextFrames.empty() );
         Frame& frame = m_NextFrames.back();
 
-        DeviceProfilerSubmitBatch& submitBatch = frame.m_PendingSubmits.emplace_back( submit );
+        SubmitBatch& submitBatch = frame.m_PendingSubmits.emplace_back( submit );
         submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>(frame.m_CompleteSubmits.size());
 
         DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
         submitBatchData.m_Handle = submit.m_Handle;
         submitBatchData.m_ThreadId = submit.m_ThreadId;
         submitBatchData.m_Timestamp = submit.m_Timestamp;
+        submitBatchData.m_FrameIndex = frame.m_FrameIndex;
 
         for( const DeviceProfilerSubmit& _submit : submitBatch.m_Submits )
         {
@@ -261,7 +281,7 @@ namespace Profiler
             // Wait for all pending submits that reference the command buffer.
             for( const Frame& frame : m_NextFrames )
             {
-                for( const DeviceProfilerSubmitBatch& submitBatch : frame.m_PendingSubmits )
+                for( const SubmitBatch& submitBatch : frame.m_PendingSubmits )
                 {
                     if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                     {
@@ -352,7 +372,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerDataAggregator::ResolveSubmitBatchData(
-        const DeviceProfilerSubmitBatch& submitBatch,
+        const SubmitBatch& submitBatch,
         DeviceProfilerSubmitBatchData& submitBatchData ) const
     {
         DeviceProfilerQueryDataBufferReader reader(
@@ -410,6 +430,14 @@ namespace Profiler
         }
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
+
+        frameData.m_CPU.m_BeginTimestamp = frame.m_Timestamp;
+        frameData.m_CPU.m_EndTimestamp = frame.m_EndTimestamp;
+        frameData.m_CPU.m_FramesPerSec = frame.m_FramesPerSec;
+        frameData.m_CPU.m_ThreadId = frame.m_ThreadId;
+
+        frameData.m_HostCalibrationTimestamp = frame.m_HostCalibratedTimestamp;
+        frameData.m_DeviceCalibrationTimestamp = frame.m_DeviceCalibratedTimestamp;
     }
 
     /***********************************************************************************\
@@ -716,7 +744,7 @@ namespace Profiler
         Frees all dynamic allocations of the submit batch.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::FreeDynamicAllocations( DeviceProfilerSubmitBatch& submitBatch )
+    void ProfilerDataAggregator::FreeDynamicAllocations( SubmitBatch& submitBatch )
     {
         if( submitBatch.m_DataCopyFence )
         {
@@ -746,7 +774,7 @@ namespace Profiler
         Fallback to a CPU allocation if the allocation or recording fails.
 
     \***********************************************************************************/
-    bool ProfilerDataAggregator::WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
+    bool ProfilerDataAggregator::WriteQueryDataToGpuBuffer( SubmitBatch& submitBatch )
     {
         // Always submit the fence to GPU to check for data availability later.
         uint32_t submitCount = 0;
@@ -856,7 +884,7 @@ namespace Profiler
         Copy the data from the query pools to the buffer.
 
     \***********************************************************************************/
-    bool ProfilerDataAggregator::WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
+    bool ProfilerDataAggregator::WriteQueryDataToCpuBuffer( SubmitBatch& submitBatch )
     {
         // Drop the packet if the CPU buffer allocation failed.
         if( submitBatch.m_pDataBuffer->GetCpuBuffer() == nullptr )

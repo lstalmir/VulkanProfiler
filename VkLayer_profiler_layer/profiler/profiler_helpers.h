@@ -484,6 +484,8 @@ namespace Profiler
         static uint32_t GetCurrentProcessId();
 
         static void GetLocalTime( tm*, const time_t& );
+        static uint64_t GetTimestamp();
+        static uint64_t GetNanoseconds( uint64_t );
 
         static std::optional<std::string> GetEnvironmentVar(const char* pVariableName);
     };

@@ -1282,7 +1282,8 @@ namespace Profiler
         // Header
         {
             const Milliseconds gpuTimeMs = m_Data.m_Ticks * m_TimestampPeriod;
-            const Milliseconds cpuTimeMs = m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp;
+            const Milliseconds cpuTimeMs = Nanoseconds(
+                ProfilerPlatformFunctions::GetNanoseconds( m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp ) );
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );

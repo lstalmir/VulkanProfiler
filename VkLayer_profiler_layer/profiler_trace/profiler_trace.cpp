@@ -168,36 +168,6 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::SetupTimestampNormalizationConstants( VkQueue queue )
     {
-        m_CommandQueue = queue;
-
-        m_CpuQueueSubmitTimestampOffset = Milliseconds( 0 );
-
-        // Get base command buffer offset.
-        // Better CPU-GPU correlation could be achieved from ETLs
-        m_GpuQueueSubmitTimestampOffset = m_pData->m_SyncTimestamps.at( queue );
-
-        for( const auto& submitBatchData : m_pData->m_Submits )
-        {
-            if( submitBatchData.m_Handle == queue )
-            {
-                m_CpuQueueSubmitTimestampOffset = GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp );
-
-                // Use first submitted packet's begin timestamp as a reference if synchronization timestamps were not sent.
-                if( m_GpuQueueSubmitTimestampOffset == 0 )
-                {
-                    m_GpuQueueSubmitTimestampOffset = !submitBatchData.m_Submits.empty()
-                        ? submitBatchData.m_Submits.front().m_BeginTimestamp.m_Value
-                        : 0;
-                }
-                break;
-            }
-        }
-
-        // If no timestamps were recorded in the command buffer, apply no offset
-        if( m_GpuQueueSubmitTimestampOffset == -1 )
-        {
-            m_GpuQueueSubmitTimestampOffset = 0;
-        }
     }
 
     /*************************************************************************\
@@ -209,11 +179,12 @@ namespace Profiler
         Get CPU timestamp aligned to the frame begin CPU timestamp.
 
     \*************************************************************************/
-    Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point timestamp ) const
+    Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( uint64_t timestamp ) const
     {
         assert( timestamp >= m_pData->m_CPU.m_BeginTimestamp );
         assert( timestamp <= m_pData->m_CPU.m_EndTimestamp );
-        return timestamp - m_pData->m_CPU.m_BeginTimestamp;
+        return Nanoseconds(
+            ProfilerPlatformFunctions::GetNanoseconds( timestamp - m_pData->m_HostCalibrationTimestamp ) );
     }
 
     /*************************************************************************\
@@ -227,8 +198,7 @@ namespace Profiler
     \*************************************************************************/
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedGpuTimestamp( uint64_t gpuTimestamp ) const
     {
-        return m_CpuQueueSubmitTimestampOffset +
-            ((gpuTimestamp - m_GpuQueueSubmitTimestampOffset) * m_GpuTimestampPeriod);
+        return ((gpuTimestamp - m_pData->m_DeviceCalibrationTimestamp) * m_GpuTimestampPeriod);
     }
 
     /*************************************************************************\

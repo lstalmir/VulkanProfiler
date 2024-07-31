@@ -178,7 +178,8 @@ namespace Profiler
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME
         };
 
         // Load configuration that will be used by the profiler.
@@ -308,6 +309,7 @@ namespace Profiler
 
         // Initialize aggregator
         DESTROYANDRETURNONFAIL( m_DataAggregator.Initialize( this ) );
+        BeginNextFrame();
 
         // Initialize internal pipelines
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBuffer, "CopyBuffer" );
@@ -1068,7 +1070,7 @@ namespace Profiler
         // Store submitted command buffers and get results
         DeviceProfilerSubmitBatch submitBatch;
         submitBatch.m_Handle = queue;
-        submitBatch.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
+        submitBatch.m_Timestamp = ProfilerPlatformFunctions::GetTimestamp();
         submitBatch.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
@@ -1168,28 +1170,37 @@ namespace Profiler
 
             // Get data captured during the last frame
             m_Data = m_DataAggregator.GetAggregatedData();
+
+            // TODO: Move to memory tracker
+            m_Data.m_Memory = m_MemoryData;
         }
 
-        m_Data.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+        BeginNextFrame();
+    }
 
-        // TODO: Move to memory tracker
-        m_Data.m_Memory = m_MemoryData;
+    /***********************************************************************************\
 
-        m_CpuTimestampCounter.End();
+    Function:
+        BeginNextFrame
 
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BeginNextFrame()
+    {
         // TODO: Move to CPU tracker
-        m_Data.m_CPU.m_BeginTimestamp = m_CpuTimestampCounter.GetBeginValue();
-        m_Data.m_CPU.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
-        m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
-        m_Data.m_CPU.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+        DeviceProfilerFrame frame = {};
+        frame.m_FrameIndex = m_CurrentFrame;
+        frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+        frame.m_Timestamp = ProfilerPlatformFunctions::GetTimestamp();
+        frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
 
-        m_CpuTimestampCounter.Begin();
+        m_Synchronization.GetSynchronizationTimestamps(
+            &frame.m_HostCalibratedTimestamp,
+            &frame.m_DeviceCalibratedTimestamp );
 
         // Prepare aggregator for the next frame
-        m_DataAggregator.SetFrameIndex( m_CurrentFrame );
-
-        // Send synchronization timestamps
-        m_Synchronization.SendSynchronizationTimestamps();
+        m_DataAggregator.BeginNextFrame( frame );
     }
 
     /***********************************************************************************\

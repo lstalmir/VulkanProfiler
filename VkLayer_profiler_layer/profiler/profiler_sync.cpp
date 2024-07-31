@@ -22,6 +22,12 @@
 #include "profiler_helpers.h"
 #include <assert.h>
 
+#ifdef WIN32
+#define VK_TIME_DOMAIN_HIGH_RESOLUTION_CLOCK_NATIVE VK_TIME_DOMAIN_QUERY_PERFORMANCE_COUNTER_EXT
+#else
+#define VK_TIME_DOMAIN_HIGH_RESOLUTION_CLOCK_NATIVE VK_TIME_DOMAIN_CLOCK_MONOTONIC_EXT
+#endif
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -35,14 +41,7 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerSynchronization::DeviceProfilerSynchronization()
         : m_pDevice( nullptr )
-        , m_CommandPools()
-        , m_CommandBuffers()
-        , m_TimestampQueryPoolSize( 0 )
-        , m_TimestampQueryPool( VK_NULL_HANDLE )
-        , m_TimestampQueryPoolResetCommandBuffer( VK_NULL_HANDLE )
-        , m_TimestampQueryPoolResetSemaphore( VK_NULL_HANDLE )
-        , m_TimestampQueryPoolResetQueue( VK_NULL_HANDLE )
-        , m_SynchronizationTimestampsSent( false )
+        , m_pfnGetCalibratedTimestamps( nullptr )
     {
     }
 
@@ -59,94 +58,17 @@ namespace Profiler
     {
         assert( !m_pDevice );
         m_pDevice = pDevice;
+        m_pfnGetCalibratedTimestamps = nullptr;
 
-        m_TimestampQueryPoolSize = static_cast<uint32_t>(m_pDevice->Queues.size());
-
-        // Create a command pool for each queue family
-        VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-        commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-
-        for( const auto& queue : m_pDevice->Queues )
+        // Use either KHR or EXT version of the extension.
+        if( m_pDevice->EnabledExtensions.count( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
         {
-            if( !m_CommandPools.count( queue.second.Family ) )
-            {
-                commandPoolCreateInfo.queueFamilyIndex = queue.second.Family;
-
-                VkCommandPool commandPool = VK_NULL_HANDLE;
-                DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateCommandPool(
-                    m_pDevice->Handle, &commandPoolCreateInfo, nullptr, &commandPool ) );
-
-                m_CommandPools.insert( std::pair( queue.second.Family, commandPool ) );
-            }
+            m_pfnGetCalibratedTimestamps = m_pDevice->Callbacks.GetCalibratedTimestampsKHR;
         }
-
-        // Create command buffer for each queue
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        commandBufferAllocateInfo.commandBufferCount = 1;
-
-        for( const auto& queue : m_pDevice->Queues )
+        else if( m_pDevice->EnabledExtensions.count( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
         {
-            // Get command pool created in the previous step
-            commandBufferAllocateInfo.commandPool = m_CommandPools.at( queue.second.Family );
-
-            VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-            DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.AllocateCommandBuffers(
-                m_pDevice->Handle, &commandBufferAllocateInfo, &commandBuffer ) );
-
-            // Created object must be stored to ensure it is destroyed when next call fails.
-            m_CommandBuffers.insert( std::pair( queue.second.Handle, commandBuffer ) );
-
-            DESTROYANDRETURNONFAIL( m_pDevice->SetDeviceLoaderData(
-                m_pDevice->Handle, commandBuffer ) );
+            m_pfnGetCalibratedTimestamps = m_pDevice->Callbacks.GetCalibratedTimestampsEXT;
         }
-
-        // Create query pool for timestamp queries
-        VkQueryPoolCreateInfo queryPoolCreateInfo = {};
-        queryPoolCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-        queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
-        queryPoolCreateInfo.queryCount = m_TimestampQueryPoolSize;
-        
-        DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateQueryPool(
-            m_pDevice->Handle, &queryPoolCreateInfo, nullptr, &m_TimestampQueryPool ) );
-
-        // Select queue used for resetting the query pool
-        commandBufferAllocateInfo.commandPool = VK_NULL_HANDLE;
-
-        for( const auto& queue : m_pDevice->Queues )
-        {
-            if( (queue.second.Flags & VK_QUEUE_GRAPHICS_BIT) ||
-                (queue.second.Flags & VK_QUEUE_COMPUTE_BIT) )
-            {
-                m_TimestampQueryPoolResetQueue = queue.second.Handle;
-                // Use command pool created for the queue family
-                commandBufferAllocateInfo.commandPool = m_CommandPools.at( queue.second.Family );
-                break;
-            }
-        }
-
-        if( commandBufferAllocateInfo.commandPool == VK_NULL_HANDLE )
-        {
-            // Application didn't create any graphics/compute queues (?!)
-            DESTROYANDRETURNONFAIL( VK_ERROR_INITIALIZATION_FAILED );
-        }
-
-        // Create prerecorded command buffer resetting the query pool
-        DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.AllocateCommandBuffers(
-            m_pDevice->Handle, &commandBufferAllocateInfo, &m_TimestampQueryPoolResetCommandBuffer ) );
-
-        DESTROYANDRETURNONFAIL( m_pDevice->SetDeviceLoaderData(
-            m_pDevice->Handle, m_TimestampQueryPoolResetCommandBuffer ) );
-
-        DESTROYANDRETURNONFAIL( RecordTimestmapQueryCommandBuffers() );
-
-        // Create semaphore for synchronization between queues
-        VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-        semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        
-        DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateSemaphore(
-            m_pDevice->Handle, &semaphoreCreateInfo, nullptr, &m_TimestampQueryPoolResetSemaphore ) );
 
         return VK_SUCCESS;
     }
@@ -162,39 +84,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerSynchronization::Destroy()
     {
-        // Destroy semaphore
-        if( m_TimestampQueryPoolResetSemaphore != VK_NULL_HANDLE )
-        {
-            m_pDevice->Callbacks.DestroySemaphore( m_pDevice->Handle, m_TimestampQueryPoolResetSemaphore, nullptr );
-            m_TimestampQueryPoolResetSemaphore = VK_NULL_HANDLE;
-        }
-
-        // Command buffer will be destroyed with command pool
-        m_TimestampQueryPoolResetCommandBuffer = VK_NULL_HANDLE;
-        m_TimestampQueryPoolResetQueue = VK_NULL_HANDLE;
-
-        // Destroy timestamp query pool
-        if( m_TimestampQueryPool != VK_NULL_HANDLE )
-        {
-            m_pDevice->Callbacks.DestroyQueryPool( m_pDevice->Handle, m_TimestampQueryPool, nullptr );
-            m_TimestampQueryPool = VK_NULL_HANDLE;
-        }
-
-        // Command buffers will be destroyed with command pools
-        m_CommandBuffers.clear();
-
-        // Destroy command pools
-        for( auto& commandPool : m_CommandPools )
-        {
-            if( commandPool.second != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyCommandPool( m_pDevice->Handle, commandPool.second, nullptr );
-            }
-        }
-        m_CommandPools.clear();
-
-        m_TimestampQueryPoolSize = 0;
         m_pDevice = nullptr;
+        m_pfnGetCalibratedTimestamps = nullptr;
     }
 
     /***********************************************************************************\
@@ -245,139 +136,41 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SendSynchronizationTimestamps
-
-    Description:
-        Submit command buffers with synchronization timestamps to all queues.
-        Device must be idle.
-
-    \***********************************************************************************/
-    void DeviceProfilerSynchronization::SendSynchronizationTimestamps()
-    {
-        // For some reason this code causes hangs on Ubuntu with nvidia-driver-510.
-        // Validation layer doesn't report any issues, so it may be a driver bug.
-        // TODO: Check other drivers/gpus.
-#if !defined( __linux__ )
-        assert( m_pDevice );
-
-        // Reset query pool
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_TimestampQueryPoolResetCommandBuffer;
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &m_TimestampQueryPoolResetSemaphore;
-        
-        m_pDevice->Callbacks.QueueSubmit(
-            m_TimestampQueryPoolResetQueue, 1, &submitInfo, VK_NULL_HANDLE );
-
-        // Insert timestamps when the pool is ready
-        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &m_TimestampQueryPoolResetSemaphore;
-        submitInfo.pWaitDstStageMask = &waitStage;
-        submitInfo.signalSemaphoreCount = 0;
-        submitInfo.pSignalSemaphores = nullptr;
-
-        for( const auto& [commandQueue, commandBuffer] : m_CommandBuffers )
-        {
-            submitInfo.pCommandBuffers = &commandBuffer;
-            m_pDevice->Callbacks.QueueSubmit( commandQueue, 1, &submitInfo, VK_NULL_HANDLE );
-        }
-
-        m_SynchronizationTimestampsSent = true;
-#endif
-    }
-
-    /***********************************************************************************\
-
-    Function:
         GetSynchronizationTimestamps
 
     Description:
-        Retrieve timestamps submitted in SendSynchronizationTimestamps.
-        Device must be idle.
+        Returns calibrated timestamps on success.
 
     \***********************************************************************************/
-    std::unordered_map<VkQueue, uint64_t> DeviceProfilerSynchronization::GetSynchronizationTimestamps() const
+    bool DeviceProfilerSynchronization::GetSynchronizationTimestamps(
+        uint64_t* pHostCalibratedTimestamp,
+        uint64_t* pDeviceCalibratedTimestamp ) const
     {
-        std::unordered_map<VkQueue, uint64_t> perQueueTimestamps;
+        bool success = false;
 
-        if( m_SynchronizationTimestampsSent )
+        if( m_pfnGetCalibratedTimestamps != nullptr )
         {
-            // Collect pending queries
-            std::vector<uint64_t> timestamps( m_TimestampQueryPoolSize );
-            m_pDevice->Callbacks.GetQueryPoolResults(
-                m_pDevice->Handle, m_TimestampQueryPool, 0, m_TimestampQueryPoolSize,
-                sizeof( uint64_t ) * timestamps.size(), timestamps.data(), sizeof( uint64_t ),
-                VK_QUERY_RESULT_64_BIT );
+            VkCalibratedTimestampInfoEXT timestampInfos[ 2 ] = {};
+            timestampInfos[ 0 ].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
+            timestampInfos[ 0 ].timeDomain = VK_TIME_DOMAIN_HIGH_RESOLUTION_CLOCK_NATIVE;
+            timestampInfos[ 1 ].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
+            timestampInfos[ 1 ].timeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
 
-            // Assign queries to the queues
-            size_t currentTimestampIndex = 0;
+            uint64_t timestamps[ 2 ];
+            uint64_t maxDeviations[ 2 ];
 
-            for( const auto& commandBuffer : m_CommandBuffers )
+            assert( m_pDevice );
+            VkResult result = m_pfnGetCalibratedTimestamps(
+                m_pDevice->Handle, 2, timestampInfos, timestamps, maxDeviations );
+
+            if( result == VK_SUCCESS )
             {
-                perQueueTimestamps.insert( std::pair( commandBuffer.first, timestamps[ currentTimestampIndex ] ) );
-                currentTimestampIndex++;
-            }
-        }
-        else
-        {
-            // Synchronization timestamps not sent, return zeros
-            for( const auto& commandBuffer : m_CommandBuffers )
-            {
-                perQueueTimestamps.insert( std::pair( commandBuffer.first, 0 ) );
+                *pHostCalibratedTimestamp = timestamps[ 0 ];
+                *pDeviceCalibratedTimestamp = timestamps[ 1 ];
+                success = true;
             }
         }
 
-        return perQueueTimestamps;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        RecordTimestmapQueryCommandBuffers
-
-    Description:
-
-    \***********************************************************************************/
-    VkResult DeviceProfilerSynchronization::RecordTimestmapQueryCommandBuffers()
-    {
-        // Record query reset command buffer
-        VkCommandBufferBeginInfo beginInfo = {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        
-        RETURNONFAIL( m_pDevice->Callbacks.BeginCommandBuffer(
-            m_TimestampQueryPoolResetCommandBuffer, &beginInfo ) );
-
-        m_pDevice->Callbacks.CmdResetQueryPool(
-            m_TimestampQueryPoolResetCommandBuffer,
-            m_TimestampQueryPool,
-            0, m_TimestampQueryPoolSize );
-
-        RETURNONFAIL( m_pDevice->Callbacks.EndCommandBuffer(
-            m_TimestampQueryPoolResetCommandBuffer ) );
-
-        // Record synchronization command buffers
-        uint32_t currentTimestampIndex = 0;
-
-        for( const auto& commandBuffer : m_CommandBuffers )
-        {
-            RETURNONFAIL( m_pDevice->Callbacks.BeginCommandBuffer(
-                commandBuffer.second, &beginInfo ) );
-
-            m_pDevice->Callbacks.CmdWriteTimestamp(
-                commandBuffer.second,
-                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                m_TimestampQueryPool,
-                currentTimestampIndex );
-
-            RETURNONFAIL( m_pDevice->Callbacks.EndCommandBuffer(
-                commandBuffer.second ) );
-
-            currentTimestampIndex++;
-        }
-
-        return VK_SUCCESS;
+        return success;
     }
 }

@@ -116,6 +116,7 @@ namespace Profiler
         void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo2* );
 
         void FinishFrame();
+        void BeginNextFrame();
 
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );

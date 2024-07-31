@@ -1183,8 +1183,9 @@ namespace Profiler
     {
         VkQueue                                             m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
-        std::chrono::high_resolution_clock::time_point      m_Timestamp = {};
+        uint64_t                                            m_Timestamp = {};
         uint32_t                                            m_ThreadId = {};
+        uint32_t                                            m_FrameIndex = {};
     };
 
     /***********************************************************************************\
@@ -1242,8 +1243,8 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerCPUData
     {
-        std::chrono::high_resolution_clock::time_point      m_BeginTimestamp = {};
-        std::chrono::high_resolution_clock::time_point      m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
         float                                               m_FramesPerSec = {};
         uint32_t                                            m_ThreadId = {};
     };
@@ -1264,13 +1265,15 @@ namespace Profiler
         DeviceProfilerDrawcallStats                         m_Stats = {};
 
         uint64_t                                            m_Ticks = {};
+        uint32_t                                            m_FrameIndex = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};
 
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
 
-        std::unordered_map<VkQueue, uint64_t>               m_SyncTimestamps = {};
+        uint64_t                                            m_HostCalibrationTimestamp = {};
+        uint64_t                                            m_DeviceCalibrationTimestamp = {};
     };
 
     /***********************************************************************************\

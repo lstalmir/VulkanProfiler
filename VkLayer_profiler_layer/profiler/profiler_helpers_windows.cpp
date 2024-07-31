@@ -368,6 +368,26 @@ namespace Profiler
         ::localtime_s( localTime, &time );
     }
 
+    static uint64_t GetTimestampFrequency()
+    {
+        LARGE_INTEGER frequency;
+        QueryPerformanceFrequency( &frequency );
+        return reinterpret_cast<const uint64_t&>(frequency.QuadPart);
+    }
+
+    uint64_t ProfilerPlatformFunctions::GetTimestamp()
+    {
+        LARGE_INTEGER timestamp;
+        QueryPerformanceCounter( &timestamp );
+        return reinterpret_cast<const uint64_t&>(timestamp.QuadPart);
+    }
+
+    uint64_t ProfilerPlatformFunctions::GetNanoseconds( uint64_t ticks )
+    {
+        static const uint64_t frequency = GetTimestampFrequency();
+        return ticks * (1'000'000'000 / frequency);
+    }
+
     /***********************************************************************************\
 
     Function:

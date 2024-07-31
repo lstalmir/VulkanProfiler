@@ -95,7 +95,7 @@ namespace Profiler
         Milliseconds m_GpuTimestampPeriod;
 
         void SetupTimestampNormalizationConstants( VkQueue );
-        Milliseconds GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point ) const;
+        Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 
         template<typename DataStructType>
