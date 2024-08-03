@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -443,16 +443,21 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerMetricsApi_INTEL::ParseReport(
         uint32_t                                            metricsSetIndex,
-        ProfilerMetricsReport_INTEL&                        report,
+        uint32_t                                            reportSize,
+        const uint8_t*                                      pReport,
         std::vector<VkProfilerPerformanceCounterResultEXT>& results )
     {
         const auto& metricsSet = m_MetricsSets[ metricsSetIndex ];
 
+        // Intermediate values used for computations
+        thread_local std::vector<MD::TTypedValue_1_0> intermediateValues;
+        const uint32_t intermediateValueCount =
+            metricsSet.m_pMetricSetParams->MetricsCount +
+            metricsSet.m_pMetricSetParams->InformationCount;
+        intermediateValues.resize( intermediateValueCount );
+
         // Convert MDAPI-specific TTypedValue_1_0 to custom VkProfilerMetricEXT
         results.clear();
-        report.m_IntermediateValues.resize(
-            metricsSet.m_pMetricSetParams->MetricsCount +
-            metricsSet.m_pMetricSetParams->InformationCount );
 
         uint32_t reportCount = 0;
 
@@ -461,10 +466,10 @@ namespace Profiler
         {
             // Calculate normalized metrics from raw query data
             MD::ECompletionCode cc = metricsSet.m_pMetricSet->CalculateMetrics(
-                reinterpret_cast<const unsigned char*>( report.m_QueryResult.data() ),
-                static_cast<uint32_t>( report.m_QueryResult.size() ),
-                report.m_IntermediateValues.data(),
-                static_cast<uint32_t>( report.m_IntermediateValues.size() * sizeof( MD::TTypedValue_1_0 ) ),
+                pReport,
+                reportSize,
+                intermediateValues.data(),
+                intermediateValueCount * sizeof( MD::TTypedValue_1_0 ),
                 &reportCount,
                 false );
 
@@ -479,23 +484,23 @@ namespace Profiler
             // Const factor applied to the metric
             const double factor = metricsSet.m_MetricFactors[ i ];
 
-            switch( report.m_IntermediateValues[ i ].ValueType )
+            switch( intermediateValues[ i ].ValueType )
             {
             default:
             case MD::VALUE_TYPE_FLOAT:
-                parsedMetric.float32 = static_cast<float>(report.m_IntermediateValues[ i ].ValueFloat * factor);
+                parsedMetric.float32 = static_cast<float>(intermediateValues[ i ].ValueFloat * factor);
                 break;
 
             case MD::VALUE_TYPE_UINT32:
-                parsedMetric.uint32 = static_cast<uint32_t>(report.m_IntermediateValues[ i ].ValueUInt32 * factor);
+                parsedMetric.uint32 = static_cast<uint32_t>(intermediateValues[ i ].ValueUInt32 * factor);
                 break;
 
             case MD::VALUE_TYPE_UINT64:
-                parsedMetric.uint64 = static_cast<uint64_t>(report.m_IntermediateValues[ i ].ValueUInt64 * factor);
+                parsedMetric.uint64 = static_cast<uint64_t>(intermediateValues[ i ].ValueUInt64 * factor);
                 break;
 
             case MD::VALUE_TYPE_BOOL:
-                parsedMetric.uint32 = report.m_IntermediateValues[ i ].ValueBool;
+                parsedMetric.uint32 = intermediateValues[ i ].ValueBool;
                 break;
 
             case MD::VALUE_TYPE_CSTRING:

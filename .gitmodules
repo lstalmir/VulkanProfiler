@@ -34,3 +34,6 @@
 [submodule "External/imgui-file-dialog"]
 	path = External/imgui-file-dialog
 	url = https://github.com/aiekick/ImGuiFileDialog
+[submodule "External/VulkanMemoryAllocator"]
+	path = External/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator

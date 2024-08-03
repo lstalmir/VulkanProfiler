@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,14 +33,6 @@
 namespace Profiler
 {
     class DeviceProfiler;
-
-    struct ProfilerMetricsReport_INTEL
-    {
-        std::vector<char> m_QueryResult = {};
-
-        // Intermediate values computed by the MD library.
-        std::vector<MetricsDiscovery::TTypedValue_1_0> m_IntermediateValues = {};
-    };
 
     struct ProfilerMetricsSet_INTEL
     {
@@ -94,7 +86,8 @@ namespace Profiler
 
         void ParseReport(
             uint32_t                                            metricsSetIndex,
-            ProfilerMetricsReport_INTEL&                        report,
+            uint32_t                                            reportSize,
+            const uint8_t*                                      pReport,
             std::vector<VkProfilerPerformanceCounterResultEXT>& results );
 
     private:

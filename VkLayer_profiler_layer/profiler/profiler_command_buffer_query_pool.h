@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023 Lukasz Stalmirski
+// Copyright (c) 2022-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,11 +19,6 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler_data.h"
-#include "profiler_counters.h"
-#include "profiler_query_pool.h"
-#include "profiler_layer_objects/VkDevice_object.h"
-
 #include "intel/profiler_metrics_api.h"
 
 #include <vulkan/vk_layer.h>
@@ -33,6 +28,8 @@
 namespace Profiler
 {
     class DeviceProfiler;
+    class DeviceProfilerQueryDataBufferWriter;
+    struct VkDevice_Object;
 
     /***********************************************************************************\
 
@@ -50,176 +47,25 @@ namespace Profiler
         ~CommandBufferQueryPool();
 
         CommandBufferQueryPool( const CommandBufferQueryPool& ) = delete;
+        CommandBufferQueryPool& operator=( const CommandBufferQueryPool& ) = delete;
 
-        PROFILER_FORCE_INLINE uint32_t GetPerformanceQueryMetricsSetIndex() const
-        {
-            return m_PerformanceQueryMetricsSetIndexINTEL;
-        }
+        CommandBufferQueryPool( CommandBufferQueryPool&& ) = delete;
+        CommandBufferQueryPool& operator=( CommandBufferQueryPool&& ) = delete;
 
-        PROFILER_FORCE_INLINE void PreallocateQueries( VkCommandBuffer commandBuffer )
-        {
-            if( ( m_pQueryPools.empty() ) ||
-                ( ( m_CurrentQueryPoolIndex == m_pQueryPools.size() ) &&
-                    ( m_CurrentQueryIndex != UINT32_MAX ) &&
-                    ( m_CurrentQueryIndex >= ( m_QueryPoolSize * 0.8f ) ) ) )
-            {
-                AllocateQueryPool( commandBuffer );
-            }
-        }
+        uint32_t GetPerformanceQueryMetricsSetIndex() const;
+        uint64_t GetTimestampQueryCount() const;
+        uint64_t GetRequiredBufferSize() const;
 
-        PROFILER_FORCE_INLINE void Reset( VkCommandBuffer commandBuffer )
-        {
-            // Reset the full query pools.
-            for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
-            {
-                m_Device.Callbacks.CmdResetQueryPool(
-                    commandBuffer,
-                    m_pQueryPools[ queryPoolIndex ]->GetQueryPoolHandle(),
-                    0, m_QueryPoolSize );
-            }
+        void PreallocateQueries( VkCommandBuffer commandBuffer );
 
-            // Reset the last query pool.
-            if( m_CurrentQueryIndex != UINT32_MAX )
-            {
-                m_Device.Callbacks.CmdResetQueryPool(
-                    commandBuffer,
-                    m_pQueryPools[ m_CurrentQueryPoolIndex ]->GetQueryPoolHandle(),
-                    0, (m_CurrentQueryIndex + 1) );
-            }
+        void Reset( VkCommandBuffer commandBuffer );
 
-            m_CurrentQueryIndex = UINT32_MAX;
-            m_CurrentQueryPoolIndex = 0;
-        }
+        void BeginPerformanceQuery( VkCommandBuffer commandBuffer );
+        void EndPerformanceQuery( VkCommandBuffer commandBuffer );
 
-        PROFILER_FORCE_INLINE void BeginPerformanceQuery( VkCommandBuffer commandBuffer )
-        {
-            m_PerformanceQueryMetricsSetIndexINTEL = m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+        void WriteQueryData( DeviceProfilerQueryDataBufferWriter& writer ) const;
 
-            // Check if there is performance query extension is available.
-            if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
-                (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
-            {
-                m_Device.Callbacks.CmdResetQueryPool(
-                    commandBuffer,
-                    m_PerformanceQueryPoolINTEL, 0, 1 );
-
-                m_Device.Callbacks.CmdBeginQuery(
-                    commandBuffer,
-                    m_PerformanceQueryPoolINTEL, 0, 0 );
-            }
-        }
-
-        PROFILER_FORCE_INLINE void EndPerformanceQuery( VkCommandBuffer commandBuffer )
-        {
-            // Check if any performance metrics has been collected.
-            if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
-                (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
-            {
-                m_Device.Callbacks.CmdEndQuery(
-                    commandBuffer,
-                    m_PerformanceQueryPoolINTEL, 0 );
-            }
-        }
-
-        PROFILER_FORCE_INLINE void ResolveTimestampsGpu( VkCommandBuffer commandBuffer )
-        {
-            // Copy data from the full query pools.
-            for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
-            {
-                m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, m_QueryPoolSize );
-            }
-
-            // Copy data from the last query pool.
-            if( m_CurrentQueryIndex != UINT32_MAX )
-            {
-                m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataGpu( commandBuffer, m_CurrentQueryIndex + 1 );
-            }
-        }
-
-        PROFILER_FORCE_INLINE void ResolveTimestampsCpu()
-        {
-            // Copy data from the full query pools.
-            for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
-            {
-                m_pQueryPools[ queryPoolIndex ]->ResolveQueryDataCpu( m_QueryPoolSize );
-            }
-
-            // Copy data from the last query pool.
-            if( m_CurrentQueryIndex != UINT32_MAX )
-            {
-                m_pQueryPools[ m_CurrentQueryPoolIndex ]->ResolveQueryDataCpu( m_CurrentQueryIndex + 1 );
-            }
-        }
-
-        PROFILER_FORCE_INLINE uint64_t WriteTimestamp( VkCommandBuffer commandBuffer, VkPipelineStageFlagBits stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT )
-        {
-            // Allocate query from the pool
-            m_CurrentQueryIndex++;
-
-            if( m_CurrentQueryIndex == m_QueryPoolSize )
-            {
-                // Try to reuse next query pool
-                m_CurrentQueryIndex = 0;
-                m_CurrentQueryPoolIndex++;
-
-                if( m_CurrentQueryPoolIndex == m_pQueryPools.size() )
-                {
-                    AllocateQueryPool( commandBuffer );
-                }
-            }
-
-            // Send the query
-            m_Device.Callbacks.CmdWriteTimestamp(
-                commandBuffer,
-                stage,
-                m_pQueryPools[ m_CurrentQueryPoolIndex ]->GetQueryPoolHandle(),
-                m_CurrentQueryIndex );
-
-            // Return index to the allocated query.
-            return ( static_cast<uint64_t>( m_CurrentQueryPoolIndex ) << 32 ) |
-                   ( static_cast<uint64_t>( m_CurrentQueryIndex ) & 0xFFFFFFFF );
-        }
-
-        PROFILER_FORCE_INLINE uint64_t GetTimestampData( uint64_t query ) const
-        {
-            const uint32_t queryPoolIndex = static_cast<uint32_t>( query >> 32 );
-            const uint32_t queryIndex = static_cast<uint32_t>( query & 0xFFFFFFFF );
-
-            return m_pQueryPools[ queryPoolIndex ]->GetQueryData( queryIndex );
-        }
-
-        PROFILER_FORCE_INLINE void GetPerformanceQueryData(
-            std::vector<VkProfilerPerformanceCounterResultEXT>& results,
-            uint32_t&                                           metricsSetIndex )
-        {
-            results.clear();
-            metricsSetIndex = m_PerformanceQueryMetricsSetIndexINTEL;
-
-            // Check if any performance metrics has been collected.
-            if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
-                (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
-            {
-                // Allocate temporary space for the raw report.
-                const size_t reportSize = m_MetricsApiINTEL.GetReportSize( m_PerformanceQueryMetricsSetIndexINTEL );
-                m_PerformanceQueryReportINTEL.m_QueryResult.resize( reportSize );
-
-                VkResult result = m_Device.Callbacks.GetQueryPoolResults(
-                    m_Device.Handle,
-                    m_PerformanceQueryPoolINTEL,
-                    0, 1, m_PerformanceQueryReportINTEL.m_QueryResult.size(),
-                    m_PerformanceQueryReportINTEL.m_QueryResult.data(),
-                    m_PerformanceQueryReportINTEL.m_QueryResult.size(), 0 );
-
-                if( result == VK_SUCCESS )
-                {
-                    // Process metrics for the command buffer.
-                    m_MetricsApiINTEL.ParseReport(
-                        m_PerformanceQueryMetricsSetIndexINTEL,
-                        m_PerformanceQueryReportINTEL,
-                        results );
-                }
-            }
-        }
+        uint64_t WriteTimestamp( VkCommandBuffer commandBuffer, VkPipelineStageFlagBits stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
 
     protected:
         DeviceProfiler&                  m_Profiler;
@@ -227,23 +73,15 @@ namespace Profiler
 
         ProfilerMetricsApi_INTEL&        m_MetricsApiINTEL;
 
-        std::vector<TimestampQueryPool*> m_pQueryPools;
+        std::vector<VkQueryPool>         m_QueryPools;
         uint32_t                         m_QueryPoolSize;
         uint32_t                         m_CurrentQueryPoolIndex;
         uint32_t                         m_CurrentQueryIndex;
+        uint64_t                         m_AbsQueryIndex;
 
         VkQueryPool                      m_PerformanceQueryPoolINTEL;
         uint32_t                         m_PerformanceQueryMetricsSetIndexINTEL;
-        ProfilerMetricsReport_INTEL      m_PerformanceQueryReportINTEL;
 
-        PROFILER_FORCE_INLINE void AllocateQueryPool( VkCommandBuffer commandBuffer )
-        {
-            auto* pQueryPool = m_pQueryPools.emplace_back(
-                new TimestampQueryPool( m_Profiler, m_QueryPoolSize ) );
-
-            // Pools must be reset before first use
-            m_Device.Callbacks.CmdResetQueryPool(
-                commandBuffer, pQueryPool->GetQueryPoolHandle(), 0, m_QueryPoolSize );
-        }
+        void AllocateQueryPool( VkCommandBuffer commandBuffer );
     };
 }
