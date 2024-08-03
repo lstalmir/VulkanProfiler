@@ -53,8 +53,10 @@ set (sources
     "profiler_shader.cpp"
     "profiler_sync.cpp"
     # Windows
+    "profiler_counters_windows.inl"
     "profiler_helpers_windows.cpp"
     # Linux
+    "profiler_counters_linux.inl"
     "profiler_helpers_linux.cpp"
     )
 

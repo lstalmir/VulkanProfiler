@@ -111,9 +111,10 @@ namespace Profiler
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
         void DestroyRenderPass( VkRenderPass );
 
-        void PreSubmitCommandBuffers( VkQueue );
-        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo* );
-        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo2* );
+        void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo*, DeviceProfilerSubmitBatch* );
+        void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo2*, DeviceProfilerSubmitBatch* );
+        void PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
+        void PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
 
         void FinishFrame();
 
@@ -188,7 +189,7 @@ namespace Profiler
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
 
         template<typename SubmitInfoT>
-        void PostSubmitCommandBuffersImpl( VkQueue, uint32_t, const SubmitInfoT* );
+        void CreateSubmitBatchInfoImpl( VkQueue, uint32_t, const SubmitInfoT*, DeviceProfilerSubmitBatch* );
     };
 
     /***********************************************************************************\
