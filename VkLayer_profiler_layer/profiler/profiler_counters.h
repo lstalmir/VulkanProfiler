@@ -25,6 +25,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <vector>
+#include <stack>
 
 // Include OS-specific implementation of CPU counters
 #ifdef WIN32
@@ -223,5 +225,121 @@ namespace Profiler
         uint32_t m_LastEventCount;
         float m_EventFrequency;
         VkTimeDomainEXT m_TimeDomain;
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        TipRange
+
+    Description:
+        Single time in profiler range.
+
+    \***********************************************************************************/
+    struct TipRange
+    {
+        const char* m_pFunctionName;
+        uint64_t m_CallStackSize;
+        uint64_t m_BeginTimestamp;
+        uint64_t m_EndTimestamp;
+
+        TipRange( const char* pFunctionName, uint64_t beginTimestamp )
+            : m_pFunctionName( pFunctionName )
+            , m_CallStackSize( 0 )
+            , m_BeginTimestamp( beginTimestamp )
+            , m_EndTimestamp( beginTimestamp )
+        {}
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        TipCounter
+
+    Description:
+        Time in profiler counter.
+
+    \***********************************************************************************/
+    class TipCounter
+    {
+    public:
+        // Sets the time domain to collect the CPU timestamps.
+        inline void SetTimeDomain( VkTimeDomainEXT timeDomain )
+        {
+            m_CpuTimestampCounter.SetTimeDomain( timeDomain );
+        }
+
+        // Clears all collected TIP regions.
+        inline void Reset()
+        {
+            std::scoped_lock lk( m_Mutex );
+            m_Ranges.clear();
+
+            assert( m_CallStack.empty() );
+        }
+
+        // Begins TIP region in the current call stack.
+        inline void BeginFunction( const char* pFunctionName )
+        {
+            std::scoped_lock lk( m_Mutex );
+            m_CallStack.push( m_Ranges.size() );
+            m_Ranges.emplace_back( pFunctionName, m_CpuTimestampCounter.GetCurrentValue() );
+        }
+
+        // Ends the last TIP region in the current call stack.
+        inline void EndFunction()
+        {
+            std::scoped_lock lk( m_Mutex );
+            TipRange& range = m_Ranges.at( m_CallStack.top() );
+            range.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
+
+            m_CallStack.pop();
+            if( !m_CallStack.empty() )
+            {
+                m_Ranges.at( m_CallStack.top() ).m_CallStackSize += range.m_CallStackSize;
+            }
+        }
+
+        // Returns all collected TIP ranges.
+        inline std::vector<TipRange> GetResults()
+        {
+            std::scoped_lock lk( m_Mutex );
+            return m_Ranges;
+        }
+
+    private:
+        CpuTimestampCounter   m_CpuTimestampCounter;
+        std::mutex            m_Mutex;
+        std::vector<TipRange> m_Ranges;
+        std::stack<uint64_t>  m_CallStack;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        TipGuard
+
+    Description:
+        RAII wrapper that counts time spent in the profiler.
+
+    \***********************************************************************************/
+    class TipGuard
+    {
+    public:
+        // Begins TIP measurement.
+        TipGuard( TipCounter& counter, const char* pFunctionName )
+            : m_TipCounter( counter )
+        {
+            m_TipCounter.BeginFunction( pFunctionName );
+        }
+
+        // Ends TIP measurement.
+        ~TipGuard()
+        {
+            m_TipCounter.EndFunction();
+        }
+
+    private:
+        TipCounter& m_TipCounter;
     };
 }

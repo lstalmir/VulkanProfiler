@@ -170,8 +170,14 @@ namespace Profiler
             (dd.Overlay.GetSwapchain() == presentInfo.pSwapchains[ 0 ]) )
         {
             // Display overlay
-            dd.Overlay.Present( dd.Profiler.GetData(), presentQueue, &presentInfo );
+            dd.Overlay.Present(
+                dd.Profiler.GetData(),
+                dd.Device.TIP.GetResults(),
+                presentQueue,
+                &presentInfo );
         }
+
+        dd.Device.TIP.Reset();
 
         // Present the image
         return dd.Device.Callbacks.QueuePresentKHR( queue, &presentInfo );

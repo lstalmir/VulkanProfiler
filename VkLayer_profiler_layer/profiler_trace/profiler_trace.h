@@ -71,7 +71,7 @@ namespace Profiler
         DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
         ~DeviceProfilerTraceSerializer();
 
-        DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+        DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data, const std::vector<struct TipRange>& tipData );
 
         static std::string GetDefaultTraceFileName( int samplingMode );
 
@@ -114,6 +114,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerSubpassData&, bool );
         void Serialize( const struct DeviceProfilerPipelineData& );
         void Serialize( const struct DeviceProfilerDrawcall& );
+        void Serialize( const std::vector<struct TipRange>& );
 
         void SaveEventsToFile( const std::string&, DeviceProfilerTraceSerializationResult& );
 

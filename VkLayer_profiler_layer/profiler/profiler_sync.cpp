@@ -148,6 +148,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerSynchronization::WaitForDevice()
     {
+        TipGuard tip( m_pDevice->TIP, __FUNCTION__ );
+
         assert( m_pDevice );
         m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
     }
@@ -163,6 +165,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerSynchronization::WaitForQueue( VkQueue queue )
     {
+        TipGuard tip( m_pDevice->TIP, __FUNCTION__ );
+
         assert( m_pDevice );
         m_pDevice->Callbacks.QueueWaitIdle( queue );
     }
@@ -178,6 +182,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerSynchronization::WaitForFence( VkFence fence, uint64_t timeout )
     {
+        TipGuard tip( m_pDevice->TIP, __FUNCTION__ );
+
         assert( m_pDevice );
         m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &fence, false, timeout );
     }
@@ -193,6 +199,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerSynchronization::SendSynchronizationTimestamps()
     {
+        TipGuard tip( m_pDevice->TIP, __FUNCTION__ );
+
         assert( m_pDevice );
 
         VkResult result = VK_ERROR_EXTENSION_NOT_PRESENT;

@@ -86,6 +86,7 @@ namespace Profiler
 
         void Present(
             const DeviceProfilerFrameData& data,
+            const std::vector<TipRange>& tipData,
             const VkQueue_Object& presentQueue,
             VkPresentInfoKHR* pPresentInfo );
 
@@ -158,6 +159,7 @@ namespace Profiler
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
         DeviceProfilerFrameData m_Data;
+        std::vector<TipRange> m_TipData;
         bool m_Pause;
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
@@ -249,7 +251,7 @@ namespace Profiler
         void InitializeImGuiDefaultFont();
         void InitializeImGuiStyle();
 
-        void Update( const DeviceProfilerFrameData& );
+        void Update( const DeviceProfilerFrameData&, const std::vector<TipRange>& );
         void UpdatePerformanceTab();
         void UpdateTopPipelinesTab();
         void UpdatePerformanceCountersTab();
@@ -270,7 +272,7 @@ namespace Profiler
 
         // Trace serialization helpers
         void UpdateTraceExporter();
-        void SaveTraceToFile( const std::string&, const DeviceProfilerFrameData& );
+        void SaveTraceToFile( const std::string&, const DeviceProfilerFrameData&, const std::vector<TipRange>& );
 
         // Notifications
         void UpdateNotificationWindow();

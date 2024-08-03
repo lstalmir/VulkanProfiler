@@ -87,6 +87,7 @@ namespace Profiler
         IGFD::FileDialog m_FileDialog;
         IGFD::FileDialogConfig m_FileDialogConfig;
         DeviceProfilerFrameData m_Data;
+        std::vector<TipRange> m_TipData;
     };
 
     /***********************************************************************************\
@@ -790,6 +791,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Present(
         const DeviceProfilerFrameData& data,
+        const std::vector<TipRange>& tipData,
         const VkQueue_Object& queue,
         VkPresentInfoKHR* pPresentInfo )
     {
@@ -797,7 +799,7 @@ namespace Profiler
         ImGui::SetCurrentContext( m_pImGuiContext );
 
         // Record interface draw commands
-        Update( data );
+        Update( data, tipData );
 
         ImDrawData* pDrawData = ImGui::GetDrawData();
         if( pDrawData )
@@ -867,7 +869,7 @@ namespace Profiler
         Update overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::Update( const DeviceProfilerFrameData& data )
+    void ProfilerOverlayOutput::Update( const DeviceProfilerFrameData& data, const std::vector<TipRange>& tipData )
     {
         m_pImGuiVulkanContext->NewFrame();
 
@@ -895,6 +897,7 @@ namespace Profiler
                 {
                     m_pTraceExporter = std::make_unique<TraceExporter>();
                     m_pTraceExporter->m_Data = m_Data;
+                    m_pTraceExporter->m_TipData = m_TipData;
                 }
                 ImGui::EndMenu();
             }
@@ -918,6 +921,7 @@ namespace Profiler
         {
             m_pTraceExporter = std::make_unique<TraceExporter>();
             m_pTraceExporter->m_Data = m_Data;
+            m_pTraceExporter->m_TipData = m_TipData;
         }
         if( ImGui::IsItemHovered() )
         {
@@ -936,6 +940,7 @@ namespace Profiler
         {
             // Update data
             m_Data = data;
+            m_TipData = tipData;
         }
 
         // Add padding
@@ -3183,7 +3188,8 @@ namespace Profiler
             {
                 SaveTraceToFile(
                     m_pTraceExporter->m_FileDialog.GetFilePathName(),
-                    m_pTraceExporter->m_Data );
+                    m_pTraceExporter->m_Data,
+                    m_pTraceExporter->m_TipData );
             }
 
             // Destroy the exporter.
@@ -3200,10 +3206,10 @@ namespace Profiler
         Saves frame trace to a file.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
+    void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data, const std::vector<TipRange>& tipData )
     {
         DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
-        DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
+        DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data, tipData );
 
         m_SerializationSucceeded = result.m_Succeeded;
         m_SerializationMessage = result.m_Message;
