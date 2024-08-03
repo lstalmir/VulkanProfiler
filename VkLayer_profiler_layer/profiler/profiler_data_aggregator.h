@@ -47,15 +47,15 @@ namespace Profiler
         ContainerType<DeviceProfilerSubmit>             m_Submits = {};
         uint64_t                                        m_Timestamp = {};
         uint32_t                                        m_ThreadId = {};
-
-        DeviceProfilerQueryDataBuffer*                  m_pDataBuffer = {};
-
-        VkCommandPool                                   m_DataCopyCommandPool = {};
-        VkCommandBuffer                                 m_DataCopyCommandBuffer = {};
-        VkFence                                         m_DataCopyFence = {};
-
-        uint32_t                                        m_SubmitBatchDataIndex = 0;
-        std::unordered_set<ProfilerCommandBuffer*>      m_pSubmittedCommandBuffers = {};
+    };
+    
+    struct DeviceProfilerFrame
+    {
+        uint32_t                                        m_FrameIndex = 0;
+        uint32_t                                        m_ThreadId = 0;
+        uint64_t                                        m_Timestamp = 0;
+        float                                           m_FramesPerSec = 0;
+        DeviceProfilerSynchronizationTimestamps         m_SyncTimestamps = {};
     };
 
     /***********************************************************************************\
@@ -69,19 +69,39 @@ namespace Profiler
     \***********************************************************************************/
     class ProfilerDataAggregator
     {
-        struct Frame
+        struct SubmitBatch : DeviceProfilerSubmitBatch
         {
-            uint32_t                                  m_FrameIndex;
-            std::list<DeviceProfilerSubmitBatch>      m_PendingSubmits;
-            std::deque<DeviceProfilerSubmitBatchData> m_CompleteSubmits;
+            DeviceProfilerQueryDataBuffer*              m_pDataBuffer = {};
+
+            VkCommandPool                               m_DataCopyCommandPool = {};
+            VkCommandBuffer                             m_DataCopyCommandBuffer = {};
+            VkFence                                     m_DataCopyFence = {};
+
+            uint32_t                                    m_SubmitBatchDataIndex = 0;
+            std::unordered_set<ProfilerCommandBuffer*>  m_pSubmittedCommandBuffers = {};
+
+            SubmitBatch( const DeviceProfilerSubmitBatch& submitBatch )
+                : DeviceProfilerSubmitBatch( submitBatch )
+            {}
+        };
+
+        struct Frame : DeviceProfilerFrame
+        {
+            std::list<SubmitBatch>                      m_PendingSubmits = {};
+            std::deque<DeviceProfilerSubmitBatchData>   m_CompleteSubmits = {};
+
+            uint64_t                                    m_EndTimestamp = {};
+
+            Frame( const DeviceProfilerFrame& frame )
+                : DeviceProfilerFrame( frame )
+            {}
         };
 
     public:
         VkResult Initialize( DeviceProfiler* );
         void Destroy();
 
-        void SetFrameIndex( uint32_t i ) { m_FrameIndex = i; }
-
+        void AppendFrame( const DeviceProfilerFrame& );
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
         void Aggregate( ProfilerCommandBuffer* = nullptr );
 
@@ -110,11 +130,11 @@ namespace Profiler
         void CollectPipelinesFromCommandBuffer( const DeviceProfilerCommandBufferData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
         void CollectPipeline( const DeviceProfilerPipelineData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
 
-        void ResolveSubmitBatchData( const DeviceProfilerSubmitBatch&, DeviceProfilerSubmitBatchData& ) const;
+        void ResolveSubmitBatchData( SubmitBatch&, DeviceProfilerSubmitBatchData& ) const;
         void ResolveFrameData( Frame&, DeviceProfilerFrameData& ) const;
 
-        void FreeDynamicAllocations( DeviceProfilerSubmitBatch& );
-        bool WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& );
-        bool WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& );
+        void FreeDynamicAllocations( SubmitBatch& );
+        bool WriteQueryDataToGpuBuffer( SubmitBatch& );
+        bool WriteQueryDataToCpuBuffer( SubmitBatch& );
     };
 }

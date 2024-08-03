@@ -190,6 +190,8 @@ namespace Profiler
 
         template<typename SubmitInfoT>
         void CreateSubmitBatchInfoImpl( VkQueue, uint32_t, const SubmitInfoT*, DeviceProfilerSubmitBatch* );
+
+        void BeginNextFrame();
     };
 
     /***********************************************************************************\

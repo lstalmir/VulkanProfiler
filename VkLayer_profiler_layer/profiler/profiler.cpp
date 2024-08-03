@@ -340,6 +340,9 @@ namespace Profiler
             ProfilerPlatformFunctions::SetStablePowerState( m_pDevice, &m_pStablePowerStateHandle );
         }
 
+        // Begin profiling of the first frame.
+        BeginNextFrame();
+
         return VK_SUCCESS;
     }
 
@@ -1181,27 +1184,36 @@ namespace Profiler
 
             // Get data captured during the last frame
             m_Data = m_DataAggregator.GetAggregatedData();
+
+            // TODO: Move to memory tracker
+            m_Data.m_Memory = m_MemoryData;
         }
 
-        m_Data.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+        BeginNextFrame();
+    }
 
-        // TODO: Move to memory tracker
-        m_Data.m_Memory = m_MemoryData;
+    /***********************************************************************************\
 
-        m_CpuTimestampCounter.End();
+    Function:
+        BeginNextFrame
 
-        // TODO: Move to CPU tracker
-        m_Data.m_CPU.m_BeginTimestamp = m_CpuTimestampCounter.GetBeginValue();
-        m_Data.m_CPU.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
-        m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
-        m_Data.m_CPU.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+    Description:
 
-        // Prepare aggregator for the next frame
-        m_DataAggregator.SetFrameIndex( m_CurrentFrame );
-
-        // Send synchronization timestamps and begin next frame
+    \***********************************************************************************/
+    void DeviceProfiler::BeginNextFrame()
+    {
+        // Recalibrate the timestamps for the next frame.
         m_Synchronization.SendSynchronizationTimestamps();
-        m_CpuTimestampCounter.Begin();
+
+        // Prepare aggregator for the next frame.
+        DeviceProfilerFrame frame = {};
+        frame.m_FrameIndex = m_CurrentFrame;
+        frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+        frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
+        frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
+        frame.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+
+        m_DataAggregator.AppendFrame( frame );
     }
 
     /***********************************************************************************\
