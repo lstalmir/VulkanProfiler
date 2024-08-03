@@ -44,7 +44,7 @@ namespace Profiler
     {
         VkQueue                                         m_Handle = {};
         ContainerType<DeviceProfilerSubmit>             m_Submits = {};
-        std::chrono::high_resolution_clock::time_point  m_Timestamp = {};
+        uint64_t                                        m_Timestamp = {};
         uint32_t                                        m_ThreadId = {};
     };
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -92,12 +92,14 @@ namespace Profiler
         uint32_t     m_DebugLabelStackDepth;
 
         // Timestamp normalization
-        Milliseconds m_CpuQueueSubmitTimestampOffset;
-        uint64_t     m_GpuQueueSubmitTimestampOffset;
+        VkTimeDomainEXT m_HostTimeDomain;
+        uint64_t     m_HostCalibratedTimestamp;
+        uint64_t     m_DeviceCalibratedTimestamp;
+        uint64_t     m_HostTimestampFrequency;
         Milliseconds m_GpuTimestampPeriod;
 
         void SetupTimestampNormalizationConstants( VkQueue );
-        Milliseconds GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point ) const;
+        Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 
         template<typename DataStructType>

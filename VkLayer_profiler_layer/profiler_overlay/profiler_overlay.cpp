@@ -1311,8 +1311,10 @@ namespace Profiler
     {
         // Header
         {
+            const uint64_t cpuTimestampFreq = OSGetTimestampFrequency( m_Data.m_SyncTimestamps.m_HostTimeDomain );
             const Milliseconds gpuTimeMs = m_Data.m_Ticks * m_TimestampPeriod;
-            const Milliseconds cpuTimeMs = m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp;
+            const Milliseconds cpuTimeMs = std::chrono::nanoseconds(
+                ((m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp) * 1'000'000'000) / cpuTimestampFreq );
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );

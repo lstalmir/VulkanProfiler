@@ -178,7 +178,9 @@ namespace Profiler
     {
         std::unordered_set<std::string> deviceExtensions = {
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+            VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
+            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME
         };
 
         // Load configuration that will be used by the profiler.
@@ -302,6 +304,10 @@ namespace Profiler
 
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
+
+        VkTimeDomainEXT hostTimeDomain = m_Synchronization.GetHostTimeDomain();
+        m_CpuTimestampCounter.SetTimeDomain( hostTimeDomain );
+        m_CpuFpsCounter.SetTimeDomain( hostTimeDomain );
 
         // Initialize memory manager
         DESTROYANDRETURNONFAIL( m_MemoryManager.Initialize( m_pDevice ) );
@@ -1199,13 +1205,12 @@ namespace Profiler
         m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
         m_Data.m_CPU.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
-        m_CpuTimestampCounter.Begin();
-
         // Prepare aggregator for the next frame
         m_DataAggregator.Reset();
 
-        // Send synchronization timestamps
+        // Send synchronization timestamps and begin next frame
         m_Synchronization.SendSynchronizationTimestamps();
+        m_CpuTimestampCounter.Begin();
     }
 
     /***********************************************************************************\
