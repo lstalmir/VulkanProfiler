@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1183,7 +1183,7 @@ namespace Profiler
     {
         VkQueue                                             m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
-        std::chrono::high_resolution_clock::time_point      m_Timestamp = {};
+        uint64_t                                            m_Timestamp = {};
         uint32_t                                            m_ThreadId = {};
     };
 
@@ -1242,10 +1242,25 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerCPUData
     {
-        std::chrono::high_resolution_clock::time_point      m_BeginTimestamp = {};
-        std::chrono::high_resolution_clock::time_point      m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
         float                                               m_FramesPerSec = {};
         uint32_t                                            m_ThreadId = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerSynchronizationTimestamps
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerSynchronizationTimestamps
+    {
+        VkTimeDomainEXT                                     m_HostTimeDomain = {};
+        uint64_t                                            m_HostCalibratedTimestamp = {};
+        uint64_t                                            m_DeviceCalibratedTimestamp = {};
     };
 
     /***********************************************************************************\
@@ -1270,7 +1285,7 @@ namespace Profiler
 
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
 
-        std::unordered_map<VkQueue, uint64_t>               m_SyncTimestamps = {};
+        DeviceProfilerSynchronizationTimestamps             m_SyncTimestamps = {};
     };
 
     /***********************************************************************************\

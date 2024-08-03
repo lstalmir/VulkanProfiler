@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 #include "profiler_trace_event.h"
 #include "profiler_json.h"
 #include "profiler/profiler_data.h"
+#include "profiler/profiler_counters.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_helpers/profiler_data_helpers.h"
@@ -35,8 +36,44 @@
 
 #include <nlohmann/json.hpp>
 
+#include "profiler_ext/VkProfilerEXT.h"
+
 // Alias commonly used types
 using json = nlohmann::json;
+
+namespace
+{
+    /*************************************************************************\
+
+    Function:
+        GetSamplingModeComponent
+
+    Description:
+        Returns a short description of the sampling mode used to generate
+        the trace.
+
+    \*************************************************************************/
+    static constexpr const char* GetSamplingModeComponent( int samplingMode )
+    {
+        switch( samplingMode )
+        {
+        case VK_PROFILER_MODE_PER_DRAWCALL_EXT:
+            return "drawcalls";
+        case VK_PROFILER_MODE_PER_PIPELINE_EXT:
+            return "pipelines";
+        case VK_PROFILER_MODE_PER_RENDER_PASS_EXT:
+            return "renderpasses";
+        case VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT:
+            return "commandbuffers";
+        case VK_PROFILER_MODE_PER_SUBMIT_EXT:
+            return "submits";
+        case VK_PROFILER_MODE_PER_FRAME_EXT:
+            return "frame";
+        default:
+            return "";
+        }
+    }
+}
 
 namespace Profiler
 {
@@ -56,8 +93,10 @@ namespace Profiler
         , m_CommandQueue( VK_NULL_HANDLE )
         , m_pEvents()
         , m_DebugLabelStackDepth( 0 )
-        , m_CpuQueueSubmitTimestampOffset( 0 )
-        , m_GpuQueueSubmitTimestampOffset( 0 )
+        , m_HostTimeDomain( OSGetDefaultTimeDomain() )
+        , m_HostCalibratedTimestamp( 0 )
+        , m_DeviceCalibratedTimestamp( 0 )
+        , m_HostTimestampFrequency( OSGetTimestampFrequency( m_HostTimeDomain ) )
         , m_GpuTimestampPeriod( gpuTimestampPeriod )
     {
         // Initialize JSON serializer
@@ -87,7 +126,7 @@ namespace Profiler
         Write collected results to the trace file.
 
     \*************************************************************************/
-    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
+    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
         // Setup state for serialization
         m_pData = &data;
@@ -116,7 +155,7 @@ namespace Profiler
                         TraceEvent::Phase::eFlowEnd,
                         m_pStringSerializer->GetName( waitSemaphore ),
                         "Synchronization",
-                        GetNormalizedGpuTimestamp( submitData.m_BeginTimestamp ),
+                        GetNormalizedGpuTimestamp( submitData.m_BeginTimestamp.m_Value ),
                         m_CommandQueue ) );
                 }
                 #endif
@@ -133,7 +172,7 @@ namespace Profiler
                         TraceEvent::Phase::eFlowStart,
                         m_pStringSerializer->GetName( signalSemaphpre ),
                         "Synchronization",
-                        GetNormalizedGpuTimestamp( submitData.m_EndTimestamp ),
+                        GetNormalizedGpuTimestamp( submitData.m_EndTimestamp.m_Value ),
                         m_CommandQueue ) );
                 }
                 #endif
@@ -148,7 +187,7 @@ namespace Profiler
             GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
 
         // Write JSON file
-        SaveEventsToFile( result );
+        SaveEventsToFile( fileName, result );
 
         // Cleanup serializer state
         Cleanup();
@@ -170,33 +209,43 @@ namespace Profiler
     {
         m_CommandQueue = queue;
 
-        m_CpuQueueSubmitTimestampOffset = Milliseconds( 0 );
+        // Try to use calibrated timestamps if available.
+        m_HostTimeDomain = m_pData->m_SyncTimestamps.m_HostTimeDomain;
+        m_HostCalibratedTimestamp = m_pData->m_SyncTimestamps.m_HostCalibratedTimestamp;
+        m_DeviceCalibratedTimestamp = m_pData->m_SyncTimestamps.m_DeviceCalibratedTimestamp;
+        m_HostTimestampFrequency = OSGetTimestampFrequency( m_HostTimeDomain );
 
-        // Get base command buffer offset.
-        // Better CPU-GPU correlation could be achieved from ETLs
-        m_GpuQueueSubmitTimestampOffset = m_pData->m_SyncTimestamps.at( queue );
-
-        for( const auto& submitBatchData : m_pData->m_Submits )
+        // Manually select calibration timestamps from the data.
+        if( m_HostCalibratedTimestamp == 0 )
         {
-            if( submitBatchData.m_Handle == queue )
-            {
-                m_CpuQueueSubmitTimestampOffset = GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp );
-
-                // Use first submitted packet's begin timestamp as a reference if synchronization timestamps were not sent.
-                if( m_GpuQueueSubmitTimestampOffset == 0 )
-                {
-                    m_GpuQueueSubmitTimestampOffset = !submitBatchData.m_Submits.empty()
-                        ? submitBatchData.m_Submits.front().m_BeginTimestamp.m_Value
-                        : 0;
-                }
-                break;
-            }
+            m_HostCalibratedTimestamp = m_pData->m_CPU.m_BeginTimestamp;
         }
 
-        // If no timestamps were recorded in the command buffer, apply no offset
-        if( m_GpuQueueSubmitTimestampOffset == -1 )
+        // Use first submitted packet's begin timestamp as a reference if synchronization timestamps were not sent.
+        if( m_DeviceCalibratedTimestamp == 0 )
         {
-            m_GpuQueueSubmitTimestampOffset = 0;
+            for( const DeviceProfilerSubmitBatchData& submitBatch : m_pData->m_Submits )
+            {
+                if( submitBatch.m_Handle != queue )
+                {
+                    continue;
+                }
+
+                for( const DeviceProfilerSubmitData& submit : submitBatch.m_Submits )
+                {
+                    uint64_t gpuTimestamp = submit.GetBeginTimestamp().m_Value;
+                    if( gpuTimestamp )
+                    {
+                        m_DeviceCalibratedTimestamp = gpuTimestamp;
+                        break;
+                    }
+                }
+
+                if( m_DeviceCalibratedTimestamp != 0 )
+                {
+                    break;
+                }
+            }
         }
     }
 
@@ -209,11 +258,12 @@ namespace Profiler
         Get CPU timestamp aligned to the frame begin CPU timestamp.
 
     \*************************************************************************/
-    Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point timestamp ) const
+    Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( uint64_t timestamp ) const
     {
         assert( timestamp >= m_pData->m_CPU.m_BeginTimestamp );
         assert( timestamp <= m_pData->m_CPU.m_EndTimestamp );
-        return timestamp - m_pData->m_CPU.m_BeginTimestamp;
+        return std::chrono::duration_cast<Milliseconds>(std::chrono::nanoseconds(
+            ((timestamp - m_HostCalibratedTimestamp) * 1'000'000'000) / m_HostTimestampFrequency ));
     }
 
     /*************************************************************************\
@@ -227,8 +277,7 @@ namespace Profiler
     \*************************************************************************/
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedGpuTimestamp( uint64_t gpuTimestamp ) const
     {
-        return m_CpuQueueSubmitTimestampOffset +
-            ((gpuTimestamp - m_GpuQueueSubmitTimestampOffset) * m_GpuTimestampPeriod);
+        return ((gpuTimestamp - m_DeviceCalibratedTimestamp) * m_GpuTimestampPeriod);
     }
 
     /*************************************************************************\
@@ -521,7 +570,7 @@ namespace Profiler
         ConstructTraceFileName
 
     \*************************************************************************/
-    std::filesystem::path DeviceProfilerTraceSerializer::ConstructTraceFileName() const
+    std::string DeviceProfilerTraceSerializer::GetDefaultTraceFileName( int samplingMode )
     {
         using namespace std::chrono;
 
@@ -540,9 +589,10 @@ namespace Profiler
         stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
         stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
         stringBuilder << std::put_time( &localTime, "%Y-%m-%d_%H-%M-%S" ) << "_" << ms.count();
+        stringBuilder << "_" << GetSamplingModeComponent( samplingMode );
         stringBuilder << ".json";
 
-        return std::filesystem::absolute( stringBuilder.str() );
+        return stringBuilder.str();
     }
 
     /*************************************************************************\
@@ -551,7 +601,7 @@ namespace Profiler
         SaveEventsToFile
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::SaveEventsToFile( DeviceProfilerTraceSerializationResult& result )
+    void DeviceProfilerTraceSerializer::SaveEventsToFile( const std::string& fileName, DeviceProfilerTraceSerializationResult& result )
     {
         if( result.m_Succeeded )
         {
@@ -569,14 +619,13 @@ namespace Profiler
             }
 
             // Open output file
-            std::filesystem::path filename = ConstructTraceFileName();
-            std::ofstream out( filename );
+            std::ofstream out( fileName );
 
             if( !out.is_open() )
             {
                 // Failed to open file for writing
                 result.m_Succeeded = false;
-                result.m_Message = "Failed to open file\n" + filename.string();
+                result.m_Message = "Failed to open file\n" + fileName;
                 return;
             }
 
@@ -588,13 +637,13 @@ namespace Profiler
             {
                 // Failed to write data
                 result.m_Succeeded = false;
-                result.m_Message = "Failed to write file\n" + filename.string();
+                result.m_Message = "Failed to write file\n" + fileName;
                 return;
             }
 
             // Success
             result.m_Succeeded = true;
-            result.m_Message = "Saved trace to\n" + filename.string();
+            result.m_Message = "Saved trace to\n" + fileName;
         }
     }
 

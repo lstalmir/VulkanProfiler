@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,8 +19,19 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_helpers.h"
+
+#include <vulkan/vk_layer.h>
+
 #include <atomic>
 #include <chrono>
+
+// Include OS-specific implementation of CPU counters
+#ifdef WIN32
+#include "profiler_counters_windows.inl"
+#else
+#include "profiler_counters_linux.inl"
+#endif
 
 namespace Profiler
 {
@@ -74,28 +85,36 @@ namespace Profiler
     {
     public:
         // Initialize new CPU timestamp query counter
-        inline CpuTimestampCounter() { m_BeginValue = m_EndValue = std::chrono::high_resolution_clock::now(); }
+        explicit CpuTimestampCounter( VkTimeDomainEXT domain = OSGetDefaultTimeDomain() ) : m_TimeDomain( domain ) { Reset(); }
+
+        // Set the time domain in which the timestamps should be collected
+        inline void SetTimeDomain( VkTimeDomainEXT domain ) { m_TimeDomain = domain; }
 
         // Reset counter values
-        inline void Reset() { m_BeginValue = m_EndValue = std::chrono::high_resolution_clock::now(); }
+        inline void Reset() { m_BeginValue = m_EndValue = OSGetTimestamp( m_TimeDomain ); }
 
         // Begin timestamp query
-        inline void Begin() { m_BeginValue = std::chrono::high_resolution_clock::now(); }
+        inline void Begin() { m_BeginValue = OSGetTimestamp( m_TimeDomain ); }
 
         // End timestamp query
-        inline void End() { m_EndValue = std::chrono::high_resolution_clock::now(); }
+        inline void End() { m_EndValue = OSGetTimestamp( m_TimeDomain ); }
 
         // Get time range between begin and end
-        template<typename Unit>
-        inline auto GetValue() const { return std::chrono::duration_cast<Unit>(m_EndValue - m_BeginValue); }
+        template<typename Unit = std::chrono::nanoseconds>
+        inline auto GetValue() const
+        {
+            return std::chrono::duration_cast<Unit>(std::chrono::nanoseconds(
+                ((m_EndValue - m_BeginValue) * 1'000'000'000) / OSGetTimestampFrequency( m_TimeDomain ) ));
+        }
 
-        inline auto GetBeginValue() const { return m_BeginValue; }
+        inline uint64_t GetBeginValue() const { return m_BeginValue; }
 
-        inline auto GetCurrentValue() const { return std::chrono::high_resolution_clock::now(); }
+        inline uint64_t GetCurrentValue() const { return OSGetTimestamp( m_TimeDomain ); }
 
     protected:
-        std::chrono::high_resolution_clock::time_point m_BeginValue;
-        std::chrono::high_resolution_clock::time_point m_EndValue;
+        uint64_t m_BeginValue;
+        uint64_t m_EndValue;
+        VkTimeDomainEXT m_TimeDomain;
     };
 
     /***********************************************************************************\
@@ -152,18 +171,22 @@ namespace Profiler
     \***********************************************************************************/
     class CpuEventFrequencyCounter
     {
-        using TimePointType = typename std::chrono::high_resolution_clock::time_point;
-        using DurationType = typename TimePointType::duration;
-
     public:
         // Initialize event counter
         template<typename Unit = std::chrono::seconds>
-        inline CpuEventFrequencyCounter( Unit refreshRate = std::chrono::seconds( 1 ) )
-            : m_RefreshRate( std::chrono::duration_cast<DurationType>(refreshRate) )
+        inline CpuEventFrequencyCounter( Unit refreshRate = std::chrono::seconds( 1 ), VkTimeDomainEXT timeDomain = OSGetDefaultTimeDomain() )
+            : m_RefreshRate( std::chrono::nanoseconds( refreshRate ).count() * 0.000'000'001f )
+            , m_TimeDomain( timeDomain )
         {
             m_EventCount = 0;
             m_EventFrequency = 0;
-            m_BeginTimestamp = std::chrono::high_resolution_clock::now();
+            m_BeginTimestamp = OSGetTimestamp( m_TimeDomain );
+        }
+
+        // Set the new time domain
+        inline void SetTimeDomain( VkTimeDomainEXT timeDomain )
+        {
+            m_TimeDomain = timeDomain;
         }
 
         // Update event counter
@@ -171,12 +194,13 @@ namespace Profiler
         {
             m_EventCount++;
 
-            const TimePointType timestamp = std::chrono::high_resolution_clock::now();
-            const DurationType delta = (timestamp - m_BeginTimestamp);
+            const uint64_t timestamp = OSGetTimestamp( m_TimeDomain );
+            const float delta = static_cast<float>(timestamp - m_BeginTimestamp) /
+                OSGetTimestampFrequency( m_TimeDomain );
 
             if( delta > m_RefreshRate )
             {
-                m_EventFrequency = (m_EventCount) / (delta.count() * REFRESH_RATE_TO_SEC);
+                m_EventFrequency = m_EventCount / delta;
                 m_LastEventCount = m_EventCount;
                 m_EventCount = 0;
                 m_BeginTimestamp = timestamp;
@@ -193,14 +217,11 @@ namespace Profiler
         inline uint32_t GetEventCount() const { return m_LastEventCount; }
 
     protected:
-        TimePointType m_BeginTimestamp;
-        const DurationType m_RefreshRate;
+        uint64_t m_BeginTimestamp;
+        float m_RefreshRate;
         uint32_t m_EventCount;
         uint32_t m_LastEventCount;
         float m_EventFrequency;
-
-        static constexpr float REFRESH_RATE_TO_SEC =
-            static_cast<float>(DurationType::period::num) /
-            static_cast<float>(DurationType::period::den);
+        VkTimeDomainEXT m_TimeDomain;
     };
 }

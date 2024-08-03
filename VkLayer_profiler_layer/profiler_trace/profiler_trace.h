@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,8 +21,8 @@
 #pragma once
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
-#include <filesystem>
 #include <vector>
+#include <string>
 
 namespace Profiler
 {
@@ -71,7 +71,9 @@ namespace Profiler
         DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
         ~DeviceProfilerTraceSerializer();
 
-        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
+        DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+
+        static std::string GetDefaultTraceFileName( int samplingMode );
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
@@ -90,12 +92,14 @@ namespace Profiler
         uint32_t     m_DebugLabelStackDepth;
 
         // Timestamp normalization
-        Milliseconds m_CpuQueueSubmitTimestampOffset;
-        uint64_t     m_GpuQueueSubmitTimestampOffset;
+        VkTimeDomainEXT m_HostTimeDomain;
+        uint64_t     m_HostCalibratedTimestamp;
+        uint64_t     m_DeviceCalibratedTimestamp;
+        uint64_t     m_HostTimestampFrequency;
         Milliseconds m_GpuTimestampPeriod;
 
         void SetupTimestampNormalizationConstants( VkQueue );
-        Milliseconds GetNormalizedCpuTimestamp( std::chrono::high_resolution_clock::time_point ) const;
+        Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 
         template<typename DataStructType>
@@ -111,8 +115,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerPipelineData& );
         void Serialize( const struct DeviceProfilerDrawcall& );
 
-        std::filesystem::path ConstructTraceFileName() const;
-        void SaveEventsToFile( DeviceProfilerTraceSerializationResult& );
+        void SaveEventsToFile( const std::string&, DeviceProfilerTraceSerializationResult& );
 
         void Cleanup();
     };

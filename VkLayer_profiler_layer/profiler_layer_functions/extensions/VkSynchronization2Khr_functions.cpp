@@ -37,12 +37,15 @@ namespace Profiler
         VkFence fence )
     {
         auto& dd = DeviceDispatch.Get( queue );
-        dd.Profiler.PreSubmitCommandBuffers( queue );
+
+        DeviceProfilerSubmitBatch submitBatch;
+        dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
+        dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, submitCount, pSubmits, fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
+        dd.Profiler.PostSubmitCommandBuffers( submitBatch );
         return result;
     }
 
