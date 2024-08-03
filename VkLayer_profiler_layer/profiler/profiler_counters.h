@@ -175,7 +175,7 @@ namespace Profiler
         // Initialize event counter
         template<typename Unit = std::chrono::seconds>
         inline CpuEventFrequencyCounter( Unit refreshRate = std::chrono::seconds( 1 ), VkTimeDomainEXT timeDomain = OSGetDefaultTimeDomain() )
-            : m_RefreshRate( std::chrono::duration_cast<std::chrono::nanoseconds>(refreshRate).count() )
+            : m_RefreshRate( std::chrono::nanoseconds( refreshRate ).count() * 0.000'000'001f )
             , m_TimeDomain( timeDomain )
         {
             m_EventCount = 0;
@@ -195,11 +195,12 @@ namespace Profiler
             m_EventCount++;
 
             const uint64_t timestamp = OSGetTimestamp( m_TimeDomain );
-            const float delta = static_cast<float>(timestamp - m_BeginTimestamp);
+            const float delta = static_cast<float>(timestamp - m_BeginTimestamp) /
+                OSGetTimestampFrequency( m_TimeDomain );
 
             if( delta > m_RefreshRate )
             {
-                m_EventFrequency = (m_EventCount * OSGetTimestampFrequency( m_TimeDomain )) / delta;
+                m_EventFrequency = m_EventCount / delta;
                 m_LastEventCount = m_EventCount;
                 m_EventCount = 0;
                 m_BeginTimestamp = timestamp;
@@ -217,7 +218,7 @@ namespace Profiler
 
     protected:
         uint64_t m_BeginTimestamp;
-        uint64_t m_RefreshRate;
+        float m_RefreshRate;
         uint32_t m_EventCount;
         uint32_t m_LastEventCount;
         float m_EventFrequency;
