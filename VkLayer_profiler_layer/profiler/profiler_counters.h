@@ -88,27 +88,28 @@ namespace Profiler
         explicit CpuTimestampCounter( VkTimeDomainEXT domain = OSGetDefaultTimeDomain() ) : m_TimeDomain( domain ) { Reset(); }
 
         // Set the time domain in which the timestamps should be collected
-        void SetTimeDomain( VkTimeDomainEXT domain ) { m_TimeDomain = domain; }
+        inline void SetTimeDomain( VkTimeDomainEXT domain ) { m_TimeDomain = domain; }
 
         // Reset counter values
-        void Reset() { m_BeginValue = m_EndValue = OSGetTimestamp( m_TimeDomain ); }
+        inline void Reset() { m_BeginValue = m_EndValue = OSGetTimestamp( m_TimeDomain ); }
 
         // Begin timestamp query
-        void Begin() { m_BeginValue = OSGetTimestamp( m_TimeDomain ); }
+        inline void Begin() { m_BeginValue = OSGetTimestamp( m_TimeDomain ); }
 
         // End timestamp query
-        void End() { m_EndValue = OSGetTimestamp( m_TimeDomain ); }
+        inline void End() { m_EndValue = OSGetTimestamp( m_TimeDomain ); }
 
         // Get time range between begin and end
         template<typename Unit = std::chrono::nanoseconds>
-        Unit GetValue() const
+        inline auto GetValue() const
         {
             return std::chrono::duration_cast<Unit>(std::chrono::nanoseconds(
                 ((m_EndValue - m_BeginValue) * 1'000'000'000) / OSGetTimestampFrequency( m_TimeDomain ) ));
         }
 
-        uint64_t GetBeginValue() const { return m_BeginValue; }
-        uint64_t GetCurrentValue() const { return OSGetTimestamp( m_TimeDomain ); }
+        inline uint64_t GetBeginValue() const { return m_BeginValue; }
+
+        inline uint64_t GetCurrentValue() const { return OSGetTimestamp( m_TimeDomain ); }
 
     protected:
         uint64_t m_BeginValue;
