@@ -1039,47 +1039,64 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue )
+    void DeviceProfiler::PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
         if( m_MetricsApiINTEL.IsAvailable() )
         {
-            AcquirePerformanceConfigurationINTEL( queue );
+            AcquirePerformanceConfigurationINTEL( submitBatch.m_Handle );
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        PostSubmitCommandBuffersImpl
+        PostSubmitCommandBuffers
 
     Description:
-        Structure-independent implementation of PostSubmitCommandBuffers.
 
     \***********************************************************************************/
-    template<typename SubmitInfoT>
-    void DeviceProfiler::PostSubmitCommandBuffersImpl( VkQueue queue, uint32_t count, const SubmitInfoT* pSubmitInfo )
+    void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        using T = SubmitInfoTraits<SubmitInfoT>;
+        if( m_MetricsApiINTEL.IsAvailable() )
+        {
+            ReleasePerformanceConfigurationINTEL();
+        }
 
-        #if PROFILER_DISABLE_CRITICAL_SECTION_OPTIMIZATION
-        std::scoped_lock lk( m_CommandBuffers );
-        #else
-        std::scoped_lock lk( m_SubmitMutex );
-        #endif
+        // Append the submit batch for aggregation
+        m_DataAggregator.AppendSubmit( submitBatch );
 
         // Wait for the submitted command buffers to execute
         if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
         {
-            m_pDevice->Callbacks.QueueSubmit( queue, 0, nullptr, m_SubmitFence );
+            std::scoped_lock lk( m_SubmitMutex );
+            m_pDevice->Callbacks.QueueSubmit( submitBatch.m_Handle, 0, nullptr, m_SubmitFence );
             m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &m_SubmitFence, true, std::numeric_limits<uint64_t>::max() );
             m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_SubmitFence );
+            m_DataAggregator.Aggregate();
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateSubmitBatchInfoImpl
+
+    Description:
+        Structure-independent implementation of CreateSubmitBatchInfo.
+
+    \***********************************************************************************/
+    template<typename SubmitInfoT>
+    void DeviceProfiler::CreateSubmitBatchInfoImpl( VkQueue queue, uint32_t count, const SubmitInfoT* pSubmitInfo, DeviceProfilerSubmitBatch* pSubmitBatch )
+    {
+        using T = SubmitInfoTraits<SubmitInfoT>;
+
+        // Synchronize read access to m_pCommandBuffers
+        std::shared_lock lk( m_pCommandBuffers );
 
         // Store submitted command buffers and get results
-        DeviceProfilerSubmitBatch submitBatch;
-        submitBatch.m_Handle = queue;
-        submitBatch.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
-        submitBatch.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+        pSubmitBatch->m_Handle = queue;
+        pSubmitBatch->m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
+        pSubmitBatch->m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
         for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
         {
@@ -1095,12 +1112,12 @@ namespace Profiler
             {
                 // Get command buffer handle
                 VkCommandBuffer commandBuffer = T::CommandBuffer( submitInfo, commandBufferIdx );
-                auto& profilerCommandBuffer = GetCommandBuffer( commandBuffer );
+                ProfilerCommandBuffer* pProfilerCommandBuffer = m_pCommandBuffers.unsafe_at( commandBuffer ).get();
 
                 // Dirty command buffer profiling data
-                profilerCommandBuffer.Submit();
+                pProfilerCommandBuffer->Submit();
 
-                submit.m_pCommandBuffers.push_back( &profilerCommandBuffer );
+                submit.m_pCommandBuffers.push_back( pProfilerCommandBuffer );
             }
 
             // Copy semaphores
@@ -1115,48 +1132,34 @@ namespace Profiler
             }
 
             // Store the submit wrapper
-            submitBatch.m_Submits.push_back( submit );
-        }
-
-        m_DataAggregator.AppendSubmit( submitBatch );
-
-        // Release performance configuration
-        if( m_MetricsApiINTEL.IsAvailable() )
-        {
-            ReleasePerformanceConfigurationINTEL();
-        }
-
-        if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
-        {
-            // Collect data from the submitted command buffers
-            m_DataAggregator.Aggregate();
+            pSubmitBatch->m_Submits.push_back( std::move( submit ) );
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        PostSubmitCommandBuffers
+        CreateSubmitBatchInfo
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo )
+    void DeviceProfiler::CreateSubmitBatchInfo( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, DeviceProfilerSubmitBatch* pSubmitBatch )
     {
-        PostSubmitCommandBuffersImpl( queue, count, pSubmitInfo );
+        CreateSubmitBatchInfoImpl<VkSubmitInfo>( queue, count, pSubmitInfo, pSubmitBatch );
     }
 
     /***********************************************************************************\
 
     Function:
-        PostSubmitCommandBuffers
+        CreateSubmitBatchInfo
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo2* pSubmitInfo )
+    void DeviceProfiler::CreateSubmitBatchInfo( VkQueue queue, uint32_t count, const VkSubmitInfo2* pSubmitInfo, DeviceProfilerSubmitBatch* pSubmitBatch )
     {
-        PostSubmitCommandBuffersImpl( queue, count, pSubmitInfo );
+        CreateSubmitBatchInfoImpl<VkSubmitInfo2>( queue, count, pSubmitInfo, pSubmitBatch );
     }
 
     /***********************************************************************************\
