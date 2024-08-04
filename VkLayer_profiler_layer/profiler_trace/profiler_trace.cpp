@@ -139,6 +139,13 @@ namespace Profiler
         {
             SetupTimestampNormalizationConstants( submitBatchData.m_Handle );
 
+            // Insert queue submission event
+            m_pEvents.push_back( new ApiTraceEvent(
+                TraceEvent::Phase::eInstant,
+                "vkQueueSubmit",
+                submitBatchData.m_ThreadId,
+                GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp ) ) );
+
             for( const auto& submitData : submitBatchData.m_Submits )
             {
                 #if ENABLE_FLOW_EVENTS

@@ -35,19 +35,14 @@
 #include "profiler_counters_linux.inl"
 #endif
 
-// Enable basic time in profiler counters
+// Enable time in profiler counters in non-release builds
 #ifndef PROFILER_ENABLE_TIP
-#define PROFILER_ENABLE_TIP 1
-#endif
-
-// Enable additional time in profiler counters in non-release builds
-#ifndef PROFILER_ENABLE_DEBUG_TIP
 #if defined( PROFILER_CONFIG_DEBUG ) || defined( PROFILER_CONFIG_RELWITHDEBINFO )
-#define PROFILER_ENABLE_DEBUG_TIP 1
+#define PROFILER_ENABLE_TIP 1
 #else
-#define PROFILER_ENABLE_DEBUG_TIP 0
+#define PROFILER_ENABLE_TIP 0
 #endif
-#endif // PROFILER_ENABLE_DEBUG_TIP
+#endif // PROFILER_ENABLE_TIP
 
 namespace Profiler
 {
@@ -361,7 +356,6 @@ namespace Profiler
     template<bool Enabled>
     class TipGuardImpl;
     using TipGuard = TipGuardImpl<PROFILER_ENABLE_TIP>;
-    using TipGuardDbg = TipGuardImpl<PROFILER_ENABLE_TIP && PROFILER_ENABLE_DEBUG_TIP>;
 
     /* Disabled */
     template<>

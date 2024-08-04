@@ -412,7 +412,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AcquirePerformanceConfigurationINTEL( VkQueue queue )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         assert( m_MetricsApiINTEL.IsAvailable() );
         assert( m_PerformanceConfigurationINTEL == VK_NULL_HANDLE );
@@ -453,7 +453,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::ReleasePerformanceConfigurationINTEL()
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         assert( m_MetricsApiINTEL.IsAvailable() );
 
@@ -614,7 +614,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateCommandPool( VkCommandPool commandPool, const VkCommandPoolCreateInfo* pCreateInfo )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         m_pCommandPools.insert( commandPool,
             std::make_unique<DeviceProfilerCommandPool>( *this, commandPool, *pCreateInfo ) );
@@ -632,7 +632,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyCommandPool( VkCommandPool commandPool )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
@@ -657,7 +657,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateCommandBuffers( VkCommandPool commandPool, VkCommandBufferLevel level, uint32_t count, VkCommandBuffer* pCommandBuffers )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
@@ -685,7 +685,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeCommandBuffers( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
 
@@ -772,7 +772,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
@@ -803,7 +803,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkComputePipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
@@ -830,7 +830,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
@@ -858,7 +858,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyPipeline( VkPipeline pipeline )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         m_Pipelines.remove( pipeline );
     }
@@ -873,7 +873,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateShaderModule( VkShaderModule module, const VkShaderModuleCreateInfo* pCreateInfo )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         m_pShaderModules.insert( module,
             std::make_shared<ProfilerShaderModule>(
@@ -891,7 +891,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         m_pShaderModules.remove( module );
     }
@@ -906,7 +906,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateShader( VkShaderEXT handle, const VkShaderCreateInfoEXT* pCreateInfo )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         ProfilerShader shader;
         shader.m_Index = UINT32_MAX;
@@ -940,7 +940,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyShader( VkShaderEXT handle )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         m_Shaders.remove( handle );
     }
@@ -955,7 +955,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateRenderPass( VkRenderPass renderPass, const VkRenderPassCreateInfo* pCreateInfo )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerRenderPass deviceProfilerRenderPass;
         deviceProfilerRenderPass.m_Handle = renderPass;
@@ -994,7 +994,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateRenderPass( VkRenderPass renderPass, const VkRenderPassCreateInfo2* pCreateInfo )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerRenderPass deviceProfilerRenderPass;
         deviceProfilerRenderPass.m_Handle = renderPass;
@@ -1062,7 +1062,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyRenderPass( VkRenderPass renderPass )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         m_RenderPasses.remove( renderPass );
     }
@@ -1077,7 +1077,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         if( m_MetricsApiINTEL.IsAvailable() )
         {
@@ -1095,7 +1095,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         if( m_MetricsApiINTEL.IsAvailable() )
         {
@@ -1130,7 +1130,7 @@ namespace Profiler
     {
         using T = SubmitInfoTraits<SubmitInfoT>;
 
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         // Synchronize read access to m_pCommandBuffers
         std::shared_lock lk( m_pCommandBuffers );
@@ -1214,7 +1214,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame()
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         std::scoped_lock lk( m_PresentMutex );
 
@@ -1270,7 +1270,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         std::scoped_lock lk( m_Allocations );
 
@@ -1302,7 +1302,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeMemory( VkDeviceMemory allocatedMemory )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         std::scoped_lock lk( m_Allocations );
 
@@ -1338,7 +1338,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         // Capture pipeline executable properties
         if( ShouldCapturePipelineExecutableProperties() )
@@ -1484,7 +1484,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetObjectName( VkObject object, const char* pName )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         m_pDevice->Debug.ObjectNames.insert( object, pName );
     }
@@ -1500,7 +1500,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetDefaultObjectName( VkObject object )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         // There is special function for VkPipeline objects
         if( object.m_Type == VK_OBJECT_TYPE_PIPELINE )
@@ -1539,7 +1539,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetDefaultObjectName( const DeviceProfilerPipeline& pipeline )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
@@ -1584,7 +1584,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateInternalPipeline( DeviceProfilerPipelineType type, const char* pName )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerPipeline internalPipeline;
         internalPipeline.m_Handle = (VkPipeline)type;
@@ -1607,7 +1607,7 @@ namespace Profiler
     \***********************************************************************************/
     decltype(DeviceProfiler::m_pCommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( VkCommandBuffer commandBuffer )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         // Assume m_CommandBuffers map is already locked
         assert( !m_pCommandBuffers.try_lock() );
@@ -1630,7 +1630,7 @@ namespace Profiler
     \***********************************************************************************/
     decltype(DeviceProfiler::m_pCommandBuffers)::iterator DeviceProfiler::FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator it )
     {
-        TipGuardDbg tip( m_pDevice->TIP, __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
         // Assume m_CommandBuffers map is already locked
         assert( !m_pCommandBuffers.try_lock() );
