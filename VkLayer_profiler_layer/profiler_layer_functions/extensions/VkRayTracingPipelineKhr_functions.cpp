@@ -41,6 +41,7 @@ namespace Profiler
         VkPipeline* pPipelines )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Capture executable properties for shader inspection.
         VkRayTracingPipelineCreateInfoKHR* pCreateInfosWithExecutableProperties = nullptr;
@@ -112,6 +113,8 @@ namespace Profiler
         uint32_t depth )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -154,6 +157,8 @@ namespace Profiler
         VkDeviceAddress indirectDeviceAddress )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor

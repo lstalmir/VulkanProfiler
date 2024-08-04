@@ -142,7 +142,7 @@ namespace Profiler
     \*************************************************************************/
     void ApiTraceEvent::Serialize( nlohmann::json& jsonObject ) const
     {
-        TraceInstantEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( jsonObject );
 
         // Set thread id
         jsonObject[ "tid" ] = "Thread " + std::to_string( m_ThreadId );

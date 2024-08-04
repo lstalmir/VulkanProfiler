@@ -36,6 +36,8 @@ namespace Profiler
         uint32_t firstTask )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& cmd = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor.
@@ -71,6 +73,8 @@ namespace Profiler
         uint32_t stride )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& cmd = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor.
@@ -112,6 +116,8 @@ namespace Profiler
         uint32_t stride )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& cmd = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor.

@@ -37,6 +37,8 @@ namespace Profiler
         const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -73,6 +75,8 @@ namespace Profiler
         const uint32_t* const* ppMaxPrimitiveCounts )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -107,6 +111,8 @@ namespace Profiler
         const VkCopyAccelerationStructureInfoKHR* pInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -139,6 +145,8 @@ namespace Profiler
         const VkCopyAccelerationStructureToMemoryInfoKHR* pInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -171,6 +179,8 @@ namespace Profiler
         const VkCopyMemoryToAccelerationStructureInfoKHR* pInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor

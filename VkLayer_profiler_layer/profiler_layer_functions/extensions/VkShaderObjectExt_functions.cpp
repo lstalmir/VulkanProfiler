@@ -38,6 +38,7 @@ namespace Profiler
         VkShaderEXT* pShaders )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Create the shaders.
         VkResult result = dd.Device.Callbacks.CreateShadersEXT(
@@ -77,6 +78,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Unregister the shader.
         dd.Profiler.DestroyShader( shader );
@@ -102,6 +104,8 @@ namespace Profiler
         const VkShaderEXT* pShaders )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& cmd = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Update profiled command buffer state for the next draw.

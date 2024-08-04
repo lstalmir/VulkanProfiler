@@ -67,8 +67,10 @@ namespace Profiler
             }
         }
 
-        PROFILER_FORCE_INLINE void Reset( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE void ResetQueries( VkCommandBuffer commandBuffer )
         {
+            TipGuardDbg tip( m_Device.TIP, __func__ );
+
             // Reset the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
             {
@@ -93,6 +95,8 @@ namespace Profiler
 
         PROFILER_FORCE_INLINE void BeginPerformanceQuery( VkCommandBuffer commandBuffer )
         {
+            TipGuardDbg tip( m_Device.TIP, __func__ );
+
             m_PerformanceQueryMetricsSetIndexINTEL = m_MetricsApiINTEL.GetActiveMetricsSetIndex();
 
             // Check if there is performance query extension is available.
@@ -111,6 +115,8 @@ namespace Profiler
 
         PROFILER_FORCE_INLINE void EndPerformanceQuery( VkCommandBuffer commandBuffer )
         {
+            TipGuardDbg tip( m_Device.TIP, __func__ );
+
             // Check if any performance metrics has been collected.
             if( (m_PerformanceQueryPoolINTEL != VK_NULL_HANDLE) &&
                 (m_PerformanceQueryMetricsSetIndexINTEL != UINT32_MAX) )
@@ -123,6 +129,8 @@ namespace Profiler
 
         PROFILER_FORCE_INLINE void ResolveTimestampsGpu( VkCommandBuffer commandBuffer )
         {
+            TipGuardDbg tip( m_Device.TIP, __func__ );
+
             // Copy data from the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
             {
@@ -138,6 +146,8 @@ namespace Profiler
 
         PROFILER_FORCE_INLINE void ResolveTimestampsCpu()
         {
+            TipGuardDbg tip( m_Device.TIP, __func__ );
+
             // Copy data from the full query pools.
             for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
             {
@@ -192,6 +202,8 @@ namespace Profiler
             std::vector<VkProfilerPerformanceCounterResultEXT>& results,
             uint32_t&                                           metricsSetIndex )
         {
+            TipGuardDbg tip( m_Device.TIP, __func__ );
+
             results.clear();
             metricsSetIndex = m_PerformanceQueryMetricsSetIndexINTEL;
 
@@ -238,6 +250,8 @@ namespace Profiler
 
         PROFILER_FORCE_INLINE void AllocateQueryPool( VkCommandBuffer commandBuffer )
         {
+            TipGuardDbg tip( m_Device.TIP, __func__ );
+
             auto* pQueryPool = m_pQueryPools.emplace_back(
                 new TimestampQueryPool( m_Profiler, m_QueryPoolSize ) );
 

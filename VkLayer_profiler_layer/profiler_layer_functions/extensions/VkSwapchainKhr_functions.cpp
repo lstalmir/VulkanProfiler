@@ -172,7 +172,7 @@ namespace Profiler
             // Display overlay
             dd.Overlay.Present(
                 dd.Profiler.GetData(),
-                dd.Device.TIP.GetResults(),
+                dd.Device.TIP.GetData(),
                 presentQueue,
                 &presentInfo );
         }

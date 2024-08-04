@@ -37,6 +37,7 @@ namespace Profiler
         VkFence fence )
     {
         auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
@@ -64,6 +65,7 @@ namespace Profiler
         VkFence fence )
     {
         auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );

@@ -251,7 +251,7 @@ namespace Profiler
         to any queue (even if they submit work to the queue).
 
     \*************************************************************************/
-    struct ApiTraceEvent : TraceInstantEvent
+    struct ApiTraceEvent : TraceEvent
     {
         uint32_t m_ThreadId;
 
@@ -259,13 +259,13 @@ namespace Profiler
 
         template<typename TimestampType>
         inline ApiTraceEvent(
-            Scope scope,
+            Phase phase,
             std::string_view name,
             uint32_t threadId,
             TimestampType timestamp,
             const nlohmann::json& color = {},
             const nlohmann::json& args = {} )
-            : TraceInstantEvent( scope, name, "API", timestamp, VK_NULL_HANDLE, color, args )
+            : TraceEvent( phase, name, "API", timestamp, VK_NULL_HANDLE, color, args )
             , m_ThreadId( threadId )
         {
         }

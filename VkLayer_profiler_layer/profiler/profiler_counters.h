@@ -35,6 +35,20 @@
 #include "profiler_counters_linux.inl"
 #endif
 
+// Enable basic time in profiler counters
+#ifndef PROFILER_ENABLE_TIP
+#define PROFILER_ENABLE_TIP 1
+#endif
+
+// Enable additional time in profiler counters in non-release builds
+#ifndef PROFILER_ENABLE_DEBUG_TIP
+#if defined( PROFILER_CONFIG_DEBUG ) || defined( PROFILER_CONFIG_RELWITHDEBINFO )
+#define PROFILER_ENABLE_DEBUG_TIP 1
+#else
+#define PROFILER_ENABLE_DEBUG_TIP 0
+#endif
+#endif // PROFILER_ENABLE_DEBUG_TIP
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -239,12 +253,14 @@ namespace Profiler
     struct TipRange
     {
         const char* m_pFunctionName;
+        uint32_t m_ThreadId;
         uint64_t m_CallStackSize;
         uint64_t m_BeginTimestamp;
         uint64_t m_EndTimestamp;
 
-        TipRange( const char* pFunctionName, uint64_t beginTimestamp )
+        inline TipRange( const char* pFunctionName, uint32_t threadId, uint64_t beginTimestamp )
             : m_pFunctionName( pFunctionName )
+            , m_ThreadId( threadId )
             , m_CallStackSize( 0 )
             , m_BeginTimestamp( beginTimestamp )
             , m_EndTimestamp( beginTimestamp )
@@ -260,7 +276,23 @@ namespace Profiler
         Time in profiler counter.
 
     \***********************************************************************************/
-    class TipCounter
+    template<bool Enabled>
+    class TipCounterImpl;
+    using TipCounter = TipCounterImpl<PROFILER_ENABLE_TIP>;
+
+    template<>
+    class TipCounterImpl<false>
+    {
+    public:
+        inline void SetTimeDomain( VkTimeDomainEXT ) {}
+        inline void Reset() {}
+        inline void BeginFunction( const char* ) {}
+        inline void EndFunction() {}
+        inline auto GetData() { return std::vector<TipRange>(); }
+    };
+
+    template<>
+    class TipCounterImpl<true>
     {
     public:
         // Sets the time domain to collect the CPU timestamps.
@@ -283,7 +315,10 @@ namespace Profiler
         {
             std::scoped_lock lk( m_Mutex );
             m_CallStack.push( m_Ranges.size() );
-            m_Ranges.emplace_back( pFunctionName, m_CpuTimestampCounter.GetCurrentValue() );
+            m_Ranges.emplace_back(
+                pFunctionName,
+                ProfilerPlatformFunctions::GetCurrentThreadId(),
+                m_CpuTimestampCounter.GetCurrentValue() );
         }
 
         // Ends the last TIP region in the current call stack.
@@ -301,7 +336,7 @@ namespace Profiler
         }
 
         // Returns all collected TIP ranges.
-        inline std::vector<TipRange> GetResults()
+        inline std::vector<TipRange> GetData()
         {
             std::scoped_lock lk( m_Mutex );
             return m_Ranges;
@@ -323,18 +358,33 @@ namespace Profiler
         RAII wrapper that counts time spent in the profiler.
 
     \***********************************************************************************/
-    class TipGuard
+    template<bool Enabled>
+    class TipGuardImpl;
+    using TipGuard = TipGuardImpl<PROFILER_ENABLE_TIP>;
+    using TipGuardDbg = TipGuardImpl<PROFILER_ENABLE_TIP && PROFILER_ENABLE_DEBUG_TIP>;
+
+    /* Disabled */
+    template<>
+    class TipGuardImpl<false>
+    {
+    public:
+        inline TipGuardImpl( TipCounter&, const char* ) {}
+    };
+
+    /* Enabled */
+    template<>
+    class TipGuardImpl<true>
     {
     public:
         // Begins TIP measurement.
-        TipGuard( TipCounter& counter, const char* pFunctionName )
+        inline TipGuardImpl( TipCounter& counter, const char* pFunctionName )
             : m_TipCounter( counter )
         {
             m_TipCounter.BeginFunction( pFunctionName );
         }
 
         // Ends TIP measurement.
-        ~TipGuard()
+        inline ~TipGuardImpl()
         {
             m_TipCounter.EndFunction();
         }
