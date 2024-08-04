@@ -32,6 +32,8 @@ namespace Profiler
         , m_QueryResultsBuffer( VK_NULL_HANDLE )
         , m_QueryResultsBufferAllocation( { nullptr } )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         // Create the command pool.
         VkQueryPoolCreateInfo queryPoolCreateInfo = {};
         queryPoolCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
@@ -111,6 +113,8 @@ namespace Profiler
 
     void TimestampQueryPool::ResolveQueryDataGpu( VkCommandBuffer commandBuffer, uint32_t queryCount )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
 #if VKPROF_USE_GPU_TIMESTAMP_BUFFER
         m_Profiler.m_pDevice->Callbacks.CmdCopyQueryPoolResults(
             commandBuffer,
@@ -124,6 +128,8 @@ namespace Profiler
 
     void TimestampQueryPool::ResolveQueryDataCpu( uint32_t queryCount )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
 #if !VKPROF_USE_GPU_TIMESTAMP_BUFFER
         m_Profiler.m_pDevice->Callbacks.GetQueryPoolResults(
             m_Profiler.m_pDevice->Handle,

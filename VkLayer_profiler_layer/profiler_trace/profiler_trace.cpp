@@ -141,7 +141,7 @@ namespace Profiler
 
             // Insert queue submission event
             m_pEvents.push_back( new ApiTraceEvent(
-                TraceInstantEvent::Scope::eThread,
+                TraceEvent::Phase::eInstant,
                 "vkQueueSubmit",
                 submitBatchData.m_ThreadId,
                 GetNormalizedCpuTimestamp( submitBatchData.m_Timestamp ) ) );
@@ -181,10 +181,13 @@ namespace Profiler
 
         // Insert present event
         m_pEvents.push_back( new ApiTraceEvent(
-            TraceInstantEvent::Scope::eThread,
+            TraceEvent::Phase::eInstant,
             "vkQueuePresentKHR",
             data.m_CPU.m_ThreadId,
             GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
+
+        // Insert TIP events
+        Serialize( data.m_TIP );
 
         // Write JSON file
         SaveEventsToFile( fileName, result );
@@ -260,8 +263,6 @@ namespace Profiler
     \*************************************************************************/
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( uint64_t timestamp ) const
     {
-        assert( timestamp >= m_pData->m_CPU.m_BeginTimestamp );
-        assert( timestamp <= m_pData->m_CPU.m_EndTimestamp );
         return std::chrono::duration_cast<Milliseconds>(std::chrono::nanoseconds(
             ((timestamp - m_HostCalibratedTimestamp) * 1'000'000'000) / m_HostTimestampFrequency ));
     }
@@ -561,6 +562,30 @@ namespace Profiler
                     m_DebugLabelStackDepth--;
                 }
             }
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::Serialize( const std::vector<TipRange>& tipData )
+    {
+        for( const TipRange& range : tipData )
+        {
+            m_pEvents.push_back( new ApiTraceEvent(
+                TraceEvent::Phase::eDurationBegin,
+                range.m_pFunctionName,
+                range.m_ThreadId,
+                GetNormalizedCpuTimestamp( range.m_BeginTimestamp ) ) );
+
+            m_pEvents.push_back( new ApiTraceEvent(
+                TraceEvent::Phase::eDurationEnd,
+                range.m_pFunctionName,
+                range.m_ThreadId,
+                GetNormalizedCpuTimestamp( range.m_EndTimestamp ) ) );
         }
     }
 
