@@ -150,6 +150,11 @@ target_include_directories (profiler_common
     INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
     INTERFACE ${CMAKE_CURRENT_BINARY_DIR}
     INTERFACE utils)
+target_compile_definitions (profiler_common INTERFACE
+    $<$<CONFIG:Debug>:PROFILER_CONFIG_DEBUG>
+    $<$<CONFIG:RelWithDebInfo>:PROFILER_CONFIG_RELWITHDEBINFO>
+    $<$<CONFIG:Release>:PROFILER_CONFIG_RELEASE>
+    $<$<CONFIG:MinSizeRel>:PROFILER_CONFIG_MINSIZEREL>)
 add_dependencies (profiler_common profiler_codegen)
 
 if (BUILD_SPIRV_DOCS)

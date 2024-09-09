@@ -155,6 +155,8 @@ namespace Profiler
     \***********************************************************************************/
     void CommandBufferQueryPool::PreallocateQueries( VkCommandBuffer commandBuffer )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( (m_QueryPools.empty()) ||
             ((m_CurrentQueryPoolIndex == m_QueryPools.size()) &&
                 (m_CurrentQueryIndex != UINT32_MAX) &&
@@ -175,6 +177,8 @@ namespace Profiler
     \***********************************************************************************/
     void CommandBufferQueryPool::Reset( VkCommandBuffer commandBuffer )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         // Reset the full query pools.
         for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
         {
@@ -260,6 +264,8 @@ namespace Profiler
     \***********************************************************************************/
     void CommandBufferQueryPool::WriteQueryData( DeviceProfilerQueryDataBufferWriter& writer ) const
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         // Copy data from the full query pools.
         for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
         {
@@ -330,6 +336,8 @@ namespace Profiler
     \***********************************************************************************/
     void CommandBufferQueryPool::AllocateQueryPool( VkCommandBuffer commandBuffer )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         VkQueryPoolCreateInfo queryPoolCreateInfo = {};
         queryPoolCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
         queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;

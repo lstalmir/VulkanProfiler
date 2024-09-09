@@ -36,6 +36,7 @@ namespace Profiler
         VkDeferredOperationKHR* pDeferredOperation )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Create the deferred operation.
         VkResult result = dd.Device.Callbacks.CreateDeferredOperationKHR( device, pAllocator, pDeferredOperation );
@@ -63,6 +64,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Destroy the deferred operation.
         dd.Device.Callbacks.DestroyDeferredOperationKHR( device, deferredOperation, pAllocator );
@@ -86,6 +88,7 @@ namespace Profiler
         VkDeferredOperationKHR deferredOperation )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Wait for the operation to complete.
         VkResult result = dd.Device.Callbacks.DeferredOperationJoinKHR( device, deferredOperation );

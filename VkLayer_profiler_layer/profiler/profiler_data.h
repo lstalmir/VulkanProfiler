@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_counters.h"
 #include "profiler_shader.h"
 #include <assert.h>
 #include <chrono>
@@ -1282,6 +1283,7 @@ namespace Profiler
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};
+        std::vector<struct TipRange>                        m_TIP = {};
 
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
 

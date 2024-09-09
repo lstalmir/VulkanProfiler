@@ -232,6 +232,7 @@ namespace Profiler
         VkShaderModule* pShaderModule )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Create the shader module
         VkResult result = dd.Device.Callbacks.CreateShaderModule(
@@ -260,6 +261,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Unregister the shader module from the profiler
         dd.Profiler.DestroyShaderModule( shaderModule );
@@ -285,6 +287,7 @@ namespace Profiler
         VkPipeline* pPipelines )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Capture executable properties for shader inspection.
         VkGraphicsPipelineCreateInfo* pCreateInfosWithExecutableProperties = nullptr;
@@ -323,6 +326,7 @@ namespace Profiler
         VkPipeline* pPipelines )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Capture executable properties for shader inspection.
         VkComputePipelineCreateInfo* pCreateInfosWithExecutableProperties = nullptr;
@@ -358,6 +362,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Unregister the pipeline
         dd.Profiler.DestroyPipeline( pipeline );
@@ -381,6 +386,7 @@ namespace Profiler
         VkRenderPass* pRenderPass )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Create the render pass
         VkResult result = dd.Device.Callbacks.CreateRenderPass(
@@ -410,6 +416,7 @@ namespace Profiler
         VkRenderPass* pRenderPass )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Create the render pass
         VkResult result = dd.Device.Callbacks.CreateRenderPass2(
@@ -438,6 +445,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Unregister the render pass
         dd.Profiler.DestroyRenderPass( renderPass );
@@ -461,6 +469,7 @@ namespace Profiler
         VkCommandPool* pCommandPool )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Create the command pool
         VkResult result = dd.Device.Callbacks.CreateCommandPool(
@@ -489,6 +498,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Cleanup profiler resources associated with the command pool
         dd.Profiler.DestroyCommandPool( commandPool );
@@ -512,6 +522,7 @@ namespace Profiler
         VkCommandBuffer* pCommandBuffers )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Allocate command buffers
         VkResult result = dd.Device.Callbacks.AllocateCommandBuffers(
@@ -545,6 +556,7 @@ namespace Profiler
         const VkCommandBuffer* pCommandBuffers )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Cleanup profiler resources associated with freed command buffers
         dd.Profiler.FreeCommandBuffers( commandBufferCount, pCommandBuffers );
@@ -569,6 +581,7 @@ namespace Profiler
         VkDeviceMemory* pMemory )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Allocate the memory
         VkResult result = dd.Device.Callbacks.AllocateMemory(
@@ -597,6 +610,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Unregister allocation
         dd.Profiler.FreeMemory( memory );

@@ -114,6 +114,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerSubpassData&, bool );
         void Serialize( const struct DeviceProfilerPipelineData& );
         void Serialize( const struct DeviceProfilerDrawcall& );
+        void Serialize( const std::vector<struct TipRange>& );
 
         void SaveEventsToFile( const std::string&, DeviceProfilerTraceSerializationResult& );
 

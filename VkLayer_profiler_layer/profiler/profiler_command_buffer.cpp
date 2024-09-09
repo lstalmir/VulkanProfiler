@@ -127,6 +127,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Submit()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // Contents of the command buffer did not change, but all queries will be executed again
@@ -152,6 +154,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Begin( const VkCommandBufferBeginInfo* pBeginInfo )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // Restore initial state
@@ -182,6 +186,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::End()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // Send global timestamp query for the whole command buffer.
@@ -237,6 +243,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::Reset( VkCommandBufferResetFlags flags )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // The data must be collected before the command bufer is reused.
@@ -269,6 +277,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPass( const VkRenderPassBeginInfo* pBeginInfo, VkSubpassContents )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -308,6 +318,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostBeginRenderPass( const VkRenderPassBeginInfo*, VkSubpassContents contents )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -335,6 +347,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreEndRenderPass()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -363,6 +377,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostEndRenderPass()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -402,6 +418,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRendering( const VkRenderingInfo* pRenderingInfo )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -518,6 +536,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::NextSubpass( VkSubpassContents contents )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( (m_ProfilingEnabled) &&
             (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
         {
@@ -546,6 +566,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::BindPipeline( const DeviceProfilerPipeline& pipeline )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             switch( pipeline.m_BindPoint )
@@ -576,6 +598,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::BindShaders( uint32_t shaderCount, const VkShaderStageFlagBits* pStages, const VkShaderEXT* pShaders )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         constexpr VkShaderStageFlags allGraphicsShaderStages =
             VK_SHADER_STAGE_ALL_GRAPHICS |
             VK_SHADER_STAGE_TASK_BIT_EXT |
@@ -681,6 +705,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreCommand( const DeviceProfilerDrawcall& drawcall )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
@@ -815,6 +841,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PostCommand( const DeviceProfilerDrawcall& drawcall )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // End timestamp query
@@ -850,6 +878,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::ExecuteCommands( uint32_t count, const VkCommandBuffer* pCommandBuffers )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // Ensure there is a render pass and subpass with VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS flag
@@ -885,6 +915,8 @@ namespace Profiler
         uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
         uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // Pipeline barriers can occur only outside of the render pass, increment command buffer stats
@@ -906,6 +938,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PipelineBarrier( const VkDependencyInfo* pDependencyInfo )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled )
         {
             // Pipeline barriers can occur only outside of the render pass, increment command buffer stats
@@ -969,6 +1003,8 @@ namespace Profiler
     \***********************************************************************************/
     const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData( DeviceProfilerQueryDataBufferReader& reader )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         if( m_ProfilingEnabled &&
             m_Dirty )
         {
@@ -1174,6 +1210,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::ResolveSubpassPipelineData( const DeviceProfilerQueryDataBufferReader& reader, DeviceProfilerSubpassData& subpass, size_t subpassDataIndex )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         auto& data = subpass.m_Data[subpassDataIndex];
         assert( data.GetType() == DeviceProfilerSubpassDataType::ePipeline );
 
@@ -1222,6 +1260,8 @@ namespace Profiler
         bool& firstTimestampFromSecondaryCommandBuffer,
         bool& lastTimestampFromSecondaryCommandBuffer )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         auto& data = subpass.m_Data[subpassDataIndex];
         assert( data.GetType() == DeviceProfilerSubpassDataType::eCommandBuffer );
 
@@ -1264,6 +1304,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPassCommonProlog()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         // End the current render pass, if any.
         if( m_pCurrentRenderPassData != nullptr )
         {
@@ -1302,6 +1344,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::PreBeginRenderPassCommonEpilog()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         // Ensure there are free queries that can be used in the render pass.
         // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
         m_pQueryPool->PreallocateQueries( m_CommandBuffer );
@@ -1329,6 +1373,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::EndSubpass()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         // Render pass must be already tracked
         assert( !m_Data.m_RenderPasses.empty() );
 
@@ -1387,6 +1433,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline, DeviceProfilerPipelineData** ppPreviousPipelineData )
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         const DeviceProfilerRenderPassType renderPassType = GetRenderPassTypeFromPipelineType( pipeline.m_Type );
 
         // Save index of the current pipeline
@@ -1464,6 +1512,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::SetupCommandBufferForSecondaryBuffers()
     {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
         // Check if we're in render pass
         if( !m_pCurrentRenderPassData )
         {

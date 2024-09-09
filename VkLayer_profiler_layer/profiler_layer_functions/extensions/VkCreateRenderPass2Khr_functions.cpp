@@ -37,6 +37,7 @@ namespace Profiler
         VkRenderPass* pRenderPass )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Create the render pass
         VkResult result = dd.Device.Callbacks.CreateRenderPass2KHR(
@@ -65,6 +66,8 @@ namespace Profiler
         const VkSubpassBeginInfoKHR* pSubpassBeginInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
@@ -88,6 +91,8 @@ namespace Profiler
         const VkSubpassEndInfoKHR* pSubpassEndInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreEndRenderPass();
@@ -112,6 +117,8 @@ namespace Profiler
         const VkSubpassEndInfoKHR* pSubpassEndInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.NextSubpass( pSubpassBeginInfo->contents );

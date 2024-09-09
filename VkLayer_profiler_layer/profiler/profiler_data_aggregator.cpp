@@ -193,6 +193,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::AppendFrame( const DeviceProfilerFrame& frame )
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         std::scoped_lock lk( m_Mutex );
 
         if( !m_NextFrames.empty() )
@@ -216,6 +218,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::AppendSubmit( const DeviceProfilerSubmitBatch& submit )
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         std::scoped_lock lk( m_Mutex );
 
         // Append the submit to the last frame in the queue.
@@ -269,6 +273,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Aggregate( ProfilerCommandBuffer* pWaitForCommandBuffer )
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         std::scoped_lock lk( m_Mutex );
 
         LoadVendorMetricsProperties();
@@ -376,6 +382,8 @@ namespace Profiler
         SubmitBatch& submitBatch,
         DeviceProfilerSubmitBatchData& submitBatchData ) const
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         DeviceProfilerQueryDataBufferReader reader(
             *m_pProfiler,
             *submitBatch.m_pDataBuffer );
@@ -414,6 +422,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::ResolveFrameData( Frame& frame, DeviceProfilerFrameData& frameData ) const
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         frameData.m_TopPipelines = CollectTopPipelines( frame );
         frameData.m_VendorMetrics = AggregateVendorMetrics( frame );
 
@@ -453,6 +463,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::LoadVendorMetricsProperties()
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
         {
             // Check if vendor metrics set has changed.
@@ -499,6 +511,8 @@ namespace Profiler
     std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerDataAggregator::AggregateVendorMetrics(
         const Frame& frame ) const
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         const uint32_t metricCount = static_cast<uint32_t>( m_VendorMetricProperties.size() );
 
         // No vendor metrics available
@@ -607,6 +621,8 @@ namespace Profiler
     ContainerType<DeviceProfilerPipelineData> ProfilerDataAggregator::CollectTopPipelines(
         const Frame& frame ) const
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         // Identify pipelines by combined hash value
         std::unordered_map<uint32_t, DeviceProfilerPipelineData> aggregatedPipelines;
 
@@ -651,6 +667,8 @@ namespace Profiler
         const DeviceProfilerCommandBufferData& commandBuffer,
         std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
             (VkPipeline)DeviceProfilerPipelineType::eBeginRenderPass );
@@ -721,6 +739,8 @@ namespace Profiler
         const DeviceProfilerPipelineData& pipeline,
         std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
     {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
         auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
         if( it == aggregatedPipelines.end() )
         {
