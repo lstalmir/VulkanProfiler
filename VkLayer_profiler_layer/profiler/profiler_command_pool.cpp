@@ -43,8 +43,11 @@ namespace Profiler
         // Profile the command buffer only if it will be submitted to the queue supporting graphics or compute commands
         // This is requirement of vkCmdResetQueryPool (VUID-vkCmdResetQueryPool-commandBuffer-cmdpool)
         const bool canResetQueryPool =
-            (profiler.m_pfnResetQueryPool != nullptr) ||
-            (queueFamilyProperties.queueFlags & ( VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT ));
+            (queueFamilyProperties.queueFlags & (
+                VK_QUEUE_GRAPHICS_BIT |
+                VK_QUEUE_COMPUTE_BIT |
+                VK_QUEUE_VIDEO_DECODE_BIT_KHR |
+                VK_QUEUE_VIDEO_ENCODE_BIT_KHR ));
 
         // Profile only queues that support timestamp queries (VUID-vkCmdWriteTimestamp-timestampValidBits-00829)
         if( canResetQueryPool && queueFamilyProperties.timestampValidBits != 0 )
