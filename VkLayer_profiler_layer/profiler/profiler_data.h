@@ -1138,6 +1138,8 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
+        bool                                                m_DataValid = false;
+
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_PerformanceQueryResults = {};
