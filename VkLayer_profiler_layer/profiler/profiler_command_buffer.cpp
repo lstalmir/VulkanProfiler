@@ -41,7 +41,6 @@ namespace Profiler
         , m_CommandPool( commandPool )
         , m_CommandBuffer( commandBuffer )
         , m_Level( level )
-        , m_Dirty( false )
         , m_ProfilingEnabled( true )
         , m_SecondaryCommandBuffers()
         , m_pQueryPool( nullptr )
@@ -61,7 +60,7 @@ namespace Profiler
 
         // Profile the command buffer only if it will be submitted to the queue supporting graphics or compute commands
         // This is requirement of vkCmdResetQueryPool (VUID-vkCmdResetQueryPool-commandBuffer-cmdpool)
-        if( (m_CommandPool.GetCommandQueueFlags() & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) == 0 )
+        if( !m_CommandPool.SupportsTimestampQuery() )
         {
             m_ProfilingEnabled = false;
         }
@@ -131,7 +130,7 @@ namespace Profiler
         if( m_ProfilingEnabled )
         {
             // Contents of the command buffer did not change, but all queries will be executed again
-            m_Dirty = true;
+            m_Data.m_DataValid = false;
         }
 
         // Secondary command buffers will be executed as well
@@ -261,7 +260,7 @@ namespace Profiler
             m_pCurrentPipelineData = nullptr;
             m_pCurrentDrawcallData = nullptr;
 
-            m_Dirty = false;
+            m_Data.m_DataValid = false;
         }
     }
 
@@ -963,8 +962,7 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( m_ProfilingEnabled &&
-            m_Dirty )
+        if( m_ProfilingEnabled && !m_Data.m_DataValid )
         {
             // Copy query results to the buffers.
             m_pQueryPool->ResolveTimestampsCpu();
@@ -1135,7 +1133,7 @@ namespace Profiler
             m_pQueryPool->GetPerformanceQueryData( m_Data.m_PerformanceQueryResults, m_Data.m_PerformanceQueryMetricsSetIndex );
 
             // Subsequent calls to GetData will return the same results
-            m_Dirty = false;
+            m_Data.m_DataValid = true;
         }
 
         return m_Data;

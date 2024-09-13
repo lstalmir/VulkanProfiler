@@ -204,18 +204,32 @@ namespace Profiler
                     auto it = data.find( pCommandBuffer );
                     if( it != data.end() )
                     {
-                        submitData.m_CommandBuffers.push_back( it->second );
+                        // Skip if instrumentation was disabled for this command buffer
+                        if( it->second.m_DataValid )
+                        {
+                            submitData.m_CommandBuffers.push_back( it->second );
+                        }
                     }
                     else
                     {
                         // Collect command buffer data now
-                        submitData.m_CommandBuffers.push_back( pCommandBuffer->GetData() );
+                        auto& commandBufferData = pCommandBuffer->GetData();
+
+                        // Skip if instrumentation was disabled for this command buffer
+                        if( commandBufferData.m_DataValid )
+                        {
+                            submitData.m_CommandBuffers.push_back( commandBufferData );
+                        }
                     }
 
-                    submitData.m_BeginTimestamp.m_Value = std::min(
-                        submitData.m_BeginTimestamp.m_Value, submitData.m_CommandBuffers.back().m_BeginTimestamp.m_Value );
-                    submitData.m_EndTimestamp.m_Value = std::max(
-                        submitData.m_EndTimestamp.m_Value, submitData.m_CommandBuffers.back().m_EndTimestamp.m_Value );
+                    // Update submission timestamps.
+                    if( !submitData.m_CommandBuffers.empty() )
+                    {
+                        submitData.m_BeginTimestamp.m_Value = std::min(
+                            submitData.m_BeginTimestamp.m_Value, submitData.m_CommandBuffers.back().m_BeginTimestamp.m_Value );
+                        submitData.m_EndTimestamp.m_Value = std::max(
+                            submitData.m_EndTimestamp.m_Value, submitData.m_CommandBuffers.back().m_EndTimestamp.m_Value );
+                    }
                 }
             }
         }

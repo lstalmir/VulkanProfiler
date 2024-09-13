@@ -92,7 +92,6 @@ namespace Profiler
         const VkCommandBufferLevel          m_Level;
 
         bool                                m_ProfilingEnabled;
-        bool                                m_Dirty;
 
         std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
 
