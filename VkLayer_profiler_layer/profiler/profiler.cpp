@@ -1211,7 +1211,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame()
     {
-        m_pDevice->TIP.BeginFunction( __func__ );
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
         std::scoped_lock lk( m_PresentMutex );
 
@@ -1233,7 +1233,7 @@ namespace Profiler
             m_Data.m_Memory = m_MemoryData;
 
             // Return TIP data
-            m_pDevice->TIP.EndFunction();
+            m_pDevice->TIP.EndFunction( tip );
             m_Data.m_TIP = m_pDevice->TIP.GetData();
         }
 
