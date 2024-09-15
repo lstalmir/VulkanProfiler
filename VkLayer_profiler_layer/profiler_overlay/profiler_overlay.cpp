@@ -3686,20 +3686,34 @@ namespace Profiler
     {
         if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
-            const uint64_t drawcallTicks = GetDuration( drawcall );
-
-            if( ScrollToSelectedFrameBrowserNode( index ) )
+            if( drawcall.m_Type != DeviceProfilerDrawcallType::ePipelineBarrier )
             {
-                ImGui::SetScrollHereY();
+                const uint64_t drawcallTicks = GetDuration( drawcall );
+
+                if( ScrollToSelectedFrameBrowserNode( index ) )
+                {
+                    ImGui::SetScrollHereY();
+                }
+
+                // Mark hotspots with color
+                DrawSignificanceRect( (float)drawcallTicks / m_Data.m_Ticks, index );
+
+                const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
+                ImGui::TextUnformatted( drawcallString.c_str() );
+
+                PrintDuration( drawcall );
             }
-
-            // Mark hotspots with color
-            DrawSignificanceRect( (float)drawcallTicks / m_Data.m_Ticks, index );
-
-            const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
-            ImGui::TextUnformatted( drawcallString.c_str() );
-
-            PrintDuration( drawcall );
+            else
+            {
+                const char* indexStr = GetFrameBrowserNodeIndexStr( index );
+                if( ImGui::TreeNodeEx( indexStr, ImGuiTreeNodeFlags_Leaf, "%s", m_pStringSerializer->GetName( drawcall ).c_str() ) )
+                {
+                    //ImGui::Text( "memoryBarrierCount = %u", drawcall.m_Payload.m_PipelineBarrier.m_MemoryBarrierCount );
+                    //ImGui::Text( "bufferMemoryBarrierCount = %u", drawcall.m_Payload.m_PipelineBarrier.m_BufferMemoryBarrierCount );
+                    //ImGui::Text( "imageMemoryBarrierCount = %u", drawcall.m_Payload.m_PipelineBarrier.m_ImageMemoryBarrierCount );
+                    ImGui::TreePop();
+                }
+            }
         }
         else
         {

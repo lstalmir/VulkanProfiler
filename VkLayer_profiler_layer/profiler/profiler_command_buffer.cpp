@@ -848,7 +848,8 @@ namespace Profiler
             {
                 assert( m_pCurrentDrawcallData );
 
-                if (drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug)
+                if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eNone &&
+                    drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
                 {
                     // Send a timestamp query at the end of the command.
                     m_pCurrentDrawcallData->m_EndTimestamp.m_Index =
@@ -922,6 +923,15 @@ namespace Profiler
                 memoryBarrierCount +
                 bufferMemoryBarrierCount +
                 imageMemoryBarrierCount;
+
+            DeviceProfilerDrawcall pipelineBarrierDrawacll = {};
+            pipelineBarrierDrawacll.m_Type = DeviceProfilerDrawcallType::ePipelineBarrier;
+            pipelineBarrierDrawacll.m_Payload.m_PipelineBarrier.m_MemoryBarrierCount = memoryBarrierCount;
+            pipelineBarrierDrawacll.m_Payload.m_PipelineBarrier.m_BufferMemoryBarrierCount = bufferMemoryBarrierCount;
+            pipelineBarrierDrawacll.m_Payload.m_PipelineBarrier.m_ImageMemoryBarrierCount = imageMemoryBarrierCount;
+
+            PreCommand( pipelineBarrierDrawacll );
+            PostCommand( pipelineBarrierDrawacll );
         }
     }
 
@@ -945,6 +955,15 @@ namespace Profiler
                 pDependencyInfo->memoryBarrierCount +
                 pDependencyInfo->bufferMemoryBarrierCount +
                 pDependencyInfo->imageMemoryBarrierCount;
+
+            DeviceProfilerDrawcall pipelineBarrierDrawacll = {};
+            pipelineBarrierDrawacll.m_Type = DeviceProfilerDrawcallType::ePipelineBarrier;
+            pipelineBarrierDrawacll.m_Payload.m_PipelineBarrier.m_MemoryBarrierCount = pDependencyInfo->memoryBarrierCount;
+            pipelineBarrierDrawacll.m_Payload.m_PipelineBarrier.m_BufferMemoryBarrierCount = pDependencyInfo->bufferMemoryBarrierCount;
+            pipelineBarrierDrawacll.m_Payload.m_PipelineBarrier.m_ImageMemoryBarrierCount = pDependencyInfo->imageMemoryBarrierCount;
+
+            PreCommand( pipelineBarrierDrawacll );
+            PostCommand( pipelineBarrierDrawacll );
         }
     }
 

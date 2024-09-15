@@ -53,6 +53,7 @@ namespace Profiler
         eInsertDebugLabel = 0xFFFF0001,
         eBeginDebugLabel = 0xFFFF0002,
         eEndDebugLabel = 0xFFFF0003,
+        ePipelineBarrier = 0x00000001,
         eDraw = 0x00010000,
         eDrawIndexed = 0x00010001,
         eDrawIndirect = 0x00010002,
@@ -510,6 +511,15 @@ namespace Profiler
         VkCopyAccelerationStructureModeKHR m_Mode;
     };
 
+    struct DeviceProfilerDrawcallPipelineBarrierPayload
+    {
+        VkPipelineStageFlags m_SrcStages;
+        VkPipelineStageFlags m_DstStages;
+        uint32_t m_MemoryBarrierCount;
+        uint32_t m_BufferMemoryBarrierCount;
+        uint32_t m_ImageMemoryBarrierCount;
+    };
+
 #define PROFILER_DECL_DRAWCALL_PAYLOAD( type, name )                   \
     type name;                                                         \
     inline void operator=( const type& value ) { this->name = value; }
@@ -558,6 +568,7 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload, m_CopyAccelerationStructureToMemory );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload, m_CopyMemoryToAccelerationStructure );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallPipelineBarrierPayload, m_PipelineBarrier );
     };
 
     /***********************************************************************************\

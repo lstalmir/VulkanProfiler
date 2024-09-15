@@ -38,7 +38,7 @@
 // Enable time in profiler counters in non-release builds
 #ifndef PROFILER_ENABLE_TIP
 #if defined( PROFILER_CONFIG_DEBUG ) || defined( PROFILER_CONFIG_RELWITHDEBINFO )
-#define PROFILER_ENABLE_TIP 1
+#define PROFILER_ENABLE_TIP 0
 #else
 #define PROFILER_ENABLE_TIP 0
 #endif

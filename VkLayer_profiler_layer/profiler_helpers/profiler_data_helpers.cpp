@@ -84,6 +84,9 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eEndDebugLabel:
             return "";
 
+        case DeviceProfilerDrawcallType::ePipelineBarrier:
+            return "vkCmdPipelineBarrier";
+
         case DeviceProfilerDrawcallType::eDraw:
             return fmt::format( "vkCmdDraw ({}, {}, {}, {})",
                 drawcall.m_Payload.m_Draw.m_VertexCount,
@@ -455,6 +458,9 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eEndDebugLabel:
             return "vkCmdEndDebugLabelEXT";
+
+        case DeviceProfilerDrawcallType::ePipelineBarrier:
+            return "vkCmdPipelineBarrier";
 
         case DeviceProfilerDrawcallType::eDraw:
             return "vkCmdDraw";
