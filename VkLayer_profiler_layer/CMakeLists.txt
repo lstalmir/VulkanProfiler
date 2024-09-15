@@ -249,6 +249,22 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkXlibSurfaceKhr_functions.h"
     )
 
+set (objects
+    "profiler_layer_objects/VkDevice_object.h"
+    "profiler_layer_objects/VkInstance_object.h"
+    "profiler_layer_objects/VkObject.h"
+    "profiler_layer_objects/VkObject_Types.inl"
+    "profiler_layer_objects/VkPhysicalDevice_object.h"
+    "profiler_layer_objects/VkQueue_object.h"
+    "profiler_layer_objects/VkSurfaceKhr_object.h"
+    "profiler_layer_objects/VkSwapchainKhr_object.h"
+    )
+
+source_group ("Functions" FILES ${helper_functions})
+source_group ("Functions/Core" FILES ${core_functions})
+source_group ("Functions/Extensions" FILES ${extension_functions})
+source_group ("Objects" FILES ${objects})
+
 # Configure resources file
 configure_file (
     ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in
@@ -265,7 +281,7 @@ add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
     ${helper_functions}
     ${core_functions}
     ${extension_functions}
-    ${utils}
+    ${objects}
     ${generated})
 
 # Add sources to this project's executable.

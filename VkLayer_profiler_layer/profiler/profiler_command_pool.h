@@ -40,10 +40,10 @@ namespace Profiler
         DeviceProfilerCommandPool( const DeviceProfilerCommandPool& ) = delete;
 
         VkCommandPool GetHandle() const;
-        VkQueueFlags GetCommandQueueFlags() const;
+        bool SupportsTimestampQuery() const;
 
     private:
         VkCommandPool m_CommandPool;
-        VkQueueFlags  m_CommandQueueFlags;
+        bool m_SupportsTimestampQuery;
     };
 }

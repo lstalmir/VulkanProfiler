@@ -34,13 +34,26 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerCommandPool::DeviceProfilerCommandPool( DeviceProfiler& profiler, VkCommandPool commandPool, const VkCommandPoolCreateInfo& createInfo )
         : m_CommandPool( commandPool )
-        , m_CommandQueueFlags( 0 )
+        , m_SupportsTimestampQuery( false )
     {
         // Get target command queue family properties
         const VkQueueFamilyProperties& queueFamilyProperties =
             profiler.m_pDevice->pPhysicalDevice->QueueFamilyProperties[ createInfo.queueFamilyIndex ];
 
-        m_CommandQueueFlags = queueFamilyProperties.queueFlags;
+        // Profile the command buffer only if it will be submitted to the queue supporting graphics or compute commands
+        // This is requirement of vkCmdResetQueryPool (VUID-vkCmdResetQueryPool-commandBuffer-cmdpool)
+        const bool canResetQueryPool =
+            (queueFamilyProperties.queueFlags & (
+                VK_QUEUE_GRAPHICS_BIT |
+                VK_QUEUE_COMPUTE_BIT |
+                VK_QUEUE_VIDEO_DECODE_BIT_KHR |
+                VK_QUEUE_VIDEO_ENCODE_BIT_KHR ));
+
+        // Profile only queues that support timestamp queries (VUID-vkCmdWriteTimestamp-timestampValidBits-00829)
+        if( canResetQueryPool && queueFamilyProperties.timestampValidBits != 0 )
+        {
+            m_SupportsTimestampQuery = true;
+        }
     }
 
     /***********************************************************************************\
@@ -66,8 +79,8 @@ namespace Profiler
         Get flags of target command queue.
 
     \***********************************************************************************/
-    VkQueueFlags DeviceProfilerCommandPool::GetCommandQueueFlags() const
+    bool DeviceProfilerCommandPool::SupportsTimestampQuery() const
     {
-        return m_CommandQueueFlags;
+        return m_SupportsTimestampQuery;
     }
 }
