@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,8 @@ namespace Profiler
 {
     class DeviceProfiler;
     class DeviceProfilerCommandPool;
+    class DeviceProfilerQueryDataBufferWriter;
+    class DeviceProfilerQueryDataBufferReader;
 
     /***********************************************************************************\
 
@@ -82,7 +84,10 @@ namespace Profiler
             uint32_t, const VkImageMemoryBarrier* );
         void PipelineBarrier( const VkDependencyInfo* );
 
-        const DeviceProfilerCommandBufferData& GetData();
+        uint64_t GetRequiredQueryDataBufferSize() const;
+        void WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
+
+        const DeviceProfilerCommandBufferData& GetData( DeviceProfilerQueryDataBufferReader& );
 
     protected:
         DeviceProfiler&                     m_Profiler;
@@ -122,7 +127,7 @@ namespace Profiler
 
         DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;
 
-        void ResolveSubpassPipelineData( DeviceProfilerSubpassData&, size_t );
-        void ResolveSubpassSecondaryCommandBufferData( DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
+        void ResolveSubpassPipelineData( const DeviceProfilerQueryDataBufferReader&, DeviceProfilerSubpassData&, size_t );
+        void ResolveSubpassSecondaryCommandBufferData( DeviceProfilerQueryDataBufferReader, DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
     };
 }

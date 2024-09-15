@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 #include "profiler.h"
 #include "profiler_helpers.h"
 #include "profiler_stat_comparators.h"
+#include "profiler_query_pool.h"
 #include <algorithm>
 #include <assert.h>
 
@@ -160,7 +161,7 @@ namespace Profiler
             Reset( 0 /*flags*/ );
 
             // Reset query pools.
-            m_pQueryPool->ResetQueries( m_CommandBuffer );
+            m_pQueryPool->Reset( m_CommandBuffer );
 
             // Make sure there is at least one query pool available.
             m_pQueryPool->PreallocateQueries( m_CommandBuffer );
@@ -227,9 +228,6 @@ namespace Profiler
 
             // End collection of vendor metrics.
             m_pQueryPool->EndPerformanceQuery( m_CommandBuffer );
-
-            // Copy query results to the buffers.
-            m_pQueryPool->ResolveTimestampsGpu( m_CommandBuffer );
         }
     }
 
@@ -248,6 +246,9 @@ namespace Profiler
 
         if( m_ProfilingEnabled )
         {
+            // The data must be collected before the command bufer is reused.
+            m_Profiler.m_DataAggregator.Aggregate( this );
+
             // Reset data
             m_Stats = {};
             m_Data.m_RenderPasses.clear();
@@ -951,27 +952,67 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetRequiredQueryDataBufferSize
+
+    Description:
+        Return required query data buffer size in bytes.
+
+    \***********************************************************************************/
+    uint64_t ProfilerCommandBuffer::GetRequiredQueryDataBufferSize() const
+    {
+        if( m_ProfilingEnabled )
+        {
+            return m_pQueryPool->GetRequiredBufferSize();
+        }
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteQueryData
+
+    Description:
+        Writes all timestamps to the data buffer.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::WriteQueryData( DeviceProfilerQueryDataBufferWriter& writer ) const
+    {
+        if( m_ProfilingEnabled )
+        {
+            writer.SetContext( this );
+            m_pQueryPool->WriteQueryData( writer );
+
+            for( VkCommandBuffer secondaryCommandBuffer : m_SecondaryCommandBuffers )
+            {
+                m_Profiler.GetCommandBuffer( secondaryCommandBuffer ).WriteQueryData( writer );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetData
 
     Description:
-        Reads all queried timestamps. Waits if any timestamp is not available yet.
+        Reads all queried timestamps.
         Returns structure containing ordered list of timestamps and statistics.
 
     \***********************************************************************************/
-    const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData()
+    const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData( DeviceProfilerQueryDataBufferReader& reader )
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
         if( m_ProfilingEnabled && !m_Data.m_DataValid )
         {
-            // Copy query results to the buffers.
-            m_pQueryPool->ResolveTimestampsCpu();
+            reader.SetContext( this );
 
             // Reset accumulated stats if buffer is being reused
             m_Data.m_Stats = m_Stats;
 
             // Read global timestamp values
-            m_Data.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( m_Data.m_BeginTimestamp.m_Index );
+            m_Data.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( m_Data.m_BeginTimestamp.m_Index );
 
             if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
             {
@@ -987,8 +1028,8 @@ namespace Profiler
                         (renderPass.HasBeginCommand()) )
                     {
                         // Get vkCmdBeginRenderPass time
-                        renderPass.m_Begin.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_BeginTimestamp.m_Index );
-                        renderPass.m_Begin.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_Begin.m_EndTimestamp.m_Index );
+                        renderPass.m_Begin.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( renderPass.m_Begin.m_BeginTimestamp.m_Index );
+                        renderPass.m_Begin.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( renderPass.m_Begin.m_EndTimestamp.m_Index );
 
                         // Increment clear time stats
                         uint64_t renderPassBeginDuration = GetDuration( renderPass.m_Begin );
@@ -1022,6 +1063,7 @@ namespace Profiler
                                 for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataCount; ++subpassDataIndex )
                                 {
                                     ResolveSubpassPipelineData(
+                                        reader,
                                         subpass,
                                         subpassDataIndex );
                                 }
@@ -1034,6 +1076,7 @@ namespace Profiler
                             for( size_t subpassDataIndex = 0; subpassDataIndex < subpassDataCount; ++subpassDataIndex )
                             {
                                 ResolveSubpassSecondaryCommandBufferData(
+                                    reader,
                                     subpass,
                                     subpassDataIndex,
                                     subpassDataCount,
@@ -1055,6 +1098,7 @@ namespace Profiler
                                     if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
                                     {
                                         ResolveSubpassPipelineData(
+                                            reader,
                                             subpass,
                                             subpassDataIndex );
                                     }
@@ -1063,6 +1107,7 @@ namespace Profiler
                                 case DeviceProfilerSubpassDataType::eCommandBuffer:
                                 {
                                     ResolveSubpassSecondaryCommandBufferData(
+                                        reader,
                                         subpass,
                                         subpassDataIndex,
                                         subpassDataCount,
@@ -1085,11 +1130,11 @@ namespace Profiler
                         // Resolve subpass begin and end timestamps if not inherited from the secondary command buffers.
                         if( !firstTimestampFromSecondaryCommandBuffer )
                         {
-                            subpass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_BeginTimestamp.m_Index );
+                            subpass.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( subpass.m_BeginTimestamp.m_Index );
                         }
                         if( !lastTimestampFromSecondaryCommandBuffer )
                         {
-                            subpass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( subpass.m_EndTimestamp.m_Index );
+                            subpass.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( subpass.m_EndTimestamp.m_Index );
                         }
 
                         // Pass the subpass begin timestamp to render pass.
@@ -1106,8 +1151,8 @@ namespace Profiler
                         (renderPass.HasEndCommand()) )
                     {
                         // Get vkCmdEndRenderPass time
-                        renderPass.m_End.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_BeginTimestamp.m_Index );
-                        renderPass.m_End.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_End.m_EndTimestamp.m_Index );
+                        renderPass.m_End.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( renderPass.m_End.m_BeginTimestamp.m_Index );
+                        renderPass.m_End.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( renderPass.m_End.m_EndTimestamp.m_Index );
 
                         // Increment resolve time if resolves were done on render pass end.
                         // TODO: This isn't necessarilly correct as the resolves may happen on end of subpass.
@@ -1120,17 +1165,30 @@ namespace Profiler
                     // Resolve timestamp queries at the beginning and end of the render pass.
                     if( !renderPassStartsWithNestedCommandBuffer )
                     {
-                        renderPass.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_BeginTimestamp.m_Index );
+                        renderPass.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( renderPass.m_BeginTimestamp.m_Index );
                     }
 
-                    renderPass.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( renderPass.m_EndTimestamp.m_Index );
+                    renderPass.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( renderPass.m_EndTimestamp.m_Index );
                 }
             }
 
-            m_Data.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( m_Data.m_EndTimestamp.m_Index );
+            m_Data.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( m_Data.m_EndTimestamp.m_Index );
 
             // Read vendor-specific data
-            m_pQueryPool->GetPerformanceQueryData( m_Data.m_PerformanceQueryResults, m_Data.m_PerformanceQueryMetricsSetIndex );
+            if( reader.HasPerformanceQueryResult() )
+            {
+                const uint32_t performanceQueryMetricsSetIndex = reader.GetPerformanceQueryMetricsSetIndex();
+                const uint32_t performanceQueryResultSize = reader.GetPerformanceQueryResultSize();
+                const uint8_t* pPerformanceQueryResult = reader.ReadPerformanceQueryResult();
+
+                m_Profiler.m_MetricsApiINTEL.ParseReport(
+                    performanceQueryMetricsSetIndex,
+                    performanceQueryResultSize,
+                    pPerformanceQueryResult,
+                    m_Data.m_PerformanceQueryResults );
+
+                m_Data.m_PerformanceQueryMetricsSetIndex = performanceQueryMetricsSetIndex;
+            }
 
             // Subsequent calls to GetData will return the same results
             m_Data.m_DataValid = true;
@@ -1148,7 +1206,7 @@ namespace Profiler
         Read timestamps for all drawcalls in the pipeline.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::ResolveSubpassPipelineData( DeviceProfilerSubpassData& subpass, size_t subpassDataIndex )
+    void ProfilerCommandBuffer::ResolveSubpassPipelineData( const DeviceProfilerQueryDataBufferReader& reader, DeviceProfilerSubpassData& subpass, size_t subpassDataIndex )
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
@@ -1156,8 +1214,8 @@ namespace Profiler
         assert( data.GetType() == DeviceProfilerSubpassDataType::ePipeline );
 
         auto& pipeline = std::get<DeviceProfilerPipelineData>( data );
-        pipeline.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_BeginTimestamp.m_Index );
-        pipeline.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( pipeline.m_EndTimestamp.m_Index );
+        pipeline.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( pipeline.m_BeginTimestamp.m_Index );
+        pipeline.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( pipeline.m_EndTimestamp.m_Index );
 
         if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         {
@@ -1167,8 +1225,8 @@ namespace Profiler
                 if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
                 {
                     // Update drawcall timestamps
-                    drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
-                    drawcall.m_EndTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_EndTimestamp.m_Index );
+                    drawcall.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( drawcall.m_BeginTimestamp.m_Index );
+                    drawcall.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( drawcall.m_EndTimestamp.m_Index );
 
                     // Increment drawcall stats
                     m_Data.m_Stats.AddTicks( drawcall.m_Type, GetDuration( drawcall ) );
@@ -1176,7 +1234,7 @@ namespace Profiler
                 else
                 {
                     // Provide timestamps for debug commands
-                    drawcall.m_BeginTimestamp.m_Value = m_pQueryPool->GetTimestampData( drawcall.m_BeginTimestamp.m_Index );
+                    drawcall.m_BeginTimestamp.m_Value = reader.ReadTimestampQueryResult( drawcall.m_BeginTimestamp.m_Index );
                     drawcall.m_EndTimestamp.m_Value = drawcall.m_BeginTimestamp.m_Value;
                 }
             }
@@ -1193,6 +1251,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerCommandBuffer::ResolveSubpassSecondaryCommandBufferData(
+        DeviceProfilerQueryDataBufferReader reader,
         DeviceProfilerSubpassData& subpass,
         size_t subpassDataIndex,
         size_t subpassDataCount,
@@ -1209,7 +1268,7 @@ namespace Profiler
         ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
 
         // Collect secondary command buffer data
-        commandBuffer = profilerCommandBuffer.GetData();
+        commandBuffer = profilerCommandBuffer.GetData( reader );
         assert( commandBuffer.m_Handle == handle );
 
         // Include profiling time of the secondary command buffer

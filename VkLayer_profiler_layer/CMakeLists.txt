@@ -140,6 +140,7 @@ target_link_libraries (profiler_common
     INTERFACE Vulkan-Headers
     INTERFACE VulkanUtilityHeaders
     INTERFACE VulkanLayerSettings
+    INTERFACE VulkanMemoryAllocator
     INTERFACE SPIRV-Headers
     INTERFACE SPIRV-Tools
     INTERFACE farmhash

@@ -75,6 +75,9 @@ add_subdirectory (SPIRV-Tools)
 # SPIRV-Specification
 add_subdirectory (SPIRV-Specification)
 
+# GPUOpen/VulkanMemoryAllocator
+add_subdirectory (VulkanMemoryAllocator)
+
 # nlohmann/json
 set (JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory (json)

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -342,6 +342,9 @@ namespace Profiler
             ProfilerPlatformFunctions::SetStablePowerState( m_pDevice, &m_pStablePowerStateHandle );
         }
 
+        // Begin profiling of the first frame.
+        BeginNextFrame();
+
         return VK_SUCCESS;
     }
 
@@ -491,12 +494,14 @@ namespace Profiler
         m_Synchronization.Destroy();
         m_MemoryManager.Destroy();
 
+        m_DataAggregator.Destroy();
+
         if( m_SubmitFence != VK_NULL_HANDLE )
         {
             m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
             m_SubmitFence = VK_NULL_HANDLE;
         }
-        
+
         if( m_pStablePowerStateHandle != nullptr )
         {
             ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
@@ -1105,15 +1110,7 @@ namespace Profiler
         // Append the submit batch for aggregation
         m_DataAggregator.AppendSubmit( submitBatch );
 
-        // Wait for the submitted command buffers to execute
-        if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
-        {
-            std::scoped_lock lk( m_SubmitMutex );
-            m_pDevice->Callbacks.QueueSubmit( submitBatch.m_Handle, 0, nullptr, m_SubmitFence );
-            m_Synchronization.WaitForFence( m_SubmitFence );
-            m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_SubmitFence );
-            m_DataAggregator.Aggregate();
-        }
+        m_DataAggregator.Aggregate();
     }
 
     /***********************************************************************************\
@@ -1223,45 +1220,48 @@ namespace Profiler
 
         m_CurrentFrame++;
 
-        if( m_Config.m_SyncMode == VK_PROFILER_SYNC_MODE_PRESENT_EXT )
-        {
-            // Doesn't introduce in-frame CPU overhead but may cause some image-count-related issues disappear
-            m_Synchronization.WaitForDevice();
-
-            // Collect data from the submitted command buffers
-            m_DataAggregator.Aggregate();
-        }
+        // Collect data from the submitted command buffers
+        m_DataAggregator.Aggregate();
 
         {
             std::scoped_lock lk2( m_DataMutex );
 
             // Get data captured during the last frame
             m_Data = m_DataAggregator.GetAggregatedData();
+
+            // TODO: Move to memory tracker
+            m_Data.m_Memory = m_MemoryData;
+
+            // Return TIP data
+            m_pDevice->TIP.EndFunction( tip );
+            m_Data.m_TIP = m_pDevice->TIP.GetData();
         }
 
-        m_Data.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+        BeginNextFrame();
+    }
 
-        // TODO: Move to memory tracker
-        m_Data.m_Memory = m_MemoryData;
+    /***********************************************************************************\
 
-        m_CpuTimestampCounter.End();
+    Function:
+        BeginNextFrame
 
-        // TODO: Move to CPU tracker
-        m_Data.m_CPU.m_BeginTimestamp = m_CpuTimestampCounter.GetBeginValue();
-        m_Data.m_CPU.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
-        m_Data.m_CPU.m_FramesPerSec = m_CpuFpsCounter.GetValue();
-        m_Data.m_CPU.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+    Description:
 
-        // Prepare aggregator for the next frame
-        m_DataAggregator.Reset();
-
-        // Send synchronization timestamps and begin next frame
+    \***********************************************************************************/
+    void DeviceProfiler::BeginNextFrame()
+    {
+        // Recalibrate the timestamps for the next frame.
         m_Synchronization.SendSynchronizationTimestamps();
-        m_CpuTimestampCounter.Begin();
 
-        // Return TIP data
-        m_pDevice->TIP.EndFunction( tip );
-        m_Data.m_TIP = m_pDevice->TIP.GetData();
+        // Prepare aggregator for the next frame.
+        DeviceProfilerFrame frame = {};
+        frame.m_FrameIndex = m_CurrentFrame;
+        frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+        frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
+        frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
+        frame.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+
+        m_DataAggregator.AppendFrame( frame );
     }
 
     /***********************************************************************************\
@@ -1619,7 +1619,7 @@ namespace Profiler
         auto it = m_pCommandBuffers.unsafe_find( commandBuffer );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.AppendData( it->second.get(), it->second->GetData() );
+        m_DataAggregator.Aggregate( it->second.get() );
 
         return m_pCommandBuffers.unsafe_remove( it );
     }
@@ -1640,7 +1640,7 @@ namespace Profiler
         assert( !m_pCommandBuffers.try_lock() );
 
         // Collect command buffer data now, command buffer won't be available later
-        m_DataAggregator.AppendData( it->second.get(), it->second->GetData() );
+        m_DataAggregator.Aggregate( it->second.get() );
 
         return m_pCommandBuffers.unsafe_remove( it );
     }
