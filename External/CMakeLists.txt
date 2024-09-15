@@ -100,6 +100,9 @@ target_include_directories (imgui
     PUBLIC imgui
     PUBLIC imgui/backends)
 
+target_compile_definitions (imgui
+    PRIVATE VK_NO_PROTOTYPES=1)
+
 target_link_libraries (imgui
     PUBLIC Vulkan-Headers)
 

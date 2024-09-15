@@ -213,22 +213,15 @@ namespace Profiler
         {
             VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
             descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+            descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
-            // TODO: Is this necessary?
+            // ImGui allocates descriptor sets only for textures/fonts for now.
+            const uint32_t imguiMaxTextureCount = 16;
             const VkDescriptorPoolSize descriptorPoolSizes[] = {
-                { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-                { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-                { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-                { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-                { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-                { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-                { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-                { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-                { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-                { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 } };
+                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imguiMaxTextureCount }
+            };
 
-            descriptorPoolCreateInfo.maxSets = 1000;
+            descriptorPoolCreateInfo.maxSets = imguiMaxTextureCount;
             descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype(descriptorPoolSizes)>;
             descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
 
@@ -1221,7 +1214,7 @@ namespace Profiler
 
         try
         {
-            ImGui_ImplVulkan_InitInfo imGuiInitInfo;
+            ImGui_ImplVulkanLayer_InitInfo imGuiInitInfo;
             std::memset( &imGuiInitInfo, 0, sizeof( imGuiInitInfo ) );
 
             imGuiInitInfo.Queue = m_pGraphicsQueue->Handle;
@@ -1243,8 +1236,9 @@ namespace Profiler
             imGuiInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
             imGuiInitInfo.DescriptorPool = m_DescriptorPool;
+            imGuiInitInfo.RenderPass = m_RenderPass;
 
-            m_pImGuiVulkanContext = new ImGui_ImplVulkan_Context( &imGuiInitInfo, m_RenderPass );
+            m_pImGuiVulkanContext = new ImGui_ImplVulkan_Context( &imGuiInitInfo );
         }
         catch( ... )
         {
@@ -1255,37 +1249,10 @@ namespace Profiler
         // Initialize fonts
         if( result == VK_SUCCESS )
         {
-            result = m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_CommandFences[ 0 ] );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            VkCommandBufferBeginInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-            result = m_pDevice->Callbacks.BeginCommandBuffer( m_CommandBuffers[ 0 ], &info );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            m_pImGuiVulkanContext->CreateFontsTexture( m_CommandBuffers[ 0 ] );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            result = m_pDevice->Callbacks.EndCommandBuffer( m_CommandBuffers[ 0 ] );
-        }
-
-        // Submit initialization work
-        if( result == VK_SUCCESS )
-        {
-            VkSubmitInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            info.commandBufferCount = 1;
-            info.pCommandBuffers = &m_CommandBuffers[ 0 ];
-
-            result = m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, m_CommandFences[ 0 ] );
+            if( !m_pImGuiVulkanContext->CreateFontsTexture() )
+            {
+                result = VK_ERROR_INITIALIZATION_FAILED;
+            }
         }
 
         // Deinitialize context if something failed

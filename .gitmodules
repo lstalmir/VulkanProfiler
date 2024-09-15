@@ -3,7 +3,7 @@
 	url = https://github.com/nlohmann/json
 [submodule "External/imgui"]
 	path = External/imgui
-	url = https://github.com/ocornut/imgui
+	url = https://github.com/lstalmir/imgui
 [submodule "External/Vulkan-Headers"]
 	path = External/Vulkan-Headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers
