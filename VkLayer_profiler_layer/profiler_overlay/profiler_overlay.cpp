@@ -2803,7 +2803,20 @@ namespace Profiler
         {
             index.emplace_back( 0 );
             if( data.HasBeginCommand() )
+            {
+                const float cycleCount = static_cast<float>( GetDuration( data.m_Begin ) );
+
+                PerformanceGraphColumn column = {};
+                column.x = cycleCount;
+                column.y = cycleCount;
+                column.color = m_GraphicsPipelineColumnColor;
+                column.userData = &data;
+                column.groupMode = HistogramGroupMode::eRenderPassBegin;
+                column.nodeIndex = index;
+
+                columns.push_back( column );
                 index.back()++;
+            }
 
             // Enumerate subpasses in render pass
             for( const auto& subpass : data.m_Subpasses )
@@ -2851,6 +2864,21 @@ namespace Profiler
 
                 index.pop_back();
                 index.back()++;
+            }
+
+            if( data.HasEndCommand() )
+            {
+                const float cycleCount = static_cast<float>( GetDuration( data.m_End ) );
+
+                PerformanceGraphColumn column = {};
+                column.x = cycleCount;
+                column.y = cycleCount;
+                column.color = m_GraphicsPipelineColumnColor;
+                column.userData = &data;
+                column.groupMode = HistogramGroupMode::eRenderPassEnd;
+                column.nodeIndex = index;
+
+                columns.push_back( column );
             }
 
             index.pop_back();
@@ -3004,11 +3032,31 @@ namespace Profiler
 
         case HistogramGroupMode::eDrawcall:
         {
-            const DeviceProfilerDrawcall& pipelineData =
+            const DeviceProfilerDrawcall& drawcallData =
                 *reinterpret_cast<const DeviceProfilerDrawcall*>(data.userData);
 
-            regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = GetDuration( pipelineData );
+            regionName = m_pStringSerializer->GetName( drawcallData );
+            regionCycleCount = GetDuration( drawcallData );
+            break;
+        }
+
+        case HistogramGroupMode::eRenderPassBegin:
+        {
+            const DeviceProfilerRenderPassData& renderPassData =
+                *reinterpret_cast<const DeviceProfilerRenderPassData*>( data.userData );
+
+            regionName = m_pStringSerializer->GetName( renderPassData.m_Begin, renderPassData.m_Dynamic );
+            regionCycleCount = GetDuration( renderPassData.m_Begin );
+            break;
+        }
+
+        case HistogramGroupMode::eRenderPassEnd:
+        {
+            const DeviceProfilerRenderPassData& renderPassData =
+                *reinterpret_cast<const DeviceProfilerRenderPassData*>( data.userData );
+
+            regionName = m_pStringSerializer->GetName( renderPassData.m_End, renderPassData.m_Dynamic );
+            regionCycleCount = GetDuration( renderPassData.m_End );
             break;
         }
         }

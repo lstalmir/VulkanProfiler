@@ -150,7 +150,9 @@ namespace Profiler
         {
             eRenderPass,
             ePipeline,
-            eDrawcall
+            eDrawcall,
+            eRenderPassBegin,
+            eRenderPassEnd,
         };
 
         HistogramGroupMode m_HistogramGroupMode;
