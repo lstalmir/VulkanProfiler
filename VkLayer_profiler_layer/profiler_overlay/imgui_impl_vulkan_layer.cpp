@@ -19,11 +19,18 @@
 // SOFTWARE.
 
 #include "imgui_impl_vulkan_layer.h"
+#include "profiler_layer_functions/core/VkDevice_functions_base.h"
 
 PFN_vkVoidFunction ImGui_ImplVulkan_Context::FunctionLoader( const char* pFunctionName, void* pUserData )
 {
     auto* info = static_cast<ImGui_ImplVulkanLayer_InitInfo*>( pUserData );
     assert( info );
+
+    // If function creates a dispatchable object, it must also set loader data.
+    if( !strcmp( pFunctionName, "vkAllocateCommandBuffers" ) )
+    {
+        return reinterpret_cast<PFN_vkVoidFunction>( AllocateCommandBuffers );
+    }
 
     // Try to get device-specific pointer to the function.
     PFN_vkVoidFunction pfnFunction = info->pDispatchTable->Get(
@@ -39,6 +46,26 @@ PFN_vkVoidFunction ImGui_ImplVulkan_Context::FunctionLoader( const char* pFuncti
     }
 
     return pfnFunction;
+}
+
+VkResult ImGui_ImplVulkan_Context::AllocateCommandBuffers( VkDevice device, const VkCommandBufferAllocateInfo* pAllocateInfo, VkCommandBuffer* pCommandBuffers )
+{
+    auto& dd = Profiler::VkDevice_Functions_Base::DeviceDispatch.Get( device );
+
+    // Allocate the command buffers.
+    VkResult result = dd.Device.Callbacks.AllocateCommandBuffers(
+        device, pAllocateInfo, pCommandBuffers );
+
+    if( result == VK_SUCCESS )
+    {
+        for( uint32_t i = 0; i < pAllocateInfo->commandBufferCount; ++i )
+        {
+            // Initialize dispatchable handles.
+            dd.Device.SetDeviceLoaderData( device, pCommandBuffers[i] );
+        }
+    }
+
+    return result;
 }
 
 ImGui_ImplVulkan_Context::ImGui_ImplVulkan_Context( ImGui_ImplVulkanLayer_InitInfo* info )

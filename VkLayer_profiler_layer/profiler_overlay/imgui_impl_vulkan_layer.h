@@ -43,4 +43,5 @@ public:
 
 private:
     static PFN_vkVoidFunction FunctionLoader( const char* pFunctionName, void* pUserData );
+    static VkResult AllocateCommandBuffers( VkDevice, const VkCommandBufferAllocateInfo*, VkCommandBuffer* );
 };
