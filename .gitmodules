@@ -1,9 +1,6 @@
 [submodule "External/json"]
 	path = External/json
 	url = https://github.com/nlohmann/json
-[submodule "External/imgui"]
-	path = External/imgui
-	url = https://github.com/ocornut/imgui
 [submodule "External/Vulkan-Headers"]
 	path = External/Vulkan-Headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers
@@ -37,3 +34,6 @@
 [submodule "External/VulkanMemoryAllocator"]
 	path = External/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+[submodule "External/imgui"]
+	path = External/imgui
+	url = https://github.com/lstalmir/imgui

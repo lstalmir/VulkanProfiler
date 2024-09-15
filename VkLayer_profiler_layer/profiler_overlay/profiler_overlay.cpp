@@ -1221,7 +1221,7 @@ namespace Profiler
 
         try
         {
-            ImGui_ImplVulkan_InitInfo imGuiInitInfo;
+            ImGui_ImplVulkanLayer_InitInfo imGuiInitInfo;
             std::memset( &imGuiInitInfo, 0, sizeof( imGuiInitInfo ) );
 
             imGuiInitInfo.Queue = m_pGraphicsQueue->Handle;
@@ -1243,8 +1243,9 @@ namespace Profiler
             imGuiInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
             imGuiInitInfo.DescriptorPool = m_DescriptorPool;
+            imGuiInitInfo.RenderPass = m_RenderPass;
 
-            m_pImGuiVulkanContext = new ImGui_ImplVulkan_Context( &imGuiInitInfo, m_RenderPass );
+            m_pImGuiVulkanContext = new ImGui_ImplVulkan_Context( &imGuiInitInfo );
         }
         catch( ... )
         {
@@ -1255,37 +1256,10 @@ namespace Profiler
         // Initialize fonts
         if( result == VK_SUCCESS )
         {
-            result = m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &m_CommandFences[ 0 ] );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            VkCommandBufferBeginInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-            result = m_pDevice->Callbacks.BeginCommandBuffer( m_CommandBuffers[ 0 ], &info );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            m_pImGuiVulkanContext->CreateFontsTexture( m_CommandBuffers[ 0 ] );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            result = m_pDevice->Callbacks.EndCommandBuffer( m_CommandBuffers[ 0 ] );
-        }
-
-        // Submit initialization work
-        if( result == VK_SUCCESS )
-        {
-            VkSubmitInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            info.commandBufferCount = 1;
-            info.pCommandBuffers = &m_CommandBuffers[ 0 ];
-
-            result = m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, m_CommandFences[ 0 ] );
+            if( !m_pImGuiVulkanContext->CreateFontsTexture() )
+            {
+                result = VK_ERROR_INITIALIZATION_FAILED;
+            }
         }
 
         // Deinitialize context if something failed
