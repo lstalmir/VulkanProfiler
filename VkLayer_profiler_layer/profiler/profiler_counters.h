@@ -264,6 +264,22 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Structure:
+        TipRangeId
+
+    Description:
+        Identifies a time in profiler range.
+
+    \***********************************************************************************/
+    struct TipRangeId
+    {
+        uint32_t m_FrameIndex;
+        uint32_t m_RangeIndex;
+        uint32_t m_ParentIndex;
+    };
+
+    /***********************************************************************************\
+
     Class:
         TipCounter
 
@@ -301,32 +317,46 @@ namespace Profiler
         {
             std::scoped_lock lk( m_Mutex );
             m_Ranges.clear();
-
-            assert( m_CallStack.empty() );
+            m_FrameIndex++;
+            m_CurrentRegionIndex = UINT32_MAX;
         }
 
         // Begins TIP region in the current call stack.
-        inline void BeginFunction( const char* pFunctionName )
+        inline TipRangeId BeginFunction( const char* pFunctionName )
         {
             std::scoped_lock lk( m_Mutex );
-            m_CallStack.push( m_Ranges.size() );
             m_Ranges.emplace_back(
                 pFunctionName,
                 ProfilerPlatformFunctions::GetCurrentThreadId(),
                 m_CpuTimestampCounter.GetCurrentValue() );
+
+            TipRangeId id = {};
+            id.m_FrameIndex = m_FrameIndex;
+            id.m_RangeIndex = static_cast<uint32_t>( m_Ranges.size() - 1 );
+            id.m_ParentIndex = m_CurrentRegionIndex;
+
+            m_CurrentRegionIndex = id.m_RangeIndex;
+
+            return id;
         }
 
         // Ends the last TIP region in the current call stack.
-        inline void EndFunction()
+        inline void EndFunction( TipRangeId id )
         {
             std::scoped_lock lk( m_Mutex );
-            TipRange& range = m_Ranges.at( m_CallStack.top() );
-            range.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
 
-            m_CallStack.pop();
-            if( !m_CallStack.empty() )
+            // If frame has changed between Begin and End, the m_Ranges no longer stores data for this region.
+            if( id.m_FrameIndex == m_FrameIndex )
             {
-                m_Ranges.at( m_CallStack.top() ).m_CallStackSize += range.m_CallStackSize;
+                TipRange& range = m_Ranges.at( id.m_RangeIndex );
+                range.m_EndTimestamp = m_CpuTimestampCounter.GetCurrentValue();
+
+                if( id.m_ParentIndex != UINT32_MAX )
+                {
+                    m_Ranges.at( id.m_ParentIndex ).m_CallStackSize += range.m_CallStackSize;
+                }
+
+                m_CurrentRegionIndex = id.m_ParentIndex;
             }
         }
 
@@ -341,7 +371,8 @@ namespace Profiler
         CpuTimestampCounter   m_CpuTimestampCounter;
         std::mutex            m_Mutex;
         std::vector<TipRange> m_Ranges;
-        std::stack<uint64_t>  m_CallStack;
+        uint32_t              m_FrameIndex = 0;
+        uint32_t              m_CurrentRegionIndex = UINT32_MAX;
     };
 
     /***********************************************************************************\
@@ -374,16 +405,17 @@ namespace Profiler
         inline TipGuardImpl( TipCounter& counter, const char* pFunctionName )
             : m_TipCounter( counter )
         {
-            m_TipCounter.BeginFunction( pFunctionName );
+            m_TipRangeId = m_TipCounter.BeginFunction( pFunctionName );
         }
 
         // Ends TIP measurement.
         inline ~TipGuardImpl()
         {
-            m_TipCounter.EndFunction();
+            m_TipCounter.EndFunction( m_TipRangeId );
         }
 
     private:
         TipCounter& m_TipCounter;
+        TipRangeId m_TipRangeId;
     };
 }
