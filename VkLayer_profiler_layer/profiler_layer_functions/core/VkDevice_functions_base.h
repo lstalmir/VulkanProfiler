@@ -58,6 +58,8 @@ namespace Profiler
             const VkDeviceCreateInfo* pCreateInfo,
             PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
             PFN_vkSetDeviceLoaderData pfnSetDeviceLoaderData,
+            uint32_t internalQueueFamilyIndex,
+            uint32_t internalQueueIndex,
             const VkAllocationCallbacks* pAllocator,
             VkDevice device );
 

@@ -43,6 +43,8 @@ namespace Profiler
         const VkDeviceCreateInfo* pCreateInfo,
         PFN_vkGetDeviceProcAddr pfnGetDeviceProcAddr,
         PFN_vkSetDeviceLoaderData pfnSetDeviceLoaderData,
+        uint32_t internalQueueFamilyIndex,
+        uint32_t internalQueueIndex,
         const VkAllocationCallbacks* pAllocator,
         VkDevice device )
     {
@@ -59,6 +61,10 @@ namespace Profiler
         dd.Device.Handle = device;
         dd.Device.pInstance = &id.Instance;
         dd.Device.pPhysicalDevice = &id.Instance.PhysicalDevices[ physicalDevice ];
+
+        dd.Device.InternalQueue = VK_NULL_HANDLE;
+        dd.Device.InternalQueueFamilyIndex = internalQueueFamilyIndex;
+        dd.Device.InternalQueueIndex = internalQueueIndex;
 
         // Save enabled extensions
         for( uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; ++i )
@@ -88,6 +94,13 @@ namespace Profiler
                 queueObject.Index = queueIndex;
 
                 dd.Device.Queues.emplace( queueObject.Handle, queueObject );
+
+                // Save internal queue handle
+                if( queueCreateInfo.queueFamilyIndex == internalQueueFamilyIndex &&
+                    queueIndex == internalQueueIndex )
+                {
+                    dd.Device.InternalQueue = queueObject.Handle;
+                }
             }
         }
 

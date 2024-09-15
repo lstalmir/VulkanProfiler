@@ -125,6 +125,9 @@ namespace Profiler
 
         VkResult result = VK_SUCCESS;
 
+        // Use internal copy queue if possible.
+        m_CopyQueue = m_pProfiler->m_pDevice->InternalQueue;
+
         // Create command pools to copy query data using GPU.
         for( const auto& [queue, queueObj] : m_pProfiler->m_pDevice->Queues )
         {
@@ -773,6 +776,20 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::FreeDynamicAllocations( SubmitBatch& submitBatch )
     {
+        if( submitBatch.m_DataCopyBeginSemaphore )
+        {
+            m_pProfiler->m_pDevice->Callbacks.DestroySemaphore(
+                m_pProfiler->m_pDevice->Handle,
+                submitBatch.m_DataCopyBeginSemaphore,
+                nullptr );
+        }
+        if( submitBatch.m_DataCopyEndSemaphore )
+        {
+            m_pProfiler->m_pDevice->Callbacks.DestroySemaphore(
+                m_pProfiler->m_pDevice->Handle,
+                submitBatch.m_DataCopyEndSemaphore,
+                nullptr );
+        }
         if( submitBatch.m_DataCopyFence )
         {
             m_pProfiler->m_pDevice->Callbacks.DestroyFence(
@@ -808,74 +825,154 @@ namespace Profiler
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
+        // The copy may be executed on a transfer queue as a performance optimization.
+        VkQueue queue = submitBatch.m_Handle;
+
         // Try to copy using GPU if allocation is available.
         if( submitBatch.m_pDataBuffer->UsesGpuAllocation() )
         {
-            // Get the command pool associated with the queue.
-            // It is implicitly synchronized by the application here.
-            submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+            VkResult result = VK_SUCCESS;
 
-            // Allocate the command buffer.
-            VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-            commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            commandBufferAllocateInfo.commandBufferCount = 1;
-            commandBufferAllocateInfo.commandPool = submitBatch.m_DataCopyCommandPool;
+            // If recording of command buffer fails for copy queue, try to fallback to the original queue first
+            // before switching to CPU copy.
+            VkQueue fallbackQueue = VK_NULL_HANDLE;
 
-            VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
-                m_pProfiler->m_pDevice->Handle,
-                &commandBufferAllocateInfo,
-                &submitBatch.m_DataCopyCommandBuffer );
-
-            if( result == VK_SUCCESS )
+            if( m_CopyQueue != VK_NULL_HANDLE )
             {
-                // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
-                result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
-                    m_pProfiler->m_pDevice->Handle,
-                    submitBatch.m_DataCopyCommandBuffer );
-            }
+                // Create semaphores for synchronization with the copy queue.
+                VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+                semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-            if( result == VK_SUCCESS )
-            {
-                // Begin recording commands to the copy command buffer.
-                VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-                commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-                result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
-                    submitBatch.m_DataCopyCommandBuffer,
-                    &commandBufferBeginInfo );
-            }
-
-            if( result == VK_SUCCESS )
-            {
-                // Write timestamp queries to the buffer using the GPU.
-                DeviceProfilerQueryDataBufferWriter writer(
-                    *m_pProfiler,
-                    *submitBatch.m_pDataBuffer,
-                    submitBatch.m_DataCopyCommandBuffer );
-
-                for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+                if( result == VK_SUCCESS )
                 {
-                    pCommandBuffer->WriteQueryData( writer );
+                    result = m_pProfiler->m_pDevice->Callbacks.CreateSemaphore(
+                        m_pProfiler->m_pDevice->Handle,
+                        &semaphoreCreateInfo,
+                        nullptr,
+                        &submitBatch.m_DataCopyBeginSemaphore );
                 }
 
-                result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
-                    submitBatch.m_DataCopyCommandBuffer );
+                if( result == VK_SUCCESS )
+                {
+                    result = m_pProfiler->m_pDevice->Callbacks.CreateSemaphore(
+                        m_pProfiler->m_pDevice->Handle,
+                        &semaphoreCreateInfo,
+                        nullptr,
+                        &submitBatch.m_DataCopyEndSemaphore );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Signal the semaphore on the queue that will execute the submitted command buffers.
+                    VkSubmitInfo semaphoreSignalInfo = {};
+                    semaphoreSignalInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                    semaphoreSignalInfo.signalSemaphoreCount = 1;
+                    semaphoreSignalInfo.pSignalSemaphores = &submitBatch.m_DataCopyBeginSemaphore;
+                    result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit( queue, 1, &semaphoreSignalInfo, VK_NULL_HANDLE );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Setup semaphores and override queue to the transfer queue.
+                    static const VkPipelineStageFlags dataCopyWaitStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                    submitInfo.waitSemaphoreCount = 1;
+                    submitInfo.pWaitSemaphores = &submitBatch.m_DataCopyBeginSemaphore;
+                    submitInfo.pWaitDstStageMask = &dataCopyWaitStageMask;
+                    submitInfo.signalSemaphoreCount = 1;
+                    submitInfo.pSignalSemaphores = &submitBatch.m_DataCopyEndSemaphore;
+
+                    // Override target queue and save original queue as a fallback.
+                    fallbackQueue = std::exchange( queue, m_CopyQueue );
+                }
             }
 
-            if( result == VK_SUCCESS )
+            while( queue != VK_NULL_HANDLE )
             {
-                // Submit the command buffer for execution.
-                submitCount = 1;
-                submitInfo.commandBufferCount = 1;
-                submitInfo.pCommandBuffers = &submitBatch.m_DataCopyCommandBuffer;
+                // Get the command pool associated with the queue.
+                // It is implicitly synchronized by the application here.
+                submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( queue );
+
+                // Allocate the command buffer.
+                VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+                commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+                commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+                commandBufferAllocateInfo.commandBufferCount = 1;
+                commandBufferAllocateInfo.commandPool = submitBatch.m_DataCopyCommandPool;
+
+                result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
+                    m_pProfiler->m_pDevice->Handle,
+                    &commandBufferAllocateInfo,
+                    &submitBatch.m_DataCopyCommandBuffer );
+
+                if( result == VK_SUCCESS )
+                {
+                    // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
+                    result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
+                        m_pProfiler->m_pDevice->Handle,
+                        submitBatch.m_DataCopyCommandBuffer );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Begin recording commands to the copy command buffer.
+                    VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+                    commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                    commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+                    result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
+                        submitBatch.m_DataCopyCommandBuffer,
+                        &commandBufferBeginInfo );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Write timestamp queries to the buffer using the GPU.
+                    DeviceProfilerQueryDataBufferWriter writer(
+                        *m_pProfiler,
+                        *submitBatch.m_pDataBuffer,
+                        submitBatch.m_DataCopyCommandBuffer );
+
+                    for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+                    {
+                        pCommandBuffer->WriteQueryData( writer );
+                    }
+
+                    result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
+                        submitBatch.m_DataCopyCommandBuffer );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Submit the command buffer for execution.
+                    submitCount = 1;
+                    submitInfo.commandBufferCount = 1;
+                    submitInfo.pCommandBuffers = &submitBatch.m_DataCopyCommandBuffer;
+                    break;
+                }
+
+                // Free the command buffer.
+                if( submitBatch.m_DataCopyCommandBuffer )
+                {
+                    m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
+                        m_pProfiler->m_pDevice->Handle,
+                        submitBatch.m_DataCopyCommandPool,
+                        1, &submitBatch.m_DataCopyCommandBuffer );
+
+                    submitBatch.m_DataCopyCommandPool = VK_NULL_HANDLE;
+                    submitBatch.m_DataCopyCommandBuffer = VK_NULL_HANDLE;
+                }
+
+                // Retry copy on the fallback queue.
+                queue = std::exchange( fallbackQueue, VK_NULL_HANDLE );
             }
 
-            if( result != VK_SUCCESS )
+            if( queue == VK_NULL_HANDLE )
             {
                 // If any of the steps above has failed, fallback to CPU allocation and collect the data later.
                 submitBatch.m_pDataBuffer->FallbackToCpuAllocation();
+
+                // Queue pointer must be valid to submit the fence.
+                queue = submitBatch.m_Handle;
             }
         }
 
@@ -893,7 +990,7 @@ namespace Profiler
         {
             // Submit the fence, and optionally the command buffer, for execution.
             result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
-                submitBatch.m_Handle,
+                queue,
                 submitCount,
                 &submitInfo,
                 submitBatch.m_DataCopyFence );

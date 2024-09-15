@@ -140,10 +140,97 @@ namespace Profiler
             enabledDeviceExtensions.push_back( extensionName.c_str() );
         }
 
+        // Create an additional transfer queue to copy query data
+        bool canCreateInternalTransferQueue = false;
+        bool canCreateInternalComputeQueue = (dev.FindComputeQueueFamilyIndex() != UINT32_MAX);
+        bool canCreateInternalGraphicsQueue = (dev.FindGraphicsQueueFamilyIndex() != UINT32_MAX);
+
+        uint32_t transferQueueCreateInfoIndex = UINT32_MAX;
+        uint32_t computeQueueCreateInfoIndex = UINT32_MAX;
+        uint32_t graphicsQueueCreateInfoIndex = UINT32_MAX;
+
+        for( uint32_t i = 0; i < pCreateInfo->queueCreateInfoCount; ++i )
+        {
+            uint32_t queueFamilyIndex = pCreateInfo->pQueueCreateInfos[i].queueFamilyIndex;
+            const auto& queueProperties = dev.QueueFamilyProperties[queueFamilyIndex];
+
+            // Transfer-only queue
+            if( ( queueProperties.queueFlags & ( VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT ) ) == 0 )
+            {
+                transferQueueCreateInfoIndex = i;
+                canCreateInternalTransferQueue = ( pCreateInfo->pQueueCreateInfos[i].queueCount < queueProperties.queueCount );
+            }
+
+            // Compute-only queue
+            if( ( queueProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT ) == 0 &&
+                ( queueProperties.queueFlags & VK_QUEUE_COMPUTE_BIT ) != 0 )
+            {
+                computeQueueCreateInfoIndex = i;
+                canCreateInternalComputeQueue = ( pCreateInfo->pQueueCreateInfos[i].queueCount < queueProperties.queueCount );
+            }
+
+            // Graphics queue
+            if( ( queueProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT ) != 0 )
+            {
+                graphicsQueueCreateInfoIndex = i;
+                canCreateInternalGraphicsQueue = ( pCreateInfo->pQueueCreateInfos[i].queueCount < queueProperties.queueCount );
+            }
+        }
+
+        uint32_t internalQueueFamilyIndex = UINT32_MAX;
+        uint32_t internalQueueIndex = UINT32_MAX;
+
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos(
+            pCreateInfo->pQueueCreateInfos,
+            pCreateInfo->pQueueCreateInfos + pCreateInfo->queueCreateInfoCount );
+
+        std::vector<float> queuePriorities( 0 );
+
+        auto CreateInternalQueue = [&]( uint32_t createInfoIndex, uint32_t queueFamilyIndex ) {
+            if( createInfoIndex == UINT32_MAX )
+            {
+                VkDeviceQueueCreateInfo& queueCreateInfo = queueCreateInfos.emplace_back();
+                queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+                queueCreateInfo.queueFamilyIndex = queueFamilyIndex;
+                createInfoIndex = static_cast<uint32_t>( queueCreateInfos.size() - 1 );
+            }
+
+            VkDeviceQueueCreateInfo& queueCreateInfo = queueCreateInfos[createInfoIndex];
+            queuePriorities = std::vector<float>(
+                queueCreateInfo.pQueuePriorities,
+                queueCreateInfo.pQueuePriorities + queueCreateInfo.queueCount );
+            queuePriorities.push_back( 0.0f );
+            queueCreateInfo.pQueuePriorities = queuePriorities.data();
+
+            internalQueueFamilyIndex = queueCreateInfo.queueFamilyIndex;
+            internalQueueIndex = queueCreateInfo.queueCount++;
+        };
+
+        if( canCreateInternalTransferQueue )
+        {
+            CreateInternalQueue(
+                transferQueueCreateInfoIndex,
+                dev.FindTransferQueueFamilyIndex() );
+        }
+        else if( canCreateInternalComputeQueue )
+        {
+            CreateInternalQueue(
+                computeQueueCreateInfoIndex,
+                dev.FindComputeQueueFamilyIndex() );
+        }
+        else if( canCreateInternalGraphicsQueue )
+        {
+            CreateInternalQueue(
+                graphicsQueueCreateInfoIndex,
+                dev.FindGraphicsQueueFamilyIndex() );
+        }
+
         // Override device create info
         VkDeviceCreateInfo createInfo = (*pCreateInfo);
         createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledDeviceExtensions.size());
         createInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
+        createInfo.queueCreateInfoCount = static_cast<uint32_t>( queueCreateInfos.size() );
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
         // Move chain on for next layer
         pLayerLinkInfo->u.pLayerInfo = pLayerLinkInfo->u.pLayerInfo->pNext;
@@ -160,6 +247,8 @@ namespace Profiler
                 &createInfo,
                 pfnGetDeviceProcAddr,
                 pfnSetDeviceLoaderData,
+                internalQueueFamilyIndex,
+                internalQueueIndex,
                 pAllocator,
                 *pDevice );
         }

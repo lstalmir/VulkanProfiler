@@ -44,5 +44,38 @@ namespace Profiler
         VkPhysicalDevice_Vendor_ID VendorID;
 
         std::vector<VkQueueFamilyProperties> QueueFamilyProperties;
+
+        inline uint32_t FindGraphicsQueueFamilyIndex() const
+        {
+            return FindQueueFamilyIndex(
+                VK_QUEUE_GRAPHICS_BIT );
+        }
+
+        inline uint32_t FindComputeQueueFamilyIndex() const
+        {
+            return FindQueueFamilyIndex(
+                VK_QUEUE_COMPUTE_BIT,
+                VK_QUEUE_GRAPHICS_BIT );
+        }
+
+        inline uint32_t FindTransferQueueFamilyIndex() const
+        {
+            return FindQueueFamilyIndex(
+                VK_QUEUE_TRANSFER_BIT,
+                VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT );
+        }
+
+        inline uint32_t FindQueueFamilyIndex( VkQueueFlags includeBits, VkQueueFlags excludeBits = 0 ) const
+        {
+            for( uint32_t i = 0; i < QueueFamilyProperties.size(); ++i )
+            {
+                if( ( ( QueueFamilyProperties[i].queueFlags & includeBits ) == includeBits ) &&
+                    ( ( QueueFamilyProperties[i].queueFlags & excludeBits ) == 0 ) )
+                {
+                    return i;
+                }
+            }
+            return UINT32_MAX;
+        }
     };
 }

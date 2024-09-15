@@ -76,6 +76,8 @@ namespace Profiler
             VkCommandPool                               m_DataCopyCommandPool = {};
             VkCommandBuffer                             m_DataCopyCommandBuffer = {};
             VkFence                                     m_DataCopyFence = {};
+            VkSemaphore                                 m_DataCopyBeginSemaphore = {};
+            VkSemaphore                                 m_DataCopyEndSemaphore = {};
 
             uint32_t                                    m_SubmitBatchDataIndex = 0;
             std::unordered_set<ProfilerCommandBuffer*>  m_pSubmittedCommandBuffers = {};
@@ -118,6 +120,8 @@ namespace Profiler
 
         // Command pools used for copying query data
         std::unordered_map<VkQueue, VkCommandPool> m_CopyCommandPools;
+
+        VkQueue m_CopyQueue = VK_NULL_HANDLE;
 
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;

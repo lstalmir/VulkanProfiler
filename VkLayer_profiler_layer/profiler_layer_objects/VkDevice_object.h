@@ -45,6 +45,10 @@ namespace Profiler
         VkInstance_Object* pInstance;
         VkPhysicalDevice_Object* pPhysicalDevice;
 
+        VkQueue InternalQueue;
+        uint32_t InternalQueueFamilyIndex;
+        uint32_t InternalQueueIndex;
+
         // Time in profiler
         TipCounter TIP;
 
