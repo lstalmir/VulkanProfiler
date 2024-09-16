@@ -451,6 +451,7 @@ namespace Profiler
         frameData.m_CPU.m_BeginTimestamp = frame.m_Timestamp;
         frameData.m_CPU.m_EndTimestamp = frame.m_EndTimestamp;
         frameData.m_CPU.m_FramesPerSec = frame.m_FramesPerSec;
+        frameData.m_CPU.m_FrameIndex = frame.m_FrameIndex;
         frameData.m_CPU.m_ThreadId = frame.m_ThreadId;
 
         // Return synchronization timestamps.

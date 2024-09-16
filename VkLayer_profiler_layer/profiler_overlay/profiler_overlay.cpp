@@ -1284,6 +1284,9 @@ namespace Profiler
                 ((m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp) * 1'000'000'000) / cpuTimestampFreq );
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
+            ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
+            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, m_Data.m_CPU.m_FrameIndex );
+            ImGui::PopStyleColor();
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
             ImGuiX::TextAlignRight( "%.1f %s", m_Data.m_CPU.m_FramesPerSec, Lang::FPS );
         }

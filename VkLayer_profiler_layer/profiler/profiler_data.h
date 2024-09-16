@@ -1248,6 +1248,7 @@ namespace Profiler
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
         float                                               m_FramesPerSec = {};
+        uint32_t                                            m_FrameIndex = {};
         uint32_t                                            m_ThreadId = {};
     };
 
