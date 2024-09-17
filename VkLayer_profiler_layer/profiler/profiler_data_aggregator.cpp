@@ -275,14 +275,12 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_Mutex );
-
-        LoadVendorMetricsProperties();
-
         // The synchronization may be required if a command buffer is being freed.
         // In such case, the profiler has to wait for the timestamp data.
         if( pWaitForCommandBuffer )
         {
+            // Acquire a shared lock so other thread doesn't free the fences while this thread waits.
+            std::shared_lock lk( m_Mutex );
             std::vector<VkFence> waitFences;
 
             // Wait for all pending submits that reference the command buffer.
@@ -310,15 +308,38 @@ namespace Profiler
             }
         }
 
+        // Synchronize with other threads
+        if( pWaitForCommandBuffer )
+        {
+            // Force synchronization because the command buffer is about to be destroyed
+            m_Mutex.lock();
+        }
+        else
+        {
+            if( !m_Mutex.try_lock() )
+            {
+                // Don't aggregate if another thread already processes the data
+                return;
+            }
+        }
+
+        std::unique_lock lk( m_Mutex, std::adopt_lock );
+
         // Check if any submit has completed
         for( Frame& frame : m_NextFrames )
         {
             auto submitBatchIt = frame.m_PendingSubmits.begin();
             while( submitBatchIt != frame.m_PendingSubmits.end() )
             {
-                VkResult result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
-                    m_pProfiler->m_pDevice->Handle,
-                    submitBatchIt->m_DataCopyFence );
+                VkResult result = VK_NOT_READY;
+
+                // Aggregate only submits that contain the specified command buffer
+                if( !pWaitForCommandBuffer || submitBatchIt->m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
+                {
+                    result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
+                        m_pProfiler->m_pDevice->Handle,
+                        submitBatchIt->m_DataCopyFence );
+                }
 
                 if( result == VK_SUCCESS )
                 {
@@ -347,7 +368,7 @@ namespace Profiler
         }
 
         // Check if any frame has completed
-        if( !m_NextFrames.empty() )
+        if( !pWaitForCommandBuffer && !m_NextFrames.empty() )
         {
             auto frameIt = m_NextFrames.begin();
             while( (frameIt != m_NextFrames.end()) && (frameIt->m_FrameIndex < m_FrameIndex) && (frameIt->m_PendingSubmits.empty()) )
@@ -358,6 +379,8 @@ namespace Profiler
             if( frameIt != m_NextFrames.begin() )
             {
                 auto lastFrameIt = frameIt--;
+
+                LoadVendorMetricsProperties();
 
                 DeviceProfilerFrameData frameData;
                 ResolveFrameData( *frameIt, frameData );

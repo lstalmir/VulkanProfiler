@@ -23,7 +23,7 @@
 #include "profiler_command_buffer.h"
 #include <list>
 #include <map>
-#include <mutex>
+#include <shared_mutex>
 #include <unordered_set>
 #include <unordered_map>
 // Import extension structures
@@ -113,7 +113,7 @@ namespace Profiler
         DeviceProfilerFrameData m_CurrentFrameData;
         std::list<Frame> m_NextFrames;
 
-        std::mutex m_Mutex;
+        std::shared_mutex m_Mutex;
         uint32_t m_FrameIndex;
 
         // Command pools used for copying query data
