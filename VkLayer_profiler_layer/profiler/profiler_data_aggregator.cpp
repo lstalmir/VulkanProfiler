@@ -239,18 +239,8 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_Mutex );
-
-        // Append the submit to the last frame in the queue.
-        Frame& frame = m_NextFrames.back();
-
-        SubmitBatch& submitBatch = frame.m_PendingSubmits.emplace_back( submit );
-        submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>(frame.m_CompleteSubmits.size());
-
-        DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
-        submitBatchData.m_Handle = submit.m_Handle;
-        submitBatchData.m_ThreadId = submit.m_ThreadId;
-        submitBatchData.m_Timestamp = submit.m_Timestamp;
+        // Prepare submit batch info.
+        SubmitBatch submitBatch( (submit) );
 
         for( const DeviceProfilerSubmit& _submit : submitBatch.m_Submits )
         {
@@ -275,10 +265,22 @@ namespace Profiler
         if( !succeeded )
         {
             FreeDynamicAllocations( submitBatch );
-
-            // Fatal error, drop the packet.
-            frame.m_PendingSubmits.pop_back();
+            return;
         }
+
+        // Synchronize with data collection thread.
+        std::scoped_lock lk( m_Mutex );
+
+        Frame& frame = m_NextFrames.back();
+        submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>( frame.m_CompleteSubmits.size() );
+
+        DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
+        submitBatchData.m_Handle = submit.m_Handle;
+        submitBatchData.m_ThreadId = submit.m_ThreadId;
+        submitBatchData.m_Timestamp = submit.m_Timestamp;
+
+        // Append the submit to the last frame in the queue.
+        frame.m_PendingSubmits.push_back( std::move( submitBatch ) );
     }
 
     /***********************************************************************************\
