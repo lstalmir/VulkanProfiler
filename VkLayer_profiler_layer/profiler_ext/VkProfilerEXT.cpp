@@ -365,13 +365,13 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
     VkResult result = VK_SUCCESS;
 
     // Get latest data from profiler
-    DeviceProfilerFrameData data = dd.Profiler.GetData();
+    std::shared_ptr<DeviceProfilerFrameData> data = dd.Profiler.GetData();
 
-    if( !data.m_Submits.empty() )
+    if( !data->m_Submits.empty() )
     {
         // Serialize last frame
         result = RegionBuilder( dd.Device.pPhysicalDevice->Properties.limits.timestampPeriod )
-            .SerializeFrame( data, pData->frame );
+            .SerializeFrame( *data, pData->frame );
     }
     else
     {

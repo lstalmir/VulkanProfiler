@@ -86,7 +86,7 @@ namespace Profiler
     {
         IGFD::FileDialog m_FileDialog;
         IGFD::FileDialogConfig m_FileDialogConfig;
-        DeviceProfilerFrameData m_Data;
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
     };
 
     /***********************************************************************************\
@@ -782,7 +782,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::Present(
-        const DeviceProfilerFrameData& data,
+        const std::shared_ptr<DeviceProfilerFrameData>& pData,
         const VkQueue_Object& queue,
         VkPresentInfoKHR* pPresentInfo )
     {
@@ -790,7 +790,7 @@ namespace Profiler
         ImGui::SetCurrentContext( m_pImGuiContext );
 
         // Record interface draw commands
-        Update( data );
+        Update( pData );
 
         ImDrawData* pDrawData = ImGui::GetDrawData();
         if( pDrawData )
@@ -860,7 +860,7 @@ namespace Profiler
         Update overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::Update( const DeviceProfilerFrameData& data )
+    void ProfilerOverlayOutput::Update( const std::shared_ptr<DeviceProfilerFrameData>& pData )
     {
         m_pImGuiVulkanContext->NewFrame();
 
@@ -887,7 +887,7 @@ namespace Profiler
                 if( ImGui::MenuItem( Lang::Save ) )
                 {
                     m_pTraceExporter = std::make_unique<TraceExporter>();
-                    m_pTraceExporter->m_Data = m_Data;
+                    m_pTraceExporter->m_pData = m_pData;
                 }
                 ImGui::EndMenu();
             }
@@ -910,7 +910,7 @@ namespace Profiler
         if( ImGui::Button( Lang::Save ) )
         {
             m_pTraceExporter = std::make_unique<TraceExporter>();
-            m_pTraceExporter->m_Data = m_Data;
+            m_pTraceExporter->m_pData = m_pData;
         }
         if( ImGui::IsItemHovered() )
         {
@@ -928,7 +928,7 @@ namespace Profiler
         if( !m_Pause )
         {
             // Update data
-            m_Data = data;
+            m_pData = pData;
         }
 
         // Add padding
@@ -1278,17 +1278,17 @@ namespace Profiler
     {
         // Header
         {
-            const uint64_t cpuTimestampFreq = OSGetTimestampFrequency( m_Data.m_SyncTimestamps.m_HostTimeDomain );
-            const Milliseconds gpuTimeMs = m_Data.m_Ticks * m_TimestampPeriod;
+            const uint64_t cpuTimestampFreq = OSGetTimestampFrequency( m_pData->m_SyncTimestamps.m_HostTimeDomain );
+            const Milliseconds gpuTimeMs = m_pData->m_Ticks * m_TimestampPeriod;
             const Milliseconds cpuTimeMs = std::chrono::nanoseconds(
-                ((m_Data.m_CPU.m_EndTimestamp - m_Data.m_CPU.m_BeginTimestamp) * 1'000'000'000) / cpuTimestampFreq );
+                ((m_pData->m_CPU.m_EndTimestamp - m_pData->m_CPU.m_BeginTimestamp) * 1'000'000'000) / cpuTimestampFreq );
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
             ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
-            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, m_Data.m_CPU.m_FrameIndex );
+            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
             ImGui::PopStyleColor();
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
-            ImGuiX::TextAlignRight( "%.1f %s", m_Data.m_CPU.m_FramesPerSec, Lang::FPS );
+            ImGuiX::TextAlignRight( "%.1f %s", m_pData->m_CPU.m_FramesPerSec, Lang::FPS );
         }
 
         // Histogram
@@ -1381,7 +1381,7 @@ namespace Profiler
             index.emplace_back( 0 );
 
             // Enumerate submits in frame
-            for( const auto& submitBatch : m_Data.m_Submits )
+            for( const auto& submitBatch : m_pData->m_Submits )
             {
                 const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
 
@@ -1465,7 +1465,7 @@ namespace Profiler
     {
         uint32_t i = 0;
 
-        for( const auto& pipeline : m_Data.m_TopPipelines )
+        for( const auto& pipeline : m_pData->m_TopPipelines )
         {
             if( pipeline.m_Handle != VK_NULL_HANDLE )
             {
@@ -1473,7 +1473,7 @@ namespace Profiler
 
                 ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
                 ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
-                    pipelineTicks * 100.f / m_Data.m_Ticks,
+                    pipelineTicks * 100.f / m_pData->m_Ticks,
                     pipelineTicks * m_TimestampPeriod.count() );
 
                 // Print up to 10 top pipelines
@@ -1494,18 +1494,18 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
     {
         // Vendor-specific
-        if( !m_Data.m_VendorMetrics.empty() )
+        if( !m_pData->m_VendorMetrics.empty() )
         {
             std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
             // Data source
-            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_Data.m_VendorMetrics;
+            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_VendorMetrics;
 
             bool performanceQueryResultsFiltered = false;
 
             // Find the first command buffer that matches the filter.
             // TODO: Aggregation.
-            for( const auto& submitBatch : m_Data.m_Submits )
+            for( const auto& submitBatch : m_pData->m_Submits )
             {
                 for( const auto& submit : submitBatch.m_Submits )
                 {
@@ -1738,18 +1738,18 @@ namespace Profiler
             {
                 ImGui::Text( "%s %u", Lang::MemoryHeap, i );
 
-                ImGuiX::TextAlignRight( "%u %s", m_Data.m_Memory.m_Heaps[ i ].m_AllocationCount, Lang::Allocations );
+                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[ i ].m_AllocationCount, Lang::Allocations );
 
                 float usage = 0.f;
                 char usageStr[ 64 ] = {};
 
                 if( memoryProperties.memoryHeaps[ i ].size != 0 )
                 {
-                    usage = (float)m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
+                    usage = (float)m_pData->m_Memory.m_Heaps[ i ].m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
 
                     snprintf( usageStr, sizeof( usageStr ),
                         "%.2f/%.2f MB (%.1f%%)",
-                        m_Data.m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
+                        m_pData->m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
                         memoryProperties.memoryHeaps[ i ].size / 1048576.f,
                         usage * 100.f );
                 }
@@ -1780,13 +1780,13 @@ namespace Profiler
                 {
                     if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
                     {
-                        memoryTypeUsages[ typeIndex ] = static_cast<float>( m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationSize );
+                        memoryTypeUsages[ typeIndex ] = static_cast<float>( m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationSize );
 
                         // Prepare descriptor for memory type
                         std::stringstream sstr;
 
                         sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << m_Data.m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
+                             << m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
 
                         if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
                         {
@@ -2577,25 +2577,25 @@ namespace Profiler
             ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
             ImGui::PopFont();
 
-            PrintStats( Lang::DrawCalls, m_Data.m_Stats.m_DrawStats );
-            PrintStats( Lang::DrawCallsIndirect, m_Data.m_Stats.m_DrawIndirectStats );
-            PrintStats( Lang::DrawMeshTasksCalls, m_Data.m_Stats.m_DrawMeshTasksStats );
-            PrintStats( Lang::DrawMeshTasksIndirectCalls, m_Data.m_Stats.m_DrawMeshTasksIndirectStats );
-            PrintStats( Lang::DispatchCalls, m_Data.m_Stats.m_DispatchStats );
-            PrintStats( Lang::DispatchCallsIndirect, m_Data.m_Stats.m_DispatchIndirectStats );
-            PrintStats( Lang::TraceRaysCalls, m_Data.m_Stats.m_TraceRaysStats );
-            PrintStats( Lang::TraceRaysIndirectCalls, m_Data.m_Stats.m_TraceRaysIndirectStats );
-            PrintStats( Lang::CopyBufferCalls, m_Data.m_Stats.m_CopyBufferStats );
-            PrintStats( Lang::CopyBufferToImageCalls, m_Data.m_Stats.m_CopyBufferToImageStats );
-            PrintStats( Lang::CopyImageCalls, m_Data.m_Stats.m_CopyImageStats );
-            PrintStats( Lang::CopyImageToBufferCalls, m_Data.m_Stats.m_CopyImageToBufferStats );
-            PrintStats( Lang::PipelineBarriers, m_Data.m_Stats.m_PipelineBarrierStats );
-            PrintStats( Lang::ColorClearCalls, m_Data.m_Stats.m_ClearColorStats );
-            PrintStats( Lang::DepthStencilClearCalls, m_Data.m_Stats.m_ClearDepthStencilStats );
-            PrintStats( Lang::ResolveCalls, m_Data.m_Stats.m_ResolveStats );
-            PrintStats( Lang::BlitCalls, m_Data.m_Stats.m_BlitImageStats );
-            PrintStats( Lang::FillBufferCalls, m_Data.m_Stats.m_FillBufferStats );
-            PrintStats( Lang::UpdateBufferCalls, m_Data.m_Stats.m_UpdateBufferStats );
+            PrintStats( Lang::DrawCalls, m_pData->m_Stats.m_DrawStats );
+            PrintStats( Lang::DrawCallsIndirect, m_pData->m_Stats.m_DrawIndirectStats );
+            PrintStats( Lang::DrawMeshTasksCalls, m_pData->m_Stats.m_DrawMeshTasksStats );
+            PrintStats( Lang::DrawMeshTasksIndirectCalls, m_pData->m_Stats.m_DrawMeshTasksIndirectStats );
+            PrintStats( Lang::DispatchCalls, m_pData->m_Stats.m_DispatchStats );
+            PrintStats( Lang::DispatchCallsIndirect, m_pData->m_Stats.m_DispatchIndirectStats );
+            PrintStats( Lang::TraceRaysCalls, m_pData->m_Stats.m_TraceRaysStats );
+            PrintStats( Lang::TraceRaysIndirectCalls, m_pData->m_Stats.m_TraceRaysIndirectStats );
+            PrintStats( Lang::CopyBufferCalls, m_pData->m_Stats.m_CopyBufferStats );
+            PrintStats( Lang::CopyBufferToImageCalls, m_pData->m_Stats.m_CopyBufferToImageStats );
+            PrintStats( Lang::CopyImageCalls, m_pData->m_Stats.m_CopyImageStats );
+            PrintStats( Lang::CopyImageToBufferCalls, m_pData->m_Stats.m_CopyImageToBufferStats );
+            PrintStats( Lang::PipelineBarriers, m_pData->m_Stats.m_PipelineBarrierStats );
+            PrintStats( Lang::ColorClearCalls, m_pData->m_Stats.m_ClearColorStats );
+            PrintStats( Lang::DepthStencilClearCalls, m_pData->m_Stats.m_ClearDepthStencilStats );
+            PrintStats( Lang::ResolveCalls, m_pData->m_Stats.m_ResolveStats );
+            PrintStats( Lang::BlitCalls, m_pData->m_Stats.m_BlitImageStats );
+            PrintStats( Lang::FillBufferCalls, m_pData->m_Stats.m_FillBufferStats );
+            PrintStats( Lang::UpdateBufferCalls, m_pData->m_Stats.m_UpdateBufferStats );
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
@@ -2716,7 +2716,7 @@ namespace Profiler
         index.emplace_back( 0 );
 
         // Enumerate submits batches in frame
-        for( const auto& submitBatch : m_Data.m_Submits )
+        for( const auto& submitBatch : m_pData->m_Submits )
         {
             index.emplace_back( 0 );
 
@@ -3201,7 +3201,7 @@ namespace Profiler
             {
                 SaveTraceToFile(
                     m_pTraceExporter->m_FileDialog.GetFilePathName(),
-                    m_pTraceExporter->m_Data );
+                    *m_pTraceExporter->m_pData );
             }
 
             // Destroy the exporter.
@@ -3313,7 +3313,7 @@ namespace Profiler
         const uint64_t commandBufferTicks = GetDuration( cmdBuffer );
 
         // Mark hotspots with color
-        DrawSignificanceRect( (float)commandBufferTicks / m_Data.m_Ticks, index );
+        DrawSignificanceRect( (float)commandBufferTicks / m_pData->m_Ticks, index );
 
         if( ScrollToSelectedFrameBrowserNode( index ) )
         {
@@ -3376,7 +3376,7 @@ namespace Profiler
         }
 
         // Mark hotspots with color
-        DrawSignificanceRect( (float)commandTicks / m_Data.m_Ticks, index );
+        DrawSignificanceRect( (float)commandTicks / m_pData->m_Ticks, index );
 
         index.pop_back();
 
@@ -3404,7 +3404,7 @@ namespace Profiler
             const uint64_t renderPassTicks = GetDuration( renderPass );
 
             // Mark hotspots with color
-            DrawSignificanceRect( (float)renderPassTicks / m_Data.m_Ticks, index );
+            DrawSignificanceRect( (float)renderPassTicks / m_pData->m_Ticks, index );
         }
 
         // At least one subpass must be present
@@ -3494,7 +3494,7 @@ namespace Profiler
         if( !isOnlySubpass )
         {
             // Mark hotspots with color
-            DrawSignificanceRect( (float)subpassTicks / m_Data.m_Ticks, index );
+            DrawSignificanceRect( (float)subpassTicks / m_pData->m_Ticks, index );
 
             if( ScrollToSelectedFrameBrowserNode( index ) )
             {
@@ -3611,7 +3611,7 @@ namespace Profiler
         if( !printPipelineInline )
         {
             // Mark hotspots with color
-            DrawSignificanceRect( (float)pipelineTicks / m_Data.m_Ticks, index );
+            DrawSignificanceRect( (float)pipelineTicks / m_pData->m_Ticks, index );
 
             if( ScrollToSelectedFrameBrowserNode( index ) )
             {
@@ -3712,7 +3712,7 @@ namespace Profiler
             }
 
             // Mark hotspots with color
-            DrawSignificanceRect( (float)drawcallTicks / m_Data.m_Ticks, index );
+            DrawSignificanceRect( (float)drawcallTicks / m_pData->m_Ticks, index );
 
             const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
             ImGui::TextUnformatted( drawcallString.c_str() );

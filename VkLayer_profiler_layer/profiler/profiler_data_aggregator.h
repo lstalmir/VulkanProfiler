@@ -101,16 +101,21 @@ namespace Profiler
         VkResult Initialize( DeviceProfiler* );
         void Destroy();
 
+        bool IsDataCollectionThreadRunning() const { return m_DataCollectionThreadRunning; }
+
         void AppendFrame( const DeviceProfilerFrame& );
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
         void Aggregate( ProfilerCommandBuffer* = nullptr );
 
-        const DeviceProfilerFrameData& GetAggregatedData() const { return m_CurrentFrameData; }
+        std::shared_ptr<DeviceProfilerFrameData> GetAggregatedData() const { return m_pCurrentFrameData; }
 
     private:
         DeviceProfiler* m_pProfiler;
 
-        DeviceProfilerFrameData m_CurrentFrameData;
+        std::thread m_DataCollectionThread;
+        std::atomic_bool m_DataCollectionThreadRunning;
+
+        std::shared_ptr<DeviceProfilerFrameData> m_pCurrentFrameData;
         std::list<Frame> m_NextFrames;
 
         std::shared_mutex m_Mutex;
@@ -122,6 +127,8 @@ namespace Profiler
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
         uint32_t                                               m_VendorMetricsSetIndex;
+
+        void DataCollectionThreadProc();
 
         void LoadVendorMetricsProperties();
         std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics( const Frame& ) const;

@@ -149,7 +149,19 @@ namespace Profiler
         }
 
         // Use default time domain until the actual data is ready.
-        m_CurrentFrameData.m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+        m_pCurrentFrameData = std::make_shared<DeviceProfilerFrameData>();
+        m_pCurrentFrameData->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+
+        // Try to start data collection thread.
+        try
+        {
+            m_DataCollectionThreadRunning = true;
+            m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
+        }
+        catch( ... )
+        {
+            m_DataCollectionThreadRunning = false;
+        }
 
         // Cleanup if initialization failed.
         if( result != VK_SUCCESS )
@@ -170,6 +182,13 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Destroy()
     {
+        if( m_DataCollectionThreadRunning )
+        {
+            assert( m_DataCollectionThread.joinable() );
+            m_DataCollectionThreadRunning = false;
+            m_DataCollectionThread.join();
+        }
+
         for( auto [_, commandPool] : m_CopyCommandPools )
         {
             m_pProfiler->m_pDevice->Callbacks.DestroyCommandPool(
@@ -382,9 +401,9 @@ namespace Profiler
 
                 LoadVendorMetricsProperties();
 
-                DeviceProfilerFrameData frameData;
-                ResolveFrameData( *frameIt, frameData );
-                std::swap( m_CurrentFrameData, frameData );
+                std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
+                ResolveFrameData( *frameIt, *pFrameData );
+                std::swap( m_pCurrentFrameData, pFrameData );
 
                 m_NextFrames.erase( m_NextFrames.begin(), lastFrameIt );
             }
@@ -479,6 +498,32 @@ namespace Profiler
 
         // Return synchronization timestamps.
         frameData.m_SyncTimestamps = frame.m_SyncTimestamps;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DataCollectionThreadProc
+
+    Description:
+        Collects data from the submitted command buffers.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::DataCollectionThreadProc()
+    {
+        while( m_DataCollectionThreadRunning )
+        {
+            try
+            {
+                Aggregate();
+
+                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+            }
+            catch( ... )
+            {
+                assert( false );
+            }
+        }
     }
 
     /***********************************************************************************\

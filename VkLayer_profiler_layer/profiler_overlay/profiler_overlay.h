@@ -85,7 +85,7 @@ namespace Profiler
             const VkSwapchainCreateInfoKHR* pCreateInfo );
 
         void Present(
-            const DeviceProfilerFrameData& data,
+            const std::shared_ptr<DeviceProfilerFrameData>& pData,
             const VkQueue_Object& presentQueue,
             VkPresentInfoKHR* pPresentInfo );
 
@@ -159,7 +159,7 @@ namespace Profiler
 
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
-        DeviceProfilerFrameData m_Data;
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
@@ -251,7 +251,7 @@ namespace Profiler
         void InitializeImGuiDefaultFont();
         void InitializeImGuiStyle();
 
-        void Update( const DeviceProfilerFrameData& );
+        void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
         void UpdateTopPipelinesTab();
         void UpdatePerformanceCountersTab();
