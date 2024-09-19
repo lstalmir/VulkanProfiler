@@ -24,6 +24,7 @@
 #include <list>
 #include <map>
 #include <shared_mutex>
+#include <thread>
 #include <unordered_set>
 #include <unordered_map>
 // Import extension structures
