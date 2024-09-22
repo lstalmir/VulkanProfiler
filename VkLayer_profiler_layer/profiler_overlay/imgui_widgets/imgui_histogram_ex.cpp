@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -137,34 +137,25 @@ namespace ImGuiX
             inner_bb.Contains( g.IO.MousePos );
 
         // Determine scale from values if not specified
+        double x_size = 0.f;
         if( scale_min == FLT_MAX || scale_max == FLT_MAX )
         {
             float y_min = FLT_MAX;
             float y_max = -FLT_MAX;
             for( int i = 0; i < values_count; i++ )
             {
-                const float y = GetHistogramColumnData( values, values_stride, i ).y;
-                if( y != y ) // Ignore NaN values
+                const auto& d = GetHistogramColumnData( values, values_stride, i );
+                if( d.y != d.y ) // Ignore NaN values
                     continue;
-                y_min = ImMin( y_min, y );
-                y_max = ImMax( y_max, y );
+                y_min = ImMin( y_min, d.y );
+                y_max = ImMax( y_max, d.y );
+                x_size += (double)d.x;
             }
             if( scale_min == FLT_MAX )
                 scale_min = y_min;
             if( scale_max == FLT_MAX )
                 scale_max = y_max;
         }
-
-        // Adjust scale to have some normalized value
-        {
-            scale_min = floorf( scale_min / 10000.f ) * 10000.f;
-            scale_max = ceilf( scale_max / 10000.f ) * 10000.f;
-        }
-
-        // Determine horizontal scale from values
-        float x_size = 0.f;
-        for( int i = 0; i < values_count; i++ )
-            x_size += GetHistogramColumnData( values, values_stride, i ).x;
 
         //RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
 
@@ -183,62 +174,45 @@ namespace ImGuiX
             }
         }
 
-        int idx_hovered = -1;
-        if( values_count > 0 )
+        float prev_pos = 0;
+        for( int i = 0; i < values_count; ++i )
         {
-            int res_w = ImMin( (int)graph_size.x, values_count );
-            int item_count = values_count;
+            const auto& data = GetHistogramColumnData( values, values_stride, i );
+            if( data.y != data.y ) // Ignore NaN values
+                continue;
 
-            const int v_step = values_count / res_w;
-            const float t_step = 1.0f / (float)x_size;
-            const float inv_scale = (scale_min == scale_max) ? 0.0f : (1.0f / (scale_max - scale_min));
+            const float x_norm = data.x / float(x_size);
+            const float y_norm = (data.y - scale_min) / (scale_max - scale_min);
 
-            float v0 = GetHistogramColumnData( values, values_stride, (0 + values_offset) % values_count ).y;
-            float t0 = 0.0f;
-            ImVec2 tp0 = ImVec2( t0, 1.0f - ImSaturate( (v0 - scale_min) * inv_scale ) );                       // Point in the normalized space of our target rectangle
-            float histogram_zero_line_t = (scale_min * scale_max < 0.0f) ? (-scale_min * inv_scale) : (scale_min < 0.0f ? 0.0f : 1.0f);   // Where does the zero line stands
+            const float x_pos = inner_bb.Min.x + prev_pos;
+            const float y_pos = inner_bb.Min.y + inner_bb.GetHeight() * (1.f - y_norm);
 
-            bool hovered_column_found = false;
-
-            for( int n = 0; n < res_w; n++ )
+            // Draw column
             {
-                const int v1_idx = n * v_step;
-                IM_ASSERT( v1_idx >= 0 && v1_idx < values_count );
-                const auto& column_data = GetHistogramColumnData( values, values_stride, (v1_idx + values_offset) % values_count );
-                const float t1 = t0 + t_step * ImMax( 1.f, column_data.x );
-                const float v1 = GetHistogramColumnData( values, values_stride, (v1_idx + values_offset + 1) % values_count ).y;
-                const ImVec2 tp1 = ImVec2( t1, 1.0f - ImSaturate( (v1 - scale_min) * inv_scale ) );
+                const float column_width = inner_bb.GetWidth() * x_norm - 1;
+                const float column_height = inner_bb.GetHeight() * y_norm;
+                prev_pos += column_width + 1;
 
-                const ImU32 col_base = column_data.color;
-                const ImU32 col_hovered = ColorSaturation( col_base, 1.5f );
+                const ImRect column_bb( { x_pos, y_pos }, { x_pos + column_width, inner_bb.Max.y } );
+                const bool hovered_column = column_bb.Contains( g.IO.MousePos );
 
-                // NB: Draw calls are merged together by the DrawList system. Still, we should render our batch are lower level to save a bit of CPU.
-                ImVec2 pos0 = ImLerp( inner_bb.Min, inner_bb.Max, tp0 );
-                ImVec2 pos1 = ImLerp( inner_bb.Min, inner_bb.Max, ImVec2( tp1.x, histogram_zero_line_t ) );
-                if( pos1.x >= pos0.x + 2.0f )
-                    pos1.x -= 1.0f;
+                window->DrawList->AddRectFilled(
+                    column_bb.Min,
+                    column_bb.Max,
+                    hovered_column ? ColorSaturation( data.color, 1.5f ) : data.color );
 
-                if( hovered &&
-                    hovered_column_found == false &&
-                    ImRect( pos0, pos1 ).Contains( g.IO.MousePos ) )
+                if( hovered_column )
                 {
+                    if( click_cb && IsMouseClicked( ImGuiMouseButton_Left ) )
+                    {
+                        click_cb( data );
+                    }
+
                     if( hover_cb )
-                        hover_cb( column_data );
-                    if( click_cb && GetIO().MouseClicked[ ImGuiMouseButton_Left ] )
-                        click_cb( column_data );
-
-                    window->DrawList->AddRectFilled( pos0, pos1, col_hovered );
-                    // Don't check other blocks
-                    hovered_column_found = true;
+                    {
+                        hover_cb( data );
+                    }
                 }
-                else
-                {
-                    window->DrawList->AddRectFilled( pos0, pos1, col_base );
-                }
-
-                v0 = v1;
-                t0 = t1;
-                tp0 = tp1;
             }
         }
 

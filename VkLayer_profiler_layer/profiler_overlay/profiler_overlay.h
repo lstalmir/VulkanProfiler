@@ -155,7 +155,14 @@ namespace Profiler
             eRenderPassEnd,
         };
 
+        enum class HistogramValueMode
+        {
+            eConstant,
+            eDuration,
+        };
+
         HistogramGroupMode m_HistogramGroupMode;
+        HistogramValueMode m_HistogramValueMode;
 
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
@@ -171,6 +178,8 @@ namespace Profiler
             eMicroseconds,
             eNanoseconds
         };
+
+        float m_FrameTime;
 
         TimeUnit m_TimeUnit;
         VkProfilerModeEXT m_SamplingMode;
@@ -297,11 +306,16 @@ namespace Profiler
         template<typename Data>
         void PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex );
 
-        void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
+        template<typename Data>
+        void DrawSignificanceRect( const Data& data, const FrameBrowserTreeNodeIndex& index );
+        void DrawSignificanceRect( float significance, const FrameBrowserTreeNodeIndex& index );
         void DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... );
 
         template<typename Data>
         void PrintDuration( const Data& data );
+
+        template<typename Data>
+        float GetDuration(const Data& data) const;
 
         // Sort frame browser data
         template<typename TypeHint = std::nullptr_t, typename Data>
