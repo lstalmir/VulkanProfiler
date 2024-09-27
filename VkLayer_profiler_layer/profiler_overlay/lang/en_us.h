@@ -60,6 +60,10 @@ namespace Profiler
         inline static constexpr char RenderPasses[] = "Render passes";
         inline static constexpr char Pipelines[] = "Pipelines";
         inline static constexpr char Drawcalls[] = "Drawcalls";
+        inline static constexpr char Constant[] = "Constant";
+        inline static constexpr char Duration[] = "Duration";
+        inline static constexpr char Height[] = "Height";
+        inline static constexpr char ShowIdle[] = "Show idle";
         inline static constexpr char HistogramGroups[] = "Histogram groups";
         inline static constexpr char GPUCycles[] = "GPU Cycles";
         inline static constexpr char TopPipelines[] = "Top pipelines###Top pipelines";
