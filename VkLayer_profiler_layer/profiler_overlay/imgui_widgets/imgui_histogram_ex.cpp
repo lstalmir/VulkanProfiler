@@ -193,6 +193,9 @@ namespace ImGuiX
                 const float column_height = inner_bb.GetHeight() * y_norm;
                 prev_pos += column_width + 1;
 
+                if( column_width < 1.f || column_height < 1.f )
+                    continue;
+
                 const ImRect column_bb( { x_pos, y_pos }, { x_pos + column_width, inner_bb.Max.y } );
                 const bool hovered_column = column_bb.Contains( g.IO.MousePos );
 
