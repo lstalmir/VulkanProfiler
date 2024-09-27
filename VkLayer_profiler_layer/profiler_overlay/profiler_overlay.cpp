@@ -1326,7 +1326,7 @@ namespace Profiler
                 ImGui::SameLine(0, 20 * interfaceScale);
                 ImGui::PushItemWidth(100 * interfaceScale);
 
-                if (ImGui::BeginCombo("Y Value", valueOptions[ static_cast<int>(m_HistogramValueMode) ] ) )
+                if (ImGui::BeginCombo("Height", valueOptions[ static_cast<int>(m_HistogramValueMode) ] ) )
                 {
                     ImGuiX::TSelectable("Constant", m_HistogramValueMode, HistogramValueMode::eConstant);
                     ImGuiX::TSelectable("Duration", m_HistogramValueMode, HistogramValueMode::eDuration);
@@ -1334,7 +1334,7 @@ namespace Profiler
                 }
             }
 
-            float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 50.f : 110.0f;
+            float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;
             histogramHeight *= interfaceScale;
 
             // Enumerate columns for selected group mode

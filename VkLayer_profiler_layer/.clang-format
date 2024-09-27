@@ -1,0 +1,72 @@
+# Visual Studio generated .clang-format file
+
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Limits
+ColumnLimit:                            0
+MaxEmptyLinesToKeep:                    1
+
+# Indentation
+UseTab:                                 false
+IndentWidth:                            4
+AccessModifierOffset:                   -4
+ConstructorInitializerIndentWidth:      4
+IndentPPDirectives:                     None
+IndentCaseLabels:                       false
+NamespaceIndentation:                   All
+
+# New lines & brace wrapping
+BreakBeforeBraces:                      Custom
+BraceWrapping:
+    AfterClass:                         true
+    AfterCaseLabel:                     true
+    AfterControlStatement:              true
+    AfterEnum:                          true
+    AfterExternBlock:                   true
+    AfterFunction:                      true
+    AfterNamespace:                     true
+    AfterStruct:                        true
+    AfterUnion:                         true
+    BeforeCatch:                        true
+    BeforeElse:                         true
+    BeforeWhile:                        false
+    BeforeLambdaBody:                   false
+    IndentBraces:                       false
+    SplitEmptyFunction:                 true
+    SplitEmptyRecord:                   true
+    SplitEmptyNamespace:                true
+
+BreakConstructorInitializers:           BeforeComma
+BreakInheritanceList:                   BeforeComma
+BreakBeforeTernaryOperators:            true
+
+EmptyLineBeforeAccessModifier:          Always
+
+# Auto alignment
+PointerAlignment:                       Left
+AlignAfterOpenBracket:                  DontAlign
+AllowShortBlocksOnASingleLine:          true
+AllowShortFunctionsOnASingleLine:       All
+AllowShortLambdasOnASingleLine:         All
+AllowShortIfStatementsOnASingleLine:    AllIfsAndElse
+AlignEscapedNewlines:                   Left
+AlignTrailingComments:                  true
+
+# Spaces
+SpaceAfterCStyleCast:                   false
+SpaceAfterTemplateKeyword:              false
+SpaceBeforeAssignmentOperators:         true
+SpaceBeforeParens:                      false
+SpaceInEmptyParentheses:                false
+SpacesInCStyleCastParentheses:          false
+SpacesInParentheses:                    true
+SpacesInSquareBrackets:                 false
+
+# Sorting
+SortIncludes:                           false
+SortUsingDeclarations:                  false
+
+# Misc
+Cpp11BracedListStyle:                   false
+FixNamespaceComments:                   false
