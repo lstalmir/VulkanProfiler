@@ -126,6 +126,8 @@ namespace Profiler
         , m_pTimestampDisplayUnitStr( Lang::Milliseconds )
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
+        , m_HistogramValueMode( HistogramValueMode::eDuration )
+        , m_HistogramShowIdle( false )
         , m_Pause( false )
         , m_ShowDebugLabels( true )
         , m_ShowShaderCapabilities( true )
@@ -929,6 +931,7 @@ namespace Profiler
         {
             // Update data
             m_pData = pData;
+            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
         }
 
         // Add padding
@@ -1298,6 +1301,8 @@ namespace Profiler
                 Lang::Pipelines,
                 Lang::Drawcalls };
 
+            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
             // Select group mode
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, nullptr, ImGuiComboFlags_NoPreview ) )
@@ -1314,7 +1319,25 @@ namespace Profiler
 
                     ImGui::EndCombo();
                 }
+
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
+
+                if( ImGui::BeginCombo( Lang::Height, nullptr, ImGuiComboFlags_NoPreview ) )
+                {
+                    ImGuiX::TSelectable( Lang::Constant, m_HistogramValueMode, HistogramValueMode::eConstant );
+                    ImGuiX::TSelectable( Lang::Duration, m_HistogramValueMode, HistogramValueMode::eDuration );
+                    ImGui::EndCombo();
+                }
+
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
+
+                ImGui::Checkbox( Lang::ShowIdle, &m_HistogramShowIdle );
             }
+
+            float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;
+            histogramHeight *= interfaceScale;
 
             // Enumerate columns for selected group mode
             std::vector<PerformanceGraphColumn> columns;
@@ -1323,7 +1346,7 @@ namespace Profiler
             char pHistogramDescription[ 32 ];
             snprintf( pHistogramDescription, sizeof( pHistogramDescription ),
                 "%s (%s)",
-                Lang::GPUCycles,
+                Lang::GPUTime,
                 groupOptions[(size_t)m_HistogramGroupMode] );
 
             ImGui::PushItemWidth( -1 );
@@ -1333,7 +1356,7 @@ namespace Profiler
                 static_cast<int>( columns.size() ),
                 0,
                 sizeof( columns.front() ),
-                pHistogramDescription, 0, FLT_MAX, { 0, 100 },
+                pHistogramDescription, 0, FLT_MAX, { 0, histogramHeight },
                 std::bind( &ProfilerOverlayOutput::DrawPerformanceGraphLabel, this, std::placeholders::_1 ),
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
         }
@@ -1469,12 +1492,12 @@ namespace Profiler
         {
             if( pipeline.m_Handle != VK_NULL_HANDLE )
             {
-                const uint64_t pipelineTicks = GetDuration( pipeline );
+                const float pipelineTime = GetDuration( pipeline );
 
                 ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
                 ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
-                    pipelineTicks * 100.f / m_pData->m_Ticks,
-                    pipelineTicks * m_TimestampPeriod.count() );
+                    pipelineTime * 100.f / m_FrameTime,
+                    pipelineTime );
 
                 // Print up to 10 top pipelines
                 if( (++i) == 10 ) break;
@@ -2715,10 +2738,62 @@ namespace Profiler
         FrameBrowserTreeNodeIndex index;
         index.emplace_back( 0 );
 
+        using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
+        const size_t queueCount = m_pDevice->Queues.size();
+
+        QueueTimestampPair* pLastTimestampsPerQueue = nullptr;
+        bool lastTimstampsPerQueueUsesHeapAllocation = false;
+
+        // Allocate a timestamp per each queue in the profiled device
+        if( m_HistogramShowIdle )
+        {
+            const size_t allocationSize = queueCount * sizeof( QueueTimestampPair );
+            if( allocationSize > 1024 )
+            {
+                // Switch to heap allocations when number of queues is large
+                lastTimstampsPerQueueUsesHeapAllocation = true;
+                pLastTimestampsPerQueue =
+                    static_cast<QueueTimestampPair*>( malloc( allocationSize ) );
+            }
+            else
+            {
+                // Prefer allocation on stack when array is small enough
+                pLastTimestampsPerQueue =
+                    static_cast<QueueTimestampPair*>( alloca( queueCount * sizeof( QueueTimestampPair ) ) );
+            }
+
+            // Initialize the array
+            if( pLastTimestampsPerQueue != nullptr )
+            {
+                size_t i = 0;
+                for( const auto& queue : m_pDevice->Queues )
+                {
+                    pLastTimestampsPerQueue[i].first = queue.second.Handle;
+                    pLastTimestampsPerQueue[i].second = 0;
+                    i++;
+                }
+            }
+        }
+
         // Enumerate submits batches in frame
         for( const auto& submitBatch : m_pData->m_Submits )
         {
             index.emplace_back( 0 );
+
+            // End timestamp of the last executed command buffer on this queue
+            QueueTimestampPair* pLastQueueTimestamp = nullptr;
+
+            if( m_HistogramShowIdle && pLastTimestampsPerQueue != nullptr )
+            {
+                for( size_t i = 0; i < queueCount; ++i )
+                {
+                    if( pLastTimestampsPerQueue[i].first == submitBatch.m_Handle )
+                    {
+                        pLastQueueTimestamp = &pLastTimestampsPerQueue[i];
+                        break;
+                    }
+                }
+            }
 
             // Enumerate submits in submit batch
             for( const auto& submit : submitBatch.m_Submits )
@@ -2728,6 +2803,22 @@ namespace Profiler
                 // Enumerate command buffers in submit
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
+                    // Insert idle time since last command buffer
+                    if( m_HistogramShowIdle &&
+                        ( pLastQueueTimestamp != nullptr ) &&
+                        ( commandBuffer.m_BeginTimestamp.m_Index != UINT64_MAX ) &&
+                        ( commandBuffer.m_EndTimestamp.m_Index != UINT64_MAX ) )
+                    {
+                        if( pLastQueueTimestamp->second != 0 )
+                        {
+                            PerformanceGraphColumn& column = columns.emplace_back();
+                            column.x = GetDuration( pLastQueueTimestamp->second, commandBuffer.m_BeginTimestamp.m_Value );
+                            column.y = 0;
+                        }
+
+                        pLastQueueTimestamp->second = commandBuffer.m_EndTimestamp.m_Value;
+                    }
+
                     GetPerformanceGraphColumns( commandBuffer, index, columns );
                     index.back()++;
                 }
@@ -2738,6 +2829,12 @@ namespace Profiler
 
             index.pop_back();
             index.back()++;
+        }
+
+        // Free memory allocated on heap
+        if( lastTimstampsPerQueueUsesHeapAllocation )
+        {
+            free( pLastTimestampsPerQueue );
         }
 
         index.pop_back();
@@ -2789,11 +2886,11 @@ namespace Profiler
              (data.m_Dynamic == true) ||
              (m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT)) )
         {
-            const float cycleCount = static_cast<float>(GetDuration( data ));
+            const float cycleCount = GetDuration( data );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
-            column.y = cycleCount;
+            column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.color = m_RenderPassColumnColor;
             column.userData = &data;
             column.groupMode = HistogramGroupMode::eRenderPass;
@@ -2807,11 +2904,11 @@ namespace Profiler
             index.emplace_back( 0 );
             if( data.HasBeginCommand() )
             {
-                const float cycleCount = static_cast<float>( GetDuration( data.m_Begin ) );
+                const float cycleCount = GetDuration( data.m_Begin );
 
                 PerformanceGraphColumn column = {};
                 column.x = cycleCount;
-                column.y = cycleCount;
+                column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassBegin;
@@ -2871,11 +2968,11 @@ namespace Profiler
 
             if( data.HasEndCommand() )
             {
-                const float cycleCount = static_cast<float>( GetDuration( data.m_End ) );
+                const float cycleCount = GetDuration( data.m_End );
 
                 PerformanceGraphColumn column = {};
                 column.x = cycleCount;
-                column.y = cycleCount;
+                column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassEnd;
@@ -2907,11 +3004,11 @@ namespace Profiler
               (data.m_Handle != VK_NULL_HANDLE)) ||
              (m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT)) )
         {
-            const float cycleCount = static_cast<float>(GetDuration( data ));
+            const float cycleCount = GetDuration( data );
 
             PerformanceGraphColumn column = {};
             column.x = cycleCount;
-            column.y = cycleCount;
+            column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.userData = &data;
             column.groupMode = HistogramGroupMode::ePipeline;
             column.nodeIndex = index;
@@ -2967,11 +3064,11 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        const float cycleCount = static_cast<float>(GetDuration( data ));
+        const float cycleCount = GetDuration( data );
 
         PerformanceGraphColumn column = {};
         column.x = cycleCount;
-        column.y = cycleCount;
+        column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
         column.userData = &data;
         column.groupMode = HistogramGroupMode::eDrawcall;
         column.nodeIndex = index;
@@ -3009,7 +3106,7 @@ namespace Profiler
         const PerformanceGraphColumn& data = reinterpret_cast<const PerformanceGraphColumn&>(data_);
 
         std::string regionName = "";
-        uint64_t regionCycleCount = 0;
+        float regionDuration = 0;
 
         switch( data.groupMode )
         {
@@ -3019,7 +3116,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerRenderPassData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( renderPassData );
-            regionCycleCount = GetDuration( renderPassData );
+            regionDuration = GetDuration( renderPassData );
             break;
         }
 
@@ -3029,7 +3126,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerPipelineData*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( pipelineData );
-            regionCycleCount = GetDuration( pipelineData );
+            regionDuration = GetDuration( pipelineData );
             break;
         }
 
@@ -3039,7 +3136,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerDrawcall*>(data.userData);
 
             regionName = m_pStringSerializer->GetName( drawcallData );
-            regionCycleCount = GetDuration( drawcallData );
+            regionDuration = GetDuration( drawcallData );
             break;
         }
 
@@ -3049,7 +3146,7 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerRenderPassData*>( data.userData );
 
             regionName = m_pStringSerializer->GetName( renderPassData.m_Begin, renderPassData.m_Dynamic );
-            regionCycleCount = GetDuration( renderPassData.m_Begin );
+            regionDuration = GetDuration( renderPassData.m_Begin );
             break;
         }
 
@@ -3059,14 +3156,15 @@ namespace Profiler
                 *reinterpret_cast<const DeviceProfilerRenderPassData*>( data.userData );
 
             regionName = m_pStringSerializer->GetName( renderPassData.m_End, renderPassData.m_Dynamic );
-            regionCycleCount = GetDuration( renderPassData.m_End );
+            regionDuration = GetDuration( renderPassData.m_End );
             break;
         }
         }
 
-        ImGui::SetTooltip( "%s\n%.2f ms",
+        ImGui::SetTooltip( "%s\n%.2f %s",
             regionName.c_str(),
-            regionCycleCount * m_TimestampPeriod.count() );
+            regionDuration,
+            m_pTimestampDisplayUnitStr );
     }
 
     /***********************************************************************************\
@@ -3310,10 +3408,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintCommandBuffer( const DeviceProfilerCommandBufferData& cmdBuffer, FrameBrowserTreeNodeIndex& index )
     {
-        const uint64_t commandBufferTicks = GetDuration( cmdBuffer );
-
         // Mark hotspots with color
-        DrawSignificanceRect( (float)commandBufferTicks / m_pData->m_Ticks, index );
+        DrawSignificanceRect( cmdBuffer, index );
 
         if( ScrollToSelectedFrameBrowserNode( index ) )
         {
@@ -3365,8 +3461,6 @@ namespace Profiler
     template<typename Data>
     void ProfilerOverlayOutput::PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex )
     {
-        const uint64_t commandTicks = GetDuration( data );
-
         index.emplace_back( drawcallIndex );
 
         if( (m_ScrollToSelectedFrameBrowserNode) &&
@@ -3376,7 +3470,7 @@ namespace Profiler
         }
 
         // Mark hotspots with color
-        DrawSignificanceRect( (float)commandTicks / m_pData->m_Ticks, index );
+        DrawSignificanceRect( data, index );
 
         index.pop_back();
 
@@ -3401,10 +3495,8 @@ namespace Profiler
 
         if( isValidRenderPass )
         {
-            const uint64_t renderPassTicks = GetDuration( renderPass );
-
             // Mark hotspots with color
-            DrawSignificanceRect( (float)renderPassTicks / m_pData->m_Ticks, index );
+            DrawSignificanceRect( renderPass, index );
         }
 
         // At least one subpass must be present
@@ -3488,13 +3580,12 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex& index, bool isOnlySubpass )
     {
-        const uint64_t subpassTicks = GetDuration( subpass );
         bool inSubpassSubtree = false;
 
         if( !isOnlySubpass )
         {
             // Mark hotspots with color
-            DrawSignificanceRect( (float)subpassTicks / m_pData->m_Ticks, index );
+            DrawSignificanceRect( subpass, index );
 
             if( ScrollToSelectedFrameBrowserNode( index ) )
             {
@@ -3599,8 +3690,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex& index )
     {
-        const uint64_t pipelineTicks = GetDuration( pipeline );
-
         const bool printPipelineInline =
             ((pipeline.m_Handle == VK_NULL_HANDLE) &&
                 !pipeline.m_UsesShaderObjects) ||
@@ -3611,7 +3700,7 @@ namespace Profiler
         if( !printPipelineInline )
         {
             // Mark hotspots with color
-            DrawSignificanceRect( (float)pipelineTicks / m_pData->m_Ticks, index );
+            DrawSignificanceRect( pipeline, index );
 
             if( ScrollToSelectedFrameBrowserNode( index ) )
             {
@@ -3704,15 +3793,13 @@ namespace Profiler
     {
         if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
-            const uint64_t drawcallTicks = GetDuration( drawcall );
-
             if( ScrollToSelectedFrameBrowserNode( index ) )
             {
                 ImGui::SetScrollHereY();
             }
 
             // Mark hotspots with color
-            DrawSignificanceRect( (float)drawcallTicks / m_pData->m_Ticks, index );
+            DrawSignificanceRect( drawcall, index );
 
             const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
             ImGui::TextUnformatted( drawcallString.c_str() );
@@ -3724,6 +3811,20 @@ namespace Profiler
             // Draw debug label
             PrintDebugLabel( drawcall.m_Payload.m_DebugLabel.m_pName, drawcall.m_Payload.m_DebugLabel.m_Color );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawSignificanceRect
+
+    Description:
+
+    \***********************************************************************************/
+    template<typename Data>
+    void ProfilerOverlayOutput::DrawSignificanceRect(const Data& data, const FrameBrowserTreeNodeIndex& index)
+    {
+        DrawSignificanceRect( GetDuration( data ) / m_FrameTime, index );
     }
 
     /***********************************************************************************\
@@ -3845,11 +3946,11 @@ namespace Profiler
     {
         if( ( data.m_BeginTimestamp.m_Value != UINT64_MAX ) && ( data.m_EndTimestamp.m_Value != UINT64_MAX ) )
         {
-            const uint64_t ticks = GetDuration( data );
+            const float time = this->template GetDuration<Data>( data );
 
             // Print the duration
             ImGuiX::TextAlignRight( "%.2f %s",
-                m_TimestampDisplayUnit * ticks * m_TimestampPeriod.count(),
+                time,
                 m_pTimestampDisplayUnitStr );
         }
         else
@@ -3858,5 +3959,32 @@ namespace Profiler
             ImGuiX::TextAlignRight( "- %s",
                 m_pTimestampDisplayUnitStr );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDuration
+
+    Description:
+
+    \***********************************************************************************/
+    template <typename Data>
+    float ProfilerOverlayOutput::GetDuration( const Data& data ) const
+    {
+        return static_cast<float>(Profiler::GetDuration( data )) * m_TimestampPeriod.count() * m_TimestampDisplayUnit;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDuration
+
+    Description:
+
+    \***********************************************************************************/
+    float ProfilerOverlayOutput::GetDuration( uint64_t begin, uint64_t end ) const
+    {
+        return static_cast<float>(end - begin) * m_TimestampPeriod.count() * m_TimestampDisplayUnit;
     }
 }
