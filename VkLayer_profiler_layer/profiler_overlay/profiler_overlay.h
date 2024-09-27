@@ -163,6 +163,7 @@ namespace Profiler
 
         HistogramGroupMode m_HistogramGroupMode;
         HistogramValueMode m_HistogramValueMode;
+        bool m_HistogramShowIdle;
 
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
@@ -315,7 +316,8 @@ namespace Profiler
         void PrintDuration( const Data& data );
 
         template<typename Data>
-        float GetDuration(const Data& data) const;
+        float GetDuration( const Data& data ) const;
+        float GetDuration( uint64_t from, uint64_t to ) const;
 
         // Sort frame browser data
         template<typename TypeHint = std::nullptr_t, typename Data>

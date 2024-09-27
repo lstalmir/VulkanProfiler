@@ -127,6 +127,7 @@ namespace Profiler
         , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_HistogramValueMode( HistogramValueMode::eDuration )
+        , m_HistogramShowIdle( false )
         , m_Pause( false )
         , m_ShowDebugLabels( true )
         , m_ShowShaderCapabilities( true )
@@ -1300,10 +1301,6 @@ namespace Profiler
                 Lang::Pipelines,
                 Lang::Drawcalls };
 
-            static const char* valueOptions[] = {
-                "Constant",
-                "Duration" };
-
             const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
             // Select group mode
@@ -1323,15 +1320,20 @@ namespace Profiler
                     ImGui::EndCombo();
                 }
 
-                ImGui::SameLine(0, 20 * interfaceScale);
-                ImGui::PushItemWidth(100 * interfaceScale);
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
 
-                if (ImGui::BeginCombo("Height", valueOptions[ static_cast<int>(m_HistogramValueMode) ] ) )
+                if( ImGui::BeginCombo( Lang::Height, nullptr, ImGuiComboFlags_NoPreview ) )
                 {
-                    ImGuiX::TSelectable("Constant", m_HistogramValueMode, HistogramValueMode::eConstant);
-                    ImGuiX::TSelectable("Duration", m_HistogramValueMode, HistogramValueMode::eDuration);
+                    ImGuiX::TSelectable( Lang::Constant, m_HistogramValueMode, HistogramValueMode::eConstant );
+                    ImGuiX::TSelectable( Lang::Duration, m_HistogramValueMode, HistogramValueMode::eDuration );
                     ImGui::EndCombo();
                 }
+
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
+
+                ImGui::Checkbox( Lang::ShowIdle, &m_HistogramShowIdle );
             }
 
             float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;
@@ -2736,10 +2738,62 @@ namespace Profiler
         FrameBrowserTreeNodeIndex index;
         index.emplace_back( 0 );
 
+        using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
+        const size_t queueCount = m_pDevice->Queues.size();
+
+        QueueTimestampPair* pLastTimestampsPerQueue = nullptr;
+        bool lastTimstampsPerQueueUsesHeapAllocation = false;
+
+        // Allocate a timestamp per each queue in the profiled device
+        if( m_HistogramShowIdle )
+        {
+            const size_t allocationSize = queueCount * sizeof( QueueTimestampPair );
+            if( allocationSize > 1024 )
+            {
+                // Switch to heap allocations when number of queues is large
+                lastTimstampsPerQueueUsesHeapAllocation = true;
+                pLastTimestampsPerQueue =
+                    static_cast<QueueTimestampPair*>( malloc( allocationSize ) );
+            }
+            else
+            {
+                // Prefer allocation on stack when array is small enough
+                pLastTimestampsPerQueue =
+                    static_cast<QueueTimestampPair*>( alloca( queueCount * sizeof( QueueTimestampPair ) ) );
+            }
+
+            // Initialize the array
+            if( pLastTimestampsPerQueue != nullptr )
+            {
+                size_t i = 0;
+                for( const auto& queue : m_pDevice->Queues )
+                {
+                    pLastTimestampsPerQueue[i].first = queue.second.Handle;
+                    pLastTimestampsPerQueue[i].second = 0;
+                    i++;
+                }
+            }
+        }
+
         // Enumerate submits batches in frame
         for( const auto& submitBatch : m_Data.m_Submits )
         {
             index.emplace_back( 0 );
+
+            // End timestamp of the last executed command buffer on this queue
+            QueueTimestampPair* pLastQueueTimestamp = nullptr;
+
+            if( m_HistogramShowIdle && pLastTimestampsPerQueue != nullptr )
+            {
+                for( size_t i = 0; i < queueCount; ++i )
+                {
+                    if( pLastTimestampsPerQueue[i].first == submitBatch.m_Handle )
+                    {
+                        pLastQueueTimestamp = &pLastTimestampsPerQueue[i];
+                        break;
+                    }
+                }
+            }
 
             // Enumerate submits in submit batch
             for( const auto& submit : submitBatch.m_Submits )
@@ -2749,6 +2803,22 @@ namespace Profiler
                 // Enumerate command buffers in submit
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
+                    // Insert idle time since last command buffer
+                    if( m_HistogramShowIdle &&
+                        ( pLastQueueTimestamp != nullptr ) &&
+                        ( commandBuffer.m_BeginTimestamp.m_Index != UINT64_MAX ) &&
+                        ( commandBuffer.m_EndTimestamp.m_Index != UINT64_MAX ) )
+                    {
+                        if( pLastQueueTimestamp->second != 0 )
+                        {
+                            PerformanceGraphColumn& column = columns.emplace_back();
+                            column.x = GetDuration( pLastQueueTimestamp->second, commandBuffer.m_BeginTimestamp.m_Value );
+                            column.y = 0;
+                        }
+
+                        pLastQueueTimestamp->second = commandBuffer.m_EndTimestamp.m_Value;
+                    }
+
                     GetPerformanceGraphColumns( commandBuffer, index, columns );
                     index.back()++;
                 }
@@ -2759,6 +2829,12 @@ namespace Profiler
 
             index.pop_back();
             index.back()++;
+        }
+
+        // Free memory allocated on heap
+        if( lastTimstampsPerQueueUsesHeapAllocation )
+        {
+            free( pLastTimestampsPerQueue );
         }
 
         index.pop_back();
@@ -3888,7 +3964,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PrintDuration
+        GetDuration
 
     Description:
 
@@ -3897,5 +3973,18 @@ namespace Profiler
     float ProfilerOverlayOutput::GetDuration( const Data& data ) const
     {
         return static_cast<float>(Profiler::GetDuration( data )) * m_TimestampPeriod.count() * m_TimestampDisplayUnit;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDuration
+
+    Description:
+
+    \***********************************************************************************/
+    float ProfilerOverlayOutput::GetDuration( uint64_t begin, uint64_t end ) const
+    {
+        return static_cast<float>(end - begin) * m_TimestampPeriod.count() * m_TimestampDisplayUnit;
     }
 }
