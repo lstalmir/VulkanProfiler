@@ -1283,6 +1283,8 @@ namespace Profiler
         DeviceProfilerDrawcallStats                         m_Stats = {};
 
         uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};
