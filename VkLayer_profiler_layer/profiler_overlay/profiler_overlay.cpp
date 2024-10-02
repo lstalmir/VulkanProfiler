@@ -1365,25 +1365,25 @@ namespace Profiler
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
 
             std::vector<QueueGraphColumn> queueGraphColumns;
-            for (const auto& [_, queue] : m_pDevice->Queues)
+            for( const auto& [ _, queue ] : m_pDevice->Queues )
             {
                 // Enumerate columns for command queue activity graph
                 queueGraphColumns.clear();
-                GetQueueGraphColumns(queue.Handle, queueGraphColumns);
+                GetQueueGraphColumns( queue.Handle, queueGraphColumns );
 
-                if (!columns.empty())
+                if( !columns.empty() )
                 {
-                    char queueGraphId[32];
-                    snprintf(queueGraphId, sizeof(queueGraphId), "##QueueGraph%p", queue.Handle);
+                    char queueGraphId[ 32 ];
+                    snprintf( queueGraphId, sizeof( queueGraphId ), "##QueueGraph%p", queue.Handle );
 
-                    ImGui::PushItemWidth(-1);
+                    ImGui::PushItemWidth( -1 );
                     ImGuiX::PlotHistogramEx(
                         queueGraphId,
                         queueGraphColumns.data(),
-                        static_cast<int>(queueGraphColumns.size()),
+                        static_cast<int>( queueGraphColumns.size() ),
                         0,
-                        sizeof(queueGraphColumns.front()),
-                        "", 0, FLT_MAX, { 0, 10 * interfaceScale });
+                        sizeof( queueGraphColumns.front() ),
+                        "", 0, FLT_MAX, { 0, 10 * interfaceScale } );
                 }
             }
         }
@@ -2760,36 +2760,36 @@ namespace Profiler
         Enumerate queue utilization graph columns.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::GetQueueGraphColumns(VkQueue queue, std::vector<QueueGraphColumn>& columns) const
+    void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
     {
         uint64_t lastTimestamp = m_Data.m_BeginTimestamp;
 
-        for (const auto& submitBatch : m_Data.m_Submits)
+        for( const auto& submitBatch : m_Data.m_Submits )
         {
-            if (submitBatch.m_Handle != queue)
+            if( submitBatch.m_Handle != queue )
             {
                 continue;
             }
 
-            for (const auto& submit : submitBatch.m_Submits)
+            for( const auto& submit : submitBatch.m_Submits )
             {
-                for (const auto& commandBuffer : submit.m_CommandBuffers)
+                for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
-                    if (!commandBuffer.m_DataValid)
+                    if( !commandBuffer.m_DataValid )
                     {
                         continue;
                     }
 
-                    if (lastTimestamp != 0)
+                    if( lastTimestamp != 0 )
                     {
                         QueueGraphColumn& idle = columns.emplace_back();
-                        idle.x = GetDuration(lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value);
+                        idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
                         idle.y = 0;
                         idle.color = 0;
                     }
 
                     QueueGraphColumn& column = columns.emplace_back();
-                    column.x = GetDuration(commandBuffer);
+                    column.x = GetDuration( commandBuffer );
                     column.y = 1;
                     column.color = m_GraphicsPipelineColumnColor;
 
@@ -2798,10 +2798,10 @@ namespace Profiler
             }
         }
 
-        if (!columns.empty() && lastTimestamp != m_Data.m_EndTimestamp)
+        if( !columns.empty() && lastTimestamp != m_Data.m_EndTimestamp )
         {
             QueueGraphColumn& idle = columns.emplace_back();
-            idle.x = GetDuration(lastTimestamp, m_Data.m_EndTimestamp);
+            idle.x = GetDuration( lastTimestamp, m_Data.m_EndTimestamp );
             idle.y = 0;
             idle.color = 0;
         }

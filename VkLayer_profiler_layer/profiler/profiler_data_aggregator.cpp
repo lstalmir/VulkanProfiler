@@ -445,8 +445,8 @@ namespace Profiler
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
                     frameData.m_Ticks += (commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value);
-                    frameData.m_BeginTimestamp = std::min(frameData.m_BeginTimestamp, commandBuffer.m_BeginTimestamp.m_Value);
-                    frameData.m_EndTimestamp = std::max(frameData.m_EndTimestamp, commandBuffer.m_EndTimestamp.m_Value);
+                    frameData.m_BeginTimestamp = std::min( frameData.m_BeginTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                    frameData.m_EndTimestamp = std::max( frameData.m_EndTimestamp, commandBuffer.m_EndTimestamp.m_Value );
                 }
             }
         }
