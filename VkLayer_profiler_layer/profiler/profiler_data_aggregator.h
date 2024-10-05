@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler_data.h"
 #include "profiler_command_buffer.h"
+#include "profiler_command_pool.h"
 #include <list>
 #include <map>
 #include <shared_mutex>
@@ -74,7 +75,7 @@ namespace Profiler
         {
             DeviceProfilerQueryDataBuffer*              m_pDataBuffer = {};
 
-            VkCommandPool                               m_DataCopyCommandPool = {};
+            DeviceProfilerInternalCommandPool*          m_pDataCopyCommandPool = {};
             VkCommandBuffer                             m_DataCopyCommandBuffer = {};
             VkFence                                     m_DataCopyFence = {};
 
@@ -123,7 +124,7 @@ namespace Profiler
         uint32_t m_FrameIndex;
 
         // Command pools used for copying query data
-        std::unordered_map<VkQueue, VkCommandPool> m_CopyCommandPools;
+        std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;

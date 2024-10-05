@@ -145,7 +145,7 @@ namespace Profiler
                 break;
             }
 
-            m_CopyCommandPools.emplace( queue, commandPool );
+            m_CopyCommandPools.try_emplace( queue, *m_pProfiler, commandPool, commandPoolCreateInfo );
         }
 
         // Use default time domain until the actual data is ready.
@@ -187,14 +187,6 @@ namespace Profiler
             assert( m_DataCollectionThread.joinable() );
             m_DataCollectionThreadRunning = false;
             m_DataCollectionThread.join();
-        }
-
-        for( auto [_, commandPool] : m_CopyCommandPools )
-        {
-            m_pProfiler->m_pDevice->Callbacks.DestroyCommandPool(
-                m_pProfiler->m_pDevice->Handle,
-                commandPool,
-                nullptr );
         }
 
         m_CopyCommandPools.clear();
@@ -853,9 +845,12 @@ namespace Profiler
         }
         if( submitBatch.m_DataCopyCommandBuffer )
         {
+            assert( submitBatch.m_pDataCopyCommandPool != nullptr );
+            std::unique_lock commandPoolLock( submitBatch.m_pDataCopyCommandPool->GetMutex() );
+
             m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
-                submitBatch.m_DataCopyCommandPool,
+                submitBatch.m_pDataCopyCommandPool->GetHandle(),
                 1, &submitBatch.m_DataCopyCommandBuffer );
         }
 
@@ -883,15 +878,18 @@ namespace Profiler
         if( submitBatch.m_pDataBuffer->UsesGpuAllocation() )
         {
             // Get the command pool associated with the queue.
-            // It is implicitly synchronized by the application here.
-            submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+            DeviceProfilerInternalCommandPool& commandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+            submitBatch.m_pDataCopyCommandPool = &commandPool;
+
+            // Synchronize access to the command pool.
+            std::unique_lock commandPoolLock( commandPool.GetMutex() );
 
             // Allocate the command buffer.
             VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
             commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             commandBufferAllocateInfo.commandBufferCount = 1;
-            commandBufferAllocateInfo.commandPool = submitBatch.m_DataCopyCommandPool;
+            commandBufferAllocateInfo.commandPool = commandPool.GetHandle();
 
             VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
