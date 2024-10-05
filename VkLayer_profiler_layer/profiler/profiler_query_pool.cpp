@@ -322,7 +322,6 @@ namespace Profiler
         m_pContext->m_PerformanceDataSize = dataSize;
         m_pContext->m_PerformanceDataMetricsSetIndex = metricsSetIndex;
         m_pContext->m_PerformanceQueryPool = queryPool;
-        m_DataOffset += dataSize;
     }
 
     /***********************************************************************************\
