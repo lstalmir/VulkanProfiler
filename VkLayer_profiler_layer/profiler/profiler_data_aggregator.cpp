@@ -145,11 +145,23 @@ namespace Profiler
                 break;
             }
 
-            m_CopyCommandPools.emplace( queue, commandPool );
+            m_CopyCommandPools.try_emplace( queue, *m_pProfiler, commandPool, commandPoolCreateInfo );
         }
 
         // Use default time domain until the actual data is ready.
-        m_CurrentFrameData.m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+        m_pCurrentFrameData = std::make_shared<DeviceProfilerFrameData>();
+        m_pCurrentFrameData->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+
+        // Try to start data collection thread.
+        try
+        {
+            m_DataCollectionThreadRunning = true;
+            m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
+        }
+        catch( ... )
+        {
+            m_DataCollectionThreadRunning = false;
+        }
 
         // Cleanup if initialization failed.
         if( result != VK_SUCCESS )
@@ -170,12 +182,11 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Destroy()
     {
-        for( auto [_, commandPool] : m_CopyCommandPools )
+        if( m_DataCollectionThreadRunning )
         {
-            m_pProfiler->m_pDevice->Callbacks.DestroyCommandPool(
-                m_pProfiler->m_pDevice->Handle,
-                commandPool,
-                nullptr );
+            assert( m_DataCollectionThread.joinable() );
+            m_DataCollectionThreadRunning = false;
+            m_DataCollectionThread.join();
         }
 
         m_CopyCommandPools.clear();
@@ -220,18 +231,8 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_Mutex );
-
-        // Append the submit to the last frame in the queue.
-        Frame& frame = m_NextFrames.back();
-
-        SubmitBatch& submitBatch = frame.m_PendingSubmits.emplace_back( submit );
-        submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>(frame.m_CompleteSubmits.size());
-
-        DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
-        submitBatchData.m_Handle = submit.m_Handle;
-        submitBatchData.m_ThreadId = submit.m_ThreadId;
-        submitBatchData.m_Timestamp = submit.m_Timestamp;
+        // Prepare submit batch info.
+        SubmitBatch submitBatch( (submit) );
 
         for( const DeviceProfilerSubmit& _submit : submitBatch.m_Submits )
         {
@@ -256,10 +257,22 @@ namespace Profiler
         if( !succeeded )
         {
             FreeDynamicAllocations( submitBatch );
-
-            // Fatal error, drop the packet.
-            frame.m_PendingSubmits.pop_back();
+            return;
         }
+
+        // Synchronize with data collection thread.
+        std::scoped_lock lk( m_Mutex );
+
+        Frame& frame = m_NextFrames.back();
+        submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>( frame.m_CompleteSubmits.size() );
+
+        DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
+        submitBatchData.m_Handle = submit.m_Handle;
+        submitBatchData.m_ThreadId = submit.m_ThreadId;
+        submitBatchData.m_Timestamp = submit.m_Timestamp;
+
+        // Append the submit to the last frame in the queue.
+        frame.m_PendingSubmits.push_back( std::move( submitBatch ) );
     }
 
     /***********************************************************************************\
@@ -275,14 +288,12 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_Mutex );
-
-        LoadVendorMetricsProperties();
-
         // The synchronization may be required if a command buffer is being freed.
         // In such case, the profiler has to wait for the timestamp data.
         if( pWaitForCommandBuffer )
         {
+            // Acquire a shared lock so other thread doesn't free the fences while this thread waits.
+            std::shared_lock lk( m_Mutex );
             std::vector<VkFence> waitFences;
 
             // Wait for all pending submits that reference the command buffer.
@@ -310,15 +321,38 @@ namespace Profiler
             }
         }
 
+        // Synchronize with other threads
+        if( pWaitForCommandBuffer )
+        {
+            // Force synchronization because the command buffer is about to be destroyed
+            m_Mutex.lock();
+        }
+        else
+        {
+            if( !m_Mutex.try_lock() )
+            {
+                // Don't aggregate if another thread already processes the data
+                return;
+            }
+        }
+
+        std::unique_lock lk( m_Mutex, std::adopt_lock );
+
         // Check if any submit has completed
         for( Frame& frame : m_NextFrames )
         {
             auto submitBatchIt = frame.m_PendingSubmits.begin();
             while( submitBatchIt != frame.m_PendingSubmits.end() )
             {
-                VkResult result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
-                    m_pProfiler->m_pDevice->Handle,
-                    submitBatchIt->m_DataCopyFence );
+                VkResult result = VK_NOT_READY;
+
+                // Aggregate only submits that contain the specified command buffer
+                if( !pWaitForCommandBuffer || submitBatchIt->m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
+                {
+                    result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
+                        m_pProfiler->m_pDevice->Handle,
+                        submitBatchIt->m_DataCopyFence );
+                }
 
                 if( result == VK_SUCCESS )
                 {
@@ -347,7 +381,7 @@ namespace Profiler
         }
 
         // Check if any frame has completed
-        if( !m_NextFrames.empty() )
+        if( !pWaitForCommandBuffer && !m_NextFrames.empty() )
         {
             auto frameIt = m_NextFrames.begin();
             while( (frameIt != m_NextFrames.end()) && (frameIt->m_FrameIndex < m_FrameIndex) && (frameIt->m_PendingSubmits.empty()) )
@@ -359,9 +393,11 @@ namespace Profiler
             {
                 auto lastFrameIt = frameIt--;
 
-                DeviceProfilerFrameData frameData;
-                ResolveFrameData( *frameIt, frameData );
-                std::swap( m_CurrentFrameData, frameData );
+                LoadVendorMetricsProperties();
+
+                std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
+                ResolveFrameData( *frameIt, *pFrameData );
+                std::swap( m_pCurrentFrameData, pFrameData );
 
                 m_NextFrames.erase( m_NextFrames.begin(), lastFrameIt );
             }
@@ -456,6 +492,32 @@ namespace Profiler
 
         // Return synchronization timestamps.
         frameData.m_SyncTimestamps = frame.m_SyncTimestamps;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DataCollectionThreadProc
+
+    Description:
+        Collects data from the submitted command buffers.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::DataCollectionThreadProc()
+    {
+        while( m_DataCollectionThreadRunning )
+        {
+            try
+            {
+                Aggregate();
+
+                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+            }
+            catch( ... )
+            {
+                assert( false );
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -783,9 +845,12 @@ namespace Profiler
         }
         if( submitBatch.m_DataCopyCommandBuffer )
         {
+            assert( submitBatch.m_pDataCopyCommandPool != nullptr );
+            std::unique_lock commandPoolLock( submitBatch.m_pDataCopyCommandPool->GetMutex() );
+
             m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
-                submitBatch.m_DataCopyCommandPool,
+                submitBatch.m_pDataCopyCommandPool->GetHandle(),
                 1, &submitBatch.m_DataCopyCommandBuffer );
         }
 
@@ -813,15 +878,18 @@ namespace Profiler
         if( submitBatch.m_pDataBuffer->UsesGpuAllocation() )
         {
             // Get the command pool associated with the queue.
-            // It is implicitly synchronized by the application here.
-            submitBatch.m_DataCopyCommandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+            DeviceProfilerInternalCommandPool& commandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
+            submitBatch.m_pDataCopyCommandPool = &commandPool;
+
+            // Synchronize access to the command pool.
+            std::unique_lock commandPoolLock( commandPool.GetMutex() );
 
             // Allocate the command buffer.
             VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
             commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             commandBufferAllocateInfo.commandBufferCount = 1;
-            commandBufferAllocateInfo.commandPool = submitBatch.m_DataCopyCommandPool;
+            commandBufferAllocateInfo.commandPool = commandPool.GetHandle();
 
             VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
