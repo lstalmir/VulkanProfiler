@@ -21,9 +21,11 @@
 #pragma once
 #include "profiler_data.h"
 #include "profiler_command_buffer.h"
+#include "profiler_command_pool.h"
 #include <list>
 #include <map>
-#include <mutex>
+#include <shared_mutex>
+#include <thread>
 #include <unordered_set>
 #include <unordered_map>
 // Import extension structures
@@ -73,7 +75,7 @@ namespace Profiler
         {
             DeviceProfilerQueryDataBuffer*              m_pDataBuffer = {};
 
-            VkCommandPool                               m_DataCopyCommandPool = {};
+            DeviceProfilerInternalCommandPool*          m_pDataCopyCommandPool = {};
             VkCommandBuffer                             m_DataCopyCommandBuffer = {};
             VkFence                                     m_DataCopyFence = {};
 
@@ -101,27 +103,34 @@ namespace Profiler
         VkResult Initialize( DeviceProfiler* );
         void Destroy();
 
+        bool IsDataCollectionThreadRunning() const { return m_DataCollectionThreadRunning; }
+
         void AppendFrame( const DeviceProfilerFrame& );
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
         void Aggregate( ProfilerCommandBuffer* = nullptr );
 
-        const DeviceProfilerFrameData& GetAggregatedData() const { return m_CurrentFrameData; }
+        std::shared_ptr<DeviceProfilerFrameData> GetAggregatedData() const { return m_pCurrentFrameData; }
 
     private:
         DeviceProfiler* m_pProfiler;
 
-        DeviceProfilerFrameData m_CurrentFrameData;
+        std::thread m_DataCollectionThread;
+        std::atomic_bool m_DataCollectionThreadRunning;
+
+        std::shared_ptr<DeviceProfilerFrameData> m_pCurrentFrameData;
         std::list<Frame> m_NextFrames;
 
-        std::mutex m_Mutex;
+        std::shared_mutex m_Mutex;
         uint32_t m_FrameIndex;
 
         // Command pools used for copying query data
-        std::unordered_map<VkQueue, VkCommandPool> m_CopyCommandPools;
+        std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
         // Vendor-specific metric properties
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
         uint32_t                                               m_VendorMetricsSetIndex;
+
+        void DataCollectionThreadProc();
 
         void LoadVendorMetricsProperties();
         std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics( const Frame& ) const;

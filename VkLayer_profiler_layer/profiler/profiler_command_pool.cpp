@@ -83,4 +83,48 @@ namespace Profiler
     {
         return m_SupportsTimestampQuery;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        DeviceProfilerInternalCommandPool
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
+    DeviceProfilerInternalCommandPool::DeviceProfilerInternalCommandPool( DeviceProfiler& profiler, VkCommandPool commandPool, const VkCommandPoolCreateInfo& createInfo )
+        : DeviceProfilerCommandPool( profiler, commandPool, createInfo )
+        , m_Profiler( profiler )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ~DeviceProfilerInternalCommandPool
+
+    Description:
+        Destructor.
+
+    \***********************************************************************************/
+    DeviceProfilerInternalCommandPool::~DeviceProfilerInternalCommandPool()
+    {
+        // Destroy command pool
+        m_Profiler.m_pDevice->Callbacks.DestroyCommandPool( m_Profiler.m_pDevice->Handle, GetHandle(), nullptr );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMutex
+
+    Description:
+        Returns the mutex for synchronizing access to the command pool.
+
+    \***********************************************************************************/
+    std::mutex& DeviceProfilerInternalCommandPool::GetMutex()
+    {
+        return m_Mutex;
+    }
 }

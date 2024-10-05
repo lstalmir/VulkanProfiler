@@ -148,7 +148,7 @@ namespace Profiler
         , m_Config()
         , m_PresentMutex()
         , m_SubmitMutex()
-        , m_Data()
+        , m_pData( nullptr )
         , m_MemoryManager()
         , m_DataAggregator()
         , m_CurrentFrame( 0 )
@@ -316,6 +316,9 @@ namespace Profiler
 
         // Initialize aggregator
         DESTROYANDRETURNONFAIL( m_DataAggregator.Initialize( this ) );
+
+        m_pData = m_DataAggregator.GetAggregatedData();
+        assert( m_pData );
 
         // Initialize internal pipelines
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBuffer, "CopyBuffer" );
@@ -550,11 +553,9 @@ namespace Profiler
     /***********************************************************************************\
 
     \***********************************************************************************/
-    DeviceProfilerFrameData DeviceProfiler::GetData() const
+    std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData() const
     {
-        // Hold aggregator updates to keep m_Data consistent
-        std::scoped_lock lk( m_DataMutex );
-        return m_Data;
+        return m_pData;
     }
 
     /***********************************************************************************\
@@ -1107,10 +1108,13 @@ namespace Profiler
             ReleasePerformanceConfigurationINTEL();
         }
 
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        {
+            m_DataAggregator.Aggregate();
+        }
+
         // Append the submit batch for aggregation
         m_DataAggregator.AppendSubmit( submitBatch );
-
-        m_DataAggregator.Aggregate();
     }
 
     /***********************************************************************************\
@@ -1220,21 +1224,27 @@ namespace Profiler
 
         m_CurrentFrame++;
 
-        // Collect data from the submitted command buffers
-        m_DataAggregator.Aggregate();
-
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
         {
-            std::scoped_lock lk2( m_DataMutex );
+            // Collect data from the submitted command buffers
+            m_DataAggregator.Aggregate();
+        }
 
-            // Get data captured during the last frame
-            m_Data = m_DataAggregator.GetAggregatedData();
+        // Get data captured during the last frame
+        std::shared_ptr<DeviceProfilerFrameData> pData = m_DataAggregator.GetAggregatedData();
+        assert( pData );
+
+        // Check if new data is available
+        if( pData != m_pData )
+        {
+            m_pData = pData;
 
             // TODO: Move to memory tracker
-            m_Data.m_Memory = m_MemoryData;
+            m_pData->m_Memory = m_MemoryData;
 
             // Return TIP data
             m_pDevice->TIP.EndFunction( tip );
-            m_Data.m_TIP = m_pDevice->TIP.GetData();
+            m_pData->m_TIP = m_pDevice->TIP.GetData();
         }
 
         BeginNextFrame();
