@@ -32,6 +32,7 @@
 #include "VkMeshShaderExt_functions.h"
 #include "VkMeshShaderNv_functions.h"
 #include "VkPipelineExecutablePropertiesKhr_functions.h"
+#include "VkRayTracingMaintenance1Khr_functions.h"
 #include "VkRayTracingPipelineKhr_functions.h"
 #include "VkShaderObjectExt_functions.h"
 #include "VkSwapchainKhr_functions.h"
@@ -62,6 +63,7 @@ namespace Profiler
         , VkMeshShaderExt_Functions
         , VkMeshShaderNv_Functions
         , VkPipelineExecutablePropertiesKhr_Functions
+        , VkRayTracingMaintenance1Khr_Functions
         , VkRayTracingPipelineKhr_Functions
         , VkShaderObjectExt_Functions
         , VkSwapchainKhr_Functions
