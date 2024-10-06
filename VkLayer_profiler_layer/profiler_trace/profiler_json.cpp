@@ -233,6 +233,10 @@ namespace Profiler
             return {
                 { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress } };
 
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
+            return {
+                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress } };
+
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
         {

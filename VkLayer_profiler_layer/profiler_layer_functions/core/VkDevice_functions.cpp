@@ -146,9 +146,13 @@ namespace Profiler
         GETPROCADDR( CmdDrawMeshTasksIndirectNV );
         GETPROCADDR( CmdDrawMeshTasksIndirectCountNV );
 
+        // VK_KHR_ray_tracing_maintenance1 functions
+        GETPROCADDR( CmdTraceRaysIndirect2KHR );
+
         // VK_KHR_ray_tracing_pipeline functions
         GETPROCADDR( CreateRayTracingPipelinesKHR );
         GETPROCADDR( CmdTraceRaysKHR );
+        GETPROCADDR( CmdTraceRaysIndirectKHR );
 
         // VK_KHR_acceleration_structure functions
         GETPROCADDR( CmdBuildAccelerationStructuresKHR );
