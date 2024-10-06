@@ -253,11 +253,11 @@ namespace Profiler
                 drawcall.m_Payload.m_TraceRays.m_Depth );
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            return fmt::format( "vkCmdTraceRaysIndirectKHR ({})",
+            return fmt::format( "vkCmdTraceRaysIndirectKHR (0x{:16x})",
                 drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
-            return fmt::format( "vkCmdTraceRaysIndirect2KHR ({})",
+            return fmt::format( "vkCmdTraceRaysIndirect2KHR (0x{:16x})",
                 drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress );
 
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
