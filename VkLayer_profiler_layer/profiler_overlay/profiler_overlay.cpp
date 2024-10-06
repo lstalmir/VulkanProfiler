@@ -1361,6 +1361,7 @@ namespace Profiler
                 0,
                 sizeof( columns.front() ),
                 pHistogramDescription, 0, FLT_MAX, { 0, histogramHeight },
+                ImGuiX::HistogramFlags_None,
                 std::bind( &ProfilerOverlayOutput::DrawPerformanceGraphLabel, this, std::placeholders::_1 ),
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
 
@@ -1383,7 +1384,9 @@ namespace Profiler
                         static_cast<int>( queueGraphColumns.size() ),
                         0,
                         sizeof( queueGraphColumns.front() ),
-                        "", 0, FLT_MAX, { 0, 10 * interfaceScale } );
+                        "", 0, FLT_MAX, { 0, 10 * interfaceScale },
+                        ImGuiX::HistogramFlags_NoHover |
+                        ImGuiX::HistogramFlags_NoScale );
                 }
             }
         }
@@ -2780,7 +2783,7 @@ namespace Profiler
                         continue;
                     }
 
-                    if( lastTimestamp != 0 )
+                    if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
                     {
                         QueueGraphColumn& idle = columns.emplace_back();
                         idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
@@ -2798,7 +2801,8 @@ namespace Profiler
             }
         }
 
-        if( !columns.empty() && lastTimestamp != m_pData->m_EndTimestamp )
+        if( ( lastTimestamp != m_pData->m_BeginTimestamp ) &&
+            ( lastTimestamp != m_pData->m_EndTimestamp ) )
         {
             QueueGraphColumn& idle = columns.emplace_back();
             idle.x = GetDuration( lastTimestamp, m_pData->m_EndTimestamp );
