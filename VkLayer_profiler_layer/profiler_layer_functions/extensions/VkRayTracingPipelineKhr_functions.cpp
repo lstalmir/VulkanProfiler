@@ -163,7 +163,7 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eTraceRaysKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eTraceRaysIndirectKHR;
         drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress = indirectDeviceAddress;
 
         profiledCommandBuffer.PreCommand( drawcall );

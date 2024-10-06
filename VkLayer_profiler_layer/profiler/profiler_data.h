@@ -80,6 +80,7 @@ namespace Profiler
         eUpdateBuffer = 0x000D0000,
         eTraceRaysKHR = 0x000E0000,
         eTraceRaysIndirectKHR = 0x000E0001,
+        eTraceRaysIndirect2KHR = 0x000E0002,
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eBuildAccelerationStructuresIndirectKHR = 0x000F0001,
         eCopyAccelerationStructureKHR = 0x00100000,
@@ -365,6 +366,11 @@ namespace Profiler
         VkDeviceAddress m_IndirectAddress;
     };
 
+    struct DeviceProfilerDrawcallTraceRaysIndirect2Payload
+    {
+        VkDeviceAddress m_IndirectAddress;
+    };
+
     struct DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase
     {
         uint32_t m_InfoCount;
@@ -553,6 +559,7 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallUpdateBufferPayload, m_UpdateBuffer );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysPayload, m_TraceRays );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysIndirectPayload, m_TraceRaysIndirect );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysIndirect2Payload, m_TraceRaysIndirect2 );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildAccelerationStructuresPayload, m_BuildAccelerationStructures );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload, m_BuildAccelerationStructuresIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure );
