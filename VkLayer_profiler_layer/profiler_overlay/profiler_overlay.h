@@ -280,6 +280,9 @@ namespace Profiler
         void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 
+        struct QueueGraphColumn;
+        void GetQueueGraphColumns( VkQueue, std::vector<QueueGraphColumn>& ) const;
+
         // Trace serialization helpers
         void UpdateTraceExporter();
         void SaveTraceToFile( const std::string&, const DeviceProfilerFrameData& );

@@ -82,6 +82,10 @@ namespace Profiler
         FrameBrowserTreeNodeIndex nodeIndex;
     };
 
+    struct ProfilerOverlayOutput::QueueGraphColumn : ImGuiX::HistogramColumnData
+    {
+    };
+
     struct ProfilerOverlayOutput::TraceExporter
     {
         IGFD::FileDialog m_FileDialog;
@@ -1357,8 +1361,34 @@ namespace Profiler
                 0,
                 sizeof( columns.front() ),
                 pHistogramDescription, 0, FLT_MAX, { 0, histogramHeight },
+                ImGuiX::HistogramFlags_None,
                 std::bind( &ProfilerOverlayOutput::DrawPerformanceGraphLabel, this, std::placeholders::_1 ),
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
+
+            std::vector<QueueGraphColumn> queueGraphColumns;
+            for( const auto& [ _, queue ] : m_pDevice->Queues )
+            {
+                // Enumerate columns for command queue activity graph
+                queueGraphColumns.clear();
+                GetQueueGraphColumns( queue.Handle, queueGraphColumns );
+
+                if( !columns.empty() )
+                {
+                    char queueGraphId[ 32 ];
+                    snprintf( queueGraphId, sizeof( queueGraphId ), "##QueueGraph%p", queue.Handle );
+
+                    ImGui::PushItemWidth( -1 );
+                    ImGuiX::PlotHistogramEx(
+                        queueGraphId,
+                        queueGraphColumns.data(),
+                        static_cast<int>( queueGraphColumns.size() ),
+                        0,
+                        sizeof( queueGraphColumns.front() ),
+                        "", 0, FLT_MAX, { 0, 10 * interfaceScale },
+                        ImGuiX::HistogramFlags_NoHover |
+                        ImGuiX::HistogramFlags_NoScale );
+                }
+            }
         }
 
         ImGui::DockSpace( m_PerformanceTabDockSpaceId );
@@ -2722,6 +2752,63 @@ namespace Profiler
 
         // Display shader capability badges in frame browser.
         ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueGraphColumns
+
+    Description:
+        Enumerate queue utilization graph columns.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
+    {
+        uint64_t lastTimestamp = m_pData->m_BeginTimestamp;
+
+        for( const auto& submitBatch : m_pData->m_Submits )
+        {
+            if( submitBatch.m_Handle != queue )
+            {
+                continue;
+            }
+
+            for( const auto& submit : submitBatch.m_Submits )
+            {
+                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                {
+                    if( !commandBuffer.m_DataValid )
+                    {
+                        continue;
+                    }
+
+                    if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
+                    {
+                        QueueGraphColumn& idle = columns.emplace_back();
+                        idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                        idle.y = 0;
+                        idle.color = 0;
+                    }
+
+                    QueueGraphColumn& column = columns.emplace_back();
+                    column.x = GetDuration( commandBuffer );
+                    column.y = 1;
+                    column.color = m_GraphicsPipelineColumnColor;
+
+                    lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+                }
+            }
+        }
+
+        if( ( lastTimestamp != m_pData->m_BeginTimestamp ) &&
+            ( lastTimestamp != m_pData->m_EndTimestamp ) )
+        {
+            QueueGraphColumn& idle = columns.emplace_back();
+            idle.x = GetDuration( lastTimestamp, m_pData->m_EndTimestamp );
+            idle.y = 0;
+            idle.color = 0;
+        }
     }
 
     /***********************************************************************************\
