@@ -154,7 +154,7 @@ namespace ImGuiX
                 scale_max = y_max;
         }
 
-        //RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
+        RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
 
         // Render horizontal lines
         if( ( flags & HistogramFlags_NoScale ) == 0 )

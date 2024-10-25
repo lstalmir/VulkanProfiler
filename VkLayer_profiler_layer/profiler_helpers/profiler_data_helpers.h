@@ -56,6 +56,9 @@ namespace Profiler
 
         std::string GetColorHex( const float* ) const;
 
+        std::string GetQueueTypeName( VkQueueFlags ) const;
+        std::string GetQueueFlagNames( VkQueueFlags ) const;
+
         std::string GetShaderName( const struct ProfilerShader& ) const;
         std::string GetShortShaderName( const struct ProfilerShader& ) const;
         std::string GetShaderStageName( VkShaderStageFlagBits ) const;

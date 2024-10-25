@@ -60,6 +60,7 @@ namespace Profiler
         inline static constexpr char Duration[] = u8"Czas trwania";
         inline static constexpr char Height[] = u8"Wysokość";
         inline static constexpr char ShowIdle[] = u8"Pokaż przerwy";
+        inline static constexpr char ShowQueueUtilization[] = u8"Pokaż wykorzystanie kolejek";
         inline static constexpr char HistogramGroups[] = u8"Grupowanie histogramu";
         inline static constexpr char GPUCycles[] = u8"Cykle GPU";
         inline static constexpr char TopPipelines[] = u8"Najdłuższe stany potoku###Top pipelines";

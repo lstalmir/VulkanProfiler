@@ -164,6 +164,7 @@ namespace Profiler
         HistogramGroupMode m_HistogramGroupMode;
         HistogramValueMode m_HistogramValueMode;
         bool m_HistogramShowIdle;
+        bool m_HistogramShowQueueUtilization;
 
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
@@ -282,6 +283,7 @@ namespace Profiler
 
         struct QueueGraphColumn;
         void GetQueueGraphColumns( VkQueue, std::vector<QueueGraphColumn>& ) const;
+        float GetQueueUtilization( const std::vector<QueueGraphColumn>& ) const;
 
         // Trace serialization helpers
         void UpdateTraceExporter();

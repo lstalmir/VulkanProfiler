@@ -132,6 +132,7 @@ namespace Profiler
         , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
         , m_HistogramValueMode( HistogramValueMode::eDuration )
         , m_HistogramShowIdle( false )
+        , m_HistogramShowQueueUtilization( true )
         , m_Pause( false )
         , m_ShowDebugLabels( true )
         , m_ShowShaderCapabilities( true )
@@ -1336,8 +1337,11 @@ namespace Profiler
 
                 ImGui::SameLine( 0, 20 * interfaceScale );
                 ImGui::PushItemWidth( 100 * interfaceScale );
-
                 ImGui::Checkbox( Lang::ShowIdle, &m_HistogramShowIdle );
+
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
+                ImGui::Checkbox( Lang::ShowQueueUtilization, &m_HistogramShowQueueUtilization );
             }
 
             float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;
@@ -1353,7 +1357,10 @@ namespace Profiler
                 Lang::GPUTime,
                 groupOptions[(size_t)m_HistogramGroupMode] );
 
+            ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, { 1, 1 } );
+
             ImGui::PushItemWidth( -1 );
+            ImGui::PushStyleColor( ImGuiCol_FrameBg, { 0.0f, 0.0f, 0.0f, 0.0f } );
             ImGuiX::PlotHistogramEx(
                 "",
                 columns.data(),
@@ -1365,30 +1372,57 @@ namespace Profiler
                 std::bind( &ProfilerOverlayOutput::DrawPerformanceGraphLabel, this, std::placeholders::_1 ),
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
 
-            std::vector<QueueGraphColumn> queueGraphColumns;
-            for( const auto& [ _, queue ] : m_pDevice->Queues )
+            ImGui::PopStyleColor();
+
+            if( m_HistogramShowQueueUtilization )
             {
-                // Enumerate columns for command queue activity graph
-                queueGraphColumns.clear();
-                GetQueueGraphColumns( queue.Handle, queueGraphColumns );
+                ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
 
-                if( !columns.empty() )
+                std::vector<QueueGraphColumn> queueGraphColumns;
+                for( const auto& [_, queue] : m_pDevice->Queues )
                 {
-                    char queueGraphId[ 32 ];
-                    snprintf( queueGraphId, sizeof( queueGraphId ), "##QueueGraph%p", queue.Handle );
+                    // Enumerate columns for command queue activity graph
+                    queueGraphColumns.clear();
+                    GetQueueGraphColumns( queue.Handle, queueGraphColumns );
 
-                    ImGui::PushItemWidth( -1 );
-                    ImGuiX::PlotHistogramEx(
-                        queueGraphId,
-                        queueGraphColumns.data(),
-                        static_cast<int>( queueGraphColumns.size() ),
-                        0,
-                        sizeof( queueGraphColumns.front() ),
-                        "", 0, FLT_MAX, { 0, 10 * interfaceScale },
-                        ImGuiX::HistogramFlags_NoHover |
-                        ImGuiX::HistogramFlags_NoScale );
+                    if( !queueGraphColumns.empty() )
+                    {
+                        char queueGraphId[32];
+                        snprintf( queueGraphId, sizeof( queueGraphId ), "##QueueGraph%p", queue.Handle );
+
+                        const std::string queueName = m_pStringSerializer->GetName( queue.Handle );
+                        ImGui::Text( "%s %s", m_pStringSerializer->GetQueueTypeName( queue.Flags ).c_str(), queueName.c_str() );
+
+                        const float queueUtilization = GetQueueUtilization( queueGraphColumns );
+                        ImGuiX::TextAlignRight( "%.2f %%", queueUtilization * 100.f );
+
+                        ImGui::PushItemWidth( -1 );
+                        ImGui::SetCursorPosY( ImGui::GetCursorPosY() - 3 * interfaceScale );
+                        ImGuiX::PlotHistogramEx(
+                            queueGraphId,
+                            queueGraphColumns.data(),
+                            static_cast<int>( queueGraphColumns.size() ),
+                            0,
+                            sizeof( queueGraphColumns.front() ),
+                            "", 0, FLT_MAX, { 0, 8 * interfaceScale },
+                            ImGuiX::HistogramFlags_NoHover |
+                            ImGuiX::HistogramFlags_NoScale );
+
+                        if( ImGui::IsItemHovered() )
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::Text( "%s", queueName.c_str() );
+                            ImGui::Text( "%s", m_pStringSerializer->GetQueueFlagNames( queue.Flags ).c_str() );
+                            ImGui::EndTooltip();
+                        }
+                    }
                 }
+
+                ImGui::PopStyleColor();
             }
+
+            ImGui::PopStyleVar();
+            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
         }
 
         ImGui::DockSpace( m_PerformanceTabDockSpaceId );
@@ -2809,6 +2843,26 @@ namespace Profiler
             idle.y = 0;
             idle.color = 0;
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueUtilization
+
+    Description:
+        Calculate queue utilization.
+
+    \***********************************************************************************/
+    float ProfilerOverlayOutput::GetQueueUtilization( const std::vector<QueueGraphColumn>& columns ) const
+    {
+        float utilization = 0.0f;
+        for( const auto& column : columns )
+        {
+            utilization += column.x * column.y;
+        }
+
+        return utilization / GetDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
     }
 
     /***********************************************************************************\
