@@ -164,7 +164,6 @@ namespace Profiler
         HistogramGroupMode m_HistogramGroupMode;
         HistogramValueMode m_HistogramValueMode;
         bool m_HistogramShowIdle;
-        bool m_HistogramShowQueueUtilization;
 
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
@@ -240,6 +239,11 @@ namespace Profiler
         // Dock space ids
         int m_MainDockSpaceId;
         int m_PerformanceTabDockSpaceId;
+        int m_QueueUtilizationTabDockSpaceId;
+        int m_TopPipelinesTabDockSpaceId;
+        int m_FrameBrowserDockSpaceId;
+
+        void PerformanceTabDockSpace( int flags = 0 );
 
         struct WindowState
         {
@@ -249,6 +253,7 @@ namespace Profiler
         };
 
         WindowState m_PerformanceWindowState;
+        WindowState m_QueueUtilizationWindowState;
         WindowState m_TopPipelinesWindowState;
         WindowState m_PerformanceCountersWindowState;
         WindowState m_MemoryWindowState;
@@ -264,6 +269,7 @@ namespace Profiler
 
         void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
+        void UpdateQueueUtilizationTab();
         void UpdateTopPipelinesTab();
         void UpdatePerformanceCountersTab();
         void UpdateMemoryTab();
