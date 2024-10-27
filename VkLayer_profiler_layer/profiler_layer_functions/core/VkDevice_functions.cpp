@@ -98,6 +98,8 @@ namespace Profiler
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueueSubmit2 );
+        GETPROCADDR( QueueBindSparse );
+        GETPROCADDR( QueueWaitIdle );
 
         // VK_KHR_create_renderpass2 functions
         GETPROCADDR( CreateRenderPass2KHR );

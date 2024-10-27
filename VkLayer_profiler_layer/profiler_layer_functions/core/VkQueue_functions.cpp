@@ -44,7 +44,9 @@ namespace Profiler
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
         // Submit the command buffers
+        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
+        lock.unlock();
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
         return result;
@@ -72,9 +74,50 @@ namespace Profiler
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
         // Submit the command buffers
+        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
+        lock.unlock();
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
         return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueBindSparse
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueBindSparse(
+        VkQueue queue,
+        uint32_t bindInfoCount,
+        const VkBindSparseInfo* pBindInfo,
+        VkFence fence )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+
+        // Bind sparse memory
+        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
+        return dd.Device.Callbacks.QueueBindSparse( queue, bindInfoCount, pBindInfo, fence );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueWaitIdle
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueWaitIdle(
+        VkQueue queue )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+
+        // Wait for the queue to become idle
+        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
+        return dd.Device.Callbacks.QueueWaitIdle( queue );
     }
 }

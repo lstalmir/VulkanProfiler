@@ -838,21 +838,30 @@ namespace Profiler
             m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
 
             // Submit command buffer
-            m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
-
             {
-                VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
+                m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
+
+                const uint32_t waitSemaphoreCount = pPresentInfo->waitSemaphoreCount;
+                VkPipelineStageFlags* pWaitStages =
+                    static_cast<VkPipelineStageFlags*>( alloca( waitSemaphoreCount * sizeof( VkPipelineStageFlags ) ) );
+
+                for( uint32_t i = 0; i < waitSemaphoreCount; ++i )
+                {
+                    pWaitStages[i] = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+                }
+
                 VkSubmitInfo info = {};
                 info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-                info.waitSemaphoreCount = pPresentInfo->waitSemaphoreCount;
+                info.waitSemaphoreCount = waitSemaphoreCount;
                 info.pWaitSemaphores = pPresentInfo->pWaitSemaphores;
-                info.pWaitDstStageMask = &wait_stage;
+                info.pWaitDstStageMask = pWaitStages;
                 info.commandBufferCount = 1;
                 info.pCommandBuffers = &commandBuffer;
                 info.signalSemaphoreCount = 1;
                 info.pSignalSemaphores = &semaphore;
 
-                m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
+                std::unique_lock lock( m_pGraphicsQueue->Mutex );
                 m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
             }
 

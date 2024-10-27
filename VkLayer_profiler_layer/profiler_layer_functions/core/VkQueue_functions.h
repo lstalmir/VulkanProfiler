@@ -47,5 +47,16 @@ namespace Profiler
             uint32_t submitCount,
             const VkSubmitInfo2* pSubmits,
             VkFence fence );
+
+        // vkQueueBindSparse
+        static VKAPI_ATTR VkResult VKAPI_CALL QueueBindSparse(
+            VkQueue queue,
+            uint32_t bindInfoCount,
+            const VkBindSparseInfo* pBindInfo,
+            VkFence fence );
+
+        // vkQueueWaitIdle
+        static VKAPI_ATTR VkResult VKAPI_CALL QueueWaitIdle(
+            VkQueue queue );
     };
 }
