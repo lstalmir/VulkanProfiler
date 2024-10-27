@@ -74,6 +74,7 @@ namespace Profiler
         void InitializeStyles();
         void SetTargetDevice( struct VkDevice_Object* pDevice );
         void SetShaderName( const std::string& name );
+        void SetEntryPointName( const std::string& name );
 
         void Clear();
 
@@ -97,6 +98,7 @@ namespace Profiler
         std::unique_ptr<TextEditor>        m_pTextEditor;
 
         std::string                        m_ShaderName;
+        std::string                        m_EntryPointName;
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
         int                                m_SpvTargetEnv;

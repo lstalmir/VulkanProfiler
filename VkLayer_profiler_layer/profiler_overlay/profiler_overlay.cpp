@@ -2090,6 +2090,7 @@ namespace Profiler
 
         m_InspectorShaderView.Clear();
         m_InspectorShaderView.SetShaderName( m_pStringSerializer->GetShortShaderName( shader ) );
+        m_InspectorShaderView.SetEntryPointName( shader.m_EntryPoint );
 
         // Shader module may not be available if the VkShaderEXT has been created directly from a binary.
         if( shader.m_pShaderModule )
