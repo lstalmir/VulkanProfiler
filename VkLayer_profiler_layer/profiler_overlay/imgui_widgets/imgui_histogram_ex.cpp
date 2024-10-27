@@ -106,6 +106,7 @@ namespace ImGuiX
         float scale_min,
         float scale_max,
         ImVec2 graph_size,
+        int flags,
         std::function<HistogramColumnHoverCallback> hover_cb,
         std::function<HistogramColumnClickCallback> click_cb )
     {
@@ -132,10 +133,6 @@ namespace ImGuiX
         if( !ItemAdd( total_bb, 0, &frame_bb ) )
             return;
 
-        const bool hovered =
-            ItemHoverable( frame_bb, id, 0 ) &&
-            inner_bb.Contains( g.IO.MousePos );
-
         // Determine scale from values if not specified
         double x_size = 0.f;
         if( scale_min == FLT_MAX || scale_max == FLT_MAX )
@@ -157,9 +154,10 @@ namespace ImGuiX
                 scale_max = y_max;
         }
 
-        //RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
+        RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
 
         // Render horizontal lines
+        if( ( flags & HistogramFlags_NoScale ) == 0 )
         {
             // Divide range to 10 equal parts
             const float step = inner_bb.GetHeight() / 10.f;
@@ -197,7 +195,9 @@ namespace ImGuiX
                     continue;
 
                 const ImRect column_bb( { x_pos, y_pos }, { x_pos + column_width, inner_bb.Max.y } );
-                const bool hovered_column = column_bb.Contains( g.IO.MousePos );
+                const bool hovered_column =
+                    ( flags & HistogramFlags_NoHover ) == 0 &&
+                    column_bb.Contains( g.IO.MousePos );
 
                 window->DrawList->AddRectFilled(
                     column_bb.Min,
@@ -227,6 +227,7 @@ namespace ImGuiX
             RenderText( ImVec2( frame_bb.Max.x + style.ItemInnerSpacing.x, inner_bb.Min.y ), label );
 
         // Render scale
+        if( ( flags & HistogramFlags_NoScale ) == 0 )
         {
             const float range = scale_max - scale_min;
 

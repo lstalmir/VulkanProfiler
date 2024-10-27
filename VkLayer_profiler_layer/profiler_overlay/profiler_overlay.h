@@ -239,6 +239,11 @@ namespace Profiler
         // Dock space ids
         int m_MainDockSpaceId;
         int m_PerformanceTabDockSpaceId;
+        int m_QueueUtilizationTabDockSpaceId;
+        int m_TopPipelinesTabDockSpaceId;
+        int m_FrameBrowserDockSpaceId;
+
+        void PerformanceTabDockSpace( int flags = 0 );
 
         struct WindowState
         {
@@ -248,6 +253,7 @@ namespace Profiler
         };
 
         WindowState m_PerformanceWindowState;
+        WindowState m_QueueUtilizationWindowState;
         WindowState m_TopPipelinesWindowState;
         WindowState m_PerformanceCountersWindowState;
         WindowState m_MemoryWindowState;
@@ -263,6 +269,7 @@ namespace Profiler
 
         void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
+        void UpdateQueueUtilizationTab();
         void UpdateTopPipelinesTab();
         void UpdatePerformanceCountersTab();
         void UpdateMemoryTab();
@@ -279,6 +286,10 @@ namespace Profiler
         void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
         void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
+
+        struct QueueGraphColumn;
+        void GetQueueGraphColumns( VkQueue, std::vector<QueueGraphColumn>& ) const;
+        float GetQueueUtilization( const std::vector<QueueGraphColumn>& ) const;
 
         // Trace serialization helpers
         void UpdateTraceExporter();

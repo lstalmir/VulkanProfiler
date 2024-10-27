@@ -651,6 +651,68 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetQueueFlagNames
+
+    Description:
+        Returns string representation of a VkQueueFlags.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetQueueTypeName( VkQueueFlags flags ) const
+    {
+        if( flags & VK_QUEUE_GRAPHICS_BIT )
+            return "Graphics";
+        if( flags & VK_QUEUE_COMPUTE_BIT )
+            return "Compute";
+        if( ( flags & VK_QUEUE_VIDEO_DECODE_BIT_KHR ) || ( flags & VK_QUEUE_VIDEO_ENCODE_BIT_KHR ) )
+            return "Video";
+        if( flags & VK_QUEUE_TRANSFER_BIT )
+            return "Transfer";
+        return "";
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueFlagNames
+
+    Description:
+        Returns string representation of a VkQueueFlags.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetQueueFlagNames( VkQueueFlags flags ) const
+    {
+        FlagsStringBuilder builder;
+
+        if( flags & VK_QUEUE_GRAPHICS_BIT )
+            builder.AddFlag( "Graphics" );
+        if( flags & VK_QUEUE_COMPUTE_BIT )
+            builder.AddFlag( "Compute" );
+        if( flags & VK_QUEUE_TRANSFER_BIT )
+            builder.AddFlag( "Transfer" );
+        if( flags & VK_QUEUE_SPARSE_BINDING_BIT )
+            builder.AddFlag( "Sparse binding" );
+        if( flags & VK_QUEUE_PROTECTED_BIT )
+            builder.AddFlag( "Protected" );
+        if( flags & VK_QUEUE_VIDEO_DECODE_BIT_KHR )
+            builder.AddFlag( "Video decode" );
+        if( flags & VK_QUEUE_VIDEO_ENCODE_BIT_KHR )
+            builder.AddFlag( "Video encode" );
+        if( flags & VK_QUEUE_OPTICAL_FLOW_BIT_NV )
+            builder.AddFlag( "Optical flow" );
+
+        for( uint32_t i = 8; i < 8 * sizeof( flags ); ++i )
+        {
+            uint32_t unkownFlag = 1U << i;
+            if( flags & unkownFlag )
+                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
+        }
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetShaderName
 
     Description:

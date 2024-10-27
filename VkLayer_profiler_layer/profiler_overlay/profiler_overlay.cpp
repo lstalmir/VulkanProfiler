@@ -30,6 +30,7 @@
 #include <fstream>
 #include <regex>
 
+#include <imgui_internal.h>
 #include <ImGuiFileDialog.h>
 
 #include <fmt/format.h>
@@ -80,6 +81,10 @@ namespace Profiler
     {
         HistogramGroupMode groupMode;
         FrameBrowserTreeNodeIndex nodeIndex;
+    };
+
+    struct ProfilerOverlayOutput::QueueGraphColumn : ImGuiX::HistogramColumnData
+    {
     };
 
     struct ProfilerOverlayOutput::TraceExporter
@@ -160,7 +165,11 @@ namespace Profiler
         , m_pStringSerializer( nullptr )
         , m_MainDockSpaceId( 0 )
         , m_PerformanceTabDockSpaceId( 0 )
+        , m_QueueUtilizationTabDockSpaceId( 0 )
+        , m_TopPipelinesTabDockSpaceId( 0 )
+        , m_FrameBrowserDockSpaceId( 0 )
         , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true}
+        , m_QueueUtilizationWindowState{ m_Settings.AddBool( "QueueUtilizationWindowOpen", true ), true}
         , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true}
         , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true}
         , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true}
@@ -897,6 +906,7 @@ namespace Profiler
             if( ImGui::BeginMenu( Lang::WindowMenu ) )
             {
                 ImGui::MenuItem( Lang::PerformanceMenuItem, nullptr, m_PerformanceWindowState.pOpen );
+                ImGui::MenuItem( Lang::QueueUtilizationMenuItem, nullptr, m_QueueUtilizationWindowState.pOpen );
                 ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, m_TopPipelinesWindowState.pOpen );
                 ImGui::MenuItem( Lang::PerformanceCountersMenuItem, nullptr, m_PerformanceCountersWindowState.pOpen );
                 ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, m_MemoryWindowState.pOpen );
@@ -938,7 +948,7 @@ namespace Profiler
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
-        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId" );
+        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_1" );
 
         ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
         ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
@@ -1014,7 +1024,13 @@ namespace Profiler
         }
         else
         {
-            ImGui::DockSpace( m_PerformanceTabDockSpaceId, {}, ImGuiDockNodeFlags_KeepAliveOnly );
+            PerformanceTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
+        }
+        EndDockingWindow();
+
+        if( BeginDockingWindow( Lang::QueueUtilization, m_PerformanceTabDockSpaceId, m_QueueUtilizationWindowState ) )
+        {
+            UpdateQueueUtilizationTab();
         }
         EndDockingWindow();
 
@@ -1271,6 +1287,39 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        PerformanceTabDockSpace
+
+    Description:
+        Defines dock spaces of the "Performance" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PerformanceTabDockSpace( int flags )
+    {
+        bool requiresInitialization = ( ImGui::DockBuilderGetNode( m_PerformanceTabDockSpaceId ) == nullptr );
+        ImGui::DockSpace( m_PerformanceTabDockSpaceId, ImVec2( 0, 0 ), flags );
+
+        if( requiresInitialization )
+        {
+            ImGui::DockBuilderRemoveNode( m_PerformanceTabDockSpaceId );
+            ImGui::DockBuilderAddNode( m_PerformanceTabDockSpaceId, ImGuiDockNodeFlags_DockSpace );
+            ImGui::DockBuilderSetNodeSize( m_PerformanceTabDockSpaceId, ImGui::GetMainViewport()->Size );
+
+            ImGuiID dockMain = m_PerformanceTabDockSpaceId;
+            ImGuiID dockQueueUtilization, dockTopPipelines;
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.12f, &dockQueueUtilization, &dockMain );
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.2f, &dockTopPipelines, &dockMain );
+
+            ImGui::DockBuilderDockWindow( Lang::QueueUtilization, dockQueueUtilization );
+            ImGui::DockBuilderDockWindow( Lang::TopPipelines, dockTopPipelines );
+            ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockMain );
+            ImGui::DockBuilderDockWindow( Lang::PerformanceCounters, dockMain );
+            ImGui::DockBuilderFinish( m_PerformanceTabDockSpaceId );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UpdatePerformanceTab
 
     Description:
@@ -1349,7 +1398,10 @@ namespace Profiler
                 Lang::GPUTime,
                 groupOptions[(size_t)m_HistogramGroupMode] );
 
+            ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, { 1, 1 } );
+
             ImGui::PushItemWidth( -1 );
+            ImGui::PushStyleColor( ImGuiCol_FrameBg, { 0.0f, 0.0f, 0.0f, 0.0f } );
             ImGuiX::PlotHistogramEx(
                 "",
                 columns.data(),
@@ -1357,11 +1409,16 @@ namespace Profiler
                 0,
                 sizeof( columns.front() ),
                 pHistogramDescription, 0, FLT_MAX, { 0, histogramHeight },
+                ImGuiX::HistogramFlags_None,
                 std::bind( &ProfilerOverlayOutput::DrawPerformanceGraphLabel, this, std::placeholders::_1 ),
                 std::bind( &ProfilerOverlayOutput::SelectPerformanceGraphColumn, this, std::placeholders::_1 ) );
+
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
+            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
         }
 
-        ImGui::DockSpace( m_PerformanceTabDockSpaceId );
+        PerformanceTabDockSpace();
 
         // Force frame browser open
         if( m_ScrollToSelectedFrameBrowserNode )
@@ -1370,8 +1427,7 @@ namespace Profiler
         }
 
         // Frame browser
-        ImGui::SetNextWindowDockID( m_PerformanceTabDockSpaceId );
-        if( ImGui::Begin( Lang::FrameBrowser ) )
+        if( ImGui::Begin( Lang::FrameBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
         {
             // Select sort mode
             {
@@ -1473,6 +1529,74 @@ namespace Profiler
         ImGui::End();
 
         m_ScrollToSelectedFrameBrowserNode = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateQueueUtilizationTab
+
+    Description:
+        Updates "Queue utilization" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateQueueUtilizationTab()
+    {
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, { 1, 1 } );
+        ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
+
+        // m_FrameTime is active time, queue utilization calculation should take idle time into account as well.
+        const float frameDuration = GetDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
+
+        std::vector<QueueGraphColumn> queueGraphColumns;
+        for( const auto& [_, queue] : m_pDevice->Queues )
+        {
+            // Enumerate columns for command queue activity graph.
+            queueGraphColumns.clear();
+            GetQueueGraphColumns( queue.Handle, queueGraphColumns );
+
+            if( !queueGraphColumns.empty() )
+            {
+                char queueGraphId[32];
+                snprintf( queueGraphId, sizeof( queueGraphId ), "##QueueGraph%p", queue.Handle );
+
+                const std::string queueName = m_pStringSerializer->GetName( queue.Handle );
+                ImGui::Text( "%s %s", m_pStringSerializer->GetQueueTypeName( queue.Flags ).c_str(), queueName.c_str() );
+
+                const float queueUtilization = GetQueueUtilization( queueGraphColumns );
+                ImGuiX::TextAlignRight(
+                    "%.2f %s, %.2f %%",
+                    queueUtilization,
+                    m_pTimestampDisplayUnitStr,
+                    queueUtilization * 100.f / frameDuration );
+
+                ImGui::PushItemWidth( -1 );
+                ImGui::SetCursorPosY( ImGui::GetCursorPosY() - 3 * interfaceScale );
+                ImGuiX::PlotHistogramEx(
+                    queueGraphId,
+                    queueGraphColumns.data(),
+                    static_cast<int>( queueGraphColumns.size() ),
+                    0,
+                    sizeof( queueGraphColumns.front() ),
+                    "", 0, FLT_MAX, { 0, 8 * interfaceScale },
+                    ImGuiX::HistogramFlags_NoHover |
+                        ImGuiX::HistogramFlags_NoScale );
+
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::BeginTooltip();
+                    ImGui::Text( "%s", queueName.c_str() );
+                    ImGui::Text( "%s", m_pStringSerializer->GetQueueFlagNames( queue.Flags ).c_str() );
+                    ImGui::EndTooltip();
+                }
+            }
+        }
+
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
     }
 
     /***********************************************************************************\
@@ -2722,6 +2846,83 @@ namespace Profiler
 
         // Display shader capability badges in frame browser.
         ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueGraphColumns
+
+    Description:
+        Enumerate queue utilization graph columns.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
+    {
+        uint64_t lastTimestamp = m_pData->m_BeginTimestamp;
+
+        for( const auto& submitBatch : m_pData->m_Submits )
+        {
+            if( submitBatch.m_Handle != queue )
+            {
+                continue;
+            }
+
+            for( const auto& submit : submitBatch.m_Submits )
+            {
+                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                {
+                    if( !commandBuffer.m_DataValid )
+                    {
+                        continue;
+                    }
+
+                    if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
+                    {
+                        QueueGraphColumn& idle = columns.emplace_back();
+                        idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                        idle.y = 0;
+                        idle.color = 0;
+                    }
+
+                    QueueGraphColumn& column = columns.emplace_back();
+                    column.x = GetDuration( commandBuffer );
+                    column.y = 1;
+                    column.color = m_GraphicsPipelineColumnColor;
+
+                    lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+                }
+            }
+        }
+
+        if( ( lastTimestamp != m_pData->m_BeginTimestamp ) &&
+            ( lastTimestamp != m_pData->m_EndTimestamp ) )
+        {
+            QueueGraphColumn& idle = columns.emplace_back();
+            idle.x = GetDuration( lastTimestamp, m_pData->m_EndTimestamp );
+            idle.y = 0;
+            idle.color = 0;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueUtilization
+
+    Description:
+        Calculate queue utilization.
+
+    \***********************************************************************************/
+    float ProfilerOverlayOutput::GetQueueUtilization( const std::vector<QueueGraphColumn>& columns ) const
+    {
+        float utilization = 0.0f;
+        for( const auto& column : columns )
+        {
+            utilization += column.x * column.y;
+        }
+
+        return utilization;
     }
 
     /***********************************************************************************\

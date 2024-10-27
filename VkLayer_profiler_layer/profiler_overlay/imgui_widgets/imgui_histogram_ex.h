@@ -26,6 +26,22 @@ namespace ImGuiX
 {
     /*************************************************************************\
 
+    Enum:
+        HistogramFlags
+
+    Description:
+        Flags for PlotHistogramEx function.
+
+    \*************************************************************************/
+    enum HistogramFlags
+    {
+        HistogramFlags_None = 0,
+        HistogramFlags_NoHover = 1 << 0,
+        HistogramFlags_NoScale = 2 << 0
+    };
+
+    /*************************************************************************\
+
     Structure:
         HistogramColumnData
 
@@ -81,6 +97,7 @@ namespace ImGuiX
         float scale_min = FLT_MAX,
         float scale_max = FLT_MAX,
         ImVec2 graph_size = ImVec2( 0, 0 ),
+        int flags = HistogramFlags_None,
         std::function<HistogramColumnHoverCallback> hover_cb = NULL,
         std::function<HistogramColumnClickCallback> click_cb = NULL );
 }

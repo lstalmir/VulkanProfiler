@@ -468,6 +468,10 @@ namespace Profiler
         frameData.m_TopPipelines = CollectTopPipelines( frame );
         frameData.m_VendorMetrics = AggregateVendorMetrics( frame );
 
+        frameData.m_Ticks = 0;
+        frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
+        frameData.m_EndTimestamp = 0;
+
         // Collect per-frame stats
         for( const auto& submitBatch : frame.m_CompleteSubmits )
         {
@@ -477,6 +481,8 @@ namespace Profiler
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
                     frameData.m_Ticks += (commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value);
+                    frameData.m_BeginTimestamp = std::min( frameData.m_BeginTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                    frameData.m_EndTimestamp = std::max( frameData.m_EndTimestamp, commandBuffer.m_EndTimestamp.m_Value );
                 }
             }
         }

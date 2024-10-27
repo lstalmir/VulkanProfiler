@@ -37,6 +37,7 @@ namespace Profiler
         inline static constexpr char WindowMenu[] = u8"Okno" PROFILER_MENU;
         inline static constexpr char PerformanceMenuItem[] = u8"Wydajność" PROFILER_MENU_ITEM;
         inline static constexpr char PerformanceCountersMenuItem[] = u8"Liczniki wydajności" PROFILER_MENU_ITEM;
+        inline static constexpr char QueueUtilizationMenuItem[] = u8"Wykorzystanie kolejek" PROFILER_MENU_ITEM;
         inline static constexpr char TopPipelinesMenuItem[] = u8"Najdłuższe stany potoku" PROFILER_MENU_ITEM;
         inline static constexpr char MemoryMenuItem[] = u8"Pamięć" PROFILER_MENU_ITEM;
         inline static constexpr char InspectorMenuItem[] = u8"Inspektor" PROFILER_MENU_ITEM;
@@ -62,6 +63,7 @@ namespace Profiler
         inline static constexpr char ShowIdle[] = u8"Pokaż przerwy";
         inline static constexpr char HistogramGroups[] = u8"Grupowanie histogramu";
         inline static constexpr char GPUCycles[] = u8"Cykle GPU";
+        inline static constexpr char QueueUtilization[] = u8"Wykorzystanie kolejek###QueueUtilization";
         inline static constexpr char TopPipelines[] = u8"Najdłuższe stany potoku###Top pipelines";
         inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności###Performance counters";
         inline static constexpr char Metric[] = u8"Metryka";
