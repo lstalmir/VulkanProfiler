@@ -143,6 +143,7 @@ target_link_libraries (profiler_common
     INTERFACE VulkanMemoryAllocator
     INTERFACE SPIRV-Headers
     INTERFACE SPIRV-Tools
+    INTERFACE spirv-cross-c
     INTERFACE farmhash
     INTERFACE fmt
     INTERFACE nlohmann_json)

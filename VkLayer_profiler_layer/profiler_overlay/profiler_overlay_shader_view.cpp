@@ -31,6 +31,7 @@
 
 #include <spirv/unified1/spirv.h>
 #include <spirv-tools/libspirv.h>
+#include <spirv_cross_c.h>
 
 #include <imgui.h>
 #include <TextEditor.h>
@@ -605,6 +606,47 @@ namespace Profiler
 
                 AddShaderRepresentation( pBasename ? pBasename + 1 : pFilename, source.m_pData, dataLength,
                     GetSpirvSourceShaderFormat( source.m_Language ) );
+            }
+
+            // Disassemble the binary to a source using the SPIR-V Cross if sources are not available.
+            if( sourceList.m_Sources.empty() )
+            {
+                spvc_context spvcContext = nullptr;
+                spvc_result spvcResult = spvc_context_create( &spvcContext );
+
+                if( spvcResult == SPVC_SUCCESS )
+                {
+                    spvc_parsed_ir spvcParsedIR = nullptr;
+                    spvcResult = spvc_context_parse_spirv( spvcContext, pBinary, wordCount, &spvcParsedIR );
+
+                    if( spvcResult == SPVC_SUCCESS )
+                    {
+                        spvc_result spvcResult = SPVC_SUCCESS;
+                        spvc_compiler spvcCompiler = nullptr;
+
+                        // Create a compiler for the SPIR-V binary.
+                        spvcResult = spvc_context_create_compiler(
+                            spvcContext,
+                            SPVC_BACKEND_GLSL,
+                            spvcParsedIR,
+                            SPVC_CAPTURE_MODE_TAKE_OWNERSHIP,
+                            &spvcCompiler );
+
+                        if( spvcResult == SPVC_SUCCESS )
+                        {
+                            // Compile the SPIR-V binary to GLSL.
+                            const char* pGlslSource = nullptr;
+                            spvcResult = spvc_compiler_compile( spvcCompiler, &pGlslSource );
+
+                            if( spvcResult == SPVC_SUCCESS )
+                            {
+                                AddShaderRepresentation( "GLSL (SPIR-V Cross)", pGlslSource, strlen( pGlslSource ), ShaderFormat::eGlsl );
+                            }
+                        }
+                    }
+
+                    spvc_context_destroy( spvcContext );
+                }
             }
         }
 

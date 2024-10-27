@@ -72,6 +72,9 @@ add_subdirectory (SPIRV-Headers)
 # KhronosGroup/SPIRV-Tools
 add_subdirectory (SPIRV-Tools)
 
+# KhronosGroup/SPIRV-Cross
+add_subdirectory (SPIRV-Cross)
+
 # SPIRV-Specification
 add_subdirectory (SPIRV-Specification)
 
