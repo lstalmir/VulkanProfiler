@@ -21,6 +21,7 @@
 #pragma once
 #include "vk_dispatch_tables.h"
 #include <stdint.h>
+#include <shared_mutex>
 
 namespace Profiler
 {
@@ -30,5 +31,14 @@ namespace Profiler
         VkQueueFlags Flags;
         uint32_t Family;
         uint32_t Index;
+        std::shared_mutex Mutex;
+
+        VkQueue_Object( VkQueue queue, VkQueueFlags flags, uint32_t family, uint32_t index )
+            : Handle( queue )
+            , Flags( flags )
+            , Family( family )
+            , Index( index )
+        {
+        }
     };
 }

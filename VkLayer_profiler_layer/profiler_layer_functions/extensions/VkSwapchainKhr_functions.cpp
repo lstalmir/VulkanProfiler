@@ -162,7 +162,7 @@ namespace Profiler
         // Create mutable copy of present info
         VkPresentInfoKHR presentInfo = *pPresentInfo;
         // Get present queue wrapper
-        VkQueue_Object& presentQueue = dd.Device.Queues[ queue ];
+        VkQueue_Object& presentQueue = dd.Device.Queues.at( queue );
 
         dd.Profiler.FinishFrame();
 
@@ -176,6 +176,7 @@ namespace Profiler
         dd.Device.TIP.Reset();
 
         // Present the image
+        std::shared_lock lock( presentQueue.Mutex );
         return dd.Device.Callbacks.QueuePresentKHR( queue, &presentInfo );
     }
 }

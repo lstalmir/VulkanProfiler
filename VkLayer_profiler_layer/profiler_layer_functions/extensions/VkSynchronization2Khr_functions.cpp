@@ -44,7 +44,9 @@ namespace Profiler
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
         // Submit the command buffers
+        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, submitCount, pSubmits, fence );
+        lock.unlock();
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
         return result;
