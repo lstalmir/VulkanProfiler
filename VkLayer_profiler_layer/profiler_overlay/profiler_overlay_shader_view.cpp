@@ -139,14 +139,11 @@ namespace
         // OpSources may contain embedded sources.
         if( pInstruction->opcode == SpvOpSource )
         {
-            const char* pData = GetSpirvOperand<const char*>( pInstruction, 3 );
-            if( pData )
-            {
-                Source& source = pSourceList->m_Sources.emplace_back();
-                source.m_Language = GetSpirvOperand<SpvSourceLanguage>( pInstruction, 0 );
-                source.m_FilenameStringID = GetSpirvOperand<uint32_t>( pInstruction, 2 );
-                source.m_pData = pData;
-            }
+            Source& source = pSourceList->m_Sources.emplace_back();
+            source.m_Language = GetSpirvOperand<SpvSourceLanguage>( pInstruction, 0 );
+            source.m_LanguageVersion = GetSpirvOperand<uint32_t>( pInstruction, 1 );
+            source.m_FilenameStringID = GetSpirvOperand<uint32_t>( pInstruction, 2 );
+            source.m_pData = GetSpirvOperand<const char*>( pInstruction, 3 );
             return SPV_SUCCESS;
         }
 
