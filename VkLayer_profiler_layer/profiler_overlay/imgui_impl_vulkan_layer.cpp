@@ -32,20 +32,48 @@ PFN_vkVoidFunction ImGui_ImplVulkan_Context::FunctionLoader( const char* pFuncti
         return reinterpret_cast<PFN_vkVoidFunction>( AllocateCommandBuffers );
     }
 
-    // Try to get device-specific pointer to the function.
-    PFN_vkVoidFunction pfnFunction = info->pDispatchTable->Get(
+    // Nullopt if the function is not known.
+    // Nullptr if the function is known but not found/supported.
+    std::optional<PFN_vkVoidFunction> pfnKnownFunction;
+
+    // Try to return a known device function first.
+    pfnKnownFunction = info->pDispatchTable->Get(
+        info->Device,
+        pFunctionName,
+        VkLayerFunctionNotFoundBehavior::eReturnNullopt );
+
+    if( pfnKnownFunction.has_value() )
+    {
+        return pfnKnownFunction.value();
+    }
+
+    // If the function is not found in the device dispatch table, try to find it in the instance dispatch table.
+    pfnKnownFunction = info->pInstanceDispatchTable->Get(
+        info->Instance,
+        pFunctionName,
+        VkLayerFunctionNotFoundBehavior::eReturnNullopt );
+
+    if( pfnKnownFunction.has_value() )
+    {
+        return pfnKnownFunction.value();
+    }
+
+    // If the function is not known, try to get it from the next layer.
+    PFN_vkVoidFunction pfnUnknownFunction = info->pDispatchTable->GetDeviceProcAddr(
         info->Device,
         pFunctionName );
 
-    if( !pfnFunction )
+    if( pfnUnknownFunction != nullptr )
     {
-        // Return pointer to the Vulkan loader.
-        pfnFunction = info->pInstanceDispatchTable->Get(
-            info->Instance,
-            pFunctionName );
+        return pfnUnknownFunction;
     }
 
-    return pfnFunction;
+    // Unknown function not found in the device chain, try to get it from the instance chain.
+    pfnUnknownFunction = info->pInstanceDispatchTable->GetInstanceProcAddr(
+        info->Instance,
+        pFunctionName );
+
+    return pfnUnknownFunction;
 }
 
 VkResult ImGui_ImplVulkan_Context::AllocateCommandBuffers( VkDevice device, const VkCommandBufferAllocateInfo* pAllocateInfo, VkCommandBuffer* pCommandBuffers )
