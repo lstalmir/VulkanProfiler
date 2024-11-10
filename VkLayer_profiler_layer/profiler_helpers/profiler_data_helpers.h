@@ -51,11 +51,31 @@ namespace Profiler
         std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
 
         std::string GetPointer( const void* ) const;
+        std::string GetBool( VkBool32 ) const;
+        std::string GetVec4( const float* ) const;
 
         std::string GetColorHex( const float* ) const;
 
+        std::string GetQueueTypeName( VkQueueFlags ) const;
+        std::string GetQueueFlagNames( VkQueueFlags ) const;
+
+        std::string GetShaderName( const struct ProfilerShader& ) const;
+        std::string GetShortShaderName( const struct ProfilerShader& ) const;
+        std::string GetShaderStageName( VkShaderStageFlagBits ) const;
+        std::string GetShortShaderStageName( VkShaderStageFlagBits ) const;
+
         std::string GetFormatName( VkFormat ) const;
         std::string GetIndexTypeName( VkIndexType ) const;
+        std::string GetVertexInputRateName( VkVertexInputRate ) const;
+        std::string GetPrimitiveTopologyName( VkPrimitiveTopology ) const;
+        std::string GetPolygonModeName( VkPolygonMode ) const;
+        std::string GetCullModeName( VkCullModeFlags ) const;
+        std::string GetFrontFaceName( VkFrontFace ) const;
+        std::string GetBlendFactorName( VkBlendFactor ) const;
+        std::string GetBlendOpName( VkBlendOp ) const;
+        std::string GetCompareOpName( VkCompareOp ) const;
+        std::string GetLogicOpName( VkLogicOp ) const;
+        std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
 
         std::string GetBufferUsageFlagNames( VkBufferUsageFlags ) const;
         std::string GetImageUsageFlagNames( VkImageUsageFlags ) const;

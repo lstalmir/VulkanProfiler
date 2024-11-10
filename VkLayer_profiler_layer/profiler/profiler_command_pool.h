@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include <mutex>
 #include <vulkan/vulkan.h>
 
 namespace Profiler
@@ -40,10 +41,33 @@ namespace Profiler
         DeviceProfilerCommandPool( const DeviceProfilerCommandPool& ) = delete;
 
         VkCommandPool GetHandle() const;
-        VkQueueFlags GetCommandQueueFlags() const;
+        bool SupportsTimestampQuery() const;
 
     private:
         VkCommandPool m_CommandPool;
-        VkQueueFlags  m_CommandQueueFlags;
+        bool m_SupportsTimestampQuery;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerInternalCommandPool
+
+    Description:
+        Wrapper for internally allocated VkCommandPool object.
+
+    \***********************************************************************************/
+    class DeviceProfilerInternalCommandPool
+        : public DeviceProfilerCommandPool
+    {
+    public:
+        DeviceProfilerInternalCommandPool( class DeviceProfiler&, VkCommandPool, const VkCommandPoolCreateInfo& );
+        ~DeviceProfilerInternalCommandPool();
+
+        std::mutex& GetMutex();
+
+    private:
+        class DeviceProfiler& m_Profiler;
+        std::mutex m_Mutex;
     };
 }

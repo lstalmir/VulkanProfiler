@@ -21,6 +21,7 @@
 #pragma once
 #include <map>
 #include <mutex>
+#include <memory>
 
 #include "profiler_layer_objects/VkObject.h"
 

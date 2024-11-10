@@ -44,4 +44,69 @@ namespace ImGuiX
 
         return table->Columns[ column_index ].WidthGiven;
     }
+
+    /*************************************************************************\
+
+        TableHeadersRow
+
+    \*************************************************************************/
+    void TableHeadersRow(
+        ImFont* font )
+    {
+        ImGuiContext& g = *GImGui;
+        ImGuiTable* table = ImGui::GetCurrentTable();
+        IM_ASSERT( table );
+
+        // Draw the headers row.
+        ImGui::TableNextRow();
+
+        if( font )
+        {
+            ImGui::PushFont( font );
+        }
+
+        for( int i = 0; i < table->DeclColumnsCount; ++i )
+        {
+            if( ImGui::TableNextColumn() )
+            {
+                ImS16 offset = table->Columns[i].NameOffset;
+                ImGui::TextUnformatted( &table->ColumnsNames.Buf.Data[offset] );
+            }
+        }
+
+        if( font )
+        {
+            ImGui::PopFont();
+        }
+
+        // Draw a horizontal line below the headers row.
+        ImU32 col = ImGui::GetColorU32( ImGuiCol_TableBorderLight );
+        ImVec2 hr_beg = { table->BorderX1, table->RowPosY1 + g.FontSize + g.Style.CellPadding.y + 2 };
+        ImVec2 hr_end = { table->BorderX2, hr_beg.y };
+
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        IM_ASSERT( dl );
+        dl->AddLine( hr_beg, hr_end, col, 1.5f );
+    }
+
+    /*************************************************************************\
+
+        TableTextColumn
+
+    \*************************************************************************/
+    bool TableTextColumn(
+        const char* format,
+        ... )
+    {
+        if( ImGui::TableNextColumn() )
+        {
+            va_list args;
+            va_start( args, format );
+            ImGui::TextV( format, args );
+            va_end( args );
+            return true;
+        }
+
+        return false;
+    }
 }

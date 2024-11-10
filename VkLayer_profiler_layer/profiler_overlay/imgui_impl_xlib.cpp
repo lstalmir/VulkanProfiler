@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,9 +19,14 @@
 // SOFTWARE.
 
 #include "imgui_impl_xlib.h"
+#include <mutex>
 #include <imgui.h>
 #include <stdlib.h>
-#include <X11/extensions/shape.h>
+
+namespace Profiler
+{
+    extern std::mutex s_ImGuiMutex;
+}
 
 /***********************************************************************************\
 
@@ -32,19 +37,22 @@ Description:
     Constructor.
 
 \***********************************************************************************/
-ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
-    : m_Display( nullptr )
+ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
+    : m_pImGuiContext( nullptr )
+    , m_Display( nullptr )
     , m_IM( None )
     , m_AppWindow( window )
     , m_InputWindow( None )
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     m_Display = XOpenDisplay( nullptr );
     if( !m_Display )
-        InitError();
+        throw;
 
     m_IM = XOpenIM( m_Display, nullptr, nullptr, nullptr );
     if( !m_IM )
-        InitError();
+        throw;
 
     XWindowAttributes windowAttributes;
     // TODO: error check
@@ -62,7 +70,7 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
         0, nullptr );
 
     if( !m_InputWindow )
-        InitError();
+        throw;
 
     // TODO: error check
     XMapWindow( m_Display, m_InputWindow );
@@ -80,15 +88,23 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window )
 
     // Start listening
     if( !XSelectInput( m_Display, m_InputWindow, inputEventMask ) )
-        InitError();
+        throw;
 
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xlib";
-    io.ImeWindowHandle = (void*)m_InputWindow;
+    io.BackendPlatformUserData = this;
+
+    m_pImGuiContext = ImGui::GetCurrentContext();
 
     // TODO: keyboard mapping to ImGui
+}
+catch (...)
+{
+    // Cleanup the partially initialized context.
+    ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context();
+    throw;
 }
 
 /***********************************************************************************\
@@ -102,6 +118,8 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     if( m_InputWindow ) XDestroyWindow( m_Display, m_InputWindow );
     m_InputWindow = None;
     m_AppWindow = None;
@@ -111,6 +129,15 @@ ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 
     if( m_Display ) XCloseDisplay( m_Display );
     m_Display = nullptr;
+
+    if( m_pImGuiContext )
+    {
+        ImGui::SetCurrentContext( m_pImGuiContext );
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags = 0;
+        io.BackendPlatformName = nullptr;
+        io.BackendPlatformUserData = nullptr;
+    }
 }
 
 /***********************************************************************************\
@@ -137,7 +164,11 @@ Description:
 \***********************************************************************************/
 void ImGui_ImplXlib_Context::NewFrame()
 {
-    if( !ImGui::GetCurrentContext() )
+    // Validate the current ImGui context.
+    ImGuiContext* pContext = ImGui::GetCurrentContext();
+    IM_ASSERT(pContext && "ImGui_ImplXlib_Context::NewFrame called when no ImGui context was set.");
+    IM_ASSERT(pContext == m_pImGuiContext && "ImGui_ImplXlib_Context::NewFrame called with different context than the one used for initialization.");
+    if( !pContext )
         return;
 
     ImGuiIO& io = ImGui::GetIO();
@@ -150,6 +181,17 @@ void ImGui_ImplXlib_Context::NewFrame()
 
     // Update OS mouse position
     UpdateMousePos();
+
+    // Update input capture rects
+    XShapeCombineRectangles(
+        m_Display,
+        m_InputWindow,
+        ShapeInput,
+        0, 0,
+        m_InputRects.data(),
+        m_InputRects.size(),
+        ShapeSet,
+        Unsorted );
 
     // Handle incoming input events
     // Don't block if there are no pending events
@@ -205,12 +247,15 @@ void ImGui_ImplXlib_Context::NewFrame()
         }
         }
     }
+
+    // Rebuild input capture rects on each frame
+    m_InputRects.clear();
 }
 
 /***********************************************************************************\
 
 Function:
-    UpdateWindowRect
+    AddInputCaptureRect
 
 Description:
     X-platform implementations require setting input clipping rects to pass messages
@@ -218,41 +263,14 @@ Description:
     when g.CurrentWindow is set.
 
 \***********************************************************************************/
-void ImGui_ImplXlib_Context::UpdateWindowRect()
+void ImGui_ImplXlib_Context::AddInputCaptureRect( int x, int y, int width, int height )
 {
     // Set input clipping rectangle
-    ImVec2 pos = ImGui::GetWindowPos();
-    ImVec2 size = ImGui::GetWindowSize();
-
-    XRectangle inputRect = {};
-    inputRect.x = pos.x;
-    inputRect.y = pos.y;
-    inputRect.width = size.x;
-    inputRect.height = size.y;
-
-    XShapeCombineRectangles(
-        m_Display,
-        m_InputWindow,
-        ShapeInput,
-        0, 0,
-        &inputRect, 1,
-        ShapeSet,
-        Unsorted );
-}
-
-/***********************************************************************************\
-
-Function:
-    InitError
-
-Description:
-    Cleanup from partially initialized state
-
-\***********************************************************************************/
-void ImGui_ImplXlib_Context::InitError()
-{
-    this->~ImGui_ImplXlib_Context();
-    throw;
+    XRectangle& inputRect = m_InputRects.emplace_back();
+    inputRect.x = x;
+    inputRect.y = y;
+    inputRect.width = width;
+    inputRect.height = height;
 }
 
 /***********************************************************************************\

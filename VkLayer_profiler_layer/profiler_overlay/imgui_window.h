@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,6 @@ public:
     virtual ~ImGui_Window_Context() {}
     virtual const char* GetName() const = 0;
     virtual void NewFrame() = 0;
-    virtual void UpdateWindowRect() {}
+    virtual void AddInputCaptureRect( int x, int y, int width, int height ) {}
     virtual float GetDPIScale() const { return 1.0f; }
 };

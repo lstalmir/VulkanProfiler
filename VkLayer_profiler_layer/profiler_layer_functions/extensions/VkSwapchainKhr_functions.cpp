@@ -185,6 +185,8 @@ namespace Profiler
             dd.Overlay.Present( dd.Profiler.GetData(), presentQueue, &presentInfo );
         }
 
+        dd.Device.TIP.Reset();
+
         // Present the image
         return dd.Device.Callbacks.QueuePresentKHR( queue, &presentInfo );
     }

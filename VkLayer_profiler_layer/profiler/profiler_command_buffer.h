@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,8 @@ namespace Profiler
 {
     class DeviceProfiler;
     class DeviceProfilerCommandPool;
+    class DeviceProfilerQueryDataBufferWriter;
+    class DeviceProfilerQueryDataBufferReader;
 
     /***********************************************************************************\
 
@@ -71,6 +73,7 @@ namespace Profiler
         void NextSubpass( VkSubpassContents );
 
         void BindPipeline( const DeviceProfilerPipeline& );
+        void BindShaders( uint32_t, const VkShaderStageFlagBits*, const VkShaderEXT* );
 
         void PreCommand( const DeviceProfilerDrawcall& );
         void PostCommand( const DeviceProfilerDrawcall& );
@@ -81,7 +84,10 @@ namespace Profiler
             uint32_t, const VkImageMemoryBarrier* );
         void PipelineBarrier( const VkDependencyInfo* );
 
-        const DeviceProfilerCommandBufferData& GetData();
+        uint64_t GetRequiredQueryDataBufferSize() const;
+        void WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
+
+        const DeviceProfilerCommandBufferData& GetData( DeviceProfilerQueryDataBufferReader& );
 
     protected:
         DeviceProfiler&                     m_Profiler;
@@ -91,7 +97,6 @@ namespace Profiler
         const VkCommandBufferLevel          m_Level;
 
         bool                                m_ProfilingEnabled;
-        bool                                m_Dirty;
 
         std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
 
@@ -117,14 +122,12 @@ namespace Profiler
 
         void EndSubpass();
 
-        void IncrementStat( const DeviceProfilerDrawcall& );
-
-        bool SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
+        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline&, DeviceProfilerPipelineData** );
         void SetupCommandBufferForSecondaryBuffers();
 
         DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;
 
-        DeviceProfilerPipelineData& GetCurrentPipeline();
-
+        void ResolveSubpassPipelineData( const DeviceProfilerQueryDataBufferReader&, DeviceProfilerSubpassData&, size_t );
+        void ResolveSubpassSecondaryCommandBufferData( DeviceProfilerQueryDataBufferReader, DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
     };
 }

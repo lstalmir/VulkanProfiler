@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <sstream>
 #include <string>
+#include <functional>
 
 #include "lockable_unordered_map.h"
 
@@ -46,6 +47,9 @@
 namespace Profiler
 {
     class ProfilerCommandBuffer;
+
+    // Deferred operation callback.
+    using DeferredOperationCallback = std::function<void( VkDeferredOperationKHR )>;
 
     /***********************************************************************************\
 
@@ -60,10 +64,10 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const VkProfilerCreateInfoEXT* );
+        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT* );
         static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
 
-        static void LoadConfiguration( const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
+        static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
         VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
 
@@ -72,18 +76,26 @@ namespace Profiler
         // Public interface
         VkResult SetMode( VkProfilerModeEXT );
         VkResult SetSyncMode( VkProfilerSyncModeEXT );
-        DeviceProfilerFrameData GetData() const;
+        std::shared_ptr<DeviceProfilerFrameData> GetData() const;
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
         DeviceProfilerCommandPool& GetCommandPool( VkCommandPool commandPool );
         DeviceProfilerPipeline& GetPipeline( VkPipeline pipeline );
         DeviceProfilerRenderPass& GetRenderPass( VkRenderPass renderPass );
+        ProfilerShader& GetShader( VkShaderEXT shader );
+
+        bool ShouldCapturePipelineExecutableProperties() const;
 
         void CreateCommandPool( VkCommandPool, const VkCommandPoolCreateInfo* );
         void DestroyCommandPool( VkCommandPool );
 
         void AllocateCommandBuffers( VkCommandPool, VkCommandBufferLevel, uint32_t, VkCommandBuffer* );
         void FreeCommandBuffers( uint32_t, const VkCommandBuffer* );
+
+        void CreateDeferredOperation( VkDeferredOperationKHR );
+        void DestroyDeferredOperation( VkDeferredOperationKHR );
+        void SetDeferredOperationCallback( VkDeferredOperationKHR, DeferredOperationCallback );
+        void ExecuteDeferredOperationCallback( VkDeferredOperationKHR );
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
@@ -92,14 +104,17 @@ namespace Profiler
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
         void DestroyShaderModule( VkShaderModule );
+        void CreateShader( VkShaderEXT, const VkShaderCreateInfoEXT* );
+        void DestroyShader( VkShaderEXT );
 
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo* );
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
         void DestroyRenderPass( VkRenderPass );
 
-        void PreSubmitCommandBuffers( VkQueue );
-        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo* );
-        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo2* );
+        void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo*, DeviceProfilerSubmitBatch* );
+        void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo2*, DeviceProfilerSubmitBatch* );
+        void PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
+        void PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
 
         void FinishFrame();
 
@@ -130,8 +145,7 @@ namespace Profiler
 
         mutable std::mutex      m_SubmitMutex;
         mutable std::mutex      m_PresentMutex;
-        mutable std::mutex      m_DataMutex;
-        DeviceProfilerFrameData m_Data;
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
 
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
@@ -158,8 +172,11 @@ namespace Profiler
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;
 
-        ConcurrentMap<VkShaderModule, ProfilerShaderModule> m_ShaderModules;
+        ConcurrentMap<VkShaderModule, std::shared_ptr<ProfilerShaderModule>> m_pShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
+        ConcurrentMap<VkShaderEXT, ProfilerShader> m_Shaders;
+
+        ConcurrentMap<VkDeferredOperationKHR, DeferredOperationCallback> m_DeferredOperationCallbacks;
 
         ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
 
@@ -171,6 +188,10 @@ namespace Profiler
 
         DeviceProfilerSynchronization m_Synchronization;
 
+        // Whether VK_KHR_pipeline_executable_properties is available for the profiled device.
+        // In such case the internal representations of pipelines may be inspected to give more insight on potential performance issues.
+        bool                    m_PipelineExecutablePropertiesEnabled;
+
         void*                   m_pStablePowerStateHandle;
 
 
@@ -179,7 +200,7 @@ namespace Profiler
         void ReleasePerformanceConfigurationINTEL();
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
-        
+
         void SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages );
         void SetDefaultObjectName( const DeviceProfilerPipeline& pipeline );
 
@@ -187,7 +208,9 @@ namespace Profiler
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
 
         template<typename SubmitInfoT>
-        void PostSubmitCommandBuffersImpl( VkQueue, uint32_t, const SubmitInfoT* );
+        void CreateSubmitBatchInfoImpl( VkQueue, uint32_t, const SubmitInfoT*, DeviceProfilerSubmitBatch* );
+
+        void BeginNextFrame();
 
         template<typename ResourceT>
         void BindResourceMemoryImpl( ResourceT, VkDeviceMemory, VkDeviceSize, VkMemoryRequirements, DeviceProfilerResourceInfo& );

@@ -24,25 +24,26 @@
 
 #include <Windows.h>
 
+struct ImGuiContext;
+
 class ImGui_ImplWin32_Context : public ImGui_Window_Context
 {
 public:
     ImGui_ImplWin32_Context( HWND hWnd );
     ~ImGui_ImplWin32_Context();
 
+    HWND        GetWindow() const;
     const char* GetName() const override;
-
-    void NewFrame() override;
-
-    float GetDPIScale() const override;
+    void        NewFrame() override;
+    float       GetDPIScale() const override;
 
 private:
     HWND m_AppWindow;
-
-    void InitError();
+    DWORD m_AppWindowThreadId;
+    ImGuiContext* m_pImGuiContext;
+    int m_RawMouseX;
+    int m_RawMouseY;
+    int m_RawMouseButtons;
 
     static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
-
-    static bool IsMouseMessage( const MSG& );
-    static bool IsKeyboardMessage( const MSG& );
 };

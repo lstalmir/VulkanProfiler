@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,12 +19,14 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_counters.h"
 #include "profiler_shader.h"
 #include <assert.h>
 #include <chrono>
 #include <vector>
 #include <list>
 #include <deque>
+#include <variant>
 #include <unordered_map>
 #include <cstring>
 #include <vulkan/vulkan.h>
@@ -57,6 +59,12 @@ namespace Profiler
         eDrawIndexedIndirect = 0x00010003,
         eDrawIndirectCount = 0x00010004,
         eDrawIndexedIndirectCount = 0x00010005,
+        eDrawMeshTasks = 0x00010006,
+        eDrawMeshTasksIndirect = 0x00010007,
+        eDrawMeshTasksIndirectCount = 0x00010008,
+        eDrawMeshTasksNV = 0x00010009,
+        eDrawMeshTasksIndirectNV = 0x0001000A,
+        eDrawMeshTasksIndirectCountNV = 0x0001000B,
         eDispatch = 0x00020000,
         eDispatchIndirect = 0x00020001,
         eCopyBuffer = 0x00030000,
@@ -72,6 +80,7 @@ namespace Profiler
         eUpdateBuffer = 0x000D0000,
         eTraceRaysKHR = 0x000E0000,
         eTraceRaysIndirectKHR = 0x000E0001,
+        eTraceRaysIndirect2KHR = 0x000E0002,
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eBuildAccelerationStructuresIndirectKHR = 0x000F0001,
         eCopyAccelerationStructureKHR = 0x00100000,
@@ -128,6 +137,27 @@ namespace Profiler
         eCompute,
         eRayTracing,
         eCopy
+    };
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerSubpassDataType
+
+    Description:
+        Supported types of subpass data.
+
+        In core Vulkan, only either inline pipelines, or only secondary command buffers
+        are allowed in a subpass. With VK_EXT_nested_command_buffers subpass may contain
+        both pipelines and command buffers.
+
+        This enum must be kept in sync with order of structures in the std::variant that
+        holds the data.
+
+    \***********************************************************************************/
+    enum class DeviceProfilerSubpassDataType : uint32_t
+    {
+        ePipeline,
+        eCommandBuffer
     };
 
     /***********************************************************************************\
@@ -199,6 +229,47 @@ namespace Profiler
 
     struct DeviceProfilerDrawcallDrawIndexedIndirectCountPayload
         : DeviceProfilerDrawcallDrawIndirectCountPayload
+    {
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksPayload
+    {
+        uint32_t m_GroupCountX;
+        uint32_t m_GroupCountY;
+        uint32_t m_GroupCountZ;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
+    {
+        VkBuffer m_Buffer;
+        VkDeviceSize m_Offset;
+        uint32_t m_DrawCount;
+        uint32_t m_Stride;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
+    {
+        VkBuffer m_Buffer;
+        VkDeviceSize m_Offset;
+        VkBuffer m_CountBuffer;
+        VkDeviceSize m_CountOffset;
+        uint32_t m_MaxDrawCount;
+        uint32_t m_Stride;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksNvPayload
+    {
+        uint32_t m_TaskCount;
+        uint32_t m_FirstTask;
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
+    {
+    };
+
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
     {
     };
 
@@ -291,6 +362,11 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallTraceRaysIndirectPayload
+    {
+        VkDeviceAddress m_IndirectAddress;
+    };
+
+    struct DeviceProfilerDrawcallTraceRaysIndirect2Payload
     {
         VkDeviceAddress m_IndirectAddress;
     };
@@ -462,6 +538,12 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndexedIndirectPayload, m_DrawIndexedIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndirectCountPayload, m_DrawIndirectCount );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndexedIndirectCountPayload, m_DrawIndexedIndirectCount );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksPayload, m_DrawMeshTasks );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectPayload, m_DrawMeshTasksIndirect );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload, m_DrawMeshTasksIndirectCount );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksNvPayload, m_DrawMeshTasksNV );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload, m_DrawMeshTasksIndirectNV );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload, m_DrawMeshTasksIndirectCountNV );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchPayload, m_Dispatch );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchIndirectPayload, m_DispatchIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyBufferPayload, m_CopyBuffer );
@@ -477,6 +559,7 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallUpdateBufferPayload, m_UpdateBuffer );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysPayload, m_TraceRays );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysIndirectPayload, m_TraceRaysIndirect );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysIndirect2Payload, m_TraceRaysIndirect2 );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildAccelerationStructuresPayload, m_BuildAccelerationStructures );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload, m_BuildAccelerationStructuresIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure );
@@ -499,6 +582,9 @@ namespace Profiler
         DeviceProfilerDrawcallPayload                       m_Payload = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
 
         inline DeviceProfilerPipelineType GetPipelineType() const
         {
@@ -623,59 +709,216 @@ namespace Profiler
         DeviceProfilerDrawcallStats
 
     Description:
-        Stores number of drawcalls.
+        Stores number and summarized times (total, min and max) of each drawcall type.
 
     \***********************************************************************************/
     struct DeviceProfilerDrawcallStats
     {
-        uint32_t m_DrawCount = {};
-        uint32_t m_DrawIndirectCount = {};
-        uint32_t m_DispatchCount = {};
-        uint32_t m_DispatchIndirectCount = {};
-        uint32_t m_CopyBufferCount = {};
-        uint32_t m_CopyBufferToImageCount = {};
-        uint32_t m_CopyImageCount = {};
-        uint32_t m_CopyImageToBufferCount = {};
-        uint32_t m_ClearColorCount = {};
-        uint32_t m_ClearDepthStencilCount = {};
-        uint32_t m_ResolveCount = {};
-        uint32_t m_BlitImageCount = {};
-        uint32_t m_FillBufferCount = {};
-        uint32_t m_UpdateBufferCount = {};
-        uint32_t m_TraceRaysCount = {};
-        uint32_t m_TraceRaysIndirectCount = {};
-        uint32_t m_BuildAccelerationStructuresCount = {};
-        uint32_t m_BuildAccelerationStructuresIndirectCount = {};
-        uint32_t m_CopyAccelerationStructureCount = {};
-        uint32_t m_CopyAccelerationStructureToMemoryCount = {};
-        uint32_t m_CopyMemoryToAccelerationStructureCount = {};
-        uint32_t m_PipelineBarrierCount = {};
-
-        // Stat aggregation helper
-        inline DeviceProfilerDrawcallStats& operator+=( const DeviceProfilerDrawcallStats& rh )
+        struct Stats
         {
-            m_DrawCount += rh.m_DrawCount;
-            m_DrawIndirectCount += rh.m_DrawIndirectCount;
-            m_DispatchCount += rh.m_DispatchCount;
-            m_DispatchIndirectCount += rh.m_DispatchIndirectCount;
-            m_CopyBufferCount += rh.m_CopyBufferCount;
-            m_CopyBufferToImageCount += rh.m_CopyBufferToImageCount;
-            m_CopyImageCount += rh.m_CopyImageCount;
-            m_CopyImageToBufferCount += rh.m_CopyImageToBufferCount;
-            m_ClearColorCount += rh.m_ClearColorCount;
-            m_ClearDepthStencilCount += rh.m_ClearDepthStencilCount;
-            m_ResolveCount += rh.m_ResolveCount;
-            m_BlitImageCount += rh.m_BlitImageCount;
-            m_FillBufferCount += rh.m_FillBufferCount;
-            m_UpdateBufferCount += rh.m_UpdateBufferCount;
-            m_TraceRaysCount += rh.m_TraceRaysCount;
-            m_TraceRaysIndirectCount += rh.m_TraceRaysIndirectCount;
-            m_BuildAccelerationStructuresCount += rh.m_BuildAccelerationStructuresCount;
-            m_BuildAccelerationStructuresIndirectCount += rh.m_BuildAccelerationStructuresIndirectCount;
-            m_CopyAccelerationStructureCount += rh.m_CopyAccelerationStructureCount;
-            m_CopyAccelerationStructureToMemoryCount += rh.m_CopyAccelerationStructureToMemoryCount;
-            m_CopyMemoryToAccelerationStructureCount += rh.m_CopyMemoryToAccelerationStructureCount;
-            m_PipelineBarrierCount += rh.m_PipelineBarrierCount;
+            uint64_t m_Count = 0;
+            uint64_t m_TicksSum = 0;
+            uint64_t m_TicksMax = 0;
+            uint64_t m_TicksMin = 0;
+
+            inline uint64_t GetTicksAvg() const
+            {
+                return m_Count ? (m_TicksSum / m_Count) : 0;
+            }
+
+            inline void AddTicks( uint64_t ticks )
+            {
+                if( m_TicksSum == 0 )
+                {
+                    m_TicksMax = ticks;
+                    m_TicksMin = ticks;
+                }
+                else
+                {
+                    m_TicksMax = std::max( m_TicksMax, ticks );
+                    m_TicksMin = std::min( m_TicksMin, ticks );
+                }
+
+                m_TicksSum += ticks;
+            }
+
+            inline void AddStats( const Stats& stats )
+            {
+                m_Count += stats.m_Count;
+
+                if( m_TicksSum == 0 )
+                {
+                    m_TicksMax = stats.m_TicksMax;
+                    m_TicksMin = stats.m_TicksMin;
+                }
+                else
+                {
+                    m_TicksMax = std::max( m_TicksMax, stats.m_TicksMax );
+                    m_TicksMin = std::min( m_TicksMin, stats.m_TicksMin );
+                }
+
+                m_TicksSum += stats.m_TicksSum;
+            }
+        };
+
+        Stats m_DrawStats = {};
+        Stats m_DrawIndirectStats = {};
+        Stats m_DrawMeshTasksStats = {};
+        Stats m_DrawMeshTasksIndirectStats = {};
+        Stats m_DispatchStats = {};
+        Stats m_DispatchIndirectStats = {};
+        Stats m_CopyBufferStats = {};
+        Stats m_CopyBufferToImageStats = {};
+        Stats m_CopyImageStats = {};
+        Stats m_CopyImageToBufferStats = {};
+        Stats m_ClearColorStats = {};
+        Stats m_ClearDepthStencilStats = {};
+        Stats m_ResolveStats = {};
+        Stats m_BlitImageStats = {};
+        Stats m_FillBufferStats = {};
+        Stats m_UpdateBufferStats = {};
+        Stats m_TraceRaysStats = {};
+        Stats m_TraceRaysIndirectStats = {};
+        Stats m_BuildAccelerationStructuresStats = {};
+        Stats m_BuildAccelerationStructuresIndirectStats = {};
+        Stats m_CopyAccelerationStructureStats = {};
+        Stats m_CopyAccelerationStructureToMemoryStats = {};
+        Stats m_CopyMemoryToAccelerationStructureStats = {};
+        Stats m_PipelineBarrierStats = {};
+
+        // Stat iteration helpers.
+        inline Stats* begin() { return reinterpret_cast<Stats*>(this); }
+        inline Stats* end() { return reinterpret_cast<Stats*>(this + 1); }
+
+        inline const Stats* begin() const { return reinterpret_cast<const Stats*>(this); }
+        inline const Stats* end() const { return reinterpret_cast<const Stats*>(this + 1); }
+
+        inline constexpr size_t size() const { return sizeof( *this ) / sizeof( Stats ); }
+
+        inline Stats* data() { return begin(); }
+        inline const Stats* data() const { return begin(); }
+
+        // Return stats for the given drawcall type.
+        inline Stats* GetStats( DeviceProfilerDrawcallType type )
+        {
+            switch( type )
+            {
+            case DeviceProfilerDrawcallType::eDraw:
+            case DeviceProfilerDrawcallType::eDrawIndexed:
+                return &m_DrawStats;
+            case DeviceProfilerDrawcallType::eDrawIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndirectCount:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+                return &m_DrawIndirectStats;
+            case DeviceProfilerDrawcallType::eDrawMeshTasks:
+            case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
+                return &m_DrawMeshTasksStats;
+            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
+            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
+            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
+            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
+                return &m_DrawMeshTasksIndirectStats;
+            case DeviceProfilerDrawcallType::eDispatch:
+                return &m_DispatchStats;
+            case DeviceProfilerDrawcallType::eDispatchIndirect:
+                return &m_DispatchIndirectStats;
+            case DeviceProfilerDrawcallType::eCopyBuffer:
+                return &m_CopyBufferStats;
+            case DeviceProfilerDrawcallType::eCopyBufferToImage:
+                return &m_CopyBufferToImageStats;
+            case DeviceProfilerDrawcallType::eCopyImage:
+                return &m_CopyImageStats;
+            case DeviceProfilerDrawcallType::eCopyImageToBuffer:
+                return &m_CopyImageToBufferStats;
+            case DeviceProfilerDrawcallType::eClearColorImage:
+            case DeviceProfilerDrawcallType::eClearAttachments:
+                return &m_ClearColorStats;
+            case DeviceProfilerDrawcallType::eClearDepthStencilImage:
+                return &m_ClearDepthStencilStats;
+            case DeviceProfilerDrawcallType::eResolveImage:
+                return &m_ResolveStats;
+            case DeviceProfilerDrawcallType::eBlitImage:
+                return &m_BlitImageStats;
+            case DeviceProfilerDrawcallType::eFillBuffer:
+                return &m_FillBufferStats;
+            case DeviceProfilerDrawcallType::eUpdateBuffer:
+                return &m_UpdateBufferStats;
+            case DeviceProfilerDrawcallType::eTraceRaysKHR:
+                return &m_TraceRaysStats;
+            case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+                return &m_TraceRaysIndirectStats;
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+                return &m_BuildAccelerationStructuresStats;
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+                return &m_BuildAccelerationStructuresIndirectStats;
+            case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+                return &m_CopyAccelerationStructureStats;
+            case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+                return &m_CopyAccelerationStructureToMemoryStats;
+            case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+                return &m_CopyMemoryToAccelerationStructureStats;
+            default:
+                return nullptr;
+            }
+        }
+
+        // Increment count of specific drawcall type.
+        void AddCount( const DeviceProfilerDrawcall& drawcall )
+        {
+            uint32_t count = 1;
+            switch( drawcall.m_Type )
+            {
+            case DeviceProfilerDrawcallType::eClearAttachments:
+                count = drawcall.m_Payload.m_ClearAttachments.m_Count;
+                break;
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+                count = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
+                break;
+            }
+
+            AddCount( drawcall.m_Type, count );
+        }
+
+        // Increment count of specific drawcall type.
+        void AddCount( DeviceProfilerDrawcallType type, uint64_t count )
+        {
+            Stats* pStats = GetStats( type );
+            if( pStats )
+            {
+                pStats->m_Count += count;
+            }
+        }
+
+        // Increment total, min and max ticks of the specific drawcall type.
+        void AddTicks( DeviceProfilerDrawcallType type, uint64_t ticks )
+        {
+            Stats* pStats = GetStats( type );
+            if( pStats )
+            {
+                pStats->AddTicks( ticks );
+            }
+        }
+
+        // Increment all stats with stats from the other structure.
+        void AddStats( const DeviceProfilerDrawcallStats& stats )
+        {
+            Stats* pStat = begin();
+            Stats const* pOtherStat = stats.begin();
+
+            Stats* pEnd = end();
+            while( pStat != pEnd )
+            {
+                pStat->AddStats( *pOtherStat );
+                pStat++;
+                pOtherStat++;
+            }
+        }
+
+        DeviceProfilerDrawcallStats& operator+=( const DeviceProfilerDrawcallStats& stats )
+        {
+            AddStats( stats );
             return *this;
         }
     };
@@ -691,6 +934,13 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerPipeline
     {
+        union CreateInfo
+        {
+            VkGraphicsPipelineCreateInfo                    m_GraphicsPipelineCreateInfo;
+            VkComputePipelineCreateInfo                     m_ComputePipelineCreateInfo;
+            VkRayTracingPipelineCreateInfoKHR               m_RayTracingPipelineCreateInfoKHR;
+        };
+
         VkPipeline                                          m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
@@ -698,6 +948,22 @@ namespace Profiler
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
+
+        bool                                                m_UsesShaderObjects = false;
+
+        std::shared_ptr<CreateInfo>                         m_pCreateInfo = nullptr;
+
+        inline void Finalize()
+        {
+            // Prefetch shader capabilities.
+            m_UsesRayQuery = m_ShaderTuple.UsesRayQuery();
+            m_UsesRayTracing = m_ShaderTuple.UsesRayTracing();
+
+            // Calculate pipeline hash.
+            m_ShaderTuple.UpdateHash();
+        }
+
+        static std::shared_ptr<CreateInfo> CopyPipelineCreateInfo( const VkGraphicsPipelineCreateInfo* pCreateInfo );
     };
 
     /***********************************************************************************\
@@ -709,16 +975,8 @@ namespace Profiler
         Contains data collected per-pipeline.
 
     \***********************************************************************************/
-    struct DeviceProfilerPipelineData
+    struct DeviceProfilerPipelineData : DeviceProfilerPipeline
     {
-        VkPipeline                                          m_Handle = {};
-        VkPipelineBindPoint                                 m_BindPoint = {};
-        ProfilerShaderTuple                                 m_ShaderTuple = {};
-        DeviceProfilerPipelineType                          m_Type = {};
-
-        bool                                                m_UsesRayQuery = false;
-        bool                                                m_UsesRayTracing = false;
-
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
         ContainerType<struct DeviceProfilerDrawcall>        m_Drawcalls = {};
@@ -726,12 +984,7 @@ namespace Profiler
         inline DeviceProfilerPipelineData() = default;
 
         inline DeviceProfilerPipelineData( const DeviceProfilerPipeline& pipeline )
-            : m_Handle( pipeline.m_Handle )
-            , m_BindPoint( pipeline.m_BindPoint )
-            , m_ShaderTuple( pipeline.m_ShaderTuple )
-            , m_Type( pipeline.m_Type )
-            , m_UsesRayQuery( pipeline.m_UsesRayQuery )
-            , m_UsesRayTracing( pipeline.m_UsesRayTracing )
+            : DeviceProfilerPipeline( pipeline )
         {
         }
 
@@ -739,6 +992,9 @@ namespace Profiler
         {
             return m_ShaderTuple == rh.m_ShaderTuple;
         }
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -772,8 +1028,11 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
-        ContainerType<struct DeviceProfilerPipelineData>    m_Pipelines = {};
-        std::list<struct DeviceProfilerCommandBufferData>   m_SecondaryCommandBuffers = {};
+        struct Data;
+        std::vector<Data>                                   m_Data = {};
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -810,6 +1069,9 @@ namespace Profiler
         VkAttachmentLoadOp                                  m_StencilAttachmentLoadOp = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -828,6 +1090,9 @@ namespace Profiler
         VkAttachmentStoreOp                                 m_StencilAttachmentStoreOp = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -847,6 +1112,9 @@ namespace Profiler
 
         DeviceProfilerRenderPassType                        m_Type = {};
         bool                                                m_Dynamic = {};
+        bool                                                m_ClearsColorAttachments = {};
+        bool                                                m_ClearsDepthStencilAttachments = {};
+        bool                                                m_ResolvesAttachments = {};
 
         DeviceProfilerRenderPassBeginData                   m_Begin = {};
         DeviceProfilerRenderPassEndData                     m_End = {};
@@ -855,6 +1123,9 @@ namespace Profiler
 
         bool HasBeginCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
         bool HasEndCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -874,12 +1145,17 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
+        bool                                                m_DataValid = false;
+
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_PerformanceQueryResults = {};
         uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
 
         uint64_t                                            m_ProfilerCpuOverheadNs = {};
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -899,6 +1175,9 @@ namespace Profiler
 
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
+        inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
 
     /***********************************************************************************\
@@ -914,7 +1193,7 @@ namespace Profiler
     {
         VkQueue                                             m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
-        std::chrono::high_resolution_clock::time_point      m_Timestamp = {};
+        uint64_t                                            m_Timestamp = {};
         uint32_t                                            m_ThreadId = {};
     };
 
@@ -1129,10 +1408,26 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerCPUData
     {
-        std::chrono::high_resolution_clock::time_point      m_BeginTimestamp = {};
-        std::chrono::high_resolution_clock::time_point      m_EndTimestamp = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
         float                                               m_FramesPerSec = {};
+        uint32_t                                            m_FrameIndex = {};
         uint32_t                                            m_ThreadId = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerSynchronizationTimestamps
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerSynchronizationTimestamps
+    {
+        VkTimeDomainEXT                                     m_HostTimeDomain = {};
+        uint64_t                                            m_HostCalibratedTimestamp = {};
+        uint64_t                                            m_DeviceCalibratedTimestamp = {};
     };
 
     /***********************************************************************************\
@@ -1151,13 +1446,63 @@ namespace Profiler
         DeviceProfilerDrawcallStats                         m_Stats = {};
 
         uint64_t                                            m_Ticks = {};
+        uint64_t                                            m_BeginTimestamp = {};
+        uint64_t                                            m_EndTimestamp = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};
+        std::vector<struct TipRange>                        m_TIP = {};
 
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
 
-        std::unordered_map<VkQueue, uint64_t>               m_SyncTimestamps = {};
+        DeviceProfilerSynchronizationTimestamps             m_SyncTimestamps = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerSubpassData::Data
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerSubpassData::Data : public std::variant<
+        DeviceProfilerPipelineData,
+        DeviceProfilerCommandBufferData>
+    {
+        // Use std::variant's constructors.
+        using std::variant<DeviceProfilerPipelineData, DeviceProfilerCommandBufferData>::variant;
+
+        constexpr DeviceProfilerSubpassDataType GetType() const
+        {
+            return static_cast<DeviceProfilerSubpassDataType>(index());
+        }
+
+        inline DeviceProfilerTimestamp GetBeginTimestamp() const
+        {
+            switch( GetType() )
+            {
+            case DeviceProfilerSubpassDataType::ePipeline:
+                return std::get<DeviceProfilerPipelineData>( *this ).GetBeginTimestamp();
+            case DeviceProfilerSubpassDataType::eCommandBuffer:
+                return std::get<DeviceProfilerCommandBufferData>( *this ).GetBeginTimestamp();
+            default:
+                return DeviceProfilerTimestamp();
+            }
+        }
+
+        inline DeviceProfilerTimestamp GetEndTimestamp() const
+        {
+            switch( GetType() )
+            {
+            case DeviceProfilerSubpassDataType::ePipeline:
+                return std::get<DeviceProfilerPipelineData>( *this ).GetEndTimestamp();
+            case DeviceProfilerSubpassDataType::eCommandBuffer:
+                return std::get<DeviceProfilerCommandBufferData>( *this ).GetEndTimestamp();
+            default:
+                return DeviceProfilerTimestamp();
+            }
+        }
     };
 }
 

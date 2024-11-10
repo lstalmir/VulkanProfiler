@@ -48,13 +48,17 @@ set (sources
     "profiler_command_buffer_query_pool.cpp"
     "profiler_command_pool.cpp"
     "profiler_config.cpp"
+    "profiler_data.cpp"
     "profiler_data_aggregator.cpp"
     "profiler_memory_manager.cpp"
     "profiler_query_pool.cpp"
+    "profiler_shader.cpp"
     "profiler_sync.cpp"
     # Windows
+    "profiler_counters_windows.inl"
     "profiler_helpers_windows.cpp"
     # Linux
+    "profiler_counters_linux.inl"
     "profiler_helpers_linux.cpp"
     )
 

@@ -26,11 +26,15 @@
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include "profiler_overlay_settings.h"
+#include "profiler_overlay_fonts.h"
+#include "profiler_overlay_shader_view.h"
 #include <vulkan/vk_layer.h>
 #include <list>
 #include <vector>
 #include <stack>
 #include <mutex>
+#include <functional>
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
@@ -64,6 +68,7 @@ namespace Profiler
     {
     public:
         ProfilerOverlayOutput();
+        ~ProfilerOverlayOutput();
 
         VkResult Initialize(
             VkDevice_Object& device,
@@ -82,25 +87,25 @@ namespace Profiler
             const VkSwapchainCreateInfoKHR* pCreateInfo );
 
         void Present(
-            const DeviceProfilerFrameData& data,
+            const std::shared_ptr<DeviceProfilerFrameData>& pData,
             const VkQueue_Object& presentQueue,
             VkPresentInfoKHR* pPresentInfo );
 
     private:
+        OverlaySettings m_Settings;
+
         VkDevice_Object* m_pDevice;
         VkQueue_Object* m_pGraphicsQueue;
         VkSwapchainKhr_Object* m_pSwapchain;
 
         OSWindowHandle m_Window;
 
-        static std::mutex s_ImGuiMutex;
         ImGuiContext* m_pImGuiContext;
         ImPlotContext* m_pImPlotContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
 
-        ImFont* m_pUIFont;
-        ImFont* m_pMonoFont;
+        OverlayFonts m_Fonts;
 
         VkDescriptorPool m_DescriptorPool;
 
@@ -115,6 +120,8 @@ namespace Profiler
         std::vector<VkCommandBuffer> m_CommandBuffers;
         std::vector<VkFence> m_CommandFences;
         std::vector<VkSemaphore> m_CommandSemaphores;
+
+        std::string m_Title;
 
         uint32_t m_ActiveMetricsSetIndex;
 
@@ -146,52 +153,67 @@ namespace Profiler
         {
             eRenderPass,
             ePipeline,
-            eDrawcall
+            eDrawcall,
+            eRenderPassBegin,
+            eRenderPassEnd,
+        };
+
+        enum class HistogramValueMode
+        {
+            eConstant,
+            eDuration,
         };
 
         HistogramGroupMode m_HistogramGroupMode;
+        HistogramValueMode m_HistogramValueMode;
+        bool m_HistogramShowIdle;
 
-        struct FrameBrowserTreeNodeIndex
-        {
-            uint16_t SubmitBatchIndex;
-            uint16_t SubmitIndex;
-            uint16_t PrimaryCommandBufferIndex;
-            uint16_t SecondaryCommandBufferIndex;
-            uint16_t RenderPassIndex;
-            uint16_t SubpassIndex;
-            uint16_t PipelineIndex;
-            uint16_t DrawcallIndex;
+        typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
-            inline bool operator==( const FrameBrowserTreeNodeIndex& index ) const
-            {
-                return SubmitBatchIndex == index.SubmitBatchIndex
-                    && SubmitIndex == index.SubmitIndex
-                    && PrimaryCommandBufferIndex == index.PrimaryCommandBufferIndex
-                    && SecondaryCommandBufferIndex == index.SecondaryCommandBufferIndex
-                    && RenderPassIndex == index.RenderPassIndex
-                    && SubpassIndex == index.SubpassIndex
-                    && PipelineIndex == index.PipelineIndex
-                    && DrawcallIndex == index.DrawcallIndex;
-            }
-
-            inline bool operator!=( const FrameBrowserTreeNodeIndex& index ) const
-            {
-                return !operator==( index );
-            }
-        };
-
-        DeviceProfilerFrameData m_Data;
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
+        bool m_ShowEmptyStatistics;
+
+        enum class TimeUnit
+        {
+            eMilliseconds,
+            eMicroseconds,
+            eNanoseconds
+        };
+
+        float m_FrameTime;
+
+        TimeUnit m_TimeUnit;
+        VkProfilerModeEXT m_SamplingMode;
+        VkProfilerSyncModeEXT m_SyncMode;
 
         std::chrono::high_resolution_clock::time_point m_PauseTimestamp;
 
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
+        bool ScrollToSelectedFrameBrowserNode( const FrameBrowserTreeNodeIndex& index ) const;
+
+        std::vector<char> m_FrameBrowserNodeIndexStr;
+        const char* GetFrameBrowserNodeIndexStr( const FrameBrowserTreeNodeIndex& index );
 
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
+
+        // Cached inspector tab state.
+        DeviceProfilerPipeline m_InspectorPipeline;
+        OverlayShaderView m_InspectorShaderView;
+
+        struct InspectorTab
+        {
+            std::string Name;
+            std::function<void()> Select;
+            std::function<void()> Draw;
+        };
+
+        std::vector<InspectorTab> m_InspectorTabs;
+        size_t m_InspectorTabIndex;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
@@ -207,6 +229,9 @@ namespace Profiler
         std::chrono::milliseconds m_SerializationOutputWindowDuration;
         std::chrono::milliseconds m_SerializationOutputWindowFadeOutDuration;
 
+        struct TraceExporter;
+        std::unique_ptr<TraceExporter> m_pTraceExporter;
+
         // Performance graph colors
         uint32_t m_RenderPassColumnColor;
         uint32_t m_GraphicsPipelineColumnColor;
@@ -219,6 +244,32 @@ namespace Profiler
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
+        // Dock space ids
+        int m_MainDockSpaceId;
+        int m_PerformanceTabDockSpaceId;
+        int m_QueueUtilizationTabDockSpaceId;
+        int m_TopPipelinesTabDockSpaceId;
+        int m_FrameBrowserDockSpaceId;
+
+        void PerformanceTabDockSpace( int flags = 0 );
+
+        struct WindowState
+        {
+            bool* pOpen;
+            bool Docked;
+            bool Focus = false;
+        };
+
+        WindowState m_PerformanceWindowState;
+        WindowState m_QueueUtilizationWindowState;
+        WindowState m_TopPipelinesWindowState;
+        WindowState m_PerformanceCountersWindowState;
+        WindowState m_MemoryWindowState;
+        WindowState m_ResourcesWindowState;
+        WindowState m_InspectorWindowState;
+        WindowState m_StatisticsWindowState;
+        WindowState m_SettingsWindowState;
+
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
@@ -226,45 +277,72 @@ namespace Profiler
         void InitializeImGuiStyle();
         void InitializeImPlotStyle();
 
-        void Update( const DeviceProfilerFrameData& );
+        void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
+        void UpdateQueueUtilizationTab();
+        void UpdateTopPipelinesTab();
+        void UpdatePerformanceCountersTab();
         void UpdateMemoryTab();
         void UpdateResourcesTab();
+        void UpdateInspectorTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();
 
         // Performance graph helpers
         struct PerformanceGraphColumn;
         void GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
-        void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
+        void GetPerformanceGraphColumns( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex&, std::vector<PerformanceGraphColumn>& ) const;
         void DrawPerformanceGraphLabel( const ImGuiX::HistogramColumnData& );
         void SelectPerformanceGraphColumn( const ImGuiX::HistogramColumnData& );
 
+        struct QueueGraphColumn;
+        void GetQueueGraphColumns( VkQueue, std::vector<QueueGraphColumn>& ) const;
+        float GetQueueUtilization( const std::vector<QueueGraphColumn>& ) const;
+
         // Trace serialization helpers
-        void DrawTraceSerializationOutputWindow();
+        void UpdateTraceExporter();
+        void SaveTraceToFile( const std::string&, const DeviceProfilerFrameData& );
+
+        // Notifications
+        void UpdateNotificationWindow();
+
+        // Inspector helpers
+        void Inspect( const DeviceProfilerPipeline& );
+        void SelectInspectorShaderStage( size_t );
+        void DrawInspectorShaderStage();
+        void DrawInspectorPipelineState();
+        void DrawInspectorGraphicsPipelineState();
+        void SetInspectorTabIndex( size_t );
+        void ShaderRepresentationSaved( bool, const std::string& );
 
         // Frame browser helpers
-        void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex );
-        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex );
-        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex, bool );
-        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex );
-        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex );
+        void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
+        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex& );
+        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool );
+        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex& );
+        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex& );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         template<typename Data>
         void PrintRenderPassCommand( const Data& data, bool dynamic, FrameBrowserTreeNodeIndex& index, uint32_t drawcallIndex );
 
-        void DrawSignificanceRect( float, const FrameBrowserTreeNodeIndex& );
-        void DrawShaderCapabilityBadge( uint32_t color, const char* shortName, const char* longName );
+        template<typename Data>
+        void DrawSignificanceRect( const Data& data, const FrameBrowserTreeNodeIndex& index );
+        void DrawSignificanceRect( float significance, const FrameBrowserTreeNodeIndex& index );
+        void DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... );
 
         template<typename Data>
         void PrintDuration( const Data& data );
 
-        // Sort frame browser data
         template<typename Data>
+        float GetDuration( const Data& data ) const;
+        float GetDuration( uint64_t from, uint64_t to ) const;
+
+        // Sort frame browser data
+        template<typename TypeHint = std::nullptr_t, typename Data>
         auto SortFrameBrowserData( const Data& data ) const
         {
             using Subdata = typename Data::value_type;
@@ -280,11 +358,11 @@ namespace Profiler
 
             case FrameBrowserSortMode::eDurationDescending:
                 pSortedData.sort( []( const Subdata* a, const Subdata* b )
-                    { return DurationDesc( *a, *b ); } ); break;
+                    { return DurationDesc<TypeHint>( *a, *b ); } ); break;
 
             case FrameBrowserSortMode::eDurationAscending:
                 pSortedData.sort( []( const Subdata* a, const Subdata* b )
-                    { return DurationAsc( *a, *b ); } ); break;
+                    { return DurationAsc<TypeHint>( *a, *b ); } ); break;
             }
 
             return pSortedData;

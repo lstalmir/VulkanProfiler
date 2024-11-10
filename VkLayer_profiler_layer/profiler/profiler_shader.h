@@ -20,18 +20,84 @@
 
 #pragma once
 #include "profiler_helpers.h"
+#include <algorithm>
 #include <array>
+#include <vector>
+#include <set>
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 #include <spirv/unified1/spirv.h>
 
 namespace Profiler
 {
+    struct ProfilerShaderModule
+    {
+        uint32_t m_Hash = 0;
+        std::vector<uint32_t> m_Bytecode = {};
+        std::set<SpvCapability> m_Capabilities = {};
+
+        ProfilerShaderModule() = default;
+        ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize );
+    };
+
+    struct ProfilerShader
+    {
+        uint32_t m_Hash = 0;
+        uint32_t m_Index = 0;
+        VkShaderStageFlagBits m_Stage = {};
+        std::string m_EntryPoint = {};
+        std::shared_ptr<ProfilerShaderModule> m_pShaderModule = nullptr;
+    };
+
+    struct ProfilerShaderStatistic
+    {
+        const char* m_pName = nullptr;
+        const char* m_pDescription = nullptr;
+        VkPipelineExecutableStatisticFormatKHR m_Format = {};
+        VkPipelineExecutableStatisticValueKHR m_Value = {};
+    };
+
+    struct ProfilerShaderInternalRepresentation
+    {
+        const char* m_pName = nullptr;
+        const char* m_pDescription = nullptr;
+        const void* m_pData = nullptr;
+        size_t m_DataSize = 0;
+        bool m_IsText = false;
+    };
+
+    struct ProfilerShaderExecutable
+    {
+        struct InternalData;
+        std::shared_ptr<InternalData> m_pInternalData = nullptr;
+
+        VkResult Initialize(
+            const VkPipelineExecutablePropertiesKHR* pProperties,
+            uint32_t statisticsCount,
+            const VkPipelineExecutableStatisticKHR* pStatistics,
+            uint32_t internalRepresentationsCount,
+            VkPipelineExecutableInternalRepresentationKHR* pInternalRepresentations );
+
+        bool Initialized() const;
+
+        const char* GetName() const;
+        const char* GetDescription() const;
+        VkShaderStageFlags GetStages() const;
+        uint32_t GetSubgroupSize() const;
+
+        uint32_t GetStatisticsCount() const;
+        ProfilerShaderStatistic GetStatistic( uint32_t index ) const;
+
+        uint32_t GetInternalRepresentationsCount() const;
+        ProfilerShaderInternalRepresentation GetInternalRepresentation( uint32_t index ) const;
+    };
+
     struct ProfilerShaderTuple
     {
         uint32_t m_Hash = 0;
 
-        BitsetArray<VkShaderStageFlagBits, uint32_t, 32> m_Stages = {};
+        std::vector<ProfilerShader> m_Shaders = {};
+        std::vector<ProfilerShaderExecutable> m_ShaderExecutables = {};
 
         inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
         {
@@ -42,12 +108,39 @@ namespace Profiler
         {
             return !operator==( rh );
         }
-    };
 
-    struct ProfilerShaderModule
-    {
-        uint32_t                   m_Hash = 0;
-        std::vector<SpvCapability> m_Capabilities = {};
+        inline const ProfilerShader* GetFirstShaderAtStage( VkShaderStageFlagBits stage ) const
+        {
+            const size_t stageCount = m_Shaders.size();
+            for( size_t i = 0; i < stageCount; ++i )
+            {
+                if( m_Shaders[ i ].m_Stage == stage )
+                {
+                    return &m_Shaders[ i ];
+                }
+            }
+            return nullptr;
+        }
+
+        inline const ProfilerShader* GetShaderAtIndex( uint32_t index ) const
+        {
+            const size_t stageCount = m_Shaders.size();
+            for( size_t i = 0; i < stageCount; ++i )
+            {
+                if( m_Shaders[ i ].m_Index == index )
+                {
+                    return &m_Shaders[ i ];
+                }
+            }
+            return nullptr;
+        }
+
+        bool UsesRayQuery() const;
+        bool UsesRayTracing() const;
+
+        void UpdateHash();
+
+        std::string GetShaderStageHashesString( VkShaderStageFlags stages, bool skipEmptyStages = false ) const;
     };
 }
 

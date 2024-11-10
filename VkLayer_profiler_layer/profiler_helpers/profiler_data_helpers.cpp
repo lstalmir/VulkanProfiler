@@ -131,6 +131,49 @@ namespace Profiler
                 drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount,
                 drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride );
 
+        case DeviceProfilerDrawcallType::eDrawMeshTasks:
+            return fmt::format( "vkCmdDrawMeshTasksEXT ({}, {}, {})",
+                drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX,
+                drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY,
+                drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ );
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
+            return fmt::format( "vkCmdDrawMeshTasksIndirectEXT ({}, {}, {}, {})",
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride );
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
+            return fmt::format( "vkCmdDrawMeshTasksIndirectCountEXT ({}, {}, {}, {}, {}, {})",
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset,
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride );
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
+            return fmt::format( "vkCmdDrawMeshTasksNV ({}, {})",
+                drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount,
+                drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask );
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
+            return fmt::format( "vkCmdDrawMeshTasksIndirectNV ({}, {}, {}, {})",
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride );
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
+            return fmt::format( "vkCmdDrawMeshTasksIndirectCountNV ({}, {}, {}, {}, {}, {})",
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset,
+                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride );
+
         case DeviceProfilerDrawcallType::eDispatch:
             return fmt::format( "vkCmdDispatch ({}, {}, {})",
                 drawcall.m_Payload.m_Dispatch.m_GroupCountX,
@@ -210,8 +253,12 @@ namespace Profiler
                 drawcall.m_Payload.m_TraceRays.m_Depth );
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            return fmt::format( "vkCmdTraceRaysIndirectKHR ({})",
+            return fmt::format( "vkCmdTraceRaysIndirectKHR (0x{:16x})",
                 drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
+
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
+            return fmt::format( "vkCmdTraceRaysIndirect2KHR (0x{:16x})",
+                drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress );
 
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
             return fmt::format("vkCmdBuildAccelerationStructuresKHR ({})",
@@ -252,6 +299,23 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline ) const
     {
+        // Construct the pipeline's name dynamically from the shaders.
+        if( pipeline.m_UsesShaderObjects )
+        {
+            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
+            {
+                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_VERTEX_BIT |
+                    VK_SHADER_STAGE_FRAGMENT_BIT );
+            }
+
+            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
+            {
+                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                    VK_SHADER_STAGE_COMPUTE_BIT );
+            }
+        }
+
         return GetName( pipeline.m_Handle );
     }
 
@@ -414,6 +478,24 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
             return "vkCmdDrawIndexedIndirectCount";
 
+        case DeviceProfilerDrawcallType::eDrawMeshTasks:
+            return "vkCmdDrawMeshTasksEXT";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
+            return "vkCmdDrawMeshTasksIndirectEXT";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
+            return "vkCmdDrawMeshTasksIndirectCountEXT";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
+            return "vkCmdDrawMeshTasksNV";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
+            return "vkCmdDrawMeshTasksIndirectNV";
+
+        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
+            return "vkCmdDrawMeshTasksIndirectCountNV";
+
         case DeviceProfilerDrawcallType::eDispatch:
             return "vkCmdDispatch";
 
@@ -459,6 +541,9 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
             return "vkCmdTraceRaysIndirectKHR";
 
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
+            return "vkCmdTraceRaysIndirect2KHR";
+
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
             return "vkCmdBuildAccelerationStructuresKHR";
 
@@ -493,9 +578,50 @@ namespace Profiler
         }
 
         char pointer[ 19 ] = "0x0000000000000000";
-        u64tohex( pointer + 2, static_cast<uint64_t>( reinterpret_cast<uintptr_t>( ptr ) ) );
+        char* pPointerStr = pointer + 2;
+        ProfilerStringFunctions::Hex( pPointerStr, static_cast<uint64_t>( reinterpret_cast<uintptr_t>( ptr ) ) );
 
         return pointer;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBool
+
+    Description:
+        Returns string representation of a boolean value.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBool( VkBool32 value ) const
+    {
+        switch( value )
+        {
+        case VK_TRUE:
+            return "True";
+        case VK_FALSE:
+            return "False";
+        default:
+            return std::to_string( value );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetVec4
+
+    Description:
+        Returns string representation of a 4-component vector.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetVec4( const float* pValue ) const
+    {
+        return fmt::format( "{:.2f}, {:.2f}, {:.2f}, {:.2f}",
+            pValue[ 0 ],
+            pValue[ 1 ],
+            pValue[ 2 ],
+            pValue[ 3 ] );
     }
 
     /***********************************************************************************\
@@ -514,11 +640,200 @@ namespace Profiler
         const uint8_t B = static_cast<uint8_t>( pColor[ 2 ] * 255.f );
 
         char color[ 8 ] = "#XXXXXX";
-        u8tohex( color + 1, R );
-        u8tohex( color + 3, G );
-        u8tohex( color + 5, B );
+        char* pColorStr = color + 1;
+        pColorStr = ProfilerStringFunctions::Hex( pColorStr, R );
+        pColorStr = ProfilerStringFunctions::Hex( pColorStr, G );
+        pColorStr = ProfilerStringFunctions::Hex( pColorStr, B );
 
         return color;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueFlagNames
+
+    Description:
+        Returns string representation of a VkQueueFlags.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetQueueTypeName( VkQueueFlags flags ) const
+    {
+        if( flags & VK_QUEUE_GRAPHICS_BIT )
+            return "Graphics";
+        if( flags & VK_QUEUE_COMPUTE_BIT )
+            return "Compute";
+        if( ( flags & VK_QUEUE_VIDEO_DECODE_BIT_KHR ) || ( flags & VK_QUEUE_VIDEO_ENCODE_BIT_KHR ) )
+            return "Video";
+        if( flags & VK_QUEUE_TRANSFER_BIT )
+            return "Transfer";
+        return "";
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueFlagNames
+
+    Description:
+        Returns string representation of a VkQueueFlags.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetQueueFlagNames( VkQueueFlags flags ) const
+    {
+        FlagsStringBuilder builder;
+
+        if( flags & VK_QUEUE_GRAPHICS_BIT )
+            builder.AddFlag( "Graphics" );
+        if( flags & VK_QUEUE_COMPUTE_BIT )
+            builder.AddFlag( "Compute" );
+        if( flags & VK_QUEUE_TRANSFER_BIT )
+            builder.AddFlag( "Transfer" );
+        if( flags & VK_QUEUE_SPARSE_BINDING_BIT )
+            builder.AddFlag( "Sparse binding" );
+        if( flags & VK_QUEUE_PROTECTED_BIT )
+            builder.AddFlag( "Protected" );
+        if( flags & VK_QUEUE_VIDEO_DECODE_BIT_KHR )
+            builder.AddFlag( "Video decode" );
+        if( flags & VK_QUEUE_VIDEO_ENCODE_BIT_KHR )
+            builder.AddFlag( "Video encode" );
+        if( flags & VK_QUEUE_OPTICAL_FLOW_BIT_NV )
+            builder.AddFlag( "Optical flow" );
+
+        for( uint32_t i = 8; i < 8 * sizeof( flags ); ++i )
+        {
+            uint32_t unkownFlag = 1U << i;
+            if( flags & unkownFlag )
+                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
+        }
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShaderName
+
+    Description:
+        Returns string representation of the shader.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShaderName( const ProfilerShader& shader ) const
+    {
+        return fmt::format( "{} {:08X} ({})",
+            GetShaderStageName( shader.m_Stage ),
+            shader.m_Hash,
+            shader.m_EntryPoint );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShortShaderName
+
+    Description:
+        Returns short string representation of the shader.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShortShaderName( const ProfilerShader& shader ) const
+    {
+        return fmt::format( "{} {:08X} {}",
+            GetShortShaderStageName( shader.m_Stage ),
+            shader.m_Hash,
+            shader.m_EntryPoint );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShaderStageName
+
+    Description:
+        Returns string representation of the shader stage.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShaderStageName( VkShaderStageFlagBits stage ) const
+    {
+        switch( stage )
+        {
+        case VK_SHADER_STAGE_VERTEX_BIT:
+            return "Vertex shader";
+        case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT:
+            return "Tessellation control shader";
+        case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT:
+            return "Tessellation evaluation shader";
+        case VK_SHADER_STAGE_GEOMETRY_BIT:
+            return "Geometry shader";
+        case VK_SHADER_STAGE_FRAGMENT_BIT:
+            return "Fragment shader";
+        case VK_SHADER_STAGE_COMPUTE_BIT:
+            return "Compute shader";
+        case VK_SHADER_STAGE_TASK_BIT_EXT:
+            return "Task shader";
+        case VK_SHADER_STAGE_MESH_BIT_EXT:
+            return "Mesh shader";
+        case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+            return "Ray generation shader";
+        case VK_SHADER_STAGE_ANY_HIT_BIT_KHR:
+            return "Ray any-hit shader";
+        case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
+            return "Ray closest-hit shader";
+        case VK_SHADER_STAGE_MISS_BIT_KHR:
+            return "Ray miss shader";
+        case VK_SHADER_STAGE_INTERSECTION_BIT_KHR:
+            return "Ray intersection shader";
+        case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+            return "Callable shader";
+        default:
+            return fmt::format( "Unknown shader stage ({})", static_cast<uint32_t>( stage ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShortShaderStageName
+
+    Description:
+        Returns short string representation of the shader stage.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShortShaderStageName( VkShaderStageFlagBits stage ) const
+    {
+        switch( stage )
+        {
+        case VK_SHADER_STAGE_VERTEX_BIT:
+            return "vs";
+        case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT:
+            return "tcs";
+        case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT:
+            return "tes";
+        case VK_SHADER_STAGE_GEOMETRY_BIT:
+            return "gs";
+        case VK_SHADER_STAGE_FRAGMENT_BIT:
+            return "ps";
+        case VK_SHADER_STAGE_COMPUTE_BIT:
+            return "cs";
+        case VK_SHADER_STAGE_TASK_BIT_EXT:
+            return "task";
+        case VK_SHADER_STAGE_MESH_BIT_EXT:
+            return "mesh";
+        case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+            return "raygen";
+        case VK_SHADER_STAGE_ANY_HIT_BIT_KHR:
+            return "anyhit";
+        case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
+            return "closesthit";
+        case VK_SHADER_STAGE_MISS_BIT_KHR:
+            return "miss";
+        case VK_SHADER_STAGE_INTERSECTION_BIT_KHR:
+            return "intersection";
+        case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+            return "callable";
+        default:
+            return fmt::to_string( static_cast<uint32_t>(stage) );
+        }
     }
 
     /***********************************************************************************\
@@ -1054,6 +1369,411 @@ namespace Profiler
             return "None";
         }
         return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetVertexInputRateName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetVertexInputRateName( VkVertexInputRate rate ) const
+    {
+        switch( rate )
+        {
+        case VK_VERTEX_INPUT_RATE_VERTEX:
+            return "Per vertex";
+        case VK_VERTEX_INPUT_RATE_INSTANCE:
+            return "Per instance";
+        default:
+            return fmt::format( "Unknown rate ({})", static_cast<uint32_t>(rate) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPrimitiveTopologyName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetPrimitiveTopologyName( VkPrimitiveTopology topology ) const
+    {
+        switch( topology )
+        {
+        case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
+            return "Point list";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
+            return "Line list";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
+            return "Line strip";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+            return "Triangle list";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+            return "Triangle strip";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+            return "Triangle fan";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY:
+            return "Line list with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY:
+            return "Line strip with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY:
+            return "Triangle list with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY:
+            return "Triangle strip with adjacency";
+        case VK_PRIMITIVE_TOPOLOGY_PATCH_LIST:
+            return "Patch list";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(topology) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPolygonModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetPolygonModeName( VkPolygonMode mode ) const
+    {
+        switch( mode )
+        {
+        case VK_POLYGON_MODE_FILL:
+            return "Fill";
+        case VK_POLYGON_MODE_LINE:
+            return "Line";
+        case VK_POLYGON_MODE_POINT:
+            return "Point";
+        case VK_POLYGON_MODE_FILL_RECTANGLE_NV:
+            return "Fill rectangle";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(mode) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCullModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetCullModeName( VkCullModeFlags mode ) const
+    {
+        switch( mode )
+        {
+        case VK_CULL_MODE_NONE:
+            return "None";
+        case VK_CULL_MODE_FRONT_BIT:
+            return "Front";
+        case VK_CULL_MODE_BACK_BIT:
+            return "Back";
+        case VK_CULL_MODE_FRONT_AND_BACK:
+            return "All";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(mode) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrontFaceName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetFrontFaceName( VkFrontFace mode ) const
+    {
+        switch( mode )
+        {
+        case VK_FRONT_FACE_COUNTER_CLOCKWISE:
+            return "Counter-clockwise";
+        case VK_FRONT_FACE_CLOCKWISE:
+            return "Clockwise";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(mode) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBlendFactorName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBlendFactorName( VkBlendFactor factor ) const
+    {
+        switch( factor )
+        {
+        case VK_BLEND_FACTOR_ZERO:
+            return "Zero";
+        case VK_BLEND_FACTOR_ONE:
+            return "One";
+        case VK_BLEND_FACTOR_SRC_COLOR:
+            return "Src color";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR:
+            return "1 - Src color";
+        case VK_BLEND_FACTOR_DST_COLOR:
+            return "Dst color";
+        case VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR:
+            return "1 - Dst color";
+        case VK_BLEND_FACTOR_SRC_ALPHA:
+            return "Src alpha";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:
+            return "1 - Src alpha";
+        case VK_BLEND_FACTOR_DST_ALPHA:
+            return "Dst alpha";
+        case VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA:
+            return "1 - Dst alpha";
+        case VK_BLEND_FACTOR_CONSTANT_COLOR:
+            return "Constant";
+        case VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR:
+            return "1 - Constant";
+        case VK_BLEND_FACTOR_SRC_ALPHA_SATURATE:
+            return "Src alpha (sat)";
+        case VK_BLEND_FACTOR_SRC1_COLOR:
+            return "Src1 color";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR:
+            return "1 - Src1 color";
+        case VK_BLEND_FACTOR_SRC1_ALPHA:
+            return "Src1 alpha";
+        case VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA:
+            return "1 - Src1 alpha";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(factor) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBlendOpName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBlendOpName( VkBlendOp op ) const
+    {
+        switch( op )
+        {
+        case VK_BLEND_OP_ADD:
+            return "Add";
+        case VK_BLEND_OP_SUBTRACT:
+            return "Sub";
+        case VK_BLEND_OP_REVERSE_SUBTRACT:
+            return "Rev sub";
+        case VK_BLEND_OP_MIN:
+            return "Min";
+        case VK_BLEND_OP_MAX:
+            return "Max";
+        case VK_BLEND_OP_ZERO_EXT:
+            return "Zero";
+        case VK_BLEND_OP_SRC_EXT:
+            return "Src";
+        case VK_BLEND_OP_DST_EXT:
+            return "Dst";
+        case VK_BLEND_OP_SRC_OVER_EXT:
+            return "Src over";
+        case VK_BLEND_OP_DST_OVER_EXT:
+            return "Dst over";
+        case VK_BLEND_OP_SRC_IN_EXT:
+            return "Src in";
+        case VK_BLEND_OP_DST_IN_EXT:
+            return "Dst in";
+        case VK_BLEND_OP_SRC_OUT_EXT:
+            return "Src out";
+        case VK_BLEND_OP_DST_OUT_EXT:
+            return "Dst out";
+        case VK_BLEND_OP_SRC_ATOP_EXT:
+            return "Src atop";
+        case VK_BLEND_OP_DST_ATOP_EXT:
+            return "Dst atop";
+        case VK_BLEND_OP_XOR_EXT:
+            return "Xor";
+        case VK_BLEND_OP_MULTIPLY_EXT:
+            return "Mul";
+        case VK_BLEND_OP_SCREEN_EXT:
+            return "Screen";
+        case VK_BLEND_OP_OVERLAY_EXT:
+            return "Overlay";
+        case VK_BLEND_OP_DARKEN_EXT:
+            return "Darken";
+        case VK_BLEND_OP_LIGHTEN_EXT:
+            return "Lighten";
+        case VK_BLEND_OP_COLORDODGE_EXT:
+            return "Color dodge";
+        case VK_BLEND_OP_COLORBURN_EXT:
+            return "Color burn";
+        case VK_BLEND_OP_HARDLIGHT_EXT:
+            return "Hard light";
+        case VK_BLEND_OP_SOFTLIGHT_EXT:
+            return "Soft light";
+        case VK_BLEND_OP_DIFFERENCE_EXT:
+            return "Difference";
+        case VK_BLEND_OP_EXCLUSION_EXT:
+            return "Exclusion";
+        case VK_BLEND_OP_INVERT_EXT:
+            return "Invert";
+        case VK_BLEND_OP_INVERT_RGB_EXT:
+            return "Invert RGB";
+        case VK_BLEND_OP_LINEARDODGE_EXT:
+            return "Linear dodge";
+        case VK_BLEND_OP_LINEARBURN_EXT:
+            return "Linear burn";
+        case VK_BLEND_OP_VIVIDLIGHT_EXT:
+            return "Vivid light";
+        case VK_BLEND_OP_LINEARLIGHT_EXT:
+            return "Linear light";
+        case VK_BLEND_OP_PINLIGHT_EXT:
+            return "Pin light";
+        case VK_BLEND_OP_HARDMIX_EXT:
+            return "Hard mix";
+        case VK_BLEND_OP_HSL_HUE_EXT:
+            return "HSL hue";
+        case VK_BLEND_OP_HSL_SATURATION_EXT:
+            return "HSL saturation";
+        case VK_BLEND_OP_HSL_COLOR_EXT:
+            return "HSL color";
+        case VK_BLEND_OP_HSL_LUMINOSITY_EXT:
+            return "HSL luminosity";
+        case VK_BLEND_OP_PLUS_EXT:
+            return "Plus";
+        case VK_BLEND_OP_PLUS_CLAMPED_EXT:
+            return "Plus clamped";
+        case VK_BLEND_OP_PLUS_CLAMPED_ALPHA_EXT:
+            return "Plus clamped alpha";
+        case VK_BLEND_OP_PLUS_DARKER_EXT:
+            return "Plus darker";
+        case VK_BLEND_OP_MINUS_EXT:
+            return "Minus";
+        case VK_BLEND_OP_MINUS_CLAMPED_EXT:
+            return "Minus clamped";
+        case VK_BLEND_OP_CONTRAST_EXT:
+            return "Contrast";
+        case VK_BLEND_OP_INVERT_OVG_EXT:
+            return "Invert OVG";
+        case VK_BLEND_OP_RED_EXT:
+            return "Red";
+        case VK_BLEND_OP_GREEN_EXT:
+            return "Green";
+        case VK_BLEND_OP_BLUE_EXT:
+            return "Blue";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(op) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCompareOpName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetCompareOpName( VkCompareOp op ) const
+    {
+        switch( op )
+        {
+        case VK_COMPARE_OP_NEVER:
+            return "Never";
+        case VK_COMPARE_OP_LESS:
+            return "Less";
+        case VK_COMPARE_OP_EQUAL:
+            return "Equal";
+        case VK_COMPARE_OP_LESS_OR_EQUAL:
+            return "Less or equal";
+        case VK_COMPARE_OP_GREATER:
+            return "Greater";
+        case VK_COMPARE_OP_NOT_EQUAL:
+            return "Not equal";
+        case VK_COMPARE_OP_GREATER_OR_EQUAL:
+            return "Greater or equal";
+        case VK_COMPARE_OP_ALWAYS:
+            return "Always";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(op) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLogicOpName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetLogicOpName( VkLogicOp op ) const
+    {
+        switch( op )
+        {
+        case VK_LOGIC_OP_CLEAR:
+            return "Clear";
+        case VK_LOGIC_OP_AND:
+            return "AND";
+        case VK_LOGIC_OP_AND_REVERSE:
+            return "AND (reverse)";
+        case VK_LOGIC_OP_COPY:
+            return "Copy";
+        case VK_LOGIC_OP_AND_INVERTED:
+            return "AND (inverted)";
+        case VK_LOGIC_OP_NO_OP:
+            return "No-op";
+        case VK_LOGIC_OP_XOR:
+            return "XOR";
+        case VK_LOGIC_OP_OR:
+            return "OR";
+        case VK_LOGIC_OP_NOR:
+            return "NOR";
+        case VK_LOGIC_OP_EQUIVALENT:
+            return "Equivalent";
+        case VK_LOGIC_OP_INVERT:
+            return "Invert";
+        case VK_LOGIC_OP_OR_REVERSE:
+            return "OR (reverse)";
+        case VK_LOGIC_OP_COPY_INVERTED:
+            return "Copy (inverted)";
+        case VK_LOGIC_OP_OR_INVERTED:
+            return "OR (inverted)";
+        case VK_LOGIC_OP_NAND:
+            return u8"NAND";
+        case VK_LOGIC_OP_SET:
+            return u8"Set";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(op) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetColorComponentFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetColorComponentFlagNames( VkColorComponentFlags flags ) const
+    {
+        char mask[ 5 ] = "____";
+        if( flags & VK_COLOR_COMPONENT_R_BIT )
+            mask[ 0 ] = 'R';
+        if( flags & VK_COLOR_COMPONENT_G_BIT )
+            mask[ 1 ] = 'G';
+        if( flags & VK_COLOR_COMPONENT_B_BIT )
+            mask[ 2 ] = 'B';
+        if( flags & VK_COLOR_COMPONENT_A_BIT )
+            mask[ 3 ] = 'A';
+        return mask;
     }
 
     /***********************************************************************************\

@@ -37,12 +37,16 @@ namespace Profiler
         VkFence fence )
     {
         auto& dd = DeviceDispatch.Get( queue );
-        dd.Profiler.PreSubmitCommandBuffers( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        DeviceProfilerSubmitBatch submitBatch;
+        dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
+        dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, submitCount, pSubmits, fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
+        dd.Profiler.PostSubmitCommandBuffers( submitBatch );
         return result;
     }
 
@@ -59,6 +63,8 @@ namespace Profiler
         const VkDependencyInfoKHR* pDependencyInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Record barrier statistics

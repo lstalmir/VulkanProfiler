@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2022 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2024 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,8 @@ set (PROFILER_LAYER_VER_MINOR 0)
 set (PROFILER_LAYER_VER_BUILD 9999)
 set (PROFILER_LAYER_VER_PATCH 0)
 set (PROFILER_LAYER_VER_IMPLEMENTATION 1)
-set (PROFILER_LAYER_NAME VK_LAYER_profiler)
+set (PROFILER_LAYER_NAME VK_LAYER_PROFILER_unified)
+set (PROFILER_LAYER_API_VERSION "1.1.106")
 set (PROFILER_LAYER_PROJECTNAME VkLayer_profiler_layer)
 set (PROFILER_LAYER_COMPANYNAME )
 set (PROFILER_LAYER_FILEDESCRIPTION "Simple Vulkan(R) Profiling Layer")
@@ -43,8 +44,63 @@ if (PROFILER_GEN_VERSION_INFO_RESULT STREQUAL "0")
     include ("${CMAKE_BINARY_DIR}/profiler_version.cmake")
 endif ()
 
+# Get Vulkan headers version
+function (get_vulkan_api_version)
+    set (vulkan_ver_major 1)
+    set (vulkan_ver_minor 1)
+    set (vulkan_ver_headers 106)
+
+    set (vulkan_core_path "${VULKAN_HEADERS_INSTALL_DIR}/include/vulkan/vulkan_core.h")
+    if (EXISTS ${vulkan_core_path})
+        file (READ ${vulkan_core_path} ver)
+        if (ver MATCHES "#define[ ]+VK_HEADER_VERSION_COMPLETE[ ]+VK_MAKE_API_VERSION\\([ ]*[0-9]+,[ ]*([0-9]+),[ ]*([0-9]+),[ ]*VK_HEADER_VERSION[ ]*\\)")
+            set (vulkan_ver_major ${CMAKE_MATCH_1})
+            set (vulkan_ver_minor ${CMAKE_MATCH_2})
+        endif ()
+        if (ver MATCHES "#define[ ]+VK_HEADER_VERSION[ ]+([0-9]+)")
+            set (vulkan_ver_headers ${CMAKE_MATCH_1})
+        endif ()
+    endif ()
+
+    set (PROFILER_LAYER_API_VERSION "${vulkan_ver_major}.${vulkan_ver_minor}.${vulkan_ver_headers}" PARENT_SCOPE)
+endfunction ()
+get_vulkan_api_version ()
+
 project (${PROFILER_LAYER_PROJECTNAME})
 message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}.${PROFILER_LAYER_VER_PATCH}")
+message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
+
+# Generate layer manifest file
+set (json
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
+    )
+
+if (WIN32)
+    # WA: Windows uses backslash as directory separator, which needs to be
+    # escaped twice (once here and once in the json, thus 4 backslashes)
+    set (THIS_DIR ".\\\\")
+else ()
+    set (THIS_DIR "./")
+endif ()
+
+configure_file (
+    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in
+    ${json}_configured
+    @ONLY)
+    
+file (GENERATE
+    OUTPUT ${json}
+    INPUT ${json}_configured)
+    
+add_custom_command (
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py
+        ${json}
+        --output ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
+    DEPENDS ${json}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py)
+list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h)
 
 # Generate dispatch tables
 add_custom_command (
@@ -55,14 +111,39 @@ add_custom_command (
         ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py)
+list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
+
+if (BUILD_SPIRV_DOCS)
+    # Generate SPIR-V documentation
+    add_custom_command (
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+            ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py
+            --json ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
+            --grammar ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
+            --spec ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
+            --out-license ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
+            --out-header ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
+        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
+        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
+        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py)
+    list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h)
+endif ()
 
 add_custom_target (profiler_codegen
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
+    DEPENDS ${PROFILER_CODEGEN_FILES})
 
 add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common
     INTERFACE Vulkan-Headers
+    INTERFACE VulkanUtilityHeaders
+    INTERFACE VulkanLayerSettings
+    INTERFACE VulkanMemoryAllocator
     INTERFACE SPIRV-Headers
+    INTERFACE SPIRV-Tools
+    INTERFACE spirv-cross-c
     INTERFACE farmhash
     INTERFACE fmt
     INTERFACE nlohmann_json)
@@ -70,7 +151,18 @@ target_include_directories (profiler_common
     INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
     INTERFACE ${CMAKE_CURRENT_BINARY_DIR}
     INTERFACE utils)
+target_compile_definitions (profiler_common INTERFACE
+    $<$<CONFIG:Debug>:PROFILER_CONFIG_DEBUG>
+    $<$<CONFIG:RelWithDebInfo>:PROFILER_CONFIG_RELWITHDEBINFO>
+    $<$<CONFIG:Release>:PROFILER_CONFIG_RELEASE>
+    $<$<CONFIG:MinSizeRel>:PROFILER_CONFIG_MINSIZEREL>)
 add_dependencies (profiler_common profiler_codegen)
+
+if (BUILD_SPIRV_DOCS)
+    target_compile_definitions (profiler_common INTERFACE
+        PROFILER_BUILD_SPIRV_DOCS
+        PROFILER_SPIRV_DOCS_URL="${SPIRV_DOCS_URL}")
+endif ()
 
 # Include implementation of the layer
 add_subdirectory (profiler)
@@ -90,10 +182,6 @@ set (resource
 
 set (generated
     ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h
-    )
-
-set (json
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
     )
 
 set (helper_functions
@@ -129,14 +217,25 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkDebugMarkerExt_functions.h"
     "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.cpp"
     "profiler_layer_functions/extensions/VkDebugUtilsExt_functions.h"
+    "profiler_layer_functions/extensions/VkDeferredHostOperationsKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkDeferredHostOperationsKhr_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.cpp"
     "profiler_layer_functions/extensions/VkDrawIndirectCountAmd_functions.h"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.h"
     "profiler_layer_functions/extensions/VkDynamicRenderingKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkDynamicRenderingKhr_functions.h"
+    "profiler_layer_functions/extensions/VkMeshShaderExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkMeshShaderExt_functions.h"
+    "profiler_layer_functions/extensions/VkMeshShaderNv_functions.cpp"
+    "profiler_layer_functions/extensions/VkMeshShaderNv_functions.h"
+    "profiler_layer_functions/extensions/VkPipelineExecutablePropertiesKhr_functions.h"
+    "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.cpp"
+    "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.h"
     "profiler_layer_functions/extensions/VkRayTracingPipelineKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkRayTracingPipelineKhr_functions.h"
+    "profiler_layer_functions/extensions/VkShaderObjectExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkShaderObjectExt_functions.h"
     "profiler_layer_functions/extensions/VkSurfaceKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkSwapchainKhr_functions.cpp"
@@ -153,6 +252,22 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkXlibSurfaceKhr_functions.h"
     )
 
+set (objects
+    "profiler_layer_objects/VkDevice_object.h"
+    "profiler_layer_objects/VkInstance_object.h"
+    "profiler_layer_objects/VkObject.h"
+    "profiler_layer_objects/VkObject_Types.inl"
+    "profiler_layer_objects/VkPhysicalDevice_object.h"
+    "profiler_layer_objects/VkQueue_object.h"
+    "profiler_layer_objects/VkSurfaceKhr_object.h"
+    "profiler_layer_objects/VkSwapchainKhr_object.h"
+    )
+
+source_group ("Functions" FILES ${helper_functions})
+source_group ("Functions/Core" FILES ${core_functions})
+source_group ("Functions/Extensions" FILES ${extension_functions})
+source_group ("Objects" FILES ${objects})
+
 # Configure resources file
 configure_file (
     ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in
@@ -164,25 +279,12 @@ configure_file (
     ${generated}
     @ONLY)
 
-if (WIN32)
-    # WA: Windows uses backslash as directory separator, which needs to be
-    # escaped twice (once here and once in the json, thus 4 backslashes)
-    set (THIS_DIR ".\\\\")
-else ()
-    set (THIS_DIR "./")
-endif ()
-
-configure_file (
-    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in
-    ${json}_configured
-    @ONLY)
-
 add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
     ${helper_functions}
     ${core_functions}
     ${extension_functions}
-    ${utils}
+    ${objects}
     ${generated})
 
 # Add sources to this project's executable.
@@ -190,10 +292,6 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.cpp"
     "VkLayer_profiler_layer.def"
     ${resource})
-
-file (GENERATE
-    OUTPUT ${json}
-    INPUT ${json}_configured)
 
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib

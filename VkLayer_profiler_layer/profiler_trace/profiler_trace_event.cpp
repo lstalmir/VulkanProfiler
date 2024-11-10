@@ -37,7 +37,7 @@ namespace Profiler
         using namespace std::literals;
 
         char queueHexHandle[ 32 ] = {};
-        Profiler::u64tohex( queueHexHandle, reinterpret_cast<uint64_t>(m_Queue) );
+        ProfilerStringFunctions::Hex( queueHexHandle, reinterpret_cast<uint64_t>(m_Queue) );
 
         jsonObject = {
             { "name", m_Name },
@@ -142,7 +142,7 @@ namespace Profiler
     \*************************************************************************/
     void ApiTraceEvent::Serialize( nlohmann::json& jsonObject ) const
     {
-        TraceInstantEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( jsonObject );
 
         // Set thread id
         jsonObject[ "tid" ] = "Thread " + std::to_string( m_ThreadId );

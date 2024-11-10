@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,10 +25,16 @@
 #include "VkCreateRenderPass2Khr_functions.h"
 #include "VkDebugMarkerExt_functions.h"
 #include "VkDebugUtilsExt_functions.h"
+#include "VkDeferredHostOperationsKhr_functions.h"
 #include "VkDrawIndirectCountAmd_functions.h"
 #include "VkDrawIndirectCountKhr_functions.h"
 #include "VkDynamicRenderingKhr_functions.h"
+#include "VkMeshShaderExt_functions.h"
+#include "VkMeshShaderNv_functions.h"
+#include "VkPipelineExecutablePropertiesKhr_functions.h"
+#include "VkRayTracingMaintenance1Khr_functions.h"
 #include "VkRayTracingPipelineKhr_functions.h"
+#include "VkShaderObjectExt_functions.h"
 #include "VkSwapchainKhr_functions.h"
 #include "VkSynchronization2Khr_functions.h"
 
@@ -50,10 +56,16 @@ namespace Profiler
         , VkCreateRenderPass2Khr_Functions
         , VkDebugMarkerExt_Functions
         , VkDebugUtilsExt_Functions
+        , VkDeferredHostOperationsKhr_Functions
         , VkDrawIndirectCountAmd_Functions
         , VkDrawIndirectCountKhr_Functions
         , VkDynamicRenderingKhr_Functions
+        , VkMeshShaderExt_Functions
+        , VkMeshShaderNv_Functions
+        , VkPipelineExecutablePropertiesKhr_Functions
+        , VkRayTracingMaintenance1Khr_Functions
         , VkRayTracingPipelineKhr_Functions
+        , VkShaderObjectExt_Functions
         , VkSwapchainKhr_Functions
         , VkSynchronization2Khr_Functions
     {

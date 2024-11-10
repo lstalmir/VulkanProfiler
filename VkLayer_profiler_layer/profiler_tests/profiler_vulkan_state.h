@@ -43,6 +43,52 @@ namespace Profiler
 
     };
 
+    class VulkanExtension
+    {
+    public:
+        std::string Name;
+        bool Required;
+        bool Enabled;
+        uint32_t Spec;
+
+    public:
+        explicit VulkanExtension( const std::string& name, bool required = true )
+            : Name( name )
+            , Required( required )
+            , Enabled( false )
+            , Spec( 0 )
+        {
+        }
+    };
+
+    class VulkanFeature
+    {
+    public:
+        std::string Name;
+        std::string ExtensionName;
+        bool Required;
+        bool Enabled;
+
+    public:
+        explicit VulkanFeature( const std::string& name, const std::string& extensionName = std::string(), bool required = true )
+            : Name( name )
+            , ExtensionName( extensionName )
+            , Required( required )
+            , Enabled( false )
+        {}
+
+        virtual ~VulkanFeature() {}
+
+        // VulkanState obtains this pointer for 2 purposes.
+        // First, it reads available features from VkPhysicalDevice into the structure. Then Configure is called and
+        // this object can adjust the feature bits, or return false if the requested feature is not present.
+        // Next, the same pointer is passed to the vkCreateDevice in the pNext chain.
+        virtual void* GetCreateInfo() = 0;
+
+        // Called after the VkPhysicalDevice features have been queried to check if required bits are supported.
+        virtual bool Configure() { return true; }
+    };
+
     class VulkanState
     {
     public:
@@ -58,8 +104,15 @@ namespace Profiler
         VkCommandPool               CommandPool;
         VkDescriptorPool            DescriptorPool;
 
+        struct CreateInfo
+        {
+            std::vector<VulkanExtension*> InstanceExtensions = {};
+            std::vector<VulkanExtension*> DeviceExtensions = {};
+            std::vector<VulkanFeature*> DeviceFeatures = {};
+        };
+
     public:
-        inline VulkanState()
+        inline VulkanState( CreateInfo createInfo = CreateInfo() )
             : ApplicationInfo()
             , Instance( VK_NULL_HANDLE )
             , PhysicalDevice( VK_NULL_HANDLE )
@@ -88,6 +141,15 @@ namespace Profiler
                 VkInstanceCreateInfo instanceCreateInfo = {};
                 instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
                 instanceCreateInfo.pApplicationInfo = &ApplicationInfo;
+
+                uint32_t availableExtensionCount = 0;
+                vkEnumerateInstanceExtensionProperties( nullptr, &availableExtensionCount, nullptr );
+                std::vector<VkExtensionProperties> availableExtensions( availableExtensionCount );
+                vkEnumerateInstanceExtensionProperties( nullptr, &availableExtensionCount, availableExtensions.data() );
+
+                std::vector<const char*> extensions = GetExtensions( createInfo.InstanceExtensions, availableExtensions );
+                instanceCreateInfo.enabledExtensionCount = uint32_t( extensions.size() );
+                instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
 
                 VERIFY_RESULT( this, vkCreateInstance( &instanceCreateInfo, nullptr, &Instance ) );
             }
@@ -139,6 +201,50 @@ namespace Profiler
                 deviceCreateInfo.queueCreateInfoCount = 1;
                 deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
 
+                uint32_t availableExtensionCount = 0;
+                vkEnumerateDeviceExtensionProperties( PhysicalDevice, nullptr, &availableExtensionCount, nullptr );
+                std::vector<VkExtensionProperties> availableExtensions( availableExtensionCount );
+                vkEnumerateDeviceExtensionProperties( PhysicalDevice, nullptr, &availableExtensionCount, availableExtensions.data() );
+
+                std::vector<const char*> extensions = GetExtensions( createInfo.DeviceExtensions, availableExtensions );
+                deviceCreateInfo.enabledExtensionCount = uint32_t( extensions.size() );
+                deviceCreateInfo.ppEnabledExtensionNames = extensions.data();
+
+                VkPhysicalDeviceFeatures2 features = {};
+                features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+                deviceCreateInfo.pNext = &features;
+
+                VkBaseOutStructure** ppNext = (VkBaseOutStructure**)&features.pNext;
+                for( VulkanFeature* pFeature : createInfo.DeviceFeatures )
+                {
+                    if( !pFeature->ExtensionName.empty() )
+                    {
+                        auto it = std::find_if( extensions.begin(), extensions.end(),
+                            [&]( const char* pExtensionName ) -> bool {
+                                return strcmp( pExtensionName, pFeature->ExtensionName.c_str() ) == 0;
+                            } );
+
+                        if( it == extensions.end() )
+                        {
+                            continue;
+                        }
+                    }
+
+                    *ppNext = (VkBaseOutStructure*)pFeature->GetCreateInfo();
+                    ppNext = &( *ppNext )->pNext;
+                }
+
+                vkGetPhysicalDeviceFeatures2( PhysicalDevice, &features );
+
+                for( VulkanFeature* pFeature : createInfo.DeviceFeatures )
+                {
+                    pFeature->Enabled = pFeature->Configure();
+                    if( !pFeature->Enabled && pFeature->Required )
+                    {
+                        throw VulkanError( VK_ERROR_FEATURE_NOT_PRESENT, pFeature->Name );
+                    }
+                }
+
                 VERIFY_RESULT( this, vkCreateDevice( PhysicalDevice, &deviceCreateInfo, nullptr, &Device ) );
 
                 // Get graphics queue handle
@@ -178,7 +284,7 @@ namespace Profiler
                 id.Instance.Handle = Instance;
                 id.Instance.ApplicationInfo = ApplicationInfo;
                 id.Instance.SetInstanceLoaderData = SetInstanceLoaderData;
-                init_layer_instance_dispatch_table( Instance, vkGetInstanceProcAddr, id.Instance.Callbacks );
+                id.Instance.Callbacks.Initialize( Instance, vkGetInstanceProcAddr );
 
                 VkPhysicalDevice_Object& dev = id.Instance.PhysicalDevices[ PhysicalDevice ];
                 dev.Properties = PhysicalDeviceProperties;
@@ -190,7 +296,7 @@ namespace Profiler
                 dd.Device.pPhysicalDevice = &dev;
                 dd.Device.pInstance = &id.Instance;
                 dd.Device.SetDeviceLoaderData = SetDeviceLoaderData;
-                init_layer_device_dispatch_table( Device, vkGetDeviceProcAddr, dd.Device.Callbacks );
+                dd.Device.Callbacks.Initialize( Device, vkGetDeviceProcAddr );
 
                 VkQueue_Object queue = {};
                 queue.Handle = Queue;
@@ -253,14 +359,14 @@ namespace Profiler
         inline VkLayerDeviceDispatchTable GetLayerDispatchTable() const
         {
             VkLayerDeviceDispatchTable dispatchTable = {};
-            init_layer_device_dispatch_table( Device, VkDevice_Functions::GetDeviceProcAddr, dispatchTable );
+            dispatchTable.Initialize( Device, VkDevice_Functions::GetDeviceProcAddr );
             return dispatchTable;
         }
 
         inline VkLayerInstanceDispatchTable GetLayerInstanceDispatchTable() const
         {
             VkLayerInstanceDispatchTable dispatchTable = {};
-            init_layer_instance_dispatch_table( Instance, VkInstance_Functions::GetInstanceProcAddr, dispatchTable );
+            dispatchTable.Initialize( Instance, VkInstance_Functions::GetInstanceProcAddr );
             return dispatchTable;
         }
 
@@ -274,6 +380,39 @@ namespace Profiler
         {
             (*(void**)object) = (*(void**)device);
             return VK_SUCCESS;
+        }
+
+    private:
+        std::vector<const char*> GetExtensions(
+            const std::vector<VulkanExtension*>& requestedExtensions,
+            const std::vector<VkExtensionProperties>& supportedExtensions ) const
+        {
+            std::vector<const char*> extensions = {};
+            for( VulkanExtension* pExtension : requestedExtensions )
+            {
+                auto it = std::find_if( supportedExtensions.begin(), supportedExtensions.end(),
+                    [&]( const VkExtensionProperties& ext ) -> bool {
+                        if( strcmp( ext.extensionName, pExtension->Name.c_str() ) == 0 )
+                            return ( pExtension->Spec == 0 ) ||
+                                   ( pExtension->Spec == ext.specVersion );
+                        return false;
+                    } );
+
+                if( it == supportedExtensions.end() )
+                {
+                    // Throw an exception if the required extension is not present.
+                    if( pExtension->Required )
+                    {
+                        throw VulkanError( VK_ERROR_EXTENSION_NOT_PRESENT,
+                            pExtension->Name + ", spec " + std::to_string( pExtension->Spec ) );
+                    }
+                }
+
+                extensions.push_back( pExtension->Name.c_str() );
+                pExtension->Enabled = true;
+            }
+
+            return extensions;
         }
     };
 }

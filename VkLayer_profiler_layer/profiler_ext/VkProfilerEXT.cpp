@@ -182,6 +182,21 @@ public:
         return SerializeSubregions( data.m_Drawcalls, &RegionBuilder::SerializeDrawcall, out );
     }
 
+    // Subpass contents serialization helper
+    inline VkResult SerializeSubpassContents( const DeviceProfilerSubpassData::Data& data, VkProfilerRegionDataEXT& out )
+    {
+        switch( data.GetType() )
+        {
+        case DeviceProfilerSubpassDataType::ePipeline:
+            return SerializePipeline( std::get<DeviceProfilerPipelineData>( data ), out );
+        case DeviceProfilerSubpassDataType::eCommandBuffer:
+            return SerializeCommandBuffer( std::get<DeviceProfilerCommandBufferData>( data ), out );
+        default:
+            assert( !"Invalid subpass contents" );
+            return VK_ERROR_UNKNOWN;
+        }
+    }
+
     // Subpass serialization helper
     inline VkResult SerializeSubpass( const DeviceProfilerSubpassData& data, VkProfilerRegionDataEXT& out )
     {
@@ -191,18 +206,7 @@ public:
         out.duration = (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_TimestampPeriodMs;
         out.properties.subpass.index = data.m_Index;
         out.properties.subpass.contents = data.m_Contents;
-
-        switch( data.m_Contents )
-        {
-        case VK_SUBPASS_CONTENTS_INLINE:
-            return SerializeSubregions( data.m_Pipelines, &RegionBuilder::SerializePipeline, out );
-
-        case VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS:
-            return SerializeSubregions( data.m_SecondaryCommandBuffers, &RegionBuilder::SerializeCommandBuffer, out );
-        }
-
-        assert( !"Invalid subpass contents" );
-        return VK_ERROR_UNKNOWN;
+        return SerializeSubregions( data.m_Data, &RegionBuilder::SerializeSubpassContents, out );
     }
 
     // VkRenderPass serialization helper
@@ -294,6 +298,22 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
 /***************************************************************************************\
 
 Function:
+    vkGetProfilerModeEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
+    VkDevice device,
+    VkProfilerModeEXT* pMode )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+    *pMode = static_cast<VkProfilerModeEXT>(dd.Profiler.m_Config.m_SamplingMode.value);
+}
+
+/***************************************************************************************\
+
+Function:
     vkSetProfilerSyncModeEXT
 
 Description:
@@ -305,6 +325,22 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
     return dd.Profiler.SetSyncMode( syncMode );
+}
+
+/***************************************************************************************\
+
+Function:
+    vkGetProfilerSyncModeEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerSyncModeEXT(
+    VkDevice device,
+    VkProfilerSyncModeEXT* pSyncMode )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+    *pSyncMode = static_cast<VkProfilerSyncModeEXT>(dd.Profiler.m_Config.m_SyncMode.value);
 }
 
 /***************************************************************************************\
@@ -329,13 +365,13 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
     VkResult result = VK_SUCCESS;
 
     // Get latest data from profiler
-    DeviceProfilerFrameData data = dd.Profiler.GetData();
+    std::shared_ptr<DeviceProfilerFrameData> data = dd.Profiler.GetData();
 
-    if( !data.m_Submits.empty() )
+    if( !data->m_Submits.empty() )
     {
         // Serialize last frame
         result = RegionBuilder( dd.Device.pPhysicalDevice->Properties.limits.timestampPeriod )
-            .SerializeFrame( data, pData->frame );
+            .SerializeFrame( *data, pData->frame );
     }
     else
     {

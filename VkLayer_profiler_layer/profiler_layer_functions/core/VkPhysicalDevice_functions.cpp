@@ -117,7 +117,9 @@ namespace Profiler
         }
 
         // Enable available optional device extensions
-        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions( pProfilerCreateInfo );
+        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions(
+            id.Instance.LayerSettings,
+            pProfilerCreateInfo );
 
         for( uint32_t i = 0; i < availableExtensionCount; ++i )
         {
@@ -225,7 +227,7 @@ namespace Profiler
         // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
         // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
         // vkEnumerateDeviceExtensionProperties implementation.
-        auto id = InstanceDispatch.Get( physicalDevice );
+        auto& id = InstanceDispatch.Get( physicalDevice );
 
         VkResult result = VK_SUCCESS;
 

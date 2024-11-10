@@ -35,6 +35,8 @@ namespace Profiler
         const VkRenderingInfoKHR* pRenderingInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreBeginRendering( pRenderingInfo );
@@ -57,6 +59,8 @@ namespace Profiler
         VkCommandBuffer commandBuffer )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreEndRendering();

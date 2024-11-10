@@ -28,7 +28,7 @@ namespace
 {
     ImU8 ComponentLerp( ImU8 a, ImU8 b, float s )
     {
-        return (a * (1 - s)) + (b * s);
+        return static_cast<ImU8>((a * (1 - s)) + (b * s));
     }
 }
 
@@ -127,7 +127,7 @@ namespace ImGuiX
         ImVec2 rb = origin; rb.x += textSize.x + 2; rb.y += textSize.y + 1;
 
         // Draw the background.
-        dl->AddRectFilled( lt, rb, color, rounding, (rounding > 0.f) ? ImDrawCornerFlags_All : ImDrawCornerFlags_None );
+        dl->AddRectFilled( lt, rb, color, rounding, (rounding > 0.f) ? ImDrawFlags_RoundCornersAll : ImDrawFlags_RoundCornersNone );
 
         // Draw the text.
         ImGui::TextUnformatted( text );
@@ -177,5 +177,64 @@ namespace ImGuiX
         }
 
         return selectionChanged;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetWindowDockSpaceID
+
+    Description:
+        Returns ID of the dock space the current window is docked into.
+        Returns 0 if the window is not docked to any dock space.
+
+    \*************************************************************************/
+    ImGuiID GetWindowDockSpaceID()
+    {
+        ImGuiWindow* pWindow = GImGui->CurrentWindow;
+        if( !pWindow )
+            return 0;
+
+        if( !pWindow->DockIsActive )
+            return 0;
+
+        ImGuiDockNode* pNode = pWindow->DockNode;
+        while( pNode && !pNode->IsDockSpace() )
+            pNode = pNode->ParentNode;
+
+        if( !pNode )
+            return 0;
+
+        return pNode->ID;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        BeginPadding
+
+    Description:
+        Add a padding around the next element.
+
+    \*************************************************************************/
+    void BeginPadding( float top, float right, float left )
+    {
+        ImVec2 cp = ImGui::GetCursorPos();
+        cp.x += left;
+        cp.y += top;
+        ImGui::SetCursorPos( cp );
+
+        ImVec2 rc = ImGui::GetContentRegionMax();
+        ImGui::SetNextItemWidth( rc.x - (left + right) );
+    }
+
+    void BeginPadding( float all )
+    {
+        BeginPadding( all, all, all );
+    }
+
+    void EndPadding( float bottom )
+    {
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + bottom );
     }
 }

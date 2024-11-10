@@ -28,6 +28,7 @@
 #include <map>
 #include <vector>
 
+#include "../profiler/profiler_counters.h"
 #include "../utils/lockable_unordered_map.h"
 #include "../profiler/profiler_allocator.h"
 
@@ -44,6 +45,9 @@ namespace Profiler
 
         VkInstance_Object* pInstance;
         VkPhysicalDevice_Object* pPhysicalDevice;
+
+        // Time in profiler
+        TipCounter TIP;
 
         // Dispatch tables
         VkLayerDeviceDispatchTable Callbacks;

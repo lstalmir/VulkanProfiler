@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2023 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -129,6 +129,11 @@ namespace Profiler
         GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
         GETPROCADDR( CmdEndDebugUtilsLabelEXT );
 
+        // VK_KHR_deferred_host_operations functions
+        GETPROCADDR( CreateDeferredOperationKHR );
+        GETPROCADDR( DestroyDeferredOperationKHR );
+        GETPROCADDR( DeferredOperationJoinKHR );
+
         // VK_AMD_draw_indirect_count functions
         GETPROCADDR( CmdDrawIndirectCountAMD );
         GETPROCADDR( CmdDrawIndexedIndirectCountAMD );
@@ -137,9 +142,23 @@ namespace Profiler
         GETPROCADDR( CmdDrawIndirectCountKHR );
         GETPROCADDR( CmdDrawIndexedIndirectCountKHR );
 
+        // VK_EXT_mesh_shader functions
+        GETPROCADDR( CmdDrawMeshTasksEXT );
+        GETPROCADDR( CmdDrawMeshTasksIndirectEXT );
+        GETPROCADDR( CmdDrawMeshTasksIndirectCountEXT );
+
+        // VK_NV_mesh_shader functions
+        GETPROCADDR( CmdDrawMeshTasksNV );
+        GETPROCADDR( CmdDrawMeshTasksIndirectNV );
+        GETPROCADDR( CmdDrawMeshTasksIndirectCountNV );
+
+        // VK_KHR_ray_tracing_maintenance1 functions
+        GETPROCADDR( CmdTraceRaysIndirect2KHR );
+
         // VK_KHR_ray_tracing_pipeline functions
         GETPROCADDR( CreateRayTracingPipelinesKHR );
         GETPROCADDR( CmdTraceRaysKHR );
+        GETPROCADDR( CmdTraceRaysIndirectKHR );
 
         // VK_KHR_acceleration_structure functions
         GETPROCADDR( CmdBuildAccelerationStructuresKHR );
@@ -147,6 +166,11 @@ namespace Profiler
         GETPROCADDR( CmdCopyAccelerationStructureKHR );
         GETPROCADDR( CmdCopyAccelerationStructureToMemoryKHR );
         GETPROCADDR( CmdCopyMemoryToAccelerationStructureKHR );
+
+        // VK_EXT_shader_object functions
+        GETPROCADDR( CreateShadersEXT );
+        GETPROCADDR( DestroyShaderEXT );
+        GETPROCADDR( CmdBindShadersEXT );
 
         // VK_KHR_swapchain functions
         GETPROCADDR( QueuePresentKHR );
@@ -159,17 +183,21 @@ namespace Profiler
 
         // VK_EXT_profiler functions
         GETPROCADDR_EXT( vkSetProfilerModeEXT );
+        GETPROCADDR_EXT( vkGetProfilerModeEXT );
         GETPROCADDR_EXT( vkSetProfilerSyncModeEXT );
+        GETPROCADDR_EXT( vkGetProfilerSyncModeEXT );
         GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
         GETPROCADDR_EXT( vkFreeProfilerFrameDataEXT );
         GETPROCADDR_EXT( vkFlushProfilerEXT );
+        GETPROCADDR_EXT( vkEnumerateProfilerPerformanceMetricsSetsEXT );
+        GETPROCADDR_EXT( vkEnumerateProfilerPerformanceCounterPropertiesEXT );
+        GETPROCADDR_EXT( vkSetProfilerPerformanceMetricsSetEXT );
+        GETPROCADDR_EXT( vkGetProfilerActivePerformanceMetricsSetIndexEXT );
 
         if( device )
         {
-            auto& dd = DeviceDispatch.Get( device );
-
             // Get function address from the next layer
-            return dd.Device.Callbacks.GetDeviceProcAddr( device, pName );
+            return DeviceDispatch.Get( device ).Device.Callbacks.GetDeviceProcAddr( device, pName );
         }
 
         // Undefined behaviour according to spec - VkDevice handle cannot be null
@@ -214,6 +242,7 @@ namespace Profiler
         VkShaderModule* pShaderModule )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -252,6 +281,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -288,6 +318,12 @@ namespace Profiler
         VkPipeline* pPipelines )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Capture executable properties for shader inspection.
+        VkGraphicsPipelineCreateInfo* pCreateInfosWithExecutableProperties = nullptr;
+        VkPipelineExecutablePropertiesKhr_Functions::CapturePipelineExecutableProperties(
+            dd, createInfoCount, &pCreateInfos, &pCreateInfosWithExecutableProperties );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -313,6 +349,8 @@ namespace Profiler
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
 
+        free( pCreateInfosWithExecutableProperties );
+
         return result;
     }
 
@@ -333,6 +371,12 @@ namespace Profiler
         VkPipeline* pPipelines )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Capture executable properties for shader inspection.
+        VkComputePipelineCreateInfo* pCreateInfosWithExecutableProperties = nullptr;
+        VkPipelineExecutablePropertiesKhr_Functions::CapturePipelineExecutableProperties(
+            dd, createInfoCount, &pCreateInfos, &pCreateInfosWithExecutableProperties );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -358,6 +402,8 @@ namespace Profiler
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
 
+        free( pCreateInfosWithExecutableProperties );
+
         return result;
     }
 
@@ -375,6 +421,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -409,6 +456,7 @@ namespace Profiler
         VkRenderPass* pRenderPass )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -448,6 +496,7 @@ namespace Profiler
         VkRenderPass* pRenderPass )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -486,6 +535,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -520,6 +570,7 @@ namespace Profiler
         VkCommandPool* pCommandPool )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -558,6 +609,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -592,6 +644,7 @@ namespace Profiler
         VkCommandBuffer* pCommandBuffers )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Allocate command buffers
         VkResult result = dd.Device.Callbacks.AllocateCommandBuffers(
@@ -625,6 +678,7 @@ namespace Profiler
         const VkCommandBuffer* pCommandBuffers )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Cleanup profiler resources associated with freed command buffers
         dd.Profiler.FreeCommandBuffers( commandBufferCount, pCommandBuffers );
@@ -649,6 +703,7 @@ namespace Profiler
         VkDeviceMemory* pMemory )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -688,6 +743,7 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(

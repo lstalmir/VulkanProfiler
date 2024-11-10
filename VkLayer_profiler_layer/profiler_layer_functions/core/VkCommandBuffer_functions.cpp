@@ -35,6 +35,8 @@ namespace Profiler
         const VkCommandBufferBeginInfo* pBeginInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Profiler requires command buffer to already be in recording state
@@ -62,6 +64,8 @@ namespace Profiler
         VkCommandBuffer commandBuffer )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.End();
@@ -82,6 +86,8 @@ namespace Profiler
         VkCommandBufferResetFlags flags )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.Reset( flags );
@@ -103,6 +109,8 @@ namespace Profiler
         VkSubpassContents subpassContents )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, subpassContents );
@@ -125,6 +133,8 @@ namespace Profiler
         VkCommandBuffer commandBuffer )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreEndRenderPass();
@@ -148,6 +158,8 @@ namespace Profiler
         VkSubpassContents contents )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.NextSubpass( contents );
@@ -170,6 +182,8 @@ namespace Profiler
         const VkSubpassBeginInfo* pSubpassBeginInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
@@ -193,6 +207,8 @@ namespace Profiler
         const VkSubpassEndInfo* pSubpassEndInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreEndRenderPass();
@@ -217,6 +233,8 @@ namespace Profiler
         const VkSubpassEndInfo* pSubpassEndInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.NextSubpass( pSubpassBeginInfo->contents );
@@ -238,6 +256,8 @@ namespace Profiler
         const VkRenderingInfo* pRenderingInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreBeginRendering( pRenderingInfo );
@@ -260,6 +280,8 @@ namespace Profiler
         VkCommandBuffer commandBuffer )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreEndRendering();
@@ -284,6 +306,8 @@ namespace Profiler
         VkPipeline pipeline )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
         auto& profiledPipeline = dd.Profiler.GetPipeline( pipeline );
 
@@ -308,6 +332,8 @@ namespace Profiler
         const VkCommandBuffer* pCommandBuffers )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Record secondary command buffers
@@ -338,6 +364,8 @@ namespace Profiler
         const VkImageMemoryBarrier* pImageMemoryBarriers )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Record barrier statistics
@@ -367,6 +395,8 @@ namespace Profiler
         const VkDependencyInfo* pDependencyInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Record barrier statistics
@@ -392,6 +422,8 @@ namespace Profiler
         uint32_t firstInstance )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -427,6 +459,8 @@ namespace Profiler
         uint32_t stride )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -463,6 +497,8 @@ namespace Profiler
         uint32_t firstInstance )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -499,6 +535,8 @@ namespace Profiler
         uint32_t stride )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -536,6 +574,8 @@ namespace Profiler
         uint32_t stride )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -575,6 +615,8 @@ namespace Profiler
         uint32_t stride )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
         
         // Setup drawcall descriptor
@@ -611,6 +653,8 @@ namespace Profiler
         uint32_t z )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -642,6 +686,8 @@ namespace Profiler
         VkDeviceSize offset )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -674,6 +720,8 @@ namespace Profiler
         const VkBufferCopy* pRegions )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -708,6 +756,8 @@ namespace Profiler
         const VkBufferImageCopy* pRegions )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -743,6 +793,8 @@ namespace Profiler
         const VkImageCopy* pRegions )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         DeviceProfilerDrawcall drawcall;
@@ -776,6 +828,8 @@ namespace Profiler
         const VkBufferImageCopy* pRegions )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         DeviceProfilerDrawcall drawcall;
@@ -808,6 +862,8 @@ namespace Profiler
         const VkClearRect* pRects )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -841,6 +897,8 @@ namespace Profiler
         const VkImageSubresourceRange* pRanges )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -875,6 +933,8 @@ namespace Profiler
         const VkImageSubresourceRange* pRanges )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -910,6 +970,8 @@ namespace Profiler
         const VkImageResolve* pRegions )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -946,6 +1008,8 @@ namespace Profiler
         VkFilter filter )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -979,6 +1043,8 @@ namespace Profiler
         uint32_t data )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor
@@ -1014,6 +1080,8 @@ namespace Profiler
         const void* pData )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         // Setup drawcall descriptor

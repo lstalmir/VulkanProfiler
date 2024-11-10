@@ -48,7 +48,10 @@ namespace Profiler
         id.Instance.ApplicationInfo.apiVersion = pCreateInfo->pApplicationInfo->apiVersion;
 
         // Get function addresses
-        init_layer_instance_dispatch_table( instance, pfnGetInstanceProcAddr, id.Instance.Callbacks );
+        id.Instance.Callbacks.Initialize( instance, pfnGetInstanceProcAddr );
+
+        // Load settings
+        id.Instance.LayerSettings.LoadFromVulkanLayerSettings( pCreateInfo, pAllocator );
 
         // Fill additional callbacks
         id.Instance.SetInstanceLoaderData = pfnSetInstanceLoaderData;

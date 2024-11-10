@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,8 +21,12 @@
 #include "imgui_impl_xcb.h"
 #include <imgui.h>
 #include <stdlib.h>
-#include <unordered_set>
-#include <xcb/shape.h>
+#include <mutex>
+
+namespace Profiler
+{
+    extern std::mutex s_ImGuiMutex;
+}
 
 /***********************************************************************************\
 
@@ -33,15 +37,18 @@ Description:
     Constructor.
 
 \***********************************************************************************/
-ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window )
-    : m_Connection( nullptr )
+ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
+    : m_pImGuiContext( nullptr )
+    , m_Connection( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( 0 )
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     // Connect to X server
     m_Connection = xcb_connect( nullptr, nullptr );
     if( xcb_connection_has_error( m_Connection ) )
-        InitError();
+        throw;
 
     m_InputWindow = xcb_generate_id( m_Connection );
 
@@ -74,7 +81,14 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window )
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xcb";
-    io.ImeWindowHandle = (void*)(size_t)m_InputWindow;
+    io.BackendPlatformUserData = this;
+
+    m_pImGuiContext = ImGui::GetCurrentContext();
+}
+catch (...)
+{
+    ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context();
+    throw;
 }
 
 /***********************************************************************************\
@@ -88,12 +102,23 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
 {
+    std::scoped_lock lk( Profiler::s_ImGuiMutex );
+
     xcb_destroy_window( m_Connection, m_InputWindow );
     m_InputWindow = 0;
     m_AppWindow = 0;
 
     xcb_disconnect( m_Connection );
     m_Connection = nullptr;
+
+    if( m_pImGuiContext )
+    {
+        ImGui::SetCurrentContext( m_pImGuiContext );
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags = 0;
+        io.BackendPlatformName = nullptr;
+        io.BackendPlatformUserData = nullptr;
+    }
 }
 
 /***********************************************************************************\
@@ -119,7 +144,11 @@ Description:
 \***********************************************************************************/
 void ImGui_ImplXcb_Context::NewFrame()
 {
-    if( !ImGui::GetCurrentContext() )
+    // Validate the current ImGui context.
+    ImGuiContext* pContext = ImGui::GetCurrentContext();
+    IM_ASSERT(pContext && "ImGui_ImplXcb_Context::NewFrame called when no ImGui context was set.");
+    IM_ASSERT(pContext == m_pImGuiContext && "ImGui_ImplXcb_Context::NewFrame called with different context than the one used for initialization.");
+    if( !pContext )
         return;
 
     ImGuiIO& io = ImGui::GetIO();
@@ -131,6 +160,17 @@ void ImGui_ImplXcb_Context::NewFrame()
 
     // Update OS mouse position
     UpdateMousePos();
+
+    // Update input capture rects
+    xcb_shape_rectangles(
+        m_Connection,
+        XCB_SHAPE_SO_SET,
+        XCB_SHAPE_SK_INPUT,
+        XCB_CLIP_ORDERING_UNSORTED,
+        m_InputWindow,
+        0, 0,
+        m_InputRects.size(),
+        m_InputRects.data() );
 
     // Handle incoming input events
     // Don't block if there are no pending events
@@ -198,12 +238,15 @@ void ImGui_ImplXcb_Context::NewFrame()
     }
 
     xcb_flush( m_Connection );
+
+    // Rebuild input capture rects on each frame
+    m_InputRects.clear();
 }
 
 /***********************************************************************************\
 
 Function:
-    UpdateWindowRect
+    AddInputCaptureRect
 
 Description:
     X-platform implementations require setting input clipping rects to pass messages
@@ -211,40 +254,14 @@ Description:
     when g.CurrentWindow is set.
 
 \***********************************************************************************/
-void ImGui_ImplXcb_Context::UpdateWindowRect()
+void ImGui_ImplXcb_Context::AddInputCaptureRect( int x, int y, int width, int height )
 {
     // Set input clipping rectangle
-    ImVec2 pos = ImGui::GetWindowPos();
-    ImVec2 size = ImGui::GetWindowSize();
-
-    xcb_rectangle_t inputRect = {};
-    inputRect.x = pos.x;
-    inputRect.y = pos.y;
-    inputRect.width = size.x;
-    inputRect.height = size.y;
-
-    xcb_shape_rectangles(
-        m_Connection,
-        XCB_SHAPE_SO_SET,
-        XCB_SHAPE_SK_INPUT,
-        XCB_CLIP_ORDERING_UNSORTED,
-        m_InputWindow,
-        0, 0,
-        1, &inputRect );
-}
-
-/***********************************************************************************\
-
-Function:
-    InitError
-
-Description:
-
-\***********************************************************************************/
-void ImGui_ImplXcb_Context::InitError()
-{
-    this->~ImGui_ImplXcb_Context();
-    throw;
+    xcb_rectangle_t& inputRect = m_InputRects.emplace_back();
+    inputRect.x = x;
+    inputRect.y = y;
+    inputRect.width = width;
+    inputRect.height = height;
 }
 
 /***********************************************************************************\

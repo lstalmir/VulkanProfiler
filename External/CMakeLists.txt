@@ -22,6 +22,13 @@ cmake_minimum_required (VERSION 3.8)
 
 set (CMAKE_FOLDER External)
 
+# Disable all warnings in this directory
+if (MSVC)
+    add_compile_options (/W0)
+else ()
+    add_compile_options (-w)
+endif ()
+
 # fmtlib/fmt
 add_subdirectory (fmt)
 
@@ -56,8 +63,23 @@ target_include_directories (metrics-discovery
 add_subdirectory (Vulkan-Headers)
 set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers" PARENT_SCOPE)
 
+# KhronosGroup/Vulkan-Utility-Libraries
+add_subdirectory (Vulkan-Utility-Libraries)
+
 # KhronosGroup/SPIRV-Headers
 add_subdirectory (SPIRV-Headers)
+
+# KhronosGroup/SPIRV-Tools
+add_subdirectory (SPIRV-Tools)
+
+# KhronosGroup/SPIRV-Cross
+add_subdirectory (SPIRV-Cross)
+
+# SPIRV-Specification
+add_subdirectory (SPIRV-Specification)
+
+# GPUOpen/VulkanMemoryAllocator
+add_subdirectory (VulkanMemoryAllocator)
 
 # nlohmann/json
 set (JSON_BuildTests OFF CACHE INTERNAL "")
@@ -67,12 +89,6 @@ add_subdirectory (json)
 set (imgui_backends
     imgui/backends/imgui_impl_vulkan.h
     imgui/backends/imgui_impl_vulkan.cpp)
-
-if (WIN32)
-set (imgui_backends ${imgui_backends}
-    imgui/backends/imgui_impl_win32.h
-    imgui/backends/imgui_impl_win32.cpp)
-endif ()
 
 add_library (imgui STATIC
     imgui/imgui.h
@@ -87,8 +103,34 @@ target_include_directories (imgui
     PUBLIC imgui
     PUBLIC imgui/backends)
 
+target_compile_definitions (imgui
+    PRIVATE VK_NO_PROTOTYPES=1)
+
 target_link_libraries (imgui
     PUBLIC Vulkan-Headers)
+
+# lstalmir/imgui-text-editor
+add_library (imgui-text-editor STATIC
+    imgui-text-editor/TextEditor.h
+    imgui-text-editor/TextEditor.cpp)
+
+target_include_directories (imgui-text-editor
+    PUBLIC imgui-text-editor)
+
+target_link_libraries (imgui-text-editor
+    PUBLIC imgui)
+
+# aiekick/ImGuiFileDialog
+add_library (imgui-file-dialog STATIC
+    imgui-file-dialog/ImGuiFileDialog.h
+    imgui-file-dialog/ImGuiFileDialog.cpp
+    imgui-file-dialog/ImGuiFileDialogConfig.h)
+
+target_include_directories (imgui-file-dialog
+    PUBLIC imgui-file-dialog)
+
+target_link_libraries (imgui-file-dialog
+    PUBLIC imgui)
 
 # epezent/implot
 add_library (implot STATIC

@@ -20,6 +20,9 @@
 
 #pragma once
 
+#define PROFILER_MENU      "##Menu"
+#define PROFILER_MENU_ITEM "##MenuItem"
+
 namespace Profiler
 {
     struct DeviceProfilerOverlayLanguage_Base
@@ -32,12 +35,26 @@ namespace Profiler
         inline static constexpr char Pause[] = "Pause";
         inline static constexpr char Save[] = "Save trace";
 
+        // Menu
+        inline static constexpr char FileMenu[] = "File" PROFILER_MENU;
+        inline static constexpr char WindowMenu[] = "Window" PROFILER_MENU;
+        inline static constexpr char PerformanceMenuItem[] = "Performance" PROFILER_MENU_ITEM;
+        inline static constexpr char PerformanceCountersMenuItem[] = "Performance counters" PROFILER_MENU_ITEM;
+        inline static constexpr char QueueUtilizationMenuItem[] = "Queue utilization" PROFILER_MENU_ITEM;
+        inline static constexpr char TopPipelinesMenuItem[] = "Top pipelines" PROFILER_MENU_ITEM;
+        inline static constexpr char MemoryMenuItem[] = "Memory" PROFILER_MENU_ITEM;
+        inline static constexpr char ResourcesMenuItem[] = "Resources" PROFILER_MENU_ITEM;
+        inline static constexpr char InspectorMenuItem[] = "Inspector" PROFILER_MENU_ITEM;
+        inline static constexpr char StatisticsMenuItem[] = "Statistics" PROFILER_MENU_ITEM;
+        inline static constexpr char SettingsMenuItem[] = "Settings" PROFILER_MENU_ITEM;
+
         // Tabs
-        inline static constexpr char Performance[] = "Performance";
-        inline static constexpr char Memory[] = "Memory";
-        inline static constexpr char Resources[] = "Resources";
-        inline static constexpr char Statistics[] = "Statistics";
-        inline static constexpr char Settings[] = "Settings";
+        inline static constexpr char Performance[] = "Performance###Performance";
+        inline static constexpr char Memory[] = "Memory###Memory";
+        inline static constexpr char Resources[] = "Resources###Resources";
+        inline static constexpr char Inspector[] = "Inspector###Inspector";
+        inline static constexpr char Statistics[] = "Statistics###Statistics";
+        inline static constexpr char Settings[] = "Settings###Settings";
 
         // Performance tab
         inline static constexpr char GPUTime[] = "GPU Time";
@@ -46,21 +63,34 @@ namespace Profiler
         inline static constexpr char RenderPasses[] = "Render passes";
         inline static constexpr char Pipelines[] = "Pipelines";
         inline static constexpr char Drawcalls[] = "Drawcalls";
+        inline static constexpr char Constant[] = "Constant";
+        inline static constexpr char Duration[] = "Duration";
+        inline static constexpr char Height[] = "Height";
+        inline static constexpr char ShowIdle[] = "Show idle";
         inline static constexpr char HistogramGroups[] = "Histogram groups";
         inline static constexpr char GPUCycles[] = "GPU Cycles";
-        inline static constexpr char TopPipelines[] = "Top pipelines";
-        inline static constexpr char PerformanceCounters[] = "Performance counters";
+        inline static constexpr char QueueUtilization[] = "Queue utilization###QueueUtilization";
+        inline static constexpr char TopPipelines[] = "Top pipelines###Top pipelines";
+        inline static constexpr char PerformanceCounters[] = "Performance counters###Performance counters";
         inline static constexpr char Metric[] = "Metric";
         inline static constexpr char Frame[] = "Frame";
-        inline static constexpr char FrameBrowser[] = "Frame browser";
+        inline static constexpr char FrameBrowser[] = "Frame browser###Frame browser";
         inline static constexpr char SubmissionOrder[] = "Submission order";
         inline static constexpr char DurationDescending[] = "Duration descending";
         inline static constexpr char DurationAscending[] = "Duration ascending";
         inline static constexpr char Sort[] = "Sort";
         inline static constexpr char CustomStatistics[] = "Custom statistics";
         inline static constexpr char Container[] = "Container";
+        inline static constexpr char Inspect[] = "Inspect";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
+        inline static constexpr char ShaderObjectsTooltip[] = "Pipeline constructed from VkShaderEXT objects passed via vkCmdBindShadersEXT.";
+
+        inline static constexpr char PerformanceCountersFilter[] = "Filter";
+        inline static constexpr char PerformanceCountersRange[] = "Range";
+        inline static constexpr char PerformanceCountersSet[] = "Metrics set";
+        inline static constexpr char PerformanceCountesrNotAvailable[] = "Performance metrics are not available.";
+        inline static constexpr char PerformanceCountersNotAvailableForCommandBuffer[] = "Performance metrics are not available for the selected command buffer.";
 
         // Memory tab
         inline static constexpr char MemoryHeapUsage[] = "Memory heap usage";
@@ -69,8 +99,18 @@ namespace Profiler
         inline static constexpr char MemoryTypeIndex[] = "Memory type index";
 
         // Statistics tab
+        inline static constexpr char ShowEmptyStatistics[] = "Show empty statistics...";
+        inline static constexpr char HideEmptyStatistics[] = "Hide empty statistics";
+        inline static constexpr char StatName[] = "Name";
+        inline static constexpr char StatCount[] = "Count";
+        inline static constexpr char StatTotal[] = "Total";
+        inline static constexpr char StatMin[] = "Min";
+        inline static constexpr char StatMax[] = "Max";
+        inline static constexpr char StatAvg[] = "Avg";
         inline static constexpr char DrawCalls[] = "Draw calls";
         inline static constexpr char DrawCallsIndirect[] = "Draw calls (indirect)";
+        inline static constexpr char DrawMeshTasksCalls[] = "Draw mesh tasks calls";
+        inline static constexpr char DrawMeshTasksIndirectCalls[] = "Draw mesh tasks calls (indirect)";
         inline static constexpr char DispatchCalls[] = "Dispatch calls";
         inline static constexpr char DispatchCallsIndirect[] = "Dispatch calls (indirect)";
         inline static constexpr char TraceRaysCalls[] = "Trace rays calls";
@@ -87,10 +127,24 @@ namespace Profiler
         inline static constexpr char FillBufferCalls[] = "Fill buffer calls";
         inline static constexpr char UpdateBufferCalls[] = "Update buffer calls";
 
+        // Inspector tab
+        inline static constexpr char PipelineState[] = "Pipeline state";
+        inline static constexpr char PipelineStateNotAvailable[] = "Pipeline state info is not available for this pipeline.";
+        inline static constexpr char PipelineStateVertexInput[] = "Vertex input";
+        inline static constexpr char PipelineStateInputAssembly[] = "Input assembly";
+        inline static constexpr char PipelineStateTessellation[] = "Tessellation";
+        inline static constexpr char PipelineStateViewport[] = "Viewport";
+        inline static constexpr char PipelineStateRasterization[] = "Rasterization";
+        inline static constexpr char PipelineStateMultisampling[] = "Multisampling";
+        inline static constexpr char PipelineStateDepthStencil[] = "Depth and stencil";
+        inline static constexpr char PipelineStateColorBlend[] = "Color blend";
+
         // Settings tab
         inline static constexpr char Present[] = "Present";
         inline static constexpr char Submit[] = "Submit";
+        inline static constexpr char SamplingMode[] = "Sampling mode";
         inline static constexpr char SyncMode[] = "Sync mode";
+        inline static constexpr char InterfaceScale[] = "Interface scale";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
         inline static constexpr char ShowShaderCapabilities[] = "Show shader capabilities";
         inline static constexpr char TimeUnit[] = "Time unit";

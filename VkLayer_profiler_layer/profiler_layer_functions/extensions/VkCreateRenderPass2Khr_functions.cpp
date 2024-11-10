@@ -37,6 +37,7 @@ namespace Profiler
         VkRenderPass* pRenderPass )
     {
         auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
 
         // Track host memory operations
         auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
@@ -75,6 +76,8 @@ namespace Profiler
         const VkSubpassBeginInfoKHR* pSubpassBeginInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreBeginRenderPass( pBeginInfo, pSubpassBeginInfo->contents );
@@ -98,6 +101,8 @@ namespace Profiler
         const VkSubpassEndInfoKHR* pSubpassEndInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.PreEndRenderPass();
@@ -122,6 +127,8 @@ namespace Profiler
         const VkSubpassEndInfoKHR* pSubpassEndInfo )
     {
         auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
         auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
 
         profiledCommandBuffer.NextSubpass( pSubpassBeginInfo->contents );
