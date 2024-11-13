@@ -722,7 +722,7 @@ namespace Profiler
                 {
                     // Use the default language for the SPIR-V Cross.
                     sourceLanguage = SpvSourceLanguageGLSL;
-                    sourceLanguageVersion = 450;
+                    sourceLanguageVersion = 460;
                 }
 
                 Profiler::ShaderFormat shaderFormat = GetSpirvSourceShaderFormat( sourceLanguage );
