@@ -40,7 +40,7 @@ add_subdirectory (External EXCLUDE_FROM_ALL)
 
 find_package (Python3 REQUIRED)
 string (CONFIGURE [[
-    execute_process (COMMAND ${Python3_EXECUTABLE}
+    execute_process (COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_LIST_DIR}/VkLayer_profiler_layer/scripts/gen_licenses.py"
         --license "Vulkan(R) Profiling Layer" "${CMAKE_CURRENT_LIST_DIR}/LICENSE.md"
         --externaldir "${CMAKE_CURRENT_LIST_DIR}/External"
