@@ -59,6 +59,6 @@ if (BUILD_TESTS)
         )
         
     target_include_directories (profiler_tests
-        PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+        PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
         )
 endif (BUILD_TESTS)

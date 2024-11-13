@@ -40,12 +40,12 @@ target_link_libraries (profiler_ext
 
 # Set include path
 target_include_directories (profiler_ext
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/core
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/extensions)
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/core"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/extensions")
 
 # Install headers
 install (TARGETS profiler_ext
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 
 install (FILES ${headers}
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
