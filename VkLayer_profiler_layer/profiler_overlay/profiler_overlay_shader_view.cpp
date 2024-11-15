@@ -54,11 +54,12 @@ namespace
         uint32_t            m_FilenameStringID;
         SpvSourceLanguage   m_Language;
         uint32_t            m_LanguageVersion;
-        const char*         m_pData;
+        std::string         m_Data;
     };
 
-    struct SourceList
+    struct SpirvParseOutputData
     {
+        std::vector<uint32_t> m_Bytecode;
         std::vector<Source> m_Sources;
         std::unordered_map<uint32_t, const char*> m_pStrings;
     };
@@ -112,17 +113,61 @@ namespace
     /***********************************************************************************\
 
     Function:
-        GetSpirvSources
+        ParseSpirvHeader
+
+    Description:
+        Parses the SPIR-V header and writes it to the output.
+
+    \***********************************************************************************/
+    static spv_result_t ParseSpirvHeader( void* pUserData,
+        spv_endianness_t endian,
+        uint32_t magic,
+        uint32_t version,
+        uint32_t generator,
+        uint32_t id_bound,
+        uint32_t reserved )
+    {
+        SpirvParseOutputData* pOutput = static_cast<SpirvParseOutputData*>( pUserData );
+        assert( pOutput );
+
+        if( !pOutput )
+        {
+            return SPV_ERROR_INVALID_POINTER;
+        }
+
+        // SPIR-V is a sequence of 32-bit words, so the endianess is not important as long as it is consistent.
+        // Store the header, and the following instructions, in the native endian.
+        (void)endian;
+        pOutput->m_Bytecode.push_back( magic );
+        pOutput->m_Bytecode.push_back( version );
+        pOutput->m_Bytecode.push_back( generator );
+        pOutput->m_Bytecode.push_back( id_bound );
+        pOutput->m_Bytecode.push_back( reserved );
+
+        return SPV_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ParseSpirvInstruction
 
     Description:
         Reads all OpSource instructions and returns a list of shader sources associated
         with the SPIR-V binary.
 
     \***********************************************************************************/
-    static spv_result_t GetSpirvSources( void* pUserData, const spv_parsed_instruction_t* pInstruction )
+    static spv_result_t ParseSpirvInstruction( void* pUserData, const spv_parsed_instruction_t* pInstruction )
     {
-        SourceList* pSourceList = static_cast<SourceList*>(pUserData);
-        assert( pSourceList );
+        SpirvParseOutputData* pOutput = static_cast<SpirvParseOutputData*>( pUserData );
+        assert( pOutput );
+
+        if( !pOutput )
+        {
+            return SPV_ERROR_INVALID_POINTER;
+        }
+
+        bool insertInstruction = true;
 
         // OpStrings define paths to the embedded sources.
         if( pInstruction->opcode == SpvOpString )
@@ -131,64 +176,44 @@ namespace
             const char* pString = GetSpirvOperand<const char*>( pInstruction, 1 );
             if( pString )
             {
-                pSourceList->m_pStrings[ id ] = pString;
+                pOutput->m_pStrings[id] = pString;
             }
-            return SPV_SUCCESS;
         }
 
         // OpSources may contain embedded sources.
-        if( pInstruction->opcode == SpvOpSource )
+        else if( pInstruction->opcode == SpvOpSource )
         {
-            Source& source = pSourceList->m_Sources.emplace_back();
+            Source& source = pOutput->m_Sources.emplace_back();
             source.m_Language = GetSpirvOperand<SpvSourceLanguage>( pInstruction, 0 );
             source.m_LanguageVersion = GetSpirvOperand<uint32_t>( pInstruction, 1 );
             source.m_FilenameStringID = GetSpirvOperand<uint32_t>( pInstruction, 2 );
-            source.m_pData = GetSpirvOperand<const char*>( pInstruction, 3 );
-            return SPV_SUCCESS;
+
+            const char* pData = GetSpirvOperand<const char*>( pInstruction, 3 );
+            if( pData )
+            {
+                source.m_Data.assign( pData );
+            }
+
+            insertInstruction = false;
+        }
+
+        // Continuation of the last OpSource/OpSourceContinued.
+        else if( pInstruction->opcode == SpvOpSourceContinued )
+        {
+            Source& source = pOutput->m_Sources.back();
+            source.m_Data.append( GetSpirvOperand<const char*>( pInstruction, 0 ) );
+            insertInstruction = false;
+        }
+
+        if( insertInstruction )
+        {
+            pOutput->m_Bytecode.insert(
+                pOutput->m_Bytecode.end(),
+                pInstruction->words,
+                pInstruction->words + pInstruction->num_words );
         }
 
         return SPV_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        RemoveSpirvSources
-
-    Description:
-        Removes inline sources from disassembled spirv code.
-
-    \***********************************************************************************/
-    static void RemoveSpirvSources( spv_text text )
-    {
-        std::string_view source( text->str, text->length );
-
-        auto offset = source.find( "OpSource" );
-        while( offset != source.npos )
-        {
-            source = source.substr( offset + 8 );
-
-            // Find end of the OpSource line and beginning of the source code.
-            auto eofOffset = source.find( '\n' );
-            auto codeOffset = source.find( '\"' );
-
-            if( codeOffset < eofOffset )
-            {
-                source = source.substr( codeOffset );
-
-                // Find end of the source code.
-                offset = source.find( "\n\"\n" );
-
-                if( offset != source.npos )
-                {
-                    // Remove the current range from the text.
-                    const size_t removeSize = (offset + 2);
-                    memmove( const_cast<char*>(source.data()), source.data() + removeSize, (source.length() + 1) - removeSize );
-                }
-            }
-
-            offset = source.find( "OpSource" );
-        }
     }
 
     /***********************************************************************************\
@@ -637,6 +662,16 @@ namespace Profiler
         spv_context context = spvContextCreate( static_cast<spv_target_env>(m_SpvTargetEnv) );
         spv_text text;
 
+        // Parse the SPIR-V binary first and remove any instructions that will become redundant.
+        SpirvParseOutputData parsedSpirv;
+        spv_result_t result = spvBinaryParse( context, &parsedSpirv, pBinary, wordCount, ParseSpirvHeader, ParseSpirvInstruction, nullptr );
+
+        if( result == SPV_SUCCESS )
+        {
+            pBinary = parsedSpirv.m_Bytecode.data();
+            wordCount = parsedSpirv.m_Bytecode.size();
+        }
+
         // Disassembler options.
         uint32_t options =
             SPV_BINARY_TO_TEXT_OPTION_INDENT |
@@ -644,38 +679,24 @@ namespace Profiler
             SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
 
         // Disassemble the binary.
-        spv_result_t result = spvBinaryToText( context, pBinary, wordCount, options, &text, nullptr );
+        result = spvBinaryToText( context, pBinary, wordCount, options, &text, nullptr );
 
         if( result == SPV_SUCCESS )
         {
-            // Remove inline OpSources, they will be moved to another tab.
-            RemoveSpirvSources( text );
-
             AddShaderRepresentation( "Disassembly", text->str, text->length, ShaderFormat::eSpirv );
-
-            // Parse shader sources that may be embedded into the binary.
-            SourceList sourceList;
-            spvBinaryParse( context, &sourceList, pBinary, wordCount, nullptr, GetSpirvSources, nullptr );
 
             bool hasValidSources = false;
 
-            for( Source& source : sourceList.m_Sources )
+            for( Source& source : parsedSpirv.m_Sources )
             {
-                size_t dataLength = 0;
-
-                // Calculate length of the embedded shader source.
-                if( source.m_pData )
-                {
-                    dataLength = strlen( source.m_pData );
-                }
-
-                if( dataLength == 0 )
+                // Skip sources with no embedded shader code.
+                if( source.m_Data.empty() )
                 {
                     continue;
                 }
 
                 // Extract filename of the embedded source.
-                const char* pFilename = sourceList.m_pStrings[ source.m_FilenameStringID ];
+                const char* pFilename = parsedSpirv.m_pStrings[ source.m_FilenameStringID ];
                 if( !pFilename || !strlen( pFilename ) )
                 {
                     pFilename = "Source";
@@ -688,7 +709,7 @@ namespace Profiler
                     pBasename = strrchr( pFilename, '\\' );
                 }
 
-                AddShaderRepresentation( pBasename ? pBasename + 1 : pFilename, source.m_pData, dataLength,
+                AddShaderRepresentation( pBasename ? pBasename + 1 : pFilename, source.m_Data.c_str(), source.m_Data.length() + 1,
                     GetSpirvSourceShaderFormat( source.m_Language ) );
 
                 hasValidSources = true;
@@ -700,14 +721,14 @@ namespace Profiler
                 SpvSourceLanguage sourceLanguage = SpvSourceLanguageUnknown;
                 uint32_t sourceLanguageVersion = 0;
 
-                if( !sourceList.m_Sources.empty() )
+                if( !parsedSpirv.m_Sources.empty() )
                 {
-                    const Source& source = sourceList.m_Sources.front();
+                    const Source& source = parsedSpirv.m_Sources.front();
                     sourceLanguage = source.m_Language;
                     sourceLanguageVersion = source.m_LanguageVersion;
 
                     // Check if all sources of the shader module use the same language.
-                    for( const Source& src : sourceList.m_Sources )
+                    for( const Source& src : parsedSpirv.m_Sources )
                     {
                         if( src.m_Language != sourceLanguage )
                         {
