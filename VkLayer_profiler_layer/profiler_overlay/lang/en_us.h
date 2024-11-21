@@ -80,6 +80,7 @@ namespace Profiler
         inline static constexpr char CustomStatistics[] = "Custom statistics";
         inline static constexpr char Container[] = "Container";
         inline static constexpr char Inspect[] = "Inspect";
+        inline static constexpr char ShowPerformanceMetrics[] = "Show performance metrics";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
         inline static constexpr char ShaderObjectsTooltip[] = "Pipeline constructed from VkShaderEXT objects passed via vkCmdBindShadersEXT.";

@@ -75,6 +75,8 @@ namespace Profiler
         inline static constexpr char Sort[] = u8"Sortowanie";
         inline static constexpr char CustomStatistics[] = u8"Własne statystyki";
         inline static constexpr char Container[] = u8"Kontener";
+        inline static constexpr char Inspect[] = u8"Inspekcja";
+        inline static constexpr char ShowPerformanceMetrics[] = u8"Pokaż liczniki wydajności";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
         inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
