@@ -250,6 +250,7 @@ namespace Profiler
             bool* pOpen;
             bool Docked;
             bool Focus = false;
+            void SetFocus();
         };
 
         WindowState m_PerformanceWindowState;

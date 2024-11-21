@@ -2071,8 +2071,7 @@ namespace Profiler
         SetInspectorTabIndex( 0 );
 
         // Switch to the inspector tab.
-        *m_InspectorWindowState.pOpen = true;
-        m_InspectorWindowState.Focus = true;
+        m_InspectorWindowState.SetFocus();
     }
 
     /***********************************************************************************\
@@ -3631,6 +3630,7 @@ namespace Profiler
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
                 m_PerformanceQueryCommandBufferFilterName = commandBufferName;
+                m_PerformanceCountersWindowState.SetFocus();
             }
             ImGui::EndPopup();
         }
@@ -4199,5 +4199,24 @@ namespace Profiler
     float ProfilerOverlayOutput::GetDuration( uint64_t begin, uint64_t end ) const
     {
         return static_cast<float>(end - begin) * m_TimestampPeriod.count() * m_TimestampDisplayUnit;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetFocus
+
+    Description:
+        Set focus to the window on the next frame and make sure the window is open.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::WindowState::SetFocus()
+    {
+        Focus = true;
+
+        if( pOpen != nullptr )
+        {
+            *pOpen = true;
+        }
     }
 }
