@@ -3621,7 +3621,23 @@ namespace Profiler
         }
 
         const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-        if( ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( cmdBuffer.m_Handle ).c_str() ) )
+        const std::string commandBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
+        bool commandBufferTreeExpanded = ImGui::TreeNode( indexStr, "%s",
+            commandBufferName.c_str() );
+
+        if( ImGui::BeginPopupContextItem() )
+        {
+            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceQueryResults.empty() ) )
+            {
+                m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
+                m_PerformanceQueryCommandBufferFilterName = commandBufferName;
+            }
+            ImGui::EndPopup();
+        }
+
+        PrintDuration( cmdBuffer );
+
+        if( commandBufferTreeExpanded )
         {
             // Command buffer opened
             PrintDuration( cmdBuffer );
@@ -3641,11 +3657,6 @@ namespace Profiler
 
             index.pop_back();
             ImGui::TreePop();
-        }
-        else
-        {
-            // Command buffer collapsed
-            PrintDuration( cmdBuffer );
         }
     }
 
