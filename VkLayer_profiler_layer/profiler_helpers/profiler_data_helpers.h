@@ -77,6 +77,9 @@ namespace Profiler
         std::string GetLogicOpName( VkLogicOp ) const;
         std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
 
+        std::string GetBufferUsageFlagNames( VkBufferUsageFlags ) const;
+        std::string GetImageUsageFlagNames( VkImageUsageFlags ) const;
+
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;

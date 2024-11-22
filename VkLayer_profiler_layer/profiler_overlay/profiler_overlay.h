@@ -40,6 +40,8 @@
 #include "profiler_ext/VkProfilerEXT.h"
 
 struct ImGuiContext;
+struct ImPlotContext;
+struct ImFont;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
 
@@ -99,6 +101,7 @@ namespace Profiler
         OSWindowHandle m_Window;
 
         ImGuiContext* m_pImGuiContext;
+        ImPlotContext* m_pImPlotContext;
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
 
@@ -186,6 +189,8 @@ namespace Profiler
         VkProfilerModeEXT m_SamplingMode;
         VkProfilerSyncModeEXT m_SyncMode;
 
+        std::chrono::high_resolution_clock::time_point m_PauseTimestamp;
+
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
         bool ScrollToSelectedFrameBrowserNode( const FrameBrowserTreeNodeIndex& index ) const;
@@ -234,6 +239,9 @@ namespace Profiler
         uint32_t m_RayTracingPipelineColumnColor;
         uint32_t m_InternalPipelineColumnColor;
 
+        // Implot colormaps
+        int m_PlotColormap;
+
         class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         // Dock space ids
@@ -258,6 +266,7 @@ namespace Profiler
         WindowState m_TopPipelinesWindowState;
         WindowState m_PerformanceCountersWindowState;
         WindowState m_MemoryWindowState;
+        WindowState m_ResourcesWindowState;
         WindowState m_InspectorWindowState;
         WindowState m_StatisticsWindowState;
         WindowState m_SettingsWindowState;
@@ -267,6 +276,7 @@ namespace Profiler
 
         void InitializeImGuiDefaultFont();
         void InitializeImGuiStyle();
+        void InitializeImPlotStyle();
 
         void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
@@ -274,6 +284,7 @@ namespace Profiler
         void UpdateTopPipelinesTab();
         void UpdatePerformanceCountersTab();
         void UpdateMemoryTab();
+        void UpdateResourcesTab();
         void UpdateInspectorTab();
         void UpdateStatisticsTab();
         void UpdateSettingsTab();

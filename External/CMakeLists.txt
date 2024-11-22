@@ -131,3 +131,17 @@ target_include_directories (imgui-file-dialog
 
 target_link_libraries (imgui-file-dialog
     PUBLIC imgui)
+
+# epezent/implot
+add_library (implot STATIC
+    implot/implot.h
+    implot/implot.cpp
+    implot/implot_internal.h
+    implot/implot_items.cpp
+    implot/implot_demo.cpp)
+
+target_include_directories (implot
+    PUBLIC implot)
+
+target_link_libraries (implot
+    PUBLIC imgui)

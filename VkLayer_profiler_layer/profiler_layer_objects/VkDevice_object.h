@@ -30,6 +30,7 @@
 
 #include "../profiler/profiler_counters.h"
 #include "../utils/lockable_unordered_map.h"
+#include "../profiler/profiler_allocator.h"
 
 namespace Profiler
 {
@@ -61,5 +62,7 @@ namespace Profiler
 
         // Swapchains created with this device
         std::unordered_map<VkSwapchainKHR, VkSwapchainKhr_Object> Swapchains;
+
+        MemoryProfiler HostMemoryProfiler;
     };
 }

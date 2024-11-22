@@ -43,6 +43,7 @@ namespace Profiler
         inline static constexpr char QueueUtilizationMenuItem[] = "Queue utilization" PROFILER_MENU_ITEM;
         inline static constexpr char TopPipelinesMenuItem[] = "Top pipelines" PROFILER_MENU_ITEM;
         inline static constexpr char MemoryMenuItem[] = "Memory" PROFILER_MENU_ITEM;
+        inline static constexpr char ResourcesMenuItem[] = "Resources" PROFILER_MENU_ITEM;
         inline static constexpr char InspectorMenuItem[] = "Inspector" PROFILER_MENU_ITEM;
         inline static constexpr char StatisticsMenuItem[] = "Statistics" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = "Settings" PROFILER_MENU_ITEM;
@@ -50,6 +51,7 @@ namespace Profiler
         // Tabs
         inline static constexpr char Performance[] = "Performance###Performance";
         inline static constexpr char Memory[] = "Memory###Memory";
+        inline static constexpr char Resources[] = "Resources###Resources";
         inline static constexpr char Inspector[] = "Inspector###Inspector";
         inline static constexpr char Statistics[] = "Statistics###Statistics";
         inline static constexpr char Settings[] = "Settings###Settings";

@@ -120,6 +120,16 @@ namespace Profiler
 
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );
+        void BindBufferMemory( VkBuffer, VkDeviceMemory, VkDeviceSize );
+        void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
+        void FlushMappedMemoryRanges( VkDeviceMemory, uint32_t, const VkMappedMemoryRange* );
+        void InvalidateMappedMemoryRanges( VkDeviceMemory, uint32_t, const VkMappedMemoryRange* );
+
+        void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
+        void DestroyBuffer( VkBuffer );
+
+        void CreateImage( VkImage, const VkImageCreateInfo* );
+        void DestroyImage( VkImage );
 
         void SetObjectName( VkObject, const char* );
         void SetDefaultObjectName( VkObject );
@@ -146,7 +156,17 @@ namespace Profiler
         CpuTimestampCounter     m_CpuTimestampCounter;
         CpuEventFrequencyCounter m_CpuFpsCounter;
 
-        ConcurrentMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
+        struct DeviceMemoryInfo
+        {
+            VkDeviceSize        m_Size;
+            uint32_t            m_TypeIndex;
+            uint32_t            m_HeapIndex;
+        };
+
+        std::mutex              m_MemoryProfilerMutex;
+        std::unordered_map<VkDeviceMemory, DeviceMemoryInfo> m_Allocations;
+        std::unordered_map<VkBuffer, VkDeviceMemory>         m_Buffers;
+        std::unordered_map<VkImage, VkDeviceMemory>          m_Images;
         DeviceProfilerMemoryData m_MemoryData;
 
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
@@ -191,6 +211,27 @@ namespace Profiler
         void CreateSubmitBatchInfoImpl( VkQueue, uint32_t, const SubmitInfoT*, DeviceProfilerSubmitBatch* );
 
         void BeginNextFrame();
+
+        template<typename ResourceT>
+        void BindResourceMemoryImpl( ResourceT, VkDeviceMemory, VkDeviceSize, VkMemoryRequirements, DeviceProfilerResourceInfo& );
+
+        template<typename ResourceT>
+        void DestroyResourceImpl( ResourceT );
+
+        template<typename ResourceT>
+        std::unordered_map<ResourceT, VkDeviceMemory>& GetResourceMap()
+        {
+            if constexpr( std::is_same_v<ResourceT, VkBuffer> ) return m_Buffers;
+            if constexpr( std::is_same_v<ResourceT, VkImage> ) return m_Images;
+        }
+
+        template<typename ResourceT>
+        std::pair<typename std::unordered_map<ResourceT, VkDeviceMemory>::iterator, bool> GetResourceMemoryEntry( ResourceT resource )
+        {
+            auto& resources = GetResourceMap<ResourceT>();
+            auto found = resources.find( resource );
+            return std::pair( found, found != resources.end() );
+        }
     };
 
     /***********************************************************************************\

@@ -1200,29 +1200,182 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
-        DeviceProfilerHeapMemoryData
+        DeviceProfilerMemoryBindingData
 
     Description:
+        Contains information on a specific resource bound to a VkDeviceMemory.
 
     \***********************************************************************************/
-    struct DeviceProfilerMemoryHeapData
+    template<typename ResourceT>
+    struct DeviceProfilerMemoryBindingData
     {
-        uint64_t m_AllocationSize = {};
-        uint64_t m_AllocationCount = {};
+        ResourceT    m_Handle = {};
+        VkDeviceSize m_Offset = {};
+        VkDeviceSize m_Size = {};
     };
 
     /***********************************************************************************\
 
     Structure:
-        DeviceProfilerHeapMemoryData
+        DeviceProfilerMemoryAllocationData
 
     Description:
+        Contains information on VkDeviceMemory and all resources bound to it.
 
     \***********************************************************************************/
-    struct DeviceProfilerMemoryTypeData
+    struct DeviceProfilerMemoryAllocationData
+    {
+        VkDeviceMemory m_Handle = {};
+        VkDeviceSize   m_Size = {};
+        uint32_t       m_Type = {};
+
+        ContainerType<DeviceProfilerMemoryBindingData<VkBuffer>> m_Buffers = {};
+        ContainerType<DeviceProfilerMemoryBindingData<VkImage>>  m_Images = {};
+
+        std::vector<VkMappedMemoryRange> m_FlushRanges = {};
+        std::vector<VkMappedMemoryRange> m_InvalidateRanges = {};
+
+        template<typename T>
+        ContainerType<DeviceProfilerMemoryBindingData<T>>& GetResourceBindings()
+        {
+            if constexpr( std::is_same_v<T, VkBuffer> ) return m_Buffers;
+            if constexpr( std::is_same_v<T, VkImage> ) return m_Images;
+        }
+
+        template<typename T>
+        std::pair<typename ContainerType<DeviceProfilerMemoryBindingData<T>>::iterator, bool> GetResourceBindingEntry( T resource )
+        {
+            auto& bindings = GetResourceBindings<T>();
+            for( auto it = bindings.begin(), end = bindings.end(); it != end; ++it )
+                if( it->m_Handle == resource )
+                    return std::pair( it, true );
+            return std::pair( bindings.end(), false );
+        }
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerMemoryStatsData
+
+    Description:
+        Memory statistics.
+
+    \***********************************************************************************/
+    struct DeviceProfilerMemoryStatsData
     {
         uint64_t m_AllocationSize = {};
         uint64_t m_AllocationCount = {};
+
+        uint64_t m_NewAllocationSize = {};
+        uint64_t m_NewAllocationCount = {};
+
+        uint64_t m_FreedAllocationSize = {};
+        uint64_t m_FreedAllocationCount = {};
+
+        void ResetDiffs()
+        {
+            m_NewAllocationSize = 0;
+            m_NewAllocationCount = 0;
+            m_FreedAllocationSize = 0;
+            m_FreedAllocationCount = 0;
+        }
+
+        void AddAllocation( uint64_t size )
+        {
+            m_AllocationSize += size;
+            m_AllocationCount++;
+            m_NewAllocationSize += size;
+            m_NewAllocationCount++; 
+        }
+
+        void FreeAllocation( uint64_t size )
+        {
+            m_AllocationSize -= size;
+            m_AllocationCount--;
+            m_FreedAllocationSize += size;
+            m_FreedAllocationCount++;
+        }
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerMemoryHeapData
+
+    Description:
+        Contains information on a memory heap and all VkDeviceMemory allocations on it.
+
+    \***********************************************************************************/
+    struct DeviceProfilerMemoryHeapData : DeviceProfilerMemoryStatsData
+    {
+        ContainerType<struct DeviceProfilerMemoryAllocationData> m_Allocations = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerMemoryTypeData
+
+    Description:
+        Contains aggregated information on allocations of specific memory type.
+
+    \***********************************************************************************/
+    struct DeviceProfilerMemoryTypeData : DeviceProfilerMemoryStatsData
+    {
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerResourceInfo
+
+    Description:
+        Common data associated with any resource that can be bound to a memory.
+
+    \***********************************************************************************/
+    struct DeviceProfilerResourceInfo
+    {
+        VkDeviceMemory          m_Memory = {};
+        VkDeviceSize            m_MemoryOffset = {};
+        VkDeviceSize            m_PhysicalSize = {};
+        uint32_t                m_MemoryTypeIndex = {};
+        uint32_t                m_MemoryHeapIndex = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerBufferInfo
+
+    Description:
+        Buffer desc.
+
+    \***********************************************************************************/
+    struct DeviceProfilerBufferInfo : DeviceProfilerResourceInfo
+    {
+        VkDeviceSize            m_LogicalSize = {};
+        VkBufferUsageFlags      m_Usage = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerImageInfo
+
+    Description:
+        Image desc.
+
+    \***********************************************************************************/
+    struct DeviceProfilerImageInfo : DeviceProfilerResourceInfo
+    {
+        VkExtent3D              m_Extent = {};
+        VkFormat                m_Format = {};
+        VkImageUsageFlags       m_Usage = {};
+        uint32_t                m_MipLevels = {};
+        uint32_t                m_ArrayLayers = {};
+        VkSampleCountFlagBits   m_Samples = {};
+        VkImageTiling           m_Tiling = {};
     };
 
     /***********************************************************************************\
@@ -1240,6 +1393,9 @@ namespace Profiler
 
         std::vector<struct DeviceProfilerMemoryHeapData> m_Heaps = {};
         std::vector<struct DeviceProfilerMemoryTypeData> m_Types = {};
+
+        std::unordered_map<VkBuffer, DeviceProfilerBufferInfo> m_Buffers = {};
+        std::unordered_map<VkImage, DeviceProfilerImageInfo>   m_Images = {};
     };
 
     /***********************************************************************************\

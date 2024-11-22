@@ -58,6 +58,12 @@ namespace Profiler
         GETPROCADDR( FreeCommandBuffers );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
+        GETPROCADDR( BindBufferMemory );
+        GETPROCADDR( BindImageMemory );
+        GETPROCADDR( CreateBuffer );
+        GETPROCADDR( DestroyBuffer );
+        GETPROCADDR( CreateImage );
+        GETPROCADDR( DestroyImage );
 
         // VkCommandBuffer core functions
         GETPROCADDR( BeginCommandBuffer );
@@ -238,12 +244,22 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_SHADER_MODULE );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the shader module
         VkResult result = dd.Device.Callbacks.CreateShaderModule(
             device, pCreateInfo, pAllocator, pShaderModule );
 
         if( result == VK_SUCCESS )
         {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pShaderModule, pProfilerAllocator );
+
             // Register shader module
             dd.Profiler.CreateShaderModule( *pShaderModule, pCreateInfo );
         }
@@ -267,11 +283,22 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_SHADER_MODULE );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Unregister the shader module from the profiler
         dd.Profiler.DestroyShaderModule( shaderModule );
 
         // Destroy the shader module
         dd.Device.Callbacks.DestroyShaderModule( device, shaderModule, pAllocator );
+
+        // Unregister the allocator associated with the object
+        dd.Device.HostMemoryProfiler.DestroyAllocator( shaderModule );
     }
 
     /***********************************************************************************\
@@ -298,12 +325,26 @@ namespace Profiler
         VkPipelineExecutablePropertiesKhr_Functions::CapturePipelineExecutableProperties(
             dd, createInfoCount, &pCreateInfos, &pCreateInfosWithExecutableProperties );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_PIPELINE );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateGraphicsPipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
         if( result == VK_SUCCESS )
         {
+            // Associate the allocator with the new pipelines
+            for( uint32_t i = 0; i < createInfoCount; ++i )
+            {
+                dd.Device.HostMemoryProfiler.BindAllocator( pPipelines[ i ], pProfilerAllocator );
+            }
+
             // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
@@ -337,12 +378,26 @@ namespace Profiler
         VkPipelineExecutablePropertiesKhr_Functions::CapturePipelineExecutableProperties(
             dd, createInfoCount, &pCreateInfos, &pCreateInfosWithExecutableProperties );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_PIPELINE );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the pipelines
         VkResult result = dd.Device.Callbacks.CreateComputePipelines(
             device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 
         if( result == VK_SUCCESS )
         {
+            // Associate the allocator with the new pipelines
+            for( uint32_t i = 0; i < createInfoCount; ++i )
+            {
+                dd.Device.HostMemoryProfiler.BindAllocator( pPipelines[ i ], pProfilerAllocator );
+            }
+
             // Register pipelines
             dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
         }
@@ -368,11 +423,22 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_PIPELINE );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Unregister the pipeline
         dd.Profiler.DestroyPipeline( pipeline );
 
         // Destroy the pipeline
         dd.Device.Callbacks.DestroyPipeline( device, pipeline, pAllocator );
+
+        // Unregister the allocator associated with the object
+        dd.Device.HostMemoryProfiler.DestroyAllocator( pipeline );
     }
 
     /***********************************************************************************\
@@ -392,12 +458,22 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_RENDER_PASS );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the render pass
         VkResult result = dd.Device.Callbacks.CreateRenderPass(
             device, pCreateInfo, pAllocator, pRenderPass );
 
         if( result == VK_SUCCESS )
         {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pRenderPass, pProfilerAllocator );
+
             // Register new render pass
             dd.Profiler.CreateRenderPass( *pRenderPass, pCreateInfo );
         }
@@ -422,12 +498,22 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_RENDER_PASS );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the render pass
         VkResult result = dd.Device.Callbacks.CreateRenderPass2(
             device, pCreateInfo, pAllocator, pRenderPass );
 
         if( result == VK_SUCCESS )
         {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pRenderPass, pProfilerAllocator );
+
             // Register new render pass
             dd.Profiler.CreateRenderPass( *pRenderPass, pCreateInfo );
         }
@@ -451,11 +537,22 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_RENDER_PASS );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Unregister the render pass
         dd.Profiler.DestroyRenderPass( renderPass );
 
         // Destroy the render pass
         dd.Device.Callbacks.DestroyRenderPass( device, renderPass, pAllocator );
+
+        // Unregister the allocator associated with the object
+        dd.Device.HostMemoryProfiler.DestroyAllocator( renderPass );
     }
 
     /***********************************************************************************\
@@ -475,12 +572,22 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_COMMAND_POOL );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the command pool
         VkResult result = dd.Device.Callbacks.CreateCommandPool(
             device, pCreateInfo, pAllocator, pCommandPool );
 
         if( result == VK_SUCCESS )
         {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pCommandPool, pProfilerAllocator );
+
             // Create command pool wrapper
             dd.Profiler.CreateCommandPool( *pCommandPool, pCreateInfo );
         }
@@ -504,12 +611,23 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_COMMAND_POOL );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Cleanup profiler resources associated with the command pool
         dd.Profiler.DestroyCommandPool( commandPool );
 
         // Destroy the command pool
         dd.Device.Callbacks.DestroyCommandPool(
             device, commandPool, pAllocator );
+
+        // Unregister the allocator associated with the object
+        dd.Device.HostMemoryProfiler.DestroyAllocator( commandPool );
     }
 
     /***********************************************************************************\
@@ -587,12 +705,23 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_DEVICE_MEMORY );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Allocate the memory
         VkResult result = dd.Device.Callbacks.AllocateMemory(
             device, pAllocateInfo, pAllocator, pMemory );
 
         if( result == VK_SUCCESS )
         {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pMemory, pProfilerAllocator );
+            dd.Device.HostMemoryProfiler.BindDeviceMemory( *pMemory, *pMemory, 0, pAllocateInfo->allocationSize );
+
             // Register allocation
             dd.Profiler.AllocateMemory( *pMemory, pAllocateInfo );
         }
@@ -616,10 +745,233 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_DEVICE_MEMORY );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Unregister allocation
         dd.Profiler.FreeMemory( memory );
 
         // Free the memory
         dd.Device.Callbacks.FreeMemory( device, memory, pAllocator );
+
+        // Unregister the allocator associated with the object
+        dd.Device.HostMemoryProfiler.DestroyAllocator( memory );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindBufferMemory(
+        VkDevice device,
+        VkBuffer buffer,
+        VkDeviceMemory deviceMemory,
+        VkDeviceSize offset )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Bind the buffer
+        VkResult result = dd.Device.Callbacks.BindBufferMemory(
+            device, buffer, deviceMemory, offset );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register memory binding
+            VkMemoryRequirements memoryRequirements = {};
+            dd.Device.Callbacks.GetBufferMemoryRequirements( dd.Device.Handle, buffer, &memoryRequirements );
+            dd.Device.HostMemoryProfiler.BindDeviceMemory(
+                buffer,
+                deviceMemory,
+                offset,
+                memoryRequirements.size );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindImageMemory(
+        VkDevice device,
+        VkImage image,
+        VkDeviceMemory deviceMemory,
+        VkDeviceSize offset )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Bind the image
+        VkResult result = dd.Device.Callbacks.BindImageMemory(
+            device, image, deviceMemory, offset );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register memory binding
+            VkMemoryRequirements memoryRequirements = {};
+            dd.Device.Callbacks.GetImageMemoryRequirements( dd.Device.Handle, image, &memoryRequirements );
+            dd.Device.HostMemoryProfiler.BindDeviceMemory(
+                image,
+                deviceMemory,
+                offset,
+                memoryRequirements.size );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateBuffer(
+        VkDevice device,
+        const VkBufferCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkBuffer* pBuffer )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_BUFFER );
+
+        pAllocator = pProfilerAllocator.get();
+
+        VkResult result = dd.Device.Callbacks.CreateBuffer(
+            device, pCreateInfo, pAllocator, pBuffer );
+
+        if( result == VK_SUCCESS )
+        {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pBuffer, pProfilerAllocator );
+
+            // Register resource
+            dd.Profiler.CreateBuffer( *pBuffer, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyBuffer(
+        VkDevice device,
+        VkBuffer buffer,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_BUFFER );
+
+        pAllocator = pProfilerAllocator.get();
+
+        // Unregister memory binding
+        dd.Profiler.DestroyBuffer( buffer );
+
+        // Destroy the buffer
+        dd.Device.Callbacks.DestroyBuffer( device, buffer, pAllocator );
+
+        // Unregister the allocator associated with the object
+        dd.Device.HostMemoryProfiler.DestroyAllocator( buffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateImage(
+        VkDevice device,
+        const VkImageCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkImage* pImage )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_IMAGE );
+
+        pAllocator = pProfilerAllocator.get();
+
+        VkResult result = dd.Device.Callbacks.CreateImage(
+            device, pCreateInfo, pAllocator, pImage );
+
+        if( result == VK_SUCCESS )
+        {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pImage, pProfilerAllocator );
+
+            // Register resource
+            dd.Profiler.CreateImage( *pImage, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyImage(
+        VkDevice device,
+        VkImage image,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_IMAGE );
+
+        pAllocator = pProfilerAllocator.get();
+
+        // Unregister memory binding
+        dd.Profiler.DestroyImage( image );
+
+        // Destroy the image
+        dd.Device.Callbacks.DestroyImage( device, image, pAllocator );
+
+        // Unregister the allocator associated with the object
+        dd.Device.HostMemoryProfiler.DestroyAllocator( image );
     }
 }

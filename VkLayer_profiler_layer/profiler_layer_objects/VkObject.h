@@ -21,6 +21,7 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include <utility>
+#include <unordered_map>
 
 namespace Profiler
 {
@@ -77,8 +78,23 @@ namespace Profiler
         static constexpr VkDebugReportObjectTypeEXT DebugReportObjectType   = VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT;
         static constexpr const char ObjectTypeName[]                        = "Unknown object type";
         static constexpr bool ShouldHaveDebugName                           = false;
+        static constexpr bool IsDispatchable                                = false;
+        static constexpr bool HasDeviceMemory                               = false;
     };
-    
+
+    template<typename T>
+    struct VkObject_DeviceMemory_Traits
+    {
+        static constexpr bool HasDeviceMemory =
+            std::is_same_v<T, VkDeviceMemory> ||
+            std::is_same_v<T, VkImage> ||
+            std::is_same_v<T, VkBuffer>;
+
+        static constexpr bool HasDeviceMemoryOffset =
+            std::is_same_v<T, VkImage> ||
+            std::is_same_v<T, VkBuffer>;
+    };
+
     #define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME )         \
     template<> struct VkObject_Traits<TYPE> : VkObject_Traits_Base<TYPE, std::is_pointer_v<TYPE>> {     \
         using Base = VkObject_Traits_Base<TYPE, std::is_pointer_v<TYPE>>;                               \
@@ -87,7 +103,9 @@ namespace Profiler
         static constexpr VkObjectType ObjectType                            = OBJECT_TYPE;              \
         static constexpr VkDebugReportObjectTypeEXT DebugReportObjectType   = DEBUG_REPORT_OBJECT_TYPE; \
         static constexpr const char ObjectTypeName[]                        = #TYPE;                    \
-        static constexpr bool ShouldHaveDebugName                           = SHOULD_HAVE_DEBUG_NAME; };
+        static constexpr bool ShouldHaveDebugName                           = SHOULD_HAVE_DEBUG_NAME;   \
+        static constexpr bool IsDispatchable                                = std::is_pointer_v<TYPE>;  \
+        using DeviceMemoryTraits = VkObject_DeviceMemory_Traits<TYPE>; };
 
     // Define compile-time traits for each Vulkan object
     #include "VkObject_Types.inl"
@@ -107,6 +125,9 @@ namespace Profiler
         const VkDebugReportObjectTypeEXT DebugReportObjectType              = VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT;
         const char* ObjectTypeName                                          = "Unknown object type";
         const bool ShouldHaveDebugName                                      = false;
+        const bool IsDispatchable                                           = false;
+        const bool HasDeviceMemory                                          = false;
+        const bool HasDeviceMemoryOffset                                    = false;
 
         inline VkObject_Runtime_Traits() = default;
 
@@ -114,11 +135,17 @@ namespace Profiler
             VkObjectType objectType,
             VkDebugReportObjectTypeEXT debugReportObjectType,
             const char* pObjectTypeName,
-            bool shouldHaveDebugName )
+            bool shouldHaveDebugName,
+            bool isDispatchable,
+            bool hasDeviceMemory,
+            bool hasDeviceMemoryOffset )
             : ObjectType( objectType )
             , DebugReportObjectType( debugReportObjectType )
             , ObjectTypeName( pObjectTypeName )
             , ShouldHaveDebugName( shouldHaveDebugName )
+            , IsDispatchable( isDispatchable )
+            , HasDeviceMemory( hasDeviceMemory )
+            , HasDeviceMemoryOffset( hasDeviceMemoryOffset )
         {
         }
 
@@ -129,7 +156,10 @@ namespace Profiler
                 VkObject_Traits<VkObjectT>::ObjectType,
                 VkObject_Traits<VkObjectT>::DebugReportObjectType,
                 VkObject_Traits<VkObjectT>::ObjectTypeName,
-                VkObject_Traits<VkObjectT>::ShouldHaveDebugName );
+                VkObject_Traits<VkObjectT>::ShouldHaveDebugName,
+                VkObject_Traits<VkObjectT>::IsDispatchable,
+                VkObject_Traits<VkObjectT>::DeviceMemoryTraits::HasDeviceMemory,
+                VkObject_Traits<VkObjectT>::DeviceMemoryTraits::HasDeviceMemoryOffset );
         }
 
         inline static VkObject_Runtime_Traits FromObjectType( VkObjectType objectType )

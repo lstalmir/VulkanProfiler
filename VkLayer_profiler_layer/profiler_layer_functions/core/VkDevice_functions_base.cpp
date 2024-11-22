@@ -103,11 +103,19 @@ namespace Profiler
             }
         }
 
+        // Initialize the memory profiler
+        dd.Device.HostMemoryProfiler.Initialize();
+        dd.Device.pInstance->HostMemoryProfilerManager.RegisterMemoryProfiler(
+            device, &dd.Device.HostMemoryProfiler );
+
         // Initialize the profiler object
         VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
 
         if( result != VK_SUCCESS )
         {
+            dd.Device.pInstance->HostMemoryProfilerManager.UnregisterMemoryProfiler( device );
+            dd.Device.HostMemoryProfiler.Destroy();
+
             // Profiler initialization failed
             DeviceDispatch.Erase( device );
         }
@@ -127,6 +135,10 @@ namespace Profiler
     void VkDevice_Functions_Base::DestroyDeviceBase( VkDevice device )
     {
         auto& dd = DeviceDispatch.Get( device );
+
+        // Destroy the memory profiler
+        dd.Device.pInstance->HostMemoryProfilerManager.UnregisterMemoryProfiler( device );
+        dd.Device.HostMemoryProfiler.Destroy();
 
         // Destroy the profiler instance
         dd.Profiler.Destroy();

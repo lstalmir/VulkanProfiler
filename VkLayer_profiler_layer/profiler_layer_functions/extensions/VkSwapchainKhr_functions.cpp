@@ -50,6 +50,14 @@ namespace Profiler
             createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         }
 
+        // Track host memory operations
+        auto pProfilerAllocator = dd.Device.HostMemoryProfiler.CreateAllocator(
+            pAllocator,
+            __FUNCTION__,
+            VK_OBJECT_TYPE_SWAPCHAIN_KHR );
+
+        pAllocator = pProfilerAllocator.get();
+
         // Create the swapchain
         VkResult result = dd.Device.Callbacks.CreateSwapchainKHR(
             device, &createInfo, pAllocator, pSwapchain );
@@ -57,6 +65,8 @@ namespace Profiler
         // Create wrapping object
         if( result == VK_SUCCESS )
         {
+            dd.Device.HostMemoryProfiler.BindAllocator( *pSwapchain, pProfilerAllocator );
+
             VkSwapchainKhr_Object swapchainObject = {};
             swapchainObject.Handle = *pSwapchain;
             swapchainObject.pSurface = &dd.Device.pInstance->Surfaces[ pCreateInfo->surface ];
@@ -143,6 +153,8 @@ namespace Profiler
 
         // Destroy the swapchain
         dd.Device.Callbacks.DestroySwapchainKHR( device, swapchain, pAllocator );
+
+        dd.Device.HostMemoryProfiler.DestroyAllocator( swapchain );
     }
 
     /***********************************************************************************\

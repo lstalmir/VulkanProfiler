@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "VkSurfaceKhr_functions.h"
+#pragma once
+#include <mutex>
+#include <shared_mutex>
 
-namespace Profiler
+template<typename Mutex = std::mutex>
+class Lockable
 {
-    /***********************************************************************************\
+public:
+    void lock() const { m_Mutex.lock(); }
+    void unlock() const { m_Mutex.unlock(); }
+    bool try_lock() const { return m_Mutex.try_lock(); }
 
-    Function:
-        DestroySurfaceKHR
+protected:
+    mutable Mutex m_Mutex;
+};
 
-    Description:
-
-    \***********************************************************************************/
-    VKAPI_ATTR void VKAPI_CALL VkSurfaceKhr_Functions::DestroySurfaceKHR(
-        VkInstance instance,
-        VkSurfaceKHR surface,
-        const VkAllocationCallbacks* pAllocator )
-    {
-        auto& id = InstanceDispatch.Get( instance );
-
-        // Remove surface entry
-        id.Instance.Surfaces.erase( surface );
-
-        id.Instance.Callbacks.DestroySurfaceKHR(
-            instance, surface, pAllocator );
-
-        id.Instance.HostMemoryProfiler.DestroyAllocator( surface );
-    }
-}
+template<typename Mutex = std::shared_mutex>
+class SharedLockable : public Lockable<Mutex>
+{
+public:
+    void lock_shared() const { m_Mutex.lock_shared(); }
+    void unlock_shared() const { m_Mutex.unlock_shared(); }
+    bool try_lock_shared() const { return m_Mutex.try_lock_shared(); }
+};
