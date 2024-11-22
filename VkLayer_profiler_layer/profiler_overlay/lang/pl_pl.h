@@ -77,6 +77,7 @@ namespace Profiler
         inline static constexpr char Container[] = u8"Kontener";
         inline static constexpr char Inspect[] = u8"Inspekcja";
         inline static constexpr char ShowPerformanceMetrics[] = u8"Pokaż liczniki wydajności";
+        inline static constexpr char SelectedFrame[] = u8"Wybrana ramka";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
         inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
@@ -132,6 +133,7 @@ namespace Profiler
         inline static constexpr char SamplingMode[] = u8"Częstotliwość próbkowania";
         inline static constexpr char SyncMode[] = u8"Częstotliwość synchronizacji";
         inline static constexpr char InterfaceScale[] = u8"Skala interfejsu";
+        inline static constexpr char CollectedFrameCount[] = u8"Liczba zebranych ramek";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
         inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
         inline static constexpr char TimeUnit[] = u8"Jednostka czasu";
