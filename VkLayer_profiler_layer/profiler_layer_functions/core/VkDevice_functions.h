@@ -22,6 +22,7 @@
 #include "VkCommandBuffer_functions.h"
 #include "VkQueue_functions.h"
 #include "VkAccelerationStructureKhr_functions.h"
+#include "VkCopyCommands2Khr_functions.h"
 #include "VkCreateRenderPass2Khr_functions.h"
 #include "VkDebugMarkerExt_functions.h"
 #include "VkDebugUtilsExt_functions.h"
@@ -53,6 +54,7 @@ namespace Profiler
         : VkCommandBuffer_Functions
         , VkQueue_Functions
         , VkAccelerationStructureKhr_Functions
+        , VkCopyCommands2Khr_Functions
         , VkCreateRenderPass2Khr_Functions
         , VkDebugMarkerExt_Functions
         , VkDebugUtilsExt_Functions

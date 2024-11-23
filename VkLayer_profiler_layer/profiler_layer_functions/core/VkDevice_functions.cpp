@@ -94,10 +94,24 @@ namespace Profiler
         GETPROCADDR( CmdBlitImage );
         GETPROCADDR( CmdFillBuffer );
         GETPROCADDR( CmdUpdateBuffer );
+        GETPROCADDR( CmdBlitImage2 );
+        GETPROCADDR( CmdCopyBuffer2 );
+        GETPROCADDR( CmdCopyBufferToImage2 );
+        GETPROCADDR( CmdCopyImage2 );
+        GETPROCADDR( CmdCopyImageToBuffer2 );
+        GETPROCADDR( CmdResolveImage2 );
 
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueueSubmit2 );
+
+        // VK_KHR_copy_commands2 functions
+        GETPROCADDR( CmdBlitImage2KHR );
+        GETPROCADDR( CmdCopyBuffer2KHR );
+        GETPROCADDR( CmdCopyBufferToImage2KHR );
+        GETPROCADDR( CmdCopyImage2KHR );
+        GETPROCADDR( CmdCopyImageToBuffer2KHR );
+        GETPROCADDR( CmdResolveImage2KHR );
 
         // VK_KHR_create_renderpass2 functions
         GETPROCADDR( CreateRenderPass2KHR );

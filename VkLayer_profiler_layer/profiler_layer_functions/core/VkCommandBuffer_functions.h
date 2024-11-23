@@ -283,5 +283,35 @@ namespace Profiler
             VkDeviceSize dstOffset,
             VkDeviceSize size,
             const void* pData );
+
+        // vkCmdBlitImage2
+        static VKAPI_ATTR void VKAPI_CALL CmdBlitImage2(
+            VkCommandBuffer commandBuffer,
+            const VkBlitImageInfo2* pBlitImageInfo );
+
+        // vkCmdCopyBuffer2
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyBuffer2(
+            VkCommandBuffer commandBuffer,
+            const VkCopyBufferInfo2* pCopyBufferInfo );
+
+        // vkCmdCopyBufferToImage2
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyBufferToImage2(
+            VkCommandBuffer commandBuffer,
+            const VkCopyBufferToImageInfo2* pCopyBufferToImageInfo );
+
+        // vkCmdCopyImage2
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyImage2(
+            VkCommandBuffer commandBuffer,
+            const VkCopyImageInfo2* pCopyImageInfo );
+
+        // vkCmdCopyImageToBuffer2
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyImageToBuffer2(
+            VkCommandBuffer commandBuffer,
+            const VkCopyImageToBufferInfo2* pCopyImageToBufferInfo );
+
+        // vkCmdResolveImage2
+        static VKAPI_ATTR void VKAPI_CALL CmdResolveImage2(
+            VkCommandBuffer commandBuffer,
+            const VkResolveImageInfo2* pResolveImageInfo );
     };
 }
