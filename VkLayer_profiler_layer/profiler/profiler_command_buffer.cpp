@@ -52,7 +52,7 @@ namespace Profiler
         , m_pCurrentSubpassData( nullptr )
         , m_pCurrentPipelineData( nullptr )
         , m_pCurrentDrawcallData( nullptr )
-        , m_CurrentSubpassIndex( -1 )
+        , m_CurrentSubpassIndex( DeviceProfilerSubpassData::ImplicitSubpassIndex )
         , m_GraphicsPipeline()
         , m_ComputePipeline()
     {
@@ -254,7 +254,7 @@ namespace Profiler
             m_Data.m_RenderPasses.clear();
             m_SecondaryCommandBuffers.clear();
 
-            m_CurrentSubpassIndex = -1;
+            m_CurrentSubpassIndex = DeviceProfilerSubpassData::ImplicitSubpassIndex;
             m_pCurrentRenderPass = nullptr;
             m_pCurrentRenderPassData = nullptr;
             m_pCurrentSubpassData = nullptr;
@@ -398,7 +398,7 @@ namespace Profiler
             }
 
             // No more subpasses in this render pass.
-            m_CurrentSubpassIndex = -1;
+            m_CurrentSubpassIndex = DeviceProfilerSubpassData::ImplicitSubpassIndex;
             m_pCurrentRenderPass = nullptr;
             m_pCurrentRenderPassData = nullptr;
             m_pCurrentSubpassData = nullptr;
@@ -1376,7 +1376,7 @@ namespace Profiler
         // Render pass must be already tracked
         assert( !m_Data.m_RenderPasses.empty() );
 
-        if( m_CurrentSubpassIndex != -1 )
+        if( m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex )
         {
             assert( m_pCurrentSubpassData );
 

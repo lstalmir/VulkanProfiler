@@ -3635,13 +3635,11 @@ namespace Profiler
             ImGui::EndPopup();
         }
 
+        // Print duration next to the node
         PrintDuration( cmdBuffer );
 
         if( commandBufferTreeExpanded )
         {
-            // Command buffer opened
-            PrintDuration( cmdBuffer );
-
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
                 SortFrameBrowserData( cmdBuffer.m_RenderPasses );
@@ -3728,6 +3726,9 @@ namespace Profiler
             const char* indexStr = GetFrameBrowserNodeIndexStr( index );
             inRenderPassSubtree = ImGui::TreeNode( indexStr, "%s",
                 m_pStringSerializer->GetName( renderPass ).c_str() );
+
+            // Print duration next to the node
+            PrintDuration( renderPass );
         }
         else
         {
@@ -3742,8 +3743,6 @@ namespace Profiler
             // Render pass subtree opened
             if( isValidRenderPass )
             {
-                PrintDuration( renderPass );
-
                 if( renderPass.HasBeginCommand() )
                 {
                     PrintRenderPassCommand( renderPass.m_Begin, renderPass.m_Dynamic, index, 0 );
@@ -3774,12 +3773,6 @@ namespace Profiler
 
             index.pop_back();
         }
-
-        if( isValidRenderPass && !inRenderPassSubtree )
-        {
-            // Render pass collapsed
-            PrintDuration( renderPass );
-        }
     }
 
     /***********************************************************************************\
@@ -3794,8 +3787,11 @@ namespace Profiler
     void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex& index, bool isOnlySubpass )
     {
         bool inSubpassSubtree = false;
+        bool printSubpassInline =
+            (isOnlySubpass == true) ||
+            (subpass.m_Index == DeviceProfilerSubpassData::ImplicitSubpassIndex);
 
-        if( !isOnlySubpass )
+        if( !printSubpassInline )
         {
             // Mark hotspots with color
             DrawSignificanceRect( subpass, index );
@@ -3808,20 +3804,14 @@ namespace Profiler
             }
 
             const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-            inSubpassSubtree =
-                (subpass.m_Index != -1) &&
-                (ImGui::TreeNode( indexStr, "Subpass #%u", subpass.m_Index ));
-        }
+            inSubpassSubtree = ImGui::TreeNode( indexStr, "Subpass #%u",
+                subpass.m_Index );
 
-        if( inSubpassSubtree )
-        {
-            // Subpass subtree opened
+            // Print duration next to the node
             PrintDuration( subpass );
         }
 
-        if( inSubpassSubtree ||
-            isOnlySubpass ||
-            (subpass.m_Index == -1) )
+        if( inSubpassSubtree || printSubpassInline )
         {
             index.emplace_back( 0 );
 
@@ -3884,12 +3874,6 @@ namespace Profiler
             // Finish subpass tree
             ImGui::TreePop();
         }
-
-        if( !inSubpassSubtree && !isOnlySubpass && (subpass.m_Index != -1) )
-        {
-            // Subpass collapsed
-            PrintDuration( subpass );
-        }
     }
 
     /***********************************************************************************\
@@ -3935,6 +3919,9 @@ namespace Profiler
 
                 ImGui::EndPopup();
             }
+
+            // Print duration next to the node
+            PrintDuration( pipeline );
         }
 
         if( m_ShowShaderCapabilities )
@@ -3954,12 +3941,6 @@ namespace Profiler
                 static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
                 DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
             }
-        }
-
-        if( inPipelineSubtree )
-        {
-            // Pipeline subtree opened
-            PrintDuration( pipeline );
         }
 
         if( inPipelineSubtree || printPipelineInline )
@@ -3984,12 +3965,6 @@ namespace Profiler
         {
             // Finish pipeline subtree
             ImGui::TreePop();
-        }
-
-        if( !inPipelineSubtree && !printPipelineInline )
-        {
-            // Pipeline collapsed
-            PrintDuration( pipeline );
         }
     }
 
