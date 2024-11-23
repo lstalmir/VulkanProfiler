@@ -242,6 +242,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkSwapchainKhr_functions.h"
     "profiler_layer_functions/extensions/VkSynchronization2Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkSynchronization2Khr_functions.h"
+    "profiler_layer_functions/extensions/VkToolingInfoExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkToolingInfoExt_functions.h"
     "profiler_layer_functions/extensions/VkWaylandSurfaceKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkWaylandSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkWin32SurfaceKhr_functions.cpp"

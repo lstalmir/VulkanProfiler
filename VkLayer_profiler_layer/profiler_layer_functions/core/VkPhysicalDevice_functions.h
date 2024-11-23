@@ -44,5 +44,11 @@ namespace Profiler
             const char* pLayerName,
             uint32_t* pPropertyCount,
             VkExtensionProperties* pProperties );
+
+        // vkGetPhysicalDeviceToolProperties
+        static VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceToolProperties(
+            VkPhysicalDevice physicalDevice,
+            uint32_t* pToolCount,
+            VkPhysicalDeviceToolProperties* pToolProperties );
     };
 }

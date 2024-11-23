@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
-// 
+// Copyright (c) 2024-2024 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,8 +19,23 @@
 // SOFTWARE.
 
 #pragma once
-#define VK_LAYER_profiler_name      "@PROFILER_LAYER_NAME@"
-#define VK_LAYER_profiler_desc      "@PROFILER_LAYER_FILEDESCRIPTION@"
-#define VK_LAYER_profiler_ver       "@PROFILER_LAYER_VER_MAJOR@.@PROFILER_LAYER_VER_MINOR@.@PROFILER_LAYER_VER_BUILD@.@PROFILER_LAYER_VER_PATCH@"
-#define VK_LAYER_profiler_impl_ver   @PROFILER_LAYER_VER_IMPLEMENTATION@
-#define VK_LAYER_profiler_product_name "@PROFILER_LAYER_PRODUCTNAME@"
+#include "VkInstance_functions_base.h"
+
+namespace Profiler
+{
+    struct VkToolingInfoExt_Functions : VkInstance_Functions_Base
+    {
+        // vkGetPhysicalDeviceToolPropertiesEXT
+        static VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceToolPropertiesEXT(
+            VkPhysicalDevice physicalDevice,
+            uint32_t* pToolCount,
+            VkPhysicalDeviceToolPropertiesEXT* pToolProperties );
+
+        // AppendProfilerToolInfo
+        static void AppendProfilerToolInfo(
+            VkResult& result,
+            uint32_t inToolCount,
+            uint32_t* pOutToolCount,
+            VkPhysicalDeviceToolPropertiesEXT* pToolProperties );
+    };
+}

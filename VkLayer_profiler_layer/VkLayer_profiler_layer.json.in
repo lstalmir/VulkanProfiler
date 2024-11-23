@@ -19,6 +19,10 @@
                     "vkSetDebugUtilsObjectNameEXT",
                     "vkSetDebugUtilsObjectTagEXT"
                 ]
+            },
+            {
+                "name": "VK_EXT_layer_settings",
+                "spec_version": "2"
             }
         ],
         "device_extensions": [
@@ -48,6 +52,13 @@
                     "vkCmdDebugMarkerInsertEXT",
                     "vkDebugMarkerSetObjectNameEXT",
                     "vkDebugMarkerSetObjectTagEXT"
+                ]
+            },
+            {
+                "name": "VK_EXT_tooling_info",
+                "spec_version": "1",
+                "entrypoints": [
+                    "vkGetPhysicalDeviceToolPropertiesEXT"
                 ]
             }
         ],

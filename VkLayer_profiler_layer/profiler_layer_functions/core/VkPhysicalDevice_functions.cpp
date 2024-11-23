@@ -22,6 +22,7 @@
 #include "VkInstance_functions.h"
 #include "VkDevice_functions.h"
 #include "VkLoader_functions.h"
+#include "VkToolingInfoExt_functions.h"
 #include "profiler_layer_functions/Helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
@@ -259,6 +260,48 @@ namespace Profiler
 
             // Return number of extensions exported by this layer
             *pPropertyCount += std::extent_v<decltype(layerExtensions)>;
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPhysicalDeviceToolProperties
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkPhysicalDevice_Functions::GetPhysicalDeviceToolProperties(
+        VkPhysicalDevice physicalDevice,
+        uint32_t* pToolCount,
+        VkPhysicalDeviceToolProperties* pToolProperties )
+    {
+        auto& id = InstanceDispatch.Get( physicalDevice );
+
+        uint32_t toolCount = *pToolCount;
+        VkResult result = VK_SUCCESS;
+
+        if( id.Instance.Callbacks.GetPhysicalDeviceToolProperties )
+        {
+            // Report tools from the next layers.
+            result = id.Instance.Callbacks.GetPhysicalDeviceToolProperties(
+                physicalDevice, pToolCount, pToolProperties );
+        }
+        else
+        {
+            // This layer is last in chain, start with no tools.
+            *pToolCount = 0;
+        }
+
+        if( (result == VK_SUCCESS) || (result == VK_INCOMPLETE) )
+        {
+            VkToolingInfoExt_Functions::AppendProfilerToolInfo(
+                result,
+                toolCount,
+                pToolCount,
+                pToolProperties );
         }
 
         return result;
