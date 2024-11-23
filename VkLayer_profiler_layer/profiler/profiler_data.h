@@ -1023,6 +1023,10 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerSubpassData
     {
+        // Mark subpasses that are not part of any render pass as implicit.
+        // Required to handle commands scoped outside of render pass.
+        static constexpr uint32_t                           ImplicitSubpassIndex = UINT32_MAX;
+
         uint32_t                                            m_Index = {};
         VkSubpassContents                                   m_Contents = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
