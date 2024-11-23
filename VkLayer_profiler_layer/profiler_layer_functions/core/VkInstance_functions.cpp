@@ -50,9 +50,13 @@ namespace Profiler
         GETPROCADDR( CreateDevice );
         GETPROCADDR( EnumerateDeviceLayerProperties );
         GETPROCADDR( EnumerateDeviceExtensionProperties );
+        GETPROCADDR( GetPhysicalDeviceToolProperties );
 
         // VK_KHR_surface functions
         GETPROCADDR( DestroySurfaceKHR );
+
+        // VK_EXT_tooling_info functions
+        GETPROCADDR( GetPhysicalDeviceToolPropertiesEXT );
 
         #ifdef VK_USE_PLATFORM_WIN32_KHR
         // VK_KHR_win32_surface functions
