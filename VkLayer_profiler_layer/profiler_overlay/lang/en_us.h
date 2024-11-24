@@ -33,7 +33,9 @@ namespace Profiler
         inline static constexpr char Device[] = "Device";
         inline static constexpr char Instance[] = "Instance";
         inline static constexpr char Pause[] = "Pause";
-        inline static constexpr char Save[] = "Save trace";
+        inline static constexpr char Save[] = "Save";
+        inline static constexpr char Load[] = "Load";
+        inline static constexpr char SaveTrace[] = "Save trace";
 
         // Menu
         inline static constexpr char FileMenu[] = "File" PROFILER_MENU;

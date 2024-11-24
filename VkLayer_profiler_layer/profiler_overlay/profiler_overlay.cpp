@@ -901,7 +901,7 @@ namespace Profiler
         {
             if( ImGui::BeginMenu( Lang::FileMenu ) )
             {
-                if( ImGui::MenuItem( Lang::Save ) )
+                if( ImGui::MenuItem( Lang::SaveTrace ) )
                 {
                     m_pTraceExporter = std::make_unique<TraceExporter>();
                     m_pTraceExporter->m_pData = m_pData;
@@ -925,7 +925,7 @@ namespace Profiler
         }
 
         // Save results to file
-        if( ImGui::Button( Lang::Save ) )
+        if( ImGui::Button( Lang::SaveTrace ) )
         {
             m_pTraceExporter = std::make_unique<TraceExporter>();
             m_pTraceExporter->m_pData = m_pData;
@@ -1705,9 +1705,69 @@ namespace Profiler
                 }
             }
 
+            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+            // Toolbar with save and load options.
+            if( ImGui::Button( Lang::Save ) )
+            {
+            }
+
+            ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+            if( ImGui::Button( Lang::Load ) )
+            {
+            }
+
+            // Show a search box for filtering metrics sets to find specific metrics.
+            ImGui::SameLine( 85.f * interfaceScale );
+            ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
+            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
+            {
+                try
+                {
+                    // Text changed, construct a regex from the string and find the matching metrics sets.
+                    std::regex regexFilter( m_VendorMetricFilter, regexFilterFlags );
+
+                    // Enumerate only sets that match the query.
+                    for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
+                    {
+                        const auto& metricsSet = m_VendorMetricsSets[metricsSetIndex];
+
+                        m_VendorMetricsSetVisibility[metricsSetIndex] = false;
+
+                        // Match by metrics set name.
+                        if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
+                        {
+                            m_VendorMetricsSetVisibility[metricsSetIndex] = true;
+                            continue;
+                        }
+
+                        // Match by metric name.
+                        for( const auto& metric : metricsSet.m_Metrics )
+                        {
+                            if( std::regex_search( metric.shortName, regexFilter ) )
+                            {
+                                m_VendorMetricsSetVisibility[metricsSetIndex] = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Update visibility of metrics in the active metrics set.
+                    UpdateActiveMetricsVisiblityWithRegex( regexFilter );
+                }
+                catch( ... )
+                {
+                    // Regex compilation failed, don't change the visibility of the sets.
+                }
+            }
+
+            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+
             // Show a combo box that allows the user to select the filter the profiled range.
             ImGui::TextUnformatted( Lang::PerformanceCountersRange );
-            ImGui::SameLine( 100.f );
+            ImGui::SameLine( 100.f * interfaceScale );
             ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
@@ -1734,7 +1794,7 @@ namespace Profiler
 
             // Show a combo box that allows the user to change the active metrics set.
             ImGui::TextUnformatted( Lang::PerformanceCountersSet );
-            ImGui::SameLine( 100.f );
+            ImGui::SameLine( 100.f * interfaceScale );
             ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
             {
@@ -1760,51 +1820,6 @@ namespace Profiler
                 }
 
                 ImGui::EndCombo();
-            }
-
-            // Show a search box for filtering metrics sets to find specific metrics.
-            ImGui::TextUnformatted( Lang::PerformanceCountersFilter );
-            ImGui::SameLine( 100.f );
-            ImGui::PushItemWidth( -1 );
-            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype(m_VendorMetricFilter)> ) )
-            {
-                try
-                {
-                    // Text changed, construct a regex from the string and find the matching metrics sets.
-                    std::regex regexFilter( m_VendorMetricFilter, regexFilterFlags );
-
-                    // Enumerate only sets that match the query.
-                    for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
-                    {
-                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
-                        
-                        m_VendorMetricsSetVisibility[ metricsSetIndex ] = false;
-
-                        // Match by metrics set name.
-                        if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
-                        {
-                            m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
-                            continue;
-                        }
-
-                        // Match by metric name.
-                        for( const auto& metric : metricsSet.m_Metrics )
-                        {
-                            if( std::regex_search( metric.shortName, regexFilter ) )
-                            {
-                                m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    // Update visibility of metrics in the active metrics set.
-                    UpdateActiveMetricsVisiblityWithRegex( regexFilter );
-                }
-                catch( ... )
-                {
-                    // Regex compilation failed, don't change the visibility of the sets.
-                }
             }
 
             if( pVendorMetrics->empty() )
@@ -1847,7 +1862,7 @@ namespace Profiler
                             metricProperties.description[ 0 ] )
                         {
                             ImGui::BeginTooltip();
-                            ImGui::PushTextWrapPos( 350.f );
+                            ImGui::PushTextWrapPos( 350.f * interfaceScale );
                             ImGui::TextUnformatted( metricProperties.description );
                             ImGui::PopTextWrapPos();
                             ImGui::EndTooltip();
