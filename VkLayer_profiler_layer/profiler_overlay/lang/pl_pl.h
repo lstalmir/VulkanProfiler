@@ -30,7 +30,9 @@ namespace Profiler
         inline static constexpr char Device[] = u8"Urządzenie";
         inline static constexpr char Instance[] = u8"Instancja";
         inline static constexpr char Pause[] = u8"Wstrzymaj";
-        inline static constexpr char Save[] = u8"Zapisz dane";
+        inline static constexpr char Save[] = u8"Zapisz";
+        inline static constexpr char Load[] = u8"Wczytaj";
+        inline static constexpr char SaveTrace[] = u8"Zapisz dane";
 
         // Menu
         inline static constexpr char FileMenu[] = u8"Plik" PROFILER_MENU;
@@ -68,6 +70,8 @@ namespace Profiler
         inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności###Performance counters";
         inline static constexpr char Metric[] = u8"Metryka";
         inline static constexpr char Frame[] = u8"Ramka";
+        inline static constexpr char SetRef[] = u8"Ustaw ref";
+        inline static constexpr char Value[] = u8"Wartość";
         inline static constexpr char FrameBrowser[] = u8"Przeglądarka ramki###Frame browser";
         inline static constexpr char SubmissionOrder[] = u8"Kolejność wykonania";
         inline static constexpr char DurationDescending[] = u8"Malejący czas wykonania";

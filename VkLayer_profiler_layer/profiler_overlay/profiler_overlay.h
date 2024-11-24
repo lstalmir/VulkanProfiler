@@ -121,6 +121,7 @@ namespace Profiler
         std::string m_Title;
 
         uint32_t m_ActiveMetricsSetIndex;
+        std::vector<bool> m_ActiveMetricsVisibility;
 
         struct VendorMetricsSet
         {
@@ -216,6 +217,12 @@ namespace Profiler
         VkCommandBuffer m_PerformanceQueryCommandBufferFilter;
         std::string     m_PerformanceQueryCommandBufferFilterName;
 
+        std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceCounters;
+
+        // Performance counter serialization
+        struct PerformanceCounterExporter;
+        std::unique_ptr<PerformanceCounterExporter> m_pPerformanceCounterExporter;
+
         // Trace serialization output
         bool m_SerializationSucceeded;
         bool m_SerializationWindowVisible;
@@ -291,6 +298,12 @@ namespace Profiler
         struct QueueGraphColumn;
         void GetQueueGraphColumns( VkQueue, std::vector<QueueGraphColumn>& ) const;
         float GetQueueUtilization( const std::vector<QueueGraphColumn>& ) const;
+
+        // Performance counter helpers
+        std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
+        void UpdatePerformanceCounterExporter();
+        void SavePerformanceCountersToFile( const std::string&, uint32_t, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
+        void LoadPerformanceCountersFromFile( const std::string& );
 
         // Trace serialization helpers
         void UpdateTraceExporter();
