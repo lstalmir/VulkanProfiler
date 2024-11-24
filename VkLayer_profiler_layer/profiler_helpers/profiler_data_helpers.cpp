@@ -85,14 +85,16 @@ namespace Profiler
             return "";
 
         case DeviceProfilerDrawcallType::eDraw:
-            return fmt::format( "vkCmdDraw ({}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_Draw.m_VertexCount,
                 drawcall.m_Payload.m_Draw.m_InstanceCount,
                 drawcall.m_Payload.m_Draw.m_FirstVertex,
                 drawcall.m_Payload.m_Draw.m_FirstInstance );
 
         case DeviceProfilerDrawcallType::eDrawIndexed:
-            return fmt::format( "vkCmdDrawIndexed ({}, {}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_DrawIndexed.m_IndexCount,
                 drawcall.m_Payload.m_DrawIndexed.m_InstanceCount,
                 drawcall.m_Payload.m_DrawIndexed.m_FirstIndex,
@@ -100,21 +102,24 @@ namespace Profiler
                 drawcall.m_Payload.m_DrawIndexed.m_FirstInstance );
 
         case DeviceProfilerDrawcallType::eDrawIndirect:
-            return fmt::format( "vkCmdDrawIndirect ({}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ),
                 drawcall.m_Payload.m_DrawIndirect.m_Offset,
                 drawcall.m_Payload.m_DrawIndirect.m_DrawCount,
                 drawcall.m_Payload.m_DrawIndirect.m_Stride );
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            return fmt::format( "vkCmdDrawIndexedIndirect ({}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ),
                 drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset,
                 drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount,
                 drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride );
 
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            return fmt::format( "vkCmdDrawIndirectCount ({}, {}, {}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ),
                 drawcall.m_Payload.m_DrawIndirectCount.m_Offset,
                 GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ),
@@ -123,7 +128,8 @@ namespace Profiler
                 drawcall.m_Payload.m_DrawIndirectCount.m_Stride );
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            return fmt::format( "vkCmdDrawIndexedIndirectCount ({}, {}, {}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ),
                 drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset,
                 GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ),
@@ -132,20 +138,23 @@ namespace Profiler
                 drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasks:
-            return fmt::format( "vkCmdDrawMeshTasksEXT ({}, {}, {})",
+            return fmt::format( "{} ({}, {}, {})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX,
                 drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY,
                 drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-            return fmt::format( "vkCmdDrawMeshTasksIndirectEXT ({}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ),
                 drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset,
                 drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount,
                 drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-            return fmt::format( "vkCmdDrawMeshTasksIndirectCountEXT ({}, {}, {}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ),
                 drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset,
                 GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ),
@@ -154,63 +163,56 @@ namespace Profiler
                 drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
-            return fmt::format( "vkCmdDrawMeshTasksNV ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount,
                 drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask );
 
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-            return fmt::format( "vkCmdDrawMeshTasksIndirectNV ({}, {}, {}, {})",
-                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ),
-                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset,
-                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount,
-                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride );
-
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-            return fmt::format( "vkCmdDrawMeshTasksIndirectCountNV ({}, {}, {}, {}, {}, {})",
-                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ),
-                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset,
-                GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ),
-                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset,
-                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount,
-                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride );
-
         case DeviceProfilerDrawcallType::eDispatch:
-            return fmt::format( "vkCmdDispatch ({}, {}, {})",
+            return fmt::format( "{} ({}, {}, {})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_Dispatch.m_GroupCountX,
                 drawcall.m_Payload.m_Dispatch.m_GroupCountY,
                 drawcall.m_Payload.m_Dispatch.m_GroupCountZ );
 
         case DeviceProfilerDrawcallType::eDispatchIndirect:
-            return fmt::format( "vkCmdDispatchIndirect ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ),
                 drawcall.m_Payload.m_DispatchIndirect.m_Offset );
 
         case DeviceProfilerDrawcallType::eCopyBuffer:
-            return fmt::format( "vkCmdCopyBuffer ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ),
                 GetName( drawcall.m_Payload.m_CopyBuffer.m_DstBuffer ) );
 
         case DeviceProfilerDrawcallType::eCopyBufferToImage:
-            return fmt::format( "vkCmdCopyBufferToImage ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer ),
                 GetName( drawcall.m_Payload.m_CopyBufferToImage.m_DstImage ) );
 
         case DeviceProfilerDrawcallType::eCopyImage:
-            return fmt::format( "vkCmdCopyImage ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_CopyImage.m_SrcImage ),
                 GetName( drawcall.m_Payload.m_CopyImage.m_DstImage ) );
 
         case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-            return fmt::format( "vkCmdCopyImageToBuffer ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage ),
                 GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer ) );
 
         case DeviceProfilerDrawcallType::eClearAttachments:
-            return fmt::format( "vkCmdClearAttachments ({})",
+            return fmt::format( "{} ({})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_ClearAttachments.m_Count ) );
 
         case DeviceProfilerDrawcallType::eClearColorImage:
-            return fmt::format( "vkCmdClearColorImage ({}, C=[{}, {}, {}, {}])",
+            return fmt::format( "{} ({}, C=[{}, {}, {}, {}])",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ),
                 drawcall.m_Payload.m_ClearColorImage.m_Value.float32[ 0 ],
                 drawcall.m_Payload.m_ClearColorImage.m_Value.float32[ 1 ],
@@ -218,73 +220,82 @@ namespace Profiler
                 drawcall.m_Payload.m_ClearColorImage.m_Value.float32[ 3 ] );
 
         case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-            return fmt::format( "vkCmdClearDepthStencilImage ({}, D={}, S={})",
+            return fmt::format( "{} ({}, D={}, S={})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ),
                 drawcall.m_Payload.m_ClearDepthStencilImage.m_Value.depth,
                 drawcall.m_Payload.m_ClearDepthStencilImage.m_Value.stencil );
 
         case DeviceProfilerDrawcallType::eResolveImage:
-            return fmt::format( "vkCmdResolveImage ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_ResolveImage.m_SrcImage ),
                 GetName( drawcall.m_Payload.m_ResolveImage.m_DstImage ) );
 
         case DeviceProfilerDrawcallType::eBlitImage:
-            return fmt::format( "vkCmdBlitImage ({}, {})",
+            return fmt::format( "{} ({}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_BlitImage.m_SrcImage ),
                 GetName( drawcall.m_Payload.m_BlitImage.m_DstImage ) );
 
         case DeviceProfilerDrawcallType::eFillBuffer:
-            return fmt::format( "vkCmdFillBuffer ({}, {}, {}, {})",
+            return fmt::format( "{} ({}, {}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_FillBuffer.m_Buffer ),
                 drawcall.m_Payload.m_FillBuffer.m_Offset,
                 drawcall.m_Payload.m_FillBuffer.m_Size,
                 drawcall.m_Payload.m_FillBuffer.m_Data );
 
         case DeviceProfilerDrawcallType::eUpdateBuffer:
-            return fmt::format( "vkCmdUpdateBuffer ({}, {}, {})",
+            return fmt::format( "{} ({}, {}, {})",
+                GetCommandName( drawcall ),
                 GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ),
                 drawcall.m_Payload.m_UpdateBuffer.m_Offset,
                 drawcall.m_Payload.m_UpdateBuffer.m_Size );
 
-        case DeviceProfilerDrawcallType::eTraceRaysKHR:
-            return fmt::format( "vkCmdTraceRaysKHR ({}, {}, {})",
+        case DeviceProfilerDrawcallType::eTraceRays:
+            return fmt::format( "{} ({}, {}, {})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_TraceRays.m_Width,
                 drawcall.m_Payload.m_TraceRays.m_Height,
                 drawcall.m_Payload.m_TraceRays.m_Depth );
 
-        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            return fmt::format( "vkCmdTraceRaysIndirectKHR (0x{:16x})",
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect:
+            return fmt::format( "{} (0x{:16x})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
 
-        case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
-            return fmt::format( "vkCmdTraceRaysIndirect2KHR (0x{:16x})",
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect2:
+            return fmt::format( "{} (0x{:16x})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress );
 
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
-            return fmt::format("vkCmdBuildAccelerationStructuresKHR ({})",
-                drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount);
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructures:
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect:
+            return fmt::format( "{} ({})",
+                GetCommandName( drawcall ),
+                drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount );
 
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
-            return fmt::format("vkCmdBuildAccelerationStructuresIndirectKHR ({})",
-                drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount);
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructure:
+            return fmt::format( "{} ({}, {}, {})",
+                GetCommandName( drawcall ),
+                GetName( drawcall.m_Payload.m_CopyAccelerationStructure.m_Src ),
+                GetName( drawcall.m_Payload.m_CopyAccelerationStructure.m_Dst ),
+                GetCopyAccelerationStructureModeName( drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode ) );
 
-        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
-            return fmt::format("vkCmdCopyAccelerationStructureKHR ({}, {}, {})",
-                GetName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Src),
-                GetName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Dst),
-                GetCopyAccelerationStructureModeName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode));
-
-        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
-            return fmt::format("vkCmdCopyAccelerationStructureToMemoryKHR ({}, {}, {})",
-                GetName(drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Src),
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemory:
+            return fmt::format( "{} ({}, {}, {})",
+                GetCommandName( drawcall ),
+                GetName( drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Src ),
                 drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Dst.hostAddress,
-                GetCopyAccelerationStructureModeName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode));
+                GetCopyAccelerationStructureModeName( drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode ) );
 
-        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
-            return fmt::format("vkCmdCopyMemoryToAccelerationStructureKHR ({}, {}, {})",
+        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructure:
+            return fmt::format( "{} ({}, {}, {})",
+                GetCommandName( drawcall ),
                 drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Src.hostAddress,
-                GetName(drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Dst),
-                GetCopyAccelerationStructureModeName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode));
+                GetName( drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Dst ),
+                GetCopyAccelerationStructureModeName( drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode ) );
         }
     }
 
@@ -473,28 +484,22 @@ namespace Profiler
             return "vkCmdDrawIndexedIndirect";
 
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            return "vkCmdDrawIndirectCount";
+            return "vkCmdDrawIndirectCount" + GetExtensionName( drawcall.m_Extension );
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            return "vkCmdDrawIndexedIndirectCount";
+            return "vkCmdDrawIndexedIndirectCount" + GetExtensionName( drawcall.m_Extension );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasks:
-            return "vkCmdDrawMeshTasksEXT";
+            return "vkCmdDrawMeshTasks" + GetExtensionName( drawcall.m_Extension );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-            return "vkCmdDrawMeshTasksIndirectEXT";
+            return "vkCmdDrawMeshTasksIndirect" + GetExtensionName( drawcall.m_Extension );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-            return "vkCmdDrawMeshTasksIndirectCountEXT";
+            return "vkCmdDrawMeshTasksIndirectCount" + GetExtensionName( drawcall.m_Extension );
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
             return "vkCmdDrawMeshTasksNV";
-
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-            return "vkCmdDrawMeshTasksIndirectNV";
-
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-            return "vkCmdDrawMeshTasksIndirectCountNV";
 
         case DeviceProfilerDrawcallType::eDispatch:
             return "vkCmdDispatch";
@@ -535,29 +540,63 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eUpdateBuffer:
             return "vkCmdUpdateBuffer";
 
-        case DeviceProfilerDrawcallType::eTraceRaysKHR:
-            return "vkCmdTraceRaysKHR";
+        case DeviceProfilerDrawcallType::eTraceRays:
+            return "vkCmdTraceRays" + GetExtensionName( drawcall.m_Extension );
 
-        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            return "vkCmdTraceRaysIndirectKHR";
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect:
+            return "vkCmdTraceRaysIndirect" + GetExtensionName( drawcall.m_Extension );
 
-        case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
-            return "vkCmdTraceRaysIndirect2KHR";
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect2:
+            return "vkCmdTraceRaysIndirect2" + GetExtensionName( drawcall.m_Extension );
 
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
-            return "vkCmdBuildAccelerationStructuresKHR";
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructures:
+            return "vkCmdBuildAccelerationStructures" + GetExtensionName( drawcall.m_Extension );
 
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
-            return "vkCmdBuildAccelerationStructuresIndirectKHR";
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect:
+            return "vkCmdBuildAccelerationStructuresIndirect" + GetExtensionName( drawcall.m_Extension );
 
-        case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
-            return "vkCmdCopyAccelerationStructureKHR";
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructure:
+            return "vkCmdCopyAccelerationStructure" + GetExtensionName( drawcall.m_Extension );
 
-        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
-            return "vkCmdCopyAccelerationStructureToMemoryKHR";
+        case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemory:
+            return "vkCmdCopyAccelerationStructureToMemory" + GetExtensionName( drawcall.m_Extension );
 
-        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
-            return "vkCmdCopyMemoryToAccelerationStructureKHR";
+        case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructure:
+            return "vkCmdCopyMemoryToAccelerationStructure" + GetExtensionName( drawcall.m_Extension );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetExtensionName
+
+    Description:
+        Returns a Vulkan extension suffix.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetExtensionName( DeviceProfilerExtensionType type ) const
+    {
+        switch( type )
+        {
+        default:
+        case DeviceProfilerExtensionType::eNone:
+            return std::string();
+
+        case DeviceProfilerExtensionType::eKHR:
+            return "KHR";
+
+        case DeviceProfilerExtensionType::eEXT:
+            return "EXT";
+
+        case DeviceProfilerExtensionType::eAMD:
+            return "AMD";
+
+        case DeviceProfilerExtensionType::eNV:
+            return "NV";
+
+        case DeviceProfilerExtensionType::eNVX:
+            return "NVX";
         }
     }
 

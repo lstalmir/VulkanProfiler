@@ -119,7 +119,8 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eTraceRaysKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eTraceRays;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload.m_TraceRays.m_Width = width;
         drawcall.m_Payload.m_TraceRays.m_Height = height;
         drawcall.m_Payload.m_TraceRays.m_Depth = depth;
@@ -163,7 +164,8 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eTraceRaysIndirectKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eTraceRaysIndirect;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress = indirectDeviceAddress;
 
         profiledCommandBuffer.PreCommand( drawcall );

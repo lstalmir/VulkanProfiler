@@ -43,7 +43,8 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eBuildAccelerationStructures;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload = DeviceProfilerDrawcallBuildAccelerationStructuresPayload( infoCount, pInfos, ppBuildRangeInfos );
 
         profiledCommandBuffer.PreCommand( drawcall );
@@ -81,7 +82,8 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload = DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload( infoCount, pInfos, ppMaxPrimitiveCounts );
 
         profiledCommandBuffer.PreCommand( drawcall );
@@ -117,7 +119,8 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyAccelerationStructure;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload.m_CopyAccelerationStructure.m_Src = pInfo->src;
         drawcall.m_Payload.m_CopyAccelerationStructure.m_Dst = pInfo->dst;
         drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode = pInfo->mode;
@@ -151,7 +154,8 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemory;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Src = pInfo->src;
         drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Dst = pInfo->dst;
         drawcall.m_Payload.m_CopyAccelerationStructureToMemory.m_Mode = pInfo->mode;
@@ -185,7 +189,8 @@ namespace Profiler
 
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructure;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Src = pInfo->src;
         drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Dst = pInfo->dst;
         drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Mode = pInfo->mode;

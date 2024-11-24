@@ -63,8 +63,6 @@ namespace Profiler
         eDrawMeshTasksIndirect = 0x00010007,
         eDrawMeshTasksIndirectCount = 0x00010008,
         eDrawMeshTasksNV = 0x00010009,
-        eDrawMeshTasksIndirectNV = 0x0001000A,
-        eDrawMeshTasksIndirectCountNV = 0x0001000B,
         eDispatch = 0x00020000,
         eDispatchIndirect = 0x00020001,
         eCopyBuffer = 0x00030000,
@@ -78,14 +76,14 @@ namespace Profiler
         eBlitImage = 0x000B0000,
         eFillBuffer = 0x000C0000,
         eUpdateBuffer = 0x000D0000,
-        eTraceRaysKHR = 0x000E0000,
-        eTraceRaysIndirectKHR = 0x000E0001,
-        eTraceRaysIndirect2KHR = 0x000E0002,
-        eBuildAccelerationStructuresKHR = 0x000F0000,
-        eBuildAccelerationStructuresIndirectKHR = 0x000F0001,
-        eCopyAccelerationStructureKHR = 0x00100000,
-        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
-        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
+        eTraceRays = 0x000E0000,
+        eTraceRaysIndirect = 0x000E0001,
+        eTraceRaysIndirect2 = 0x000E0002,
+        eBuildAccelerationStructures = 0x000F0000,
+        eBuildAccelerationStructuresIndirect = 0x000F0001,
+        eCopyAccelerationStructure = 0x00100000,
+        eCopyAccelerationStructureToMemory = 0x00200000,
+        eCopyMemoryToAccelerationStructure = 0x00300000,
     };
 
     /***********************************************************************************\
@@ -140,7 +138,7 @@ namespace Profiler
     };
     /***********************************************************************************\
 
-    Structure:
+    Enumeration:
         DeviceProfilerSubpassDataType
 
     Description:
@@ -158,6 +156,27 @@ namespace Profiler
     {
         ePipeline,
         eCommandBuffer
+    };
+
+    /***********************************************************************************\
+
+    Enumeration:
+        DeviceProfilerExtensionType
+
+    Description:
+        Some commands appear in Vulkan in both core and extension versions. This enum
+        helps to distinguish between them without the need to define separate drawcall
+        types for each extension.
+
+    \***********************************************************************************/
+    enum class DeviceProfilerExtensionType : uint32_t
+    {
+        eNone,
+        eKHR,
+        eEXT,
+        eAMD,
+        eNV,
+        eNVX
     };
 
     /***********************************************************************************\
@@ -261,16 +280,6 @@ namespace Profiler
     {
         uint32_t m_TaskCount;
         uint32_t m_FirstTask;
-    };
-
-    struct DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload
-        : DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
-    {
-    };
-
-    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload
-        : DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
-    {
     };
 
     struct DeviceProfilerDrawcallDispatchPayload
@@ -542,8 +551,6 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectPayload, m_DrawMeshTasksIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload, m_DrawMeshTasksIndirectCount );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksNvPayload, m_DrawMeshTasksNV );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload, m_DrawMeshTasksIndirectNV );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload, m_DrawMeshTasksIndirectCountNV );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchPayload, m_Dispatch );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchIndirectPayload, m_DispatchIndirect );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyBufferPayload, m_CopyBuffer );
@@ -579,6 +586,7 @@ namespace Profiler
     struct DeviceProfilerDrawcall
     {
         DeviceProfilerDrawcallType                          m_Type = {};
+        DeviceProfilerExtensionType                         m_Extension = {};
         DeviceProfilerDrawcallPayload                       m_Payload = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
@@ -598,6 +606,7 @@ namespace Profiler
         // string passed by the application to be able to print it later.
         inline DeviceProfilerDrawcall( const DeviceProfilerDrawcall& dc )
             : m_Type( dc.m_Type )
+            , m_Extension( dc.m_Extension )
             , m_Payload( dc.m_Payload )
             , m_BeginTimestamp( dc.m_BeginTimestamp )
             , m_EndTimestamp( dc.m_EndTimestamp )
@@ -608,7 +617,7 @@ namespace Profiler
                 m_Payload.m_DebugLabel.m_pName = ProfilerStringFunctions::DuplicateString( dc.m_Payload.m_DebugLabel.m_pName );
             }
 
-            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
+            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructures )
             {
                 // Create copy of build infos
                 m_Payload.m_BuildAccelerationStructures.m_pInfos =
@@ -623,7 +632,7 @@ namespace Profiler
                         dc.m_Payload.m_BuildAccelerationStructures.m_ppRanges );
             }
 
-            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
+            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect )
             {
                 // Create copy of build infos
                 m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos =
@@ -655,7 +664,7 @@ namespace Profiler
                 free( m_Payload.m_DebugLabel.m_pName );
             }
 
-            if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
+            if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructures )
             {
                 for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructures.m_InfoCount; ++i )
                 {
@@ -667,7 +676,7 @@ namespace Profiler
                 free( m_Payload.m_BuildAccelerationStructures.m_ppRanges );
             }
 
-            if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
+            if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect )
             {
                 for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount; ++i )
                 {
@@ -684,6 +693,7 @@ namespace Profiler
         inline void Swap( DeviceProfilerDrawcall& dc )
         {
             std::swap( m_Type, dc.m_Type );
+            std::swap( m_Extension, dc.m_Extension );
             std::swap( m_Payload, dc.m_Payload );
             std::swap( m_BeginTimestamp, dc.m_BeginTimestamp );
             std::swap( m_EndTimestamp, dc.m_EndTimestamp );
@@ -815,9 +825,7 @@ namespace Profiler
             case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
                 return &m_DrawMeshTasksStats;
             case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
             case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
                 return &m_DrawMeshTasksIndirectStats;
             case DeviceProfilerDrawcallType::eDispatch:
                 return &m_DispatchStats;
@@ -844,19 +852,19 @@ namespace Profiler
                 return &m_FillBufferStats;
             case DeviceProfilerDrawcallType::eUpdateBuffer:
                 return &m_UpdateBufferStats;
-            case DeviceProfilerDrawcallType::eTraceRaysKHR:
+            case DeviceProfilerDrawcallType::eTraceRays:
                 return &m_TraceRaysStats;
-            case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+            case DeviceProfilerDrawcallType::eTraceRaysIndirect:
                 return &m_TraceRaysIndirectStats;
-            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructures:
                 return &m_BuildAccelerationStructuresStats;
-            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect:
                 return &m_BuildAccelerationStructuresIndirectStats;
-            case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
+            case DeviceProfilerDrawcallType::eCopyAccelerationStructure:
                 return &m_CopyAccelerationStructureStats;
-            case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
+            case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemory:
                 return &m_CopyAccelerationStructureToMemoryStats;
-            case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
+            case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructure:
                 return &m_CopyMemoryToAccelerationStructureStats;
             default:
                 return nullptr;
@@ -872,8 +880,8 @@ namespace Profiler
             case DeviceProfilerDrawcallType::eClearAttachments:
                 count = drawcall.m_Payload.m_ClearAttachments.m_Count;
                 break;
-            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
-            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructures:
+            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect:
                 count = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
                 break;
             }

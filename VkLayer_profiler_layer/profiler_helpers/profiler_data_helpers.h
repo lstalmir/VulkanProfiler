@@ -24,6 +24,8 @@
 
 namespace Profiler
 {
+    enum class DeviceProfilerExtensionType : uint32_t;
+
     /***********************************************************************************\
 
     Class:
@@ -49,6 +51,7 @@ namespace Profiler
         std::string GetName( const struct VkObject& object ) const;
 
         std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
+        std::string GetExtensionName( DeviceProfilerExtensionType ) const;
 
         std::string GetPointer( const void* ) const;
         std::string GetBool( VkBool32 ) const;

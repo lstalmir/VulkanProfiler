@@ -43,6 +43,7 @@ namespace Profiler
         // Setup drawcall descriptor.
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasksNV;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eNV;
         drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount = taskCount;
         drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask = firstTask;
 
@@ -79,11 +80,12 @@ namespace Profiler
 
         // Setup drawcall descriptor.
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer = buffer;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset = offset;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount = drawCount;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride = stride;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasksIndirect;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eNV;
+        drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer = buffer;
+        drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset = offset;
+        drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount = drawCount;
+        drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride = stride;
 
         cmd.PreCommand( drawcall );
 
@@ -122,13 +124,14 @@ namespace Profiler
 
         // Setup drawcall descriptor.
         DeviceProfilerDrawcall drawcall;
-        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer = buffer;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset = offset;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer = countBuffer;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset = countBufferOffset;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount = maxDrawCount;
-        drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride = stride;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eNV;
+        drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer = buffer;
+        drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset = offset;
+        drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer = countBuffer;
+        drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset = countBufferOffset;
+        drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount = maxDrawCount;
+        drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride = stride;
 
         cmd.PreCommand( drawcall );
 

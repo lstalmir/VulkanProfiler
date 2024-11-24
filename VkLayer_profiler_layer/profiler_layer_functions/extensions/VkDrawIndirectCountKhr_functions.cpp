@@ -47,6 +47,7 @@ namespace Profiler
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndirectCount;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload.m_DrawIndirectCount.m_Buffer = argsBuffer;
         drawcall.m_Payload.m_DrawIndirectCount.m_Offset = argsOffset;
         drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer = countBuffer;
@@ -88,6 +89,7 @@ namespace Profiler
         // Setup drawcall descriptor
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eDrawIndexedIndirectCount;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eKHR;
         drawcall.m_Payload.m_DrawIndirectCount.m_Buffer = argsBuffer;
         drawcall.m_Payload.m_DrawIndirectCount.m_Offset = argsOffset;
         drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer = countBuffer;

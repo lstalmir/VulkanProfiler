@@ -137,24 +137,6 @@ namespace Profiler
                 { "firstTask", drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask }
             };
 
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride }
-            };
-
-        case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride }
-            };
-
         case DeviceProfilerDrawcallType::eDispatch:
             return {
                 { "groupCountX", drawcall.m_Payload.m_Dispatch.m_GroupCountX },
@@ -223,22 +205,22 @@ namespace Profiler
                 { "dstOffset", drawcall.m_Payload.m_UpdateBuffer.m_Offset },
                 { "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size } };
 
-        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+        case DeviceProfilerDrawcallType::eTraceRays:
             return {
                 { "width", drawcall.m_Payload.m_TraceRays.m_Width },
                 { "height", drawcall.m_Payload.m_TraceRays.m_Height },
                 { "depth", drawcall.m_Payload.m_TraceRays.m_Depth } };
 
-        case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect:
             return {
                 { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress } };
 
-        case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
+        case DeviceProfilerDrawcallType::eTraceRaysIndirect2:
             return {
                 { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress } };
 
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
-        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructures:
+        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirect:
         {
             const uint32_t infoCount = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
 
@@ -285,7 +267,7 @@ namespace Profiler
                         }
 
                         nlohmann::json geometryRange;
-                        if( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
+                        if( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructures )
                         {
                             const auto& range = drawcall.m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ][ j ];
                             geometryRange = {

@@ -44,6 +44,7 @@ namespace Profiler
         // Setup drawcall descriptor.
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasks;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eEXT;
         drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX = groupCountX;
         drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY = groupCountY;
         drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ = groupCountZ;
@@ -83,6 +84,7 @@ namespace Profiler
         // Setup drawcall descriptor.
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasksIndirect;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eEXT;
         drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer = buffer;
         drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset = offset;
         drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount = drawCount;
@@ -126,6 +128,7 @@ namespace Profiler
         // Setup drawcall descriptor.
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount;
+        drawcall.m_Extension = DeviceProfilerExtensionType::eEXT;
         drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer = buffer;
         drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset = offset;
         drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer = countBuffer;
