@@ -3688,6 +3688,33 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetDefaultPerformanceCountersFileName
+
+    Description:
+        Returns the default file name for performance counters.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetDefaultPerformanceCountersFileName( uint32_t metricsSetIndex ) const
+    {
+        std::stringstream stringBuilder;
+        stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
+        stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
+
+        if( metricsSetIndex < m_VendorMetricsSets.size() )
+        {
+            std::string metricsSetName = m_VendorMetricsSets[metricsSetIndex].m_Properties.name;
+            std::replace( metricsSetName.begin(), metricsSetName.end(), ' ', '_' );
+            stringBuilder << metricsSetName << "_";
+        }
+
+        stringBuilder << "counters.csv";
+
+        return stringBuilder.str();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UpdatePerformanceCounterExporter
 
     Description:
@@ -3712,6 +3739,12 @@ namespace Profiler
                     // Don't ask for overwrite when selecting file to load.
                     m_pPerformanceCounterExporter->m_FileDialogConfig.flags ^=
                         ImGuiFileDialogFlags_ConfirmOverwrite;
+                }
+
+                if( m_pPerformanceCounterExporter->m_Action == PerformanceCounterExporter::Action::eExport )
+                {
+                    m_pPerformanceCounterExporter->m_FileDialogConfig.fileName =
+                        GetDefaultPerformanceCountersFileName( m_pPerformanceCounterExporter->m_MetricsSetIndex );
                 }
             }
 

@@ -300,6 +300,7 @@ namespace Profiler
         float GetQueueUtilization( const std::vector<QueueGraphColumn>& ) const;
 
         // Performance counter helpers
+        std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
         void UpdatePerformanceCounterExporter();
         void SavePerformanceCountersToFile( const std::string&, uint32_t, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
         void LoadPerformanceCountersFromFile( const std::string& );
