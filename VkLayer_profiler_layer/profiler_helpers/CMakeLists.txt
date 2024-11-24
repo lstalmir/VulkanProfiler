@@ -23,11 +23,13 @@ cmake_minimum_required (VERSION 3.8)
 project (profiler_helpers)
 
 set (headers
+    "profiler_csv_helpers.h"
     "profiler_data_helpers.h"
     "profiler_time_helpers.h"
     )
 
 set (sources
+    "profiler_csv_helpers.cpp"
     "profiler_data_helpers.cpp"
     )
 

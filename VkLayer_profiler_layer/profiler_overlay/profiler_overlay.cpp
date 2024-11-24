@@ -22,6 +22,7 @@
 #include "profiler_overlay_shader_view.h"
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_data_helpers.h"
+#include "profiler_helpers/profiler_csv_helpers.h"
 
 #include "imgui_impl_vulkan_layer.h"
 #include <string>
@@ -87,12 +88,94 @@ namespace Profiler
     {
     };
 
+    struct ProfilerOverlayOutput::PerformanceCounterExporter
+    {
+        enum class Action
+        {
+            eExport,
+            eImport
+        };
+
+        IGFD::FileDialog m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
+        std::vector<VkProfilerPerformanceCounterResultEXT> m_Data;
+        std::vector<bool> m_DataMask;
+        uint32_t m_MetricsSetIndex;
+        Action m_Action;
+    };
+
     struct ProfilerOverlayOutput::TraceExporter
     {
         IGFD::FileDialog m_FileDialog;
         IGFD::FileDialogConfig m_FileDialogConfig;
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
     };
+
+    static bool DisplayFileDialog(
+        const std::string& fileDialogId,
+        IGFD::FileDialog& fileDialog,
+        IGFD::FileDialogConfig& fileDialogConfig,
+        const char* pTitle,
+        const char* pFilters )
+    {
+        // Initialize the file dialog on the first call to this function.
+        if( !fileDialog.IsOpened() )
+        {
+            // Set initial size and position of the dialog.
+            ImGuiIO& io = ImGui::GetIO();
+            ImVec2 size = io.DisplaySize;
+            float scale = io.FontGlobalScale;
+            size.x = std::min( size.x / 1.5f, 640.f * scale );
+            size.y = std::min( size.y / 1.25f, 480.f * scale );
+            ImGui::SetNextWindowSize( size );
+
+            ImVec2 pos = io.DisplaySize;
+            pos.x = ( pos.x - size.x ) / 2.0f;
+            pos.y = ( pos.y - size.y ) / 2.0f;
+            ImGui::SetNextWindowPos( pos );
+
+            fileDialog.OpenDialog(
+                fileDialogId,
+                pTitle,
+                pFilters,
+                fileDialogConfig );
+        }
+
+        // Display the file dialog until user closes it.
+        return fileDialog.Display(
+            fileDialogId,
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoSavedSettings );
+    }
+
+    template<typename T, typename U>
+    static float CalcPerformanceCounterDelta( T ref, U val )
+    {
+        if( ref != 0 )
+        {
+            return 100.f * ( static_cast<float>( val ) - static_cast<float>( ref ) ) / static_cast<float>( ref );
+        }
+        else if( val != 0 )
+        {
+            return ( val > 0 ) ? 100.f : -100.f;
+        }
+        else
+        {
+            return 0.f;
+        }
+    }
+
+    static ImU32 GetPerformanceCounterDeltaColor( float delta )
+    {
+        float deltaAbs = std::abs( delta );
+        if( deltaAbs < 1.f ) return IM_COL32( 128, 128, 128, 255 );
+        if( deltaAbs < 5.f ) return IM_COL32( 192, 192, 192, 255 );
+        if( deltaAbs < 15.f ) return IM_COL32( 255, 255, 255, 255 );
+        if( deltaAbs < 30.f ) return IM_COL32( 255, 255, 128, 255 );
+        if( deltaAbs < 50.f ) return IM_COL32( 255, 192, 128, 255 );
+        return IM_COL32( 255, 128, 128, 255 );
+    }
 
     /***********************************************************************************\
 
@@ -150,6 +233,8 @@ namespace Profiler
         , m_InspectorTabIndex( 0 )
         , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
         , m_PerformanceQueryCommandBufferFilterName( "Frame" )
+        , m_ReferencePerformanceCounters()
+        , m_pPerformanceCounterExporter( nullptr )
         , m_SerializationSucceeded( false )
         , m_SerializationWindowVisible( false )
         , m_SerializationMessage()
@@ -1081,6 +1166,7 @@ namespace Profiler
         ImGui::End();
 
         // Draw other windows
+        UpdatePerformanceCounterExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
 
@@ -1708,17 +1794,45 @@ namespace Profiler
             const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
             // Toolbar with save and load options.
+            ImGui::BeginDisabled( m_pPerformanceCounterExporter != nullptr || pVendorMetrics->empty() );
             if( ImGui::Button( Lang::Save ) )
             {
+                m_pPerformanceCounterExporter = std::make_unique<PerformanceCounterExporter>();
+                m_pPerformanceCounterExporter->m_Data = *pVendorMetrics;
+                m_pPerformanceCounterExporter->m_DataMask = m_ActiveMetricsVisibility;
+                m_pPerformanceCounterExporter->m_MetricsSetIndex = m_ActiveMetricsSetIndex;
+                m_pPerformanceCounterExporter->m_Action = PerformanceCounterExporter::Action::eExport;
             }
+            ImGui::EndDisabled();
 
             ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+            ImGui::BeginDisabled( m_pPerformanceCounterExporter != nullptr || pVendorMetrics->empty() );
             if( ImGui::Button( Lang::Load ) )
             {
+                m_pPerformanceCounterExporter = std::make_unique<PerformanceCounterExporter>();
+                m_pPerformanceCounterExporter->m_Action = PerformanceCounterExporter::Action::eImport;
             }
+            ImGui::EndDisabled();
+
+            ImGui::SameLine();
+            ImGui::BeginDisabled( pVendorMetrics->empty() );
+            if( ImGui::Button( Lang::SetRef ) )
+            {
+                m_ReferencePerformanceCounters.clear();
+
+                const auto& activeMetricsSet = m_VendorMetricsSets[m_ActiveMetricsSetIndex];
+                if( pVendorMetrics->size() == activeMetricsSet.m_Metrics.size() )
+                {
+                    for( size_t i = 0; i < pVendorMetrics->size(); ++i )
+                    {
+                        m_ReferencePerformanceCounters.try_emplace( activeMetricsSet.m_Metrics[i].shortName, ( *pVendorMetrics )[i] );
+                    }
+                }
+            }
+            ImGui::EndDisabled();
 
             // Show a search box for filtering metrics sets to find specific metrics.
-            ImGui::SameLine( 85.f * interfaceScale );
+            ImGui::SameLine();
             ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
             ImGui::SameLine();
             ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
@@ -1834,13 +1948,15 @@ namespace Profiler
                 const auto& vendorMetrics = *pVendorMetrics;
 
                 ImGui::BeginTable( "Performance counters table",
-                    /* columns_count */ 3,
+                    /* columns_count */ 5,
                     ImGuiTableFlags_NoClip |
                     (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
 
                 // Headers
-                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( Lang::Frame, ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
+                ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+                ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
+                ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
                 ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
                 ImGui::TableHeadersRow();
 
@@ -1869,6 +1985,47 @@ namespace Profiler
                         }
                     }
 
+                    float delta = 0.0f;
+                    bool deltaValid = false;
+
+                    ImGui::TableNextColumn();
+                    {
+                        auto it = m_ReferencePerformanceCounters.find( metricProperties.shortName );
+                        if( it != m_ReferencePerformanceCounters.end() )
+                        {
+                            const float columnWidth = ImGuiX::TableGetColumnWidth();
+                            switch( metricProperties.storage )
+                            {
+                            case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
+                                ImGuiX::TextAlignRight( columnWidth, "%.2f", it->second.float32 );
+                                delta = CalcPerformanceCounterDelta( it->second.float32, metric.float32 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                                ImGuiX::TextAlignRight( columnWidth, "%u", it->second.uint32 );
+                                delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                                ImGuiX::TextAlignRight( columnWidth, "%llu", it->second.uint64 );
+                                delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
+                                deltaValid = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    ImGui::TableNextColumn();
+                    if( deltaValid )
+                    {
+                        const float columnWidth = ImGuiX::TableGetColumnWidth();
+                        ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
+                        ImGuiX::TextAlignRight( columnWidth, "%+.1f%%", delta );
+                        ImGui::PopStyleColor();
+                    }
+
                     ImGui::TableNextColumn();
                     {
                         const float columnWidth = ImGuiX::TableGetColumnWidth();
@@ -1892,7 +2049,6 @@ namespace Profiler
                     {
                         const char* pUnitString = "???";
 
-                        assert( metricProperties.unit < 11 );
                         static const char* const ppUnitString[ 11 ] =
                         {
                             "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
@@ -1908,7 +2064,7 @@ namespace Profiler
                             "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
                         };
 
-                        if( metricProperties.unit < 11 )
+                        if( (metricProperties.unit >= 0) && (metricProperties.unit < 11) )
                         {
                             pUnitString = ppUnitString[ metricProperties.unit ];
                         }
@@ -3502,6 +3658,164 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        UpdatePerformanceCounterExporter
+
+    Description:
+        Shows a file dialog if performance counter save or load was requested and
+        saves/loads them when OK is pressed.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceCounterExporter()
+    {
+        static const std::string scFileDialogId = "#PerformanceCountersSaveFileDialog";
+
+        if( m_pPerformanceCounterExporter != nullptr )
+        {
+            // Initialize the file dialog on the first call to this function.
+            if( !m_pPerformanceCounterExporter->m_FileDialog.IsOpened() )
+            {
+                m_pPerformanceCounterExporter->m_FileDialogConfig.flags =
+                    ImGuiFileDialogFlags_Default;
+
+                if( m_pPerformanceCounterExporter->m_Action == PerformanceCounterExporter::Action::eImport )
+                {
+                    // Don't ask for overwrite when selecting file to load.
+                    m_pPerformanceCounterExporter->m_FileDialogConfig.flags ^=
+                        ImGuiFileDialogFlags_ConfirmOverwrite;
+                }
+            }
+
+            // Draw the file dialog until the user closes it.
+            bool closed = DisplayFileDialog(
+                scFileDialogId,
+                m_pPerformanceCounterExporter->m_FileDialog,
+                m_pPerformanceCounterExporter->m_FileDialogConfig,
+                "Select performance counters file path",
+                ".csv" );
+
+            if( closed )
+            {
+                if( m_pPerformanceCounterExporter->m_FileDialog.IsOk() )
+                {
+                    switch (m_pPerformanceCounterExporter->m_Action)
+                    {
+                    case PerformanceCounterExporter::Action::eExport:
+                        SavePerformanceCountersToFile(
+                            m_pPerformanceCounterExporter->m_FileDialog.GetFilePathName(),
+                            m_pPerformanceCounterExporter->m_MetricsSetIndex,
+                            m_pPerformanceCounterExporter->m_Data,
+                            m_pPerformanceCounterExporter->m_DataMask );
+                        break;
+
+                    case PerformanceCounterExporter::Action::eImport:
+                        LoadPerformanceCountersFromFile(
+                            m_pPerformanceCounterExporter->m_FileDialog.GetFilePathName() );
+                        break;
+                    }
+                }
+
+                // Destroy the exporter.
+                m_pPerformanceCounterExporter.reset();
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SavePerformanceCountersToFile
+
+    Description:
+        Writes performance counters data to a CSV file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SavePerformanceCountersToFile(
+        const std::string& fileName,
+        uint32_t metricsSetIndex,
+        const std::vector<VkProfilerPerformanceCounterResultEXT>& data,
+        const std::vector<bool>& mask )
+    {
+        DeviceProfilerCsvSerializer serializer;
+
+        if( serializer.Open( fileName ) )
+        {
+            const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& properties =
+                m_VendorMetricsSets[metricsSetIndex].m_Metrics;
+
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> exportedProperties;
+            std::vector<VkProfilerPerformanceCounterResultEXT> exportedData;
+
+            for( size_t i = 0; i < data.size(); ++i )
+            {
+                if( mask[i] )
+                {
+                    exportedData.push_back( data[i] );
+                    exportedProperties.push_back( properties[i] );
+                }
+            }
+
+            serializer.WriteHeader( static_cast<uint32_t>( exportedProperties.size() ), exportedProperties.data() );
+            serializer.WriteRow( static_cast<uint32_t>( exportedData.size() ), exportedData.data() );
+            serializer.Close();
+
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Performance counters saved successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for writing.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        LoadPerformanceCountersFromFile
+
+    Description:
+        Loads performance counters data from a CSV file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::LoadPerformanceCountersFromFile( const std::string& fileName )
+    {
+        DeviceProfilerCsvDeserializer deserializer;
+
+        if( deserializer.Open( fileName ) )
+        {
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties = deserializer.ReadHeader();
+            std::vector<VkProfilerPerformanceCounterResultEXT> results = deserializer.ReadRow();
+
+            m_ReferencePerformanceCounters.clear();
+
+            for( size_t i = 0; i < results.size(); ++i )
+            {
+                m_ReferencePerformanceCounters.try_emplace( properties[i].shortName, results[i] );
+            }
+
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Performance counters loaded successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for reading.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UpdateTraceExporter
 
     Description:
@@ -3526,34 +3840,15 @@ namespace Profiler
 
             m_pTraceExporter->m_FileDialogConfig.flags =
                 ImGuiFileDialogFlags_Default;
-
-            // Set initial size and position of the dialog.
-            ImGuiIO& io = ImGui::GetIO();
-            ImVec2 size = io.DisplaySize;
-            float scale = io.FontGlobalScale;
-            size.x = std::min( size.x / 1.5f, 640.f * scale );
-            size.y = std::min( size.y / 1.25f, 480.f * scale );
-            ImGui::SetNextWindowSize( size );
-
-            ImVec2 pos = io.DisplaySize;
-            pos.x = ( pos.x - size.x ) / 2.0f;
-            pos.y = ( pos.y - size.y ) / 2.0f;
-            ImGui::SetNextWindowPos( pos );
-
-            // Show the file dialog.
-            m_pTraceExporter->m_FileDialog.OpenDialog(
-                scFileDialogId,
-                "Select trace save path",
-                ".json",
-                m_pTraceExporter->m_FileDialogConfig );
         }
 
         // Draw the file dialog until the user closes it.
-        bool closed = m_pTraceExporter->m_FileDialog.Display(
+        bool closed = DisplayFileDialog(
             scFileDialogId,
-            ImGuiWindowFlags_NoDocking |
-            ImGuiWindowFlags_NoCollapse |
-            ImGuiWindowFlags_NoSavedSettings );
+            m_pTraceExporter->m_FileDialog,
+            m_pTraceExporter->m_FileDialogConfig,
+            "Select trace save path",
+            ".json" );
 
         if( closed )
         {

@@ -70,6 +70,8 @@ namespace Profiler
         inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności###Performance counters";
         inline static constexpr char Metric[] = u8"Metryka";
         inline static constexpr char Frame[] = u8"Ramka";
+        inline static constexpr char SetRef[] = u8"Ustaw ref";
+        inline static constexpr char Value[] = u8"Wartość";
         inline static constexpr char FrameBrowser[] = u8"Przeglądarka ramki###Frame browser";
         inline static constexpr char SubmissionOrder[] = u8"Kolejność wykonania";
         inline static constexpr char DurationDescending[] = u8"Malejący czas wykonania";
