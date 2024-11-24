@@ -1996,21 +1996,39 @@ namespace Profiler
                             const float columnWidth = ImGuiX::TableGetColumnWidth();
                             switch( metricProperties.storage )
                             {
-                            case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
-                                ImGuiX::TextAlignRight( columnWidth, "%.2f", it->second.float32 );
-                                delta = CalcPerformanceCounterDelta( it->second.float32, metric.float32 );
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%d", it->second.int32 );
+                                delta = CalcPerformanceCounterDelta( it->second.int32, metric.int32 );
                                 deltaValid = true;
                                 break;
 
-                            case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%lld", it->second.int64 );
+                                delta = CalcPerformanceCounterDelta( it->second.int64, metric.int64 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
                                 ImGuiX::TextAlignRight( columnWidth, "%u", it->second.uint32 );
                                 delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
                                 deltaValid = true;
                                 break;
 
-                            case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
                                 ImGuiX::TextAlignRight( columnWidth, "%llu", it->second.uint64 );
                                 delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%.2f", it->second.float32 );
+                                delta = CalcPerformanceCounterDelta( it->second.float32, metric.float32 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%.2lf", it->second.float64 );
+                                delta = CalcPerformanceCounterDelta( it->second.float64, metric.float64 );
                                 deltaValid = true;
                                 break;
                             }
@@ -2031,16 +2049,28 @@ namespace Profiler
                         const float columnWidth = ImGuiX::TableGetColumnWidth();
                         switch( metricProperties.storage )
                         {
-                        case VK_PERFORMANCE_COUNTER_STORAGE_FLOAT32_KHR:
-                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                            ImGuiX::TextAlignRight( columnWidth, "%d", metric.int32 );
                             break;
 
-                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                            ImGuiX::TextAlignRight( columnWidth, "%lld", metric.int64 );
+                            break;
+
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
                             ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
                             break;
 
-                        case VK_PERFORMANCE_COUNTER_STORAGE_UINT64_KHR:
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
                             ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
+                            break;
+
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
+                            break;
+
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                            ImGuiX::TextAlignRight( columnWidth, "%.2lf", metric.float64 );
                             break;
                         }
                     }
