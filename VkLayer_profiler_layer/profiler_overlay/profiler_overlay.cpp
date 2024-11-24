@@ -336,6 +336,12 @@ namespace Profiler
             }
 
             vkGetProfilerActivePerformanceMetricsSetIndexEXT( device.Handle, &m_ActiveMetricsSetIndex );
+
+            if( m_ActiveMetricsSetIndex < m_VendorMetricsSets.size() )
+            {
+                m_ActiveMetricsVisibility.resize(
+                    m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Metrics.size(), true );
+            }
         }
 
         // Initialize the disassembler in the shader view
@@ -1649,6 +1655,33 @@ namespace Profiler
             const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_VendorMetrics;
 
             bool performanceQueryResultsFiltered = false;
+            auto regexFilterFlags =
+                std::regex::ECMAScript | std::regex::icase | std::regex::optimize;
+
+            auto UpdateActiveMetricsVisiblityWithRegex = [&]( const std::regex& regex ) {
+                const VendorMetricsSet& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
+                assert( activeMetricsSet.m_Metrics.size() == m_ActiveMetricsVisibility.size() );
+
+                for( size_t metricIndex = 0; metricIndex < m_ActiveMetricsVisibility.size(); ++metricIndex )
+                {
+                    const auto& metric = activeMetricsSet.m_Metrics[ metricIndex ];
+                    m_ActiveMetricsVisibility[ metricIndex ] =
+                        std::regex_search( metric.shortName, regex );
+                }
+            };
+
+            auto UpdateActiveMetricsVisiblity = [&]() {
+                try
+                {
+                    // Try to compile the regex filter.
+                    UpdateActiveMetricsVisiblityWithRegex(
+                        std::regex( m_VendorMetricFilter, regexFilterFlags ) );
+                }
+                catch( ... )
+                {
+                    // Regex compilation failed, don't change the visibility of the metrics.
+                }
+            };
 
             // Find the first command buffer that matches the filter.
             // TODO: Aggregation.
@@ -1675,6 +1708,7 @@ namespace Profiler
             // Show a combo box that allows the user to select the filter the profiled range.
             ImGui::TextUnformatted( Lang::PerformanceCountersRange );
             ImGui::SameLine( 100.f );
+            ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
                 if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
@@ -1701,6 +1735,7 @@ namespace Profiler
             // Show a combo box that allows the user to change the active metrics set.
             ImGui::TextUnformatted( Lang::PerformanceCountersSet );
             ImGui::SameLine( 100.f );
+            ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
             {
                 // Enumerate metrics sets.
@@ -1717,6 +1752,8 @@ namespace Profiler
                             {
                                 // Refresh the performance metric properties.
                                 m_ActiveMetricsSetIndex = metricsSetIndex;
+                                m_ActiveMetricsVisibility.resize( m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.metricsCount, true );
+                                UpdateActiveMetricsVisiblity();
                             }
                         }
                     }
@@ -1728,17 +1765,20 @@ namespace Profiler
             // Show a search box for filtering metrics sets to find specific metrics.
             ImGui::TextUnformatted( Lang::PerformanceCountersFilter );
             ImGui::SameLine( 100.f );
+            ImGui::PushItemWidth( -1 );
             if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype(m_VendorMetricFilter)> ) )
             {
                 try
                 {
                     // Text changed, construct a regex from the string and find the matching metrics sets.
-                    std::regex regexFilter( m_VendorMetricFilter );
+                    std::regex regexFilter( m_VendorMetricFilter, regexFilterFlags );
 
                     // Enumerate only sets that match the query.
                     for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
                     {
                         const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
+                        
+                        m_VendorMetricsSetVisibility[ metricsSetIndex ] = false;
 
                         // Match by metrics set name.
                         if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
@@ -1746,8 +1786,6 @@ namespace Profiler
                             m_VendorMetricsSetVisibility[ metricsSetIndex ] = true;
                             continue;
                         }
-
-                        m_VendorMetricsSetVisibility[ metricsSetIndex ] = false;
 
                         // Match by metric name.
                         for( const auto& metric : metricsSet.m_Metrics )
@@ -1759,6 +1797,9 @@ namespace Profiler
                             }
                         }
                     }
+
+                    // Update visibility of metrics in the active metrics set.
+                    UpdateActiveMetricsVisiblityWithRegex( regexFilter );
                 }
                 catch( ... )
                 {
@@ -1792,6 +1833,11 @@ namespace Profiler
                 {
                     const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[ i ];
                     const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = activeMetricsSet.m_Metrics[ i ];
+
+                    if( !m_ActiveMetricsVisibility[ i ] )
+                    {
+                        continue;
+                    }
 
                     ImGui::TableNextColumn();
                     {

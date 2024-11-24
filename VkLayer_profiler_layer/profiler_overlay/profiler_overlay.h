@@ -121,6 +121,7 @@ namespace Profiler
         std::string m_Title;
 
         uint32_t m_ActiveMetricsSetIndex;
+        std::vector<bool> m_ActiveMetricsVisibility;
 
         struct VendorMetricsSet
         {
