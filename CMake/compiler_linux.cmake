@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Lukasz Stalmirski
+# Copyright (c) 2024 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,11 +20,9 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-# There is only one platform on Windows
-set (PROFILER_PLATFORM_FOUND 1)
+# Generate Position Independent Code (PIC) since we're targeting a shared library.
+add_compile_options (-fPIC)
 
-# Enable Windows platform.
-add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
-
-# Disable macros that would collide with stl.
-add_definitions (-DNOMINMAX)
+# Export symbols explicitly.
+set (CMAKE_CXX_VISIBILITY_PRESET hidden)
+set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)

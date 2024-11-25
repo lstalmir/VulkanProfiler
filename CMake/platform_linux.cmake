@@ -20,16 +20,18 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-# ECM is required on Linux to find Wayland and XCB.
-find_package (ECM NO_MODULE)
-if (ECM_FOUND)
-    set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.16.0)
+    # ECM is required on Linux to find Wayland and XCB.
+    find_package (ECM NO_MODULE)
+    if (ECM_FOUND)
+        set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
 
-    #find_package (Wayland)
-    find_package (XCB COMPONENTS XCB SHAPE)
+        #find_package (Wayland)
+        find_package (XCB COMPONENTS XCB SHAPE)
     
-    if (Wayland_FOUND OR XCB_FOUND)
-        set (PROFILER_PLATFORM_FOUND 1)
+        if (Wayland_FOUND OR XCB_FOUND)
+            set (PROFILER_PLATFORM_FOUND 1)
+        endif ()
     endif ()
 endif ()
 
@@ -53,10 +55,3 @@ endif ()
 if (Wayland_FOUND)
     add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
 endif ()
-
-# Generate Position Independent Code (PIC) since we're targeting a shared library.
-add_compile_options (-fPIC)
-
-# Export symbols explicitly.
-set (CMAKE_CXX_VISIBILITY_PRESET hidden)
-set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)

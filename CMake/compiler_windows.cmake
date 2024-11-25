@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Lukasz Stalmirski
+# Copyright (c) 2024 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,11 +20,10 @@
 
 cmake_minimum_required (VERSION 3.8)
 
-# There is only one platform on Windows
-set (PROFILER_PLATFORM_FOUND 1)
-
-# Enable Windows platform.
-add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
-
-# Disable macros that would collide with stl.
-add_definitions (-DNOMINMAX)
+# Link MSVC runtime libraries statically to avoid compatibility issues.
+if (CMAKE_VERSION VERSION_LESS 3.15.0)
+    add_compile_options ("/MT$<$<CONFIG:Debug>:d>")
+else ()
+    cmake_policy (SET CMP0091 NEW)
+    set (CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif ()
