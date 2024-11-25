@@ -22,12 +22,15 @@ cmake_minimum_required (VERSION 3.8)
 
 set_property (GLOBAL PROPERTY USE_FOLDERS ON)
 
-# Platform-specific configuration and dependencies.
-include (CMake/platform.cmake NO_POLICY_SCOPE)
+# Compiler options.
+include (CMake/compiler.cmake NO_POLICY_SCOPE)
 
 project (VulkanProfiler CXX)
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Vulkan platform support.
+include (CMake/platform.cmake NO_POLICY_SCOPE)
 
 # Options
 option (BUILD_TESTS "Build tests." ON)
