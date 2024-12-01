@@ -4338,9 +4338,6 @@ namespace Profiler
 
                 ImGui::EndPopup();
             }
-
-            // Print duration next to the node
-            PrintDuration( pipeline );
         }
 
         if( m_ShowShaderCapabilities )
@@ -4360,6 +4357,12 @@ namespace Profiler
                 static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
                 DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
             }
+        }
+
+        if( !printPipelineInline )
+        {
+            // Print duration next to the node
+            PrintDuration( pipeline );
         }
 
         if( inPipelineSubtree || printPipelineInline )
