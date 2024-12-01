@@ -210,6 +210,7 @@ namespace Profiler
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallDrawIndexedIndirectPayload
@@ -225,6 +226,8 @@ namespace Profiler
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
+        size_t m_IndirectCountOffset;
     };
 
     struct DeviceProfilerDrawcallDrawIndexedIndirectCountPayload
@@ -245,6 +248,7 @@ namespace Profiler
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
@@ -255,6 +259,8 @@ namespace Profiler
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
+        size_t m_IndirectCountOffset;
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksNvPayload
@@ -284,6 +290,7 @@ namespace Profiler
     {
         VkBuffer m_Buffer;
         VkDeviceSize m_Offset;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallCopyBufferPayload
@@ -1157,6 +1164,8 @@ namespace Profiler
         uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
 
         uint64_t                                            m_ProfilerCpuOverheadNs = {};
+
+        std::vector<uint8_t>                                m_IndirectPayload = {};
 
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }

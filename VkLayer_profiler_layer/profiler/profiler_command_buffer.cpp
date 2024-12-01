@@ -26,6 +26,8 @@
 #include <algorithm>
 #include <assert.h>
 
+#define PROFILER_INDIRECT_ARGS_BUFFER_SIZE 65536
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -55,6 +57,8 @@ namespace Profiler
         , m_CurrentSubpassIndex( DeviceProfilerSubpassData::ImplicitSubpassIndex )
         , m_GraphicsPipeline()
         , m_ComputePipeline()
+        , m_IndirectArgumentBufferList()
+        , m_IndirectArgumentBufferCopyList()
     {
         m_Data.m_Handle = commandBuffer;
         m_Data.m_Level = level;
@@ -262,6 +266,14 @@ namespace Profiler
             m_pCurrentDrawcallData = nullptr;
 
             m_Data.m_DataValid = false;
+
+            // Reset indirect argument buffers.
+            for( auto& buffer : m_IndirectArgumentBufferList )
+            {
+                buffer.m_Offset = 0;
+            }
+
+            m_IndirectArgumentBufferCopyList.clear();
         }
     }
 
@@ -403,6 +415,21 @@ namespace Profiler
             m_pCurrentRenderPassData = nullptr;
             m_pCurrentSubpassData = nullptr;
             m_pCurrentPipelineData = nullptr;
+        }
+
+        if( !m_IndirectArgumentBufferCopyList.empty() )
+        {
+            // Record pending indirect argument buffer copies after the render pass.
+            for( const auto& copy : m_IndirectArgumentBufferCopyList )
+            {
+                m_Profiler.m_pDevice->Callbacks.CmdCopyBuffer(
+                    m_CommandBuffer,
+                    copy.m_SrcBuffer,
+                    copy.m_DstBuffer,
+                    1, &copy.m_Region );
+            }
+
+            m_IndirectArgumentBufferCopyList.clear();
         }
     }
 
@@ -745,6 +772,9 @@ namespace Profiler
 
             // Append drawcall to the current pipeline
             m_pCurrentDrawcallData = &m_pCurrentPipelineData->m_Drawcalls.emplace_back( drawcall );
+
+            // Save indirect arguments
+            SaveIndirectArgs( *m_pCurrentDrawcallData );
 
             // Increment drawcall stats
             m_Stats.AddCount( drawcall );
@@ -1560,5 +1590,127 @@ namespace Profiler
         default:
             return DeviceProfilerRenderPassType::eCopy;
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveIndirectArgs
+
+    Description:
+        Copy contents of indirect argument buffer to a temporary buffer.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::SaveIndirectArgs( DeviceProfilerDrawcall& drawcall )
+    {
+        switch( drawcall.m_Type )
+        {
+        case DeviceProfilerDrawcallType::eDrawIndirect:
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirect: {
+            DeviceProfilerDrawcallDrawIndirectPayload& payload = drawcall.m_Payload.m_DrawIndirect;
+            const size_t indirectPayloadSize = payload.m_DrawCount * payload.m_Stride;
+
+            IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
+            payload.m_IndirectArgsOffset = buffer.m_Offset;
+            buffer.m_Offset += indirectPayloadSize;
+
+            IndirectArgumentBufferCopy& copy = m_IndirectArgumentBufferCopyList.emplace_back();
+            copy.m_SrcBuffer = payload.m_Buffer;
+            copy.m_DstBuffer = buffer.m_Buffer;
+            copy.m_Region.srcOffset = payload.m_Offset;
+            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            copy.m_Region.size = indirectPayloadSize;
+
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndirectCount:
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount: {
+            DeviceProfilerDrawcallDrawIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndirectCount;
+            const size_t indirectPayloadSize = sizeof( uint32_t ) + payload.m_MaxDrawCount * payload.m_Stride;
+
+            IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
+            payload.m_IndirectCountOffset = buffer.m_Offset;
+            payload.m_IndirectArgsOffset = buffer.m_Offset + sizeof( uint32_t );
+            buffer.m_Offset += indirectPayloadSize;
+
+            IndirectArgumentBufferCopy& countCopy = m_IndirectArgumentBufferCopyList.emplace_back();
+            countCopy.m_SrcBuffer = payload.m_CountBuffer;
+            countCopy.m_DstBuffer = buffer.m_Buffer;
+            countCopy.m_Region.srcOffset = payload.m_CountOffset;
+            countCopy.m_Region.dstOffset = payload.m_IndirectCountOffset;
+            countCopy.m_Region.size = sizeof( uint32_t );
+
+            IndirectArgumentBufferCopy& argsCopy = m_IndirectArgumentBufferCopyList.emplace_back();
+            argsCopy.m_SrcBuffer = payload.m_Buffer;
+            argsCopy.m_DstBuffer = buffer.m_Buffer;
+            argsCopy.m_Region.srcOffset = payload.m_Offset;
+            argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            argsCopy.m_Region.size = indirectPayloadSize;
+
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDispatchIndirect: {
+            DeviceProfilerDrawcallDispatchIndirectPayload& payload = drawcall.m_Payload.m_DispatchIndirect;
+            const size_t indirectPayloadSize = sizeof( VkDispatchIndirectCommand );
+
+            IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
+            payload.m_IndirectArgsOffset = buffer.m_Offset;
+            buffer.m_Offset += indirectPayloadSize;
+
+            IndirectArgumentBufferCopy& copy = m_IndirectArgumentBufferCopyList.emplace_back();
+            copy.m_SrcBuffer = payload.m_Buffer;
+            copy.m_DstBuffer = buffer.m_Buffer;
+            copy.m_Region.srcOffset = payload.m_Offset;
+            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            copy.m_Region.size = indirectPayloadSize;
+
+            break;
+        }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AcquireIndirectArgumentBuffer
+
+    Description:
+        Get a buffer for storing indirect argument data.
+
+    \***********************************************************************************/
+    ProfilerCommandBuffer::IndirectArgumentBuffer& ProfilerCommandBuffer::AcquireIndirectArgumentBuffer( size_t size )
+    {
+        // Check for an existing buffer in the list.
+        for( IndirectArgumentBuffer& buffer : m_IndirectArgumentBufferList )
+        {
+            if( buffer.m_AllocationInfo.size - buffer.m_Offset >= size )
+            {
+                return buffer;
+            }
+        }
+
+        // Create a new buffer.
+        VkBufferCreateInfo bufferCreateInfo = {};
+        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferCreateInfo.size = std::max<size_t>( size, PROFILER_INDIRECT_ARGS_BUFFER_SIZE );
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VmaAllocationCreateInfo allocationCreateInfo = {};
+        allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+        allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+
+        IndirectArgumentBuffer& buffer = m_IndirectArgumentBufferList.emplace_back();
+        m_Profiler.m_MemoryManager.AllocateBuffer(
+            bufferCreateInfo,
+            allocationCreateInfo,
+            &buffer.m_Buffer,
+            &buffer.m_Allocation,
+            &buffer.m_AllocationInfo );
+
+        buffer.m_Offset = 0;
+
+        return buffer;
     }
 }
