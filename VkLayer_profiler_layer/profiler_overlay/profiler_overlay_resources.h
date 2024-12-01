@@ -82,7 +82,7 @@ namespace Profiler
 
         OverlayImage m_CopyIconImage;
 
-        void CreateImage( OverlayImage& image, const uint8_t* pAsset, size_t assetSize );
+        VkResult CreateImage( OverlayImage& image, const uint8_t* pAsset, size_t assetSize );
         void UploadImage( VkCommandBuffer commandBuffer, OverlayImage& image );
         void TransitionImage( VkCommandBuffer commandBuffer, OverlayImage& image, VkImageLayout oldLayout, VkImageLayout newLayout );
         void DestroyImage( OverlayImage& image );

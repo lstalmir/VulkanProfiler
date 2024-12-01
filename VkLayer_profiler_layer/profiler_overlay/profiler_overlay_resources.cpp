@@ -258,43 +258,47 @@ namespace Profiler
     \***********************************************************************************/
     VkResult OverlayResources::InitializeImages( VkDevice_Object& device, ImGui_ImplVulkan_Context& context )
     {
+        VkResult result;
+
         m_pDevice = &device;
         m_pContext = &context;
 
-        VkResult result = m_MemoryManager.Initialize( m_pDevice );
-        if( result != VK_SUCCESS )
+        // Initialize memory manager for the overlay resources.
+        result = m_MemoryManager.Initialize( m_pDevice );
+
+        // Create image sampler.
+        if( result == VK_SUCCESS )
         {
-            Destroy();
-            return result;
-        }
+            VkSamplerCreateInfo samplerCreateInfo = {};
+            samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerCreateInfo.mipLodBias = 0.0f;
 
-        // Create image sampler
-        VkSamplerCreateInfo samplerCreateInfo = {};
-        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.mipLodBias = 0.0f;
-
-        result = m_pDevice->Callbacks.CreateSampler(
-            m_pDevice->Handle,
-            &samplerCreateInfo,
-            nullptr,
-            &m_LinearSampler );
-
-        if( result != VK_SUCCESS )
-        {
-            Destroy();
-            return result;
+            result = m_pDevice->Callbacks.CreateSampler(
+                m_pDevice->Handle,
+                &samplerCreateInfo,
+                nullptr,
+                &m_LinearSampler );
         }
 
         // Create image objects
-        CreateImage( m_CopyIconImage, OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
+        if( result == VK_SUCCESS )
+        {
+            result = CreateImage( m_CopyIconImage, OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
+        }
 
-        return VK_SUCCESS;
+        // Destroy resources if any of the steps failed.
+        if( result != VK_SUCCESS )
+        {
+            Destroy();
+        }
+
+        return result;
     }
 
     /***********************************************************************************\
@@ -448,84 +452,125 @@ namespace Profiler
         Creates an image object from the asset data.
 
     \***********************************************************************************/
-    void OverlayResources::CreateImage( OverlayImage& image, const uint8_t* pAsset, size_t assetSize )
+    VkResult OverlayResources::CreateImage( OverlayImage& image, const uint8_t* pAsset, size_t assetSize )
     {
-        VkImageCreateInfo imageCreateInfo = {};
-        imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        VkResult result;
+        VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+        VmaAllocationInfo uploadBufferAllocationInfo = {};
 
         int width, height, channels;
-        stbi_uc* pixels;
-        pixels = stbi_load_from_memory( pAsset, static_cast<int>( assetSize ), &width, &height, &channels, STBI_rgb_alpha );
+        std::unique_ptr<stbi_uc[]> pixels;
 
+        // Load image data from asset.
+        pixels.reset( stbi_load_from_memory( pAsset, static_cast<int>( assetSize ), &width, &height, &channels, STBI_rgb_alpha ) );
+
+        if( !pixels )
+        {
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        // Save image size for upload.
         image.ImageExtent.width = static_cast<uint32_t>( width );
         image.ImageExtent.height = static_cast<uint32_t>( height );
 
-        imageCreateInfo.extent.width = static_cast<uint32_t>( width );
-        imageCreateInfo.extent.height = static_cast<uint32_t>( height );
-        imageCreateInfo.extent.depth = 1;
-        imageCreateInfo.mipLevels = 1;
-        imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        // Create image object.
+        {
+            VkImageCreateInfo imageCreateInfo = {};
+            imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageCreateInfo.format = format;
+            imageCreateInfo.extent.width = static_cast<uint32_t>( width );
+            imageCreateInfo.extent.height = static_cast<uint32_t>( height );
+            imageCreateInfo.extent.depth = 1;
+            imageCreateInfo.mipLevels = 1;
+            imageCreateInfo.arrayLayers = 1;
+            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-        VmaAllocationCreateInfo allocationCreateInfo = {};
-        allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+            VmaAllocationCreateInfo allocationCreateInfo = {};
+            allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-        m_MemoryManager.AllocateImage(
-            imageCreateInfo,
-            allocationCreateInfo,
-            &image.Image,
-            &image.ImageAllocation,
-            nullptr );
+            result = m_MemoryManager.AllocateImage(
+                imageCreateInfo,
+                allocationCreateInfo,
+                &image.Image,
+                &image.ImageAllocation,
+                nullptr );
+        }
 
-        VkImageViewCreateInfo imageViewCreateInfo = {};
-        imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = image.Image;
-        imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        imageViewCreateInfo.format = imageCreateInfo.format;
-        imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-        imageViewCreateInfo.subresourceRange.levelCount = 1;
-        imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-        imageViewCreateInfo.subresourceRange.layerCount = 1;
+        // Create image view.
+        if( result == VK_SUCCESS )
+        {
+            VkImageViewCreateInfo imageViewCreateInfo = {};
+            imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            imageViewCreateInfo.image = image.Image;
+            imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            imageViewCreateInfo.format = format;
+            imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+            imageViewCreateInfo.subresourceRange.levelCount = 1;
+            imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+            imageViewCreateInfo.subresourceRange.layerCount = 1;
 
-        m_pDevice->Callbacks.CreateImageView(
-            m_pDevice->Handle,
-            &imageViewCreateInfo,
-            nullptr,
-            &image.ImageView );
+            result = m_pDevice->Callbacks.CreateImageView(
+                m_pDevice->Handle,
+                &imageViewCreateInfo,
+                nullptr,
+                &image.ImageView );
+        }
 
-        image.ImageDescriptorSet = m_pContext->AddTexture(
-            m_LinearSampler,
-            image.ImageView,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+        // Create descriptor set for ImGui binding.
+        if( result == VK_SUCCESS )
+        {
+            image.ImageDescriptorSet = m_pContext->AddTexture(
+                m_LinearSampler,
+                image.ImageView,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 
-        VkBufferCreateInfo bufferCreateInfo = {};
-        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferCreateInfo.size = sizeof( stbi_uc ) * width * height * channels;
-        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            if( !image.ImageDescriptorSet )
+            {
+                result = VK_ERROR_INITIALIZATION_FAILED;
+            }
+        }
 
-        VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-        bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-        bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        // Create buffer for uploading.
+        if( result == VK_SUCCESS )
+        {
+            VkBufferCreateInfo bufferCreateInfo = {};
+            bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            bufferCreateInfo.size = sizeof( stbi_uc ) * width * height * channels;
+            bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
-        VmaAllocationInfo bufferAllocationInfo = {};
-        m_MemoryManager.AllocateBuffer(
-            bufferCreateInfo,
-            bufferAllocationCreateInfo,
-            &image.UploadBuffer,
-            &image.UploadBufferAllocation,
-            &bufferAllocationInfo );
+            VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
+            bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+            bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
-        memcpy( bufferAllocationInfo.pMappedData, pixels, bufferCreateInfo.size );
-        free( pixels );
+            result = m_MemoryManager.AllocateBuffer(
+                bufferCreateInfo,
+                bufferAllocationCreateInfo,
+                &image.UploadBuffer,
+                &image.UploadBufferAllocation,
+                &uploadBufferAllocationInfo );
+        }
 
-        image.RequiresUpload = true;
+        // Copy texture data to the upload buffer.
+        if( result == VK_SUCCESS )
+        {
+            assert( uploadBufferAllocationInfo.pMappedData != nullptr );
+            memcpy( uploadBufferAllocationInfo.pMappedData, pixels.get(), uploadBufferAllocationInfo.size );
+            image.RequiresUpload = true;
+        }
+
+        // Destroy the image if any of the steps failed.
+        if( result != VK_SUCCESS )
+        {
+            DestroyImage( image );
+        }
+
+        return result;
     }
 
     /***********************************************************************************\
