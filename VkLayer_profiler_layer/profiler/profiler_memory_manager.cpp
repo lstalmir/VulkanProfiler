@@ -42,6 +42,7 @@ namespace Profiler
         , m_Allocator( VK_NULL_HANDLE )
         , m_AllocationMutex()
         , m_BufferAllocations()
+        , m_ImageAllocations()
     {
     }
 
@@ -109,12 +110,19 @@ namespace Profiler
             vmaDestroyBuffer( m_Allocator, buffer, allocation );
         }
 
+        for( auto [image, allocation] : m_ImageAllocations )
+        {
+            vmaDestroyImage( m_Allocator, image, allocation );
+        }
+
         // Destroy the allocator.
         vmaDestroyAllocator( m_Allocator );
 
         // Invalidate pointers.
         m_pDevice = nullptr;
         m_Allocator = VK_NULL_HANDLE;
+        m_BufferAllocations.clear();
+        m_ImageAllocations.clear();
     }
 
     /***********************************************************************************\
@@ -157,5 +165,47 @@ namespace Profiler
     {
         std::scoped_lock lk( m_AllocationMutex );
         vmaDestroyBuffer( m_Allocator, buffer, allocation );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AllocateImage
+
+    Description:
+        Creates an image object and automaticall binds memory to it.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerMemoryManager::AllocateImage(
+        const VkImageCreateInfo& imageCreateInfo,
+        const VmaAllocationCreateInfo& allocationCreateInfo,
+        VkImage* pImage,
+        VmaAllocation* pAllocation,
+        VmaAllocationInfo* pAllocationInfo )
+    {
+        std::scoped_lock lk( m_AllocationMutex );
+        return vmaCreateImage( m_Allocator,
+            &imageCreateInfo,
+            &allocationCreateInfo,
+            pImage,
+            pAllocation,
+            pAllocationInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeImage
+
+    Description:
+        Destroys the buffer and frees its memory.
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryManager::FreeImage(
+        VkImage image,
+        VmaAllocation allocation )
+    {
+        std::scoped_lock lk( m_AllocationMutex );
+        vmaDestroyImage( m_Allocator, image, allocation );
     }
 }
