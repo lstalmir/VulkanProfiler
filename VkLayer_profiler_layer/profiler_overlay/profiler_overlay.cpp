@@ -228,7 +228,7 @@ namespace Profiler
         , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
         , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
         , m_InspectorPipeline()
-        , m_InspectorShaderView( m_Fonts )
+        , m_InspectorShaderView( m_Resources )
         , m_InspectorTabs( 0 )
         , m_InspectorTabIndex( 0 )
         , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
@@ -376,7 +376,7 @@ namespace Profiler
 
             m_Settings.Validate( io.IniFilename );
 
-            InitializeImGuiDefaultFont();
+            m_Resources.InitializeFonts();
             InitializeImGuiStyle();
         }
 
@@ -390,6 +390,12 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             result = InitializeImGuiVulkanContext( pCreateInfo );
+        }
+
+        // Init resources
+        if( result == VK_SUCCESS )
+        {
+            result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
         }
 
         // Get vendor metrics sets
@@ -925,6 +931,9 @@ namespace Profiler
                 m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
             }
 
+            // Record upload commands
+            m_Resources.RecordUploadCommands( commandBuffer );
+
             // Record Imgui Draw Data and draw funcs into command buffer
             m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
 
@@ -951,6 +960,8 @@ namespace Profiler
             pPresentInfo->waitSemaphoreCount = 1;
             pPresentInfo->pWaitSemaphores = &semaphore;
         }
+
+        m_Resources.FreeUploadResources();
     }
 
     /***********************************************************************************\
@@ -965,12 +976,14 @@ namespace Profiler
     void ProfilerOverlayOutput::Update( const std::shared_ptr<DeviceProfilerFrameData>& pData )
     {
         m_pImGuiVulkanContext->NewFrame();
-
         m_pImGuiWindowContext->NewFrame();
-
         ImGui::NewFrame();
-        ImGui::PushFont( m_Fonts.GetDefaultFont() );
 
+        // Initialize IDs of the popup windows before entering the main window scope
+        uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
+
+        // Begin main window
+        ImGui::PushFont( m_Resources.GetDefaultFont() );
         ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
@@ -1006,6 +1019,12 @@ namespace Profiler
                 ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, m_SettingsWindowState.pOpen );
                 ImGui::EndMenu();
             }
+
+            if( ImGui::MenuItem( Lang::ApplicationInfoMenuItem ) )
+            {
+                ImGui::OpenPopup( applicationInfoPopupID );
+            }
+
             ImGui::EndMenuBar();
         }
 
@@ -1169,6 +1188,7 @@ namespace Profiler
         UpdatePerformanceCounterExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
+        UpdateApplicationInfoWindow();
 
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
@@ -1269,19 +1289,6 @@ namespace Profiler
         m_Window = window;
 
         return result;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiDefaultFont
-
-    Description:
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::InitializeImGuiDefaultFont()
-    {
-        m_Fonts.Initialize();
     }
 
     /***********************************************************************************\
@@ -2495,7 +2502,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Offset" );
                 ImGui::TableSetupColumn( "Stride" );
                 ImGui::TableSetupColumn( "Input rate", 0, 1.5f );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
                 {
@@ -2590,7 +2597,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Height" );
                 ImGui::TableSetupColumn( "Min Z" );
                 ImGui::TableSetupColumn( "Max Z" );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 const char* format = "%u";
                 if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_VIEWPORT ) )
@@ -2628,7 +2635,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Y" );
                 ImGui::TableSetupColumn( "Width" );
                 ImGui::TableSetupColumn( "Height" );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 const char* format = "%u";
                 if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_SCISSOR ) )
@@ -2790,7 +2797,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Dst alpha" );
                 ImGui::TableSetupColumn( "Alpha op" );
                 ImGui::TableSetupColumn( "Mask", ImGuiTableColumnFlags_WidthFixed, maskColumnWidth );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 for( uint32_t i = 0; i < state.attachmentCount; ++i )
                 {
@@ -2960,7 +2967,7 @@ namespace Profiler
             ImGui::TableSetupColumn( Lang::StatAvg, 0, 1.0f );
             ImGui::TableNextRow();
 
-            ImGui::PushFont( m_Fonts.GetBoldFont() );
+            ImGui::PushFont( m_Resources.GetBoldFont() );
             ImGui::TableNextColumn();
             ImGui::TextUnformatted( Lang::StatName );
             ImGui::TableNextColumn();
@@ -4024,6 +4031,93 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        UpdateApplicationInfoWindow
+
+    Description:
+        Display window with application information.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateApplicationInfoWindow()
+    {
+        const uint32_t applicationInfoWindowFlags = 
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoMove;
+
+        if( ImGui::BeginPopup( Lang::ApplicationInfo, applicationInfoWindowFlags ) )
+        {
+            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+            const float headerColumnWidth = 150.f * interfaceScale;
+            const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
+
+            const VkApplicationInfo& applicationInfo = m_pDevice->pInstance->ApplicationInfo;
+
+            ImGui::PushStyleColor( ImGuiCol_Button, { 0, 0, 0, 0 } );
+
+            ImGui::TextUnformatted( Lang::VulkanVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
+
+            ImGui::TextUnformatted( Lang::ApplicationName );
+            if( applicationInfo.pApplicationName )
+            {
+                ImGui::SameLine( headerColumnWidth );
+                ImGui::TextUnformatted( applicationInfo.pApplicationName );
+                
+                ImGui::SameLine();
+                if( ImGui::ImageButton( "##CopyApplicationName", m_Resources.GetCopyIconImage(), iconSize ) )
+                {
+                    ImGui::SetClipboardText( applicationInfo.pApplicationName );
+                }
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNormal ) )
+                {
+                    ImGui::SetTooltip( Lang::CopyToClipboard );
+                }
+            }
+
+            ImGui::TextUnformatted( Lang::ApplicationVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.applicationVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.applicationVersion ),
+                VK_API_VERSION_PATCH( applicationInfo.applicationVersion ) );
+
+            ImGui::TextUnformatted( Lang::EngineName );
+            if( applicationInfo.pEngineName )
+            {
+                ImGui::SameLine( headerColumnWidth );
+                ImGui::TextUnformatted( applicationInfo.pEngineName );
+
+                ImGui::SameLine();
+                if( ImGui::ImageButton( "##CopyEngineName", m_Resources.GetCopyIconImage(), iconSize ) )
+                {
+                    ImGui::SetClipboardText( applicationInfo.pEngineName );
+                }
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNormal ) )
+                {
+                    ImGui::SetTooltip( Lang::CopyToClipboard );
+                }
+            }
+
+            ImGui::TextUnformatted( Lang::EngineVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.engineVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.engineVersion ),
+                VK_API_VERSION_PATCH( applicationInfo.engineVersion ) );
+
+            ImGui::PopStyleColor();
+            ImGui::EndPopup();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         PrintCommandBuffer
 
     Description:
@@ -4342,9 +4436,6 @@ namespace Profiler
 
                 ImGui::EndPopup();
             }
-
-            // Print duration next to the node
-            PrintDuration( pipeline );
         }
 
         if( m_ShowShaderCapabilities )
@@ -4364,6 +4455,12 @@ namespace Profiler
                 static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
                 DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
             }
+        }
+
+        if( !printPipelineInline )
+        {
+            // Print duration next to the node
+            PrintDuration( pipeline );
         }
 
         if( inPipelineSubtree || printPipelineInline )

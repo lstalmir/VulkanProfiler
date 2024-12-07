@@ -27,7 +27,7 @@
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include "profiler_overlay_settings.h"
-#include "profiler_overlay_fonts.h"
+#include "profiler_overlay_resources.h"
 #include "profiler_overlay_shader_view.h"
 #include <vulkan/vk_layer.h>
 #include <list>
@@ -102,7 +102,7 @@ namespace Profiler
         ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
         ImGui_Window_Context* m_pImGuiWindowContext;
 
-        OverlayFonts m_Fonts;
+        OverlayResources m_Resources;
 
         VkDescriptorPool m_DescriptorPool;
 
@@ -272,7 +272,6 @@ namespace Profiler
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
 
-        void InitializeImGuiDefaultFont();
         void InitializeImGuiStyle();
 
         void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
@@ -311,6 +310,7 @@ namespace Profiler
 
         // Notifications
         void UpdateNotificationWindow();
+        void UpdateApplicationInfoWindow();
 
         // Inspector helpers
         void Inspect( const DeviceProfilerPipeline& );

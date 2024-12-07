@@ -131,3 +131,8 @@ target_include_directories (imgui-file-dialog
 
 target_link_libraries (imgui-file-dialog
     PUBLIC imgui)
+
+# nothings/stb
+add_library (stb INTERFACE)
+target_include_directories (stb
+    INTERFACE stb)

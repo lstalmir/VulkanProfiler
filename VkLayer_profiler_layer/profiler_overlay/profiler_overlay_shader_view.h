@@ -31,7 +31,7 @@ namespace IGFD { class FileDialog; }
 
 namespace Profiler
 {
-    class OverlayFonts;
+    class OverlayResources;
     struct ProfilerShaderExecutable;
 
     /***********************************************************************************\
@@ -65,7 +65,7 @@ namespace Profiler
     class OverlayShaderView
     {
     public:
-        OverlayShaderView( const OverlayFonts& fonts );
+        OverlayShaderView( const OverlayResources& resources );
         ~OverlayShaderView();
 
         OverlayShaderView( const OverlayShaderView& ) = delete;
@@ -95,7 +95,7 @@ namespace Profiler
 
         static constexpr ShaderFormat      m_scExecutableShaderFormat = ShaderFormat( -1 );
 
-        const OverlayFonts&                m_Fonts;
+        const OverlayResources&            m_Resources;
         std::unique_ptr<TextEditor>        m_pTextEditor;
 
         std::string                        m_ShaderName;

@@ -41,6 +41,9 @@ public:
     bool CreateFontsTexture();
     void SetMinImageCount( uint32_t min_image_count );
 
+    VkDescriptorSet AddTexture( VkSampler sampler, VkImageView view, VkImageLayout layout );
+    void RemoveTexture( VkDescriptorSet descriptor_set );
+
 private:
     static PFN_vkVoidFunction FunctionLoader( const char* pFunctionName, void* pUserData );
     static VkResult AllocateCommandBuffers( VkDevice, const VkCommandBufferAllocateInfo*, VkCommandBuffer* );

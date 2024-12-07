@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "profiler_overlay_shader_view.h"
-#include "profiler_overlay_fonts.h"
+#include "profiler_overlay_resources.h"
 #include "profiler/profiler_shader.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
@@ -357,7 +357,7 @@ namespace
 
     \***********************************************************************************/
     static TextEditor::LanguageDefinition GetSpirvLanguageDefinition(
-        [[maybe_unused]] const Profiler::OverlayFonts& fonts,
+        [[maybe_unused]] const Profiler::OverlayResources& resources,
         [[maybe_unused]] bool& showSpirvDocs )
     {
         static bool initialized = false;
@@ -391,7 +391,7 @@ namespace
 
 #if PROFILER_BUILD_SPIRV_DOCS
         // Documentation.
-        languageDefinition.mTooltip = [fonts, &showSpirvDocs]( const char* identifier )
+        languageDefinition.mTooltip = [&resources, &showSpirvDocs]( const char* identifier )
             {
                 if( !showSpirvDocs )
                 {
@@ -416,7 +416,7 @@ namespace
                     ImGui::BeginTooltip();
 
                     // Opcode name.
-                    ImGui::PushFont( fonts.GetBoldFont() );
+                    ImGui::PushFont( resources.GetBoldFont() );
                     ImGui::TextUnformatted( pDesc->m_pName );
                     ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
                     ImGui::PopFont();
@@ -428,7 +428,7 @@ namespace
                         pDoc = "No documentation available for this instruction.";
                     }
 
-                    ImGui::PushFont( fonts.GetDefaultFont() );
+                    ImGui::PushFont( resources.GetDefaultFont() );
                     ImGui::TextWrapped( "%s", pDoc );
 
                     // Operands.
@@ -497,8 +497,8 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    OverlayShaderView::OverlayShaderView( const OverlayFonts& fonts )
-        : m_Fonts( fonts )
+    OverlayShaderView::OverlayShaderView( const OverlayResources& resources )
+        : m_Resources( resources )
         , m_pTextEditor( nullptr )
         , m_ShaderName( "shader" )
         , m_EntryPointName( "main" )
@@ -566,6 +566,7 @@ namespace Profiler
             // Select the target env based on the api version used by the application.
             switch( pDevice->pInstance->ApplicationInfo.apiVersion )
             {
+            default:
             case VK_API_VERSION_1_0:
                 m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
                 break;
@@ -990,7 +991,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayShaderView::Draw()
     {
-        ImGui::PushFont( m_Fonts.GetDefaultFont() );
+        ImGui::PushFont( m_Resources.GetDefaultFont() );
         ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, 0.0f );
 
         [[maybe_unused]]
@@ -1075,7 +1076,7 @@ namespace Profiler
                     switch( shaderRepresentationFormat )
                     {
                     case ShaderFormat::eSpirv:
-                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Fonts, m_ShowSpirvDocs ) );
+                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Resources, m_ShowSpirvDocs ) );
                         break;
                     case ShaderFormat::eGlsl:
                         m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition::GLSL() );
@@ -1114,7 +1115,7 @@ namespace Profiler
 #endif
 
             // Print shader representation data.
-            ImGui::PushFont( m_Fonts.GetCodeFont() );
+            ImGui::PushFont( m_Resources.GetCodeFont() );
 
             m_pTextEditor->Render( "##ShaderRepresentationTextEdit" );
 
