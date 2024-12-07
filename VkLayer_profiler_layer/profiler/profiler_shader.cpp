@@ -444,18 +444,15 @@ namespace Profiler
 
         if( m_IdentifierSize > 0 )
         {
-            // Use shader module identifier if available
+            // Save the shader module identifier if available
             memcpy( m_Identifier, pIdentifier, identifierSize );
-            m_Hash = *reinterpret_cast<const uint32_t*>( m_Identifier );
-        }
-        else
-        {
-            // Compute shader code hash from the bytecode
-            m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( pBytecode ), bytecodeSize );
         }
 
         if( bytecodeSize > 0 )
         {
+            // Compute shader code hash from the bytecode
+            m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( pBytecode ), bytecodeSize );
+
             // Save the bytecode to display the shader's disassembly
             m_Bytecode.resize( bytecodeSize / sizeof( uint32_t ) );
             memcpy( m_Bytecode.data(), pBytecode, bytecodeSize );
