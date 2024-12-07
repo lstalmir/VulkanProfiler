@@ -83,6 +83,7 @@ namespace Profiler
         inline static constexpr char Container[] = u8"Kontener";
         inline static constexpr char Inspect[] = u8"Inspekcja";
         inline static constexpr char ShowPerformanceMetrics[] = u8"Pokaż liczniki wydajności";
+        inline static constexpr char CopyToClipboard[] = u8"Kopiuj do schowka";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
         inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
@@ -148,7 +149,6 @@ namespace Profiler
         inline static constexpr char ApplicationVersion[] = u8"Wersja aplikacji";
         inline static constexpr char EngineName[] = u8"Nazwa silnika";
         inline static constexpr char EngineVersion[] = u8"Wersja silnika";
-        inline static constexpr char Close[] = u8"Zamknij";
 
         inline static constexpr char Unknown[] = u8"Nieznany";
     };

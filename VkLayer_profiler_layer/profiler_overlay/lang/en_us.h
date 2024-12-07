@@ -89,6 +89,7 @@ namespace Profiler
         inline static constexpr char Container[] = "Container";
         inline static constexpr char Inspect[] = "Inspect";
         inline static constexpr char ShowPerformanceMetrics[] = "Show performance metrics";
+        inline static constexpr char CopyToClipboard[] = "Copy to clipboard";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
         inline static constexpr char ShaderObjectsTooltip[] = "Pipeline constructed from VkShaderEXT objects passed via vkCmdBindShadersEXT.";
@@ -166,7 +167,6 @@ namespace Profiler
         inline static constexpr char ApplicationVersion[] = "Application version";
         inline static constexpr char EngineName[] = "Engine name";
         inline static constexpr char EngineVersion[] = "Engine version";
-        inline static constexpr char Close[] = "Close";
 
         inline static constexpr char Unknown[] = "Unknown";
     };

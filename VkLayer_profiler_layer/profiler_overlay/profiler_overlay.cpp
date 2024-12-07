@@ -4046,8 +4046,11 @@ namespace Profiler
         {
             const float interfaceScale = ImGui::GetIO().FontGlobalScale;
             const float headerColumnWidth = 150.f * interfaceScale;
+            const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
 
             const VkApplicationInfo& applicationInfo = m_pDevice->pInstance->ApplicationInfo;
+
+            ImGui::PushStyleColor( ImGuiCol_Button, { 0, 0, 0, 0 } );
 
             ImGui::TextUnformatted( Lang::VulkanVersion );
             ImGui::SameLine( headerColumnWidth );
@@ -4056,8 +4059,21 @@ namespace Profiler
                 VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
 
             ImGui::TextUnformatted( Lang::ApplicationName );
-            ImGui::SameLine( headerColumnWidth );
-            ImGui::Text( "%s", applicationInfo.pApplicationName ? applicationInfo.pApplicationName : "" );
+            if( applicationInfo.pApplicationName )
+            {
+                ImGui::SameLine( headerColumnWidth );
+                ImGui::TextUnformatted( applicationInfo.pApplicationName );
+                
+                ImGui::SameLine();
+                if( ImGui::ImageButton( "##CopyApplicationName", m_Resources.GetCopyIconImage(), iconSize ) )
+                {
+                    ImGui::SetClipboardText( applicationInfo.pApplicationName );
+                }
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNormal ) )
+                {
+                    ImGui::SetTooltip( Lang::CopyToClipboard );
+                }
+            }
 
             ImGui::TextUnformatted( Lang::ApplicationVersion );
             ImGui::SameLine( headerColumnWidth );
@@ -4067,8 +4083,21 @@ namespace Profiler
                 VK_API_VERSION_PATCH( applicationInfo.applicationVersion ) );
 
             ImGui::TextUnformatted( Lang::EngineName );
-            ImGui::SameLine( headerColumnWidth );
-            ImGui::Text( "%s", applicationInfo.pEngineName ? applicationInfo.pEngineName : "" );
+            if( applicationInfo.pEngineName )
+            {
+                ImGui::SameLine( headerColumnWidth );
+                ImGui::TextUnformatted( applicationInfo.pEngineName );
+
+                ImGui::SameLine();
+                if( ImGui::ImageButton( "##CopyEngineName", m_Resources.GetCopyIconImage(), iconSize ) )
+                {
+                    ImGui::SetClipboardText( applicationInfo.pEngineName );
+                }
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNormal ) )
+                {
+                    ImGui::SetTooltip( Lang::CopyToClipboard );
+                }
+            }
 
             ImGui::TextUnformatted( Lang::EngineVersion );
             ImGui::SameLine( headerColumnWidth );
@@ -4077,6 +4106,7 @@ namespace Profiler
                 VK_API_VERSION_MINOR( applicationInfo.engineVersion ),
                 VK_API_VERSION_PATCH( applicationInfo.engineVersion ) );
 
+            ImGui::PopStyleColor();
             ImGui::EndPopup();
         }
     }
