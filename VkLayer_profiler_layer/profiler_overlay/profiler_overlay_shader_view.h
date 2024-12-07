@@ -105,6 +105,7 @@ namespace Profiler
 
         int                                m_SpvTargetEnv;
         bool                               m_ShowSpirvDocs;
+        bool                               m_ShowFullShaderIdentifier;
 
         int                                m_CurrentTabIndex;
 
@@ -115,6 +116,7 @@ namespace Profiler
         std::unique_ptr<ShaderExporter>    m_pShaderExporter;
         ShaderSavedCallback                m_ShaderSavedCallback;
 
+        void DrawShaderIdentifier();
         void DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation );
         void DrawShaderStatistics( ShaderExecutableRepresentation* pShaderExecutable );
         bool SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat );

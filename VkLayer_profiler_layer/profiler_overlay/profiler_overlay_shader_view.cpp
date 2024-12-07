@@ -506,6 +506,7 @@ namespace Profiler
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
         , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
+        , m_ShowFullShaderIdentifier( false )
         , m_CurrentTabIndex( -1 )
         , m_DefaultWindowBgColor( 0 )
         , m_DefaultTitleBgColor( 0 )
@@ -676,6 +677,7 @@ namespace Profiler
         m_EntryPointName = "main";
         m_ShaderIdentifier.clear();
         m_pShaderRepresentations.clear();
+        m_ShowFullShaderIdentifier = false;
 
         // Reset current tab index.
         m_CurrentTabIndex = -1;
@@ -1105,59 +1107,7 @@ namespace Profiler
 #endif
             if( !m_ShaderIdentifier.empty() )
             {
-                const float interfaceScale = ImGui::GetIO().FontGlobalScale;
-                const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
-
-                float shaderIdentifierTextSize = ImGui::CalcTextSize( m_ShaderIdentifier.c_str() ).x;
-                float copyButtonWidth = iconSize.x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
-
-                // Elide the shader identifier from the beginning if it doesn't fit the available width.
-                float availableWidth = ImGui::GetContentRegionAvail().x;
-                const char* pElidedShaderIdentifier = m_ShaderIdentifier.c_str();
-                const char* pShaderIdentifierFormat = "%s";
-
-                ImGui::SameLine();
-                availableWidth -= ( ImGui::GetCursorPosX() + copyButtonWidth );
-
-                ImGui::Dummy( { 0.f, 0.f } );
-
-                if( shaderIdentifierTextSize > availableWidth )
-                {
-                    pShaderIdentifierFormat = "...%s";
-                    while( *pElidedShaderIdentifier && shaderIdentifierTextSize > availableWidth )
-                    {
-                        pElidedShaderIdentifier++;
-                        shaderIdentifierTextSize = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
-                    }
-                }
-
-                if( *pElidedShaderIdentifier )
-                {
-                    ImGui::SameLine( ImGui::GetContentRegionAvail().x - (shaderIdentifierTextSize + copyButtonWidth) );
-                    ImGui::PushID( "ShaderIdentifier" );
-                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 192, 192, 192, 255 ) );
-                    ImGui::Text( pShaderIdentifierFormat, pElidedShaderIdentifier );
-                    ImGui::PopStyleColor();
-                    ImGui::PopID();
-
-                    if( ImGui::IsItemHovered() )
-                    {
-                        ImGui::SetTooltip( "Shader module identifier" );
-                    }
-
-                    ImGui::SameLine();
-                    ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 0, 0, 0, 0 ) );
-                    ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 2.f * interfaceScale );
-                    if( ImGui::ImageButton( "##CopyShaderIdentifier", m_Resources.GetCopyIconImage(), iconSize ) )
-                    {
-                        ImGui::SetClipboardText( m_ShaderIdentifier.c_str() );
-                    }
-                    if( ImGui::IsItemHovered() )
-                    {
-                        ImGui::SetTooltip( "Copy to clipboard" );
-                    }
-                    ImGui::PopStyleColor();
-                }
+                DrawShaderIdentifier();
             }
 
             // Print shader representation data.
@@ -1167,6 +1117,120 @@ namespace Profiler
 
             ImGui::PopFont();
             ImGui::EndTabItem();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawShaderIdentifier
+
+    Description:
+        Draws a shader module identifier at the end of the current line.
+
+    \***********************************************************************************/
+    void OverlayShaderView::DrawShaderIdentifier()
+    {
+        // Allow short version for longer identifiers.
+        const size_t longShaderIdentifierLength = 16;
+        const bool isLongShaderIdentifier = ( m_ShaderIdentifier.length() > longShaderIdentifierLength );
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
+        const float copyButtonWidth = iconSize.x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+        float expandButtonWidth = 0.f;
+        float ellipsisWidth = 0.f;
+        float availableWidth = ImGui::GetContentRegionAvail().x;
+
+        // Elide the shader identifier from the beginning if it doesn't fit the available width.
+        const char* pElidedShaderIdentifier = m_ShaderIdentifier.c_str();
+        const char* pShaderIdentifierFormat = "%s";
+
+        if( isLongShaderIdentifier )
+        {
+            if( !m_ShowFullShaderIdentifier )
+            {
+                pElidedShaderIdentifier += ( m_ShaderIdentifier.length() - longShaderIdentifierLength );
+            }
+
+            expandButtonWidth = ImGui::CalcTextSize( "<" ).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+            availableWidth -= expandButtonWidth;
+        }
+
+        float elidedShaderIdentifierWidth = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
+
+        // Move the cursor back to the previous line to get the remaining available width.
+        // Insert a dummy item so the cursor remains at the next line.
+        ImGui::SameLine();
+        availableWidth -= ( ImGui::GetCursorPosX() + copyButtonWidth );
+
+        ImGui::Dummy( { 0.f, 0.f } );
+
+        if( elidedShaderIdentifierWidth > availableWidth )
+        {
+            ellipsisWidth = ImGui::CalcTextSize( "..." ).x;
+            pShaderIdentifierFormat = "...%s";
+            pElidedShaderIdentifier++;
+
+            while( *pElidedShaderIdentifier && ( elidedShaderIdentifierWidth + ellipsisWidth ) > availableWidth )
+            {
+                pElidedShaderIdentifier++;
+                elidedShaderIdentifierWidth = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
+            }
+        }
+
+        if( *pElidedShaderIdentifier )
+        {
+            const float totalWidth =
+                elidedShaderIdentifierWidth +
+                ellipsisWidth +
+                copyButtonWidth +
+                expandButtonWidth;
+
+            ImGui::SameLine( ImGui::GetContentRegionAvail().x - totalWidth );
+
+            // Expander for longer identifiers.
+            if( isLongShaderIdentifier )
+            {
+                if( ImGui::TextLink( m_ShowFullShaderIdentifier ? ">" : "<" ) )
+                {
+                    m_ShowFullShaderIdentifier = !m_ShowFullShaderIdentifier;
+                }
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip(
+                        m_ShowFullShaderIdentifier
+                            ? "Show short shader module identifier"
+                            : "Show full shader module identifier" );
+                }
+                ImGui::SameLine();
+            }
+
+            // Shader module identifier.
+            ImGui::PushID( "ShaderIdentifier" );
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 192, 192, 192, 255 ) );
+            ImGui::Text( pShaderIdentifierFormat, pElidedShaderIdentifier );
+            ImGui::PopStyleColor();
+            ImGui::PopID();
+
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Shader module identifier" );
+            }
+
+            // Copy button.
+            ImGui::SameLine();
+            ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 0, 0, 0, 0 ) );
+            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 2.f * interfaceScale );
+            if( ImGui::ImageButton( "##CopyShaderIdentifier", m_Resources.GetCopyIconImage(), iconSize ) )
+            {
+                ImGui::SetClipboardText( m_ShaderIdentifier.c_str() );
+            }
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Copy to clipboard" );
+            }
+            ImGui::PopStyleColor();
         }
     }
 
