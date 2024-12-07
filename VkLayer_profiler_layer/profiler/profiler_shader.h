@@ -33,11 +33,13 @@ namespace Profiler
     struct ProfilerShaderModule
     {
         uint32_t m_Hash = 0;
+        uint32_t m_IdentifierSize = 0;
+        uint8_t m_Identifier[VK_MAX_SHADER_MODULE_IDENTIFIER_SIZE_EXT] = {};
         std::vector<uint32_t> m_Bytecode = {};
         std::set<SpvCapability> m_Capabilities = {};
 
         ProfilerShaderModule() = default;
-        ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize );
+        ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize, const uint8_t* pIdentifier, uint32_t identifierSize );
     };
 
     struct ProfilerShader

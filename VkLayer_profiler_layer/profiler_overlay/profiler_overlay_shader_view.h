@@ -75,6 +75,7 @@ namespace Profiler
         void SetTargetDevice( struct VkDevice_Object* pDevice );
         void SetShaderName( const std::string& name );
         void SetEntryPointName( const std::string& name );
+        void SetShaderIdentifier( uint32_t identifierSize, const uint8_t* pIdentifier );
 
         void Clear();
 
@@ -99,6 +100,7 @@ namespace Profiler
 
         std::string                        m_ShaderName;
         std::string                        m_EntryPointName;
+        std::string                        m_ShaderIdentifier;
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
         int                                m_SpvTargetEnv;

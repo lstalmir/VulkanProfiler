@@ -502,6 +502,7 @@ namespace Profiler
         , m_pTextEditor( nullptr )
         , m_ShaderName( "shader" )
         , m_EntryPointName( "main" )
+        , m_ShaderIdentifier()
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
         , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
@@ -619,6 +620,36 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetShaderIdentifier
+
+    Description:
+        Sets the shader identifier used to identify the shader module.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SetShaderIdentifier( uint32_t identifierSize, const uint8_t* pIdentifier )
+    {
+        static constexpr char hexDigits[] = "0123456789abcdef";
+
+        m_ShaderIdentifier.clear();
+        m_ShaderIdentifier.reserve( identifierSize * 3 );
+
+        // Convert from the end to keep the little-endian order.
+        for( uint32_t i = identifierSize; i > 0; --i )
+        {
+            m_ShaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] >> 4] );
+            m_ShaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] & 0xF] );
+            
+            if( (i != 1) && ((i - 1) % 8) == 0 )
+            {
+                // Insert a dash separator every 8 bytes for better readability.
+                m_ShaderIdentifier.push_back( '-' );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Clear
 
     Description:
@@ -641,6 +672,8 @@ namespace Profiler
         }
 
         m_ShaderName = "shader";
+        m_EntryPointName = "main";
+        m_ShaderIdentifier.clear();
         m_pShaderRepresentations.clear();
 
         // Reset current tab index.
@@ -962,6 +995,13 @@ namespace Profiler
 
         [[maybe_unused]]
         ImVec2 cp = ImGui::GetCursorPos();
+
+        if( !m_ShaderIdentifier.empty() )
+        {
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 192, 192, 192, 255 ) );
+            ImGui::Text( "ID %s", m_ShaderIdentifier.c_str() );
+            ImGui::PopStyleColor();
+        }
 
         if( ImGui::BeginTabBar( "ShaderRepresentations", ImGuiTabBarFlags_None ) )
         {

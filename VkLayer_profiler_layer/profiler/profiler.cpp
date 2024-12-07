@@ -177,10 +177,9 @@ namespace Profiler
     std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo )
     {
         std::unordered_set<std::string> deviceExtensions = {
-            VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
             VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME
+            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
+            VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME
         };
 
         // Load configuration that will be used by the profiler.
@@ -881,10 +880,22 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
+        shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
+
+        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+            m_pDevice->Callbacks.GetShaderModuleIdentifierEXT )
+        {
+            // Get shader module identifier.
+            m_pDevice->Callbacks.GetShaderModuleIdentifierEXT( m_pDevice->Handle, module, &shaderModuleIdentifier );
+        }
+
         m_pShaderModules.insert( module,
             std::make_shared<ProfilerShaderModule>(
                 pCreateInfo->pCode,
-                pCreateInfo->codeSize ) );
+                pCreateInfo->codeSize,
+                shaderModuleIdentifier.identifier,
+                shaderModuleIdentifier.identifierSize ) );
     }
 
     /***********************************************************************************\
@@ -921,10 +932,30 @@ namespace Profiler
 
         if( pCreateInfo->codeType == VK_SHADER_CODE_TYPE_SPIRV_EXT )
         {
+            VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
+            shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
+
+            if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+                m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+            {
+                // Get shader module identifier from a temporary shader module info structure based on the provided shader.
+                VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
+                shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+                shaderModuleCreateInfo.codeSize = pCreateInfo->codeSize;
+                shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>( pCreateInfo->pCode );
+
+                m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT(
+                    m_pDevice->Handle,
+                    &shaderModuleCreateInfo,
+                    &shaderModuleIdentifier );
+            }
+
             // Create a shader module for the shader.
             shader.m_pShaderModule = std::make_shared<ProfilerShaderModule>(
                 reinterpret_cast<const uint32_t*>( pCreateInfo->pCode ),
-                pCreateInfo->codeSize );
+                pCreateInfo->codeSize,
+                shaderModuleIdentifier.identifier,
+                shaderModuleIdentifier.identifierSize );
 
             shader.m_Hash = shader.m_pShaderModule->m_Hash;
         }
@@ -1469,15 +1500,67 @@ namespace Profiler
 
         for( uint32_t i = 0; i < stageCount; ++i )
         {
-            // VkShaderModule entry should already be in the map
-            std::shared_ptr<ProfilerShaderModule> sm = m_pShaderModules.at( pStages[ i ].module );
+            std::shared_ptr<ProfilerShaderModule> pShaderModule = nullptr;
+
+            // If module is VK_NULL_HANDLE, either the pNext chain contains a VkShaderModuleCreateInfo, or an identifier is provided.
+            // In the latter case the bytecode may not be available if it is cached.
+            if( pStages[i].module == VK_NULL_HANDLE )
+            {
+                for( const auto& it : PNextIterator( pStages[i].pNext ) )
+                {
+                    if( it.sType == VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO )
+                    {
+                        const VkShaderModuleCreateInfo& shaderModuleCreateInfo =
+                            reinterpret_cast<const VkShaderModuleCreateInfo&>( it );
+
+                        // Get shader identifier from the shader module create info.
+                        VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
+                        shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
+
+                        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+                            m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+                        {
+                            m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT(
+                                m_pDevice->Handle,
+                                &shaderModuleCreateInfo,
+                                &shaderModuleIdentifier );
+                        }
+
+                        // Create shader object from the provided bytecode.
+                        pShaderModule = std::make_shared<ProfilerShaderModule>(
+                            reinterpret_cast<const uint32_t*>( shaderModuleCreateInfo.pCode ),
+                            shaderModuleCreateInfo.codeSize,
+                            shaderModuleIdentifier.identifier,
+                            shaderModuleIdentifier.identifierSize );
+
+                        break;
+                    }
+
+                    if( it.sType == VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_MODULE_IDENTIFIER_CREATE_INFO_EXT )
+                    {
+                        const VkPipelineShaderStageModuleIdentifierCreateInfoEXT& moduleIdentifierCreateInfo =
+                            reinterpret_cast<const VkPipelineShaderStageModuleIdentifierCreateInfoEXT&>( it );
+
+                        // Construct a shader module with no bytecode.
+                        pShaderModule = std::make_shared<ProfilerShaderModule>(
+                            nullptr, 0,
+                            moduleIdentifierCreateInfo.pIdentifier,
+                            moduleIdentifierCreateInfo.identifierSize );
+                    }
+                }
+            }
+            else
+            {
+                // VkShaderModule entry should already be in the map.
+                pShaderModule = m_pShaderModules.at( pStages[i].module );
+            }
 
             ProfilerShader& shader = pipeline.m_ShaderTuple.m_Shaders[ i ];
-            shader.m_Hash = sm->m_Hash;
+            shader.m_Hash = pShaderModule ? pShaderModule->m_Hash : 0;
             shader.m_Index = i;
             shader.m_Stage = pStages[ i ].stage;
             shader.m_EntryPoint = pStages[ i ].pName;
-            shader.m_pShaderModule = sm;
+            shader.m_pShaderModule = pShaderModule;
 
             // Hash the entrypoint and append it to the final hash
             shader.m_Hash ^= Farmhash::Fingerprint32( shader.m_EntryPoint.data(), shader.m_EntryPoint.length() );

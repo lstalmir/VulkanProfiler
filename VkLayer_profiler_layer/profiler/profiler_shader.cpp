@@ -436,26 +436,42 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerShaderModule::ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize )
+    ProfilerShaderModule::ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize, const uint8_t* pIdentifier, uint32_t identifierSize )
     {
-        // Compute shader code hash to use later
-        m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( pBytecode ), bytecodeSize );
+        // ProfilerShaderModuleIdentifier size should match VK_MAX_SHADER_MODULE_IDENTIFIER_SIZE_EXT,
+        // but clamp it just in case anyone tries to pass a larger value.
+        m_IdentifierSize = std::min<uint32_t>( identifierSize, sizeof( m_Identifier ) );
 
-        // Save the bytecode to display the shader's disassembly
-        m_Bytecode.resize( bytecodeSize / sizeof( uint32_t ) );
-        memcpy( m_Bytecode.data(), pBytecode, bytecodeSize );
-
-        // Enumerate capabilities of the shader module
-        const uint32_t* pCurrentWord = pBytecode + 5; // skip header bytes
-        const uint32_t* pLastWord = pBytecode + ( bytecodeSize / sizeof( uint32_t ) ) - 1;
-
-        while( (pCurrentWord < pLastWord) &&
-               ((*pCurrentWord & 0xffff) == SpvOpCapability) )
+        if( m_IdentifierSize > 0 )
         {
-            assert( (*pCurrentWord >> 16) == 2 );
+            // Use shader module identifier if available
+            memcpy( m_Identifier, pIdentifier, identifierSize );
+            m_Hash = *reinterpret_cast<const uint32_t*>( m_Identifier );
+        }
+        else
+        {
+            // Compute shader code hash from the bytecode
+            m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( pBytecode ), bytecodeSize );
+        }
 
-            m_Capabilities.insert( static_cast<SpvCapability>( *(pCurrentWord + 1) ) );
-            pCurrentWord += 2; // SpvOpCapability is 2 words long
+        if( bytecodeSize > 0 )
+        {
+            // Save the bytecode to display the shader's disassembly
+            m_Bytecode.resize( bytecodeSize / sizeof( uint32_t ) );
+            memcpy( m_Bytecode.data(), pBytecode, bytecodeSize );
+
+            // Enumerate capabilities of the shader module
+            const uint32_t* pCurrentWord = pBytecode + 5; // skip header bytes
+            const uint32_t* pLastWord = pBytecode + ( bytecodeSize / sizeof( uint32_t ) ) - 1;
+
+            while( (pCurrentWord < pLastWord) &&
+                   ((*pCurrentWord & 0xffff) == SpvOpCapability) )
+            {
+                assert( (*pCurrentWord >> 16) == 2 );
+
+                m_Capabilities.insert( static_cast<SpvCapability>( *(pCurrentWord + 1) ) );
+                pCurrentWord += 2; // SpvOpCapability is 2 words long
+            }
         }
     }
 
