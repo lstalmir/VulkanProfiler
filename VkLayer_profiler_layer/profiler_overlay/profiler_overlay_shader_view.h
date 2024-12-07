@@ -75,6 +75,7 @@ namespace Profiler
         void SetTargetDevice( struct VkDevice_Object* pDevice );
         void SetShaderName( const std::string& name );
         void SetEntryPointName( const std::string& name );
+        void SetShaderIdentifier( uint32_t identifierSize, const uint8_t* pIdentifier );
 
         void Clear();
 
@@ -99,10 +100,12 @@ namespace Profiler
 
         std::string                        m_ShaderName;
         std::string                        m_EntryPointName;
+        std::string                        m_ShaderIdentifier;
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
         int                                m_SpvTargetEnv;
         bool                               m_ShowSpirvDocs;
+        bool                               m_ShowFullShaderIdentifier;
 
         int                                m_CurrentTabIndex;
 
@@ -113,6 +116,7 @@ namespace Profiler
         std::unique_ptr<ShaderExporter>    m_pShaderExporter;
         ShaderSavedCallback                m_ShaderSavedCallback;
 
+        void DrawShaderIdentifier();
         void DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation );
         void DrawShaderStatistics( ShaderExecutableRepresentation* pShaderExecutable );
         bool SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat );

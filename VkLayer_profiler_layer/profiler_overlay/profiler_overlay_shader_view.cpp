@@ -502,9 +502,11 @@ namespace Profiler
         , m_pTextEditor( nullptr )
         , m_ShaderName( "shader" )
         , m_EntryPointName( "main" )
+        , m_ShaderIdentifier()
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
         , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
+        , m_ShowFullShaderIdentifier( false )
         , m_CurrentTabIndex( -1 )
         , m_DefaultWindowBgColor( 0 )
         , m_DefaultTitleBgColor( 0 )
@@ -620,6 +622,36 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetShaderIdentifier
+
+    Description:
+        Sets the shader identifier used to identify the shader module.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SetShaderIdentifier( uint32_t identifierSize, const uint8_t* pIdentifier )
+    {
+        static constexpr char hexDigits[] = "0123456789abcdef";
+
+        m_ShaderIdentifier.clear();
+        m_ShaderIdentifier.reserve( identifierSize * 3 );
+
+        // Convert from the end to keep the little-endian order.
+        for( uint32_t i = identifierSize; i > 0; --i )
+        {
+            m_ShaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] >> 4] );
+            m_ShaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] & 0xF] );
+            
+            if( (i != 1) && ((i - 1) % 8) == 0 )
+            {
+                // Insert a dash separator every 8 bytes for better readability.
+                m_ShaderIdentifier.push_back( '-' );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Clear
 
     Description:
@@ -642,7 +674,10 @@ namespace Profiler
         }
 
         m_ShaderName = "shader";
+        m_EntryPointName = "main";
+        m_ShaderIdentifier.clear();
         m_pShaderRepresentations.clear();
+        m_ShowFullShaderIdentifier = false;
 
         // Reset current tab index.
         m_CurrentTabIndex = -1;
@@ -961,9 +996,6 @@ namespace Profiler
         ImGui::PushFont( m_Resources.GetDefaultFont() );
         ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, 0.0f );
 
-        [[maybe_unused]]
-        ImVec2 cp = ImGui::GetCursorPos();
-
         if( ImGui::BeginTabBar( "ShaderRepresentations", ImGuiTabBarFlags_None ) )
         {
             // Draw shader representations in tabs.
@@ -1073,6 +1105,10 @@ namespace Profiler
                 ImGui::Checkbox( "Show SPIR-V documentation", &m_ShowSpirvDocs );
             }
 #endif
+            if( !m_ShaderIdentifier.empty() )
+            {
+                DrawShaderIdentifier();
+            }
 
             // Print shader representation data.
             ImGui::PushFont( m_Resources.GetCodeFont() );
@@ -1081,6 +1117,120 @@ namespace Profiler
 
             ImGui::PopFont();
             ImGui::EndTabItem();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawShaderIdentifier
+
+    Description:
+        Draws a shader module identifier at the end of the current line.
+
+    \***********************************************************************************/
+    void OverlayShaderView::DrawShaderIdentifier()
+    {
+        // Allow short version for longer identifiers.
+        const size_t longShaderIdentifierLength = 16;
+        const bool isLongShaderIdentifier = ( m_ShaderIdentifier.length() > longShaderIdentifierLength );
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
+        const float copyButtonWidth = iconSize.x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+        float expandButtonWidth = 0.f;
+        float ellipsisWidth = 0.f;
+        float availableWidth = ImGui::GetContentRegionAvail().x;
+
+        // Elide the shader identifier from the beginning if it doesn't fit the available width.
+        const char* pElidedShaderIdentifier = m_ShaderIdentifier.c_str();
+        const char* pShaderIdentifierFormat = "%s";
+
+        if( isLongShaderIdentifier )
+        {
+            if( !m_ShowFullShaderIdentifier )
+            {
+                pElidedShaderIdentifier += ( m_ShaderIdentifier.length() - longShaderIdentifierLength );
+            }
+
+            expandButtonWidth = ImGui::CalcTextSize( "<" ).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+            availableWidth -= expandButtonWidth;
+        }
+
+        float elidedShaderIdentifierWidth = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
+
+        // Move the cursor back to the previous line to get the remaining available width.
+        // Insert a dummy item so the cursor remains at the next line.
+        ImGui::SameLine();
+        availableWidth -= ( ImGui::GetCursorPosX() + copyButtonWidth );
+
+        ImGui::Dummy( { 0.f, 0.f } );
+
+        if( elidedShaderIdentifierWidth > availableWidth )
+        {
+            ellipsisWidth = ImGui::CalcTextSize( "..." ).x;
+            pShaderIdentifierFormat = "...%s";
+            pElidedShaderIdentifier++;
+
+            while( *pElidedShaderIdentifier && ( elidedShaderIdentifierWidth + ellipsisWidth ) > availableWidth )
+            {
+                pElidedShaderIdentifier++;
+                elidedShaderIdentifierWidth = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
+            }
+        }
+
+        if( *pElidedShaderIdentifier )
+        {
+            const float totalWidth =
+                elidedShaderIdentifierWidth +
+                ellipsisWidth +
+                copyButtonWidth +
+                expandButtonWidth;
+
+            ImGui::SameLine( ImGui::GetContentRegionAvail().x - totalWidth );
+
+            // Expander for longer identifiers.
+            if( isLongShaderIdentifier )
+            {
+                if( ImGui::TextLink( m_ShowFullShaderIdentifier ? ">" : "<" ) )
+                {
+                    m_ShowFullShaderIdentifier = !m_ShowFullShaderIdentifier;
+                }
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip(
+                        m_ShowFullShaderIdentifier
+                            ? "Show short shader module identifier"
+                            : "Show full shader module identifier" );
+                }
+                ImGui::SameLine();
+            }
+
+            // Shader module identifier.
+            ImGui::PushID( "ShaderIdentifier" );
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 192, 192, 192, 255 ) );
+            ImGui::Text( pShaderIdentifierFormat, pElidedShaderIdentifier );
+            ImGui::PopStyleColor();
+            ImGui::PopID();
+
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Shader module identifier" );
+            }
+
+            // Copy button.
+            ImGui::SameLine();
+            ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 0, 0, 0, 0 ) );
+            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 2.f * interfaceScale );
+            if( ImGui::ImageButton( "##CopyShaderIdentifier", m_Resources.GetCopyIconImage(), iconSize ) )
+            {
+                ImGui::SetClipboardText( m_ShaderIdentifier.c_str() );
+            }
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Copy to clipboard" );
+            }
+            ImGui::PopStyleColor();
         }
     }
 

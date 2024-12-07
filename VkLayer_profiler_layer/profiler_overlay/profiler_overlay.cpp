@@ -2348,6 +2348,10 @@ namespace Profiler
         // Shader module may not be available if the VkShaderEXT has been created directly from a binary.
         if( shader.m_pShaderModule )
         {
+            m_InspectorShaderView.SetShaderIdentifier(
+                shader.m_pShaderModule->m_IdentifierSize,
+                shader.m_pShaderModule->m_Identifier );
+
             const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
             m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
         }
