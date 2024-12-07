@@ -464,12 +464,13 @@ namespace Profiler
         // Load image data from asset.
         pixels.reset( stbi_load_from_memory( pAsset, static_cast<int>( assetSize ), &width, &height, &channels, STBI_rgb_alpha ) );
 
-        if( !pixels )
+        if( !pixels || channels != 4 )
         {
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
         // Save image size for upload.
+        const size_t imageDataSize = sizeof( stbi_uc ) * width * height * channels;
         image.ImageExtent.width = static_cast<uint32_t>( width );
         image.ImageExtent.height = static_cast<uint32_t>( height );
 
@@ -541,7 +542,7 @@ namespace Profiler
         {
             VkBufferCreateInfo bufferCreateInfo = {};
             bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            bufferCreateInfo.size = sizeof( stbi_uc ) * width * height * channels;
+            bufferCreateInfo.size = imageDataSize;
             bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
             VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
@@ -560,7 +561,7 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             assert( uploadBufferAllocationInfo.pMappedData != nullptr );
-            memcpy( uploadBufferAllocationInfo.pMappedData, pixels.get(), uploadBufferAllocationInfo.size );
+            memcpy( uploadBufferAllocationInfo.pMappedData, pixels.get(), imageDataSize );
 
             // Flush the buffer to make it visible to the GPU.
             result = m_MemoryManager.Flush( image.UploadBufferAllocation );
