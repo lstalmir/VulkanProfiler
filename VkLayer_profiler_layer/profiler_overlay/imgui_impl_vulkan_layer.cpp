@@ -137,3 +137,13 @@ void ImGui_ImplVulkan_Context::SetMinImageCount( uint32_t min_image_count )
 {
     ImGui_ImplVulkan_SetMinImageCount( min_image_count );
 }
+
+VkDescriptorSet ImGui_ImplVulkan_Context::AddTexture( VkSampler sampler, VkImageView view, VkImageLayout layout )
+{
+    return ImGui_ImplVulkan_AddTexture( sampler, view, layout );
+}
+
+void ImGui_ImplVulkan_Context::RemoveTexture( VkDescriptorSet descriptor_set )
+{
+    ImGui_ImplVulkan_RemoveTexture( descriptor_set );
+}

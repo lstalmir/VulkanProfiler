@@ -24,7 +24,7 @@ project (profiler_overlay)
 
 set (headers
     "profiler_overlay.h"
-    "profiler_overlay_fonts.h"
+    "profiler_overlay_resources.h"
     "profiler_overlay_settings.h"
     "profiler_overlay_shader_view.h"
     "lang/en_us.h"
@@ -33,7 +33,7 @@ set (headers
 
 set (sources
     "profiler_overlay.cpp"
-    "profiler_overlay_fonts.cpp"
+    "profiler_overlay_resources.cpp"
     "profiler_overlay_settings.cpp"
     "profiler_overlay_shader_view.cpp"
     )
@@ -84,6 +84,20 @@ set (imgui_widgets
     "imgui_widgets/imgui_ex.cpp"
     )
 
+# Generate assets file
+add_custom_command (
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/profiler_overlay_assets.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_assets.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/profiler_overlay_assets.json"
+        --output "${CMAKE_CURRENT_BINARY_DIR}/profiler_overlay_assets.h"
+        --group OverlayAssets
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiler_overlay_assets.json"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_assets.py")
+
+add_custom_target (profiler_overlay_assets
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/profiler_overlay_assets.h")
+
 # Link intermediate static library
 add_library (profiler_overlay
     ${sources}
@@ -97,8 +111,11 @@ target_link_libraries (profiler_overlay
     PRIVATE imgui
     PRIVATE imgui-text-editor
     PRIVATE imgui-file-dialog
+    PRIVATE stb
     PRIVATE profiler
     PRIVATE profiler_helpers)
+
+add_dependencies (profiler_overlay profiler_overlay_assets)
 
 # Set include paths and link window libraries in linux builds
 if (UNIX)
