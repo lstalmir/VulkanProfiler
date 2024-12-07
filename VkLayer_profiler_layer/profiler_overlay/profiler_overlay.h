@@ -311,6 +311,7 @@ namespace Profiler
 
         // Notifications
         void UpdateNotificationWindow();
+        void UpdateApplicationInfoWindow();
 
         // Inspector helpers
         void Inspect( const DeviceProfilerPipeline& );

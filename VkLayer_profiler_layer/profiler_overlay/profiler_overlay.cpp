@@ -965,12 +965,14 @@ namespace Profiler
     void ProfilerOverlayOutput::Update( const std::shared_ptr<DeviceProfilerFrameData>& pData )
     {
         m_pImGuiVulkanContext->NewFrame();
-
         m_pImGuiWindowContext->NewFrame();
-
         ImGui::NewFrame();
-        ImGui::PushFont( m_Fonts.GetDefaultFont() );
 
+        // Initialize IDs of the popup windows before entering the main window scope
+        uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
+
+        // Begin main window
+        ImGui::PushFont( m_Fonts.GetDefaultFont() );
         ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
@@ -1006,6 +1008,12 @@ namespace Profiler
                 ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, m_SettingsWindowState.pOpen );
                 ImGui::EndMenu();
             }
+
+            if( ImGui::MenuItem( Lang::ApplicationInfoMenuItem ) )
+            {
+                ImGui::OpenPopup( applicationInfoPopupID );
+            }
+
             ImGui::EndMenuBar();
         }
 
@@ -1169,6 +1177,7 @@ namespace Profiler
         UpdatePerformanceCounterExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
+        UpdateApplicationInfoWindow();
 
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
@@ -4014,6 +4023,63 @@ namespace Profiler
             }
 
             m_SerializationWindowVisible = true;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateApplicationInfoWindow
+
+    Description:
+        Display window with application information.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateApplicationInfoWindow()
+    {
+        const uint32_t applicationInfoWindowFlags = 
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoMove;
+
+        if( ImGui::BeginPopup( Lang::ApplicationInfo, applicationInfoWindowFlags ) )
+        {
+            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+            const float headerColumnWidth = 150.f * interfaceScale;
+
+            const VkApplicationInfo& applicationInfo = m_pDevice->pInstance->ApplicationInfo;
+
+            ImGui::TextUnformatted( Lang::VulkanVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
+
+            ImGui::TextUnformatted( Lang::ApplicationName );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%s", applicationInfo.pApplicationName ? applicationInfo.pApplicationName : "" );
+
+            ImGui::TextUnformatted( Lang::ApplicationVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.applicationVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.applicationVersion ),
+                VK_API_VERSION_PATCH( applicationInfo.applicationVersion ) );
+
+            ImGui::TextUnformatted( Lang::EngineName );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%s", applicationInfo.pEngineName ? applicationInfo.pEngineName : "" );
+
+            ImGui::TextUnformatted( Lang::EngineVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.engineVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.engineVersion ),
+                VK_API_VERSION_PATCH( applicationInfo.engineVersion ) );
+
+            ImGui::EndPopup();
         }
     }
 
