@@ -994,16 +994,6 @@ namespace Profiler
         ImGui::PushFont( m_Resources.GetDefaultFont() );
         ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, 0.0f );
 
-        [[maybe_unused]]
-        ImVec2 cp = ImGui::GetCursorPos();
-
-        if( !m_ShaderIdentifier.empty() )
-        {
-            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 192, 192, 192, 255 ) );
-            ImGui::Text( "ID %s", m_ShaderIdentifier.c_str() );
-            ImGui::PopStyleColor();
-        }
-
         if( ImGui::BeginTabBar( "ShaderRepresentations", ImGuiTabBarFlags_None ) )
         {
             // Draw shader representations in tabs.
@@ -1113,6 +1103,62 @@ namespace Profiler
                 ImGui::Checkbox( "Show SPIR-V documentation", &m_ShowSpirvDocs );
             }
 #endif
+            if( !m_ShaderIdentifier.empty() )
+            {
+                const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+                const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
+
+                float shaderIdentifierTextSize = ImGui::CalcTextSize( m_ShaderIdentifier.c_str() ).x;
+                float copyButtonWidth = iconSize.x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+
+                // Elide the shader identifier from the beginning if it doesn't fit the available width.
+                float availableWidth = ImGui::GetContentRegionAvail().x;
+                const char* pElidedShaderIdentifier = m_ShaderIdentifier.c_str();
+                const char* pShaderIdentifierFormat = "%s";
+
+                ImGui::SameLine();
+                availableWidth -= ( ImGui::GetCursorPosX() + copyButtonWidth );
+
+                ImGui::Dummy( { 0.f, 0.f } );
+
+                if( shaderIdentifierTextSize > availableWidth )
+                {
+                    pShaderIdentifierFormat = "...%s";
+                    while( *pElidedShaderIdentifier && shaderIdentifierTextSize > availableWidth )
+                    {
+                        pElidedShaderIdentifier++;
+                        shaderIdentifierTextSize = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
+                    }
+                }
+
+                if( *pElidedShaderIdentifier )
+                {
+                    ImGui::SameLine( ImGui::GetContentRegionAvail().x - (shaderIdentifierTextSize + copyButtonWidth) );
+                    ImGui::PushID( "ShaderIdentifier" );
+                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 192, 192, 192, 255 ) );
+                    ImGui::Text( pShaderIdentifierFormat, pElidedShaderIdentifier );
+                    ImGui::PopStyleColor();
+                    ImGui::PopID();
+
+                    if( ImGui::IsItemHovered() )
+                    {
+                        ImGui::SetTooltip( "Shader module identifier" );
+                    }
+
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 0, 0, 0, 0 ) );
+                    ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 2.f * interfaceScale );
+                    if( ImGui::ImageButton( "##CopyShaderIdentifier", m_Resources.GetCopyIconImage(), iconSize ) )
+                    {
+                        ImGui::SetClipboardText( m_ShaderIdentifier.c_str() );
+                    }
+                    if( ImGui::IsItemHovered() )
+                    {
+                        ImGui::SetTooltip( "Copy to clipboard" );
+                    }
+                    ImGui::PopStyleColor();
+                }
+            }
 
             // Print shader representation data.
             ImGui::PushFont( m_Resources.GetCodeFont() );
