@@ -208,4 +208,42 @@ namespace Profiler
         std::scoped_lock lk( m_AllocationMutex );
         vmaDestroyImage( m_Allocator, image, allocation );
     }
+
+    /***********************************************************************************\
+
+    Function:
+        Flush
+
+    Description:
+        Flushes the memory of the allocation to make it visible to the device.
+        Has effect only if the memory type used for the allocation is not HOST_COHERENT.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerMemoryManager::Flush(
+        VmaAllocation allocation,
+        VkDeviceSize offset,
+        VkDeviceSize size )
+    {
+        std::scoped_lock lk( m_AllocationMutex );
+        return vmaFlushAllocation( m_Allocator, allocation, offset, size );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Invalidate
+
+    Description:
+        Invalidates the memory of the allocation to make it visible to the host.
+        Has effect only if the memory type used for the allocation is not HOST_COHERENT.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerMemoryManager::Invalidate(
+        VmaAllocation allocation,
+        VkDeviceSize offset,
+        VkDeviceSize size )
+    {
+        std::scoped_lock lk( m_AllocationMutex );
+        return vmaInvalidateAllocation( m_Allocator, allocation, offset, size );
+    }
 }

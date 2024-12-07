@@ -561,6 +561,10 @@ namespace Profiler
         {
             assert( uploadBufferAllocationInfo.pMappedData != nullptr );
             memcpy( uploadBufferAllocationInfo.pMappedData, pixels.get(), uploadBufferAllocationInfo.size );
+
+            // Flush the buffer to make it visible to the GPU.
+            result = m_MemoryManager.Flush( image.UploadBufferAllocation );
+
             image.RequiresUpload = true;
         }
 

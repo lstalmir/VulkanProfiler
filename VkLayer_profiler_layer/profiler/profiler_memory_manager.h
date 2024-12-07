@@ -68,6 +68,16 @@ namespace Profiler
             VkImage image,
             VmaAllocation allocation );
 
+        VkResult Flush(
+            VmaAllocation allocation,
+            VkDeviceSize offset = 0,
+            VkDeviceSize size = VK_WHOLE_SIZE );
+
+        VkResult Invalidate(
+            VmaAllocation allocation,
+            VkDeviceSize offset = 0,
+            VkDeviceSize size = VK_WHOLE_SIZE );
+
     private:
         VkDevice_Object* m_pDevice;
         VmaAllocator m_Allocator;
