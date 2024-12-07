@@ -45,6 +45,7 @@ namespace Profiler
         inline static constexpr char InspectorMenuItem[] = u8"Inspektor" PROFILER_MENU_ITEM;
         inline static constexpr char StatisticsMenuItem[] = u8"Statystyki" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = u8"Ustawienia" PROFILER_MENU_ITEM;
+        inline static constexpr char ApplicationInfoMenuItem[] = u8"Informacje o aplikacji" PROFILER_MENU_ITEM;
 
         // Tabs
         inline static constexpr char Performance[] = u8"Wydajność###Performance";
@@ -52,6 +53,7 @@ namespace Profiler
         inline static constexpr char Inspector[] = u8"Inspektor###Inspector";
         inline static constexpr char Statistics[] = u8"Statystyki###Statistics";
         inline static constexpr char Settings[] = u8"Ustawienia###Settings";
+        inline static constexpr char ApplicationInfo[] = "Informacje o aplikacji###ApplicationInfo";
 
         // Performance tab
         inline static constexpr char GPUTime[] = u8"Czas GPU";
@@ -81,6 +83,7 @@ namespace Profiler
         inline static constexpr char Container[] = u8"Kontener";
         inline static constexpr char Inspect[] = u8"Inspekcja";
         inline static constexpr char ShowPerformanceMetrics[] = u8"Pokaż liczniki wydajności";
+        inline static constexpr char CopyToClipboard[] = u8"Kopiuj do schowka";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
         inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
@@ -139,6 +142,13 @@ namespace Profiler
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
         inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
         inline static constexpr char TimeUnit[] = u8"Jednostka czasu";
+
+        // Application info window
+        inline static constexpr char VulkanVersion[] = u8"Wersja Vulkan";
+        inline static constexpr char ApplicationName[] = u8"Nazwa aplikacji";
+        inline static constexpr char ApplicationVersion[] = u8"Wersja aplikacji";
+        inline static constexpr char EngineName[] = u8"Nazwa silnika";
+        inline static constexpr char EngineVersion[] = u8"Wersja silnika";
 
         inline static constexpr char Unknown[] = u8"Nieznany";
     };

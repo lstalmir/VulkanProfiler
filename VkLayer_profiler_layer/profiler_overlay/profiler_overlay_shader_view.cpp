@@ -565,6 +565,7 @@ namespace Profiler
             // Select the target env based on the api version used by the application.
             switch( pDevice->pInstance->ApplicationInfo.apiVersion )
             {
+            default:
             case VK_API_VERSION_1_0:
                 m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
                 break;

@@ -41,6 +41,8 @@ namespace Profiler
         PFN_vkSetInstanceLoaderData SetInstanceLoaderData;
 
         VkApplicationInfo ApplicationInfo;
+        std::string ApplicationName;
+        std::string EngineName;
 
         uint32_t LoaderVersion;
 
