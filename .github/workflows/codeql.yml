@@ -39,7 +39,7 @@ jobs:
       matrix:
         include:
         - language: c-cpp
-          build-mode: autobuild
+          build-mode: manual
 
     steps:
     - name: Checkout repository
@@ -53,12 +53,18 @@ jobs:
         cache: 'pip'
     - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=0
+
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config Release
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
