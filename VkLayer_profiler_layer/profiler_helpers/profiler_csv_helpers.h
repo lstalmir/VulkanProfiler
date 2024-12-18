@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include <stdint.h>
 #include <fstream>
 #include <string>
 #include <vector>
