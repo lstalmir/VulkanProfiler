@@ -1119,14 +1119,6 @@ namespace Profiler
                             }
                         }
 
-                        else
-                        {
-                            ProfilerPlatformFunctions::WriteDebug(
-                                "%s - Unsupported VkSubpassContents enum value (%u)\n",
-                                __FUNCTION__,
-                                subpass.m_Contents );
-                        }
-
                         // Resolve subpass begin and end timestamps if not inherited from the secondary command buffers.
                         if( !firstTimestampFromSecondaryCommandBuffer )
                         {

@@ -112,6 +112,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ProfilerDataAggregator
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
+    ProfilerDataAggregator::ProfilerDataAggregator()
+        : m_pProfiler( nullptr )
+        , m_DataCollectionThread()
+        , m_DataCollectionThreadRunning( false )
+        , m_pCurrentFrameData( nullptr )
+        , m_NextFrames()
+        , m_Mutex()
+        , m_FrameIndex( 0 )
+        , m_CopyCommandPools()
+        , m_VendorMetricProperties()
+        , m_VendorMetricsSetIndex( UINT32_MAX )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Initialize
 
     Description:
