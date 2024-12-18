@@ -1268,7 +1268,7 @@ namespace Profiler
         // Check if new data is available
         if( pData != m_pData )
         {
-            m_pData = pData;
+            m_pData = std::move( pData );
 
             // TODO: Move to memory tracker
             m_pData->m_Memory = m_MemoryData;
@@ -1560,7 +1560,7 @@ namespace Profiler
             shader.m_Index = i;
             shader.m_Stage = pStages[ i ].stage;
             shader.m_EntryPoint = pStages[ i ].pName;
-            shader.m_pShaderModule = pShaderModule;
+            shader.m_pShaderModule = std::move( pShaderModule );
 
             // Hash the entrypoint and append it to the final hash
             shader.m_Hash ^= Farmhash::Fingerprint32( shader.m_EntryPoint.data(), shader.m_EntryPoint.length() );
