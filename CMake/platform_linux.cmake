@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.16.0)
     # ECM is required on Linux to find Wayland and XCB.
