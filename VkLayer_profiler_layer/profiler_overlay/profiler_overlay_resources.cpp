@@ -312,23 +312,34 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayResources::Destroy()
     {
-        DestroyImage( m_CopyIconImage );
-
-        if( m_LinearSampler )
+        if( m_pDevice && m_pContext )
         {
-            m_pDevice->Callbacks.DestroySampler( m_pDevice->Handle, m_LinearSampler, nullptr );
-            m_LinearSampler = VK_NULL_HANDLE;
+            DestroyImage( m_CopyIconImage );
         }
 
-        if( m_UploadEvent )
+        if( m_pDevice )
         {
-            m_pDevice->Callbacks.DestroyEvent( m_pDevice->Handle, m_UploadEvent, nullptr );
-            m_UploadEvent = VK_NULL_HANDLE;
+            if( m_LinearSampler )
+            {
+                m_pDevice->Callbacks.DestroySampler( m_pDevice->Handle, m_LinearSampler, nullptr );
+                m_LinearSampler = VK_NULL_HANDLE;
+            }
+
+            if( m_UploadEvent )
+            {
+                m_pDevice->Callbacks.DestroyEvent( m_pDevice->Handle, m_UploadEvent, nullptr );
+                m_UploadEvent = VK_NULL_HANDLE;
+            }
         }
 
         m_MemoryManager.Destroy();
+
         m_pContext = nullptr;
         m_pDevice = nullptr;
+
+        m_pDefaultFont = nullptr;
+        m_pBoldFont = nullptr;
+        m_pCodeFont = nullptr;
     }
 
     /***********************************************************************************\
@@ -560,13 +571,20 @@ namespace Profiler
         // Copy texture data to the upload buffer.
         if( result == VK_SUCCESS )
         {
-            assert( uploadBufferAllocationInfo.pMappedData != nullptr );
-            memcpy( uploadBufferAllocationInfo.pMappedData, pixels.get(), imageDataSize );
+            if( uploadBufferAllocationInfo.pMappedData != nullptr )
+            {
+                memcpy( uploadBufferAllocationInfo.pMappedData, pixels.get(), imageDataSize );
 
-            // Flush the buffer to make it visible to the GPU.
-            result = m_MemoryManager.Flush( image.UploadBufferAllocation );
+                // Flush the buffer to make it visible to the GPU.
+                result = m_MemoryManager.Flush(image.UploadBufferAllocation);
 
-            image.RequiresUpload = true;
+                image.RequiresUpload = true;
+            }
+            else
+            {
+                // Failed to allocate mapped host-visible memory.
+                result = VK_ERROR_INITIALIZATION_FAILED;
+            }
         }
 
         // Destroy the image if any of the steps failed.
