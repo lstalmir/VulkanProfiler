@@ -57,6 +57,7 @@ namespace Profiler
         VkResult InitializeFonts();
         VkResult InitializeImages( VkDevice_Object& device, ImGui_ImplVulkan_Context& context );
         void Destroy();
+        void DestroyImages();
 
         void RecordUploadCommands( VkCommandBuffer commandBuffer );
         void FreeUploadResources();

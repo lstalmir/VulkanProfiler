@@ -36,6 +36,8 @@ Function:
 Description:
     Constructor.
 
+    s_ImGuiMutex must be locked before creating the window context.
+
 \***********************************************************************************/
 ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     : m_pImGuiContext( nullptr )
@@ -44,8 +46,6 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     , m_AppWindow( window )
     , m_InputWindow( None )
 {
-    std::scoped_lock lk( Profiler::s_ImGuiMutex );
-
     m_Display = XOpenDisplay( nullptr );
     if( !m_Display )
         throw;
@@ -115,11 +115,11 @@ Function:
 Description:
     Destructor.
 
+    s_ImGuiMutex must be locked before destroying the window context.
+
 \***********************************************************************************/
 ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 {
-    std::scoped_lock lk( Profiler::s_ImGuiMutex );
-
     if( m_InputWindow ) XDestroyWindow( m_Display, m_InputWindow );
     m_InputWindow = None;
     m_AppWindow = None;
@@ -132,7 +132,7 @@ ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 
     if( m_pImGuiContext )
     {
-        ImGui::SetCurrentContext( m_pImGuiContext );
+        assert( ImGui::GetCurrentContext() == m_pImGuiContext );
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags = 0;
         io.BackendPlatformName = nullptr;

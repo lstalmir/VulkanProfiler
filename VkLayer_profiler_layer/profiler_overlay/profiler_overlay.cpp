@@ -313,25 +313,26 @@ namespace Profiler
             m_Settings.Validate( io.IniFilename );
 
             m_Resources.InitializeFonts();
+
             InitializeImGuiStyle();
-        }
 
-        // Init window
-        if( result == VK_SUCCESS )
-        {
-            result = InitializeImGuiWindowHooks( pCreateInfo );
-        }
+            // Init window
+            if( result == VK_SUCCESS )
+            {
+                result = InitializeImGuiWindowHooks( pCreateInfo );
+            }
 
-        // Init vulkan
-        if( result == VK_SUCCESS )
-        {
-            result = InitializeImGuiVulkanContext( pCreateInfo );
-        }
-
-        // Init resources
-        if( result == VK_SUCCESS )
-        {
-            result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
+            // Init vulkan
+            if( result == VK_SUCCESS )
+            {
+                result = InitializeImGuiVulkanContext( pCreateInfo );
+            }
+            
+            // Init resources
+            if( result == VK_SUCCESS )
+            {
+                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
+            }
         }
 
         // Get vendor metrics sets
@@ -374,7 +375,6 @@ namespace Profiler
         // Initialize the disassembler in the shader view
         if( result == VK_SUCCESS )
         {
-            m_InspectorShaderView.InitializeStyles();
             m_InspectorShaderView.SetTargetDevice( m_pDevice );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
@@ -427,8 +427,10 @@ namespace Profiler
         if( m_pImGuiContext )
         {
             std::scoped_lock imGuiLock( s_ImGuiMutex );
-            // Set current context for the backend cleanup
             ImGui::SetCurrentContext( m_pImGuiContext );
+
+            // Destroy Vulkan resources created for the ImGui overlay
+            m_Resources.Destroy();
 
             // Destroy ImGui backends
             delete m_pImGuiVulkanContext;
@@ -436,9 +438,6 @@ namespace Profiler
 
             ImGui::DestroyContext();
         }
-
-        // Destroy Vulkan resources created for the ImGui overlay
-        m_Resources.Destroy();
 
         if( m_pDevice )
         {
@@ -918,6 +917,12 @@ namespace Profiler
                 // Init vulkan
                 result = InitializeImGuiVulkanContext( pCreateInfo );
             }
+
+            if( result == VK_SUCCESS )
+            {
+                // Init resources
+                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
+            }
         }
 
         // Don't leave object in partly-initialized state
@@ -1378,6 +1383,8 @@ namespace Profiler
         m_ComputePipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.55f, 0.0f, 1.0f } ); // #ffba42
         m_RayTracingPipelineColumnColor = ImGui::GetColorU32( { 0.2f, 0.73f, 0.92f, 1.0f } ); // #34baeb
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
+
+        m_InspectorShaderView.InitializeStyles();
     }
 
     /***********************************************************************************\
@@ -1392,8 +1399,18 @@ namespace Profiler
     {
         VkResult result = VK_SUCCESS;
 
-        // Free current context
-        delete m_pImGuiVulkanContext;
+        if( m_pImGuiVulkanContext )
+        {
+            // Make sure nothing is executing on the device before destroying resources
+            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
+
+            // Destroy resources associated with the current context
+            m_Resources.DestroyImages();
+
+            // Free current context
+            delete m_pImGuiVulkanContext;
+            m_pImGuiVulkanContext = nullptr;
+        }
 
         try
         {

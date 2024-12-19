@@ -295,7 +295,7 @@ namespace Profiler
         // Destroy resources if any of the steps failed.
         if( result != VK_SUCCESS )
         {
-            Destroy();
+            DestroyImages();
         }
 
         return result;
@@ -311,6 +311,24 @@ namespace Profiler
 
     \***********************************************************************************/
     void OverlayResources::Destroy()
+    {
+        DestroyImages();
+
+        m_pDefaultFont = nullptr;
+        m_pBoldFont = nullptr;
+        m_pCodeFont = nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImages
+
+    Description:
+        Frees image resources.
+
+    \***********************************************************************************/
+    void OverlayResources::DestroyImages()
     {
         if( m_pDevice && m_pContext )
         {
@@ -336,10 +354,6 @@ namespace Profiler
 
         m_pContext = nullptr;
         m_pDevice = nullptr;
-
-        m_pDefaultFont = nullptr;
-        m_pBoldFont = nullptr;
-        m_pCodeFont = nullptr;
     }
 
     /***********************************************************************************\
