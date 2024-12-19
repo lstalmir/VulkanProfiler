@@ -1388,7 +1388,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayShaderView::SetShaderSavedCallback( ShaderSavedCallback callback )
     {
-        m_ShaderSavedCallback = callback;
+        m_ShaderSavedCallback = std::move( callback );
     }
 
     /***********************************************************************************\
