@@ -2951,75 +2951,77 @@ namespace Profiler
                     }
                 };
 
-            ImGui::BeginTable( "##StatisticsTable", 6,
-                ImGuiTableFlags_BordersInnerH |
-                ImGuiTableFlags_PadOuterX |
-                ImGuiTableFlags_Hideable |
-                ImGuiTableFlags_ContextMenuInBody |
-                ImGuiTableFlags_NoClip |
-                ImGuiTableFlags_SizingStretchProp );
-
-            ImGui::TableSetupColumn( Lang::StatName, ImGuiTableColumnFlags_NoHide, 3.0f );
-            ImGui::TableSetupColumn( Lang::StatCount, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatTotal, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatMin, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatMax, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatAvg, 0, 1.0f );
-            ImGui::TableNextRow();
-
-            ImGui::PushFont( m_Resources.GetBoldFont() );
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted( Lang::StatName );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatCount );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatTotal );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMin );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMax );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
-            ImGui::PopFont();
-
-            PrintStats( Lang::DrawCalls, m_pData->m_Stats.m_DrawStats );
-            PrintStats( Lang::DrawCallsIndirect, m_pData->m_Stats.m_DrawIndirectStats );
-            PrintStats( Lang::DrawMeshTasksCalls, m_pData->m_Stats.m_DrawMeshTasksStats );
-            PrintStats( Lang::DrawMeshTasksIndirectCalls, m_pData->m_Stats.m_DrawMeshTasksIndirectStats );
-            PrintStats( Lang::DispatchCalls, m_pData->m_Stats.m_DispatchStats );
-            PrintStats( Lang::DispatchCallsIndirect, m_pData->m_Stats.m_DispatchIndirectStats );
-            PrintStats( Lang::TraceRaysCalls, m_pData->m_Stats.m_TraceRaysStats );
-            PrintStats( Lang::TraceRaysIndirectCalls, m_pData->m_Stats.m_TraceRaysIndirectStats );
-            PrintStats( Lang::CopyBufferCalls, m_pData->m_Stats.m_CopyBufferStats );
-            PrintStats( Lang::CopyBufferToImageCalls, m_pData->m_Stats.m_CopyBufferToImageStats );
-            PrintStats( Lang::CopyImageCalls, m_pData->m_Stats.m_CopyImageStats );
-            PrintStats( Lang::CopyImageToBufferCalls, m_pData->m_Stats.m_CopyImageToBufferStats );
-            PrintStats( Lang::PipelineBarriers, m_pData->m_Stats.m_PipelineBarrierStats );
-            PrintStats( Lang::ColorClearCalls, m_pData->m_Stats.m_ClearColorStats );
-            PrintStats( Lang::DepthStencilClearCalls, m_pData->m_Stats.m_ClearDepthStencilStats );
-            PrintStats( Lang::ResolveCalls, m_pData->m_Stats.m_ResolveStats );
-            PrintStats( Lang::BlitCalls, m_pData->m_Stats.m_BlitImageStats );
-            PrintStats( Lang::FillBufferCalls, m_pData->m_Stats.m_FillBufferStats );
-            PrintStats( Lang::UpdateBufferCalls, m_pData->m_Stats.m_UpdateBufferStats );
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            if( m_ShowEmptyStatistics )
+            if( ImGui::BeginTable( "##StatisticsTable", 6,
+                    ImGuiTableFlags_BordersInnerH |
+                    ImGuiTableFlags_PadOuterX |
+                    ImGuiTableFlags_Hideable |
+                    ImGuiTableFlags_ContextMenuInBody |
+                    ImGuiTableFlags_NoClip |
+                    ImGuiTableFlags_SizingStretchProp ) )
             {
-                if( ImGui::TextLink( Lang::HideEmptyStatistics ) )
-                {
-                    m_ShowEmptyStatistics = false;
-                }
-            }
-            else
-            {
-                if( ImGui::TextLink( Lang::ShowEmptyStatistics ) )
-                {
-                    m_ShowEmptyStatistics = true;
-                }
-            }
+                ImGui::TableSetupColumn( Lang::StatName, ImGuiTableColumnFlags_NoHide, 3.0f );
+                ImGui::TableSetupColumn( Lang::StatCount, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatTotal, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatMin, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatMax, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatAvg, 0, 1.0f );
+                ImGui::TableNextRow();
 
-            ImGui::EndTable();
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted( Lang::StatName );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatCount );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatTotal );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMin );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMax );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
+                ImGui::PopFont();
+
+                PrintStats( Lang::DrawCalls, m_pData->m_Stats.m_DrawStats );
+                PrintStats( Lang::DrawCallsIndirect, m_pData->m_Stats.m_DrawIndirectStats );
+                PrintStats( Lang::DrawMeshTasksCalls, m_pData->m_Stats.m_DrawMeshTasksStats );
+                PrintStats( Lang::DrawMeshTasksIndirectCalls, m_pData->m_Stats.m_DrawMeshTasksIndirectStats );
+                PrintStats( Lang::DispatchCalls, m_pData->m_Stats.m_DispatchStats );
+                PrintStats( Lang::DispatchCallsIndirect, m_pData->m_Stats.m_DispatchIndirectStats );
+                PrintStats( Lang::TraceRaysCalls, m_pData->m_Stats.m_TraceRaysStats );
+                PrintStats( Lang::TraceRaysIndirectCalls, m_pData->m_Stats.m_TraceRaysIndirectStats );
+                PrintStats( Lang::CopyBufferCalls, m_pData->m_Stats.m_CopyBufferStats );
+                PrintStats( Lang::CopyBufferToImageCalls, m_pData->m_Stats.m_CopyBufferToImageStats );
+                PrintStats( Lang::CopyImageCalls, m_pData->m_Stats.m_CopyImageStats );
+                PrintStats( Lang::CopyImageToBufferCalls, m_pData->m_Stats.m_CopyImageToBufferStats );
+                PrintStats( Lang::PipelineBarriers, m_pData->m_Stats.m_PipelineBarrierStats );
+                PrintStats( Lang::ColorClearCalls, m_pData->m_Stats.m_ClearColorStats );
+                PrintStats( Lang::DepthStencilClearCalls, m_pData->m_Stats.m_ClearDepthStencilStats );
+                PrintStats( Lang::ResolveCalls, m_pData->m_Stats.m_ResolveStats );
+                PrintStats( Lang::BlitCalls, m_pData->m_Stats.m_BlitImageStats );
+                PrintStats( Lang::FillBufferCalls, m_pData->m_Stats.m_FillBufferStats );
+                PrintStats( Lang::UpdateBufferCalls, m_pData->m_Stats.m_UpdateBufferStats );
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                if( m_ShowEmptyStatistics )
+                {
+                    if( ImGui::TextLink( Lang::HideEmptyStatistics ) )
+                    {
+                        m_ShowEmptyStatistics = false;
+                    }
+                }
+                else
+                {
+                    if( ImGui::TextLink( Lang::ShowEmptyStatistics ) )
+                    {
+                        m_ShowEmptyStatistics = true;
+                    }
+                }
+
+                ImGui::EndTable();
+            }
         }
     }
 
