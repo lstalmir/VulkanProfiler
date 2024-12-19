@@ -29,6 +29,7 @@ CMakeSettings.json
 out/
 build/
 cmake_build/
+cov_build/
 
 # User-defined files
 _*

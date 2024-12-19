@@ -40,9 +40,6 @@ namespace Profiler
     DeviceProfilerMemoryManager::DeviceProfilerMemoryManager()
         : m_pDevice( nullptr )
         , m_Allocator( VK_NULL_HANDLE )
-        , m_AllocationMutex()
-        , m_BufferAllocations()
-        , m_ImageAllocations()
     {
     }
 
@@ -102,27 +99,12 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerMemoryManager::Destroy()
     {
-        // Free all device memory allocations.
-        std::scoped_lock lk( m_AllocationMutex );
-
-        for( auto [buffer, allocation] : m_BufferAllocations )
-        {
-            vmaDestroyBuffer( m_Allocator, buffer, allocation );
-        }
-
-        for( auto [image, allocation] : m_ImageAllocations )
-        {
-            vmaDestroyImage( m_Allocator, image, allocation );
-        }
-
         // Destroy the allocator.
         vmaDestroyAllocator( m_Allocator );
 
         // Invalidate pointers.
         m_pDevice = nullptr;
         m_Allocator = VK_NULL_HANDLE;
-        m_BufferAllocations.clear();
-        m_ImageAllocations.clear();
     }
 
     /***********************************************************************************\
@@ -141,7 +123,6 @@ namespace Profiler
         VmaAllocation* pAllocation,
         VmaAllocationInfo* pAllocationInfo )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         return vmaCreateBuffer( m_Allocator,
             &bufferCreateInfo,
             &allocationCreateInfo,
@@ -163,7 +144,6 @@ namespace Profiler
         VkBuffer buffer,
         VmaAllocation allocation )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         vmaDestroyBuffer( m_Allocator, buffer, allocation );
     }
 
@@ -183,7 +163,6 @@ namespace Profiler
         VmaAllocation* pAllocation,
         VmaAllocationInfo* pAllocationInfo )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         return vmaCreateImage( m_Allocator,
             &imageCreateInfo,
             &allocationCreateInfo,
@@ -205,7 +184,6 @@ namespace Profiler
         VkImage image,
         VmaAllocation allocation )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         vmaDestroyImage( m_Allocator, image, allocation );
     }
 
@@ -224,7 +202,6 @@ namespace Profiler
         VkDeviceSize offset,
         VkDeviceSize size )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         return vmaFlushAllocation( m_Allocator, allocation, offset, size );
     }
 
@@ -243,7 +220,6 @@ namespace Profiler
         VkDeviceSize offset,
         VkDeviceSize size )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         return vmaInvalidateAllocation( m_Allocator, allocation, offset, size );
     }
 }

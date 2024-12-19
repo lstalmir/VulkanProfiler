@@ -163,6 +163,8 @@ Function:
 Description:
     Constructor.
 
+    s_ImGuiMutex must be locked before creating the window context.
+
 \***********************************************************************************/
 ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
     : m_AppWindow( hWnd )
@@ -172,8 +174,6 @@ ImGui_ImplWin32_Context::ImGui_ImplWin32_Context( HWND hWnd ) try
     , m_RawMouseY( 0 )
     , m_RawMouseButtons( 0 )
 {
-    std::scoped_lock lk( Profiler::s_ImGuiMutex );
-
     // Access to map controlled with s_ImGuiMutex.
     g_pWin32Contexts.emplace( m_AppWindow, this );
 
@@ -226,11 +226,11 @@ Function:
 Description:
     Destructor.
 
+    s_ImGuiMutex must be locked before destroying the window context.
+
 \***********************************************************************************/
 ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
 {
-    std::scoped_lock lk( Profiler::s_ImGuiMutex );
-
     // Unhook from the window
     auto& hook = g_Win32ThreadHooks[ m_AppWindowThreadId ];
     hook.Refs--;
@@ -244,7 +244,7 @@ ImGui_ImplWin32_Context::~ImGui_ImplWin32_Context()
     // Uninitialize the backend
     if( m_pImGuiContext )
     {
-        ImGui::SetCurrentContext( m_pImGuiContext );
+        assert( ImGui::GetCurrentContext() == m_pImGuiContext );
         ImGui_ImplWin32_Shutdown();
     }
 

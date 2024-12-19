@@ -100,6 +100,8 @@ namespace Profiler
         };
 
     public:
+        ProfilerDataAggregator();
+
         VkResult Initialize( DeviceProfiler* );
         void Destroy();
 

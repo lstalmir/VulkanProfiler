@@ -381,6 +381,7 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t ProfilerMetricsApi_INTEL::GetActiveMetricsSetIndex() const
     {
+        std::shared_lock lk( m_ActiveMetricSetMutex );
         return m_ActiveMetricsSetIndex;
     }
 

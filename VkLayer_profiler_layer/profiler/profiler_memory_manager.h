@@ -81,9 +81,5 @@ namespace Profiler
     private:
         VkDevice_Object* m_pDevice;
         VmaAllocator m_Allocator;
-
-        std::mutex m_AllocationMutex;
-        std::unordered_map<VkBuffer, VmaAllocation> m_BufferAllocations;
-        std::unordered_map<VkImage, VmaAllocation> m_ImageAllocations;
     };
 }
