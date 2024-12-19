@@ -850,7 +850,7 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             m_pSwapchain = &swapchain;
-            m_Images = images;
+            m_Images = std::move( images );
         }
 
         // Reinitialize ImGui
