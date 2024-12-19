@@ -220,6 +220,7 @@ namespace Profiler
         , m_ShowDebugLabels( true )
         , m_ShowShaderCapabilities( true )
         , m_ShowEmptyStatistics( false )
+        , m_FrameTime( 0.0f )
         , m_TimeUnit( TimeUnit::eMilliseconds )
         , m_SamplingMode( VK_PROFILER_MODE_PER_DRAWCALL_EXT )
         , m_SyncMode( VK_PROFILER_SYNC_MODE_PRESENT_EXT )
