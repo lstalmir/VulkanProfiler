@@ -1234,36 +1234,54 @@ namespace Profiler
 
         // Free current window
         delete m_pImGuiWindowContext;
+        m_pImGuiWindowContext = nullptr;
+
+        // Update objects
+        m_Window = window;
 
         try
         {
+            switch( window.Type )
+            {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-            if( window.Type == OSWindowHandleType::eWin32 )
+            case OSWindowHandleType::eWin32:
             {
                 m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
+                break;
             }
 #endif // VK_USE_PLATFORM_WIN32_KHR
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-            if( window.Type == OSWindowHandleType::eWayland )
+            case OSWindowHandleType::eWayland:
             {
                 m_pImGuiWindowContext = new ImGui_ImplWayland_Context( window.WaylandHandle );
+                break;
             }
 #endif // VK_USE_PLATFORM_WAYLAND_KHR
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
-            if( window.Type == OSWindowHandleType::eXcb )
+            case OSWindowHandleType::eXcb:
             {
                 m_pImGuiWindowContext = new ImGui_ImplXcb_Context( window.XcbHandle );
+                break;
             }
 #endif // VK_USE_PLATFORM_XCB_KHR
 
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-            if( window.Type == OSWindowHandleType::eXlib )
+            case OSWindowHandleType::eXlib:
             {
                 m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.XlibHandle );
+                break;
             }
 #endif // VK_USE_PLATFORM_XLIB_KHR
+
+            default:
+            {
+                // Unsupported window type
+                result = VK_ERROR_INITIALIZATION_FAILED;
+                break;
+            }
+            }
         }
         catch( ... )
         {
@@ -1274,9 +1292,9 @@ namespace Profiler
         // Set DPI scaling.
         if( result == VK_SUCCESS )
         {
+            float dpiScale = m_pImGuiWindowContext->GetDPIScale();
             ImGuiIO& io = ImGui::GetIO();
-            io.FontGlobalScale = m_pImGuiWindowContext->GetDPIScale();
-            assert(io.FontGlobalScale > 0.0f);
+            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
         }
 
         // Deinitialize context if something failed
@@ -1284,10 +1302,8 @@ namespace Profiler
         {
             delete m_pImGuiWindowContext;
             m_pImGuiWindowContext = nullptr;
+            m_Window = OSWindowHandle();
         }
-
-        // Update objects
-        m_Window = window;
 
         return result;
     }
