@@ -2506,7 +2506,8 @@ namespace Profiler
 
         // VkPipelineVertexInputStateCreateInfo
         ImGui::BeginDisabled( gci.pVertexInputState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) &&
+            ( gci.pVertexInputState != nullptr ) )
         {
             const VkPipelineVertexInputStateCreateInfo& state = *gci.pVertexInputState;
 
@@ -2564,7 +2565,8 @@ namespace Profiler
 
         // VkPipelineInputAssemblyStateCreateInfo
         ImGui::BeginDisabled( gci.pInputAssemblyState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) &&
+            ( gci.pInputAssemblyState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##InputAssemblyState", 3, tableFlags ) )
@@ -2582,7 +2584,8 @@ namespace Profiler
 
         // VkPipelineTessellationStateCreateInfo
         ImGui::BeginDisabled( gci.pTessellationState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateTessellation ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateTessellation ) &&
+            ( gci.pTessellationState != nullptr ) )
         {
             ImGuiX::BeginPadding( 5, 10, 10 );
 
@@ -2600,7 +2603,8 @@ namespace Profiler
 
         // VkPipelineViewportStateCreateInfo
         ImGui::BeginDisabled( gci.pViewportState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) &&
+            ( gci.pViewportState != nullptr ) )
         {
             const float firstColumnWidth = ImGui::CalcTextSize( "00 (Dynamic)" ).x + 5;
 
@@ -2684,7 +2688,8 @@ namespace Profiler
 
         // VkPipelineRasterizationStateCreateInfo
         ImGui::BeginDisabled( gci.pRasterizationState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) &&
+            ( gci.pRasterizationState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##RasterizationState", 3, tableFlags ) )
@@ -2710,7 +2715,8 @@ namespace Profiler
 
         // VkPipelineMultisampleStateCreateInfo
         ImGui::BeginDisabled( gci.pMultisampleState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) &&
+            ( gci.pMultisampleState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##MultisampleState", 3, tableFlags ) )
@@ -2732,7 +2738,8 @@ namespace Profiler
 
         // VkPipelineDepthStencilStateCreateInfo
         ImGui::BeginDisabled( gci.pDepthStencilState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) &&
+            ( gci.pDepthStencilState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##DepthStencilState", 3, tableFlags ) )
@@ -2784,7 +2791,8 @@ namespace Profiler
 
         // VkPipelineColorBlendStateCreateInfo
         ImGui::BeginDisabled( gci.pColorBlendState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) &&
+            ( gci.pColorBlendState != nullptr ) )
         {
             const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
 
