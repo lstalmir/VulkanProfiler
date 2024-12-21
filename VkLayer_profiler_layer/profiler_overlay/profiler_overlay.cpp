@@ -187,82 +187,17 @@ namespace Profiler
 
     \***********************************************************************************/
     ProfilerOverlayOutput::ProfilerOverlayOutput()
-        : m_pDevice( nullptr )
-        , m_pGraphicsQueue( nullptr )
-        , m_pSwapchain( nullptr )
-        , m_Window()
-        , m_pImGuiContext( nullptr )
-        , m_pImGuiVulkanContext( nullptr )
-        , m_pImGuiWindowContext( nullptr )
-        , m_DescriptorPool( VK_NULL_HANDLE )
-        , m_RenderPass( VK_NULL_HANDLE )
-        , m_RenderArea( {} )
-        , m_ImageFormat( VK_FORMAT_UNDEFINED )
-        , m_Images()
-        , m_ImageViews()
-        , m_Framebuffers()
-        , m_CommandPool( VK_NULL_HANDLE )
-        , m_CommandBuffers()
-        , m_CommandFences()
-        , m_CommandSemaphores()
-        , m_Title( Lang::WindowName )
-        , m_ActiveMetricsSetIndex( UINT32_MAX )
-        , m_VendorMetricsSets()
-        , m_VendorMetricFilter()
-        , m_TimestampPeriod( 0 )
-        , m_TimestampDisplayUnit( 1.0f )
-        , m_pTimestampDisplayUnitStr( Lang::Milliseconds )
-        , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
-        , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
-        , m_HistogramValueMode( HistogramValueMode::eDuration )
-        , m_HistogramShowIdle( false )
-        , m_Pause( false )
-        , m_ShowDebugLabels( true )
-        , m_ShowShaderCapabilities( true )
-        , m_ShowEmptyStatistics( false )
-        , m_FrameTime( 0.0f )
-        , m_TimeUnit( TimeUnit::eMilliseconds )
-        , m_SamplingMode( VK_PROFILER_MODE_PER_DRAWCALL_EXT )
-        , m_SyncMode( VK_PROFILER_SYNC_MODE_PRESENT_EXT )
-        , m_SelectedFrameBrowserNodeIndex( { 0xFFFF } )
-        , m_ScrollToSelectedFrameBrowserNode( false )
-        , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
-        , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
-        , m_InspectorPipeline()
-        , m_InspectorShaderView( m_Resources )
-        , m_InspectorTabs( 0 )
-        , m_InspectorTabIndex( 0 )
-        , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
-        , m_PerformanceQueryCommandBufferFilterName( "Frame" )
-        , m_ReferencePerformanceCounters()
-        , m_pPerformanceCounterExporter( nullptr )
-        , m_SerializationSucceeded( false )
-        , m_SerializationWindowVisible( false )
-        , m_SerializationMessage()
-        , m_SerializationOutputWindowSize( { 0, 0 } )
-        , m_SerializationOutputWindowDuration( std::chrono::seconds( 4 ) )
-        , m_SerializationOutputWindowFadeOutDuration( std::chrono::seconds( 1 ) )
-        , m_pTraceExporter( nullptr )
-        , m_RenderPassColumnColor( 0 )
-        , m_GraphicsPipelineColumnColor( 0 )
-        , m_ComputePipelineColumnColor( 0 )
-        , m_RayTracingPipelineColumnColor( 0 )
-        , m_InternalPipelineColumnColor( 0 )
-        , m_pStringSerializer( nullptr )
-        , m_MainDockSpaceId( 0 )
-        , m_PerformanceTabDockSpaceId( 0 )
-        , m_QueueUtilizationTabDockSpaceId( 0 )
-        , m_TopPipelinesTabDockSpaceId( 0 )
-        , m_FrameBrowserDockSpaceId( 0 )
-        , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true}
-        , m_QueueUtilizationWindowState{ m_Settings.AddBool( "QueueUtilizationWindowOpen", true ), true}
-        , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true}
-        , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true}
-        , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true}
-        , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true}
-        , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true}
-        , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true}
+        : m_InspectorShaderView( m_Resources )
+        , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true }
+        , m_QueueUtilizationWindowState{ m_Settings.AddBool( "QueueUtilizationWindowOpen", true ), true }
+        , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true }
+        , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true }
+        , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true }
+        , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true }
+        , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true }
+        , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true }
     {
+        ResetMembers();
     }
 
     /***********************************************************************************\
@@ -378,25 +313,26 @@ namespace Profiler
             m_Settings.Validate( io.IniFilename );
 
             m_Resources.InitializeFonts();
+
             InitializeImGuiStyle();
-        }
 
-        // Init window
-        if( result == VK_SUCCESS )
-        {
-            result = InitializeImGuiWindowHooks( pCreateInfo );
-        }
+            // Init window
+            if( result == VK_SUCCESS )
+            {
+                result = InitializeImGuiWindowHooks( pCreateInfo );
+            }
 
-        // Init vulkan
-        if( result == VK_SUCCESS )
-        {
-            result = InitializeImGuiVulkanContext( pCreateInfo );
-        }
-
-        // Init resources
-        if( result == VK_SUCCESS )
-        {
-            result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
+            // Init vulkan
+            if( result == VK_SUCCESS )
+            {
+                result = InitializeImGuiVulkanContext( pCreateInfo );
+            }
+            
+            // Init resources
+            if( result == VK_SUCCESS )
+            {
+                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
+            }
         }
 
         // Get vendor metrics sets
@@ -439,7 +375,6 @@ namespace Profiler
         // Initialize the disassembler in the shader view
         if( result == VK_SUCCESS )
         {
-            m_InspectorShaderView.InitializeStyles();
             m_InspectorShaderView.SetTargetDevice( m_pDevice );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
@@ -451,9 +386,10 @@ namespace Profiler
         // Initialize serializer
         if( result == VK_SUCCESS )
         {
-            result = (m_pStringSerializer = new (std::nothrow) DeviceProfilerStringSerializer( device ))
-                         ? VK_SUCCESS
-                         : VK_ERROR_OUT_OF_HOST_MEMORY;
+            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( device ) );
+            result = (m_pStringSerializer != nullptr)
+                ? VK_SUCCESS
+                : VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
         // Initialize settings
@@ -488,86 +424,197 @@ namespace Profiler
             m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
         }
 
-        if( m_pStringSerializer )
-        {
-            delete m_pStringSerializer;
-            m_pStringSerializer = nullptr;
-        }
-
-        if( m_pImGuiVulkanContext )
-        {
-            delete m_pImGuiVulkanContext;
-            m_pImGuiVulkanContext = nullptr;
-        }
-
-        if( m_pImGuiWindowContext )
-        {
-            delete m_pImGuiWindowContext;
-            m_pImGuiWindowContext = nullptr;
-        }
-
         if( m_pImGuiContext )
         {
             std::scoped_lock imGuiLock( s_ImGuiMutex );
-            ImGui::DestroyContext( m_pImGuiContext );
-            m_pImGuiContext = nullptr;
+            ImGui::SetCurrentContext( m_pImGuiContext );
+
+            // Destroy Vulkan resources created for the ImGui overlay
+            m_Resources.Destroy();
+
+            // Destroy ImGui backends
+            delete m_pImGuiVulkanContext;
+            delete m_pImGuiWindowContext;
+
+            ImGui::DestroyContext();
         }
 
-        if( m_DescriptorPool )
+        if( m_pDevice )
         {
-            m_pDevice->Callbacks.DestroyDescriptorPool( m_pDevice->Handle, m_DescriptorPool, nullptr );
-            m_DescriptorPool = VK_NULL_HANDLE;
+            if( m_DescriptorPool != VK_NULL_HANDLE )
+            {
+                m_pDevice->Callbacks.DestroyDescriptorPool(
+                    m_pDevice->Handle,
+                    m_DescriptorPool,
+                    nullptr );
+            }
+
+            if( m_RenderPass != VK_NULL_HANDLE )
+            {
+                m_pDevice->Callbacks.DestroyRenderPass(
+                    m_pDevice->Handle,
+                    m_RenderPass,
+                    nullptr );
+            }
+
+            if( m_CommandPool != VK_NULL_HANDLE )
+            {
+                m_pDevice->Callbacks.DestroyCommandPool(
+                    m_pDevice->Handle,
+                    m_CommandPool,
+                    nullptr );
+            }
+
+            for( VkFramebuffer framebuffer : m_Framebuffers )
+            {
+                if( framebuffer != VK_NULL_HANDLE )
+                {
+                    m_pDevice->Callbacks.DestroyFramebuffer(
+                        m_pDevice->Handle,
+                        framebuffer,
+                        nullptr );
+                }
+            }
+
+            for( VkImageView imageView : m_ImageViews )
+            {
+                if( imageView != VK_NULL_HANDLE )
+                {
+                    m_pDevice->Callbacks.DestroyImageView(
+                        m_pDevice->Handle,
+                        imageView,
+                        nullptr );
+                }
+            }
+
+            for( VkFence fence : m_CommandFences )
+            {
+                if( fence != VK_NULL_HANDLE )
+                {
+                    m_pDevice->Callbacks.DestroyFence(
+                        m_pDevice->Handle,
+                        fence,
+                        nullptr );
+                }
+            }
+
+            for( VkSemaphore semaphore : m_CommandSemaphores )
+            {
+                if( semaphore != VK_NULL_HANDLE )
+                {
+                    m_pDevice->Callbacks.DestroySemaphore(
+                        m_pDevice->Handle,
+                        semaphore,
+                        nullptr );
+                }
+            }
         }
 
-        if( m_RenderPass )
-        {
-            m_pDevice->Callbacks.DestroyRenderPass( m_pDevice->Handle, m_RenderPass, nullptr );
-            m_RenderPass = VK_NULL_HANDLE;
-        }
+        // Reset members to initial values
+        ResetMembers();
+    }
 
-        if( m_CommandPool )
-        {
-            m_pDevice->Callbacks.DestroyCommandPool( m_pDevice->Handle, m_CommandPool, nullptr );
-            m_CommandPool = VK_NULL_HANDLE;
-        }
+    /***********************************************************************************\
 
-        m_CommandBuffers.clear();
+    Function:
+        ResetMembers
 
-        for( auto& framebuffer : m_Framebuffers )
-        {
-            m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, framebuffer, nullptr );
-        }
+    Description:
+        Set all members to initial values.
 
-        m_Framebuffers.clear();
-
-        for( auto& imageView : m_ImageViews )
-        {
-            m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, imageView, nullptr );
-        }
-
-        m_ImageViews.clear();
-
-        m_Images.clear();
-
-        for( auto& fence : m_CommandFences )
-        {
-            m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
-        }
-
-        m_CommandFences.clear();
-
-        for( auto& semaphore : m_CommandSemaphores )
-        {
-            m_pDevice->Callbacks.DestroySemaphore( m_pDevice->Handle, semaphore, nullptr );
-        }
-
-        m_CommandSemaphores.clear();
-
-        m_ImageFormat = VK_FORMAT_UNDEFINED;
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::ResetMembers()
+    {
+        m_pDevice = nullptr;
+        m_pGraphicsQueue = nullptr;
+        m_pSwapchain = nullptr;
 
         m_Window = OSWindowHandle();
-        m_pDevice = nullptr;
-        m_pSwapchain = nullptr;
+
+        m_pImGuiContext = nullptr;
+        m_pImGuiVulkanContext = nullptr;
+        m_pImGuiWindowContext = nullptr;
+
+        m_DescriptorPool = VK_NULL_HANDLE;
+        m_RenderPass = VK_NULL_HANDLE;
+        m_RenderArea = {};
+        m_ImageFormat = VK_FORMAT_UNDEFINED;
+        m_Images.clear();
+        m_ImageViews.clear();
+        m_Framebuffers.clear();
+
+        m_CommandPool = VK_NULL_HANDLE;
+        m_CommandBuffers.clear();
+        m_CommandFences.clear();
+        m_CommandSemaphores.clear();
+
+        m_Title.clear();
+
+        m_ActiveMetricsSetIndex = UINT32_MAX;
+        m_VendorMetricsSetVisibility.clear();
+        m_VendorMetricsSets.clear();
+        memset( m_VendorMetricFilter, 0, sizeof( m_VendorMetricFilter ) );
+
+        m_TimestampPeriod = Milliseconds( 0 );
+        m_TimestampDisplayUnit = 1.0f;
+        m_pTimestampDisplayUnitStr = Lang::Milliseconds;
+
+        m_FrameBrowserSortMode = FrameBrowserSortMode::eSubmissionOrder;
+
+        m_HistogramGroupMode = HistogramGroupMode::eRenderPass;
+        m_HistogramValueMode = HistogramValueMode::eDuration;
+        m_HistogramShowIdle = false;
+
+        m_pData = nullptr;
+        m_Pause = false;
+        m_ShowDebugLabels = true;
+        m_ShowShaderCapabilities = true;
+        m_ShowEmptyStatistics = false;
+
+        m_FrameTime = 0.0f;
+
+        m_TimeUnit = TimeUnit::eMilliseconds;
+        m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
+        m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
+
+        m_SelectedFrameBrowserNodeIndex = { 0xFFFF };
+        m_ScrollToSelectedFrameBrowserNode = false;
+        m_FrameBrowserNodeIndexStr.clear();
+        m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::time_point();
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::time_point();
+
+        m_InspectorPipeline = DeviceProfilerPipeline();
+        m_InspectorShaderView.Clear();
+        m_InspectorTabs.clear();
+        m_InspectorTabIndex = 0;
+
+        m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
+        m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
+        m_ReferencePerformanceCounters.clear();
+        m_pPerformanceCounterExporter = nullptr;
+
+        m_SerializationSucceeded = false;
+        m_SerializationWindowVisible = false;
+        m_SerializationMessage.clear();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationOutputWindowDuration = std::chrono::seconds( 4 );
+        m_SerializationOutputWindowFadeOutDuration = std::chrono::seconds( 1 );
+
+        m_pTraceExporter = nullptr;
+
+        m_RenderPassColumnColor = 0;
+        m_GraphicsPipelineColumnColor = 0;
+        m_ComputePipelineColumnColor = 0;
+        m_RayTracingPipelineColumnColor = 0;
+        m_InternalPipelineColumnColor = 0;
+
+        m_pStringSerializer = nullptr;
+
+        m_MainDockSpaceId = 0;
+        m_PerformanceTabDockSpaceId = 0;
+        m_QueueUtilizationTabDockSpaceId = 0;
+        m_TopPipelinesTabDockSpaceId = 0;
+        m_FrameBrowserDockSpaceId = 0;
     }
 
     /***********************************************************************************\
@@ -870,6 +917,12 @@ namespace Profiler
                 // Init vulkan
                 result = InitializeImGuiVulkanContext( pCreateInfo );
             }
+
+            if( result == VK_SUCCESS )
+            {
+                // Init resources
+                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
+            }
         }
 
         // Don't leave object in partly-initialized state
@@ -922,6 +975,10 @@ namespace Profiler
                 info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
                 m_pDevice->Callbacks.BeginCommandBuffer( commandBuffer, &info );
             }
+
+            // Record upload commands
+            m_Resources.RecordUploadCommands( commandBuffer );
+
             {
                 VkRenderPassBeginInfo info = {};
                 info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -931,9 +988,6 @@ namespace Profiler
                 info.renderArea.extent.height = m_RenderArea.height;
                 m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
             }
-
-            // Record upload commands
-            m_Resources.RecordUploadCommands( commandBuffer );
 
             // Record Imgui Draw Data and draw funcs into command buffer
             m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
@@ -1330,6 +1384,8 @@ namespace Profiler
         m_ComputePipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.55f, 0.0f, 1.0f } ); // #ffba42
         m_RayTracingPipelineColumnColor = ImGui::GetColorU32( { 0.2f, 0.73f, 0.92f, 1.0f } ); // #34baeb
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
+
+        m_InspectorShaderView.InitializeStyles();
     }
 
     /***********************************************************************************\
@@ -1344,8 +1400,18 @@ namespace Profiler
     {
         VkResult result = VK_SUCCESS;
 
-        // Free current context
-        delete m_pImGuiVulkanContext;
+        if( m_pImGuiVulkanContext )
+        {
+            // Make sure nothing is executing on the device before destroying resources
+            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
+
+            // Destroy resources associated with the current context
+            m_Resources.DestroyImages();
+
+            // Free current context
+            delete m_pImGuiVulkanContext;
+            m_pImGuiVulkanContext = nullptr;
+        }
 
         try
         {
@@ -1909,10 +1975,10 @@ namespace Profiler
             ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
-                if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+                if( ImGuiX::TSelectable( Lang::Frame, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
                 {
                     // Selection changed.
-                    m_PerformanceQueryCommandBufferFilterName = "Frame";
+                    m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
                 }
 
                 // Enumerate command buffers.
@@ -3976,7 +4042,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
-        DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
+        DeviceProfilerTraceSerializer serializer( m_pStringSerializer.get(), m_TimestampPeriod);
         DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
 
         m_SerializationSucceeded = result.m_Succeeded;

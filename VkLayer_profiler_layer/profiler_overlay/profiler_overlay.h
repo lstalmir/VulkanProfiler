@@ -241,7 +241,7 @@ namespace Profiler
         uint32_t m_RayTracingPipelineColumnColor;
         uint32_t m_InternalPipelineColumnColor;
 
-        class DeviceProfilerStringSerializer* m_pStringSerializer;
+        std::unique_ptr<class DeviceProfilerStringSerializer> m_pStringSerializer;
 
         // Dock space ids
         int m_MainDockSpaceId;
@@ -268,6 +268,8 @@ namespace Profiler
         WindowState m_InspectorWindowState;
         WindowState m_StatisticsWindowState;
         WindowState m_SettingsWindowState;
+
+        void ResetMembers();
 
         VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
         VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );

@@ -36,6 +36,8 @@ Function:
 Description:
     Constructor.
 
+    s_ImGuiMutex must be locked before creating the window context.
+
 \***********************************************************************************/
 ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     : m_pImGuiContext( nullptr )
@@ -43,8 +45,6 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     , m_AppWindow( window )
     , m_InputWindow( 0 )
 {
-    std::scoped_lock lk( Profiler::s_ImGuiMutex );
-
     // Connect to X server
     m_Connection = xcb_connect( nullptr, nullptr );
     if( xcb_connection_has_error( m_Connection ) )
@@ -99,11 +99,11 @@ Function:
 Description:
     Destructor.
 
+    s_ImGuiMutex must be locked before destroying the window context.
+
 \***********************************************************************************/
 ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
 {
-    std::scoped_lock lk( Profiler::s_ImGuiMutex );
-
     xcb_destroy_window( m_Connection, m_InputWindow );
     m_InputWindow = 0;
     m_AppWindow = 0;
@@ -113,7 +113,7 @@ ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
 
     if( m_pImGuiContext )
     {
-        ImGui::SetCurrentContext( m_pImGuiContext );
+        assert( ImGui::GetCurrentContext() == m_pImGuiContext );
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags = 0;
         io.BackendPlatformName = nullptr;
