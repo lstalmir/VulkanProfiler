@@ -435,15 +435,18 @@ namespace
                     if( pDesc->m_OperandsCount )
                     {
                         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
-
                         ImGui::PushStyleColor( ImGuiCol_TableRowBg, { 1.0f, 1.0f, 1.0f, 0.025f } );
-                        ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg );
-                        for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+
+                        if( ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg ) )
                         {
-                            ImGui::TableNextColumn();
-                            ImGui::TextUnformatted( pDesc->m_pOperands[ i ] );
+                            for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+                            {
+                                ImGui::TableNextColumn();
+                                ImGui::TextUnformatted( pDesc->m_pOperands[ i ] );
+                            }
+                            ImGui::EndTable();
                         }
-                        ImGui::EndTable();
+
                         ImGui::PopStyleColor();
                     }
 
@@ -1385,7 +1388,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayShaderView::SetShaderSavedCallback( ShaderSavedCallback callback )
     {
-        m_ShaderSavedCallback = callback;
+        m_ShaderSavedCallback = std::move( callback );
     }
 
     /***********************************************************************************\
