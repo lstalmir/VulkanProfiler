@@ -975,6 +975,10 @@ namespace Profiler
                 info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
                 m_pDevice->Callbacks.BeginCommandBuffer( commandBuffer, &info );
             }
+
+            // Record upload commands
+            m_Resources.RecordUploadCommands(commandBuffer);
+
             {
                 VkRenderPassBeginInfo info = {};
                 info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -984,9 +988,6 @@ namespace Profiler
                 info.renderArea.extent.height = m_RenderArea.height;
                 m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
             }
-
-            // Record upload commands
-            m_Resources.RecordUploadCommands( commandBuffer );
 
             // Record Imgui Draw Data and draw funcs into command buffer
             m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
