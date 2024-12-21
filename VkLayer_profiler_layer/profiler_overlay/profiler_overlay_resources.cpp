@@ -367,22 +367,32 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayResources::RecordUploadCommands( VkCommandBuffer commandBuffer )
     {
-        UploadImage( commandBuffer, m_CopyIconImage );
+        if( m_UploadEvent == VK_NULL_HANDLE )
+        {
+            // Record upload commands.
+            UploadImage( commandBuffer, m_CopyIconImage );
 
-        // Signal event to notify that all resources have been uploaded.
-        VkEventCreateInfo eventCreateInfo = {};
-        eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+            // Signal event to notify that all resources have been uploaded.
+            VkEventCreateInfo eventCreateInfo = {};
+            eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
 
-        m_pDevice->Callbacks.CreateEvent(
-            m_pDevice->Handle,
-            &eventCreateInfo,
-            nullptr,
-            &m_UploadEvent );
+            m_pDevice->Callbacks.CreateEvent(
+                m_pDevice->Handle,
+                &eventCreateInfo,
+                nullptr,
+                &m_UploadEvent );
 
-        m_pDevice->Callbacks.CmdSetEvent(
-            commandBuffer,
-            m_UploadEvent,
-            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+            m_pDevice->Callbacks.CmdSetEvent(
+                commandBuffer,
+                m_UploadEvent,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+        }
+        else
+        {
+            // Upload is already in progress.
+            // Resources should not require upload at this moment.
+            assert( m_CopyIconImage.RequiresUpload == false );
+        }
     }
 
     /***********************************************************************************\

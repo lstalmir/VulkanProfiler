@@ -977,7 +977,7 @@ namespace Profiler
             }
 
             // Record upload commands
-            m_Resources.RecordUploadCommands(commandBuffer);
+            m_Resources.RecordUploadCommands( commandBuffer );
 
             {
                 VkRenderPassBeginInfo info = {};
