@@ -69,6 +69,7 @@ namespace Profiler
         if( !dev.Handle )
         {
             dev.Handle = physicalDevice;
+            dev.pInstance = &id.Instance;
 
             // Enumerate queue families
             uint32_t queueFamilyPropertyCount = 0;
@@ -96,15 +97,6 @@ namespace Profiler
             deviceExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
         }
 
-        // Enumerate available device extensions
-        uint32_t availableExtensionCount = 0;
-        id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
-            physicalDevice, nullptr, &availableExtensionCount, nullptr );
-
-        VkExtensionProperties* pAvailableDeviceExtensions = new VkExtensionProperties[ availableExtensionCount ];
-        id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
-            physicalDevice, nullptr, &availableExtensionCount, pAvailableDeviceExtensions );
-
         // Check if profiler create info was provided
         const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
 
@@ -118,7 +110,8 @@ namespace Profiler
         }
 
         // Enable available optional device extensions
-        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions(
+        std::unordered_set<std::string> requestedExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions(
+            dev,
             id.Instance.LayerSettings,
             pProfilerCreateInfo );
 

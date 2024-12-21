@@ -181,6 +181,76 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Struct:
+        PNextChain
+
+    Description:
+        Helper structure for dynamic pNext chain creation.
+
+    \***********************************************************************************/
+    struct PNextChain
+    {
+        const void*                             m_pApplicationData;
+        std::list<std::unique_ptr<std::byte[]>> m_pOverriddenData;
+
+        template<typename StructureType>
+        StructureType* Append( VkStructureType sType )
+        {
+            // Check if the structure is already present in the overridden chain.
+            if (!m_pOverriddenData.empty())
+            {
+                for (VkBaseOutStructure& structure : PNextIterator((void*)m_pOverriddenData.front().get()))
+                {
+                    if (structure.sType == sType)
+                    {
+                        return reinterpret_cast<StructureType*>(&structure);
+                    }
+                }
+            }
+
+            // Check if the structure is present in the application chain.
+            const StructureType* pApplicationStructure = nullptr;
+            for (const VkBaseInStructure& structure : PNextIterator(m_pApplicationData))
+            {
+                if (structure.sType == sType)
+                {
+                    pApplicationStructure = reinterpret_cast<const StructureType*>(&structure);
+                    break;
+                }
+            }
+
+            // Allocate memory for the structure.
+            std::unique_ptr<std::byte[]> pData;
+            pData.reset( new (std::nothrow) std::byte[ sizeof( StructureType ) ] );
+
+            if( pData )
+            {
+                StructureType* pStructure = reinterpret_cast<StructureType*>( pData.get() );
+
+                if( pApplicationStructure )
+                {
+                    // Initialize with application data.
+                    *pStructure = *pApplicationStructure;
+                }
+
+                if( !m_pData.empty() )
+                {
+                    // Append to the last structure in the chain.
+                    VkBaseOutStructure* pPreviousStructure = reinterpret_cast<VkBaseOutStructure*>( m_pData.back().get() );
+                    pPreviousStructure->pNext = reinterpret_cast<VkBaseOutStructure*>( pStructure );
+                }
+
+                m_pData.emplace_back( std::move( pData ) );
+
+                return pStructure;
+            }
+
+            return nullptr;
+        }
+    };
+
+    /***********************************************************************************\
+
     Class:
         ProfilerStringFunctions
 

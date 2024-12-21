@@ -30,6 +30,7 @@
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
+#include "profiler_layer_objects/VkPhysicalDevice_object.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <sstream>
@@ -64,7 +65,7 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT* );
+        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( VkPhysicalDevice_Object&, const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT* );
         static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
 
         static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );

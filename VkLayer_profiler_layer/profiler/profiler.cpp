@@ -174,13 +174,62 @@ namespace Profiler
         Get list of optional device extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo )
+    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions(
+        VkPhysicalDevice_Object& physicalDevice,
+        const ProfilerLayerSettings& settings,
+        const VkProfilerCreateInfoEXT* pCreateInfo )
     {
-        std::unordered_set<std::string> deviceExtensions = {
-            VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME
-        };
+        std::unordered_set<std::string> deviceExtensions;
+
+        // Enumerate available extensions.
+        uint32_t extensionCount = 0;
+        physicalDevice.pInstance->Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice.Handle, nullptr, &extensionCount, nullptr );
+
+        std::vector<VkExtensionProperties> availableExtensions( extensionCount );
+        physicalDevice.pInstance->Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice.Handle, nullptr, &extensionCount, availableExtensions.data() );
+
+        std::unordered_set<std::string> availableExtensionNames;
+        for( const VkExtensionProperties& extension : availableExtensions )
+        {
+            availableExtensionNames.insert( extension.extensionName );
+        }
+
+        // Enable shader module identifier if available.
+        if (availableExtensionNames.count(VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME))
+        {
+            bool enableShaderModuleIdentifier = false;
+
+            if ((physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_3) &&
+                (physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_3))
+            {
+                enableShaderModuleIdentifier = true;
+            }
+            else
+            {
+                if (availableExtensionNames.count(VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME))
+                {
+                    if ((physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1) &&
+                        (physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1))
+                    {
+                        deviceExtensions.insert(VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME);
+                        enableShaderModuleIdentifier = true;
+                    }
+                    else if(availableExtensionNames.count(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
+                    {
+                        deviceExtensions.insert(VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME);
+                        deviceExtensions.insert(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+                        enableShaderModuleIdentifier = true;
+                    }
+                }
+            }
+
+            if (enableShaderModuleIdentifier)
+            {
+                deviceExtensions.insert(VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME);
+            }
+        }
 
         // Load configuration that will be used by the profiler.
         DeviceProfilerConfig config;
