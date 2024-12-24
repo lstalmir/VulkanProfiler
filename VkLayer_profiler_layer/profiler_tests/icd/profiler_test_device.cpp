@@ -20,6 +20,8 @@
 
 #include "profiler_test_device.h"
 #include "profiler_test_physical_device.h"
+#include "profiler_test_buffer.h"
+#include "profiler_test_device_memory.h"
 #include "profiler_test_query_pool.h"
 #include "profiler_test_queue.h"
 #include "profiler_test_command_buffer.h"
@@ -92,6 +94,39 @@ namespace Profiler::ICD
         {
             delete pCommandBuffers[ i ];
         }
+    }
+
+    VkResult Device::vkAllocateMemory( const VkMemoryAllocateInfo* pAllocateInfo, const VkAllocationCallbacks* pAllocator, VkDeviceMemory* pMemory )
+    {
+        return vk_new_nondispatchable<VkDeviceMemory_T>( pMemory, pAllocateInfo->allocationSize );
+    }
+
+    void Device::vkFreeMemory( VkDeviceMemory memory, const VkAllocationCallbacks* pAllocator )
+    {
+        delete memory;
+    }
+
+    VkResult Device::vkCreateBuffer( const VkBufferCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkBuffer* pBuffer )
+    {
+        return vk_new_nondispatchable<VkBuffer_T>( pBuffer, *pCreateInfo );
+    }
+
+    void Device::vkDestroyBuffer( VkBuffer buffer, const VkAllocationCallbacks* pAllocator )
+    {
+        delete buffer;
+    }
+
+    void Device::vkGetBufferMemoryRequirements( VkBuffer buffer, VkMemoryRequirements* pMemoryRequirements )
+    {
+        pMemoryRequirements->size = buffer->m_Size;
+        pMemoryRequirements->alignment = 1;
+        pMemoryRequirements->memoryTypeBits = 0;
+    }
+
+    VkResult Device::vkBindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize memoryOffset )
+    {
+        buffer->m_pData = memory->m_Allocation.data() + memoryOffset;
+        return VK_SUCCESS;
     }
 
 #ifdef VK_KHR_swapchain

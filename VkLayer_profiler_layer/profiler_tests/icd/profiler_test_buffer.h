@@ -23,27 +23,20 @@
 
 namespace Profiler::ICD
 {
-    struct Device;
-    struct Buffer;
-    struct CommandBuffer;
-    struct QueryPool;
-
-    struct Queue : QueueBase
+    struct Buffer
     {
-        Queue( Device& device, const VkDeviceQueueCreateInfo& createInfo );
-        ~Queue();
+        uint8_t* m_pData;
+        VkDeviceSize m_Size;
 
-        VkResult vkQueueSubmit( uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence ) override;
-        VkResult vkQueueSubmit2( uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence ) override;
-
-#ifdef VK_KHR_swapchain
-        VkResult vkQueuePresentKHR( const VkPresentInfoKHR* pPresentInfo ) override;
-#endif
-
-        void Exec_CommandBuffer( CommandBuffer& commandBuffer );
-        void Exec_Draw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
-        void Exec_Dispatch( uint32_t x, uint32_t y, uint32_t z );
-        void Exec_WriteTimestamp( QueryPool& queryPool, uint32_t query );
-        void Exec_CopyQueryPoolResults( QueryPool& queryPool, uint32_t firstQuery, uint32_t queryCount, Buffer& dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags );
+        explicit Buffer( const VkBufferCreateInfo& createInfo )
+            : m_pData( nullptr )
+            , m_Size( createInfo.size )
+        {
+        }
     };
 }
+
+struct VkBuffer_T : Profiler::ICD::Buffer
+{
+    using Buffer::Buffer;
+};

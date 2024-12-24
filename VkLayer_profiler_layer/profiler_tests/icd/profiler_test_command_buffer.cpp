@@ -68,4 +68,17 @@ namespace Profiler::ICD
         command.m_WriteTimestamp.m_QueryPool = queryPool;
         command.m_WriteTimestamp.m_Index = query;
     }
+
+    void CommandBuffer::vkCmdCopyQueryPoolResults( VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags )
+    {
+        Command& command = m_Commands.emplace_back();
+        command.m_Type = Command::eCopyQueryPoolResults;
+        command.m_CopyQueryPoolResults.m_QueryPool = queryPool;
+        command.m_CopyQueryPoolResults.m_FirstQuery = firstQuery;
+        command.m_CopyQueryPoolResults.m_QueryCount = queryCount;
+        command.m_CopyQueryPoolResults.m_DstBuffer = dstBuffer;
+        command.m_CopyQueryPoolResults.m_DstOffset = dstOffset;
+        command.m_CopyQueryPoolResults.m_Stride = stride;
+        command.m_CopyQueryPoolResults.m_Flags = flags;
+    }
 }

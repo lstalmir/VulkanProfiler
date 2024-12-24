@@ -21,6 +21,7 @@
 #include "profiler_test_queue.h"
 #include "profiler_test_command_buffer.h"
 #include "profiler_test_query_pool.h"
+#include "profiler_test_buffer.h"
 #include <chrono>
 #include <thread>
 
@@ -76,15 +77,35 @@ namespace Profiler::ICD
             switch( command.m_Type )
             {
             case Command::eDraw:
-                Exec_Draw( command.m_Draw.m_VertexCount, command.m_Draw.m_InstanceCount, command.m_Draw.m_FirstVertex, command.m_Draw.m_FirstInstance );
+                Exec_Draw(
+                    command.m_Draw.m_VertexCount,
+                    command.m_Draw.m_InstanceCount,
+                    command.m_Draw.m_FirstVertex,
+                    command.m_Draw.m_FirstInstance );
                 break;
 
             case Command::eDispatch:
-                Exec_Dispatch( command.m_Dispatch.m_GroupCountX, command.m_Dispatch.m_GroupCountY, command.m_Dispatch.m_GroupCountZ );
+                Exec_Dispatch(
+                    command.m_Dispatch.m_GroupCountX,
+                    command.m_Dispatch.m_GroupCountY,
+                    command.m_Dispatch.m_GroupCountZ );
                 break;
 
             case Command::eWriteTimestamp:
-                Exec_WriteTimestamp( *reinterpret_cast<QueryPool*>( command.m_WriteTimestamp.m_QueryPool ), command.m_WriteTimestamp.m_Index );
+                Exec_WriteTimestamp(
+                    *command.m_WriteTimestamp.m_QueryPool,
+                    command.m_WriteTimestamp.m_Index );
+                break;
+
+            case Command::eCopyQueryPoolResults:
+                Exec_CopyQueryPoolResults(
+                    *command.m_CopyQueryPoolResults.m_QueryPool,
+                    command.m_CopyQueryPoolResults.m_FirstQuery,
+                    command.m_CopyQueryPoolResults.m_QueryCount,
+                    *command.m_CopyQueryPoolResults.m_DstBuffer,
+                    command.m_CopyQueryPoolResults.m_DstOffset,
+                    command.m_CopyQueryPoolResults.m_Stride,
+                    command.m_CopyQueryPoolResults.m_Flags );
                 break;
             }
         }
@@ -108,5 +129,22 @@ namespace Profiler::ICD
             std::chrono::steady_clock::now().time_since_epoch() );
 
         queryPool.m_Timestamps.at( query ) = nanosecondsSinceEpoch.count();
+    }
+
+    void Queue::Exec_CopyQueryPoolResults( QueryPool& queryPool, uint32_t firstQuery, uint32_t queryCount, Buffer& dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags )
+    {
+        for( uint32_t i = 0; i < queryCount; ++i )
+        {
+            if( flags & VK_QUERY_RESULT_64_BIT )
+            {
+                *reinterpret_cast<uint64_t*>( dstBuffer.m_pData + dstOffset + i * stride ) =
+                    queryPool.m_Timestamps.at( firstQuery + i );
+            }
+            else
+            {
+                *reinterpret_cast<uint32_t*>( dstBuffer.m_pData + dstOffset + i * stride ) =
+                    static_cast<uint32_t>( queryPool.m_Timestamps.at( firstQuery + i ) & 0xFFFFFFFF );
+            }
+        }
     }
 }

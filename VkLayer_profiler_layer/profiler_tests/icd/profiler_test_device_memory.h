@@ -20,30 +20,22 @@
 
 #pragma once
 #include "profiler_test_icd_base.h"
+#include <vector>
 
 namespace Profiler::ICD
 {
-    struct Device;
-    struct Buffer;
-    struct CommandBuffer;
-    struct QueryPool;
-
-    struct Queue : QueueBase
+    struct DeviceMemory
     {
-        Queue( Device& device, const VkDeviceQueueCreateInfo& createInfo );
-        ~Queue();
+        std::vector<uint8_t> m_Allocation;
 
-        VkResult vkQueueSubmit( uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence ) override;
-        VkResult vkQueueSubmit2( uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence ) override;
-
-#ifdef VK_KHR_swapchain
-        VkResult vkQueuePresentKHR( const VkPresentInfoKHR* pPresentInfo ) override;
-#endif
-
-        void Exec_CommandBuffer( CommandBuffer& commandBuffer );
-        void Exec_Draw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
-        void Exec_Dispatch( uint32_t x, uint32_t y, uint32_t z );
-        void Exec_WriteTimestamp( QueryPool& queryPool, uint32_t query );
-        void Exec_CopyQueryPoolResults( QueryPool& queryPool, uint32_t firstQuery, uint32_t queryCount, Buffer& dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags );
+        explicit DeviceMemory( VkDeviceSize size )
+            : m_Allocation( size )
+        {
+        }
     };
 }
+
+struct VkDeviceMemory_T : Profiler::ICD::DeviceMemory
+{
+    using DeviceMemory::DeviceMemory;
+};

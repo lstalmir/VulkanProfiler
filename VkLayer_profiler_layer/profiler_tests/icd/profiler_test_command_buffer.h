@@ -31,7 +31,8 @@ namespace Profiler::ICD
             eUnknown,
             eDraw,
             eDispatch,
-            eWriteTimestamp
+            eWriteTimestamp,
+            eCopyQueryPoolResults
         };
 
         struct Draw
@@ -55,12 +56,24 @@ namespace Profiler::ICD
             uint32_t m_Index;
         };
 
+        struct CopyQueryPoolResults
+        {
+            VkQueryPool m_QueryPool;
+            uint32_t m_FirstQuery;
+            uint32_t m_QueryCount;
+            VkBuffer m_DstBuffer;
+            VkDeviceSize m_DstOffset;
+            VkDeviceSize m_Stride;
+            VkQueryResultFlags m_Flags;
+        };
+
         Type m_Type = eUnknown;
         union
         {
             Draw m_Draw;
             Dispatch m_Dispatch;
             WriteTimestamp m_WriteTimestamp;
+            CopyQueryPoolResults m_CopyQueryPoolResults;
         };
     };
 
@@ -77,5 +90,6 @@ namespace Profiler::ICD
         void vkCmdDraw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance ) override;
         void vkCmdDispatch( uint32_t x, uint32_t y, uint32_t z ) override;
         void vkCmdWriteTimestamp( VkPipelineStageFlagBits pipelineStage, VkQueryPool queryPool, uint32_t query ) override;
+        void vkCmdCopyQueryPoolResults( VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags ) override;
     };
 }
