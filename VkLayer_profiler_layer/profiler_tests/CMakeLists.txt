@@ -34,6 +34,7 @@ if (NOT Vulkan_FOUND OR NOT glslangvalidator)
 endif ()
 
 if (BUILD_TESTS)
+    add_subdirectory (icd)
     add_subdirectory (shaders)
 
     set (tests
@@ -56,6 +57,7 @@ if (BUILD_TESTS)
         PRIVATE gtest_main
         PRIVATE profiler
         PRIVATE VkLayer_profiler_layer_lib
+        PRIVATE vk_test_icd
         )
         
     target_include_directories (profiler_tests

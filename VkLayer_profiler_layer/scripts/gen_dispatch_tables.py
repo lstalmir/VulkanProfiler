@@ -22,48 +22,11 @@ import sys
 import os
 import io
 import xml.etree.ElementTree as etree
+from vk_spec import VulkanSpec
 
 # Read configuration variables
 VULKAN_HEADERS_DIR = os.path.abspath( sys.argv[ 1 ] )
 CMAKE_CURRENT_BINARY_DIR = os.path.abspath( sys.argv[ 2 ] )
-
-class VulkanSpec:
-    def __init__( self, vk_xml: etree.ElementTree ):
-        self.xml = vk_xml.getroot()
-        self.types = self.xml.find( "types" )
-        self.commands = self.xml.find( "commands" )
-        self.extensions = self.xml.find( "extensions" )
-        self.vulkansc = self.xml.find( "feature[@api=\"vulkansc\"]" )
-        self.handles = [handle.text for handle in self.types.findall( "type[@category=\"handle\"][type=\"VK_DEFINE_HANDLE\"]/name" )]
-
-    def get_command_name( self, cmd: etree.Element ):
-        try: # Function definition
-            return cmd.find( "proto/name" ).text
-        except: # Function alias
-            return cmd.get( "name" )
-
-    def get_command_handle( self, cmd: etree.Element ):
-        try: # Function definition
-            return cmd.find( "param[1]/type" ).text
-        except: # Function alias
-            return self.commands.find( "command/proto[name=\"" + cmd.get( "alias" ) + "\"]/../param[1]/type" ).text
-
-    def get_command_extension( self, cmd: etree.Element ):
-        try: # Extension function
-            cmd_name = self.get_command_name( cmd )
-            return self.extensions.find( "extension/require/command[@name=\"" + cmd_name + "\"]/../.." ).get( "name" )
-        except AttributeError: # Core function
-            return None
-
-    def is_vulkansc_command( self, cmd: etree.Element ):
-        # Check if cmd is secure version of a standard functions
-        if "api" in cmd.attrib.keys() and cmd.attrib[ "api" ] == "vulkansc":
-            return True
-        # Check if cmd is required by vulkansc feature set
-        cmd_name = self.get_command_name( cmd )
-        if self.vulkansc is not None and self.vulkansc.find( "require/command[@name=\"" + cmd_name + "\"]" ) is not None:
-            return True
-        return False
 
 class DispatchTableCommand:
     def __init__( self, name, extension ):
