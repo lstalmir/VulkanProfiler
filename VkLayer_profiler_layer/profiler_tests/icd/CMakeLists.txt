@@ -80,7 +80,8 @@ add_library (profiler_test_icd SHARED
     profiler_test_physical_device.cpp
     profiler_test_query_pool.h
     profiler_test_queue.h
-    profiler_test_queue.cpp)
+    profiler_test_queue.cpp
+    profiler_test_surface.h)
 
 add_dependencies (profiler_test_icd profiler_test_icd_codegen)
 

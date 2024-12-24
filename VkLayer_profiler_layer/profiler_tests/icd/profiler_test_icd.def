@@ -21,3 +21,4 @@
 LIBRARY vk_test_icd
 EXPORTS
   vk_icdGetInstanceProcAddr
+  vk_icdNegotiateLoaderICDInterfaceVersion

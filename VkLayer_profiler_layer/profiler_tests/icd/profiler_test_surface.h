@@ -19,27 +19,16 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler_test_icd_base.h"
 
 namespace Profiler::ICD
 {
-    struct Instance : InstanceBase
+    struct Surface
     {
-        VkPhysicalDevice m_PhysicalDevice;
-
-        Instance( const VkInstanceCreateInfo& createInfo );
-        ~Instance();
-
-        void vkDestroyInstance( const VkAllocationCallbacks* pAllocator ) override;
-
-        VkResult vkEnumeratePhysicalDevices( uint32_t* pPhysicalDeviceCount, VkPhysicalDevice* pPhysicalDevices ) override;
-
-#ifdef VK_KHR_win32_surface
-        VkResult vkCreateWin32SurfaceKHR( const VkWin32SurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface ) override;
-#endif
-
-#ifdef VK_KHR_surface
-        void vkDestroySurfaceKHR( VkSurfaceKHR surface, const VkAllocationCallbacks* pAllocator ) override;
-#endif
+        Surface() = default;
     };
 }
+
+struct VkSurfaceKHR_T : Profiler::ICD::Surface
+{
+    using Surface::Surface;
+};

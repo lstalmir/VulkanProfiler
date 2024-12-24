@@ -62,6 +62,13 @@ namespace Profiler::ICD
         return VK_SUCCESS;
     }
 
+#ifdef VK_KHR_swapchain
+    VkResult Queue::vkQueuePresentKHR( const VkPresentInfoKHR* pPresentInfo )
+    {
+        return VK_SUCCESS;
+    }
+#endif
+
     void Queue::Exec_CommandBuffer( CommandBuffer& commandBuffer )
     {
         for( const Command& command : commandBuffer.m_Commands )

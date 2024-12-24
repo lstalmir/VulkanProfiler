@@ -35,6 +35,10 @@ namespace Profiler::ICD
         VkResult vkQueueSubmit( uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence ) override;
         VkResult vkQueueSubmit2( uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence ) override;
 
+#ifdef VK_KHR_swapchain
+        VkResult vkQueuePresentKHR( const VkPresentInfoKHR* pPresentInfo ) override;
+#endif
+
         void Exec_CommandBuffer( CommandBuffer& commandBuffer );
         void Exec_Draw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
         void Exec_Dispatch( uint32_t x, uint32_t y, uint32_t z );

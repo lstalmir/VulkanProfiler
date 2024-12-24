@@ -93,4 +93,12 @@ namespace Profiler::ICD
             delete pCommandBuffers[ i ];
         }
     }
+
+#ifdef VK_KHR_swapchain
+    VkResult Device::vkAcquireNextImageKHR( VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex )
+    {
+        *pImageIndex = 0;
+        return VK_SUCCESS;
+    }
+#endif
 }

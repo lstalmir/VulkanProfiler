@@ -20,6 +20,8 @@
 
 #include "profiler_test_instance.h"
 #include "profiler_test_physical_device.h"
+#include "profiler_test_surface.h"
+#include "profiler_test_icd_helpers.h"
 
 namespace Profiler::ICD
 {
@@ -54,4 +56,18 @@ namespace Profiler::ICD
         *pPhysicalDevices = m_PhysicalDevice;
         return VK_SUCCESS;
     }
+
+#ifdef VK_KHR_win32_surface
+    VkResult Instance::vkCreateWin32SurfaceKHR( const VkWin32SurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface )
+    {
+        return vk_new_nondispatchable<VkSurfaceKHR_T>( pSurface );
+    }
+#endif
+
+#ifdef VK_KHR_surface
+    void Instance::vkDestroySurfaceKHR( VkSurfaceKHR surface, const VkAllocationCallbacks* pAllocator )
+    {
+        delete surface;
+    }
+#endif
 }

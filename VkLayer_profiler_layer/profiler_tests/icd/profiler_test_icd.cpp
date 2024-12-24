@@ -29,6 +29,24 @@ PFN_vkVoidFunction vk_icdGetInstanceProcAddr(
     return vkGetInstanceProcAddr( instance, pName );
 }
 
+VkResult vk_icdNegotiateLoaderICDInterfaceVersion(
+    uint32_t* pSupportedVersion )
+{
+    if( *pSupportedVersion >= 5 )
+    {
+        *pSupportedVersion = 5;
+        return VK_SUCCESS;
+    }
+
+    if( *pSupportedVersion >= 2 )
+    {
+        *pSupportedVersion = 2;
+        return VK_SUCCESS;
+    }
+
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+}
+
 VkResult vkCreateInstance(
     const VkInstanceCreateInfo* pCreateInfo,
     const VkAllocationCallbacks* pAllocator,
@@ -38,7 +56,7 @@ VkResult vkCreateInstance(
 }
 
 VkResult vkEnumerateInstanceVersion(
-    uint32_t* pApiVersion)
+    uint32_t* pApiVersion )
 {
     *pApiVersion = VK_API_VERSION_1_3;
     return VK_SUCCESS;
@@ -57,6 +75,35 @@ VkResult vkEnumerateInstanceExtensionProperties(
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties )
 {
-    *pPropertyCount = 0;
+    const VkExtensionProperties properties[] = {
+#ifdef VK_KHR_surface
+        { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_SURFACE_SPEC_VERSION },
+#endif
+#ifdef VK_KHR_win32_surface
+        { VK_KHR_WIN32_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_SPEC_VERSION },
+#endif
+    };
+
+    const uint32_t propertyCount = std::size( properties );
+
+    if( !pProperties )
+    {
+        *pPropertyCount = propertyCount;
+        return VK_SUCCESS;
+    }
+
+    const uint32_t count = std::min( *pPropertyCount, propertyCount );
+    for( uint32_t i = 0; i < count; ++i )
+    {
+        pProperties[ i ] = properties[ i ];
+    }
+
+    *pPropertyCount = count;
+
+    if( count < propertyCount )
+    {
+        return VK_INCOMPLETE;
+    }
+
     return VK_SUCCESS;
 }

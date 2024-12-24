@@ -25,15 +25,26 @@ namespace Profiler::ICD
 {
     struct PhysicalDevice : PhysicalDeviceBase
     {
-        VkPhysicalDeviceProperties m_Properties;
-        VkQueueFamilyProperties m_QueueFamilyProperties;
-
         PhysicalDevice();
         ~PhysicalDevice();
 
+        VkResult vkEnumerateDeviceExtensionProperties( const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties ) override;
+
         void vkGetPhysicalDeviceProperties( VkPhysicalDeviceProperties* pProperties ) override;
         void vkGetPhysicalDeviceProperties2( VkPhysicalDeviceProperties2* pProperties ) override;
+        void vkGetPhysicalDeviceMemoryProperties( VkPhysicalDeviceMemoryProperties* pMemoryProperties ) override;
         void vkGetPhysicalDeviceQueueFamilyProperties( uint32_t* pQueueFamilyPropertyCount, VkQueueFamilyProperties* pQueueFamilyProperties ) override;
+
+#ifdef VK_KHR_win32_surface
+        VkBool32 vkGetPhysicalDeviceWin32PresentationSupportKHR( uint32_t queueFamilyIndex ) override;
+#endif
+
+#ifdef VK_KHR_surface
+        VkResult vkGetPhysicalDeviceSurfaceCapabilitiesKHR( VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR* pSurfaceCapabilities ) override;
+        VkResult vkGetPhysicalDeviceSurfaceFormatsKHR( VkSurfaceKHR surface, uint32_t* pSurfaceFormatCount, VkSurfaceFormatKHR* pSurfaceFormats ) override;
+        VkResult vkGetPhysicalDeviceSurfacePresentModesKHR( VkSurfaceKHR surface, uint32_t* pPresentModeCount, VkPresentModeKHR* pPresentModes ) override;
+        VkResult vkGetPhysicalDeviceSurfaceSupportKHR( uint32_t queueFamilyIndex, VkSurfaceKHR surface, VkBool32* pSupported ) override;
+#endif
 
         VkResult vkCreateDevice( const VkDeviceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDevice* pDevice ) override;
     };

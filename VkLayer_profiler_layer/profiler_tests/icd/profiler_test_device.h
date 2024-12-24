@@ -44,5 +44,9 @@ namespace Profiler::ICD
 
         VkResult vkAllocateCommandBuffers( const VkCommandBufferAllocateInfo* pAllocateInfo, VkCommandBuffer* pCommandBuffers ) override;
         void vkFreeCommandBuffers( VkCommandPool commandPool, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers ) override;
+
+#ifdef VK_KHR_swapchain
+        VkResult vkAcquireNextImageKHR( VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex ) override;
+#endif
     };
 }
