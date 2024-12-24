@@ -20,31 +20,37 @@
 
 #pragma once
 #include "profiler_test_icd_base.h"
+#include "profiler_test_icd_helpers.h"
+#include "profiler_test_image.h"
 
 namespace Profiler::ICD
 {
-    struct Device;
-    struct Buffer;
-    struct CommandBuffer;
-    struct QueryPool;
-
-    struct Queue : QueueBase
+    struct Swapchain
     {
-        Queue( Device& device, const VkDeviceQueueCreateInfo& createInfo );
-        ~Queue();
+        VkImage m_Image;
 
-        VkResult vkQueueSubmit( uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence ) override;
-        VkResult vkQueueSubmit2( uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence ) override;
+        Swapchain( const VkSwapchainCreateInfoKHR& createInfo )
+            : m_Image( nullptr )
+        {
+            VkImageCreateInfo imageCreateInfo = {};
+            imageCreateInfo.extent = { createInfo.imageExtent.width, createInfo.imageExtent.height, 1 };
+            imageCreateInfo.format = createInfo.imageFormat;
+            imageCreateInfo.usage = createInfo.imageUsage;
+            imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageCreateInfo.mipLevels = 1;
+            imageCreateInfo.arrayLayers = 1;
+            vk_check( vk_new_nondispatchable<VkImage_T>( &m_Image, imageCreateInfo ) );
+        }
 
-#ifdef VK_KHR_swapchain
-        VkResult vkQueuePresentKHR( const VkPresentInfoKHR* pPresentInfo ) override;
-#endif
-
-        void Exec_CommandBuffer( CommandBuffer& commandBuffer );
-        void Exec_Draw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
-        void Exec_Dispatch( uint32_t x, uint32_t y, uint32_t z );
-        void Exec_WriteTimestamp( QueryPool& queryPool, uint32_t query );
-        void Exec_CopyBuffer( Buffer& srcBuffer, Buffer& dstBuffer, const VkBufferCopy& region );
-        void Exec_CopyQueryPoolResults( QueryPool& queryPool, uint32_t firstQuery, uint32_t queryCount, Buffer& dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags );
+        ~Swapchain()
+        {
+            delete m_Image;
+        }
     };
 }
+
+struct VkSwapchainKHR_T : Profiler::ICD::Swapchain
+{
+    using Swapchain::Swapchain;
+};

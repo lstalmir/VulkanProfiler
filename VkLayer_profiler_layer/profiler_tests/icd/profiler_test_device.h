@@ -47,13 +47,21 @@ namespace Profiler::ICD
 
         VkResult vkAllocateMemory( const VkMemoryAllocateInfo* pAllocateInfo, const VkAllocationCallbacks* pAllocator, VkDeviceMemory* pMemory ) override;
         void vkFreeMemory( VkDeviceMemory memory, const VkAllocationCallbacks* pAllocator ) override;
+        VkResult vkMapMemory( VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void** ppData ) override;
 
         VkResult vkCreateBuffer( const VkBufferCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkBuffer* pBuffer ) override;
         void vkDestroyBuffer( VkBuffer buffer, const VkAllocationCallbacks* pAllocator ) override;
         void vkGetBufferMemoryRequirements( VkBuffer buffer, VkMemoryRequirements* pMemoryRequirements ) override;
         VkResult vkBindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize memoryOffset ) override;
 
+        VkResult vkCreateImage( const VkImageCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkImage* pImage ) override;
+        void vkDestroyImage( VkImage image, const VkAllocationCallbacks* pAllocator ) override;
+        void vkGetImageMemoryRequirements( VkImage image, VkMemoryRequirements* pMemoryRequirements ) override;
+        VkResult vkBindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset ) override;
+
 #ifdef VK_KHR_swapchain
+        VkResult vkCreateSwapchainKHR( const VkSwapchainCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSwapchainKHR* pSwapchain ) override;
+        void vkDestroySwapchainKHR( VkSwapchainKHR swapchain, const VkAllocationCallbacks* pAllocator ) override;
         VkResult vkAcquireNextImageKHR( VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex ) override;
 #endif
     };

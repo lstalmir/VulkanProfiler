@@ -32,6 +32,7 @@ namespace Profiler::ICD
             eDraw,
             eDispatch,
             eWriteTimestamp,
+            eCopyBuffer,
             eCopyQueryPoolResults
         };
 
@@ -56,6 +57,13 @@ namespace Profiler::ICD
             uint32_t m_Index;
         };
 
+        struct CopyBuffer
+        {
+            VkBuffer m_SrcBuffer;
+            VkBuffer m_DstBuffer;
+            VkBufferCopy m_Copy;
+        };
+
         struct CopyQueryPoolResults
         {
             VkQueryPool m_QueryPool;
@@ -73,6 +81,7 @@ namespace Profiler::ICD
             Draw m_Draw;
             Dispatch m_Dispatch;
             WriteTimestamp m_WriteTimestamp;
+            CopyBuffer m_CopyBuffer;
             CopyQueryPoolResults m_CopyQueryPoolResults;
         };
     };
@@ -90,6 +99,7 @@ namespace Profiler::ICD
         void vkCmdDraw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance ) override;
         void vkCmdDispatch( uint32_t x, uint32_t y, uint32_t z ) override;
         void vkCmdWriteTimestamp( VkPipelineStageFlagBits pipelineStage, VkQueryPool queryPool, uint32_t query ) override;
+        void vkCmdCopyBuffer( VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t regionCount, const VkBufferCopy* pRegions ) override;
         void vkCmdCopyQueryPoolResults( VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags ) override;
     };
 }

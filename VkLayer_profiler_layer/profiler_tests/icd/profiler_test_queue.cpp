@@ -97,6 +97,13 @@ namespace Profiler::ICD
                     command.m_WriteTimestamp.m_Index );
                 break;
 
+            case Command::eCopyBuffer:
+                Exec_CopyBuffer(
+                    *command.m_CopyBuffer.m_SrcBuffer,
+                    *command.m_CopyBuffer.m_DstBuffer,
+                    command.m_CopyBuffer.m_Copy );
+                break;
+
             case Command::eCopyQueryPoolResults:
                 Exec_CopyQueryPoolResults(
                     *command.m_CopyQueryPoolResults.m_QueryPool,
@@ -129,6 +136,14 @@ namespace Profiler::ICD
             std::chrono::steady_clock::now().time_since_epoch() );
 
         queryPool.m_Timestamps.at( query ) = nanosecondsSinceEpoch.count();
+    }
+
+    void Queue::Exec_CopyBuffer( Buffer& srcBuffer, Buffer& dstBuffer, const VkBufferCopy& region )
+    {
+        memcpy(
+            dstBuffer.m_pData + region.dstOffset,
+            srcBuffer.m_pData + region.srcOffset,
+            region.size );
     }
 
     void Queue::Exec_CopyQueryPoolResults( QueryPool& queryPool, uint32_t firstQuery, uint32_t queryCount, Buffer& dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags )

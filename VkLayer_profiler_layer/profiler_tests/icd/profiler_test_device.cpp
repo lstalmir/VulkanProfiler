@@ -25,6 +25,8 @@
 #include "profiler_test_query_pool.h"
 #include "profiler_test_queue.h"
 #include "profiler_test_command_buffer.h"
+#include "profiler_test_swapchain.h"
+#include "profiler_test_image.h"
 #include "profiler_test_icd_helpers.h"
 
 namespace Profiler::ICD
@@ -106,6 +108,12 @@ namespace Profiler::ICD
         delete memory;
     }
 
+    VkResult Device::vkMapMemory( VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void** ppData )
+    {
+        *ppData = memory->m_Allocation.data() + offset;
+        return VK_SUCCESS;
+    }
+
     VkResult Device::vkCreateBuffer( const VkBufferCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkBuffer* pBuffer )
     {
         return vk_new_nondispatchable<VkBuffer_T>( pBuffer, *pCreateInfo );
@@ -129,7 +137,40 @@ namespace Profiler::ICD
         return VK_SUCCESS;
     }
 
+    VkResult Device::vkCreateImage( const VkImageCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkImage* pImage )
+    {
+        return vk_new_nondispatchable<VkImage_T>( pImage, *pCreateInfo );
+    }
+
+    void Device::vkDestroyImage( VkImage image, const VkAllocationCallbacks* pAllocator )
+    {
+        delete image;
+    }
+
+    void Device::vkGetImageMemoryRequirements( VkImage image, VkMemoryRequirements* pMemoryRequirements )
+    {
+        pMemoryRequirements->size = image->m_Extent.width * image->m_Extent.height * image->m_Extent.depth * 4;
+        pMemoryRequirements->alignment = 1;
+        pMemoryRequirements->memoryTypeBits = 0;
+    }
+
+    VkResult Device::vkBindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset )
+    {
+        image->m_pData = memory->m_Allocation.data() + memoryOffset;
+        return VK_SUCCESS;
+    }
+
 #ifdef VK_KHR_swapchain
+    VkResult Device::vkCreateSwapchainKHR( const VkSwapchainCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSwapchainKHR* pSwapchain )
+    {
+        return vk_new_nondispatchable<VkSwapchainKHR_T>( pSwapchain, *pCreateInfo );
+    }
+
+    void Device::vkDestroySwapchainKHR( VkSwapchainKHR swapchain, const VkAllocationCallbacks* pAllocator )
+    {
+        delete swapchain;
+    }
+
     VkResult Device::vkAcquireNextImageKHR( VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex )
     {
         *pImageIndex = 0;

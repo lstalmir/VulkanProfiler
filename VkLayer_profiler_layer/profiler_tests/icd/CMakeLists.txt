@@ -67,13 +67,16 @@ add_custom_target (profiler_test_icd_codegen
 add_library (profiler_test_icd SHARED
     "${CMAKE_CURRENT_BINARY_DIR}/profiler_test_icd.rc"
     profiler_test_icd.def
+    profiler_test_buffer.h
     profiler_test_command_buffer.h
     profiler_test_command_buffer.cpp
     profiler_test_device.h
     profiler_test_device.cpp
+    profiler_test_device_memory.h
     profiler_test_icd.h
     profiler_test_icd.cpp
     profiler_test_icd_helpers.h
+    profiler_test_image.h
     profiler_test_instance.h
     profiler_test_instance.cpp
     profiler_test_physical_device.h
@@ -81,7 +84,8 @@ add_library (profiler_test_icd SHARED
     profiler_test_query_pool.h
     profiler_test_queue.h
     profiler_test_queue.cpp
-    profiler_test_surface.h)
+    profiler_test_surface.h
+    profiler_test_swapchain.h)
 
 add_dependencies (profiler_test_icd profiler_test_icd_codegen)
 
