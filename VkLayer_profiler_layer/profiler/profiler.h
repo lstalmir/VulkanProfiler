@@ -140,7 +140,7 @@ namespace Profiler
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
-        uint32_t                m_CurrentFrame;
+        uint32_t                m_NextFrameIndex;
         uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;

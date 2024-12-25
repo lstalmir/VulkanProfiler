@@ -39,9 +39,7 @@ namespace Profiler
         VkRect2D            RenderArea;
 
     public:
-        inline VulkanSimpleTriangle( VulkanState* Vk,
-            const VkLayerInstanceDispatchTable& IDT,
-            const VkLayerDeviceDispatchTable& DT )
+        inline VulkanSimpleTriangle( VulkanState* Vk )
             : RenderPass( VK_NULL_HANDLE )
             , Framebuffer( VK_NULL_HANDLE )
             , FramebufferImage( VK_NULL_HANDLE )
@@ -77,7 +75,7 @@ namespace Profiler
                 createInfo.subpassCount = 1;
                 createInfo.pSubpasses = &subpassDescription;
 
-                VERIFY_RESULT( Vk, DT.CreateRenderPass( Vk->Device, &createInfo, nullptr, &RenderPass ) );
+                VERIFY_RESULT( Vk, vkCreateRenderPass( Vk->Device, &createInfo, nullptr, &RenderPass ) );
             }
             { // Create image
                 VkImageCreateInfo createInfo = {};
@@ -95,17 +93,17 @@ namespace Profiler
                 createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
                 createInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-                VERIFY_RESULT( Vk, DT.CreateImage( Vk->Device, &createInfo, nullptr, &FramebufferImage ) );
+                VERIFY_RESULT( Vk, vkCreateImage( Vk->Device, &createInfo, nullptr, &FramebufferImage ) );
             }
             { // Allocate image memory
                 VkMemoryRequirements memoryRequirements = {};
-                DT.GetImageMemoryRequirements( Vk->Device, FramebufferImage, &memoryRequirements );
+                vkGetImageMemoryRequirements( Vk->Device, FramebufferImage, &memoryRequirements );
 
                 // Get memory type index
                 uint32_t memoryTypeIndex = -1;
                 {
                     VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties = {};
-                    IDT.GetPhysicalDeviceMemoryProperties( Vk->PhysicalDevice, &physicalDeviceMemoryProperties );
+                    vkGetPhysicalDeviceMemoryProperties( Vk->PhysicalDevice, &physicalDeviceMemoryProperties );
 
                     for( uint32_t i = 0; i < physicalDeviceMemoryProperties.memoryTypeCount; ++i )
                     {
@@ -123,10 +121,10 @@ namespace Profiler
                 allocateInfo.allocationSize = memoryRequirements.size;
                 allocateInfo.memoryTypeIndex = memoryTypeIndex;
 
-                VERIFY_RESULT( Vk, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &FramebufferImageMemory ) );
+                VERIFY_RESULT( Vk, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &FramebufferImageMemory ) );
             }
             { // Bind image memory
-                VERIFY_RESULT( Vk, DT.BindImageMemory( Vk->Device, FramebufferImage, FramebufferImageMemory, 0 ) );
+                VERIFY_RESULT( Vk, vkBindImageMemory( Vk->Device, FramebufferImage, FramebufferImageMemory, 0 ) );
             }
             { // Create image view
                 VkImageViewCreateInfo createInfo = {};
@@ -138,7 +136,7 @@ namespace Profiler
                 createInfo.subresourceRange.layerCount = 1;
                 createInfo.subresourceRange.levelCount = 1;
 
-                VERIFY_RESULT( Vk, DT.CreateImageView( Vk->Device, &createInfo, nullptr, &FramebufferImageView ) );
+                VERIFY_RESULT( Vk, vkCreateImageView( Vk->Device, &createInfo, nullptr, &FramebufferImageView ) );
             }
             { // Create framebuffer
                 VkFramebufferCreateInfo createInfo = {};
@@ -150,13 +148,13 @@ namespace Profiler
                 createInfo.height = RenderArea.extent.height;
                 createInfo.layers = 1;
 
-                VERIFY_RESULT( Vk, DT.CreateFramebuffer( Vk->Device, &createInfo, nullptr, &Framebuffer ) );
+                VERIFY_RESULT( Vk, vkCreateFramebuffer( Vk->Device, &createInfo, nullptr, &Framebuffer ) );
             }
             { // Create pipeline layout
                 VkPipelineLayoutCreateInfo createInfo = {};
                 createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-                VERIFY_RESULT( Vk, DT.CreatePipelineLayout( Vk->Device, &createInfo, nullptr, &PipelineLayout ) );
+                VERIFY_RESULT( Vk, vkCreatePipelineLayout( Vk->Device, &createInfo, nullptr, &PipelineLayout ) );
             }
             { // Create graphics pipeline
                 VkShaderModule vertexShaderModule = VK_NULL_HANDLE;
@@ -167,14 +165,14 @@ namespace Profiler
                     moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
                     moduleCreateInfo.codeSize = sizeof( simple_triangle_vert_hlsl );
                     moduleCreateInfo.pCode = simple_triangle_vert_hlsl;
-                    VERIFY_RESULT( Vk, DT.CreateShaderModule( Vk->Device, &moduleCreateInfo, nullptr, &vertexShaderModule ) );
+                    VERIFY_RESULT( Vk, vkCreateShaderModule( Vk->Device, &moduleCreateInfo, nullptr, &vertexShaderModule ) );
                 }
                 { // Create fragment shader module
                     VkShaderModuleCreateInfo moduleCreateInfo = {};
                     moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
                     moduleCreateInfo.codeSize = sizeof( simple_triangle_frag_hlsl );
                     moduleCreateInfo.pCode = simple_triangle_frag_hlsl;
-                    VERIFY_RESULT( Vk, DT.CreateShaderModule( Vk->Device, &moduleCreateInfo, nullptr, &fragmentShaderModule ) );
+                    VERIFY_RESULT( Vk, vkCreateShaderModule( Vk->Device, &moduleCreateInfo, nullptr, &fragmentShaderModule ) );
                 }
 
                 VkPipelineShaderStageCreateInfo shaderStageCreateInfos[ 2 ] = {};
@@ -248,11 +246,11 @@ namespace Profiler
                 createInfo.pDepthStencilState = &depthStencilCreateInfo;
                 createInfo.pColorBlendState = &colorBlendCreateInfo;
 
-                VERIFY_RESULT( Vk, DT.CreateGraphicsPipelines( Vk->Device, VK_NULL_HANDLE, 1, &createInfo, nullptr, &Pipeline ) );
+                VERIFY_RESULT( Vk, vkCreateGraphicsPipelines( Vk->Device, VK_NULL_HANDLE, 1, &createInfo, nullptr, &Pipeline ) );
 
                 // Destroy shader modules
-                DT.DestroyShaderModule( Vk->Device, vertexShaderModule, nullptr );
-                DT.DestroyShaderModule( Vk->Device, fragmentShaderModule, nullptr );
+                vkDestroyShaderModule( Vk->Device, vertexShaderModule, nullptr );
+                vkDestroyShaderModule( Vk->Device, fragmentShaderModule, nullptr );
             }
         }
     };

@@ -176,14 +176,17 @@ namespace Profiler
         m_pCurrentFrameData->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
 
         // Try to start data collection thread.
-        try
+        if( m_pProfiler->m_Config.m_EnableThreading )
         {
-            m_DataCollectionThreadRunning = true;
-            m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
-        }
-        catch( ... )
-        {
-            m_DataCollectionThreadRunning = false;
+            try
+            {
+                m_DataCollectionThreadRunning = true;
+                m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
+            }
+            catch( ... )
+            {
+                m_DataCollectionThreadRunning = false;
+            }
         }
 
         // Cleanup if initialization failed.

@@ -22,18 +22,12 @@ cmake_minimum_required (VERSION 3.8...3.31)
 
 project (profiler_ext)
 
-set (headers
-    "VkProfilerEXT.h"
-    )
-
-set (sources
-    "VkProfilerEXT.cpp"
-    )
-
 # Link intermediate static library
 add_library (profiler_ext
-    ${sources}
-    ${headers})
+    VkProfilerEXT.h
+    VkProfilerEXT.cpp
+    VkProfilerTestingEXT.h
+    VkProfilerTestingEXT.cpp)
 
 target_link_libraries (profiler_ext
     PRIVATE profiler)
@@ -44,8 +38,5 @@ target_include_directories (profiler_ext
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../profiler_layer_functions/extensions")
 
 # Install headers
-install (TARGETS profiler_ext
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-
-install (FILES ${headers}
+install (FILES VkProfilerEXT.h
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")

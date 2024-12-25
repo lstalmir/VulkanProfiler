@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,8 @@
 
 // Profiler extension
 #include "profiler_ext/VkProfilerEXT.h"
+#include "profiler_ext/VkProfilerTestingEXT.h"
+#include "profiler/profiler.h"
 
 // Linux: Undefine names conflicting in gtest
 #undef None
@@ -54,10 +56,6 @@ namespace Profiler
     {
     protected:
         VulkanState* Vk = {};
-
-        VkLayerDeviceDispatchTable DT = {};
-        VkLayerInstanceDispatchTable IDT = {};
-
         DeviceProfiler* Prof = {};
 
         // Executed before each test
@@ -71,11 +69,17 @@ namespace Profiler
             try
             {
                 Vk = new VulkanState( createInfo );
-                DT = Vk->GetLayerDispatchTable();
-                IDT = Vk->GetLayerInstanceDispatchTable();
 
-                auto& dd = VkDevice_Functions::DeviceDispatch.Get( Vk->Device );
-                Prof = &dd.Profiler;
+                // Get layer objects
+                {
+                    auto vkGetDeviceProfilerEXT = (PFN_vkGetDeviceProfilerEXT)vkGetDeviceProcAddr( Vk->Device, "vkGetDeviceProfilerEXT" );
+                    if( !vkGetDeviceProfilerEXT )
+                    {
+                        throw VulkanError( VK_ERROR_EXTENSION_NOT_PRESENT, "vkGetDeviceProfilerEXT" );
+                    }
+
+                    vkGetDeviceProfilerEXT( Vk->Device, &Prof );
+                }
             }
             catch( const VulkanError& error )
             {

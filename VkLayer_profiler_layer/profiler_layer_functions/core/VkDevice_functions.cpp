@@ -24,7 +24,11 @@
 #include "VkLayer_profiler_layer.generated.h"
 #include "profiler_layer_functions/Helpers.h"
 
+#undef VK_NO_PROTOTYPES
 #include "profiler_ext/VkProfilerEXT.h"
+#ifndef PROFILER_CONFIG_RELEASE
+#include "profiler_ext/VkProfilerTestingEXT.h"
+#endif
 
 namespace Profiler
 {
@@ -201,6 +205,11 @@ namespace Profiler
         GETPROCADDR_EXT( vkEnumerateProfilerPerformanceCounterPropertiesEXT );
         GETPROCADDR_EXT( vkSetProfilerPerformanceMetricsSetEXT );
         GETPROCADDR_EXT( vkGetProfilerActivePerformanceMetricsSetIndexEXT );
+#ifndef PROFILER_CONFIG_RELEASE
+        // VK_EXT_profiler_testing functions
+        GETPROCADDR_EXT( vkGetDeviceProfilerEXT );
+        GETPROCADDR_EXT( vkGetDeviceProfilerOverlayEXT );
+#endif
 
         if( device )
         {

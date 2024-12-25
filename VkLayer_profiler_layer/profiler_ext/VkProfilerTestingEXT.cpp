@@ -1,15 +1,15 @@
-// Copyright (c) 2022 Lukasz Stalmirski
-// 
+// Copyright (c) 2024 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -18,23 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "profiler_config.h"
-#include "profiler_helpers.h"
+#include "VkProfilerTestingEXT.h"
+#include "profiler_layer_functions/core/VkDevice_functions_base.h"
 
-namespace Profiler
+VKAPI_ATTR void VKAPI_CALL vkGetDeviceProfilerEXT(
+    VkDevice device,
+    Profiler::DeviceProfiler** ppProfiler )
 {
-    DeviceProfilerConfig::DeviceProfilerConfig( const ProfilerLayerSettings& settings )
-        : ProfilerLayerSettings( settings )
-    {}
+    auto& dd = Profiler::VkDevice_Functions_Base::DeviceDispatch.Get( device );
+    *ppProfiler = &dd.Profiler;
+}
 
-    void DeviceProfilerConfig::LoadFromCreateInfo( const VkProfilerCreateInfoEXT* pCreateInfo )
-    {
-        m_EnableOverlay = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) == 0;
-        m_EnablePerformanceQueryExt = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) == 0;
-        m_EnableRenderPassBeginEndProfiling = (pCreateInfo->flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0;
-        m_SetStablePowerState = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_STABLE_POWER_STATE) == 0;
-        m_EnableThreading = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_THREADING_EXT) == 0;
-        m_SamplingMode = pCreateInfo->samplingMode;
-        m_SyncMode = pCreateInfo->syncMode;
-    }
+VKAPI_ATTR void VKAPI_CALL vkGetDeviceProfilerOverlayEXT(
+    VkDevice device,
+    Profiler::ProfilerOverlayOutput** ppOverlay )
+{
+    auto& dd = Profiler::VkDevice_Functions_Base::DeviceDispatch.Get( device );
+    *ppOverlay = &dd.Overlay;
 }

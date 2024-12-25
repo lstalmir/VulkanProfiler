@@ -151,7 +151,7 @@ namespace Profiler
         , m_pData( nullptr )
         , m_MemoryManager()
         , m_DataAggregator()
-        , m_CurrentFrame( 0 )
+        , m_NextFrameIndex( 0 )
         , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
@@ -262,7 +262,7 @@ namespace Profiler
     VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice, const VkProfilerCreateInfoEXT* pCreateInfo )
     {
         m_pDevice = pDevice;
-        m_CurrentFrame = 0;
+        m_NextFrameIndex = 0;
 
         // Configure the profiler.
         DeviceProfiler::LoadConfiguration( pDevice->pInstance->LayerSettings, pCreateInfo, &m_Config );
@@ -509,7 +509,7 @@ namespace Profiler
             ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
         }
 
-        m_CurrentFrame = 0;
+        m_NextFrameIndex = 0;
         m_pDevice = nullptr;
     }
 
@@ -1251,9 +1251,9 @@ namespace Profiler
         std::scoped_lock lk( m_PresentMutex );
 
         // Update FPS counter
-        const bool updatePerfCounters = m_CpuFpsCounter.Update();
+        m_CpuFpsCounter.Update();
 
-        m_CurrentFrame++;
+        BeginNextFrame();
 
         if( !m_DataAggregator.IsDataCollectionThreadRunning() )
         {
@@ -1277,8 +1277,6 @@ namespace Profiler
             m_pDevice->TIP.EndFunction( tip );
             m_pData->m_TIP = m_pDevice->TIP.GetData();
         }
-
-        BeginNextFrame();
     }
 
     /***********************************************************************************\
@@ -1296,7 +1294,7 @@ namespace Profiler
 
         // Prepare aggregator for the next frame.
         DeviceProfilerFrame frame = {};
-        frame.m_FrameIndex = m_CurrentFrame;
+        frame.m_FrameIndex = m_NextFrameIndex++;
         frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
         frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
         frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
