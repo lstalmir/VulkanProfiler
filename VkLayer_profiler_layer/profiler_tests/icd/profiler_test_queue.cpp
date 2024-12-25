@@ -91,6 +91,11 @@ namespace Profiler::ICD
                     command.m_Dispatch.m_GroupCountZ );
                 break;
 
+            case Command::eExecuteCommands:
+                Exec_CommandBuffer( *static_cast<CommandBuffer*>(
+                    command.m_ExecuteCommands.m_CommandBuffer->m_pImpl ) );
+                break;
+
             case Command::eWriteTimestamp:
                 Exec_WriteTimestamp(
                     *command.m_WriteTimestamp.m_QueryPool,

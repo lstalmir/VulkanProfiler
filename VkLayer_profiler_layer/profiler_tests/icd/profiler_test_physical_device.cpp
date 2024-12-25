@@ -38,6 +38,9 @@ namespace Profiler::ICD
 #ifdef VK_KHR_swapchain
             { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_SWAPCHAIN_SPEC_VERSION },
 #endif
+#ifdef VK_EXT_nested_command_buffer
+            { VK_EXT_NESTED_COMMAND_BUFFER_EXTENSION_NAME, VK_EXT_NESTED_COMMAND_BUFFER_SPEC_VERSION },
+#endif
         };
 
         const uint32_t propertyCount = std::size( properties );
@@ -89,6 +92,47 @@ namespace Profiler::ICD
     void PhysicalDevice::vkGetPhysicalDeviceProperties2( VkPhysicalDeviceProperties2* pProperties )
     {
         vkGetPhysicalDeviceProperties( &pProperties->properties );
+
+        VkBaseOutStructure* pStruct = (VkBaseOutStructure*)( pProperties->pNext );
+        while( pStruct )
+        {
+#ifdef VK_EXT_nested_command_buffer
+            if( pStruct->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NESTED_COMMAND_BUFFER_PROPERTIES_EXT )
+            {
+                VkPhysicalDeviceNestedCommandBufferPropertiesEXT* pNestedCommandBufferProperties = (VkPhysicalDeviceNestedCommandBufferPropertiesEXT*)pStruct;
+                pNestedCommandBufferProperties->maxCommandBufferNestingLevel = 4;
+            }
+#endif
+
+            pStruct = pStruct->pNext;
+        }
+    }
+
+    void PhysicalDevice::vkGetPhysicalDeviceFeatures( VkPhysicalDeviceFeatures* pFeatures )
+    {
+        PROFILER_TEST_ICD_LOG_FUNCTION_CALL();
+        memset( pFeatures, 0, sizeof( VkPhysicalDeviceFeatures ) );
+    }
+
+    void PhysicalDevice::vkGetPhysicalDeviceFeatures2( VkPhysicalDeviceFeatures2* pFeatures )
+    {
+        vkGetPhysicalDeviceFeatures( &pFeatures->features );
+
+        VkBaseOutStructure* pStruct = (VkBaseOutStructure*)( pFeatures->pNext );
+        while( pStruct )
+        {
+#ifdef VK_EXT_nested_command_buffer
+            if( pStruct->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NESTED_COMMAND_BUFFER_FEATURES_EXT )
+            {
+                VkPhysicalDeviceNestedCommandBufferFeaturesEXT* pNestedCommandBufferFeatures = (VkPhysicalDeviceNestedCommandBufferFeaturesEXT*)pStruct;
+                pNestedCommandBufferFeatures->nestedCommandBuffer = VK_TRUE;
+                pNestedCommandBufferFeatures->nestedCommandBufferRendering = VK_TRUE;
+                pNestedCommandBufferFeatures->nestedCommandBufferSimultaneousUse = VK_TRUE;
+            }
+#endif
+
+            pStruct = pStruct->pNext;
+        }
     }
 
     void PhysicalDevice::vkGetPhysicalDeviceMemoryProperties( VkPhysicalDeviceMemoryProperties* pMemoryProperties )

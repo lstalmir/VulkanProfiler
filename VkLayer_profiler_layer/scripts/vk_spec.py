@@ -35,6 +35,12 @@ class VulkanSpec:
         except: # Function alias
             return cmd.get( "name" )
 
+    def get_command_result( self, cmd: etree.Element ):
+        try: # Function definition
+            return cmd.find( "proto/type" ).text
+        except: # Function alias
+            return self.commands.find( "command/proto[name=\"" + cmd.get( "alias" ) + "\"]/../proto/type" ).text
+
     def get_command_handle( self, cmd: etree.Element ):
         handle = None
         try: # Function definition
@@ -78,8 +84,11 @@ class VulkanCommandParam:
 
 class VulkanCommand:
     def __init__( self, spec: VulkanSpec, cmd: etree.Element ):
-        self.name = cmd.find( 'proto/name' ).text
-        self.result = cmd.find( 'proto/type' ).text
+        self.name = spec.get_command_name( cmd )
+        self.alias = cmd.get( 'alias' )
+        if self.alias is not None:
+            cmd = spec.commands.find( "command/proto[name=\"" + self.alias + "\"]/.." )
+        self.result = spec.get_command_result( cmd )
         self.params = [VulkanCommandParam( spec, param ) for param in cmd.findall( 'param' )]
         self.handle = spec.get_command_handle( cmd )
         self.extension = spec.get_command_extension( cmd )

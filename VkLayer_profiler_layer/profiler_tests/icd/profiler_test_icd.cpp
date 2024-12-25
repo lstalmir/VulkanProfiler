@@ -82,6 +82,9 @@ VkResult vkEnumerateInstanceExtensionProperties(
 #ifdef VK_KHR_win32_surface
         { VK_KHR_WIN32_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_SPEC_VERSION },
 #endif
+#ifdef VK_KHR_get_physical_device_properties2
+        { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION },
+#endif
     };
 
     const uint32_t propertyCount = std::size( properties );

@@ -20,17 +20,25 @@
 
 #pragma once
 #include "profiler_test_icd_base.h"
-#include <vector>
 
 namespace Profiler::ICD
 {
     struct DeviceMemory
     {
-        std::vector<uint8_t> m_Allocation;
+        uint8_t* m_pAllocation;
 
         explicit DeviceMemory( VkDeviceSize size )
-            : m_Allocation( size )
+            : m_pAllocation( (uint8_t*)malloc( size ) )
         {
+            if( !m_pAllocation )
+            {
+                throw VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            }
+        }
+
+        ~DeviceMemory()
+        {
+            free( m_pAllocation );
         }
     };
 }

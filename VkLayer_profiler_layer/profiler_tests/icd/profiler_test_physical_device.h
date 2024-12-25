@@ -32,6 +32,8 @@ namespace Profiler::ICD
 
         void vkGetPhysicalDeviceProperties( VkPhysicalDeviceProperties* pProperties ) override;
         void vkGetPhysicalDeviceProperties2( VkPhysicalDeviceProperties2* pProperties ) override;
+        void vkGetPhysicalDeviceFeatures( VkPhysicalDeviceFeatures* pFeatures ) override;
+        void vkGetPhysicalDeviceFeatures2( VkPhysicalDeviceFeatures2* pFeatures ) override;
         void vkGetPhysicalDeviceMemoryProperties( VkPhysicalDeviceMemoryProperties* pMemoryProperties ) override;
         void vkGetPhysicalDeviceQueueFamilyProperties( uint32_t* pQueueFamilyPropertyCount, VkQueueFamilyProperties* pQueueFamilyProperties ) override;
 

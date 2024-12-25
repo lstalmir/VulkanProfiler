@@ -51,13 +51,13 @@ if (BUILD_TESTS)
         )
 
     add_dependencies (profiler_tests profiler_tests_shaders)
+    add_dependencies (profiler_tests profiler_test_icd)
+    add_dependencies (profiler_tests VkLayer_profiler_layer)
 
     target_link_libraries (profiler_tests
         PRIVATE ${Vulkan_LIBRARIES}
         PRIVATE gtest_main
         PRIVATE profiler
-        PRIVATE VkLayer_profiler_layer_lib
-        PRIVATE vk_test_icd
         )
         
     target_include_directories (profiler_tests

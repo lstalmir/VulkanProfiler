@@ -110,7 +110,7 @@ namespace Profiler::ICD
 
     VkResult Device::vkMapMemory( VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void** ppData )
     {
-        *ppData = memory->m_Allocation.data() + offset;
+        *ppData = memory->m_pAllocation + offset;
         return VK_SUCCESS;
     }
 
@@ -128,12 +128,27 @@ namespace Profiler::ICD
     {
         pMemoryRequirements->size = buffer->m_Size;
         pMemoryRequirements->alignment = 1;
-        pMemoryRequirements->memoryTypeBits = 0;
+        pMemoryRequirements->memoryTypeBits = 1;
     }
 
     VkResult Device::vkBindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize memoryOffset )
     {
-        buffer->m_pData = memory->m_Allocation.data() + memoryOffset;
+        buffer->m_pData = memory->m_pAllocation + memoryOffset;
+        return VK_SUCCESS;
+    }
+
+    void Device::vkGetBufferMemoryRequirements2( const VkBufferMemoryRequirementsInfo2* pInfo, VkMemoryRequirements2* pMemoryRequirements )
+    {
+        vkGetBufferMemoryRequirements( pInfo->buffer, &pMemoryRequirements->memoryRequirements );
+    }
+
+    VkResult Device::vkBindBufferMemory2( uint32_t bindInfoCount, const VkBindBufferMemoryInfo* pBindInfos )
+    {
+        for( uint32_t i = 0; i < bindInfoCount; ++i )
+        {
+            vkBindBufferMemory( pBindInfos[ i ].buffer, pBindInfos[ i ].memory, pBindInfos[ i ].memoryOffset );
+        }
+
         return VK_SUCCESS;
     }
 
@@ -151,12 +166,27 @@ namespace Profiler::ICD
     {
         pMemoryRequirements->size = image->m_Extent.width * image->m_Extent.height * image->m_Extent.depth * 4;
         pMemoryRequirements->alignment = 1;
-        pMemoryRequirements->memoryTypeBits = 0;
+        pMemoryRequirements->memoryTypeBits = 1;
     }
 
     VkResult Device::vkBindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset )
     {
-        image->m_pData = memory->m_Allocation.data() + memoryOffset;
+        image->m_pData = memory->m_pAllocation + memoryOffset;
+        return VK_SUCCESS;
+    }
+
+    void Device::vkGetImageMemoryRequirements2( const VkImageMemoryRequirementsInfo2* pInfo, VkMemoryRequirements2* pMemoryRequirements )
+    {
+        vkGetImageMemoryRequirements( pInfo->image, &pMemoryRequirements->memoryRequirements );
+    }
+
+    VkResult Device::vkBindImageMemory2( uint32_t bindInfoCount, const VkBindImageMemoryInfo* pBindInfos )
+    {
+        for( uint32_t i = 0; i < bindInfoCount; ++i )
+        {
+            vkBindImageMemory( pBindInfos[ i ].image, pBindInfos[ i ].memory, pBindInfos[ i ].memoryOffset );
+        }
+
         return VK_SUCCESS;
     }
 

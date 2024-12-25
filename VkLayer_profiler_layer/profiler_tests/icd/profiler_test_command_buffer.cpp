@@ -61,6 +61,16 @@ namespace Profiler::ICD
         command.m_Dispatch.m_GroupCountZ = z;
     }
 
+    void CommandBuffer::vkCmdExecuteCommands( uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers )
+    {
+        for( uint32_t i = 0; i < commandBufferCount; ++i )
+        {
+            Command& command = m_Commands.emplace_back();
+            command.m_Type = Command::eExecuteCommands;
+            command.m_ExecuteCommands.m_CommandBuffer = pCommandBuffers[ i ];
+        }
+    }
+
     void CommandBuffer::vkCmdWriteTimestamp( VkPipelineStageFlagBits pipelineStage, VkQueryPool queryPool, uint32_t query )
     {
         Command& command = m_Commands.emplace_back();

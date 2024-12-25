@@ -74,7 +74,11 @@ class ICDGenerator:
                         out.write( ')' )
                         if handle is not None:
                             out.write( '\n  {' )
-                            if cmd.result != 'void':
+                            if cmd.alias is not None:
+                                out.write( f' return {cmd.alias}(' )
+                                out.write( ', '.join( [param.name for param in cmd.params[1:] if not param.vulkansc] ) )
+                                out.write( ');' )
+                            elif cmd.result != 'void':
                                 out.write( ' return {};' )
                             out.write( ' }\n\n' )
                         else:
