@@ -21,6 +21,7 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <string>
 #include <string_view>
 
 #define VERIFY_RESULT( VK, EXPR ) VK->VerifyResult( (EXPR), #EXPR )

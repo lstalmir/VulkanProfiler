@@ -1,8 +1,0 @@
-{
-    "file_format_version": "1.0.0",
-    "ICD": {
-        "library_path": "@THIS_DIR@$<TARGET_FILE_NAME:profiler_test_icd>",
-        "api_version": "@PROFILER_TEST_ICD_API_VERSION@",
-        "library_arch": "@PROFILER_TEST_ICD_ARCH@"
-    }
-}

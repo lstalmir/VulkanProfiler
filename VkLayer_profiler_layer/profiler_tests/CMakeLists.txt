@@ -34,7 +34,12 @@ if (NOT Vulkan_FOUND OR NOT glslangvalidator)
 endif ()
 
 if (BUILD_TESTS)
-    add_subdirectory (icd)
+    set (CMAKE_FOLDER "External")
+        # lstalmir/VulkanMock
+        set (BUILD_TESTS OFF)
+        add_subdirectory ("${CMAKE_SOURCE_DIR}/External/VulkanMock" "${CMAKE_BINARY_DIR}/External/VulkanMock")
+    set (CMAKE_FOLDER "")
+
     add_subdirectory (shaders)
 
     set (tests
@@ -51,8 +56,8 @@ if (BUILD_TESTS)
         )
 
     add_dependencies (profiler_tests profiler_tests_shaders)
-    add_dependencies (profiler_tests profiler_test_icd)
     add_dependencies (profiler_tests VkLayer_profiler_layer)
+    add_dependencies (profiler_tests vk_mock_icd)
 
     target_link_libraries (profiler_tests
         PRIVATE ${Vulkan_LIBRARIES}
@@ -63,4 +68,6 @@ if (BUILD_TESTS)
     target_include_directories (profiler_tests
         PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
         )
+
+    install (TARGETS profiler_tests)
 endif (BUILD_TESTS)
