@@ -22,7 +22,6 @@ import sys
 import os
 import io
 import xml.etree.ElementTree as etree
-from vk_spec import VulkanSpec
 
 # Read configuration variables
 VULKAN_HEADERS_DIR = os.path.abspath( sys.argv[ 1 ] )
