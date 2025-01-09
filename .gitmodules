@@ -43,6 +43,3 @@
 [submodule "External/stb"]
 	path = External/stb
 	url = https://github.com/nothings/stb
-[submodule "External/VulkanMock"]
-	path = External/VulkanMock
-	url = https://github.com/lstalmir/VulkanMock

@@ -26,8 +26,8 @@ project (profiler_ext)
 add_library (profiler_ext
     VkProfilerEXT.h
     VkProfilerEXT.cpp
-    VkProfilerTestingEXT.h
-    VkProfilerTestingEXT.cpp)
+    VkProfilerObjectEXT.h
+    VkProfilerObjectEXT.cpp)
 
 target_link_libraries (profiler_ext
     PRIVATE profiler)

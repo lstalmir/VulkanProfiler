@@ -28,7 +28,7 @@
 
 // Profiler extension
 #include "profiler_ext/VkProfilerEXT.h"
-#include "profiler_ext/VkProfilerTestingEXT.h"
+#include "profiler_ext/VkProfilerObjectEXT.h"
 #include "profiler/profiler.h"
 
 // Linux: Undefine names conflicting in gtest
@@ -72,13 +72,16 @@ namespace Profiler
 
                 // Get layer objects
                 {
-                    auto vkGetDeviceProfilerEXT = (PFN_vkGetDeviceProfilerEXT)vkGetDeviceProcAddr( Vk->Device, "vkGetDeviceProfilerEXT" );
-                    if( !vkGetDeviceProfilerEXT )
+                    auto vkGetProfilerEXT = (PFN_vkGetProfilerEXT)vkGetDeviceProcAddr( Vk->Device, "vkGetProfilerEXT" );
+                    if( !vkGetProfilerEXT )
                     {
-                        throw VulkanError( VK_ERROR_EXTENSION_NOT_PRESENT, "vkGetDeviceProfilerEXT" );
+                        throw VulkanError( VK_ERROR_EXTENSION_NOT_PRESENT, "vkGetProfilerEXT" );
                     }
 
-                    vkGetDeviceProfilerEXT( Vk->Device, &Prof );
+                    VkProfilerEXT profiler = VK_NULL_HANDLE;
+                    vkGetProfilerEXT( Vk->Device, &profiler );
+
+                    Prof = (DeviceProfiler*)( profiler );
                 }
             }
             catch( const VulkanError& error )

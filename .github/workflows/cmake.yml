@@ -1,24 +1,4 @@
-# Copyright (c) 2019-2024 Lukasz Stalmirski
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
-name: Build
+name: CMake
 
 on:
   push:
@@ -88,40 +68,33 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
         cache: 'pip'
     - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
-    - name: Setup VulkanSDK
-      if: matrix.build_type == 'Debug'
-      uses: humbletim/setup-vulkan-sdk@v1.2.0
-      with:
-        vulkan-query-version: latest
-        vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang
-        vulkan-use-cache: true
-
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DBUILD_TESTS=${{matrix.build_type == 'Debug'}}
+      # Configure CMake in a 'build' subdirectory.
+      run: cmake -B ${{github.workspace}}/build
 
     - name: Build
-      run: |
-        cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}}
-        cmake --install ${{github.workspace}}/build --config ${{matrix.build_type}} --prefix ${{github.workspace}}/install
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}}
 
     - name: Test
-      if: matrix.build_type == 'Debug'
-      env:
-        VK_ICD_FILENAMES: ${{github.workspace}}/install/bin/vk_mock_icd64.json
-        VK_LAYER_PATH: ${{github.workspace}}/install/bin
-        VK_INSTANCE_LAYERS: VK_LAYER_PROFILER_unified
-        VKPROF_enable_threading: 0
-        VKPROF_set_stable_power_state: 0
-      run: ${{github.workspace}}/install/bin/profiler_tests.exe
+      working-directory: ${{github.workspace}}/build
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: ctest -C ${{matrix.build_type}}
+
+    - name: Install
+      if: matrix.build_type == 'Release'
+      # Install build artifacts to a common directory
+      run: cmake --install ${{github.workspace}}/build --prefix ${{github.workspace}}/install
 
     - name: Publish artifacts
+      if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
         name: ${{runner.os}}-${{matrix.build_type}}-${{runner.arch}}
@@ -146,43 +119,39 @@ jobs:
         fetch-depth: 0
 
     - name: Install Dependencies
-      run: |
-        sudo apt update
-        sudo apt install extra-cmake-modules libx11-dev libxext-dev libxrandr-dev libx11-xcb-dev libxcb-shape0-dev
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: extra-cmake-modules libvulkan-dev libx11-dev libxext-dev libxrandr-dev libx11-xcb-dev libxcb-shape0-dev
+        version: 1.0
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
         cache: 'pip'
     - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
-    - name: Setup VulkanSDK
-      if: matrix.build_type == 'Debug'
-      uses: humbletim/setup-vulkan-sdk@v1.2.0
-      with:
-        vulkan-query-version: latest
-        vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang
-        vulkan-use-cache: true
-
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DBUILD_TESTS=${{matrix.build_type == 'Debug'}}
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
 
     - name: Build
-      run: |
-        cmake --build ${{github.workspace}}/build
-        cmake --install ${{github.workspace}}/build --prefix ${{github.workspace}}/install
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}}
 
     - name: Test
-      if: matrix.build_type == 'Debug'
-      env:
-        VK_ICD_FILENAMES: ${{github.workspace}}/install/lib/vk_mock_icd64.json
-        VK_LAYER_PATH: ${{github.workspace}}/install/lib
-        VK_INSTANCE_LAYERS: VK_LAYER_PROFILER_unified
-        VKPROF_enable_threading: 0
-      run: ${{github.workspace}}/install/bin/profiler_tests
+      working-directory: ${{github.workspace}}/build
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: ctest -C ${{matrix.build_type}}
+
+    - name: Install
+      if: matrix.build_type == 'Release'
+      # Install build artifacts to a common directory
+      run: cmake --install ${{github.workspace}}/build --prefix ${{github.workspace}}/install
 
     - name: Publish artifacts
+      if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
         name: ${{runner.os}}-${{matrix.build_type}}-${{runner.arch}}
