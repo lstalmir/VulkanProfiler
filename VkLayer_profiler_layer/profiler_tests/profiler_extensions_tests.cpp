@@ -102,11 +102,11 @@ namespace Profiler
         // Create vulkan instance with profiler layer enabled externally
         VulkanState Vk( vulkanCreateInfo );
 
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdDebugMarkerBeginEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdDebugMarkerEndEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdDebugMarkerInsertEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkDebugMarkerSetObjectNameEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkDebugMarkerSetObjectTagEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerBeginEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerEndEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerInsertEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkDebugMarkerSetObjectNameEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkDebugMarkerSetObjectTagEXT" ) );
     }
 
     TEST_F( ProfilerExtensionsULT, DebugUtilsEXT )
@@ -118,11 +118,11 @@ namespace Profiler
         // Create vulkan instance with profiler layer enabled externally
         VulkanState Vk( vulkanCreateInfo );
 
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdBeginDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdEndDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdInsertDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkSetDebugUtilsObjectNameEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkSetDebugUtilsObjectTagEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdBeginDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdEndDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdInsertDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkSetDebugUtilsObjectNameEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkSetDebugUtilsObjectTagEXT" ) );
     }
 
     TEST_F( ProfilerExtensionsULT, vkGetProfilerFrameDataEXT )
@@ -178,8 +178,8 @@ namespace Profiler
         }
         { // Draw triangles
             vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
-            vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
-            vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
+            vkCmdDraw( commandBuffer, 3, 1000, 0, 0 );
+            vkCmdDraw( commandBuffer, 3, 1000, 0, 0 );
         }
         { // End render pass
             vkCmdEndRenderPass( commandBuffer );
@@ -207,6 +207,7 @@ namespace Profiler
         ASSERT_NE( nullptr, getProfilerFrameDataEXT );
 
         { // Collect data
+            vkDeviceWaitIdle( Vk.Device );
             ASSERT_EQ( VK_SUCCESS, flushProfilerEXT( Vk.Device ) );
             ASSERT_EQ( VK_SUCCESS, getProfilerFrameDataEXT( Vk.Device, &data ) );
         }
