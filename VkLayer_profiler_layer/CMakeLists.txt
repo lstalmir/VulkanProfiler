@@ -173,6 +173,7 @@ add_subdirectory (profiler_ext)
 add_subdirectory (profiler_helpers)
 add_subdirectory (profiler_overlay)
 add_subdirectory (profiler_trace)
+add_subdirectory (profiler_standalone)
 
 # Enable tests
 if (BUILD_TESTS)
@@ -306,7 +307,8 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC profiler_helpers
     PUBLIC profiler_ext
     PUBLIC profiler_overlay
-    PUBLIC profiler_trace)
+    PUBLIC profiler_trace
+    PUBLIC profiler_standalone_server)
 
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}
     PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
