@@ -63,13 +63,13 @@ namespace Profiler
             allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             allocateInfo.memoryTypeIndex = deviceLocalMemoryTypeIndex;
             allocateInfo.allocationSize = TEST_ALLOCATION_SIZE;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory ) );
         }
 
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = Prof->GetData();
+            const auto data = *Prof->GetData();
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -119,13 +119,13 @@ namespace Profiler
             allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             allocateInfo.memoryTypeIndex = deviceLocalMemoryTypeIndex;
             allocateInfo.allocationSize = TEST_ALLOCATION_SIZE;
-            ASSERT_EQ( VK_ERROR_OUT_OF_DEVICE_MEMORY, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory ) );
+            ASSERT_EQ( VK_ERROR_OUT_OF_DEVICE_MEMORY, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory ) );
         }
 
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = Prof->GetData();
+            const auto data = *Prof->GetData();
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -163,14 +163,14 @@ namespace Profiler
             allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             allocateInfo.memoryTypeIndex = deviceLocalMemoryTypeIndex;
             allocateInfo.allocationSize = TEST_ALLOCATION_SIZE;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 0 ] ) );
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 1 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 0 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 1 ] ) );
         }
 
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = Prof->GetData();
+            const auto data = *Prof->GetData();
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -220,19 +220,19 @@ namespace Profiler
             allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             allocateInfo.memoryTypeIndex = deviceLocalMemoryTypeIndex;
             allocateInfo.allocationSize = TEST_ALLOCATION_SIZE;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 0 ] ) );
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 1 ] ) );
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 2 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 0 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 1 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 2 ] ) );
         }
 
         { // Free memory
-            DT.FreeMemory( Vk->Device, deviceMemory[ 1 ], nullptr );
+            vkFreeMemory( Vk->Device, deviceMemory[ 1 ], nullptr );
         }
 
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = Prof->GetData();
+            const auto data = *Prof->GetData();
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -283,18 +283,18 @@ namespace Profiler
             allocateInfo.memoryTypeIndex = deviceLocalMemoryTypeIndex;
             allocateInfo.allocationSize = TEST_ALLOCATION_SIZE;
             Prof->FinishFrame();
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 0 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 0 ] ) );
             Prof->FinishFrame();
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 1 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 1 ] ) );
             Prof->FinishFrame();
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 2 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[ 2 ] ) );
             Prof->FinishFrame();
         }
 
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = Prof->GetData();
+            const auto data = *Prof->GetData();
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 

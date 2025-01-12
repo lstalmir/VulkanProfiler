@@ -50,15 +50,17 @@ if (BUILD_TESTS)
         )
 
     add_dependencies (profiler_tests profiler_tests_shaders)
+    add_dependencies (profiler_tests VkLayer_profiler_layer)
 
     target_link_libraries (profiler_tests
         PRIVATE ${Vulkan_LIBRARIES}
         PRIVATE gtest_main
         PRIVATE profiler
-        PRIVATE VkLayer_profiler_layer_lib
         )
-        
+
     target_include_directories (profiler_tests
         PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
         )
+
+    install (TARGETS profiler_tests)
 endif (BUILD_TESTS)

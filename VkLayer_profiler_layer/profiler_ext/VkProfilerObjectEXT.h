@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,23 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "profiler_config.h"
-#include "profiler_helpers.h"
+#pragma once
+#include <vulkan/vulkan.h>
 
-namespace Profiler
-{
-    DeviceProfilerConfig::DeviceProfilerConfig( const ProfilerLayerSettings& settings )
-        : ProfilerLayerSettings( settings )
-    {}
+#ifndef VK_EXT_profiler_object
+#define VK_EXT_profiler_object 1
+#define VK_EXT_PROFILER_OBJECT_SPEC_VERSION 1
+#define VK_EXT_PROFILER_OBJECT_EXTENSION_NAME "VK_EXT_profiler_object"
 
-    void DeviceProfilerConfig::LoadFromCreateInfo( const VkProfilerCreateInfoEXT* pCreateInfo )
-    {
-        m_EnableOverlay = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) == 0;
-        m_EnablePerformanceQueryExt = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) == 0;
-        m_EnableRenderPassBeginEndProfiling = (pCreateInfo->flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0;
-        m_SetStablePowerState = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_STABLE_POWER_STATE) == 0;
-        m_EnableThreading = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_THREADING_EXT) == 0;
-        m_SamplingMode = pCreateInfo->samplingMode;
-        m_SyncMode = pCreateInfo->syncMode;
-    }
-}
+VK_DEFINE_NON_DISPATCHABLE_HANDLE( VkProfilerEXT );
+VK_DEFINE_NON_DISPATCHABLE_HANDLE( VkProfilerOverlayEXT );
+
+typedef void( VKAPI_PTR* PFN_vkGetProfilerEXT )(VkDevice, VkProfilerEXT*);
+typedef void( VKAPI_PTR* PFN_vkGetProfilerOverlayEXT )(VkDevice, VkProfilerOverlayEXT*);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerEXT(
+    VkDevice device,
+    VkProfilerEXT* pProfiler );
+
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerOverlayEXT(
+    VkDevice device,
+    VkProfilerOverlayEXT* pOverlay );
+#endif // VK_NO_PROTOTYPES
+#endif // VK_EXT_profiler_object

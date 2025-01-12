@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+// Copyright (c) 2019-2024 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -29,73 +29,31 @@ namespace Profiler
     class ProfilerExtensionsULT : public testing::Test
     {
     protected:
-        std::set<std::string> Variables;
-
-        // Helper functions for environment manipulation
-        inline void SetEnvironmentVariable( const char* pName, const char* pValue )
+        inline void VerifyExtensions( const std::set<std::string>& expected, const std::vector<VkExtensionProperties>& actual )
         {
-            #if defined WIN32
-            SetEnvironmentVariableA( pName, pValue );
-            #elif defined __linux__
-            setenv( pName, pValue, true );
-            #else
-            #error SetEnvironmentVariable not implemented for this OS
-            #endif
+            std::set<std::string> unimplementedExtensions = expected;
+            std::set<std::string> unexpectedExtensions;
 
-            Variables.insert( pName );
-        }
-
-        inline void ResetEnvironmentVariable( const char* pName )
-        {
-            #if defined WIN32
-            SetEnvironmentVariableA( pName, nullptr );
-            #elif defined __linux__
-            unsetenv( pName );
-            #else
-            #error ResetEnvironmentVariable not implemented for this OS
-            #endif
-
-            Variables.erase( pName );
-        }
-
-        inline void SetUp() override
-        {
-            Test::SetUp();
-
-            SkipIfLayerNotPresent();
-            SetEnvironmentVariable( "VK_INSTANCE_LAYERS", VK_LAYER_profiler_name );
-        }
-
-        inline void TearDown() override
-        {
-            std::set<std::string> variables = Variables;
-
-            // Cleanup environment before the next run
-            for( const std::string& variable : variables )
+            for( const VkExtensionProperties& extension : actual )
             {
-                ResetEnvironmentVariable( variable.c_str() );
-            }
-        }
-
-        inline void SkipIfLayerNotPresent()
-        {
-            uint32_t layerCount = 0;
-            vkEnumerateInstanceLayerProperties( &layerCount, nullptr );
-
-            std::vector<VkLayerProperties> layers( layerCount );
-            vkEnumerateInstanceLayerProperties( &layerCount, layers.data() );
-
-            for( const VkLayerProperties& layer : layers )
-            {
-                if( ( strcmp( layer.layerName, VK_LAYER_profiler_name ) == 0 ) &&
-                    ( layer.implementationVersion == VK_LAYER_profiler_impl_ver ) )
-                {
-                    // Profiler layer found.
-                    return;
-                }
+                unimplementedExtensions.erase( extension.extensionName );
+                unexpectedExtensions.insert( extension.extensionName );
             }
 
-            GTEST_SKIP() << VK_LAYER_profiler_name " not found.";
+            for( const std::string& extension : expected )
+            {
+                unexpectedExtensions.erase( extension );
+            }
+
+            for( const std::string& extension : unimplementedExtensions )
+            {
+                ADD_FAILURE() << "Extension " << extension << " not implemented.";
+            }
+
+            for( const std::string& extension : unexpectedExtensions )
+            {
+                ADD_FAILURE() << "Unexpected extension " << extension << ".";
+            }
         }
     };
 
@@ -107,94 +65,77 @@ namespace Profiler
         std::vector<VkExtensionProperties> extensions( extensionCount );
         vkEnumerateInstanceExtensionProperties( VK_LAYER_profiler_name, &extensionCount, extensions.data() );
 
-        std::set<std::string> unimplementedExtensions = {
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+        std::set<std::string> expectedExtensions = {
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+            VK_EXT_LAYER_SETTINGS_EXTENSION_NAME };
 
-        std::set<std::string> unexpectedExtensions;
-
-        for( const VkExtensionProperties& ext : extensions )
-            unexpectedExtensions.insert( ext.extensionName );
-
-        for( const std::string& ext : unimplementedExtensions )
-            unexpectedExtensions.erase( ext );
-
-        for( const VkExtensionProperties& ext : extensions )
-            unimplementedExtensions.erase( ext.extensionName );
-
-        EXPECT_EQ( 1, extensionCount );
-        EXPECT_TRUE( unexpectedExtensions.empty() );
-        EXPECT_TRUE( unimplementedExtensions.empty() );
+        VerifyExtensions( expectedExtensions, extensions );
     }
 
     TEST_F( ProfilerExtensionsULT, EnumerateDeviceExtensionProperties )
     {
         // Create simple vulkan instance
         VulkanState Vk;
-        
+
         uint32_t extensionCount = 0;
         vkEnumerateDeviceExtensionProperties( Vk.PhysicalDevice, VK_LAYER_profiler_name, &extensionCount, nullptr );
 
         std::vector<VkExtensionProperties> extensions( extensionCount );
         vkEnumerateDeviceExtensionProperties( Vk.PhysicalDevice, VK_LAYER_profiler_name, &extensionCount, extensions.data() );
 
-        std::set<std::string> unimplementedExtensions = {
+        std::set<std::string> expectedExtensions = {
             VK_EXT_PROFILER_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME };
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+            VK_EXT_TOOLING_INFO_EXTENSION_NAME };
 
-        std::set<std::string> unexpectedExtensions;
-
-        for( const VkExtensionProperties& ext : extensions )
-            unexpectedExtensions.insert( ext.extensionName );
-
-        for( const std::string& ext : unimplementedExtensions )
-            unexpectedExtensions.erase( ext );
-
-        for( const VkExtensionProperties& ext : extensions )
-            unimplementedExtensions.erase( ext.extensionName );
-
-        EXPECT_EQ( 2, extensionCount );
-        EXPECT_TRUE( unexpectedExtensions.empty() );
-        EXPECT_TRUE( unimplementedExtensions.empty() );
+        VerifyExtensions( expectedExtensions, extensions );
     }
 
     TEST_F( ProfilerExtensionsULT, DebugMarkerEXT )
     {
-        // Create vulkan instance with profiler layer enabled externally
-        VulkanState Vk;
+        VulkanState::CreateInfo vulkanCreateInfo;
+        VulkanExtension debugReportExtension( VK_EXT_DEBUG_REPORT_EXTENSION_NAME, true );
+        vulkanCreateInfo.InstanceExtensions.push_back( &debugReportExtension );
+        VulkanExtension debugMarkerExtension( VK_EXT_DEBUG_MARKER_EXTENSION_NAME, true );
+        vulkanCreateInfo.DeviceExtensions.push_back( &debugMarkerExtension );
 
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdDebugMarkerBeginEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdDebugMarkerEndEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdDebugMarkerInsertEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkDebugMarkerSetObjectNameEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkDebugMarkerSetObjectTagEXT" ) );
+        // Create vulkan instance with profiler layer enabled externally
+        VulkanState Vk( vulkanCreateInfo );
+
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerBeginEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerEndEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerInsertEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkDebugMarkerSetObjectNameEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkDebugMarkerSetObjectTagEXT" ) );
     }
 
     TEST_F( ProfilerExtensionsULT, DebugUtilsEXT )
     {
-        // Create vulkan instance with profiler layer enabled externally
-        VulkanState Vk;
+        VulkanState::CreateInfo vulkanCreateInfo;
+        VulkanExtension debugUtilsExtension( VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true );
+        vulkanCreateInfo.InstanceExtensions.push_back( &debugUtilsExtension );
 
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdBeginDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdEndDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkCmdInsertDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkSetDebugUtilsObjectNameEXT" ) );
-        EXPECT_NE( nullptr, vkGetDeviceProcAddr( Vk.Device, "vkSetDebugUtilsObjectTagEXT" ) );
+        // Create vulkan instance with profiler layer enabled externally
+        VulkanState Vk( vulkanCreateInfo );
+
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdBeginDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdEndDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdInsertDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkSetDebugUtilsObjectNameEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkSetDebugUtilsObjectTagEXT" ) );
     }
 
     TEST_F( ProfilerExtensionsULT, vkGetProfilerFrameDataEXT )
     {
+        VulkanState::CreateInfo vulkanCreateInfo;
+        VulkanExtension profilerExtension( VK_EXT_PROFILER_EXTENSION_NAME, true );
+        vulkanCreateInfo.DeviceExtensions.push_back( &profilerExtension );
+
         // Create vulkan instance with profiler layer enabled externally
-        VulkanState Vk;
-
-        // Load entry points to loader
-        VkLayerInstanceDispatchTable IDT;
-        VkLayerDeviceDispatchTable DT;
-
-        IDT.Initialize( Vk.Instance, vkGetInstanceProcAddr );
-        DT.Initialize( Vk.Device, vkGetDeviceProcAddr );
+        VulkanState Vk( vulkanCreateInfo );
 
         // Initialize simple triangle app
-        VulkanSimpleTriangle simpleTriangle( &Vk, IDT, DT );
+        VulkanSimpleTriangle simpleTriangle( &Vk );
 
         VkCommandBuffer commandBuffer;
 
@@ -204,13 +145,13 @@ namespace Profiler
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocateInfo.commandPool = Vk.CommandPool;
             allocateInfo.commandBufferCount = 1;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk.Device, &allocateInfo, &commandBuffer ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk.Device, &allocateInfo, &commandBuffer ) );
         }
         { // Begin command buffer
             VkCommandBufferBeginInfo beginInfo = {};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffer, &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffer, &beginInfo ) );
         }
         { // Image layout transitions
             VkImageMemoryBarrier barrier = {};
@@ -225,14 +166,7 @@ namespace Profiler
             barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
             barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-
-            DT.CmdPipelineBarrier( commandBuffer,
-                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                VK_DEPENDENCY_BY_REGION_BIT,
-                0, nullptr,
-                0, nullptr,
-                1, &barrier );
+            vkCmdPipelineBarrier( commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier );
         }
         { // Begin render pass
             VkRenderPassBeginInfo beginInfo = {};
@@ -240,39 +174,40 @@ namespace Profiler
             beginInfo.renderPass = simpleTriangle.RenderPass;
             beginInfo.framebuffer = simpleTriangle.Framebuffer;
             beginInfo.renderArea = simpleTriangle.RenderArea;
-            DT.CmdBeginRenderPass( commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
+            vkCmdBeginRenderPass( commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
         }
         { // Draw triangles
-            DT.CmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
-            DT.CmdDraw( commandBuffer, 3, 1, 0, 0 );
-            DT.CmdDraw( commandBuffer, 3, 1, 0, 0 );
+            vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            vkCmdDraw( commandBuffer, 3, 1000, 0, 0 );
+            vkCmdDraw( commandBuffer, 3, 1000, 0, 0 );
         }
         { // End render pass
-            DT.CmdEndRenderPass( commandBuffer );
+            vkCmdEndRenderPass( commandBuffer );
         }
         { // End command buffer
-            ASSERT_EQ( VK_SUCCESS, DT.EndCommandBuffer( commandBuffer ) );
+            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffer ) );
         }
         { // Submit command buffer
             VkSubmitInfo submitInfo = {};
             submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffer;
-            ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk.Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk.Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
 
         VkProfilerDataEXT data = {};
         data.sType = VK_STRUCTURE_TYPE_PROFILER_DATA_EXT;
 
-        PFN_vkFlushProfilerEXT flushProfilerEXT = (PFN_vkFlushProfilerEXT)DT.GetDeviceProcAddr( Vk.Device, "vkFlushProfilerEXT" );
-        PFN_vkFreeProfilerFrameDataEXT freeProfilerFrameDataEXT = (PFN_vkFreeProfilerFrameDataEXT)DT.GetDeviceProcAddr( Vk.Device, "vkFreeProfilerFrameDataEXT" );
-        PFN_vkGetProfilerFrameDataEXT getProfilerFrameDataEXT = (PFN_vkGetProfilerFrameDataEXT)DT.GetDeviceProcAddr( Vk.Device, "vkGetProfilerFrameDataEXT" );
+        PFN_vkFlushProfilerEXT flushProfilerEXT = (PFN_vkFlushProfilerEXT)vkGetDeviceProcAddr( Vk.Device, "vkFlushProfilerEXT" );
+        PFN_vkFreeProfilerFrameDataEXT freeProfilerFrameDataEXT = (PFN_vkFreeProfilerFrameDataEXT)vkGetDeviceProcAddr( Vk.Device, "vkFreeProfilerFrameDataEXT" );
+        PFN_vkGetProfilerFrameDataEXT getProfilerFrameDataEXT = (PFN_vkGetProfilerFrameDataEXT)vkGetDeviceProcAddr( Vk.Device, "vkGetProfilerFrameDataEXT" );
 
         ASSERT_NE( nullptr, flushProfilerEXT );
         ASSERT_NE( nullptr, freeProfilerFrameDataEXT );
         ASSERT_NE( nullptr, getProfilerFrameDataEXT );
 
         { // Collect data
+            vkDeviceWaitIdle( Vk.Device );
             ASSERT_EQ( VK_SUCCESS, flushProfilerEXT( Vk.Device ) );
             ASSERT_EQ( VK_SUCCESS, getProfilerFrameDataEXT( Vk.Device, &data ) );
         }
