@@ -115,7 +115,7 @@ namespace Profiler
                             const VkApplicationInfo& appInfo = m_pDevice->pInstance->ApplicationInfo;
                             responseBuffer.Clear();
                             responseBuffer.Write( appInfo );
-                            socket.Send( responseBuffer.GetDataPointer(), responseBuffer.GetDataSize() );
+                            socket.Send( responseBuffer );
                             break;
                         }
                         }

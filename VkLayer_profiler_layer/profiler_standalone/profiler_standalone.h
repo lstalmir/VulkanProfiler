@@ -84,7 +84,7 @@ namespace Profiler
             float f;
             uint32_t i;
         } u = { value };
-        uint32_t u = bswap( u.i );
+        u.i = bswap( u.i );
         return u.f;
     }
 
@@ -175,7 +175,11 @@ namespace Profiler
         bool Accept( NetworkSocket& client );
 
         int Send( const void* pData, size_t size );
+        int Send( const class NetworkPacket& packet );
+        int Send( const class NetworkBuffer& buffer );
+
         int Receive( void* pBuffer, size_t size );
+        int Receive( class NetworkPacket& packet );
 
         static bool Select( NetworkSocket** ppSockets, size_t count, uint32_t timeout = 0 );
 
@@ -184,180 +188,207 @@ namespace Profiler
         bool m_IsSet;
     };
 
+    class NetworkPacket
+    {
+    public:
+        inline explicit NetworkPacket( std::nullptr_t )
+            : m_pData( nullptr )
+            , m_Size( 0 )
+            , m_Offset( 0 )
+            , m_pNextPacket( nullptr )
+        {
+        }
+
+        inline explicit NetworkPacket( uint32_t size = 65536 )
+            : m_pData( malloc( size ) )
+            , m_Size( size )
+            , m_Offset( 0 )
+            , m_pNextPacket( nullptr )
+        {
+        }
+
+        inline NetworkPacket( NetworkPacket&& packet )
+            : NetworkPacket( nullptr )
+        {
+            Swap( packet );
+        }
+
+        inline NetworkPacket& operator=( NetworkPacket&& packet )
+        {
+            NetworkPacket( std::move( packet ) ).Swap( *this );
+            return *this;
+        }
+
+        NetworkPacket( const NetworkPacket& ) = delete;
+        NetworkPacket& operator=( const NetworkPacket& ) = delete;
+
+        inline ~NetworkPacket()
+        {
+            free( m_pData );
+            delete m_pNextPacket;
+        }
+
+        inline bool HasNextPacket() const { return m_pNextPacket != nullptr && m_pNextPacket->m_Offset != 0; }
+        inline bool HasSpace( uint32_t size ) const { return m_Offset + size <= m_Size; }
+
+        inline uint32_t GetPacketSize() const { return m_Size; }
+        inline uint32_t GetDataSize() const { return m_Offset; }
+        inline void* GetDataPointer() { return m_pData; }
+        inline const void* GetDataPointer() const { return m_pData; }
+
+        inline void Resize( uint32_t size )
+        {
+            void* pData = realloc( m_pData, size );
+            if( pData )
+            {
+                m_pData = pData;
+                m_Size = size;
+            }
+        }
+
+        inline void* AllocateSpace( uint32_t size )
+        {
+            void* ptr = static_cast<uint8_t*>( m_pData ) + m_Offset;
+            m_Offset += size;
+            return ptr;
+        }
+
+        inline NetworkPacket* GetNextPacket( uint32_t size = 0 )
+        {
+            if( !m_pNextPacket )
+            {
+                m_pNextPacket = new NetworkPacket( std::max( m_Size, size ) );
+            }
+            return m_pNextPacket;
+        }
+
+        inline const NetworkPacket* GetNextPacket() const
+        {
+            return m_pNextPacket;
+        }
+
+        inline void Swap( NetworkPacket& packet )
+        {
+            std::swap( m_pData, packet.m_pData );
+            std::swap( m_Size, packet.m_Size );
+            std::swap( m_Offset, packet.m_Offset );
+            std::swap( m_pNextPacket, packet.m_pNextPacket );
+        }
+
+        inline void Clear()
+        {
+            m_Offset = 0;
+            if( m_pNextPacket )
+            {
+                m_pNextPacket->Clear();
+            }
+        }
+
+    private:
+        void* m_pData;
+        uint32_t m_Size;
+        uint32_t m_Offset;
+        NetworkPacket* m_pNextPacket;
+    };
+
     class NetworkBuffer
     {
     public:
-        inline explicit NetworkBuffer( size_t size = 65536 )
-            : m_Bytes( size )
-            , m_CurrentOffset( 0 )
+        inline explicit NetworkBuffer( uint32_t packetSize = 65536 )
+            : m_pHead( new NetworkPacket( packetSize ) )
+            , m_pTail( m_pHead )
+            , m_PacketSize( packetSize )
         {
         }
 
-        inline void Resize( size_t size ) { m_Bytes.resize( size ); }
-        inline void Clear() { m_CurrentOffset = 0; }
-
-        inline size_t GetDataSize() const { return m_CurrentOffset; }
-        inline void* GetDataPointer() { return m_Bytes.data(); }
-        inline const void* GetDataPointer() const { return m_Bytes.data(); }
+        inline void Clear()
+        {
+            m_pTail = m_pHead;
+            m_pHead->Clear();
+        }
 
         template<typename T>
         inline auto Write( T value )
-            -> typename std::enable_if<std::is_integral<T>::value && !std::is_enum<T>::value, size_t>::type
+            -> typename std::enable_if<std::is_integral<T>::value && !std::is_enum<T>::value, void>::type
         {
-            if( m_CurrentOffset + sizeof( T ) > m_Bytes.size() )
-            {
-                return 0;
-            }
             value = le( value );
-            memcpy( m_Bytes.data() + m_CurrentOffset, &value, sizeof( T ) );
-            m_CurrentOffset += sizeof( T );
-            return 1;
-        }
-
-        template<typename T>
-        inline auto Read( T& value )
-            -> typename std::enable_if<std::is_integral<T>::value && !std::is_enum<T>::value, size_t>::type
-        {
-            if( m_CurrentOffset + sizeof( T ) > m_Bytes.size() )
-            {
-                return 0;
-            }
-            memcpy( &value, m_Bytes.data() + m_CurrentOffset, sizeof( T ) );
-            value = le( value );
-            m_CurrentOffset += sizeof( T );
-            return 1;
+            memcpy( AllocateSpace( sizeof( T ) ), &value, sizeof( T ) );
         }
 
         template<typename EnumT>
         inline auto Write( EnumT value )
-            -> typename std::enable_if<std::is_enum<EnumT>::value, size_t>::type
+            -> typename std::enable_if<std::is_enum<EnumT>::value, void>::type
         {
-            return Write( static_cast<typename std::underlying_type<EnumT>::type>( value ) );
-        }
-
-        template<typename EnumT>
-        inline auto Read( EnumT& value )
-            -> typename std::enable_if<std::is_enum<EnumT>::value, size_t>::type
-        {
-            typename std::underlying_type<EnumT>::type underlyingValue;
-            if( !Read( underlyingValue ) )
-            {
-                return 0;
-            }
-            value = static_cast<EnumT>( underlyingValue );
-            return 1;
+            Write( static_cast<typename std::underlying_type<EnumT>::type>( value ) );
         }
 
         template<size_t N>
-        inline size_t Write( const char ( &value )[ N ] )
+        inline void Write( const char ( &value )[ N ] )
         {
-            const size_t size = strnlen( value, N );
-            if( m_CurrentOffset + size + sizeof( uint32_t ) > m_Bytes.size() )
-            {
-                return 0;
-            }
-
-            Write( static_cast<uint32_t>( size ) );
-            memcpy( m_Bytes.data() + m_CurrentOffset, value, size );
-            m_CurrentOffset += size;
-            return 1;
+            const uint32_t size = static_cast<uint32_t>( strnlen( value, N ) );
+            Write( size );
+            memcpy( AllocateSpace( size ), value, size );
         }
 
-        template<size_t N>
-        inline size_t Read( char ( &value )[ N ] )
+        inline void Write( const char* value )
         {
-            uint32_t size;
-            if( !Read( size ) )
-            {
-                return 0;
-            }
-            memcpy( value, m_Bytes.data() + m_CurrentOffset, size );
-            value[ size ] = '\0';
-            m_CurrentOffset += size;
-            return 1;
+            const uint32_t size = static_cast<uint32_t>( strlen( value ) );
+            Write( size );
+            memcpy( AllocateSpace( size ), value, size );
         }
 
         template<typename T>
         inline auto Write( const T& value )
-            -> typename std::enable_if<std::is_class<T>::value, size_t>::type;
+            -> typename std::enable_if<std::is_class<T>::value, void>::type;
 
         template<typename T>
-        inline auto Read( T& value )
-            -> typename std::enable_if<std::is_class<T>::value, size_t>::type;
-
-        template<typename T>
-        inline size_t Write( const std::vector<T>& value )
+        inline void Write( const std::vector<T>& value )
         {
-            const size_t size = value.size();
-            if( !Write( static_cast<uint32_t>( size ) ) )
-            {
-                return 0;
-            }
+            const uint32_t count = static_cast<uint32_t>( value.size() );
+            Write( count );
 
             for( size_t i = 0; i < size; ++i )
             {
-                if( !Write( value[ i ] ) )
-                {
-                    return i;
-                }
+                Write( value[ i ] );
             }
-
-            return size;
         }
 
-        template<typename T>
-        inline size_t Read( std::vector<T>& value )
-        {
-            uint32_t size;
-            if( !Read( size ) )
-            {
-                return 0;
-            }
+        NetworkPacket* GetFirstPacket() { return m_pHead; }
+        const NetworkPacket* GetFirstPacket() const { return m_pHead; }
 
-            value.resize( size );
-            for( size_t i = 0; i < size; ++i )
-            {
-                if( !Read( value[ i ] ) )
-                {
-                    return i;
-                }
-            }
-
-            return size;
-        }
+        NetworkPacket* GetLastPacket() { return m_pTail; }
+        const NetworkPacket* GetLastPacket() const { return m_pTail; }
 
     private:
-        std::vector<uint8_t> m_Bytes;
-        size_t m_CurrentOffset;
+        NetworkPacket* m_pHead;
+        NetworkPacket* m_pTail;
+        uint32_t m_PacketSize;
+
+        inline void* AllocateSpace( uint32_t size )
+        {
+            if( !m_pTail->HasSpace( size ) )
+            {
+                m_pTail = m_pTail->GetNextPacket( size );
+            }
+            return m_pTail->AllocateSpace( size );
+        }
     };
 
     template<>
-    inline size_t NetworkBuffer::Write( const std::string& value )
+    inline void NetworkBuffer::Write( const std::string& value )
     {
-        const size_t size = value.size();
-        if( m_CurrentOffset + size + sizeof( uint32_t ) > m_Bytes.size() )
-        {
-            return 0;
-        }
-
-        Write( static_cast<uint32_t>( size ) );
-        memcpy( m_Bytes.data() + m_CurrentOffset, value.data(), size );
-        m_CurrentOffset += size;
-        return 1;
+        const uint32_t size = static_cast<uint32_t>( value.length() );
+        Write( size );
+        memcpy( AllocateSpace( size ), value.data(), size );
     }
 
     template<>
-    inline size_t NetworkBuffer::Read( std::string& value )
+    inline void NetworkBuffer::Write( const VkApplicationInfo& value )
     {
-        uint32_t size;
-        if( !Read( size ) )
-        {
-            return 0;
-        }
-
-        value.resize( size );
-        memcpy( value.data(), m_Bytes.data() + m_CurrentOffset, size );
-        m_CurrentOffset += size;
-        return 1;
+        Write( value.pApplicationName );
+        Write( value.applicationVersion );
+        Write( value.pEngineName );
+        Write( value.engineVersion );
+        Write( value.apiVersion );
     }
 }

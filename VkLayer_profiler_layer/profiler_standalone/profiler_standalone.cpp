@@ -28,6 +28,16 @@
 #define GetNativeSocket( handle ) ( (SOCKET)( handle ) )
 #endif
 
+#define SendChecked( socket, buffer, size )                   \
+    {                                                         \
+        const size_t sendSize = ( size );                     \
+        int result = ( socket ).Send( ( buffer ), sendSize ); \
+        if( static_cast<size_t>( result ) != sendSize )       \
+        {                                                     \
+            return result;                                    \
+        }                                                     \
+    }
+
 namespace
 {
     static bool ResolveAddress( const char* pAddress, uint16_t port, struct addrinfo** ppAddrInfo )
@@ -49,11 +59,13 @@ namespace Profiler
 {
     NetworkSocket::NetworkSocket()
         : m_Handle( GetInvalidSocket() )
+        , m_IsSet( false )
     {
     }
 
     NetworkSocket::NetworkSocket( NetworkSocket&& s )
         : m_Handle( std::exchange( s.m_Handle, GetInvalidSocket() ) )
+        , m_IsSet( std::exchange( s.m_IsSet, false ) )
     {
     }
 
@@ -61,6 +73,7 @@ namespace Profiler
     {
         Destroy();
         m_Handle = std::exchange( s.m_Handle, GetInvalidSocket() );
+        m_IsSet = std::exchange( s.m_IsSet, false );
         return *this;
     }
 
@@ -197,6 +210,40 @@ namespace Profiler
             0 );
     }
 
+    int NetworkSocket::Send( const NetworkPacket& packet )
+    {
+        uint32_t dataSize = packet.GetDataSize();
+        SendChecked( *this, &dataSize, sizeof( dataSize ) );
+        SendChecked( *this, packet.GetDataPointer(), dataSize );
+        return dataSize;
+    }
+
+    int NetworkSocket::Send( const NetworkBuffer& buffer )
+    {
+        int totalBytesSent = 0;
+
+        const NetworkPacket* pPacket = buffer.GetFirstPacket();
+        while( pPacket )
+        {
+            int result = Send( *pPacket );
+            if( result == -1 )
+            {
+                return -1;
+            }
+
+            totalBytesSent += result;
+
+            if( result != pPacket->GetDataSize() )
+            {
+                return totalBytesSent;
+            }
+
+            pPacket = pPacket->GetNextPacket();
+        }
+
+        return totalBytesSent;
+    }
+
     int NetworkSocket::Receive( void* pBuffer, size_t size )
     {
         return recv(
@@ -204,5 +251,29 @@ namespace Profiler
             reinterpret_cast<char*>( pBuffer ),
             static_cast<int>( size ),
             0 );
+    }
+
+    int NetworkSocket::Receive( NetworkPacket& packet )
+    {
+        uint32_t dataSize = 0;
+
+        int result = Receive( &dataSize, sizeof( dataSize ) );
+        if( result == -1 )
+        {
+            return -1;
+        }
+
+        if( !packet.HasSpace( dataSize ) )
+        {
+            packet.Resize( packet.GetDataSize() + dataSize );
+        }
+
+        result = Receive( packet.AllocateSpace( dataSize ), dataSize );
+        if( result == -1 )
+        {
+            return -1;
+        }
+
+        return dataSize;
     }
 }

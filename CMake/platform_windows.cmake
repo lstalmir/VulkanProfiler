@@ -27,4 +27,5 @@ set (PROFILER_PLATFORM_FOUND 1)
 add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
 
 # Disable macros that would collide with stl.
+add_definitions (-DWIN32_LEAN_AND_MEAN)
 add_definitions (-DNOMINMAX)
