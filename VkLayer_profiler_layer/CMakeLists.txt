@@ -155,6 +155,7 @@ target_include_directories (profiler_common
     INTERFACE "${CMAKE_CURRENT_BINARY_DIR}"
     INTERFACE utils)
 target_compile_definitions (profiler_common INTERFACE
+    PROFILER_IS_BIG_ENDIAN=${PROFILER_IS_BIG_ENDIAN}
     $<$<CONFIG:Debug>:PROFILER_CONFIG_DEBUG>
     $<$<CONFIG:RelWithDebInfo>:PROFILER_CONFIG_RELWITHDEBINFO>
     $<$<CONFIG:Release>:PROFILER_CONFIG_RELEASE>

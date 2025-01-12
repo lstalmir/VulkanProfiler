@@ -32,3 +32,18 @@ endif ()
 if (NOT PROFILER_PLATFORM_FOUND)
     message (FATAL_ERROR "No target platform found")
 endif ()
+
+set (PROFILER_IS_BIG_ENDIAN 0)
+
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.20.0)
+    if (CMAKE_CXX_BYTE_ORDER EQUAL BIG_ENDIAN)
+        set (PROFILER_IS_BIG_ENDIAN 1)
+    elseif (CMAKE_CXX_BYTE_ORDER EQUAL LITTLE_ENDIAN)
+        set (PROFILER_IS_BIG_ENDIAN 0)
+    endif ()
+endif ()
+
+if (NOT PROFILER_IS_BIG_ENDIAN)
+    include (TestBigEndian)
+    test_big_endian (PROFILER_IS_BIG_ENDIAN)
+endif ()

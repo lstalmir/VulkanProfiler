@@ -28,6 +28,9 @@ add_library (profiler_standalone_server
     profiler_standalone_server.cpp
     profiler_standalone_server.h)
 
+target_link_libraries (profiler_standalone_server
+    PUBLIC profiler_common)
+
 add_executable (profiler_standalone_client
     profiler_standalone.h
     profiler_standalone.cpp
@@ -38,6 +41,7 @@ add_executable (profiler_standalone_client
     profiler_standalone_window.cpp)
 
 target_link_libraries (profiler_standalone_client
+    PUBLIC profiler_common
     PRIVATE profiler_overlay)
 
 install (TARGETS profiler_standalone_client)
