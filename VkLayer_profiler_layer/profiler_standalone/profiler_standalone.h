@@ -24,6 +24,7 @@
 #include <string>
 
 #include <vulkan/vulkan.h>
+#include <vk_serialization.h>
 
 namespace Profiler
 {
@@ -308,49 +309,47 @@ namespace Profiler
         }
 
         template<typename T>
-        inline auto Write( T value )
-            -> typename std::enable_if<std::is_integral<T>::value && !std::is_enum<T>::value, void>::type
+        inline auto operator<<( T value )
+            -> typename std::enable_if<std::is_integral<T>::value && !std::is_enum<T>::value, NetworkBuffer&>::type
         {
             value = le( value );
             memcpy( AllocateSpace( sizeof( T ) ), &value, sizeof( T ) );
+            return *this;
         }
 
         template<typename EnumT>
-        inline auto Write( EnumT value )
-            -> typename std::enable_if<std::is_enum<EnumT>::value, void>::type
+        inline auto operator<<( EnumT value )
+            -> typename std::enable_if<std::is_enum<EnumT>::value, NetworkBuffer&>::type
         {
-            Write( static_cast<typename std::underlying_type<EnumT>::type>( value ) );
+            return *this << static_cast<typename std::underlying_type<EnumT>::type>( value );
         }
 
-        template<size_t N>
-        inline void Write( const char ( &value )[ N ] )
-        {
-            const uint32_t size = static_cast<uint32_t>( strnlen( value, N ) );
-            Write( size );
-            memcpy( AllocateSpace( size ), value, size );
-        }
-
-        inline void Write( const char* value )
+        inline NetworkBuffer& operator<<( const char* value )
         {
             const uint32_t size = static_cast<uint32_t>( strlen( value ) );
-            Write( size );
+            *this << size;
             memcpy( AllocateSpace( size ), value, size );
+            return *this;
         }
 
         template<typename T>
-        inline auto Write( const T& value )
-            -> typename std::enable_if<std::is_class<T>::value, void>::type;
-
-        template<typename T>
-        inline void Write( const std::vector<T>& value )
+        inline NetworkBuffer& operator<<( const std::vector<T>& value )
         {
             const uint32_t count = static_cast<uint32_t>( value.size() );
-            Write( count );
+            *this << count;
 
             for( size_t i = 0; i < size; ++i )
             {
-                Write( value[ i ] );
+                *this << value[i];
             }
+        }
+
+        inline NetworkBuffer& operator<<( const std::string& value )
+        {
+            const uint32_t count = static_cast<uint32_t>( value.length() );
+            *this << count;
+            memcpy( AllocateSpace( count ), value.c_str(), count );
+            return *this;
         }
 
         NetworkPacket* GetFirstPacket() { return m_pHead; }
@@ -373,22 +372,4 @@ namespace Profiler
             return m_pTail->AllocateSpace( size );
         }
     };
-
-    template<>
-    inline void NetworkBuffer::Write( const std::string& value )
-    {
-        const uint32_t size = static_cast<uint32_t>( value.length() );
-        Write( size );
-        memcpy( AllocateSpace( size ), value.data(), size );
-    }
-
-    template<>
-    inline void NetworkBuffer::Write( const VkApplicationInfo& value )
-    {
-        Write( value.pApplicationName );
-        Write( value.applicationVersion );
-        Write( value.pEngineName );
-        Write( value.engineVersion );
-        Write( value.apiVersion );
-    }
 }

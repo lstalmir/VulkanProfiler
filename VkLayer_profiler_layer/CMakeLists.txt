@@ -116,6 +116,17 @@ add_custom_command (
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
+# Generate Vulkan structure serialization helpers
+add_custom_command (
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_serialization.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_serialization.py"
+        "${VULKAN_HEADERS_INSTALL_DIR}"
+        "${CMAKE_CURRENT_BINARY_DIR}"
+    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_serialization.py")
+list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_serialization.h")
+
 if (BUILD_SPIRV_DOCS)
     # Generate SPIR-V documentation
     add_custom_command (

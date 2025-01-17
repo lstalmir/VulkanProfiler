@@ -111,13 +111,11 @@ namespace Profiler
                             quitRequestReceived = true;
                             break;
 
-                        case NetworkRequest::eGetApplicationInfo: {
-                            const VkApplicationInfo& appInfo = m_pDevice->pInstance->ApplicationInfo;
+                        case NetworkRequest::eGetApplicationInfo:
                             responseBuffer.Clear();
-                            responseBuffer.Write( appInfo );
+                            responseBuffer << m_pDevice->pInstance->ApplicationInfo;
                             socket.Send( responseBuffer );
                             break;
-                        }
                         }
                     }
                 }
