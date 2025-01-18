@@ -40,7 +40,7 @@
 
 namespace
 {
-    static bool ResolveAddress( const char* pAddress, uint16_t port, struct addrinfo** ppAddrInfo )
+    static bool ResolveAddress( const char* pAddress, uint16_t port, struct addrinfo** ppAddrInfo, int flags = 0 )
     {
         char portStr[ 6 ] = {};
         snprintf( portStr, 6, "%hu", port );
@@ -48,15 +48,31 @@ namespace
         struct addrinfo addressHints = {};
         addressHints.ai_family = AF_INET;
         addressHints.ai_socktype = SOCK_STREAM;
-        addressHints.ai_protocol = IPPROTO_IPV4;
+        addressHints.ai_protocol = IPPROTO_TCP;
+        addressHints.ai_flags = flags;
 
         int result = getaddrinfo( pAddress, portStr, &addressHints, ppAddrInfo );
-        return ( result != -1 );
+        return ( result == 0 );
     }
 }
 
 namespace Profiler
 {
+    bool NetworkPlatformFunctions::Initialize()
+    {
+#ifdef WIN32
+        WSADATA wsaData = {};
+        return WSAStartup( MAKEWORD( 2, 2 ), &wsaData ) == 0;
+#endif
+    }
+
+    void NetworkPlatformFunctions::Destroy()
+    {
+#ifdef WIN32
+        WSACleanup();
+#endif
+    }
+
     NetworkSocket::NetworkSocket()
         : m_Handle( GetInvalidSocket() )
         , m_IsSet( false )
@@ -82,18 +98,6 @@ namespace Profiler
         Destroy();
     }
 
-    bool NetworkSocket::Initialize()
-    {
-        m_Handle = (uintptr_t)socket( AF_INET, SOCK_STREAM, IPPROTO_IPV4 );
-
-        if( m_Handle == GetInvalidSocket() )
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     void NetworkSocket::Destroy()
     {
         if( m_Handle != GetInvalidSocket() )
@@ -113,10 +117,20 @@ namespace Profiler
         return m_IsSet;
     }
 
-    bool NetworkSocket::Bind( const char* pAddress, uint16_t port )
+    bool NetworkSocket::Listen( const char* pAddress, uint16_t port )
     {
         struct addrinfo* pAddressInfo = nullptr;
-        if( !ResolveAddress( pAddress, port, &pAddressInfo ) )
+        if( !ResolveAddress( pAddress, port, &pAddressInfo, AI_PASSIVE ) )
+        {
+            return false;
+        }
+
+        m_Handle = (uintptr_t)socket(
+            pAddressInfo->ai_family,
+            pAddressInfo->ai_socktype,
+            pAddressInfo->ai_protocol );
+
+        if( m_Handle == GetInvalidSocket() )
         {
             return false;
         }
@@ -127,13 +141,19 @@ namespace Profiler
             pAddressInfo->ai_addrlen );
 
         freeaddrinfo( pAddressInfo );
-        return ( result != -1 );
-    }
 
-    bool NetworkSocket::Listen()
-    {
-        int result = listen( GetNativeSocket( m_Handle ), SOMAXCONN );
-        return ( result != -1 );
+        if( result == 0 )
+        {
+            result = listen( GetNativeSocket( m_Handle ), SOMAXCONN );
+        }
+
+        if( result != 0 )
+        {
+            Destroy();
+            return false;
+        }
+
+        return true;
     }
 
     bool NetworkSocket::Connect( const char* pAddress, uint16_t port )
@@ -144,13 +164,30 @@ namespace Profiler
             return false;
         }
 
+        m_Handle = (uintptr_t)socket(
+            pAddressInfo->ai_family,
+            pAddressInfo->ai_socktype,
+            pAddressInfo->ai_protocol );
+
+        if( m_Handle == GetInvalidSocket() )
+        {
+            return false;
+        }
+
         int result = connect(
             GetNativeSocket( m_Handle ),
             pAddressInfo->ai_addr,
             pAddressInfo->ai_addrlen );
 
         freeaddrinfo( pAddressInfo );
-        return ( result != -1 );
+
+        if( result != 0 )
+        {
+            Destroy();
+            return false;
+        }
+
+        return true;
     }
 
     bool NetworkSocket::Accept( NetworkSocket& client )

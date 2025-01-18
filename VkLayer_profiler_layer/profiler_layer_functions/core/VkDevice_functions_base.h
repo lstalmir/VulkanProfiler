@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler/profiler.h"
 #include "profiler_overlay/profiler_overlay.h"
+#include "profiler_standalone/profiler_standalone_server.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_functions/Dispatch.h"
 #include <vulkan/vk_layer.h>
@@ -48,6 +49,7 @@ namespace Profiler
             DeviceProfiler Profiler;
 
             ProfilerOverlayOutput Overlay;
+            NetworkServer Server;
         };
 
         static DispatchableMap<Dispatch> DeviceDispatch;

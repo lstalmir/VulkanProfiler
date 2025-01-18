@@ -46,6 +46,8 @@ namespace Profiler
         const VkAllocationCallbacks* pAllocator,
         VkDevice device )
     {
+        VkResult result = VK_SUCCESS;
+
         // Get instance dispatch table
         auto& id = VkInstance_Functions::InstanceDispatch.Get( physicalDevice );
 
@@ -103,13 +105,22 @@ namespace Profiler
             }
         }
 
+        // Initialize the server
+        if( !dd.Server.Initialize( &dd.Device, "127.0.0.1", 27015 ) )
+        {
+            result = VK_ERROR_INITIALIZATION_FAILED;
+        }
+
         // Initialize the profiler object
-        VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
+        if( result == VK_SUCCESS )
+        {
+            result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
+        }
 
         if( result != VK_SUCCESS )
         {
             // Profiler initialization failed
-            DeviceDispatch.Erase( device );
+            DestroyDeviceBase( device );
         }
 
         return result;
@@ -132,6 +143,8 @@ namespace Profiler
         dd.Profiler.Destroy();
         // Destroy the overlay
         dd.Overlay.Destroy();
+        // Destroy the server
+        dd.Server.Destroy();
 
         DeviceDispatch.Erase( device );
     }

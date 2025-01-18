@@ -22,6 +22,12 @@ cmake_minimum_required (VERSION 3.8...3.31)
 
 project (profiler_standalone)
 
+add_library (profiler_standalone_common INTERFACE)
+if (WIN32)
+    target_link_libraries (profiler_standalone_common INTERFACE
+        ws2_32)
+endif ()
+
 add_library (profiler_standalone_server
     profiler_standalone.h
     profiler_standalone.cpp
@@ -29,7 +35,8 @@ add_library (profiler_standalone_server
     profiler_standalone_server.h)
 
 target_link_libraries (profiler_standalone_server
-    PUBLIC profiler_common)
+    PUBLIC profiler_common
+    PUBLIC profiler_standalone_common)
 
 add_executable (profiler_standalone_client
     profiler_standalone.h
@@ -42,6 +49,7 @@ add_executable (profiler_standalone_client
 
 target_link_libraries (profiler_standalone_client
     PUBLIC profiler_common
+    PUBLIC profiler_standalone_common
     PRIVATE profiler_overlay)
 
 install (TARGETS profiler_standalone_client)

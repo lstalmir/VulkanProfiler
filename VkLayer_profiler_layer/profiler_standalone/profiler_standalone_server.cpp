@@ -35,16 +35,26 @@ namespace Profiler
 
     bool NetworkServer::Initialize( VkDevice_Object* pDevice, const char* pAddress, uint16_t port )
     {
+        if( !NetworkPlatformFunctions::Initialize() )
+        {
+            return false;
+        }
+
         m_pDevice = pDevice;
 
-        m_ListenSocket.Initialize();
-        m_ListenSocket.Bind( pAddress, port );
-        m_ListenSocket.Listen();
+        if( !m_ListenSocket.Listen( pAddress, port ) )
+        {
+            Destroy();
+            return false;
+        }
 
         m_ServerThread = std::thread( &NetworkServer::ServerThreadProc, this );
 
-        m_LocalSocket.Initialize();
-        m_LocalSocket.Connect( pAddress, port );
+        if( !m_LocalSocket.Connect( pAddress, port ) )
+        {
+            Destroy();
+            return false;
+        }
 
         return true;
     }
@@ -67,6 +77,8 @@ namespace Profiler
 
         m_LocalSocket.Destroy();
         m_ListenSocket.Destroy();
+
+        NetworkPlatformFunctions::Destroy();
     }
 
     void NetworkServer::ServerThreadProc()
@@ -114,6 +126,7 @@ namespace Profiler
                         case NetworkRequest::eGetApplicationInfo:
                             responseBuffer.Clear();
                             responseBuffer << m_pDevice->pInstance->ApplicationInfo;
+                            responseBuffer << NetworkBuffer::EndOfStream;
                             socket.Send( responseBuffer );
                             break;
                         }

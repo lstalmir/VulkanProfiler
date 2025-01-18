@@ -152,6 +152,12 @@ namespace Profiler
         eQuit = 0xFF
     };
 
+    struct NetworkPlatformFunctions
+    {
+        static bool Initialize();
+        static void Destroy();
+    };
+
     class NetworkSocket
     {
     public:
@@ -164,16 +170,13 @@ namespace Profiler
         NetworkSocket( const NetworkSocket& ) = delete;
         NetworkSocket& operator=( const NetworkSocket& ) = delete;
 
-        bool Initialize();
-        void Destroy();
-
         bool IsValid() const;
         bool IsSet() const;
 
-        bool Bind( const char* pAddress, uint16_t port );
-        bool Listen();
+        bool Listen( const char* pAddress, uint16_t port );
         bool Connect( const char* pAddress, uint16_t port );
         bool Accept( NetworkSocket& client );
+        void Destroy();
 
         int Send( const void* pData, size_t size );
         int Send( const class NetworkPacket& packet );
@@ -295,6 +298,8 @@ namespace Profiler
     class NetworkBuffer
     {
     public:
+        static constexpr uint32_t EndOfStream = 0xFFFFFFFF;
+
         inline explicit NetworkBuffer( uint32_t packetSize = 65536 )
             : m_pHead( new NetworkPacket( packetSize ) )
             , m_pTail( m_pHead )
