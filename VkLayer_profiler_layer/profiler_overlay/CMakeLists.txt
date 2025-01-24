@@ -24,6 +24,7 @@ project (profiler_overlay)
 
 set (headers
     "profiler_overlay.h"
+    "profiler_overlay_backend.h"
     "profiler_overlay_resources.h"
     "profiler_overlay_settings.h"
     "profiler_overlay_shader_view.h"
@@ -33,6 +34,7 @@ set (headers
 
 set (sources
     "profiler_overlay.cpp"
+    "profiler_overlay_backend.cpp"
     "profiler_overlay_resources.cpp"
     "profiler_overlay_settings.cpp"
     "profiler_overlay_shader_view.cpp"

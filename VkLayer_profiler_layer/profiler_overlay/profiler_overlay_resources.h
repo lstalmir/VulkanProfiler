@@ -19,28 +19,13 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler/profiler_memory_manager.h"
+#include <stdint.h>
 
-struct VkDevice_Object;
-struct VkQueue_Object;
 struct ImFont;
-class ImGui_ImplVulkan_Context;
 
 namespace Profiler
 {
-    struct OverlayImage
-    {
-        VkImage Image;
-        VkImageView ImageView;
-        VkDescriptorSet ImageDescriptorSet;
-        VmaAllocation ImageAllocation;
-        VkExtent2D ImageExtent;
-
-        VkBuffer UploadBuffer;
-        VmaAllocation UploadBufferAllocation;
-
-        bool RequiresUpload = false;
-    };
+    class OverlayGraphicsBackend;
 
     /***********************************************************************************\
 
@@ -54,39 +39,27 @@ namespace Profiler
     class OverlayResources
     {
     public:
-        VkResult InitializeFonts();
-        VkResult InitializeImages( VkDevice_Object& device, ImGui_ImplVulkan_Context& context );
+        bool InitializeFonts();
         void Destroy();
-        void DestroyImages();
 
-        void RecordUploadCommands( VkCommandBuffer commandBuffer );
-        void FreeUploadResources();
+        bool InitializeImages( OverlayGraphicsBackend* pBackend );
+        void DestroyImages();
 
         ImFont* GetDefaultFont() const;
         ImFont* GetBoldFont() const;
         ImFont* GetCodeFont() const;
 
-        VkDescriptorSet GetCopyIconImage() const;
+        void* GetCopyIconImage() const;
 
     private:
-        VkDevice_Object* m_pDevice = nullptr;
-        ImGui_ImplVulkan_Context* m_pContext = nullptr;
-
-        DeviceProfilerMemoryManager m_MemoryManager;
-
-        VkEvent m_UploadEvent = VK_NULL_HANDLE;
-        VkSampler m_LinearSampler = VK_NULL_HANDLE;
+        OverlayGraphicsBackend* m_pBackend = nullptr;
 
         ImFont* m_pDefaultFont = nullptr;
         ImFont* m_pBoldFont = nullptr;
         ImFont* m_pCodeFont = nullptr;
 
-        OverlayImage m_CopyIconImage;
+        void* m_pCopyIconImage = nullptr;
 
-        VkResult CreateImage( OverlayImage& image, const uint8_t* pAsset, size_t assetSize );
-        void UploadImage( VkCommandBuffer commandBuffer, OverlayImage& image );
-        void TransitionImage( VkCommandBuffer commandBuffer, OverlayImage& image, VkImageLayout oldLayout, VkImageLayout newLayout );
-        void DestroyImage( OverlayImage& image );
-        void DestroyImageUploadResources( OverlayImage& image );
+        void* CreateImage( const uint8_t* pAsset, size_t assetSize );
     };
 }

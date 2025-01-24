@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler/profiler.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_overlay/profiler_overlay.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_functions/Dispatch.h"
@@ -46,7 +47,7 @@ namespace Profiler
         {
             VkDevice_Object Device;
             DeviceProfiler Profiler;
-
+            DeviceProfilerLayerFrontend ProfilerFrontend;
             ProfilerOverlayOutput Overlay;
         };
 

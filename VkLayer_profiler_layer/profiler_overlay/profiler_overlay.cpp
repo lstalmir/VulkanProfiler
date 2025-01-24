@@ -20,9 +20,12 @@
 
 #include "profiler_overlay.h"
 #include "profiler_overlay_shader_view.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
+#include "profiler_layer_objects/VkObject.h"
+#include "profiler_layer_objects/VkQueue_object.h"
 
 #include "imgui_impl_vulkan_layer.h"
 #include <string>
@@ -222,81 +225,27 @@ namespace Profiler
         Initializes profiler overlay.
 
     \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::Initialize(
-        VkDevice_Object& device,
-        VkQueue_Object& graphicsQueue,
-        VkSwapchainKhr_Object& swapchain,
-        const VkSwapchainCreateInfoKHR* pCreateInfo )
+    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend* pFrontend )
     {
-        VkResult result = VK_SUCCESS;
+        m_pFrontend = pFrontend;
 
-        // Setup objects
-        m_pDevice = &device;
-        m_pGraphicsQueue = &graphicsQueue;
-        m_pSwapchain = &swapchain;
+        bool success = true;
+        const VkPhysicalDeviceProperties& deviceProperties =
+            m_pFrontend->GetPhysicalDeviceProperties();
 
         // Set main window title
         m_Title = fmt::format( "{0} - {1}###VkProfiler",
             Lang::WindowName,
-            m_pDevice->pPhysicalDevice->Properties.deviceName );
-
-        // Create descriptor pool
-        if( result == VK_SUCCESS )
-        {
-            VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-            descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-            descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-
-            // ImGui allocates descriptor sets only for textures/fonts for now.
-            const uint32_t imguiMaxTextureCount = 16;
-            const VkDescriptorPoolSize descriptorPoolSizes[] = {
-                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imguiMaxTextureCount }
-            };
-
-            descriptorPoolCreateInfo.maxSets = imguiMaxTextureCount;
-            descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype(descriptorPoolSizes)>;
-            descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
-
-            result = m_pDevice->Callbacks.CreateDescriptorPool(
-                m_pDevice->Handle,
-                &descriptorPoolCreateInfo,
-                nullptr,
-                &m_DescriptorPool );
-        }
-
-        // Create command pool
-        if( result == VK_SUCCESS )
-        {
-            VkCommandPoolCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            info.flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            info.queueFamilyIndex = m_pGraphicsQueue->Family;
-
-            result = m_pDevice->Callbacks.CreateCommandPool(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_CommandPool );
-        }
+            deviceProperties.deviceName );
 
         // Get timestamp query period
-        if( result == VK_SUCCESS )
-        {
-            m_TimestampPeriod = Nanoseconds( m_pDevice->pPhysicalDevice->Properties.limits.timestampPeriod );
-        }
-
-        // Create swapchain-dependent resources
-        if( result == VK_SUCCESS )
-        {
-            result = ResetSwapchain( swapchain, pCreateInfo );
-        }
+        m_TimestampPeriod = Nanoseconds( deviceProperties.limits.timestampPeriod );
 
         // Init ImGui
-        if( result == VK_SUCCESS )
+        if( success )
         {
             std::scoped_lock lk( s_ImGuiMutex );
             IMGUI_CHECKVERSION();
-
             m_pImGuiContext = ImGui::CreateContext();
 
             ImGui::SetCurrentContext( m_pImGuiContext );
@@ -305,45 +254,22 @@ namespace Profiler
             m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
-            io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
 
             m_Settings.Validate( io.IniFilename );
-
             m_Resources.InitializeFonts();
-
             InitializeImGuiStyle();
-
-            // Init window
-            if( result == VK_SUCCESS )
-            {
-                result = InitializeImGuiWindowHooks( pCreateInfo );
-            }
-
-            // Init vulkan
-            if( result == VK_SUCCESS )
-            {
-                result = InitializeImGuiVulkanContext( pCreateInfo );
-            }
-            
-            // Init resources
-            if( result == VK_SUCCESS )
-            {
-                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
-            }
         }
 
         // Get vendor metrics sets
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            uint32_t vendorMetricsSetCount = 0;
-            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, nullptr );
+            const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
+                m_pFrontend->GetPerformanceMetricsSets();
 
-            std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets( vendorMetricsSetCount );
-            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, metricsSets.data() );
-
+            const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
             m_VendorMetricsSets.reserve( vendorMetricsSetCount );
             m_VendorMetricsSetVisibility.reserve( vendorMetricsSetCount );
 
@@ -353,17 +279,12 @@ namespace Profiler
                 memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
 
                 // Get metrics belonging to this set.
-                metricsSet.m_Metrics.resize( metricsSet.m_Properties.metricsCount );
-
-                uint32_t metricsCount = metricsSet.m_Properties.metricsCount;
-                vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, i,
-                    &metricsCount,
-                    metricsSet.m_Metrics.data() );
+                metricsSet.m_Metrics = m_pFrontend->GetPerformanceCounterProperties( i );
 
                 m_VendorMetricsSetVisibility.push_back( true );
             }
 
-            vkGetProfilerActivePerformanceMetricsSetIndexEXT( device.Handle, &m_ActiveMetricsSetIndex );
+            m_ActiveMetricsSetIndex = m_pFrontend->GetPerformanceMetricsSetIndex();
 
             if( m_ActiveMetricsSetIndex < m_VendorMetricsSets.size() )
             {
@@ -373,9 +294,9 @@ namespace Profiler
         }
 
         // Initialize the disassembler in the shader view
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            m_InspectorShaderView.SetTargetDevice( m_pDevice );
+            m_InspectorShaderView.Initialize( m_pFrontend );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
                 this,
@@ -384,28 +305,26 @@ namespace Profiler
         }
 
         // Initialize serializer
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( device ) );
-            result = (m_pStringSerializer != nullptr)
-                ? VK_SUCCESS
-                : VK_ERROR_OUT_OF_HOST_MEMORY;
+            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( *m_pFrontend ) );
+            success = (m_pStringSerializer != nullptr);
         }
 
         // Initialize settings
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            vkGetProfilerModeEXT( m_pDevice->Handle, &m_SamplingMode );
-            vkGetProfilerSyncModeEXT( m_pDevice->Handle, &m_SyncMode );
+            m_SamplingMode = m_pFrontend->GetProfilerSamplingMode();
+            m_SyncMode = m_pFrontend->GetProfilerSyncMode();
         }
 
         // Don't leave object in partly-initialized state if something went wrong
-        if( result != VK_SUCCESS )
+        if( !success )
         {
             Destroy();
         }
 
-        return result;
+        return success ? VK_SUCCESS : VK_ERROR_INITIALIZATION_FAILED;
     }
 
     /***********************************************************************************\
@@ -419,95 +338,25 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Destroy()
     {
-        if( m_pDevice )
-        {
-            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
-        }
-
         if( m_pImGuiContext )
         {
             std::scoped_lock imGuiLock( s_ImGuiMutex );
             ImGui::SetCurrentContext( m_pImGuiContext );
 
-            // Destroy Vulkan resources created for the ImGui overlay
+            // Destroy resources created for the ImGui overlay.
             m_Resources.Destroy();
 
-            // Destroy ImGui backends
-            delete m_pImGuiVulkanContext;
-            delete m_pImGuiWindowContext;
+            // Destroy ImGui backends.
+            if( m_pGraphicsBackend )
+            {
+                m_pGraphicsBackend->Destroy();
+            }
+            if( m_pWindowBackend )
+            {
+                m_pWindowBackend->Destroy();
+            }
 
             ImGui::DestroyContext();
-        }
-
-        if( m_pDevice )
-        {
-            if( m_DescriptorPool != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyDescriptorPool(
-                    m_pDevice->Handle,
-                    m_DescriptorPool,
-                    nullptr );
-            }
-
-            if( m_RenderPass != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyRenderPass(
-                    m_pDevice->Handle,
-                    m_RenderPass,
-                    nullptr );
-            }
-
-            if( m_CommandPool != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyCommandPool(
-                    m_pDevice->Handle,
-                    m_CommandPool,
-                    nullptr );
-            }
-
-            for( VkFramebuffer framebuffer : m_Framebuffers )
-            {
-                if( framebuffer != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroyFramebuffer(
-                        m_pDevice->Handle,
-                        framebuffer,
-                        nullptr );
-                }
-            }
-
-            for( VkImageView imageView : m_ImageViews )
-            {
-                if( imageView != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroyImageView(
-                        m_pDevice->Handle,
-                        imageView,
-                        nullptr );
-                }
-            }
-
-            for( VkFence fence : m_CommandFences )
-            {
-                if( fence != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroyFence(
-                        m_pDevice->Handle,
-                        fence,
-                        nullptr );
-                }
-            }
-
-            for( VkSemaphore semaphore : m_CommandSemaphores )
-            {
-                if( semaphore != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroySemaphore(
-                        m_pDevice->Handle,
-                        semaphore,
-                        nullptr );
-                }
-            }
         }
 
         // Reset members to initial values
@@ -525,28 +374,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::ResetMembers()
     {
-        m_pDevice = nullptr;
-        m_pGraphicsQueue = nullptr;
-        m_pSwapchain = nullptr;
-
-        m_Window = OSWindowHandle();
-
         m_pImGuiContext = nullptr;
-        m_pImGuiVulkanContext = nullptr;
-        m_pImGuiWindowContext = nullptr;
 
-        m_DescriptorPool = VK_NULL_HANDLE;
-        m_RenderPass = VK_NULL_HANDLE;
-        m_RenderArea = {};
-        m_ImageFormat = VK_FORMAT_UNDEFINED;
-        m_Images.clear();
-        m_ImageViews.clear();
-        m_Framebuffers.clear();
-
-        m_CommandPool = VK_NULL_HANDLE;
-        m_CommandBuffers.clear();
-        m_CommandFences.clear();
-        m_CommandSemaphores.clear();
+        m_pGraphicsBackend = nullptr;
+        m_pWindowBackend = nullptr;
 
         m_Title.clear();
 
@@ -628,310 +459,9 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerOverlayOutput::IsAvailable() const
     {
-#ifndef _DEBUG
-        // There are many other objects that could be checked here, but we're keeping
-        // object quite consistent in case of any errors during initialization, so
-        // checking just one should be sufficient.
-        return (m_pSwapchain);
-#else
-        // Check object state to confirm the note above
-        return (m_pSwapchain)
-            && (m_pDevice)
-            && (m_pGraphicsQueue)
-            && (m_pImGuiContext)
-            && (m_pImGuiVulkanContext)
-            && (m_pImGuiWindowContext)
-            && (m_RenderPass)
-            && (!m_CommandBuffers.empty());
-#endif
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetSwapchain
-
-    Description:
-        Return swapchain the overlay is associated with.
-
-    \***********************************************************************************/
-    VkSwapchainKHR ProfilerOverlayOutput::GetSwapchain() const
-    {
-        return m_pSwapchain->Handle;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        ResetSwapchain
-
-    Description:
-        Move overlay to the new swapchain.
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::ResetSwapchain(
-        VkSwapchainKhr_Object& swapchain,
-        const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        assert( m_pSwapchain == nullptr ||
-                pCreateInfo->oldSwapchain == m_pSwapchain->Handle ||
-                pCreateInfo->oldSwapchain == VK_NULL_HANDLE );
-
-        VkResult result = VK_SUCCESS;
-
-        // Get swapchain images
-        uint32_t swapchainImageCount = 0;
-        m_pDevice->Callbacks.GetSwapchainImagesKHR(
-            m_pDevice->Handle,
-            swapchain.Handle,
-            &swapchainImageCount,
-            nullptr );
-
-        std::vector<VkImage> images( swapchainImageCount );
-        result = m_pDevice->Callbacks.GetSwapchainImagesKHR(
-            m_pDevice->Handle,
-            swapchain.Handle,
-            &swapchainImageCount,
-            images.data() );
-
-        assert( result == VK_SUCCESS );
-
-        // Recreate render pass if swapchain format has changed
-        if( (result == VK_SUCCESS) && (pCreateInfo->imageFormat != m_ImageFormat) )
-        {
-            if( m_RenderPass != VK_NULL_HANDLE )
-            {
-                // Destroy old render pass
-                m_pDevice->Callbacks.DestroyRenderPass( m_pDevice->Handle, m_RenderPass, nullptr );
-            }
-
-            VkAttachmentDescription attachment = {};
-            attachment.format = pCreateInfo->imageFormat;
-            attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-            attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-            VkAttachmentReference color_attachment = {};
-            color_attachment.attachment = 0;
-            color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-            VkSubpassDescription subpass = {};
-            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-            subpass.colorAttachmentCount = 1;
-            subpass.pColorAttachments = &color_attachment;
-
-            VkSubpassDependency dependency = {};
-            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstSubpass = 0;
-            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.srcAccessMask = 0;
-            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            VkRenderPassCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-            info.attachmentCount = 1;
-            info.pAttachments = &attachment;
-            info.subpassCount = 1;
-            info.pSubpasses = &subpass;
-            info.dependencyCount = 1;
-            info.pDependencies = &dependency;
-
-            result = m_pDevice->Callbacks.CreateRenderPass(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_RenderPass );
-
-            m_ImageFormat = pCreateInfo->imageFormat;
-        }
-
-        // Recreate image views and framebuffers
-        // This is required because swapchain images have changed and current framebuffer is out of date
-        if( result == VK_SUCCESS )
-        {
-            if( !m_Images.empty() )
-            {
-                // Destroy previous framebuffers
-                for( int i = 0; i < m_Images.size(); ++i )
-                {
-                    m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, m_Framebuffers[ i ], nullptr );
-                    m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, m_ImageViews[ i ], nullptr );
-                }
-
-                m_Framebuffers.clear();
-                m_ImageViews.clear();
-            }
-
-            for( uint32_t i = 0; i < swapchainImageCount; i++ )
-            {
-                VkImageView imageView = VK_NULL_HANDLE;
-                VkFramebuffer framebuffer = VK_NULL_HANDLE;
-
-                // Create swapchain image view
-                if( result == VK_SUCCESS )
-                {
-                    VkImageViewCreateInfo info = {};
-                    info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-                    info.format = pCreateInfo->imageFormat;
-                    info.image = images[ i ];
-                    info.components.r = VK_COMPONENT_SWIZZLE_R;
-                    info.components.g = VK_COMPONENT_SWIZZLE_G;
-                    info.components.b = VK_COMPONENT_SWIZZLE_B;
-                    info.components.a = VK_COMPONENT_SWIZZLE_A;
-
-                    VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-                    info.subresourceRange = range;
-
-                    result = m_pDevice->Callbacks.CreateImageView(
-                        m_pDevice->Handle,
-                        &info,
-                        nullptr,
-                        &imageView );
-
-                    m_ImageViews.push_back( imageView );
-                }
-
-                // Create framebuffer
-                if( result == VK_SUCCESS )
-                {
-                    VkFramebufferCreateInfo info = {};
-                    info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-                    info.renderPass = m_RenderPass;
-                    info.attachmentCount = 1;
-                    info.pAttachments = &imageView;
-                    info.width = pCreateInfo->imageExtent.width;
-                    info.height = pCreateInfo->imageExtent.height;
-                    info.layers = 1;
-
-                    result = m_pDevice->Callbacks.CreateFramebuffer(
-                        m_pDevice->Handle,
-                        &info,
-                        nullptr,
-                        &framebuffer );
-
-                    m_Framebuffers.push_back( framebuffer );
-                }
-            }
-
-            m_RenderArea = pCreateInfo->imageExtent;
-        }
-
-        // Allocate additional command buffers, fences and semaphores
-        if( (result == VK_SUCCESS) && (swapchainImageCount > m_Images.size()) )
-        {
-            VkCommandBufferAllocateInfo allocInfo = {};
-            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandPool = m_CommandPool;
-            allocInfo.commandBufferCount = swapchainImageCount - static_cast<uint32_t>( m_Images.size() );
-
-            std::vector<VkCommandBuffer> commandBuffers( swapchainImageCount );
-
-            result = m_pDevice->Callbacks.AllocateCommandBuffers(
-                m_pDevice->Handle,
-                &allocInfo,
-                commandBuffers.data() );
-
-            if( result == VK_SUCCESS )
-            {
-                // Append created command buffers to end
-                // We need to do this right after allocation to avoid leaks if something fails later
-                m_CommandBuffers.insert( m_CommandBuffers.end(), commandBuffers.begin(), commandBuffers.end() );
-            }
-
-            for( auto cmdBuffer : commandBuffers )
-            {
-                if( result == VK_SUCCESS )
-                {
-                    // Command buffers are dispatchable handles, update pointers to parent's dispatch table
-                    result = m_pDevice->SetDeviceLoaderData( m_pDevice->Handle, cmdBuffer );
-                }
-            }
-
-            // Create additional per-command-buffer semaphores and fences
-            for( size_t i = m_Images.size(); i < swapchainImageCount; ++i )
-            {
-                VkFence fence;
-                VkSemaphore semaphore;
-
-                // Create command buffer fence
-                if( result == VK_SUCCESS )
-                {
-                    VkFenceCreateInfo fenceInfo = {};
-                    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-                    fenceInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
-
-                    result = m_pDevice->Callbacks.CreateFence(
-                        m_pDevice->Handle,
-                        &fenceInfo,
-                        nullptr,
-                        &fence );
-
-                    m_CommandFences.push_back( fence );
-                }
-
-                // Create present semaphore
-                if( result == VK_SUCCESS )
-                {
-                    VkSemaphoreCreateInfo semaphoreInfo = {};
-                    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-                    result = m_pDevice->Callbacks.CreateSemaphore(
-                        m_pDevice->Handle,
-                        &semaphoreInfo,
-                        nullptr,
-                        &semaphore );
-
-                    m_CommandSemaphores.push_back( semaphore );
-                }
-            }
-        }
-
-        // Update objects
-        if( result == VK_SUCCESS )
-        {
-            m_pSwapchain = &swapchain;
-            m_Images = std::move( images );
-        }
-
-        // Reinitialize ImGui
-        if( (m_pImGuiContext) )
-        {
-            std::scoped_lock lk( s_ImGuiMutex );
-            ImGui::SetCurrentContext( m_pImGuiContext );
-
-            if( result == VK_SUCCESS )
-            {
-                // Reinit window
-                result = InitializeImGuiWindowHooks( pCreateInfo );
-            }
-
-            if( result == VK_SUCCESS )
-            {
-                // Init vulkan
-                result = InitializeImGuiVulkanContext( pCreateInfo );
-            }
-
-            if( result == VK_SUCCESS )
-            {
-                // Init resources
-                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
-            }
-        }
-
-        // Don't leave object in partly-initialized state
-        if( result != VK_SUCCESS )
-        {
-            Destroy();
-        }
-
-        return result;
+        return m_pFrontend != nullptr &&
+               m_pGraphicsBackend != nullptr &&
+               m_pWindowBackend != nullptr;
     }
 
     /***********************************************************************************\
@@ -943,77 +473,18 @@ namespace Profiler
         Draw profiler overlay before presenting the image to screen.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::Present(
-        const std::shared_ptr<DeviceProfilerFrameData>& pData,
-        const VkQueue_Object& queue,
-        VkPresentInfoKHR* pPresentInfo )
+    void ProfilerOverlayOutput::Update()
     {
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
 
         // Record interface draw commands
-        Update( pData );
+        Update( m_pFrontend->GetData() );
 
         ImDrawData* pDrawData = ImGui::GetDrawData();
         if( pDrawData )
         {
-            // Grab command buffer for overlay commands
-            const uint32_t imageIndex = pPresentInfo->pImageIndices[ 0 ];
-
-            // Per-
-            VkFence& fence = m_CommandFences[ imageIndex ];
-            VkSemaphore& semaphore = m_CommandSemaphores[ imageIndex ];
-            VkCommandBuffer& commandBuffer = m_CommandBuffers[ imageIndex ];
-            VkFramebuffer& framebuffer = m_Framebuffers[ imageIndex ];
-
-            m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &fence, VK_TRUE, UINT64_MAX );
-            m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &fence );
-
-            {
-                VkCommandBufferBeginInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-                m_pDevice->Callbacks.BeginCommandBuffer( commandBuffer, &info );
-            }
-
-            // Record upload commands
-            m_Resources.RecordUploadCommands( commandBuffer );
-
-            {
-                VkRenderPassBeginInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                info.renderPass = m_RenderPass;
-                info.framebuffer = framebuffer;
-                info.renderArea.extent.width = m_RenderArea.width;
-                info.renderArea.extent.height = m_RenderArea.height;
-                m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
-            }
-
-            // Record Imgui Draw Data and draw funcs into command buffer
-            m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
-
-            // Submit command buffer
-            m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
-
-            {
-                VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                VkSubmitInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-                info.waitSemaphoreCount = pPresentInfo->waitSemaphoreCount;
-                info.pWaitSemaphores = pPresentInfo->pWaitSemaphores;
-                info.pWaitDstStageMask = &wait_stage;
-                info.commandBufferCount = 1;
-                info.pCommandBuffers = &commandBuffer;
-                info.signalSemaphoreCount = 1;
-                info.pSignalSemaphores = &semaphore;
-
-                m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
-                m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
-            }
-
-            // Override wait semaphore
-            pPresentInfo->waitSemaphoreCount = 1;
-            pPresentInfo->pWaitSemaphores = &semaphore;
+            m_pGraphicsBackend->RenderDrawData( pDrawData );
         }
 
         m_Resources.FreeUploadResources();
@@ -1030,8 +501,23 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Update( const std::shared_ptr<DeviceProfilerFrameData>& pData )
     {
-        m_pImGuiVulkanContext->NewFrame();
-        m_pImGuiWindowContext->NewFrame();
+        uint32_t outputWidth, outputHeight;
+        m_pGraphicsBackend->GetRenderArea( outputWidth, outputHeight );
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.DisplaySize.x = outputWidth;
+        io.DisplaySize.y = outputHeight;
+
+        if( !m_pGraphicsBackend->NewFrame() )
+        {
+            return;
+        }
+
+        if( !m_pWindowBackend->NewFrame() )
+        {
+            return;
+        }
+
         ImGui::NewFrame();
 
         // Initialize IDs of the popup windows before entering the main window scope
@@ -1044,7 +530,7 @@ namespace Profiler
         // Update input clipping rect
         ImVec2 pos = ImGui::GetWindowPos();
         ImVec2 size = ImGui::GetWindowSize();
-        m_pImGuiWindowContext->AddInputCaptureRect(
+        m_pWindowBackend->AddInputCaptureRect(
             static_cast<int>(pos.x),
             static_cast<int>(pos.y),
             static_cast<int>(size.x),
@@ -1098,9 +584,10 @@ namespace Profiler
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
+        const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
-            VK_API_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
-            VK_API_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
+            VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
+            VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
 
         if( !m_Pause )
         {
@@ -1154,7 +641,7 @@ namespace Profiler
                         // Add input clipping rect for this window
                         ImVec2 pos = ImGui::GetWindowPos();
                         ImVec2 size = ImGui::GetWindowSize();
-                        m_pImGuiWindowContext->AddInputCaptureRect(
+                        m_pWindowBackend->AddInputCaptureRect(
                             static_cast<int>(pos.x),
                             static_cast<int>(pos.y),
                             static_cast<int>(size.x),
@@ -1268,103 +755,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        InitializeImGuiWindowHooks
-
-    Description:
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        VkResult result = VK_SUCCESS;
-
-        // Get window handle from the swapchain surface
-        OSWindowHandle window = m_pDevice->pInstance->Surfaces.at( pCreateInfo->surface ).Window;
-
-        if( m_Window == window )
-        {
-            // No need to update window hooks
-            return result;
-        }
-
-        // Free current window
-        delete m_pImGuiWindowContext;
-        m_pImGuiWindowContext = nullptr;
-
-        // Update objects
-        m_Window = window;
-
-        try
-        {
-            switch( window.Type )
-            {
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-            case OSWindowHandleType::eWin32:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_WIN32_KHR
-
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-            case OSWindowHandleType::eWayland:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplWayland_Context( window.WaylandHandle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_WAYLAND_KHR
-
-#ifdef VK_USE_PLATFORM_XCB_KHR
-            case OSWindowHandleType::eXcb:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplXcb_Context( window.XcbHandle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_XCB_KHR
-
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-            case OSWindowHandleType::eXlib:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.XlibHandle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_XLIB_KHR
-
-            default:
-            {
-                // Unsupported window type
-                result = VK_ERROR_INITIALIZATION_FAILED;
-                break;
-            }
-            }
-        }
-        catch( ... )
-        {
-            // Catch exceptions thrown by OS-specific ImGui window constructors
-            result = VK_ERROR_INITIALIZATION_FAILED;
-        }
-
-        // Set DPI scaling.
-        if( result == VK_SUCCESS )
-        {
-            float dpiScale = m_pImGuiWindowContext->GetDPIScale();
-            ImGuiIO& io = ImGui::GetIO();
-            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
-        }
-
-        // Deinitialize context if something failed
-        if( result != VK_SUCCESS )
-        {
-            delete m_pImGuiWindowContext;
-            m_pImGuiWindowContext = nullptr;
-            m_Window = OSWindowHandle();
-        }
-
-        return result;
-    }
-
-    /***********************************************************************************\
-
-    Function:
         InitializeImGuiColors
 
     Description:
@@ -1386,84 +776,6 @@ namespace Profiler
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
 
         m_InspectorShaderView.InitializeStyles();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiVulkanContext
-
-    Description:
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        VkResult result = VK_SUCCESS;
-
-        if( m_pImGuiVulkanContext )
-        {
-            // Make sure nothing is executing on the device before destroying resources
-            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
-
-            // Destroy resources associated with the current context
-            m_Resources.DestroyImages();
-
-            // Free current context
-            delete m_pImGuiVulkanContext;
-            m_pImGuiVulkanContext = nullptr;
-        }
-
-        try
-        {
-            ImGui_ImplVulkanLayer_InitInfo imGuiInitInfo;
-            std::memset( &imGuiInitInfo, 0, sizeof( imGuiInitInfo ) );
-
-            imGuiInitInfo.Queue = m_pGraphicsQueue->Handle;
-            imGuiInitInfo.QueueFamily = m_pGraphicsQueue->Family;
-
-            imGuiInitInfo.Instance = m_pDevice->pInstance->Handle;
-            imGuiInitInfo.PhysicalDevice = m_pDevice->pPhysicalDevice->Handle;
-            imGuiInitInfo.Device = m_pDevice->Handle;
-
-            imGuiInitInfo.pInstanceDispatchTable = &m_pDevice->pInstance->Callbacks;
-            imGuiInitInfo.pDispatchTable = &m_pDevice->Callbacks;
-
-            imGuiInitInfo.Allocator = nullptr;
-            imGuiInitInfo.PipelineCache = VK_NULL_HANDLE;
-            imGuiInitInfo.CheckVkResultFn = nullptr;
-
-            imGuiInitInfo.MinImageCount = pCreateInfo->minImageCount;
-            imGuiInitInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
-            imGuiInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-
-            imGuiInitInfo.DescriptorPool = m_DescriptorPool;
-            imGuiInitInfo.RenderPass = m_RenderPass;
-
-            m_pImGuiVulkanContext = new ImGui_ImplVulkan_Context( &imGuiInitInfo );
-        }
-        catch( ... )
-        {
-            // Catch all exceptions thrown by the context constructor and return VkResult
-            result = VK_ERROR_INITIALIZATION_FAILED;
-        }
-
-        // Initialize fonts
-        if( result == VK_SUCCESS )
-        {
-            if( !m_pImGuiVulkanContext->CreateFontsTexture() )
-            {
-                result = VK_ERROR_INITIALIZATION_FAILED;
-            }
-        }
-
-        // Deinitialize context if something failed
-        if( result != VK_SUCCESS )
-        {
-            delete m_pImGuiVulkanContext;
-            m_pImGuiVulkanContext = nullptr;
-        }
-
-        return result;
     }
 
     /***********************************************************************************\
@@ -1733,7 +1045,7 @@ namespace Profiler
         const float frameDuration = GetDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
 
         std::vector<QueueGraphColumn> queueGraphColumns;
-        for( const auto& [_, queue] : m_pDevice->Queues )
+        for( const auto& [_, queue] : m_pFrontend->GetDeviceQueues() )
         {
             // Enumerate columns for command queue activity graph.
             queueGraphColumns.clear();
@@ -2012,7 +1324,7 @@ namespace Profiler
                         if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
                         {
                             // Notify the profiler.
-                            if( vkSetProfilerPerformanceMetricsSetEXT( m_pDevice->Handle, metricsSetIndex ) == VK_SUCCESS )
+                            if( m_pFrontend->SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
                             {
                                 // Refresh the performance metric properties.
                                 m_ActiveMetricsSetIndex = metricsSetIndex;
@@ -2214,7 +1526,7 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
-            m_pDevice->pPhysicalDevice->MemoryProperties;
+            m_pFrontend->GetPhysicalDeviceMemoryProperties();
 
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
@@ -3162,8 +2474,7 @@ namespace Profiler
             if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
             {
                 VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
-                VkResult result = vkSetProfilerSyncModeEXT( m_pDevice->Handle, syncMode );
-                if( result == VK_SUCCESS )
+                if( m_pFrontend->SetProfilerSyncMode( syncMode ) == VK_SUCCESS )
                 {
                     m_SyncMode = syncMode;
                 }
@@ -3291,7 +2602,8 @@ namespace Profiler
         index.emplace_back( 0 );
 
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
-        const size_t queueCount = m_pDevice->Queues.size();
+        const auto& queues = m_pFrontend->GetDeviceQueues();
+        const size_t queueCount = queues.size();
 
         QueueTimestampPair* pLastTimestampsPerQueue = nullptr;
         bool lastTimstampsPerQueueUsesHeapAllocation = false;
@@ -3318,7 +2630,7 @@ namespace Profiler
             if( pLastTimestampsPerQueue != nullptr )
             {
                 size_t i = 0;
-                for( const auto& queue : m_pDevice->Queues )
+                for( const auto& queue : queues )
                 {
                     pLastTimestampsPerQueue[i].first = queue.second.Handle;
                     pLastTimestampsPerQueue[i].second = 0;
@@ -4072,9 +3384,12 @@ namespace Profiler
 
         if( (now - m_SerializationFinishTimestamp) < 4s )
         {
+            uint32_t width, height;
+            m_pGraphicsBackend->GetRenderArea( width, height );
+
             const ImVec2 windowPos = {
-                static_cast<float>(m_RenderArea.width - m_SerializationOutputWindowSize.width),
-                static_cast<float>(m_RenderArea.height - m_SerializationOutputWindowSize.height) };
+                static_cast<float>(width - m_SerializationOutputWindowSize.width),
+                static_cast<float>(height - m_SerializationOutputWindowSize.height) };
 
             const float fadeOutStep =
                 1.f - std::max( 0.f, std::min( 1.f,
@@ -4145,7 +3460,7 @@ namespace Profiler
             const float headerColumnWidth = 150.f * interfaceScale;
             const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
 
-            const VkApplicationInfo& applicationInfo = m_pDevice->pInstance->ApplicationInfo;
+            const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
 
             ImGui::PushStyleColor( ImGuiCol_Button, { 0, 0, 0, 0 } );
 

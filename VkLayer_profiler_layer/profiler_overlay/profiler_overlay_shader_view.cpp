@@ -19,7 +19,9 @@
 // SOFTWARE.
 
 #include "profiler_overlay_shader_view.h"
+#include "profiler_overlay_backend.h"
 #include "profiler_overlay_resources.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler/profiler_shader.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
@@ -555,20 +557,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SetTargetDevice
+        Initialize
 
     Description:
         Selects the SPIR-V target env used for disassembling the shaders.
 
     \***********************************************************************************/
-    void OverlayShaderView::SetTargetDevice( VkDevice_Object* pDevice )
+    void OverlayShaderView::Initialize( DeviceProfilerFrontend* pFrontend )
     {
         m_SpvTargetEnv = SPV_ENV_UNIVERSAL_1_0;
 
-        if( pDevice )
+        if( pFrontend )
         {
             // Select the target env based on the api version used by the application.
-            switch( pDevice->pInstance->ApplicationInfo.apiVersion )
+            switch( pFrontend->GetApplicationInfo().apiVersion )
             {
             default:
             case VK_API_VERSION_1_0:
@@ -576,7 +578,7 @@ namespace Profiler
                 break;
 
             case VK_API_VERSION_1_1:
-                m_SpvTargetEnv = pDevice->EnabledExtensions.count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
+                m_SpvTargetEnv = pFrontend->GetEnabledDeviceExtensions().count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
                     ? SPV_ENV_VULKAN_1_1_SPIRV_1_4
                     : SPV_ENV_VULKAN_1_1;
                 break;

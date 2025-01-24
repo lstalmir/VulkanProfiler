@@ -32,6 +32,7 @@ namespace IGFD { class FileDialog; }
 namespace Profiler
 {
     class OverlayResources;
+    class DeviceProfilerFrontend;
     struct ProfilerShaderExecutable;
 
     /***********************************************************************************\
@@ -71,8 +72,9 @@ namespace Profiler
         OverlayShaderView( const OverlayShaderView& ) = delete;
         OverlayShaderView( OverlayShaderView&& ) = delete;
 
+        void Initialize( DeviceProfilerFrontend* pFrontend );
         void InitializeStyles();
-        void SetTargetDevice( struct VkDevice_Object* pDevice );
+
         void SetShaderName( const std::string& name );
         void SetEntryPointName( const std::string& name );
         void SetShaderIdentifier( uint32_t identifierSize, const uint8_t* pIdentifier );

@@ -106,6 +106,9 @@ namespace Profiler
         // Initialize the profiler object
         VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
 
+        // Initialize the frontend to exchange data between the profiler and the overlay
+        dd.ProfilerFrontend.Initialize( dd.Device, dd.Profiler );
+
         if( result != VK_SUCCESS )
         {
             // Profiler initialization failed
