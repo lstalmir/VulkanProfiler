@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -225,13 +225,14 @@ namespace Profiler
         Initializes profiler overlay.
 
     \***********************************************************************************/
-    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend* pFrontend )
+    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend& frontend )
     {
-        m_pFrontend = pFrontend;
-
         bool success = true;
-        const VkPhysicalDeviceProperties& deviceProperties =
-            m_pFrontend->GetPhysicalDeviceProperties();
+
+        // Setup objects
+        m_pFrontend = &frontend;
+
+        const VkPhysicalDeviceProperties& deviceProperties = m_pFrontend->GetPhysicalDeviceProperties();
 
         // Set main window title
         m_Title = fmt::format( "{0} - {1}###VkProfiler",
@@ -296,7 +297,7 @@ namespace Profiler
         // Initialize the disassembler in the shader view
         if( success )
         {
-            m_InspectorShaderView.Initialize( m_pFrontend );
+            m_InspectorShaderView.Initialize( *m_pFrontend );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
                 this,
@@ -374,6 +375,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::ResetMembers()
     {
+        m_pFrontend = nullptr;
+
         m_pImGuiContext = nullptr;
 
         m_pGraphicsBackend = nullptr;
@@ -2474,7 +2477,8 @@ namespace Profiler
             if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
             {
                 VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
-                if( m_pFrontend->SetProfilerSyncMode( syncMode ) == VK_SUCCESS )
+                VkResult result = m_pFrontend->SetProfilerSyncMode( syncMode );
+                if( result == VK_SUCCESS )
                 {
                     m_SyncMode = syncMode;
                 }

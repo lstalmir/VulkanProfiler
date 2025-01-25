@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -72,8 +72,8 @@ namespace Profiler
         OverlayShaderView( const OverlayShaderView& ) = delete;
         OverlayShaderView( OverlayShaderView&& ) = delete;
 
-        void Initialize( DeviceProfilerFrontend* pFrontend );
         void InitializeStyles();
+        void Initialize( DeviceProfilerFrontend& frontend );
 
         void SetShaderName( const std::string& name );
         void SetEntryPointName( const std::string& name );

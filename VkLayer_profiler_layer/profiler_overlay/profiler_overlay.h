@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,9 +48,7 @@ namespace ImGuiX
 
 namespace Profiler
 {
-    class DeviceProfiler;
     class DeviceProfilerFrontend;
-    struct ProfilerSubmitData;
 
     /***********************************************************************************\
 
@@ -67,7 +65,7 @@ namespace Profiler
         ProfilerOverlayOutput();
         ~ProfilerOverlayOutput();
 
-        bool Initialize( DeviceProfilerFrontend* pFrontend );
+        bool Initialize( DeviceProfilerFrontend& frontend );
         void Destroy();
 
         bool SetGraphicsBackend( OverlayGraphicsBackend* pBackend );

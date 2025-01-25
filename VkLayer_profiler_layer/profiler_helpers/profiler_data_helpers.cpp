@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,9 +20,9 @@
 
 #include "profiler_data_helpers.h"
 #include "profiler/profiler_data.h"
-#include "profiler/profiler_helpers.h"
 #include "profiler/profiler_frontend.h"
-#include "profiler_layer_objects/VkObject.h"
+#include "profiler/profiler_helpers.h"
+#include "profiler_layer_objects/VkDevice_object.h"
 #include <fmt/format.h>
 #include <sstream>
 
@@ -425,11 +425,11 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetName( const VkObject& object ) const
     {
-        std::string_view objectName = m_Frontend.GetObjectName( object.m_Handle, object.m_Type );
+        std::string objectName = m_Frontend.GetObjectName( object );
 
         if( !objectName.empty() )
         {
-            return std::string( objectName );
+            return objectName;
         }
 
         return fmt::format( "{} {:#018x}", object.m_pTypeName, object.m_Handle );

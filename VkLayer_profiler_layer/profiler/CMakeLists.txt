@@ -49,7 +49,6 @@ set (sources
     "profiler_config.cpp"
     "profiler_data.cpp"
     "profiler_data_aggregator.cpp"
-    "profiler_frontend.cpp"
     "profiler_memory_manager.cpp"
     "profiler_query_pool.cpp"
     "profiler_shader.cpp"

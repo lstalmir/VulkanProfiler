@@ -18,31 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "profiler_frontend.h"
-
-#include "profiler.h"
-#include "profiler_layer_objects/VkDevice_object.h"
-#include "profiler_layer_objects/VkQueue_object.h"
-#include "profiler_layer_objects/VkInstance_object.h"
-#include "profiler_layer_objects/VkPhysicalDevice_object.h"
+#include "profiler_layer_frontend.h"
+#include "profiler/profiler.h"
+#include "VkDevice_object.h"
+#include "VkQueue_object.h"
+#include "VkInstance_object.h"
+#include "VkPhysicalDevice_object.h"
 
 namespace Profiler
 {
-    /***********************************************************************************\
-
-    Function:
-        DeviceProfilerLayerFrontend
-
-    Description:
-        Constructor.
-
-    \***********************************************************************************/
-    DeviceProfilerLayerFrontend::DeviceProfilerLayerFrontend()
-        : m_pDevice( nullptr )
-        , m_pProfiler( nullptr )
-    {
-    }
-
     /***********************************************************************************\
 
     Function:
@@ -307,17 +291,31 @@ namespace Profiler
         Returns the name of the object set by the profiled application.
 
     \***********************************************************************************/
-    std::string_view DeviceProfilerLayerFrontend::GetObjectName( uint64_t object, VkObjectType objectType )
+    std::string DeviceProfilerLayerFrontend::GetObjectName( const VkObject& object )
     {
         std::shared_lock lk( m_pDevice->Debug.ObjectNames );
 
-        auto it = m_pDevice->Debug.ObjectNames.unsafe_find( VkObject( object, objectType ) );
+        auto it = m_pDevice->Debug.ObjectNames.unsafe_find( object );
         if( it != m_pDevice->Debug.ObjectNames.end() )
         {
             return it->second;
         }
 
-        return std::string_view();
+        return std::string();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetObjectName
+
+    Description:
+        Returns the name of the object set by the profiled application.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::SetObjectName( const VkObject& object, const std::string& name )
+    {
+        m_pDevice->Debug.ObjectNames.insert( object, name );
     }
 
     /***********************************************************************************\

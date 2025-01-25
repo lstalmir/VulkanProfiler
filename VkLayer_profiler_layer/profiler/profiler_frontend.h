@@ -23,18 +23,13 @@
 #include "profiler_ext/VkProfilerEXT.h"
 
 #include <vulkan/vulkan.h>
+#include <string>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <string>
-#include <string_view>
 
 namespace Profiler
 {
-    struct VkDevice_Object;
-    struct VkQueue_Object;
-    class DeviceProfiler;
-
     /***********************************************************************************\
 
     Class:
@@ -59,7 +54,7 @@ namespace Profiler
         virtual const std::unordered_set<std::string>& GetEnabledInstanceExtensions() = 0;
         virtual const std::unordered_set<std::string>& GetEnabledDeviceExtensions() = 0;
 
-        virtual const std::unordered_map<VkQueue, VkQueue_Object>& GetDeviceQueues() = 0;
+        virtual const std::unordered_map<VkQueue, struct VkQueue_Object>& GetDeviceQueues() = 0;
 
         virtual const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& GetPerformanceMetricsSets() = 0;
         virtual const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& GetPerformanceCounterProperties( uint32_t setIndex ) = 0;
@@ -72,61 +67,9 @@ namespace Profiler
         virtual VkProfilerModeEXT GetProfilerSamplingMode() = 0;
         virtual VkResult SetProfilerSamplingMode( VkProfilerModeEXT mode ) = 0;
 
-        virtual std::string_view GetObjectName( uint64_t object, VkObjectType objectType ) = 0;
+        virtual std::string GetObjectName( const struct VkObject& object ) = 0;
+        virtual void SetObjectName( const struct VkObject& object, const std::string& name ) = 0;
 
         virtual std::shared_ptr<DeviceProfilerFrameData> GetData() = 0;
-    };
-
-    /***********************************************************************************\
-
-    Class:
-        DeviceProfilerLayerFrontend
-
-    Description:
-        Implementation of the DeviceProfilerFrontend interface for displaying data from
-        the profiling layer using the built-in overlay.
-
-        It forwards all calls to the current VkDevice and the profiler associated with it.
-
-    \***********************************************************************************/
-    class DeviceProfilerLayerFrontend final
-        : public DeviceProfilerFrontend
-    {
-    public:
-        DeviceProfilerLayerFrontend();
-
-        void Initialize( VkDevice_Object& device, DeviceProfiler& profiler );
-        void Destroy();
-
-        bool IsAvailable() final;
-
-        const VkApplicationInfo& GetApplicationInfo() final;
-        const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() final;
-        const VkPhysicalDeviceMemoryProperties& GetPhysicalDeviceMemoryProperties() final;
-        const std::vector<VkQueueFamilyProperties>& GetQueueFamilyProperties() final;
-
-        const std::unordered_set<std::string>& GetEnabledInstanceExtensions() final;
-        const std::unordered_set<std::string>& GetEnabledDeviceExtensions() final;
-
-        const std::unordered_map<VkQueue, VkQueue_Object>& GetDeviceQueues() final;
-
-        const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& GetPerformanceMetricsSets() final;
-        const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& GetPerformanceCounterProperties( uint32_t setIndex ) final;
-        VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) final;
-        uint32_t GetPerformanceMetricsSetIndex() final;
-
-        VkProfilerSyncModeEXT GetProfilerSyncMode() final;
-        VkResult SetProfilerSyncMode( VkProfilerSyncModeEXT mode ) final;
-
-        VkProfilerModeEXT GetProfilerSamplingMode() final;
-        VkResult SetProfilerSamplingMode( VkProfilerModeEXT mode ) final;
-
-        std::string_view GetObjectName( uint64_t object, VkObjectType objectType ) final;
-
-        std::shared_ptr<DeviceProfilerFrameData> GetData() final;
-
-    private:
-        VkDevice_Object* m_pDevice;
-        DeviceProfiler* m_pProfiler;
     };
 }
