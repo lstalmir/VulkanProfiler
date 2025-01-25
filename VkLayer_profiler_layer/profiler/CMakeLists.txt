@@ -31,6 +31,7 @@ set (headers
     "profiler_counters.h"
     "profiler_data.h"
     "profiler_data_aggregator.h"
+    "profiler_frontend.h"
     "profiler_helpers.h"
     "profiler_memory_manager.h"
     "profiler_query_pool.h"

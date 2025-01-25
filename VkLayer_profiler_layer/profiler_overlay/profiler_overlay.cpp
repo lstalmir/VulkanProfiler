@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 
 #include "profiler_overlay.h"
 #include "profiler_overlay_shader_view.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
@@ -223,6 +224,7 @@ namespace Profiler
 
     \***********************************************************************************/
     VkResult ProfilerOverlayOutput::Initialize(
+        DeviceProfilerFrontend& frontend,
         VkDevice_Object& device,
         VkQueue_Object& graphicsQueue,
         VkSwapchainKhr_Object& swapchain,
@@ -231,14 +233,17 @@ namespace Profiler
         VkResult result = VK_SUCCESS;
 
         // Setup objects
+        m_pFrontend = &frontend;
         m_pDevice = &device;
         m_pGraphicsQueue = &graphicsQueue;
         m_pSwapchain = &swapchain;
 
+        const VkPhysicalDeviceProperties& deviceProperties = m_pFrontend->GetPhysicalDeviceProperties();
+
         // Set main window title
         m_Title = fmt::format( "{0} - {1}###VkProfiler",
             Lang::WindowName,
-            m_pDevice->pPhysicalDevice->Properties.deviceName );
+            deviceProperties.deviceName );
 
         // Create descriptor pool
         if( result == VK_SUCCESS )
@@ -282,7 +287,7 @@ namespace Profiler
         // Get timestamp query period
         if( result == VK_SUCCESS )
         {
-            m_TimestampPeriod = Nanoseconds( m_pDevice->pPhysicalDevice->Properties.limits.timestampPeriod );
+            m_TimestampPeriod = Nanoseconds( deviceProperties.limits.timestampPeriod );
         }
 
         // Create swapchain-dependent resources
@@ -311,9 +316,7 @@ namespace Profiler
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
 
             m_Settings.Validate( io.IniFilename );
-
             m_Resources.InitializeFonts();
-
             InitializeImGuiStyle();
 
             // Init window
@@ -338,12 +341,10 @@ namespace Profiler
         // Get vendor metrics sets
         if( result == VK_SUCCESS )
         {
-            uint32_t vendorMetricsSetCount = 0;
-            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, nullptr );
+            const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
+                m_pFrontend->GetPerformanceMetricsSets();
 
-            std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets( vendorMetricsSetCount );
-            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, metricsSets.data() );
-
+            const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
             m_VendorMetricsSets.reserve( vendorMetricsSetCount );
             m_VendorMetricsSetVisibility.reserve( vendorMetricsSetCount );
 
@@ -353,17 +354,12 @@ namespace Profiler
                 memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
 
                 // Get metrics belonging to this set.
-                metricsSet.m_Metrics.resize( metricsSet.m_Properties.metricsCount );
-
-                uint32_t metricsCount = metricsSet.m_Properties.metricsCount;
-                vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, i,
-                    &metricsCount,
-                    metricsSet.m_Metrics.data() );
+                metricsSet.m_Metrics = m_pFrontend->GetPerformanceCounterProperties( i );
 
                 m_VendorMetricsSetVisibility.push_back( true );
             }
 
-            vkGetProfilerActivePerformanceMetricsSetIndexEXT( device.Handle, &m_ActiveMetricsSetIndex );
+            m_ActiveMetricsSetIndex = m_pFrontend->GetPerformanceMetricsSetIndex();
 
             if( m_ActiveMetricsSetIndex < m_VendorMetricsSets.size() )
             {
@@ -375,7 +371,7 @@ namespace Profiler
         // Initialize the disassembler in the shader view
         if( result == VK_SUCCESS )
         {
-            m_InspectorShaderView.SetTargetDevice( m_pDevice );
+            m_InspectorShaderView.Initialize( *m_pFrontend );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
                 this,
@@ -386,7 +382,7 @@ namespace Profiler
         // Initialize serializer
         if( result == VK_SUCCESS )
         {
-            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( device ) );
+            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( *m_pFrontend ) );
             result = (m_pStringSerializer != nullptr)
                 ? VK_SUCCESS
                 : VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -395,8 +391,8 @@ namespace Profiler
         // Initialize settings
         if( result == VK_SUCCESS )
         {
-            vkGetProfilerModeEXT( m_pDevice->Handle, &m_SamplingMode );
-            vkGetProfilerSyncModeEXT( m_pDevice->Handle, &m_SyncMode );
+            m_SamplingMode = m_pFrontend->GetProfilerSamplingMode();
+            m_SyncMode = m_pFrontend->GetProfilerSyncMode();
         }
 
         // Don't leave object in partly-initialized state if something went wrong
@@ -525,6 +521,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::ResetMembers()
     {
+        m_pFrontend = nullptr;
+
         m_pDevice = nullptr;
         m_pGraphicsQueue = nullptr;
         m_pSwapchain = nullptr;
@@ -944,7 +942,6 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::Present(
-        const std::shared_ptr<DeviceProfilerFrameData>& pData,
         const VkQueue_Object& queue,
         VkPresentInfoKHR* pPresentInfo )
     {
@@ -952,7 +949,7 @@ namespace Profiler
         ImGui::SetCurrentContext( m_pImGuiContext );
 
         // Record interface draw commands
-        Update( pData );
+        Update( m_pFrontend->GetData() );
 
         ImDrawData* pDrawData = ImGui::GetDrawData();
         if( pDrawData )
@@ -1098,9 +1095,10 @@ namespace Profiler
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
+        const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
-            VK_API_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
-            VK_API_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
+            VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
+            VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
 
         if( !m_Pause )
         {
@@ -1733,7 +1731,7 @@ namespace Profiler
         const float frameDuration = GetDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
 
         std::vector<QueueGraphColumn> queueGraphColumns;
-        for( const auto& [_, queue] : m_pDevice->Queues )
+        for( const auto& [_, queue] : m_pFrontend->GetDeviceQueues() )
         {
             // Enumerate columns for command queue activity graph.
             queueGraphColumns.clear();
@@ -2012,7 +2010,7 @@ namespace Profiler
                         if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
                         {
                             // Notify the profiler.
-                            if( vkSetProfilerPerformanceMetricsSetEXT( m_pDevice->Handle, metricsSetIndex ) == VK_SUCCESS )
+                            if( m_pFrontend->SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
                             {
                                 // Refresh the performance metric properties.
                                 m_ActiveMetricsSetIndex = metricsSetIndex;
@@ -2214,7 +2212,7 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
-            m_pDevice->pPhysicalDevice->MemoryProperties;
+            m_pFrontend->GetPhysicalDeviceMemoryProperties();
 
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
@@ -3162,7 +3160,7 @@ namespace Profiler
             if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
             {
                 VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
-                VkResult result = vkSetProfilerSyncModeEXT( m_pDevice->Handle, syncMode );
+                VkResult result = m_pFrontend->SetProfilerSyncMode( syncMode );
                 if( result == VK_SUCCESS )
                 {
                     m_SyncMode = syncMode;
@@ -3291,7 +3289,8 @@ namespace Profiler
         index.emplace_back( 0 );
 
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
-        const size_t queueCount = m_pDevice->Queues.size();
+        const auto& queues = m_pFrontend->GetDeviceQueues();
+        const size_t queueCount = queues.size();
 
         QueueTimestampPair* pLastTimestampsPerQueue = nullptr;
         bool lastTimstampsPerQueueUsesHeapAllocation = false;
@@ -3318,7 +3317,7 @@ namespace Profiler
             if( pLastTimestampsPerQueue != nullptr )
             {
                 size_t i = 0;
-                for( const auto& queue : m_pDevice->Queues )
+                for( const auto& queue : queues )
                 {
                     pLastTimestampsPerQueue[i].first = queue.second.Handle;
                     pLastTimestampsPerQueue[i].second = 0;
@@ -4145,7 +4144,7 @@ namespace Profiler
             const float headerColumnWidth = 150.f * interfaceScale;
             const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
 
-            const VkApplicationInfo& applicationInfo = m_pDevice->pInstance->ApplicationInfo;
+            const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
 
             ImGui::PushStyleColor( ImGuiCol_Button, { 0, 0, 0, 0 } );
 
