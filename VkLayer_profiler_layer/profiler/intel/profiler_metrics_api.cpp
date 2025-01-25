@@ -149,7 +149,7 @@ namespace Profiler
 
             // Construct metrics set properties.
             VkProfilerPerformanceMetricsSetPropertiesEXT& metricsSetProperties = m_MetricsSetsProperties.emplace_back();
-            ProfilerStringFunctions::CopyString( metricsSetProperties.name, metricsSet.m_pMetricSetParams->SymbolName, -1 );
+            ProfilerStringFunctions::CopyString( metricsSetProperties.name, metricsSet.m_pMetricSetParams->ShortName, -1 );
             metricsSetProperties.metricsCount = metricsSet.m_pMetricSetParams->MetricsCount;
 
             // Construct metric properties.
