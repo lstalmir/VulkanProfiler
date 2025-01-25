@@ -260,6 +260,8 @@ set (extension_functions
     )
 
 set (objects
+    "profiler_layer_objects/profiler_layer_frontend.cpp"
+    "profiler_layer_objects/profiler_layer_frontend.h"
     "profiler_layer_objects/VkDevice_object.h"
     "profiler_layer_objects/VkInstance_object.h"
     "profiler_layer_objects/VkObject.h"

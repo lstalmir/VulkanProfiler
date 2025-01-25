@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 
 #include "profiler_data_helpers.h"
 #include "profiler/profiler_data.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include <fmt/format.h>
@@ -55,8 +56,8 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    DeviceProfilerStringSerializer::DeviceProfilerStringSerializer( const VkDevice_Object& device )
-        : m_Device( device )
+    DeviceProfilerStringSerializer::DeviceProfilerStringSerializer( DeviceProfilerFrontend& frontend )
+        : m_Frontend( frontend )
     {
     }
 
@@ -424,9 +425,9 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetName( const VkObject& object ) const
     {
-        std::string objectName;
+        std::string objectName = m_Frontend.GetObjectName( object );
 
-        if( m_Device.Debug.ObjectNames.find( object, &objectName ) )
+        if( !objectName.empty() )
         {
             return objectName;
         }

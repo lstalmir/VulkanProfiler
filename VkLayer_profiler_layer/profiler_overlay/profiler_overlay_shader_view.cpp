@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 #include "profiler_overlay_resources.h"
 #include "profiler/profiler_shader.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #include <string_view>
@@ -561,34 +562,31 @@ namespace Profiler
         Selects the SPIR-V target env used for disassembling the shaders.
 
     \***********************************************************************************/
-    void OverlayShaderView::SetTargetDevice( VkDevice_Object* pDevice )
+    void OverlayShaderView::Initialize( DeviceProfilerFrontend& frontend )
     {
         m_SpvTargetEnv = SPV_ENV_UNIVERSAL_1_0;
 
-        if( pDevice )
+        // Select the target env based on the api version used by the application.
+        switch( frontend.GetApplicationInfo().apiVersion )
         {
-            // Select the target env based on the api version used by the application.
-            switch( pDevice->pInstance->ApplicationInfo.apiVersion )
-            {
-            default:
-            case VK_API_VERSION_1_0:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
-                break;
+        default:
+        case VK_API_VERSION_1_0:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
+            break;
 
-            case VK_API_VERSION_1_1:
-                m_SpvTargetEnv = pDevice->EnabledExtensions.count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
-                    ? SPV_ENV_VULKAN_1_1_SPIRV_1_4
-                    : SPV_ENV_VULKAN_1_1;
-                break;
+        case VK_API_VERSION_1_1:
+            m_SpvTargetEnv = frontend.GetEnabledDeviceExtensions().count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
+                ? SPV_ENV_VULKAN_1_1_SPIRV_1_4
+                : SPV_ENV_VULKAN_1_1;
+            break;
 
-            case VK_API_VERSION_1_2:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_2;
-                break;
+        case VK_API_VERSION_1_2:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_2;
+            break;
 
-            case VK_API_VERSION_1_3:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
-                break;
-            }
+        case VK_API_VERSION_1_3:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
+            break;
         }
     }
 

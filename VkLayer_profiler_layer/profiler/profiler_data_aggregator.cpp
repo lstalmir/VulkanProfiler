@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -576,19 +576,17 @@ namespace Profiler
 
                 if( m_VendorMetricsSetIndex != UINT32_MAX )
                 {
+                    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metricsProperties =
+                        m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( m_VendorMetricsSetIndex );
+
                     // Preallocate space for the metrics properties.
-                    uint32_t vendorMetricsCount = m_pProfiler->m_MetricsApiINTEL.GetMetricsCount( m_VendorMetricsSetIndex );
-                    m_VendorMetricProperties.resize( vendorMetricsCount );
+                    m_VendorMetricProperties.resize( metricsProperties.size() );
 
                     // Copy metrics properties to the local vector.
-                    VkResult result = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties(
-                        m_VendorMetricsSetIndex,
-                        &vendorMetricsCount,
-                        m_VendorMetricProperties.data() );
-
-                    if( result != VK_SUCCESS )
+                    if( !metricsProperties.empty() )
                     {
-                        m_VendorMetricProperties.clear();
+                        memcpy( m_VendorMetricProperties.data(), metricsProperties.data(),
+                            metricsProperties.size() * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
                     }
                 }
                 else

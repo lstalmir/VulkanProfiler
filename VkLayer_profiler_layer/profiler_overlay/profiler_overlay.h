@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -50,8 +50,7 @@ namespace ImGuiX
 
 namespace Profiler
 {
-    class DeviceProfiler;
-    struct ProfilerSubmitData;
+    class DeviceProfilerFrontend;
 
     /***********************************************************************************\
 
@@ -69,6 +68,7 @@ namespace Profiler
         ~ProfilerOverlayOutput();
 
         VkResult Initialize(
+            DeviceProfilerFrontend& frontend,
             VkDevice_Object& device,
             VkQueue_Object& graphicsQueue,
             VkSwapchainKhr_Object& swapchain,
@@ -85,12 +85,13 @@ namespace Profiler
             const VkSwapchainCreateInfoKHR* pCreateInfo );
 
         void Present(
-            const std::shared_ptr<DeviceProfilerFrameData>& pData,
             const VkQueue_Object& presentQueue,
             VkPresentInfoKHR* pPresentInfo );
 
     private:
         OverlaySettings m_Settings;
+
+        DeviceProfilerFrontend* m_pFrontend;
 
         VkDevice_Object* m_pDevice;
         VkQueue_Object* m_pGraphicsQueue;

@@ -98,6 +98,7 @@ namespace Profiler
                 {
                     // Initialize overlay for the first time
                     result = dd.Overlay.Initialize(
+                        dd.ProfilerFrontend,
                         dd.Device,
                         dd.Device.Queues.at( graphicsQueue ),
                         dd.Device.Swapchains.at( *pSwapchain ),
@@ -170,7 +171,7 @@ namespace Profiler
             (dd.Overlay.GetSwapchain() == presentInfo.pSwapchains[ 0 ]) )
         {
             // Display overlay
-            dd.Overlay.Present( dd.Profiler.GetData(), presentQueue, &presentInfo );
+            dd.Overlay.Present( presentQueue, &presentInfo );
         }
 
         dd.Device.TIP.Reset();
