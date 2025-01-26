@@ -1485,44 +1485,47 @@ namespace Profiler
         bool backendPrepared = OverlayVulkanBackend::PrepareImGuiBackend();
 
         // Create window backend.
-        try
+        if( !m_pWindowContext )
         {
-            const OSWindowHandle windowHandle =
-                m_pDevice->pInstance->Surfaces.at( m_Surface ).Window;
-
-            switch( windowHandle.Type )
+            try
             {
+                const OSWindowHandle windowHandle =
+                    m_pDevice->pInstance->Surfaces.at( m_Surface ).Window;
+
+                switch( windowHandle.Type )
+                {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-            case OSWindowHandleType::eWin32:
-                m_pWindowContext = new ImGui_ImplWin32_Context( windowHandle.Win32Handle );
-                break;
+                case OSWindowHandleType::eWin32:
+                    m_pWindowContext = new ImGui_ImplWin32_Context( windowHandle.Win32Handle );
+                    break;
 #endif // VK_USE_PLATFORM_WIN32_KHR
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
-            case OSWindowHandleType::eXcb:
-                m_pWindowContext = new ImGui_ImplXcb_Context( windowHandle.XcbHandle );
-                break;
+                case OSWindowHandleType::eXcb:
+                    m_pWindowContext = new ImGui_ImplXcb_Context( windowHandle.XcbHandle );
+                    break;
 #endif // VK_USE_PLATFORM_XCB_KHR
 
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-            case OSWindowHandleType::eXlib:
-                m_pWindowContext = new ImGui_ImplXlib_Context( windowHandle.XlibHandle );
-                break;
+                case OSWindowHandleType::eXlib:
+                    m_pWindowContext = new ImGui_ImplXlib_Context( windowHandle.XlibHandle );
+                    break;
 #endif // VK_USE_PLATFORM_XLIB_KHR
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-            case OSWindowHandleType::eWayland:
-                throw; // TODO: Implement ImGui Wayland context.
-#endif // VK_USE_PLATFORM_WAYLAND_KHR
+                case OSWindowHandleType::eWayland:
+                    throw; // TODO: Implement ImGui Wayland context.
+#endif                     // VK_USE_PLATFORM_WAYLAND_KHR
 
-            default:
-                throw; // Not supported.
+                default:
+                    throw; // Not supported.
+                }
             }
-        }
-        catch( ... )
-        {
-            // Failed to create ImGui window context or surface object was not found.
-            backendPrepared = false;
+            catch( ... )
+            {
+                // Failed to create ImGui window context or surface object was not found.
+                backendPrepared = false;
+            }
         }
 
         return backendPrepared;

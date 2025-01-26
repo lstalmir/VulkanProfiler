@@ -27,7 +27,6 @@
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 
-#include "imgui_impl_vulkan_layer.h"
 #include <string>
 #include <sstream>
 #include <stack>
@@ -54,26 +53,6 @@
 using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
 #else
 using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
-#endif
-
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-#include "imgui_impl_win32.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-#include <wayland-client.h>
-#endif
-
-#ifdef VK_USE_PLATFORM_XCB_KHR
-#include "imgui_impl_xcb.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-#include "imgui_impl_xlib.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
-#include <X11/extensions/Xrandr.h>
 #endif
 
 namespace Profiler
@@ -256,6 +235,7 @@ namespace Profiler
             m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
+            io.DisplaySize = m_pBackend->GetRenderArea();
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
@@ -271,8 +251,9 @@ namespace Profiler
         if( success )
         {
             // Initialize backend-dependent config
+            float dpiScale = m_pBackend->GetDPIScale();
             ImGuiIO& io = ImGui::GetIO();
-            io.FontGlobalScale = m_pBackend->GetDPIScale();
+            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
 
             // Initialize resources
             success = m_Resources.InitializeImages( m_pBackend );
@@ -483,9 +464,6 @@ namespace Profiler
     {
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
-
-        ImGuiIO& io = ImGui::GetIO();
-        io.DisplaySize = m_pBackend->GetRenderArea();
 
         if( !m_pBackend->NewFrame() )
         {
