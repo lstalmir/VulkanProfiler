@@ -65,11 +65,8 @@ namespace Profiler
         ProfilerOverlayOutput();
         ~ProfilerOverlayOutput();
 
-        bool Initialize( DeviceProfilerFrontend& frontend );
+        bool Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend );
         void Destroy();
-
-        bool SetGraphicsBackend( OverlayGraphicsBackend* pBackend );
-        bool SetWindowBackend( OverlayWindowBackend* pBackend );
 
         bool IsAvailable() const;
 
@@ -79,12 +76,10 @@ namespace Profiler
         OverlaySettings m_Settings;
 
         DeviceProfilerFrontend* m_pFrontend;
+        OverlayBackend* m_pBackend;
 
         ImGuiContext* m_pImGuiContext;
         OverlayResources m_Resources;
-
-        OverlayGraphicsBackend* m_pGraphicsBackend;
-        OverlayWindowBackend* m_pWindowBackend;
 
         std::string m_Title;
 
@@ -241,7 +236,6 @@ namespace Profiler
 
         void InitializeImGuiStyle();
 
-        void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
         void UpdateQueueUtilizationTab();
         void UpdateTopPipelinesTab();

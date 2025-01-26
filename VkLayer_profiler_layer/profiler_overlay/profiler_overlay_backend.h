@@ -28,7 +28,7 @@
 
 struct ImGuiContext;
 struct ImDrawData;
-struct ImGui_ImplVulkan_Context;
+struct ImVec2;
 struct ImGui_Window_Context;
 
 namespace Profiler
@@ -40,13 +40,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
-        OverlayGraphicsBackend
+        OverlayBackend
 
     Description:
-        Graphics backend interface for the overlay.
+        Backend interface for the overlay.
 
     \***********************************************************************************/
-    class OverlayGraphicsBackend
+    class OverlayBackend
     {
     public:
         struct ImageCreateInfo
@@ -56,43 +56,24 @@ namespace Profiler
             const uint8_t* pData;
         };
 
-        virtual ~OverlayGraphicsBackend() = default;
+        virtual ~OverlayBackend() = default;
 
-        virtual bool Initialize() = 0;
-        virtual void Destroy() = 0;
+        virtual bool PrepareImGuiBackend() = 0;
+        virtual void DestroyImGuiBackend() = 0;
 
         virtual void WaitIdle() = 0;
 
         virtual bool NewFrame() = 0;
         virtual void RenderDrawData( ImDrawData* draw_data ) = 0;
-        virtual void GetRenderArea( uint32_t& width, uint32_t& height ) = 0;
+
+        virtual void AddInputCaptureRect( int x, int y, int width, int height ) = 0;
+        virtual float GetDPIScale() const = 0;
+        virtual ImVec2 GetRenderArea() const = 0;
 
         virtual void* CreateImage( const ImageCreateInfo& createInfo ) = 0;
         virtual void DestroyImage( void* pImage ) = 0;
         virtual void CreateFontsImage() = 0;
-    };
-
-    /***********************************************************************************\
-
-    Class:
-        OverlayWindowBackend
-
-    Description:
-        Window backend interface for the overlay.
-
-    \***********************************************************************************/
-    class OverlayWindowBackend
-    {
-    public:
-        virtual ~OverlayWindowBackend() = default;
-
-        virtual bool Initialize() = 0;
-        virtual void Destroy() = 0;
-
-        virtual bool NewFrame() = 0;
-        virtual void AddInputCaptureRect( int x, int y, int width, int height ) = 0;
-        virtual float GetDPIScale() const = 0;
-        virtual const char* GetName() const = 0;
+        virtual void DestroyFontsImage() = 0;
     };
 
     /***********************************************************************************\
@@ -105,7 +86,7 @@ namespace Profiler
 
     \***********************************************************************************/
     class OverlayVulkanBackend
-        : public OverlayGraphicsBackend
+        : public OverlayBackend
     {
     public:
         struct CreateInfo
@@ -120,33 +101,41 @@ namespace Profiler
             PFN_vkGetInstanceProcAddr pfn_vkGetInstanceProcAddr;
         };
 
-        explicit OverlayVulkanBackend( const CreateInfo& createInfo );
+        OverlayVulkanBackend();
 
-        bool Initialize() override;
-        void Destroy() override;
+        VkResult Initialize( const CreateInfo& createInfo );
+        void Destroy();
 
-        bool SetSwapchain( VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR& createInfo );
+        bool IsInitialized() const;
+
+        VkResult SetSwapchain( VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR& createInfo );
+        VkSwapchainKHR GetSwapchain() const;
+
         void SetFramePresentInfo( const VkPresentInfoKHR& presentInfo );
         const VkPresentInfoKHR& GetFramePresentInfo() const;
+
+        bool PrepareImGuiBackend() override;
+        void DestroyImGuiBackend() override;
 
         void WaitIdle() override;
 
         bool NewFrame() override;
         void RenderDrawData( ImDrawData* pDrawData ) override;
 
+        ImVec2 GetRenderArea() const override;
+
         void* CreateImage( const ImageCreateInfo& createInfo ) override;
         void DestroyImage( void* pImage ) override;
         void CreateFontsImage() override;
+        void DestroyFontsImage() override;
 
     protected:
-        void LoadFunctions();
+        bool LoadFunctions();
         void ResetMembers();
 
         void DestroySwapchainResources();
         void ResetSwapchainMembers();
 
-        bool PrepareImGuiBackend();
-        void DestroyImGuiBackend();
         static PFN_vkVoidFunction FunctionLoader( const char* pFunctionName, void* pUserData );
         virtual PFN_vkVoidFunction LoadFunction( const char* pFunctionName );
 
@@ -154,6 +143,8 @@ namespace Profiler
             const VkCommandBufferAllocateInfo& allocateInfo, VkCommandBuffer* pCommandBuffers );
 
         void RecordUploadCommands( VkCommandBuffer commandBuffer );
+        void DestroyUploadResources();
+        void DestroyResources();
 
     protected:
         VkInstance m_Instance;
@@ -167,9 +158,12 @@ namespace Profiler
         VkCommandPool m_CommandPool;
         VkDescriptorPool m_DescriptorPool;
 
+        bool m_Initialized : 1;
+
         bool m_ImGuiBackendResetBeforeNextFrame : 1;
         bool m_ImGuiBackendInitialized : 1;
 
+        VkSurfaceKHR m_Surface;
         VkSwapchainKHR m_Swapchain;
         VkPresentInfoKHR m_PresentInfo;
 
@@ -209,6 +203,7 @@ namespace Profiler
         PFN_vkCreateEvent pfn_vkCreateEvent;
         PFN_vkDestroyEvent pfn_vkDestroyEvent;
         PFN_vkCmdSetEvent pfn_vkCmdSetEvent;
+        PFN_vkGetEventStatus pfn_vkGetEventStatus;
         PFN_vkCreateSemaphore pfn_vkCreateSemaphore;
         PFN_vkDestroySemaphore pfn_vkDestroySemaphore;
         PFN_vkCreateDescriptorPool pfn_vkCreateDescriptorPool;
@@ -260,9 +255,18 @@ namespace Profiler
         : public OverlayVulkanBackend
     {
     public:
-        OverlayVulkanLayerBackend( VkDevice_Object& device, VkQueue_Object& queue );
+        OverlayVulkanLayerBackend();
 
-        bool SetSwapchain( VkSwapchainKhr_Object& swapchain, const VkSwapchainCreateInfoKHR& createInfo );
+        VkResult Initialize( VkDevice_Object& device );
+        void Destroy();
+
+        bool PrepareImGuiBackend() override;
+        void DestroyImGuiBackend() override;
+
+        bool NewFrame() override;
+
+        void AddInputCaptureRect( int x, int y, int width, int height ) override;
+        float GetDPIScale() const override;
 
     protected:
         PFN_vkVoidFunction LoadFunction( const char* pFunctionName ) override;
@@ -274,10 +278,11 @@ namespace Profiler
         VkResult AllocateCommandBuffers(
             const VkCommandBufferAllocateInfo& allocateInfo, VkCommandBuffer* pCommandBuffers ) override;
 
-        static CreateInfo GetCreateInfo( VkDevice_Object& device, VkQueue_Object& queue );
-
     protected:
-        VkDevice_Object& m_DeviceObject;
+        VkDevice_Object* m_pDevice;
+        VkQueue_Object* m_pGraphicsQueue;
+
+        ImGui_Window_Context* m_pWindowContext;
 
         PFN_vkSetDeviceLoaderData pfn_vkSetDeviceLoaderData;
     };

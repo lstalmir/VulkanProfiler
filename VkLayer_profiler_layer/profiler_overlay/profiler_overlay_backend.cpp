@@ -28,8 +28,23 @@
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
 
-#define LoadVulkanFunction( name ) \
-    pfn_##name = reinterpret_cast<PFN_##name>( pfn_vkGetDeviceProcAddr( m_Device, #name ) );
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+#include "imgui_impl_win32.h"
+#endif
+#ifdef VK_USE_PLATFORM_XCB_KHR
+#include "imgui_impl_xcb.h"
+#endif
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+#include "imgui_impl_xlib.h"
+#endif
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+#include "imgui_impl_wayland.h"
+#endif
+
+#define LoadVulkanFunction( name )                                                           \
+    pfn_##name = reinterpret_cast<PFN_##name>( pfn_vkGetDeviceProcAddr( m_Device, #name ) ); \
+    if( pfn_##name == nullptr )                                                              \
+        return false;
 
 namespace Profiler
 {
@@ -42,16 +57,8 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    OverlayVulkanBackend::OverlayVulkanBackend( const CreateInfo& createInfo )
-        : m_Instance( createInfo.Instance )
-        , m_PhysicalDevice( createInfo.PhysicalDevice )
-        , m_Device( createInfo.Device )
-        , m_Queue( createInfo.Queue )
-        , m_QueueFamilyIndex( createInfo.QueueFamilyIndex )
-        , pfn_vkGetDeviceProcAddr( createInfo.pfn_vkGetDeviceProcAddr )
-        , pfn_vkGetInstanceProcAddr( createInfo.pfn_vkGetInstanceProcAddr )
+    OverlayVulkanBackend::OverlayVulkanBackend()
     {
-        LoadFunctions();
         ResetMembers();
     }
 
@@ -64,9 +71,23 @@ namespace Profiler
         Initialize the backend.
 
     \***********************************************************************************/
-    bool OverlayVulkanBackend::Initialize()
+    VkResult OverlayVulkanBackend::Initialize( const CreateInfo& createInfo )
     {
         VkResult result = VK_SUCCESS;
+
+        // Set members and load Vulkan functions
+        m_Instance = createInfo.Instance;
+        m_PhysicalDevice = createInfo.PhysicalDevice;
+        m_Device = createInfo.Device;
+        m_Queue = createInfo.Queue;
+        m_QueueFamilyIndex = createInfo.QueueFamilyIndex;
+        pfn_vkGetDeviceProcAddr = createInfo.pfn_vkGetDeviceProcAddr;
+        pfn_vkGetInstanceProcAddr = createInfo.pfn_vkGetInstanceProcAddr;
+
+        if( !LoadFunctions() )
+        {
+            result = VK_ERROR_INITIALIZATION_FAILED;
+        }
 
         // Create descriptor pool
         if( result == VK_SUCCESS )
@@ -107,6 +128,25 @@ namespace Profiler
                 &m_CommandPool );
         }
 
+        // Create linear sampler
+        if( result == VK_SUCCESS )
+        {
+            VkSamplerCreateInfo info = {};
+            info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            info.magFilter = VK_FILTER_LINEAR;
+            info.minFilter = VK_FILTER_LINEAR;
+            info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
+            result = pfn_vkCreateSampler(
+                m_Device,
+                &info,
+                nullptr,
+                &m_LinearSampler );
+        }
+
         // Create memory allocator
         if( result == VK_SUCCESS )
         {
@@ -129,7 +169,9 @@ namespace Profiler
             Destroy();
         }
 
-        return ( result == VK_SUCCESS );
+        m_Initialized = ( result == VK_SUCCESS );
+
+        return result;
     }
 
     /***********************************************************************************\
@@ -147,6 +189,7 @@ namespace Profiler
 
         DestroyImGuiBackend();
         DestroySwapchainResources();
+        DestroyResources();
 
         if( m_DescriptorPool != VK_NULL_HANDLE )
         {
@@ -156,6 +199,11 @@ namespace Profiler
         if( m_CommandPool != VK_NULL_HANDLE )
         {
             pfn_vkDestroyCommandPool( m_Device, m_CommandPool, nullptr );
+        }
+
+        if( m_LinearSampler != VK_NULL_HANDLE )
+        {
+            pfn_vkDestroySampler( m_Device, m_LinearSampler, nullptr );
         }
 
         if( m_Allocator != VK_NULL_HANDLE )
@@ -169,13 +217,27 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        IsInitialized
+
+    Description:
+        Check whether the backend is initialized.
+
+    \***********************************************************************************/
+    bool OverlayVulkanBackend::IsInitialized() const
+    {
+        return m_Initialized;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ResetSwapchain
 
     Description:
         Initialize the swapchain-dependent resources.
 
     \***********************************************************************************/
-    bool OverlayVulkanBackend::SetSwapchain( VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR& createInfo )
+    VkResult OverlayVulkanBackend::SetSwapchain( VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR& createInfo )
     {
         assert( m_pSwapchain == nullptr ||
                 createInfo->oldSwapchain == m_pSwapchain->Handle ||
@@ -383,6 +445,7 @@ namespace Profiler
 
         // Update objects
         m_Swapchain = swapchain;
+        m_Surface = createInfo.surface;
         m_RenderArea = createInfo.imageExtent;
         m_ImageFormat = createInfo.imageFormat;
         m_MinImageCount = createInfo.minImageCount;
@@ -398,6 +461,20 @@ namespace Profiler
         }
 
         return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSwapchain
+
+    Description:
+        Return swapchain handle associated with the backend.
+
+    \***********************************************************************************/
+    VkSwapchainKHR OverlayVulkanBackend::GetSwapchain() const
+    {
+        return m_Swapchain;
     }
 
     /***********************************************************************************\
@@ -431,6 +508,76 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        InitializeImGuiBackend
+
+    Description:
+        Initialize the ImGui backend for Vulkan.
+
+    \***********************************************************************************/
+    bool OverlayVulkanBackend::PrepareImGuiBackend()
+    {
+        if( m_ImGuiBackendResetBeforeNextFrame )
+        {
+            // Reset ImGui backend due to swapchain recreation.
+            DestroyImGuiBackend();
+
+            m_ImGuiBackendResetBeforeNextFrame = false;
+            m_ImGuiBackendInitialized = false;
+        }
+
+        if( !m_ImGuiBackendInitialized )
+        {
+            // Load device functions required by the backend.
+            if( !ImGui_ImplVulkan_LoadFunctions( FunctionLoader, this ) )
+            {
+                return false;
+            }
+
+            ImGui_ImplVulkan_InitInfo initInfo = {};
+            initInfo.Instance = m_Instance;
+            initInfo.PhysicalDevice = m_PhysicalDevice;
+            initInfo.Device = m_Device;
+            initInfo.QueueFamily = m_QueueFamilyIndex;
+            initInfo.Queue = m_Queue;
+            initInfo.DescriptorPool = m_DescriptorPool;
+            initInfo.RenderPass = m_RenderPass;
+            initInfo.MinImageCount = m_MinImageCount;
+            initInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
+            initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+            // Initialize the backend.
+            if( !ImGui_ImplVulkan_Init( &initInfo ) )
+            {
+                return false;
+            }
+
+            m_ImGuiBackendInitialized = true;
+        }
+
+        return m_ImGuiBackendInitialized;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InitializeImGuiBackend
+
+    Description:
+        Initialize the ImGui backend for Vulkan.
+
+    \***********************************************************************************/
+    void OverlayVulkanBackend::DestroyImGuiBackend()
+    {
+        if( m_ImGuiBackendInitialized )
+        {
+            ImGui_ImplVulkan_Shutdown();
+            m_ImGuiBackendInitialized = false;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WaitIdle
 
     Description:
@@ -451,6 +598,22 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetRenderArea
+
+    Description:
+        Get the current render area.
+
+    \***********************************************************************************/
+    ImVec2 OverlayVulkanBackend::GetRenderArea() const
+    {
+        return ImVec2(
+            static_cast<float>( m_RenderArea.width ),
+            static_cast<float>( m_RenderArea.height ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         NewFrame
 
     Description:
@@ -463,6 +626,11 @@ namespace Profiler
         if( backendPrepared )
         {
             ImGui_ImplVulkan_NewFrame();
+        }
+
+        if( m_ResourcesUploadEvent != VK_NULL_HANDLE )
+        {
+            DestroyUploadResources();
         }
 
         return backendPrepared;
@@ -616,6 +784,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        DestroyFontsImage
+
+    Description:
+        Destroy the image resource for fonts.
+
+    \***********************************************************************************/
+    void OverlayVulkanBackend::DestroyFontsImage()
+    {
+        ImGui_ImplVulkan_DestroyFontsTexture();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         LoadFunctions
 
     Description:
@@ -623,7 +805,7 @@ namespace Profiler
         pfn_vkGetDeviceProcAddr must be set by the caller.
 
     \***********************************************************************************/
-    void OverlayVulkanBackend::LoadFunctions()
+    bool OverlayVulkanBackend::LoadFunctions()
     {
         assert( pfn_vkGetDeviceProcAddr != nullptr );
         assert( pfn_vkGetInstanceProcAddr != nullptr );
@@ -644,6 +826,7 @@ namespace Profiler
         LoadVulkanFunction( vkCreateEvent );
         LoadVulkanFunction( vkDestroyEvent );
         LoadVulkanFunction( vkCmdSetEvent );
+        LoadVulkanFunction( vkGetEventStatus );
         LoadVulkanFunction( vkCreateSemaphore );
         LoadVulkanFunction( vkDestroySemaphore );
         LoadVulkanFunction( vkCreateDescriptorPool );
@@ -660,6 +843,8 @@ namespace Profiler
         LoadVulkanFunction( vkCmdEndRenderPass );
         LoadVulkanFunction( vkCmdPipelineBarrier );
         LoadVulkanFunction( vkCmdCopyBufferToImage );
+
+        return true;
     }
 
     /***********************************************************************************\
@@ -673,13 +858,58 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayVulkanBackend::ResetMembers()
     {
+        m_Instance = VK_NULL_HANDLE;
+        m_PhysicalDevice = VK_NULL_HANDLE;
+        m_Device = VK_NULL_HANDLE;
+        m_Queue = VK_NULL_HANDLE;
+        m_QueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
+        m_ApiVersion = VK_API_VERSION_1_0;
+
         m_Allocator = VK_NULL_HANDLE;
-        m_DescriptorPool = VK_NULL_HANDLE;
         m_CommandPool = VK_NULL_HANDLE;
+        m_DescriptorPool = VK_NULL_HANDLE;
+
+        m_Initialized = false;
 
         m_ResourcesUploadEvent = VK_NULL_HANDLE;
         m_LinearSampler = VK_NULL_HANDLE;
         m_ImageResources.clear();
+
+        pfn_vkGetDeviceProcAddr = nullptr;
+        pfn_vkGetInstanceProcAddr = nullptr;
+        pfn_vkQueueSubmit = nullptr;
+        pfn_vkCreateRenderPass = nullptr;
+        pfn_vkDestroyRenderPass = nullptr;
+        pfn_vkCreateFramebuffer = nullptr;
+        pfn_vkDestroyFramebuffer = nullptr;
+        pfn_vkCreateImageView = nullptr;
+        pfn_vkDestroyImageView = nullptr;
+        pfn_vkCreateSampler = nullptr;
+        pfn_vkDestroySampler = nullptr;
+        pfn_vkCreateFence = nullptr;
+        pfn_vkDestroyFence = nullptr;
+        pfn_vkWaitForFences = nullptr;
+        pfn_vkResetFences = nullptr;
+        pfn_vkCreateEvent = nullptr;
+        pfn_vkDestroyEvent = nullptr;
+        pfn_vkCmdSetEvent = nullptr;
+        pfn_vkGetEventStatus = nullptr;
+        pfn_vkCreateSemaphore = nullptr;
+        pfn_vkDestroySemaphore = nullptr;
+        pfn_vkCreateDescriptorPool = nullptr;
+        pfn_vkDestroyDescriptorPool = nullptr;
+        pfn_vkAllocateDescriptorSets = nullptr;
+        pfn_vkCreateCommandPool = nullptr;
+        pfn_vkDestroyCommandPool = nullptr;
+        pfn_vkAllocateCommandBuffers = nullptr;
+        pfn_vkFreeCommandBuffers = nullptr;
+        pfn_vkBeginCommandBuffer = nullptr;
+        pfn_vkEndCommandBuffer = nullptr;
+        pfn_vkGetSwapchainImagesKHR = nullptr;
+        pfn_vkCmdBeginRenderPass = nullptr;
+        pfn_vkCmdEndRenderPass = nullptr;
+        pfn_vkCmdPipelineBarrier = nullptr;
+        pfn_vkCmdCopyBufferToImage = nullptr;
 
         ResetSwapchainMembers();
     }
@@ -777,76 +1007,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        InitializeImGuiBackend
-
-    Description:
-        Initialize the ImGui backend for Vulkan.
-
-    \***********************************************************************************/
-    bool OverlayVulkanBackend::PrepareImGuiBackend()
-    {
-        if( m_ImGuiBackendResetBeforeNextFrame )
-        {
-            // Reset ImGui backend due to swapchain recreation.
-            DestroyImGuiBackend();
-
-            m_ImGuiBackendResetBeforeNextFrame = false;
-            m_ImGuiBackendInitialized = false;
-        }
-
-        if( !m_ImGuiBackendInitialized )
-        {
-            // Load device functions required by the backend.
-            if( !ImGui_ImplVulkan_LoadFunctions( FunctionLoader, this ) )
-            {
-                return false;
-            }
-
-            ImGui_ImplVulkan_InitInfo initInfo = {};
-            initInfo.Instance = m_Instance;
-            initInfo.PhysicalDevice = m_PhysicalDevice;
-            initInfo.Device = m_Device;
-            initInfo.QueueFamily = m_QueueFamilyIndex;
-            initInfo.Queue = m_Queue;
-            initInfo.DescriptorPool = m_DescriptorPool;
-            initInfo.RenderPass = m_RenderPass;
-            initInfo.MinImageCount = m_MinImageCount;
-            initInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
-            initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-
-            // Initialize the backend.
-            if( !ImGui_ImplVulkan_Init( &initInfo ) )
-            {
-                return false;
-            }
-
-            m_ImGuiBackendInitialized = true;
-        }
-
-        return m_ImGuiBackendInitialized;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiBackend
-
-    Description:
-        Initialize the ImGui backend for Vulkan.
-
-    \***********************************************************************************/
-    void OverlayVulkanBackend::DestroyImGuiBackend()
-    {
-        if( m_ImGuiBackendInitialized )
-        {
-            ImGui_ImplVulkan_Shutdown();
-            m_ImGuiBackendInitialized = false;
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
         FunctionLoader
 
     Description:
@@ -923,6 +1083,59 @@ namespace Profiler
                 m_ResourcesUploadEvent,
                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyUploadResources
+
+    Description:
+        Destroy the temporary resouces used for uploading other resources to GPU.
+
+    \***********************************************************************************/
+    void OverlayVulkanBackend::DestroyUploadResources()
+    {
+        assert( m_ResourcesUploadEvent != VK_NULL_HANDLE );
+
+        VkResult result = pfn_vkGetEventStatus( m_Device, m_ResourcesUploadEvent );
+        if( result == VK_SUCCESS )
+        {
+            pfn_vkDestroyEvent( m_Device, m_ResourcesUploadEvent, nullptr );
+            m_ResourcesUploadEvent = VK_NULL_HANDLE;
+
+            for( ImageResource& image : m_ImageResources )
+            {
+                vmaDestroyBuffer( m_Allocator, image.UploadBuffer, image.UploadBufferAllocation );
+                image.UploadBuffer = VK_NULL_HANDLE;
+                image.UploadBufferAllocation = VK_NULL_HANDLE;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyResources
+
+    Description:
+        Destroy all resources created by this backend.
+
+    \***********************************************************************************/
+    void OverlayVulkanBackend::DestroyResources()
+    {
+        if( m_ResourcesUploadEvent != VK_NULL_HANDLE )
+        {
+            pfn_vkDestroyEvent( m_Device, m_ResourcesUploadEvent, nullptr );
+            m_ResourcesUploadEvent = VK_NULL_HANDLE;
+        }
+
+        for( ImageResource& image : m_ImageResources )
+        {
+            DestroyImage( image );
+        }
+
+        m_ImageResources.clear();
     }
 
     /***********************************************************************************\
@@ -1177,11 +1390,211 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    OverlayVulkanLayerBackend::OverlayVulkanLayerBackend( VkDevice_Object& device, VkQueue_Object& queue )
-        : OverlayVulkanBackend( GetCreateInfo( device, queue ) )
-        , m_DeviceObject( device )
-        , pfn_vkSetDeviceLoaderData( device.SetDeviceLoaderData )
+    OverlayVulkanLayerBackend::OverlayVulkanLayerBackend()
+        : m_pDevice( nullptr )
+        , m_pGraphicsQueue( nullptr )
+        , m_pWindowContext( nullptr )
+        , pfn_vkSetDeviceLoaderData( nullptr )
     {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Initialize
+
+    Description:
+        Initializes the overlay backend for Vulkan layer environment.
+
+    \***********************************************************************************/
+    VkResult OverlayVulkanLayerBackend::Initialize( VkDevice_Object& device )
+    {
+        // Set members
+        m_pDevice = &device;
+        m_pGraphicsQueue = nullptr;
+
+        pfn_vkSetDeviceLoaderData = m_pDevice->SetDeviceLoaderData;
+
+        // Find suitable graphics queue.
+        for( auto& it : m_pDevice->Queues )
+        {
+            if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
+            {
+                m_pGraphicsQueue = &it.second;
+                break;
+            }
+        }
+
+        if( !m_pGraphicsQueue )
+        {
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        // Initialize Vulkan backend.
+        CreateInfo createInfo = {};
+        createInfo.Instance = m_pDevice->pInstance->Handle;
+        createInfo.PhysicalDevice = m_pDevice->pPhysicalDevice->Handle;
+        createInfo.Device = m_pDevice->Handle;
+        createInfo.Queue = m_pGraphicsQueue->Handle;
+        createInfo.QueueFamilyIndex = m_pGraphicsQueue->Family;
+        createInfo.ApiVersion = m_pDevice->pInstance->ApplicationInfo.apiVersion;
+        createInfo.pfn_vkGetDeviceProcAddr = m_pDevice->Callbacks.GetDeviceProcAddr;
+        createInfo.pfn_vkGetInstanceProcAddr = m_pDevice->pInstance->Callbacks.GetInstanceProcAddr;
+
+        // Use Vulkan 1.0 if no version info was specified by the application.
+        if( createInfo.ApiVersion == 0 )
+        {
+            createInfo.ApiVersion = VK_API_VERSION_1_0;
+        }
+
+        // Clamp to the version supported by the physical device.
+        createInfo.ApiVersion = std::min(
+            createInfo.ApiVersion,
+            device.pPhysicalDevice->Properties.apiVersion );
+
+        return OverlayVulkanBackend::Initialize( createInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Destroys the overlay backend.
+
+    \***********************************************************************************/
+    void OverlayVulkanLayerBackend::Destroy()
+    {
+        OverlayVulkanBackend::Destroy();
+
+        m_pDevice = nullptr;
+        m_pGraphicsQueue = nullptr;
+        m_pWindowContext = nullptr;
+        pfn_vkSetDeviceLoaderData = nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrepareImGuiBackend
+
+    Description:
+        Initialize the ImGui backend for the current surface.
+
+    \***********************************************************************************/
+    bool OverlayVulkanLayerBackend::PrepareImGuiBackend()
+    {
+        // Create Vulkan backend.
+        bool backendPrepared = OverlayVulkanBackend::PrepareImGuiBackend();
+
+        // Create window backend.
+        try
+        {
+            const OSWindowHandle windowHandle =
+                m_pDevice->pInstance->Surfaces.at( m_Surface ).Window;
+
+            switch( windowHandle.Type )
+            {
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+            case OSWindowHandleType::eWin32:
+                m_pWindowContext = new ImGui_ImplWin32_Context( windowHandle.Win32Handle );
+                break;
+#endif // VK_USE_PLATFORM_WIN32_KHR
+
+#ifdef VK_USE_PLATFORM_XCB_KHR
+            case OSWindowHandleType::eXcb:
+                m_pWindowContext = new ImGui_ImplXcb_Context( windowHandle.XcbHandle );
+                break;
+#endif // VK_USE_PLATFORM_XCB_KHR
+
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+            case OSWindowHandleType::eXlib:
+                m_pWindowContext = new ImGui_ImplXlib_Context( windowHandle.XlibHandle );
+                break;
+#endif // VK_USE_PLATFORM_XLIB_KHR
+
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+            case OSWindowHandleType::eWayland:
+                throw; // TODO: Implement ImGui Wayland context.
+#endif // VK_USE_PLATFORM_WAYLAND_KHR
+
+            default:
+                throw; // Not supported.
+            }
+        }
+        catch( ... )
+        {
+            // Failed to create ImGui window context or surface object was not found.
+            backendPrepared = false;
+        }
+
+        return backendPrepared;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImGuiBackend
+
+    Description:
+        Initialize the ImGui backend for the current surface.
+
+    \***********************************************************************************/
+    void OverlayVulkanLayerBackend::DestroyImGuiBackend()
+    {
+        OverlayVulkanBackend::DestroyImGuiBackend();
+
+        delete m_pWindowContext;
+        m_pWindowContext = nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        NewFrame
+
+    Description:
+        Begin rendering of a new frame.
+
+    \***********************************************************************************/
+    bool OverlayVulkanLayerBackend::NewFrame()
+    {
+        bool backendPrepared = OverlayVulkanBackend::NewFrame();
+        if( backendPrepared )
+        {
+            m_pWindowContext->NewFrame();
+        }
+
+        return backendPrepared;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AddInputCaptureRect
+
+    Description:
+        Add a rectangle to the list of input capture rectangles.
+
+    \***********************************************************************************/
+    void OverlayVulkanLayerBackend::AddInputCaptureRect( int x, int y, int width, int height )
+    {
+        m_pWindowContext->AddInputCaptureRect( x, y, width, height );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDPIScale
+
+    Description:
+        Get the DPI scale of the current surface.
+
+    \***********************************************************************************/
+    float OverlayVulkanLayerBackend::GetDPIScale() const
+    {
+        return m_pWindowContext->GetDPIScale();
     }
 
     /***********************************************************************************\
@@ -1206,7 +1619,7 @@ namespace Profiler
         std::optional<PFN_vkVoidFunction> pfnKnownFunction;
 
         // Try to return a known device function first.
-        pfnKnownFunction = m_DeviceObject.Callbacks.Get(
+        pfnKnownFunction = m_pDevice->Callbacks.Get(
             m_Device,
             pFunctionName,
             VkLayerFunctionNotFoundBehavior::eReturnNullopt );
@@ -1217,7 +1630,7 @@ namespace Profiler
         }
 
         // If the function is not found in the device dispatch table, try to find it in the instance dispatch table.
-        pfnKnownFunction = m_DeviceObject.pInstance->Callbacks.Get(
+        pfnKnownFunction = m_pDevice->pInstance->Callbacks.Get(
             m_Instance,
             pFunctionName,
             VkLayerFunctionNotFoundBehavior::eReturnNullopt );
@@ -1329,40 +1742,5 @@ namespace Profiler
         }
 
         return result;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetCreateInfo
-
-    Description:
-        Get backend create info from device and queue.
-
-    \***********************************************************************************/
-    OverlayVulkanBackend::CreateInfo OverlayVulkanLayerBackend::GetCreateInfo( VkDevice_Object& device, VkQueue_Object& queue )
-    {
-        CreateInfo createInfo = {};
-        createInfo.Instance = device.pInstance->Handle;
-        createInfo.PhysicalDevice = device.pPhysicalDevice->Handle;
-        createInfo.Device = device.Handle;
-        createInfo.Queue = queue.Handle;
-        createInfo.QueueFamilyIndex = queue.Family;
-        createInfo.ApiVersion = device.pInstance->ApplicationInfo.apiVersion;
-        createInfo.pfn_vkGetDeviceProcAddr = device.Callbacks.GetDeviceProcAddr;
-        createInfo.pfn_vkGetInstanceProcAddr = device.pInstance->Callbacks.GetInstanceProcAddr;
-
-        // Use Vulkan 1.0 if no version info was specified by the application.
-        if( createInfo.ApiVersion == 0 )
-        {
-            createInfo.ApiVersion = VK_API_VERSION_1_0;
-        }
-
-        // Clamp to the version supported by the physical device.
-        createInfo.ApiVersion = std::min(
-            createInfo.ApiVersion,
-            device.pPhysicalDevice->Properties.apiVersion );
-
-        return createInfo;
     }
 }

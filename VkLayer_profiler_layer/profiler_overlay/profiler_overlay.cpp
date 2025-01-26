@@ -225,12 +225,13 @@ namespace Profiler
         Initializes profiler overlay.
 
     \***********************************************************************************/
-    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend& frontend )
+    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend )
     {
         bool success = true;
 
         // Setup objects
         m_pFrontend = &frontend;
+        m_pBackend = &backend;
 
         const VkPhysicalDeviceProperties& deviceProperties = m_pFrontend->GetPhysicalDeviceProperties();
 
@@ -262,6 +263,19 @@ namespace Profiler
             m_Settings.Validate( io.IniFilename );
             m_Resources.InitializeFonts();
             InitializeImGuiStyle();
+
+            // Initialize ImGui backends
+            success = m_pBackend->PrepareImGuiBackend();
+        }
+
+        if( success )
+        {
+            // Initialize backend-dependent config
+            ImGuiIO& io = ImGui::GetIO();
+            io.FontGlobalScale = m_pBackend->GetDPIScale();
+
+            // Initialize resources
+            success = m_Resources.InitializeImages( m_pBackend );
         }
 
         // Get vendor metrics sets
@@ -325,7 +339,7 @@ namespace Profiler
             Destroy();
         }
 
-        return success ? VK_SUCCESS : VK_ERROR_INITIALIZATION_FAILED;
+        return success;
     }
 
     /***********************************************************************************\
@@ -348,14 +362,7 @@ namespace Profiler
             m_Resources.Destroy();
 
             // Destroy ImGui backends.
-            if( m_pGraphicsBackend )
-            {
-                m_pGraphicsBackend->Destroy();
-            }
-            if( m_pWindowBackend )
-            {
-                m_pWindowBackend->Destroy();
-            }
+            m_pBackend->DestroyImGuiBackend();
 
             ImGui::DestroyContext();
         }
@@ -376,11 +383,9 @@ namespace Profiler
     void ProfilerOverlayOutput::ResetMembers()
     {
         m_pFrontend = nullptr;
+        m_pBackend = nullptr;
 
         m_pImGuiContext = nullptr;
-
-        m_pGraphicsBackend = nullptr;
-        m_pWindowBackend = nullptr;
 
         m_Title.clear();
 
@@ -462,9 +467,7 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerOverlayOutput::IsAvailable() const
     {
-        return m_pFrontend != nullptr &&
-               m_pGraphicsBackend != nullptr &&
-               m_pWindowBackend != nullptr;
+        return (m_pFrontend != nullptr) && (m_pBackend != nullptr);
     }
 
     /***********************************************************************************\
@@ -481,47 +484,22 @@ namespace Profiler
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
 
-        // Record interface draw commands
-        Update( m_pFrontend->GetData() );
-
-        ImDrawData* pDrawData = ImGui::GetDrawData();
-        if( pDrawData )
-        {
-            m_pGraphicsBackend->RenderDrawData( pDrawData );
-        }
-
-        m_Resources.FreeUploadResources();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        Update
-
-    Description:
-        Update overlay.
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::Update( const std::shared_ptr<DeviceProfilerFrameData>& pData )
-    {
-        uint32_t outputWidth, outputHeight;
-        m_pGraphicsBackend->GetRenderArea( outputWidth, outputHeight );
-
         ImGuiIO& io = ImGui::GetIO();
-        io.DisplaySize.x = outputWidth;
-        io.DisplaySize.y = outputHeight;
+        io.DisplaySize = m_pBackend->GetRenderArea();
 
-        if( !m_pGraphicsBackend->NewFrame() )
-        {
-            return;
-        }
-
-        if( !m_pWindowBackend->NewFrame() )
+        if( !m_pBackend->NewFrame() )
         {
             return;
         }
 
         ImGui::NewFrame();
+
+        // Update data
+        if( !m_Pause || !m_pData )
+        {
+            m_pData = m_pFrontend->GetData();
+            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
+        }
 
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
@@ -533,7 +511,7 @@ namespace Profiler
         // Update input clipping rect
         ImVec2 pos = ImGui::GetWindowPos();
         ImVec2 size = ImGui::GetWindowSize();
-        m_pWindowBackend->AddInputCaptureRect(
+        m_pBackend->AddInputCaptureRect(
             static_cast<int>(pos.x),
             static_cast<int>(pos.y),
             static_cast<int>(size.x),
@@ -592,13 +570,6 @@ namespace Profiler
             VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
             VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
 
-        if( !m_Pause )
-        {
-            // Update data
-            m_pData = pData;
-            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
-        }
-
         // Add padding
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
 
@@ -644,7 +615,7 @@ namespace Profiler
                         // Add input clipping rect for this window
                         ImVec2 pos = ImGui::GetWindowPos();
                         ImVec2 size = ImGui::GetWindowSize();
-                        m_pWindowBackend->AddInputCaptureRect(
+                        m_pBackend->AddInputCaptureRect(
                             static_cast<int>(pos.x),
                             static_cast<int>(pos.y),
                             static_cast<int>(size.x),
@@ -753,6 +724,8 @@ namespace Profiler
 
         ImGui::PopFont();
         ImGui::Render();
+
+        m_pBackend->RenderDrawData( ImGui::GetDrawData() );
     }
 
     /***********************************************************************************\
@@ -3388,12 +3361,10 @@ namespace Profiler
 
         if( (now - m_SerializationFinishTimestamp) < 4s )
         {
-            uint32_t width, height;
-            m_pGraphicsBackend->GetRenderArea( width, height );
-
+            const ImVec2 outputSize = m_pBackend->GetRenderArea();
             const ImVec2 windowPos = {
-                static_cast<float>(width - m_SerializationOutputWindowSize.width),
-                static_cast<float>(height - m_SerializationOutputWindowSize.height) };
+                static_cast<float>(outputSize.x - m_SerializationOutputWindowSize.width),
+                static_cast<float>(outputSize.y - m_SerializationOutputWindowSize.height) };
 
             const float fadeOutStep =
                 1.f - std::max( 0.f, std::min( 1.f,

@@ -205,7 +205,7 @@ namespace Profiler
         Loads fonts for the overlay.
 
     \***********************************************************************************/
-    VkResult OverlayResources::InitializeFonts()
+    bool OverlayResources::InitializeFonts()
     {
         ImFontAtlas* fonts = ImGui::GetIO().Fonts;
         ImFont* defaultFont = fonts->AddFontDefault();
@@ -245,7 +245,7 @@ namespace Profiler
         int tex_w, tex_h;
         fonts->GetTexDataAsRGBA32( &tex_pixels, &tex_w, &tex_h );
 
-        return VK_SUCCESS;
+        return true;
     }
 
     /***********************************************************************************\
@@ -257,15 +257,18 @@ namespace Profiler
         Loads images for the overlay.
 
     \***********************************************************************************/
-    bool OverlayResources::InitializeImages( OverlayGraphicsBackend* pBackend )
+    bool OverlayResources::InitializeImages( OverlayBackend* pBackend )
     {
-        pBackend->WaitIdle();
-
         // Destroy existing resources.
         DestroyImages();
 
+        m_pBackend = pBackend;
+
+        // Create fonts image
+        m_pBackend->CreateFontsImage();
+
         // Create image objects
-        m_pCopyIconImage = pBackend->CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
+        m_pCopyIconImage = CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
 
         return true;
     }
@@ -301,6 +304,9 @@ namespace Profiler
     {
         if( m_pBackend )
         {
+            m_pBackend->WaitIdle();
+            m_pBackend->DestroyFontsImage();
+
             if( m_pCopyIconImage )
             {
                 m_pBackend->DestroyImage( m_pCopyIconImage );
@@ -309,33 +315,6 @@ namespace Profiler
         }
 
         m_pBackend = nullptr;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        FreeUploadResources
-
-    Description:
-        Frees resources used for uploading.
-
-    \***********************************************************************************/
-    void OverlayResources::FreeUploadResources()
-    {
-        if( m_UploadEvent != VK_NULL_HANDLE )
-        {
-            VkResult result = m_pDevice->Callbacks.GetEventStatus(
-                m_pDevice->Handle,
-                m_UploadEvent );
-
-            if( result == VK_EVENT_SET )
-            {
-                DestroyImageUploadResources( m_CopyIconImage );
-
-                m_pDevice->Callbacks.DestroyEvent( m_pDevice->Handle, m_UploadEvent, nullptr );
-                m_UploadEvent = VK_NULL_HANDLE;
-            }
-        }
     }
 
     /***********************************************************************************\
@@ -422,30 +401,11 @@ namespace Profiler
             return nullptr;
         }
 
-        OverlayGraphicsBackend::ImageCreateInfo imageCreateInfo = {};
+        OverlayBackend::ImageCreateInfo imageCreateInfo = {};
         imageCreateInfo.Width = static_cast<uint32_t>( width );
         imageCreateInfo.Height = static_cast<uint32_t>( height );
         imageCreateInfo.pData = pixels.get();
 
         return m_pBackend->CreateImage( imageCreateInfo );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        DestroyImageUploadResources
-
-    Description:
-        Frees resources used for uploading the image.
-
-    \***********************************************************************************/
-    void OverlayResources::DestroyImageUploadResources( OverlayImage& image )
-    {
-        if( image.UploadBuffer )
-        {
-            m_MemoryManager.FreeBuffer( image.UploadBuffer, image.UploadBufferAllocation );
-            image.UploadBuffer = VK_NULL_HANDLE;
-            image.UploadBufferAllocation = VK_NULL_HANDLE;
-        }
     }
 }

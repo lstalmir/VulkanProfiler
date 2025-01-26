@@ -25,7 +25,7 @@ struct ImFont;
 
 namespace Profiler
 {
-    class OverlayGraphicsBackend;
+    class OverlayBackend;
 
     /***********************************************************************************\
 
@@ -42,7 +42,7 @@ namespace Profiler
         bool InitializeFonts();
         void Destroy();
 
-        bool InitializeImages( OverlayGraphicsBackend* pBackend );
+        bool InitializeImages( OverlayBackend* pBackend );
         void DestroyImages();
 
         ImFont* GetDefaultFont() const;
@@ -52,7 +52,7 @@ namespace Profiler
         void* GetCopyIconImage() const;
 
     private:
-        OverlayGraphicsBackend* m_pBackend = nullptr;
+        OverlayBackend* m_pBackend = nullptr;
 
         ImFont* m_pDefaultFont = nullptr;
         ImFont* m_pBoldFont = nullptr;
