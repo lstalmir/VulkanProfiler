@@ -239,10 +239,6 @@ namespace Profiler
     \***********************************************************************************/
     VkResult OverlayVulkanBackend::SetSwapchain( VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR& createInfo )
     {
-        assert( m_pSwapchain == nullptr ||
-                createInfo->oldSwapchain == m_pSwapchain->Handle ||
-                createInfo->oldSwapchain == VK_NULL_HANDLE );
-
         VkResult result = VK_SUCCESS;
 
         // Get swapchain images
