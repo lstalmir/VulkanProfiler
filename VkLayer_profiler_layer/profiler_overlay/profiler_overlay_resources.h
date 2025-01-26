@@ -60,6 +60,6 @@ namespace Profiler
 
         void* m_pCopyIconImage = nullptr;
 
-        void* CreateImage( const uint8_t* pAsset, size_t assetSize );
+        void* CreateImage( const uint8_t* pAsset, int assetSize );
     };
 }

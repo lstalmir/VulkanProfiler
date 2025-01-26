@@ -382,7 +382,7 @@ namespace Profiler
         Creates an image object from the asset data.
 
     \***********************************************************************************/
-    void* OverlayResources::CreateImage( const uint8_t* pAsset, size_t assetSize )
+    void* OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
     {
         int width, height, channels, iAssetSize;
         std::unique_ptr<stbi_uc[]> pixels;
@@ -390,7 +390,7 @@ namespace Profiler
         // Load image data from asset.
         pixels.reset( stbi_load_from_memory(
             pAsset,
-            static_cast<int>( assetSize ),
+            assetSize,
             &width,
             &height,
             &channels,
