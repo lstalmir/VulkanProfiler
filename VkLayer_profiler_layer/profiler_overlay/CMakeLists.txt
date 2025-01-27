@@ -41,8 +41,6 @@ set (sources
     )
 
 set (imgui
-    "imgui_impl_vulkan_layer.h"
-    "imgui_impl_vulkan_layer.cpp"
     "imgui_window.h"
     )
 

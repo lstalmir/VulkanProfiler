@@ -30,7 +30,6 @@
 #include <string>
 
 #include <imgui.h>
-#include "imgui_impl_vulkan_layer.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
