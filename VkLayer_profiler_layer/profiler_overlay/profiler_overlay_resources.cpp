@@ -400,11 +400,6 @@ namespace Profiler
             return nullptr;
         }
 
-        OverlayBackend::ImageCreateInfo imageCreateInfo = {};
-        imageCreateInfo.Width = static_cast<uint32_t>( width );
-        imageCreateInfo.Height = static_cast<uint32_t>( height );
-        imageCreateInfo.pData = pixels.get();
-
-        return m_pBackend->CreateImage( imageCreateInfo );
+        return m_pBackend->CreateImage( width, height, pixels.get() );
     }
 }

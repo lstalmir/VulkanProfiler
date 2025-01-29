@@ -465,6 +465,10 @@ namespace Profiler
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
 
+        // Must be set before calling NewFrame to avoid clipping on window resize.
+        ImGuiIO& io = ImGui::GetIO();
+        io.DisplaySize = m_pBackend->GetRenderArea();
+
         if( !m_pBackend->NewFrame() )
         {
             return;

@@ -41,8 +41,8 @@ namespace Profiler
         : public OverlayLayerPlatformBackend
     {
     public:
-        ImGui_ImplXcb_Context( xcb_window_t window );
-        ~ImGui_ImplXcb_Context();
+        OverlayLayerXcbPlatformBackend( xcb_window_t window );
+        ~OverlayLayerXcbPlatformBackend();
 
         void NewFrame() override;
         void AddInputCaptureRect( int x, int y, int width, int height ) override;
