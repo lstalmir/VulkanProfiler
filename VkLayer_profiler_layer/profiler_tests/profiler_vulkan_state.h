@@ -20,9 +20,11 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <string_view>
+#include <string.h>
 
 #define VERIFY_RESULT( VK, EXPR ) VK->VerifyResult( (EXPR), #EXPR )
 
@@ -102,9 +104,9 @@ namespace Profiler
 
         struct CreateInfo
         {
-            std::vector<VulkanExtension*> InstanceExtensions = {};
-            std::vector<VulkanExtension*> DeviceExtensions = {};
-            std::vector<VulkanFeature*> DeviceFeatures = {};
+            std::vector<VulkanExtension*> InstanceExtensions;
+            std::vector<VulkanExtension*> DeviceExtensions;
+            std::vector<VulkanFeature*> DeviceFeatures;
         };
 
     public:
@@ -294,6 +296,10 @@ namespace Profiler
         inline ~VulkanState()
         {
             vkDeviceWaitIdle( Device );
+
+            // Destroy resources allocated for the test
+            vkDestroyCommandPool( Device, CommandPool, nullptr );
+            vkDestroyDescriptorPool( Device, DescriptorPool, nullptr );
 
             // This frees all resources created with this device
             vkDestroyDevice( Device, nullptr );
