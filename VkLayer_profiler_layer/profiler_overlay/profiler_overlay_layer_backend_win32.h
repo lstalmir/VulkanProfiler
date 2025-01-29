@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,31 +19,42 @@
 // SOFTWARE.
 
 #pragma once
-#include "imgui_window.h"
-#include "lockable_unordered_map.h"
-
+#include "profiler_overlay_layer_backend.h"
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
 struct ImGuiContext;
 
-class ImGui_ImplWin32_Context : public ImGui_Window_Context
+namespace Profiler
 {
-public:
-    ImGui_ImplWin32_Context( HWND hWnd );
-    ~ImGui_ImplWin32_Context();
+    /***********************************************************************************\
 
-    HWND        GetWindow() const;
-    const char* GetName() const override;
-    void        NewFrame() override;
-    float       GetDPIScale() const override;
+    Class:
+        OverlayLayerWin32PlatformBackend
 
-private:
-    HWND m_AppWindow;
-    DWORD m_AppWindowThreadId;
-    ImGuiContext* m_pImGuiContext;
-    int m_RawMouseX;
-    int m_RawMouseY;
-    int m_RawMouseButtons;
+    Description:
+        Implementation of the backend for Windows.
 
-    static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
-};
+    \***********************************************************************************/
+    class OverlayLayerWin32PlatformBackend
+        : public OverlayLayerPlatformBackend
+    {
+    public:
+        OverlayLayerWin32PlatformBackend( HWND hWnd );
+        ~OverlayLayerWin32PlatformBackend();
+
+        HWND GetWindow() const;
+        void NewFrame() override;
+        float GetDPIScale() const override;
+
+    private:
+        HWND m_AppWindow;
+        DWORD m_AppWindowThreadId;
+        ImGuiContext* m_pImGuiContext;
+        int m_RawMouseX;
+        int m_RawMouseY;
+        int m_RawMouseButtons;
+
+        static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
+    };
+}

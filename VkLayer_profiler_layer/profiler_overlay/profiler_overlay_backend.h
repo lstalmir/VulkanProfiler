@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,47 +19,44 @@
 // SOFTWARE.
 
 #pragma once
-#include <stdint.h>
 
-struct ImFont;
+struct ImDrawData;
+struct ImVec2;
 
 namespace Profiler
 {
-    class OverlayBackend;
-
     /***********************************************************************************\
 
     Class:
-        OverlayResources
+        OverlayBackend
 
     Description:
-        Manages the fonts and images used by the overlay.
+        Backend interface for the overlay.
 
     \***********************************************************************************/
-    class OverlayResources
+    class OverlayBackend
     {
     public:
-        bool InitializeFonts();
-        void Destroy();
+        virtual ~OverlayBackend() = default;
 
-        bool InitializeImages( OverlayBackend* pBackend );
-        void DestroyImages();
+        virtual bool PrepareImGuiBackend() = 0;
+        virtual void DestroyImGuiBackend() = 0;
 
-        ImFont* GetDefaultFont() const;
-        ImFont* GetBoldFont() const;
-        ImFont* GetCodeFont() const;
+        virtual void PrepareMainWindow( const char* pTitle, int& flags ) {}
+        virtual void FinishMainWindow() {}
 
-        void* GetCopyIconImage() const;
+        virtual void WaitIdle() {}
 
-    private:
-        OverlayBackend* m_pBackend = nullptr;
+        virtual bool NewFrame() = 0;
+        virtual void RenderDrawData( ImDrawData* draw_data ) = 0;
 
-        ImFont* m_pDefaultFont = nullptr;
-        ImFont* m_pBoldFont = nullptr;
-        ImFont* m_pCodeFont = nullptr;
+        virtual void AddInputCaptureRect( int x, int y, int width, int height ) = 0;
+        virtual float GetDPIScale() const = 0;
+        virtual ImVec2 GetRenderArea() const = 0;
 
-        void* m_pCopyIconImage = nullptr;
-
-        void* CreateImage( const uint8_t* pAsset, int assetSize );
+        virtual void* CreateImage( int width, int height, const void* pData ) = 0;
+        virtual void DestroyImage( void* pImage ) = 0;
+        virtual void CreateFontsImage() = 0;
+        virtual void DestroyFontsImage() = 0;
     };
 }
