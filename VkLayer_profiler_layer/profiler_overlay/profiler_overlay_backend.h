@@ -19,24 +19,12 @@
 // SOFTWARE.
 
 #pragma once
-#include <memory>
-#include <vector>
 
-#include <vulkan/vulkan.h>
-#include <vulkan/vk_layer.h>
-#include <vk_mem_alloc.h>
-
-struct ImGuiContext;
 struct ImDrawData;
 struct ImVec2;
-struct ImGui_Window_Context;
 
 namespace Profiler
 {
-    struct VkDevice_Object;
-    struct VkQueue_Object;
-    struct VkSwapchainKhr_Object;
-
     /***********************************************************************************\
 
     Class:
@@ -49,19 +37,15 @@ namespace Profiler
     class OverlayBackend
     {
     public:
-        struct ImageCreateInfo
-        {
-            uint32_t Width;
-            uint32_t Height;
-            const uint8_t* pData;
-        };
-
         virtual ~OverlayBackend() = default;
 
         virtual bool PrepareImGuiBackend() = 0;
         virtual void DestroyImGuiBackend() = 0;
 
-        virtual void WaitIdle() = 0;
+        virtual void PrepareMainWindow( const char* pTitle, int& flags ) {}
+        virtual void FinishMainWindow() {}
+
+        virtual void WaitIdle() {}
 
         virtual bool NewFrame() = 0;
         virtual void RenderDrawData( ImDrawData* draw_data ) = 0;
@@ -70,220 +54,9 @@ namespace Profiler
         virtual float GetDPIScale() const = 0;
         virtual ImVec2 GetRenderArea() const = 0;
 
-        virtual void* CreateImage( const ImageCreateInfo& createInfo ) = 0;
+        virtual void* CreateImage( int width, int height, const void* pData ) = 0;
         virtual void DestroyImage( void* pImage ) = 0;
         virtual void CreateFontsImage() = 0;
         virtual void DestroyFontsImage() = 0;
-    };
-
-    /***********************************************************************************\
-
-    Class:
-        OverlayVulkanBackend
-
-    Description:
-        Implementation of the backend for Vulkan.
-
-    \***********************************************************************************/
-    class OverlayVulkanBackend
-        : public OverlayBackend
-    {
-    public:
-        struct CreateInfo
-        {
-            VkInstance Instance;
-            VkPhysicalDevice PhysicalDevice;
-            VkDevice Device;
-            VkQueue Queue;
-            uint32_t QueueFamilyIndex;
-            uint32_t ApiVersion;
-            PFN_vkGetDeviceProcAddr pfn_vkGetDeviceProcAddr;
-            PFN_vkGetInstanceProcAddr pfn_vkGetInstanceProcAddr;
-        };
-
-        OverlayVulkanBackend();
-
-        VkResult Initialize( const CreateInfo& createInfo );
-        void Destroy();
-
-        bool IsInitialized() const;
-
-        VkResult SetSwapchain( VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR& createInfo );
-        VkSwapchainKHR GetSwapchain() const;
-
-        void SetFramePresentInfo( const VkPresentInfoKHR& presentInfo );
-        const VkPresentInfoKHR& GetFramePresentInfo() const;
-
-        bool PrepareImGuiBackend() override;
-        void DestroyImGuiBackend() override;
-
-        void WaitIdle() override;
-
-        bool NewFrame() override;
-        void RenderDrawData( ImDrawData* pDrawData ) override;
-
-        ImVec2 GetRenderArea() const override;
-
-        void* CreateImage( const ImageCreateInfo& createInfo ) override;
-        void DestroyImage( void* pImage ) override;
-        void CreateFontsImage() override;
-        void DestroyFontsImage() override;
-
-    protected:
-        bool LoadFunctions();
-        void ResetMembers();
-
-        void DestroySwapchainResources();
-        void ResetSwapchainMembers();
-
-        static PFN_vkVoidFunction FunctionLoader( const char* pFunctionName, void* pUserData );
-        virtual PFN_vkVoidFunction LoadFunction( const char* pFunctionName );
-
-        virtual VkResult AllocateCommandBuffers(
-            const VkCommandBufferAllocateInfo& allocateInfo, VkCommandBuffer* pCommandBuffers );
-
-        void RecordUploadCommands( VkCommandBuffer commandBuffer );
-        void DestroyUploadResources();
-        void DestroyResources();
-
-    protected:
-        VkInstance m_Instance;
-        VkPhysicalDevice m_PhysicalDevice;
-        VkDevice m_Device;
-        VkQueue m_Queue;
-        uint32_t m_QueueFamilyIndex;
-        uint32_t m_ApiVersion;
-
-        VmaAllocator m_Allocator;
-        VkCommandPool m_CommandPool;
-        VkDescriptorPool m_DescriptorPool;
-
-        bool m_Initialized : 1;
-
-        bool m_ImGuiBackendResetBeforeNextFrame : 1;
-        bool m_ImGuiBackendInitialized : 1;
-
-        VkSurfaceKHR m_Surface;
-        VkSwapchainKHR m_Swapchain;
-        VkPresentInfoKHR m_PresentInfo;
-
-        VkRenderPass m_RenderPass;
-        VkExtent2D m_RenderArea;
-        VkFormat m_ImageFormat;
-        uint32_t m_MinImageCount;
-        std::vector<VkImage> m_Images;
-        std::vector<VkImageView> m_ImageViews;
-        std::vector<VkFramebuffer> m_Framebuffers;
-        std::vector<VkCommandBuffer> m_CommandBuffers;
-        std::vector<VkFence> m_CommandFences;
-        std::vector<VkSemaphore> m_CommandSemaphores;
-        VkFence m_LastSubmittedFence;
-
-        VkEvent m_ResourcesUploadEvent;
-        VkSampler m_LinearSampler;
-
-        struct ImageResource;
-        std::vector<ImageResource> m_ImageResources;
-
-        PFN_vkGetDeviceProcAddr pfn_vkGetDeviceProcAddr;
-        PFN_vkGetInstanceProcAddr pfn_vkGetInstanceProcAddr;
-        PFN_vkQueueSubmit pfn_vkQueueSubmit;
-        PFN_vkCreateRenderPass pfn_vkCreateRenderPass;
-        PFN_vkDestroyRenderPass pfn_vkDestroyRenderPass;
-        PFN_vkCreateFramebuffer pfn_vkCreateFramebuffer;
-        PFN_vkDestroyFramebuffer pfn_vkDestroyFramebuffer;
-        PFN_vkCreateImageView pfn_vkCreateImageView;
-        PFN_vkDestroyImageView pfn_vkDestroyImageView;
-        PFN_vkCreateSampler pfn_vkCreateSampler;
-        PFN_vkDestroySampler pfn_vkDestroySampler;
-        PFN_vkCreateFence pfn_vkCreateFence;
-        PFN_vkDestroyFence pfn_vkDestroyFence;
-        PFN_vkWaitForFences pfn_vkWaitForFences;
-        PFN_vkResetFences pfn_vkResetFences;
-        PFN_vkCreateEvent pfn_vkCreateEvent;
-        PFN_vkDestroyEvent pfn_vkDestroyEvent;
-        PFN_vkCmdSetEvent pfn_vkCmdSetEvent;
-        PFN_vkGetEventStatus pfn_vkGetEventStatus;
-        PFN_vkCreateSemaphore pfn_vkCreateSemaphore;
-        PFN_vkDestroySemaphore pfn_vkDestroySemaphore;
-        PFN_vkCreateDescriptorPool pfn_vkCreateDescriptorPool;
-        PFN_vkDestroyDescriptorPool pfn_vkDestroyDescriptorPool;
-        PFN_vkAllocateDescriptorSets pfn_vkAllocateDescriptorSets;
-        PFN_vkCreateCommandPool pfn_vkCreateCommandPool;
-        PFN_vkDestroyCommandPool pfn_vkDestroyCommandPool;
-        PFN_vkAllocateCommandBuffers pfn_vkAllocateCommandBuffers;
-        PFN_vkFreeCommandBuffers pfn_vkFreeCommandBuffers;
-        PFN_vkBeginCommandBuffer pfn_vkBeginCommandBuffer;
-        PFN_vkEndCommandBuffer pfn_vkEndCommandBuffer;
-        PFN_vkGetSwapchainImagesKHR pfn_vkGetSwapchainImagesKHR;
-        PFN_vkCmdBeginRenderPass pfn_vkCmdBeginRenderPass;
-        PFN_vkCmdEndRenderPass pfn_vkCmdEndRenderPass;
-        PFN_vkCmdPipelineBarrier pfn_vkCmdPipelineBarrier;
-        PFN_vkCmdCopyBufferToImage pfn_vkCmdCopyBufferToImage;
-
-        struct ImageResource
-        {
-            VkImage Image = VK_NULL_HANDLE;
-            VkImageView ImageView = VK_NULL_HANDLE;
-            VkDescriptorSet ImageDescriptorSet = VK_NULL_HANDLE;
-            VmaAllocation ImageAllocation = VK_NULL_HANDLE;
-            VkExtent2D ImageExtent = {};
-
-            VkBuffer UploadBuffer = VK_NULL_HANDLE;
-            VmaAllocation UploadBufferAllocation = VK_NULL_HANDLE;
-
-            bool RequiresUpload = false;
-        };
-
-        VkResult InitializeImage( ImageResource& image, const ImageCreateInfo& createInfo );
-        void DestroyImage( ImageResource& image );
-
-        void RecordImageUploadCommands( VkCommandBuffer commandBuffer, ImageResource& image );
-        void TransitionImageLayout( VkCommandBuffer commandBuffer, ImageResource& image, VkImageLayout oldLayout, VkImageLayout newLayout );
-    };
-
-    /***********************************************************************************\
-
-    Class:
-        OverlayVulkanLayerBackend
-
-    Description:
-        Implementation of the backend for Vulkan layer environment.
-
-    \***********************************************************************************/
-    class OverlayVulkanLayerBackend
-        : public OverlayVulkanBackend
-    {
-    public:
-        OverlayVulkanLayerBackend();
-
-        VkResult Initialize( VkDevice_Object& device );
-        void Destroy();
-
-        bool PrepareImGuiBackend() override;
-        void DestroyImGuiBackend() override;
-
-        bool NewFrame() override;
-
-        void AddInputCaptureRect( int x, int y, int width, int height ) override;
-        float GetDPIScale() const override;
-
-    protected:
-        PFN_vkVoidFunction LoadFunction( const char* pFunctionName ) override;
-        static VkResult vkAllocateCommandBuffers(
-            VkDevice device,
-            const VkCommandBufferAllocateInfo* pAllocateInfo,
-            VkCommandBuffer* pCommandBuffers );
-
-        VkResult AllocateCommandBuffers(
-            const VkCommandBufferAllocateInfo& allocateInfo, VkCommandBuffer* pCommandBuffers ) override;
-
-    protected:
-        VkDevice_Object* m_pDevice;
-        VkQueue_Object* m_pGraphicsQueue;
-
-        ImGui_Window_Context* m_pWindowContext;
-
-        PFN_vkSetDeviceLoaderData pfn_vkSetDeviceLoaderData;
     };
 }

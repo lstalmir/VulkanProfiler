@@ -25,6 +25,7 @@ project (profiler_overlay)
 set (headers
     "profiler_overlay.h"
     "profiler_overlay_backend.h"
+    "profiler_overlay_layer_backend.h"
     "profiler_overlay_resources.h"
     "profiler_overlay_settings.h"
     "profiler_overlay_shader_view.h"
@@ -34,43 +35,34 @@ set (headers
 
 set (sources
     "profiler_overlay.cpp"
-    "profiler_overlay_backend.cpp"
+    "profiler_overlay_layer_backend.cpp"
     "profiler_overlay_resources.cpp"
     "profiler_overlay_settings.cpp"
     "profiler_overlay_shader_view.cpp"
     )
 
-set (imgui
-    "imgui_window.h"
-    )
-
 # Platform-dependent implementation
+set (backends)
 if (WIN32)
-set (imgui_platform
-    "imgui_impl_win32.h"
-    "imgui_impl_win32.cpp"
-    )
+    list (APPEND backends
+        "profiler_overlay_layer_backend_win32.h"
+        "profiler_overlay_layer_backend_win32.cpp")
 elseif (UNIX)
-if (X11_FOUND)
-set (imgui_platform_x11
-    "imgui_impl_xlib.h"
-    "imgui_impl_xlib.cpp")
-endif ()
-if (XCB_FOUND)
-set (imgui_platform_xcb
-    "imgui_impl_xcb.h"
-    "imgui_impl_xcb.cpp")
-endif ()
-if (Wayland_FOUND)
-set (imgui_platform_wayland
-    "imgui_impl_wayland.h"
-    "imgui_impl_wayland.cpp")
-endif ()
-set (imgui_platform
-    ${imgui_platform_x11}
-    ${imgui_platform_xcb}
-    #${imgui_platform_wayland}
-    )
+    if (X11_FOUND)
+        list (APPEND backends
+            "profiler_overlay_layer_backend_xlib.h"
+            "profiler_overlay_layer_backend_xlib.cpp")
+    endif ()
+    if (XCB_FOUND)
+        list (APPEND backends
+            "profiler_overlay_layer_backend_xcb.h"
+            "profiler_overlay_layer_backend_xcb.cpp")
+    endif ()
+    if (Wayland_FOUND)
+        list (APPEND backends
+            "profiler_overlay_layer_backend_wayland.h"
+            "profiler_overlay_layer_backend_wayland.cpp")
+    endif ()
 endif ()
 
 set (imgui_widgets
@@ -102,8 +94,7 @@ add_custom_target (profiler_overlay_assets
 add_library (profiler_overlay
     ${sources}
     ${headers}
-    ${imgui}
-    ${imgui_platform}
+    ${backends}
     ${imgui_widgets})
 
 target_link_libraries (profiler_overlay

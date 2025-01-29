@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,13 +19,42 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_overlay_layer_backend.h"
+#include <vector>
+#include <X11/Xlib.h>
+#include <X11/extensions/shape.h>
 
-class ImGui_Window_Context
+struct ImGuiContext;
+
+namespace Profiler
 {
-public:
-    virtual ~ImGui_Window_Context() {}
-    virtual const char* GetName() const = 0;
-    virtual void NewFrame() = 0;
-    virtual void AddInputCaptureRect( int x, int y, int width, int height ) {}
-    virtual float GetDPIScale() const { return 1.0f; }
-};
+    /***********************************************************************************\
+
+    Class:
+        OverlayLayerXlibPlatformBackend
+
+    Description:
+        Implementation of the backend for X11 Xlib.
+
+    \***********************************************************************************/
+    class OverlayLayerXlibPlatformBackend
+        : public OverlayLayerPlatformBackend
+    {
+    public:
+        OverlayLayerXlibPlatformBackend( Window window );
+        ~OverlayLayerXlibPlatformBackend();
+
+        void NewFrame() override;
+        void AddInputCaptureRect( int x, int y, int width, int height ) override;
+
+    private:
+        ImGuiContext* m_pImGuiContext;
+        Display* m_Display;
+        XIM m_IM;
+        Window m_AppWindow;
+        Window m_InputWindow;
+        std::vector<XRectangle> m_InputRects;
+
+        void UpdateMousePos();
+    };
+}

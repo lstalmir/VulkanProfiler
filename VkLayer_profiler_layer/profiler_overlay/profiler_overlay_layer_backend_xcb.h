@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,31 +19,43 @@
 // SOFTWARE.
 
 #pragma once
-#include "imgui_window.h"
+#include "profiler_overlay_layer_backend.h"
 #include <vector>
-#include <X11/Xlib.h>
-#include <X11/extensions/shape.h>
+#include <xcb/xcb.h>
+#include <xcb/shape.h>
 
 struct ImGuiContext;
 
-class ImGui_ImplXlib_Context : public ImGui_Window_Context
+namespace Profiler
 {
-public:
-    ImGui_ImplXlib_Context( Window window );
-    ~ImGui_ImplXlib_Context();
+    /***********************************************************************************\
 
-    const char* GetName() const override;
+    Class:
+        OverlayLayerXlibPlatformBackend
 
-    void NewFrame() override;
-    void AddInputCaptureRect( int x, int y, int width, int height ) override;
+    Description:
+        Implementation of the backend for X11 XCB.
 
-private:
-    ImGuiContext* m_pImGuiContext;
-    Display* m_Display;
-    XIM m_IM;
-    Window m_AppWindow;
-    Window m_InputWindow;
-    std::vector<XRectangle> m_InputRects;
+    \***********************************************************************************/
+    class OverlayLayerXcbPlatformBackend
+        : public OverlayLayerPlatformBackend
+    {
+    public:
+        ImGui_ImplXcb_Context( xcb_window_t window );
+        ~ImGui_ImplXcb_Context();
 
-    void UpdateMousePos();
-};
+        void NewFrame() override;
+        void AddInputCaptureRect( int x, int y, int width, int height ) override;
+
+    private:
+        ImGuiContext* m_pImGuiContext;
+        xcb_connection_t* m_Connection;
+        xcb_window_t m_AppWindow;
+        xcb_window_t m_InputWindow;
+        std::vector<xcb_rectangle_t> m_InputRects;
+
+        xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
+
+        void UpdateMousePos();
+    };
+}
