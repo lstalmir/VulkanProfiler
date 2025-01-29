@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -149,6 +149,23 @@ namespace ImGuiX
         const ImU8 o2 = ComponentLerp( (a >> 16) & 0xFF, (b >> 16) & 0xFF, s );
         const ImU8 o3 = ComponentLerp( (a >> 24) & 0xFF, (b >> 24) & 0xFF, s );
         return o0 | (o1 << 8) | (o2 << 16) | (o3 << 24);
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ColorLerp
+
+    Description:
+        Interpolate colors.
+
+    \*************************************************************************/
+    ImU32 Darker( ImU32 color, float factor )
+    {
+        const ImU8 r = static_cast<ImU8>( ImClamp( ((color >> 0) & 0xFF) * factor, 0.f, 255.f ) );
+        const ImU8 g = static_cast<ImU8>( ImClamp( ((color >> 8) & 0xFF) * factor, 0.f, 255.f ) );
+        const ImU8 b = static_cast<ImU8>( ImClamp( ((color >> 16) & 0xFF) * factor, 0.f, 255.f ) );
+        return (color & 0xFF000000) | (b << 16) | (g << 8) | (r);
     }
 
     /*************************************************************************\

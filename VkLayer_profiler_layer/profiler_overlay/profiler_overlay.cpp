@@ -1790,22 +1790,156 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateTopPipelinesTab()
     {
-        uint32_t i = 0;
+        auto DrawPipelineStageBadge = [&]( const DeviceProfilerPipeline& pipeline, VkShaderStageFlagBits stage, std::string label = std::string() ) {
+            const ProfilerShader* pShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( stage );
 
-        for( const auto& pipeline : m_pData->m_TopPipelines )
-        {
-            if( pipeline.m_Handle != VK_NULL_HANDLE )
+            uint32_t badgeBaseColor = 0;
+            if( pShader )
             {
-                const float pipelineTime = GetDuration( pipeline );
-
-                ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
-                ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
-                    pipelineTime * 100.f / m_FrameTime,
-                    pipelineTime );
-
-                // Print up to 10 top pipelines
-                if( (++i) == 10 ) break;
+                switch( pipeline.m_BindPoint )
+                {
+                default:
+                case VK_PIPELINE_BIND_POINT_GRAPHICS:
+                    badgeBaseColor = m_GraphicsPipelineColumnColor;
+                    break;
+                case VK_PIPELINE_BIND_POINT_COMPUTE:
+                    badgeBaseColor = m_ComputePipelineColumnColor;
+                    break;
+                case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+                    badgeBaseColor = m_RayTracingPipelineColumnColor;
+                    break;
+                }
             }
+
+            if( !pShader )
+            {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 255, 255, 48 ) );
+            }
+
+            if( label.empty() )
+            {
+                label = m_pStringSerializer->GetShortShaderStageName( stage );
+            }
+
+            for( char& c : label )
+            {
+                c = toupper( c );
+            }
+
+            uint32_t badgeColor = ImGuiX::Darker( badgeBaseColor, 0.67f );
+            ImGuiX::BadgeUnformatted( badgeColor, 1.f, label.c_str() );
+
+            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            {
+                if( ImGui::BeginTooltip() )
+                {
+                    ImGui::PushFont( m_Resources.GetBoldFont() );
+                    ImGui::Text( "%s stage", m_pStringSerializer->GetShaderStageName( stage ).c_str() );
+                    ImGui::PopFont();
+
+                    if( pShader )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetShaderName( *pShader ).c_str() );
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted( "Unused" );
+                    }
+
+                    ImGui::EndTooltip();
+                }
+            }
+
+            if( !pShader )
+            {
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::SameLine();
+        };
+
+        if( ImGui::BeginTable( "TopPipelinesTable", 5, 0 ) )
+        {
+            // Headers
+            ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableSetupColumn( "Pipeline", ImGuiTableColumnFlags_WidthStretch );
+            ImGui::TableSetupColumn( "Stages", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableSetupColumn( "%", ImGuiTableColumnFlags_WidthStretch, 0.22f );
+            ImGui::TableSetupColumn( "Time", ImGuiTableColumnFlags_WidthStretch, 0.22f );
+            ImGuiX::TableHeadersRow();
+
+            uint32_t topPipelineIndex = 0;
+
+            for( const auto& pipeline : m_pData->m_TopPipelines )
+            {
+                if( pipeline.m_Handle != VK_NULL_HANDLE )
+                {
+                    const float pipelineTime = GetDuration( pipeline );
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", topPipelineIndex + 1 );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetName( pipeline ).c_str() );
+
+                        if( pipeline.m_UsesShaderObjects )
+                        {
+                            static ImU32 shaderObjectsColor = IM_COL32( 104, 25, 133, 255 );
+                            DrawBadge( shaderObjectsColor, "SO", Lang::ShaderObjectsTooltip );
+                        }
+                        if( pipeline.m_UsesRayQuery )
+                        {
+                            static ImU32 rayQueryCapabilityColor = IM_COL32( 133, 82, 25, 255 );
+                            DrawBadge( rayQueryCapabilityColor, "RQ", Lang::ShaderCapabilityTooltipFmt, "Ray Query" );
+                        }
+                        if( pipeline.m_UsesRayTracing )
+                        {
+                            static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
+                            DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
+                        }
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
+                        {
+                            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 5.f, 0 ) );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_FRAGMENT_BIT );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_COMPUTE_BIT );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, "rt" );
+                            ImGui::PopStyleVar();
+                        }
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "%.1f %%",
+                            pipelineTime * 100.f / m_FrameTime );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGuiX::TextAlignRight(
+                            ImGuiX::TableGetColumnWidth(),
+                            "%.2f ms",
+                            pipelineTime );
+                    }
+
+                    // Print up to 10 top pipelines
+                    if( (++topPipelineIndex) == 10 ) break;
+                }
+            }
+
+            ImGui::EndTable();
         }
     }
 
@@ -4678,12 +4812,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... )
     {
-        assert( m_ShowShaderCapabilities );
-
         ImGui::SameLine();
         ImGuiX::BadgeUnformatted( color, 5.f, shortName );
 
-        if (ImGui::IsItemHovered())
+        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
         {
             va_list args;
             va_start( args, fmt );
