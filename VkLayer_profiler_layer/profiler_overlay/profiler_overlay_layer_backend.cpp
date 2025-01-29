@@ -698,6 +698,7 @@ namespace Profiler
         if( backendPrepared )
         {
             ImGui_ImplVulkan_NewFrame();
+            m_pPlatformBackend->NewFrame();
         }
 
         if( m_ResourcesUploadEvent != VK_NULL_HANDLE )
