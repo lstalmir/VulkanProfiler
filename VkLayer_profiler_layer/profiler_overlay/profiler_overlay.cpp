@@ -483,8 +483,10 @@ namespace Profiler
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
 
         // Begin main window
+        int flags = 0;
+        m_pBackend->PrepareMainWindow( m_Title.c_str(), flags );
         ImGui::PushFont( m_Resources.GetDefaultFont() );
-        ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
+        ImGui::Begin( m_Title.c_str(), nullptr, flags | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
         // Update input clipping rect
         ImVec2 pos = ImGui::GetWindowPos();
@@ -677,6 +679,8 @@ namespace Profiler
 
         ImGui::PopStyleColor( 3 );
         ImGui::End();
+
+        m_pBackend->FinishMainWindow();
 
         // Draw other windows
         UpdatePerformanceCounterExporter();
