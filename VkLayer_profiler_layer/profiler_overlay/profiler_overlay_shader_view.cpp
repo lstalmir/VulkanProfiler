@@ -351,6 +351,46 @@ namespace
     /***********************************************************************************\
 
     Function:
+        TokenizeSpirvLanguageString
+
+    Description:
+        Tokenizes a string that is a part of a SPIR-V instruction.
+        Returns true if a string was found.
+
+        Borrowed from ImGuiTextEditor.
+
+    \***********************************************************************************/
+    static bool TokenizeSpirvLanguageString( const char* in_begin, const char* in_end, const char*& out_begin, const char*& out_end )
+    {
+        if( *in_begin == '"' )
+        {
+            const char* p = in_begin + 1;
+            while( p < in_end )
+            {
+                // handle end of string
+                if( *p == '"' )
+                {
+                    out_begin = in_begin;
+                    out_end = p + 1;
+                    return true;
+                }
+
+                // handle escape character for "
+                if( *p == '\\' && p + 1 < in_end && p[1] == '"' )
+                {
+                    p++;
+                }
+
+                p++;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetSpirvLanguageDefinition
 
     Description:
@@ -364,21 +404,78 @@ namespace
         static bool initialized = false;
         static TextEditor::LanguageDefinition languageDefinition;
 
+        // Precompiled regexes for tokenizing the SPIR-V language.
+        static std::vector<std::pair<std::regex, TextEditor::PaletteIndex>> tokenRegexStrings;
+
         if( !initialized )
         {
             // Initialize the language definition on the first call to this function.
             languageDefinition.mName = "SPIR-V";
 
             // Tokenizer.
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "L?\\\"(\\\\.|[^\\\"])*\\\"", TextEditor::PaletteIndex::String ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "\\'\\\\?[^\\']\\'", TextEditor::PaletteIndex::CharLiteral ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "Op[a-zA-Z0-9]+", TextEditor::PaletteIndex::Keyword ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[a-zA-Z_%][a-zA-Z0-9_]*", TextEditor::PaletteIndex::Identifier ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?[0-9]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[0-7]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]", TextEditor::PaletteIndex::Punctuation ) );
+            languageDefinition.mTokenize = []( const char* in_begin, const char* in_end, const char*& out_begin, const char*& out_end, TextEditor::PaletteIndex& paletteIndex ) -> bool {
+                std::cmatch results;
+
+                while( in_begin < in_end && isascii( *in_begin ) && isblank( *in_begin ) )
+                {
+                    in_begin++;
+                }
+
+                if( in_begin == in_end )
+                {
+                    out_begin = in_end;
+                    out_end = in_end;
+                    paletteIndex = TextEditor::PaletteIndex::Default;
+                    return true;
+                }
+
+                // Tokenize strings using a function to avoid stack overflow on Windows.
+                // https://developercommunity.visualstudio.com/t/grouping-within-repetition-causes-regex-stack-erro/885115
+                if( TokenizeSpirvLanguageString( in_begin, in_end, out_begin, out_end ) )
+                {
+                    paletteIndex = TextEditor::PaletteIndex::String;
+                    return true;
+                }
+
+                try
+                {
+                    // Handle other tokens with regex.
+                    for( const auto& [tokenRegex, index] : tokenRegexStrings )
+                    {
+                        if( std::regex_search( in_begin, in_end, results, tokenRegex, std::regex_constants::match_continuous ) )
+                        {
+                            auto& v = *results.begin();
+                            out_begin = v.first;
+                            out_end = v.second;
+                            paletteIndex = index;
+                            return true;
+                        }
+                    }
+                }
+                catch( const std::regex_error& )
+                {
+                    // Tokenization by regex failed, jump to the next word.
+                    while( in_begin < in_end && isascii( *in_begin ) && !isblank( *in_begin ) )
+                    {
+                        in_begin++;
+                    }
+
+                    out_begin = in_begin;
+                    out_end = in_end;
+                }
+
+                paletteIndex = TextEditor::PaletteIndex::Max;
+                return false;
+            };
+
+            tokenRegexStrings.push_back( std::pair( std::regex( "\\'\\\\?[^\\']\\'" ), TextEditor::PaletteIndex::CharLiteral ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "Op[a-zA-Z0-9]+" ), TextEditor::PaletteIndex::Keyword ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[a-zA-Z_%][a-zA-Z0-9_]*" ), TextEditor::PaletteIndex::Identifier ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[+-]?[0-9]+[Uu]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "0[0-7]+[Uu]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]" ), TextEditor::PaletteIndex::Punctuation ) );
 
             // Comments.
             languageDefinition.mSingleLineComment = ";";
