@@ -69,7 +69,7 @@ namespace Profiler
                 if( pipelineCreationResult == VK_SUCCESS )
                 {
                     // Register the pipelines.
-                    dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
+                    dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines, true /*deferred*/ );
                 }
 
                 // Release pointer to the extended create info when the operation is complete.
@@ -86,7 +86,7 @@ namespace Profiler
         if( (result == VK_SUCCESS) || (result == VK_OPERATION_NOT_DEFERRED_KHR) )
         {
             // Register pipelines
-            dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines );
+            dd.Profiler.CreatePipelines( createInfoCount, pCreateInfos, pPipelines, false );
         }
 
         free( pCreateInfosWithExecutableProperties );

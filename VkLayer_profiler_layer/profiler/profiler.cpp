@@ -789,7 +789,7 @@ namespace Profiler
             const VkGraphicsPipelineCreateInfo& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline );
 
             profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
 
@@ -818,7 +818,7 @@ namespace Profiler
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
             
             SetPipelineShaderProperties( profilerPipeline, 1, &pCreateInfos[i].stage );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -833,7 +833,7 @@ namespace Profiler
         Register ray-tracing pipelines.
 
     \***********************************************************************************/
-    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines )
+    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines, bool deferred )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -847,7 +847,7 @@ namespace Profiler
             const VkRayTracingPipelineCreateInfoKHR& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline, deferred );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -1581,7 +1581,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        m_pDevice->Debug.ObjectNames.insert( object, pName );
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pName );
     }
 
     /***********************************************************************************\
@@ -1601,12 +1601,13 @@ namespace Profiler
         if( object.m_Type == VK_OBJECT_TYPE_PIPELINE )
         {
             SetDefaultObjectName( VkObject_Traits<VkPipeline>::GetObjectHandleAsVulkanHandle( object.m_Handle ) );
+            return;
         }
 
         char pObjectDebugName[ 64 ] = {};
         ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
 
-        m_pDevice->Debug.ObjectNames.insert( object, pObjectDebugName );
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pObjectDebugName );
     }
 
     /***********************************************************************************\
@@ -1620,50 +1621,60 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetDefaultObjectName( VkPipeline object )
     {
-        SetDefaultObjectName( GetPipeline( object ) );
+        SetDefaultPipelineName( GetPipeline( object ) );
     }
 
     /***********************************************************************************\
 
     Function:
-        SetDefaultObjectName
+        SetDefaultPipelineName
 
     Description:
         Set default pipeline name consisting of shader tuple hashes.
 
     \***********************************************************************************/
-    void DeviceProfiler::SetDefaultObjectName( const DeviceProfilerPipeline& pipeline )
+    void DeviceProfiler::SetDefaultPipelineName( const DeviceProfilerPipeline& pipeline, bool deferred )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        std::string pipelineName;
+
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_VERTEX_BIT |
-                    VK_SHADER_STAGE_TASK_BIT_EXT |
-                    VK_SHADER_STAGE_MESH_BIT_EXT |
-                    VK_SHADER_STAGE_FRAGMENT_BIT,
-                    true /*skipEmptyStages*/ ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_VERTEX_BIT |
+                VK_SHADER_STAGE_TASK_BIT_EXT |
+                VK_SHADER_STAGE_MESH_BIT_EXT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                true /*skipEmptyStages*/ );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_COMPUTE_BIT ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_COMPUTE_BIT );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_RAYGEN_BIT_KHR |
-                    VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
-                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR );
+        }
+
+        if( !pipelineName.empty() )
+        {
+            // When deferred operation is joined, the application may have already set a name for the pipeline.
+            // Don't set the default in such case.
+            if( deferred )
+            {
+                m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, std::move( pipelineName ) );
+            }
+            else
+            {
+                m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, std::move( pipelineName ) );
+            }
         }
     }
 
