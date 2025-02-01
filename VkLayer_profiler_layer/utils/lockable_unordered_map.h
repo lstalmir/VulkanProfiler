@@ -112,29 +112,29 @@ public:
     }
 
     // Insert new or replace existing value with a new value (thread-safe)
-    void insert_or_assign(const KeyType& key, const ValueType& value)
+    void insert_or_assign( const KeyType& key, const ValueType& value )
     {
-        std::scoped_lock lk(m_Mtx);
-        BaseType::insert_or_assign(key, value);
+        std::scoped_lock lk( m_Mtx );
+        BaseType::insert_or_assign( key, value );
     }
 
     // Insert new or replace existing value with a new value (thread-safe)
-    void insert_or_assign(const KeyType& key, ValueType&& value)
+    void insert_or_assign( const KeyType& key, ValueType&& value )
     {
-        std::scoped_lock lk(m_Mtx);
-        BaseType::insert_or_assign(key, std::move(value));
+        std::scoped_lock lk( m_Mtx );
+        BaseType::insert_or_assign( key, std::move( value ) );
     }
 
     // Insert new or replace existing value with a new value
-    void insert_or_assign_unsafe(const KeyType& key, const ValueType& value)
+    void insert_or_assign_unsafe( const KeyType& key, const ValueType& value )
     {
-        BaseType::insert_or_assign(key, value);
+        BaseType::insert_or_assign( key, value );
     }
 
     // Insert new or replace existing value with a new value
-    void insert_or_assign_unsafe(const KeyType& key, ValueType&& value)
+    void insert_or_assign_unsafe( const KeyType& key, ValueType&& value )
     {
-        BaseType::insert_or_assign(key, std::move(value));
+        BaseType::insert_or_assign( key, std::move( value ) );
     }
 
     // Remove value at key (thread-safe)
