@@ -341,6 +341,7 @@ namespace Profiler
         void DrawSignificanceRect( float significance, const FrameBrowserTreeNodeIndex& index );
         void DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... );
         void DrawPipelineCapabilityBadges( const DeviceProfilerPipelineData& pipeline );
+        void DrawPipelineStageBadge( const DeviceProfilerPipelineData& pipeline, VkShaderStageFlagBits stage, const char* pStageName );
         void DrawPipelineContextMenu( const DeviceProfilerPipelineData& pipeline, const char* id = nullptr );
 
         template<typename Data>

@@ -71,6 +71,7 @@ namespace Profiler
         inline static constexpr char TopPipelines[] = u8"Najdłuższe stany potoku###Top pipelines";
         inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności###Performance counters";
         inline static constexpr char Metric[] = u8"Metryka";
+        inline static constexpr char Contribution[] = u8"Udział";
         inline static constexpr char Frame[] = u8"Ramka";
         inline static constexpr char Pipeline[] = u8"Stan potoku";
         inline static constexpr char Stages[] = u8"Shadery";

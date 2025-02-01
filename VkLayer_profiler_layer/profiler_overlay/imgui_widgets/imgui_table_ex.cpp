@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -57,8 +57,11 @@ namespace ImGuiX
         ImGuiTable* table = ImGui::GetCurrentTable();
         IM_ASSERT( table );
 
+        const float row_y1 = ImGui::GetCursorScreenPos().y;
+        const float row_height = TableGetHeaderRowHeight();
+
         // Draw the headers row.
-        ImGui::TableNextRow();
+        ImGui::TableNextRow( 0, row_height );
 
         if( font )
         {
@@ -69,6 +72,11 @@ namespace ImGuiX
         {
             if( ImGui::TableNextColumn() )
             {
+                if( table->Columns[i].Flags & ImGuiTableColumnFlags_NoHeaderLabel )
+                {
+                    continue;
+                }
+
                 ImS16 offset = table->Columns[i].NameOffset;
                 if( offset != -1 )
                 {
@@ -80,6 +88,15 @@ namespace ImGuiX
         if( font )
         {
             ImGui::PopFont();
+        }
+
+        // Handle context menu in headers row.
+        if( !( table->Flags & ImGuiTableFlags_ContextMenuInBody ) )
+        {
+            ImVec2 mouse_pos = ImGui::GetMousePos();
+            if( IsMouseReleased( ImGuiMouseButton_Right ) )
+                if( mouse_pos.y >= row_y1 && mouse_pos.y < row_y1 + row_height )
+                    TableOpenContextMenu( table->ColumnsCount );
         }
 
         // Draw a horizontal line below the headers row.

@@ -75,6 +75,7 @@ namespace Profiler
         inline static constexpr char TopPipelines[] = "Top pipelines###Top pipelines";
         inline static constexpr char PerformanceCounters[] = "Performance counters###Performance counters";
         inline static constexpr char Metric[] = "Metric";
+        inline static constexpr char Contribution[] = "Contribution";
         inline static constexpr char Frame[] = "Frame";
         inline static constexpr char Pipeline[] = "Pipeline";
         inline static constexpr char Stages[] = "Stages";

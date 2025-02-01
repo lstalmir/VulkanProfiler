@@ -1793,86 +1793,37 @@ namespace Profiler
     {
         const ImGuiStyle& style = ImGui::GetStyle();
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float badgeSpacing = 3.f * interfaceScale;
 
-        auto DrawPipelineStageBadge = [&]( const DeviceProfilerPipeline& pipeline, VkShaderStageFlagBits stage, std::string label = std::string() ) {
-            const ProfilerShader* pShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( stage );
+        // Calculate width of badges to align them.
+        const float meshPipelineBadgesWidth =
+            ImGui::CalcTextSize( "AS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "MS" ).x + badgeSpacing;
 
-            uint32_t badgeBaseColor = 0;
-            if( pShader )
-            {
-                switch( pipeline.m_BindPoint )
-                {
-                default:
-                case VK_PIPELINE_BIND_POINT_GRAPHICS:
-                    badgeBaseColor = m_GraphicsPipelineColumnColor;
-                    break;
-                case VK_PIPELINE_BIND_POINT_COMPUTE:
-                    badgeBaseColor = m_ComputePipelineColumnColor;
-                    break;
-                case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
-                    badgeBaseColor = m_RayTracingPipelineColumnColor;
-                    break;
-                }
-            }
+        const float traditional3DPipelineBadgesWidth =
+            ImGui::CalcTextSize( "VS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "HS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "DS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "GS" ).x + badgeSpacing;
 
-            if( !pShader )
-            {
-                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 255, 255, 48 ) );
-            }
+        const float meshPipelineBadgesOffset =
+            std::max( 0.f, traditional3DPipelineBadgesWidth - meshPipelineBadgesWidth );
 
-            if( label.empty() )
-            {
-                label = m_pStringSerializer->GetShortShaderStageName( stage );
-            }
+        const float traditional3DPipelineBadgesOffset =
+            std::max( 0.f, meshPipelineBadgesWidth - traditional3DPipelineBadgesWidth );
 
-            for( char& c : label )
-            {
-                c = toupper( c );
-            }
-
-            ImU32 badgeColor = ImGuiX::Darker( badgeBaseColor, 0.5f );
-            ImGuiX::BadgeUnformatted( badgeColor, 2.f, label.c_str() );
-
-            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
-            {
-                if( ImGui::BeginTooltip() )
-                {
-                    ImGui::PushFont( m_Resources.GetBoldFont() );
-                    ImGui::Text( "%s stage", m_pStringSerializer->GetShaderStageName( stage ).c_str() );
-                    ImGui::PopFont();
-
-                    if( pShader )
-                    {
-                        ImGui::TextUnformatted( m_pStringSerializer->GetShaderName( *pShader ).c_str() );
-                    }
-                    else
-                    {
-                        ImGui::TextUnformatted( "Unused" );
-                    }
-
-                    ImGui::EndTooltip();
-                }
-            }
-
-            if( !pShader )
-            {
-                ImGui::PopStyleColor();
-            }
-
-            ImGui::SameLine();
-        };
-
-        if( ImGui::BeginTable( "TopPipelinesTable", 6,
+        // Draw the table with top pipelines.
+        if( ImGui::BeginTable( "TopPipelinesTable", 5,
+                ImGuiTableFlags_Hideable |
                 ImGuiTableFlags_PadOuterX |
                 ImGuiTableFlags_NoClip ) )
         {
             // Headers
-            ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch );
+            ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHide );
+            ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHide );
             ImGui::TableSetupColumn( Lang::Stages, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthStretch, 0.23f );
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthStretch, 0.23f );
+            ImGui::TableSetupColumn( Lang::Contribution, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHeaderLabel, 0.23f );
+            ImGui::TableSetupColumn( Lang::GPUTime, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHeaderLabel, 0.23f );
             ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
             uint32_t pipelineIndex = 0;
@@ -1905,36 +1856,30 @@ namespace Profiler
                     {
                         if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
                         {
-                            const float itemSpacing = 5.f * interfaceScale;
-                            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( itemSpacing, 0 ) );
+                            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( badgeSpacing, 0 ) );
 
                             if( pipeline.m_UsesMeshShading )
                             {
                                 // Mesh shading pipeline.
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TASK_BIT_EXT );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_MESH_BIT_EXT );
+                                ImGui::SameLine( 0.f, meshPipelineBadgesOffset );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TASK_BIT_EXT, "AS" );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_MESH_BIT_EXT, "MS" );
                             }
                             else
                             {
                                 // Traditional 3D pipeline.
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT );
+                                ImGui::SameLine( 0.f, traditional3DPipelineBadgesOffset );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT, "VS" );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, "HS" );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, "DS" );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT, "GS" );
                             }
 
-                            ImGui::TableNextColumn();
-                            ImGui::SetCursorPosX( ImGui::GetCursorPosX() - ( 2 * style.CellPadding.x ) + itemSpacing );
-
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_FRAGMENT_BIT );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_COMPUTE_BIT );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, "rt" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, "PS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_COMPUTE_BIT, "CS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, "RT" );
 
                             ImGui::PopStyleVar();
-                        }
-                        else
-                        {
-                            ImGui::TableNextColumn();
                         }
                     }
 
@@ -1969,8 +1914,6 @@ namespace Profiler
 
                 if( ImGui::TableNextColumn() )
                 {
-                    ImGui::SameLine();
-
                     if( ImGui::TextLink( m_ShowAllTopPipelines ? Lang::ShowLess : Lang::ShowMore ) )
                     {
                         m_ShowAllTopPipelines = !m_ShowAllTopPipelines;
@@ -4874,6 +4817,54 @@ namespace Profiler
             ImU32 rayTracingCapabilityColor = ImGuiX::Darker( m_RayTracingPipelineColumnColor, 0.5f );
             DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPipelineStageBadge
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPipelineStageBadge( const DeviceProfilerPipelineData& pipeline, VkShaderStageFlagBits stage, const char* pStageName )
+    {
+        const ProfilerShader* pShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( stage );
+
+        if( !pShader )
+        {
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 255, 255, 48 ) );
+        }
+
+        ImGui::TextUnformatted( pStageName );
+
+        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+        {
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::Text( "%s stage", m_pStringSerializer->GetShaderStageName( stage ).c_str() );
+                ImGui::PopFont();
+
+                if( pShader )
+                {
+                    ImGui::TextUnformatted( m_pStringSerializer->GetShaderName( *pShader ).c_str() );
+                }
+                else
+                {
+                    ImGui::TextUnformatted( "Unused" );
+                }
+
+                ImGui::EndTooltip();
+            }
+        }
+
+        if( !pShader )
+        {
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::SameLine();
     }
 
     /***********************************************************************************\
