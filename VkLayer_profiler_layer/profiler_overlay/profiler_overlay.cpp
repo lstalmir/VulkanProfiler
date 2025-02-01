@@ -1795,6 +1795,9 @@ namespace Profiler
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
         const float badgeSpacing = 3.f * interfaceScale;
 
+        const char* pEllipsis = "...";
+        const float ellipsisWidth = ImGui::CalcTextSize( pEllipsis ).x;
+
         // Calculate width of badges to align them.
         const float meshPipelineBadgesWidth =
             ImGui::CalcTextSize( "AS" ).x + badgeSpacing +
@@ -1813,7 +1816,7 @@ namespace Profiler
             std::max( 0.f, meshPipelineBadgesWidth - traditional3DPipelineBadgesWidth );
 
         // Draw the table with top pipelines.
-        if( ImGui::BeginTable( "TopPipelinesTable", 5,
+        if( ImGui::BeginTable( "TopPipelinesTable", 6,
                 ImGuiTableFlags_Hideable |
                 ImGuiTableFlags_PadOuterX |
                 ImGuiTableFlags_NoClip ) )
@@ -1821,9 +1824,10 @@ namespace Profiler
             // Headers
             ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHide );
             ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHide );
+            ImGui::TableSetupColumn( Lang::Capabilities, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHeaderLabel );
             ImGui::TableSetupColumn( Lang::Stages, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableSetupColumn( Lang::Contribution, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHeaderLabel, 0.23f );
-            ImGui::TableSetupColumn( Lang::GPUTime, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHeaderLabel, 0.23f );
+            ImGuiX::TableSetupColumn( Lang::Contrib, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::StatTotal, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
             ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
             uint32_t pipelineIndex = 0;
@@ -1831,78 +1835,97 @@ namespace Profiler
 
             for( const auto& pipeline : m_pData->m_TopPipelines )
             {
-                if( pipeline.m_Handle != VK_NULL_HANDLE )
+                pipelineIndex++;
+                snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
+
+                const float pipelineTime = GetDuration( pipeline );
+                std::string pipelineName = m_pStringSerializer->GetName( pipeline );
+
+                if( ImGui::TableNextColumn() )
                 {
-                    pipelineIndex++;
-                    snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
+                    ImGui::Text( "%u", pipelineIndex );
+                }
 
-                    const float pipelineTime = GetDuration( pipeline );
-                    const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
+                if( ImGui::TableNextColumn() )
+                {
+                    // Ellide the pipeline name if it's too long.
+                    const float availableWidth = ImGuiX::TableGetColumnWidth();
+                    float pipelineNameWidth = ImGui::CalcTextSize( pipelineName.c_str() ).x;
 
-                    if( ImGui::TableNextColumn() )
+                    if( pipelineNameWidth > availableWidth )
                     {
-                        ImGui::Text( "%u", pipelineIndex );
-                    }
-
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGui::TextUnformatted( pipelineName.c_str() );
-
-                        DrawPipelineContextMenu( pipeline, pipelineIndexStr );
-                        DrawPipelineCapabilityBadges( pipeline );
-                    }
-
-                    if( ImGui::TableNextColumn() )
-                    {
-                        if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
+                        while( ( pipelineNameWidth + ellipsisWidth ) > availableWidth )
                         {
-                            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( badgeSpacing, 0 ) );
-
-                            if( pipeline.m_UsesMeshShading )
-                            {
-                                // Mesh shading pipeline.
-                                ImGui::SameLine( 0.f, meshPipelineBadgesOffset );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TASK_BIT_EXT, "AS" );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_MESH_BIT_EXT, "MS" );
-                            }
-                            else
-                            {
-                                // Traditional 3D pipeline.
-                                ImGui::SameLine( 0.f, traditional3DPipelineBadgesOffset );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT, "VS" );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, "HS" );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, "DS" );
-                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT, "GS" );
-                            }
-
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, "PS" );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_COMPUTE_BIT, "CS" );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, "RT" );
-
-                            ImGui::PopStyleVar();
+                            pipelineName.pop_back();
+                            pipelineNameWidth = ImGui::CalcTextSize( pipelineName.c_str() ).x;
                         }
+
+                        pipelineName.append( pEllipsis );
                     }
 
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGuiX::TextAlignRight(
-                            ImGuiX::TableGetColumnWidth(),
-                            "%.1f %%",
-                            pipelineTime * 100.f / m_FrameTime );
-                    }
+                    ImGui::TextUnformatted( pipelineName.c_str() );
 
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGuiX::TextAlignRight(
-                            ImGuiX::TableGetColumnWidth(),
-                            "%.2f ms",
-                            pipelineTime );
-                    }
+                    DrawPipelineContextMenu( pipeline, pipelineIndexStr );
+                }
 
-                    if( !m_ShowAllTopPipelines && pipelineIndex == 10 )
+                if( ImGui::TableNextColumn() )
+                {
+                    DrawPipelineCapabilityBadges( pipeline );
+
+                    ImGui::SameLine( 0.f, 5.f );
+                    ImGui::Dummy( ImVec2() );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
                     {
-                        break;
+                        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( badgeSpacing, 0 ) );
+
+                        if( pipeline.m_UsesMeshShading )
+                        {
+                            // Mesh shading pipeline.
+                            ImGui::SameLine( 0.f, meshPipelineBadgesOffset );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TASK_BIT_EXT, "AS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_MESH_BIT_EXT, "MS" );
+                        }
+                        else
+                        {
+                            // Traditional 3D pipeline.
+                            ImGui::SameLine( 0.f, traditional3DPipelineBadgesOffset );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT, "VS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, "HS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, "DS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT, "GS" );
+                        }
+
+                        DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, "PS" );
+                        DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_COMPUTE_BIT, "CS" );
+                        DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, "RT" );
+
+                        ImGui::PopStyleVar();
                     }
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGuiX::TextAlignRight(
+                        ImGuiX::TableGetColumnWidth(),
+                        "%.1f %%",
+                        pipelineTime * 100.f / m_FrameTime );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGuiX::TextAlignRight(
+                        ImGuiX::TableGetColumnWidth(),
+                        "%.2f ms",
+                        pipelineTime );
+                }
+
+                if( !m_ShowAllTopPipelines && pipelineIndex == 10 )
+                {
+                    break;
                 }
             }
 
