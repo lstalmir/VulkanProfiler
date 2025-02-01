@@ -881,7 +881,7 @@ namespace Profiler
 
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
-
+        bool                                                m_UsesMeshShading = false;
         bool                                                m_UsesShaderObjects = false;
 
         std::shared_ptr<CreateInfo>                         m_pCreateInfo = nullptr;
@@ -891,6 +891,7 @@ namespace Profiler
             // Prefetch shader capabilities.
             m_UsesRayQuery = m_ShaderTuple.UsesRayQuery();
             m_UsesRayTracing = m_ShaderTuple.UsesRayTracing();
+            m_UsesMeshShading = m_ShaderTuple.UsesMeshShading();
 
             // Calculate pipeline hash.
             m_ShaderTuple.UpdateHash();
