@@ -33,9 +33,44 @@
 
 namespace Profiler
 {
+    struct VkDevice_debug_message
+    {
+        std::chrono::system_clock::time_point Timestamp;
+        std::string MessageIdName;
+        std::string Message;
+        VkDebugUtilsMessageTypeFlagsEXT MessageTypes;
+        VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity;
+    };
+
     struct VkDevice_debug_Object
     {
         ConcurrentMap<VkObject, std::string> ObjectNames;
+
+        VkDebugUtilsMessengerEXT Messenger = VK_NULL_HANDLE;
+        std::shared_mutex MessagesMutex;
+        std::vector<VkDevice_debug_message> Messages;
+
+        static VkBool32 DebugUtilsMessengerCallback(
+            VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+            VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+            const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+            void* pUserData )
+        {
+            VkDevice_debug_Object* pThis = reinterpret_cast<VkDevice_debug_Object*>( pUserData );
+            assert( pThis );
+
+            VkDevice_debug_message message;
+            message.Timestamp = std::chrono::system_clock::now();
+            message.MessageIdName = pCallbackData->pMessageIdName;
+            message.Message = pCallbackData->pMessage;
+            message.MessageTypes = messageTypes;
+            message.MessageSeverity = messageSeverity;
+
+            std::unique_lock lock( pThis->MessagesMutex );
+            pThis->Messages.emplace_back( std::move( message ) );
+
+            return VK_FALSE;
+        }
     };
 
     struct VkDevice_Object

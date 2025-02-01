@@ -196,6 +196,7 @@ namespace Profiler
         , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true }
         , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true }
         , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true }
+        , m_OutputWindowState{ m_Settings.AddBool( "OutputWindowOpen", true ), true }
         , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true }
     {
         ResetMembers();
@@ -1069,6 +1070,7 @@ namespace Profiler
                 ImGui::MenuItem( Lang::MemoryMenuItem, nullptr, m_MemoryWindowState.pOpen );
                 ImGui::MenuItem( Lang::InspectorMenuItem, nullptr, m_InspectorWindowState.pOpen );
                 ImGui::MenuItem( Lang::StatisticsMenuItem, nullptr, m_StatisticsWindowState.pOpen );
+                ImGui::MenuItem( Lang::OutputMenuItem, nullptr, m_OutputWindowState.pOpen );
                 ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, m_SettingsWindowState.pOpen );
                 ImGui::EndMenu();
             }
@@ -1226,6 +1228,16 @@ namespace Profiler
         if( BeginDockingWindow( Lang::Statistics, m_MainDockSpaceId, m_StatisticsWindowState ) )
         {
             UpdateStatisticsTab();
+        }
+        EndDockingWindow();
+
+        char outputWindowTitle[256];
+        snprintf( outputWindowTitle, sizeof( outputWindowTitle ), Lang::Output,
+            m_pDevice->Debug.Messages.size() );
+
+        if( BeginDockingWindow( outputWindowTitle, m_MainDockSpaceId, m_OutputWindowState ) )
+        {
+            UpdateOutputTab();
         }
         EndDockingWindow();
 
@@ -3258,6 +3270,65 @@ namespace Profiler
                 ImGui::EndTable();
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateOutputTab
+
+    Description:
+        Updates "Output" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateOutputTab()
+    {
+        // Toolbar
+        if( ImGui::Button( Lang::Clear ) )
+        {
+            std::unique_lock lk( m_pDevice->Debug.MessagesMutex );
+            m_pDevice->Debug.Messages.clear();
+        }
+
+        if( ImGui::BeginChild( "##OutputMessages" ) )
+        {
+            // Print messages
+            std::shared_lock lk( m_pDevice->Debug.MessagesMutex );
+            for( const auto& message : m_pDevice->Debug.Messages )
+            {
+                time_t time = std::chrono::system_clock::to_time_t( message.Timestamp );
+                tm localTime;
+                localtime_s( &localTime, &time );
+
+                int milliseconds = static_cast<int>( std::chrono::duration_cast<std::chrono::milliseconds>( message.Timestamp.time_since_epoch() ).count() % 1000 );
+
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::Text( "[%02d:%02d:%02d.%d]",
+                    localTime.tm_hour,
+                    localTime.tm_min,
+                    localTime.tm_sec,
+                    milliseconds );
+
+                if( message.MessageTypes & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT )
+                {
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted( "Performance" );
+                }
+
+                if( message.MessageTypes & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT )
+                {
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted( "Validation" );
+                }
+
+                ImGui::PopFont();
+
+                ImGui::TextWrapped( "%s", message.Message.c_str() );
+                ImGui::Separator();
+            }
+        }
+
+        ImGui::EndChild();
     }
 
     /***********************************************************************************\

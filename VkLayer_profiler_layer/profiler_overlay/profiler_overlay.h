@@ -269,6 +269,7 @@ namespace Profiler
         WindowState m_MemoryWindowState;
         WindowState m_InspectorWindowState;
         WindowState m_StatisticsWindowState;
+        WindowState m_OutputWindowState;
         WindowState m_SettingsWindowState;
 
         void ResetMembers();
@@ -286,6 +287,7 @@ namespace Profiler
         void UpdateMemoryTab();
         void UpdateInspectorTab();
         void UpdateStatisticsTab();
+        void UpdateOutputTab();
         void UpdateSettingsTab();
 
         // Performance graph helpers

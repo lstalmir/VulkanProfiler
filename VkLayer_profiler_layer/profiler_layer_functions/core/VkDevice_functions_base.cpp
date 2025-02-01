@@ -103,6 +103,23 @@ namespace Profiler
             }
         }
 
+        if( dd.Device.pInstance->EnabledExtensions.count( VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) )
+        {
+            // Create debug messenger to receive validation messages
+            VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo = {};
+            debugMessengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+            debugMessengerCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+            debugMessengerCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+            debugMessengerCreateInfo.pfnUserCallback = VkDevice_debug_Object::DebugUtilsMessengerCallback;
+            debugMessengerCreateInfo.pUserData = &dd.Device.Debug;
+
+            VkResult result = id.Instance.Callbacks.CreateDebugUtilsMessengerEXT(
+                id.Instance.Handle,
+                &debugMessengerCreateInfo,
+                pAllocator,
+                &dd.Device.Debug.Messenger );
+        }
+
         // Initialize the profiler object
         VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
 
@@ -135,6 +152,14 @@ namespace Profiler
         dd.Profiler.Destroy();
         // Destroy the overlay
         dd.Overlay.Destroy();
+
+        if( dd.Device.Debug.Messenger != VK_NULL_HANDLE )
+        {
+            dd.Device.pInstance->Callbacks.DestroyDebugUtilsMessengerEXT(
+                dd.Device.pInstance->Handle,
+                dd.Device.Debug.Messenger,
+                nullptr );
+        }
 
         DeviceDispatch.Erase( device );
     }

@@ -47,6 +47,7 @@ namespace Profiler
         inline static constexpr char MemoryMenuItem[] = "Memory" PROFILER_MENU_ITEM;
         inline static constexpr char InspectorMenuItem[] = "Inspector" PROFILER_MENU_ITEM;
         inline static constexpr char StatisticsMenuItem[] = "Statistics" PROFILER_MENU_ITEM;
+        inline static constexpr char OutputMenuItem[] = "Output" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = "Settings" PROFILER_MENU_ITEM;
         inline static constexpr char ApplicationInfoMenuItem[] = "Application info" PROFILER_MENU_ITEM;
 
@@ -55,6 +56,7 @@ namespace Profiler
         inline static constexpr char Memory[] = "Memory###Memory";
         inline static constexpr char Inspector[] = "Inspector###Inspector";
         inline static constexpr char Statistics[] = "Statistics###Statistics";
+        inline static constexpr char Output[] = "Output (%zu)###Output";
         inline static constexpr char Settings[] = "Settings###Settings";
         inline static constexpr char ApplicationInfo[] = "Application info###ApplicationInfo";
 
@@ -153,6 +155,9 @@ namespace Profiler
         inline static constexpr char PipelineStateMultisampling[] = "Multisampling";
         inline static constexpr char PipelineStateDepthStencil[] = "Depth and stencil";
         inline static constexpr char PipelineStateColorBlend[] = "Color blend";
+
+        // Output tab
+        inline static constexpr char Clear[] = "Clear";
 
         // Settings tab
         inline static constexpr char Present[] = "Present";
