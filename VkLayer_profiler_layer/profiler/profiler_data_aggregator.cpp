@@ -843,10 +843,11 @@ namespace Profiler
         if( it == aggregatedPipelines.end() )
         {
             // Create aggregated data struct for this pipeline
-            DeviceProfilerPipelineData aggregatedPipelineData = {};
-            aggregatedPipelineData.m_Handle = pipeline.m_Handle;
-            aggregatedPipelineData.m_BindPoint = pipeline.m_BindPoint;
-            aggregatedPipelineData.m_ShaderTuple = pipeline.m_ShaderTuple;
+            DeviceProfilerPipelineData aggregatedPipelineData = pipeline;
+            aggregatedPipelineData.m_BeginTimestamp.m_Index = UINT64_MAX;
+            aggregatedPipelineData.m_BeginTimestamp.m_Value = 0;
+            aggregatedPipelineData.m_EndTimestamp.m_Index = UINT64_MAX;
+            aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
 
             it = aggregatedPipelines.emplace( pipeline.m_ShaderTuple.m_Hash, aggregatedPipelineData ).first;
         }

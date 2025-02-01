@@ -1696,6 +1696,7 @@ namespace Profiler
         internalPipeline.m_Handle = (VkPipeline)type;
         internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
         internalPipeline.m_Type = type;
+        internalPipeline.m_Internal = true;
 
         // Assign name for the internal pipeline
         SetObjectName( internalPipeline.m_Handle, pName );

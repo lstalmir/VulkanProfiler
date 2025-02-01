@@ -71,7 +71,11 @@ namespace Profiler
         inline static constexpr char TopPipelines[] = u8"Najdłuższe stany potoku###Top pipelines";
         inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności###Performance counters";
         inline static constexpr char Metric[] = u8"Metryka";
+        inline static constexpr char Contrib[] = u8"Udział";
         inline static constexpr char Frame[] = u8"Ramka";
+        inline static constexpr char Pipeline[] = u8"Stan potoku";
+        inline static constexpr char Stages[] = u8"Shadery";
+        inline static constexpr char Capabilities[] = u8"Funkcjonalności";
         inline static constexpr char SetRef[] = u8"Ustaw ref";
         inline static constexpr char Value[] = u8"Wartość";
         inline static constexpr char FrameBrowser[] = u8"Przeglądarka ramki###Frame browser";
@@ -84,6 +88,9 @@ namespace Profiler
         inline static constexpr char Inspect[] = u8"Inspekcja";
         inline static constexpr char ShowPerformanceMetrics[] = u8"Pokaż liczniki wydajności";
         inline static constexpr char CopyToClipboard[] = u8"Kopiuj do schowka";
+        inline static constexpr char CopyName[] = u8"Kopiuj nazwę";
+        inline static constexpr char ShowMore[] = u8"Pokaż więcej...";
+        inline static constexpr char ShowLess[] = u8"Pokaż mniej";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
         inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
