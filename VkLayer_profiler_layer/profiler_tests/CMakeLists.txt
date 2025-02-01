@@ -42,6 +42,7 @@ if (BUILD_TESTS)
         "profiler_memory_tests.cpp"
         "profiler_testing_common.h"
         "profiler_vulkan_simple_triangle.h"
+        "profiler_vulkan_simple_triangle_rt.h"
         "profiler_vulkan_state.h"
         )
 

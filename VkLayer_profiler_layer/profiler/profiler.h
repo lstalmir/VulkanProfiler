@@ -99,7 +99,7 @@ namespace Profiler
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
-        void CreatePipelines( uint32_t, const VkRayTracingPipelineCreateInfoKHR*, VkPipeline* );
+        void CreatePipelines( uint32_t, const VkRayTracingPipelineCreateInfoKHR*, VkPipeline*, bool deferred );
         void DestroyPipeline( VkPipeline );
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
@@ -182,7 +182,7 @@ namespace Profiler
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 
         void SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages );
-        void SetDefaultObjectName( const DeviceProfilerPipeline& pipeline );
+        void SetDefaultPipelineName( const DeviceProfilerPipeline& pipeline, bool deferred = false );
 
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
