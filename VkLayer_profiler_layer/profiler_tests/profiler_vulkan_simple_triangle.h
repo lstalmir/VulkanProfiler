@@ -21,8 +21,8 @@
 #pragma once
 #include "profiler_vulkan_state.h"
 
-#include "shaders/simple_triangle.vert.hlsl.h"
-#include "shaders/simple_triangle.frag.hlsl.h"
+#include "shaders/simple_triangle.vert.glsl.h"
+#include "shaders/simple_triangle.frag.glsl.h"
 
 namespace Profiler
 {
@@ -163,15 +163,15 @@ namespace Profiler
                 { // Create vertex shader module
                     VkShaderModuleCreateInfo moduleCreateInfo = {};
                     moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-                    moduleCreateInfo.codeSize = sizeof( simple_triangle_vert_hlsl );
-                    moduleCreateInfo.pCode = simple_triangle_vert_hlsl;
+                    moduleCreateInfo.codeSize = sizeof( simple_triangle_vert_glsl );
+                    moduleCreateInfo.pCode = simple_triangle_vert_glsl;
                     VERIFY_RESULT( Vk, vkCreateShaderModule( Vk->Device, &moduleCreateInfo, nullptr, &vertexShaderModule ) );
                 }
                 { // Create fragment shader module
                     VkShaderModuleCreateInfo moduleCreateInfo = {};
                     moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-                    moduleCreateInfo.codeSize = sizeof( simple_triangle_frag_hlsl );
-                    moduleCreateInfo.pCode = simple_triangle_frag_hlsl;
+                    moduleCreateInfo.codeSize = sizeof( simple_triangle_frag_glsl );
+                    moduleCreateInfo.pCode = simple_triangle_frag_glsl;
                     VERIFY_RESULT( Vk, vkCreateShaderModule( Vk->Device, &moduleCreateInfo, nullptr, &fragmentShaderModule ) );
                 }
 
