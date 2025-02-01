@@ -1835,6 +1835,13 @@ namespace Profiler
 
             for( const auto& pipeline : m_pData->m_TopPipelines )
             {
+                // Skip debug pipelines.
+                if( (pipeline.m_Type == DeviceProfilerPipelineType::eNone) ||
+                    (pipeline.m_Type == DeviceProfilerPipelineType::eDebug) )
+                {
+                    continue;
+                }
+
                 pipelineIndex++;
                 snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
 
