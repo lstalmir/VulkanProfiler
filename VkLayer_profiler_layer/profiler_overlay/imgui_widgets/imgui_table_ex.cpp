@@ -70,7 +70,10 @@ namespace ImGuiX
             if( ImGui::TableNextColumn() )
             {
                 ImS16 offset = table->Columns[i].NameOffset;
-                ImGui::TextUnformatted( &table->ColumnsNames.Buf.Data[offset] );
+                if( offset != -1 )
+                {
+                    ImGui::TextUnformatted( &table->ColumnsNames.Buf.Data[offset] );
+                }
             }
         }
 

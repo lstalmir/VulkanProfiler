@@ -877,6 +877,8 @@ namespace Profiler
         ProfilerShaderTuple                                 m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
 
+        bool                                                m_Internal = false;
+
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
 

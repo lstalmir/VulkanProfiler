@@ -568,6 +568,7 @@ namespace Profiler
         m_ShowDebugLabels = true;
         m_ShowShaderCapabilities = true;
         m_ShowEmptyStatistics = false;
+        m_ShowAllTopPipelines = false;
 
         m_FrameTime = 0.0f;
 
@@ -1790,6 +1791,9 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateTopPipelinesTab()
     {
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
         auto DrawPipelineStageBadge = [&]( const DeviceProfilerPipeline& pipeline, VkShaderStageFlagBits stage, std::string label = std::string() ) {
             const ProfilerShader* pShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( stage );
 
@@ -1826,8 +1830,8 @@ namespace Profiler
                 c = toupper( c );
             }
 
-            uint32_t badgeColor = ImGuiX::Darker( badgeBaseColor, 0.67f );
-            ImGuiX::BadgeUnformatted( badgeColor, 1.f, label.c_str() );
+            ImU32 badgeColor = ImGuiX::Darker( badgeBaseColor, 0.5f );
+            ImGuiX::BadgeUnformatted( badgeColor, 2.f, label.c_str() );
 
             if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
             {
@@ -1858,63 +1862,79 @@ namespace Profiler
             ImGui::SameLine();
         };
 
-        if( ImGui::BeginTable( "TopPipelinesTable", 5, 0 ) )
+        if( ImGui::BeginTable( "TopPipelinesTable", 6,
+                ImGuiTableFlags_PadOuterX |
+                ImGuiTableFlags_NoClip ) )
         {
             // Headers
             ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableSetupColumn( "Pipeline", ImGuiTableColumnFlags_WidthStretch );
-            ImGui::TableSetupColumn( "Stages", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableSetupColumn( "%", ImGuiTableColumnFlags_WidthStretch, 0.22f );
-            ImGui::TableSetupColumn( "Time", ImGuiTableColumnFlags_WidthStretch, 0.22f );
-            ImGuiX::TableHeadersRow();
+            ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch );
+            ImGui::TableSetupColumn( Lang::Stages, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthStretch, 0.23f );
+            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthStretch, 0.23f );
+            ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
-            uint32_t topPipelineIndex = 0;
+            uint32_t pipelineIndex = 0;
+            char pipelineIndexStr[32];
 
             for( const auto& pipeline : m_pData->m_TopPipelines )
             {
                 if( pipeline.m_Handle != VK_NULL_HANDLE )
                 {
+                    pipelineIndex++;
+                    snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
+
                     const float pipelineTime = GetDuration( pipeline );
+                    const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
 
                     if( ImGui::TableNextColumn() )
                     {
-                        ImGui::Text( "%u", topPipelineIndex + 1 );
+                        ImGui::Text( "%u", pipelineIndex );
                     }
 
                     if( ImGui::TableNextColumn() )
                     {
-                        ImGui::TextUnformatted( m_pStringSerializer->GetName( pipeline ).c_str() );
+                        ImGui::TextUnformatted( pipelineName.c_str() );
 
-                        if( pipeline.m_UsesShaderObjects )
-                        {
-                            static ImU32 shaderObjectsColor = IM_COL32( 104, 25, 133, 255 );
-                            DrawBadge( shaderObjectsColor, "SO", Lang::ShaderObjectsTooltip );
-                        }
-                        if( pipeline.m_UsesRayQuery )
-                        {
-                            static ImU32 rayQueryCapabilityColor = IM_COL32( 133, 82, 25, 255 );
-                            DrawBadge( rayQueryCapabilityColor, "RQ", Lang::ShaderCapabilityTooltipFmt, "Ray Query" );
-                        }
-                        if( pipeline.m_UsesRayTracing )
-                        {
-                            static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
-                            DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
-                        }
+                        DrawPipelineContextMenu( pipeline, pipelineIndexStr );
+                        DrawPipelineCapabilityBadges( pipeline );
                     }
 
                     if( ImGui::TableNextColumn() )
                     {
                         if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
                         {
-                            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 5.f, 0 ) );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT );
-                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT );
+                            const float itemSpacing = 5.f * interfaceScale;
+                            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( itemSpacing, 0 ) );
+
+                            if( pipeline.m_UsesMeshShading )
+                            {
+                                // Mesh shading pipeline.
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TASK_BIT_EXT );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_MESH_BIT_EXT );
+                            }
+                            else
+                            {
+                                // Traditional 3D pipeline.
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT );
+                                DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT );
+                            }
+
+                            ImGui::TableNextColumn();
+                            ImGui::SetCursorPosX( ImGui::GetCursorPosX() - ( 2 * style.CellPadding.x ) + itemSpacing );
+
                             DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_FRAGMENT_BIT );
                             DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_COMPUTE_BIT );
                             DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, "rt" );
+
                             ImGui::PopStyleVar();
+                        }
+                        else
+                        {
+                            ImGui::TableNextColumn();
                         }
                     }
 
@@ -1934,8 +1954,27 @@ namespace Profiler
                             pipelineTime );
                     }
 
-                    // Print up to 10 top pipelines
-                    if( (++topPipelineIndex) == 10 ) break;
+                    if( !m_ShowAllTopPipelines && pipelineIndex == 10 )
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // Show more/less button if there is more than 10 pipelines.
+            if( pipelineIndex >= 10 )
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::SameLine();
+
+                    if( ImGui::TextLink( m_ShowAllTopPipelines ? Lang::ShowLess : Lang::ShowMore ) )
+                    {
+                        m_ShowAllTopPipelines = !m_ShowAllTopPipelines;
+                    }
                 }
             }
 
@@ -4653,35 +4692,10 @@ namespace Profiler
             inPipelineSubtree =
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
 
-            if( ImGui::BeginPopupContextItem() )
-            {
-                if( ImGui::MenuItem( Lang::Inspect, nullptr, nullptr ) )
-                {
-                    Inspect( pipeline );
-                }
-
-                ImGui::EndPopup();
-            }
+            DrawPipelineContextMenu( pipeline );
         }
 
-        if( m_ShowShaderCapabilities )
-        {
-            if( pipeline.m_UsesShaderObjects )
-            {
-                static ImU32 shaderObjectsColor = IM_COL32( 104, 25, 133, 255 );
-                DrawBadge( shaderObjectsColor, "SO", Lang::ShaderObjectsTooltip );
-            }
-            if( pipeline.m_UsesRayQuery )
-            {
-                static ImU32 rayQueryCapabilityColor = IM_COL32( 133, 82, 25, 255 );
-                DrawBadge( rayQueryCapabilityColor, "RQ", Lang::ShaderCapabilityTooltipFmt, "Ray Query" );
-            }
-            if( pipeline.m_UsesRayTracing )
-            {
-                static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
-                DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
-            }
-        }
+        DrawPipelineCapabilityBadges( pipeline );
 
         if( !printPipelineInline )
         {
@@ -4825,6 +4839,66 @@ namespace Profiler
             ImGui::EndTooltip();
 
             va_end( args );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPipelineCapabilityBadges
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPipelineCapabilityBadges( const DeviceProfilerPipelineData& pipeline )
+    {
+        if( !m_ShowShaderCapabilities )
+        {
+            return;
+        }
+
+        if( pipeline.m_UsesShaderObjects )
+        {
+            ImU32 shaderObjectsColor = IM_COL32( 104, 25, 133, 255 );
+            DrawBadge( shaderObjectsColor, "SO", Lang::ShaderObjectsTooltip );
+        }
+
+        if( pipeline.m_UsesRayQuery )
+        {
+            ImU32 rayQueryCapabilityColor = IM_COL32( 133, 82, 25, 255 );
+            DrawBadge( rayQueryCapabilityColor, "RQ", Lang::ShaderCapabilityTooltipFmt, "Ray Query" );
+        }
+
+        if( pipeline.m_UsesRayTracing )
+        {
+            ImU32 rayTracingCapabilityColor = ImGuiX::Darker( m_RayTracingPipelineColumnColor, 0.5f );
+            DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPipelineContextMenu
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPipelineContextMenu( const DeviceProfilerPipelineData& pipeline, const char* id )
+    {
+        if( ImGui::BeginPopupContextItem( id ) )
+        {
+            if( ImGui::MenuItem( Lang::Inspect, nullptr, nullptr, !pipeline.m_Internal ) )
+            {
+                Inspect( pipeline );
+            }
+
+            if( ImGui::MenuItem( Lang::CopyName, nullptr, nullptr ) )
+            {
+                ImGui::SetClipboardText( m_pStringSerializer->GetName( pipeline ).c_str() );
+            }
+
+            ImGui::EndPopup();
         }
     }
 
