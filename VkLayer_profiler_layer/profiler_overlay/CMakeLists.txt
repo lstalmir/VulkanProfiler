@@ -127,7 +127,6 @@ if (UNIX)
 
     if (XCB_FOUND)
         target_link_libraries (profiler_overlay PRIVATE ${XCB_LIBRARIES})
-        target_link_libraries (profiler_overlay PRIVATE XCB::SHAPE)
         target_include_directories (profiler_overlay PRIVATE ${XCB_INCLUDE_DIRS})
     endif () # XCB_FOUND
 
@@ -135,9 +134,5 @@ if (UNIX)
         target_link_libraries (profiler_overlay PRIVATE ${X11_LIBRARIES} )
         target_include_directories (profiler_overlay PRIVATE ${X11_INCLUDE_DIR})
     endif () # X11_FOUND
-    if (X11_Xrandr_FOUND)
-        target_link_libraries (profiler_overlay PRIVATE ${X11_Xrandr_LIB})
-        target_include_directories (profiler_overlay PRIVATE ${X11_Xrandr_INCLUDE_PATH})
-    endif () # X11_Xrandr_FOUND
 
 endif () # UNIX

@@ -20,9 +20,7 @@
 
 #pragma once
 #include "imgui_window.h"
-#include <vector>
 #include <X11/Xlib.h>
-#include <X11/extensions/shape.h>
 
 struct ImGuiContext;
 
@@ -35,15 +33,12 @@ public:
     const char* GetName() const override;
 
     void NewFrame() override;
-    void AddInputCaptureRect( int x, int y, int width, int height ) override;
 
 private:
     ImGuiContext* m_pImGuiContext;
     Display* m_Display;
-    XIM m_IM;
     Window m_AppWindow;
     Window m_InputWindow;
-    std::vector<XRectangle> m_InputRects;
 
     void UpdateMousePos();
 };

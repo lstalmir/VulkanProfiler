@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -158,19 +158,20 @@ void ImGui_ImplXcb_Context::NewFrame()
     auto geometry = GetGeometry( m_AppWindow );
     io.DisplaySize = ImVec2((float)(geometry.width), (float)(geometry.height));
 
+    const uint32_t inputWindowChanges[2] = {
+        static_cast<uint32_t>( geometry.width ),
+        static_cast<uint32_t>( geometry.height )
+    };
+
+    xcb_configure_window(
+        m_Connection,
+        m_InputWindow,
+        XCB_CONFIG_WINDOW_WIDTH |
+        XCB_CONFIG_WINDOW_HEIGHT,
+        inputWindowChanges );
+
     // Update OS mouse position
     UpdateMousePos();
-
-    // Update input capture rects
-    xcb_shape_rectangles(
-        m_Connection,
-        XCB_SHAPE_SO_SET,
-        XCB_SHAPE_SK_INPUT,
-        XCB_CLIP_ORDERING_UNSORTED,
-        m_InputWindow,
-        0, 0,
-        m_InputRects.size(),
-        m_InputRects.data() );
 
     // Handle incoming input events
     // Don't block if there are no pending events
@@ -233,35 +234,18 @@ void ImGui_ImplXcb_Context::NewFrame()
         }
         }
 
+        if( !io.WantCaptureMouse && !io.WantCaptureKeyboard )
+        {
+            // Forward the event to the parent window
+            xcb_send_event( m_Connection, false, m_AppWindow, XCB_EVENT_MASK_NO_EVENT,
+                reinterpret_cast<const char*>(event) );
+        }
+
         // Free received event
         free( event );
     }
 
     xcb_flush( m_Connection );
-
-    // Rebuild input capture rects on each frame
-    m_InputRects.clear();
-}
-
-/***********************************************************************************\
-
-Function:
-    AddInputCaptureRect
-
-Description:
-    X-platform implementations require setting input clipping rects to pass messages
-    to the parent window. This can be only done between ImGui::Begin and ImGui::End,
-    when g.CurrentWindow is set.
-
-\***********************************************************************************/
-void ImGui_ImplXcb_Context::AddInputCaptureRect( int x, int y, int width, int height )
-{
-    // Set input clipping rectangle
-    xcb_rectangle_t& inputRect = m_InputRects.emplace_back();
-    inputRect.x = x;
-    inputRect.y = y;
-    inputRect.width = width;
-    inputRect.height = height;
 }
 
 /***********************************************************************************\
