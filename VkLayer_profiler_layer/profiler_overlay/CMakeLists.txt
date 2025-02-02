@@ -67,6 +67,8 @@ set (imgui_platform_wayland
     "imgui_impl_wayland.cpp")
 endif ()
 set (imgui_platform
+    "imgui_impl_xkb.h"
+    "imgui_impl_xkb.cpp"
     ${imgui_platform_x11}
     ${imgui_platform_xcb}
     #${imgui_platform_wayland}
@@ -119,6 +121,8 @@ add_dependencies (profiler_overlay profiler_overlay_assets)
 
 # Set include paths and link window libraries in linux builds
 if (UNIX)
+
+    target_link_libraries (profiler_overlay PRIVATE xkbcommon)
 
     if (Wayland_FOUND)
         target_link_libraries (profiler_overlay PRIVATE ${Wayland_LIBRARIES})

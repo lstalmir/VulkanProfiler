@@ -121,7 +121,7 @@ jobs:
     - name: Install Dependencies
       uses: awalsh128/cache-apt-pkgs-action@latest
       with:
-        packages: extra-cmake-modules libvulkan-dev libx11-dev libxcb1-dev
+        packages: extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxcb1-dev
         version: 1.0
 
     - uses: actions/setup-python@v5

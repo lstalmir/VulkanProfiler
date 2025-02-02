@@ -20,6 +20,7 @@
 
 #pragma once
 #include "imgui_window.h"
+#include "imgui_impl_xkb.h"
 #include <X11/Xlib.h>
 
 struct ImGuiContext;
@@ -36,6 +37,8 @@ public:
 
 private:
     ImGuiContext* m_pImGuiContext;
+    ImGui_ImplXkb_Context* m_pXkbContext;
+
     Display* m_Display;
     Window m_AppWindow;
     Window m_InputWindow;

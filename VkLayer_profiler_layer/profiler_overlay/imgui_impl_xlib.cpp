@@ -41,10 +41,15 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     : m_pImGuiContext( nullptr )
+    , m_pXkbContext( nullptr )
     , m_Display( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( None )
 {
+    // Create XKB context
+    m_pXkbContext = new ImGui_ImplXkb_Context();
+
+    // Connect to X server
     m_Display = XOpenDisplay( nullptr );
     if( !m_Display )
         throw;
@@ -74,6 +79,8 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     XGetWindowAttributes( m_Display, m_InputWindow, &windowAttributes );
 
     const int inputEventMask =
+        KeyPressMask |
+        KeyReleaseMask |
         ButtonPressMask |
         ButtonReleaseMask |
         PointerMotionMask;
@@ -121,6 +128,9 @@ ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 
     if( m_Display ) XCloseDisplay( m_Display );
     m_Display = nullptr;
+
+    delete m_pXkbContext;
+    m_pXkbContext = nullptr;
 
     if( m_pImGuiContext )
     {
@@ -231,6 +241,13 @@ void ImGui_ImplXlib_Context::NewFrame()
             }
             break;
         }
+
+        case KeyPress:
+        case KeyRelease:
+        {
+            m_pXkbContext->AddKeyEvent( event.xkey.keycode, (event.type == KeyPress) );
+            break;
+        }
         }
 
         if( !io.WantCaptureKeyboard && !io.WantCaptureMouse )
@@ -239,6 +256,8 @@ void ImGui_ImplXlib_Context::NewFrame()
             XSendEvent( m_Display, m_AppWindow, false, NoEventMask, &event );
         }
     }
+
+    XFlush( m_Display );
 }
 
 /***********************************************************************************\

@@ -20,6 +20,7 @@ Following packages are required for building on Debian-based systems:
 - g++-8.3 (or later)
 - cmake-3.8 (or later)
 - extra-cmake-modules
+- libxkbcommon-dev
 - libx11-dev (for Xlib support)
 - libxcb1-dev (for XCB support)
 

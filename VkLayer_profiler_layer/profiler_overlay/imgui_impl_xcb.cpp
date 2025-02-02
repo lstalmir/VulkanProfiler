@@ -41,10 +41,14 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     : m_pImGuiContext( nullptr )
+    , m_pXkbContext( nullptr )
     , m_Connection( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( 0 )
 {
+    // Create XKB context
+    m_pXkbContext = new ImGui_ImplXkb_Context();
+
     // Connect to X server
     m_Connection = xcb_connect( nullptr, nullptr );
     if( xcb_connection_has_error( m_Connection ) )
@@ -59,7 +63,9 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     const int valwin =
         XCB_EVENT_MASK_POINTER_MOTION |
         XCB_EVENT_MASK_BUTTON_PRESS |
-        XCB_EVENT_MASK_BUTTON_RELEASE;
+        XCB_EVENT_MASK_BUTTON_RELEASE |
+        XCB_EVENT_MASK_KEY_PRESS |
+        XCB_EVENT_MASK_KEY_RELEASE;
 
     xcb_create_window(
         m_Connection,
@@ -110,6 +116,9 @@ ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
 
     xcb_disconnect( m_Connection );
     m_Connection = nullptr;
+
+    delete m_pXkbContext;
+    m_pXkbContext = nullptr;
 
     if( m_pImGuiContext )
     {
@@ -230,6 +239,26 @@ void ImGui_ImplXcb_Context::NewFrame()
                 if( buttonReleaseEvent->detail == XCB_BUTTON_INDEX_3 ) button = 1;
                 io.MouseDown[ button ] = false;
             }
+            break;
+        }
+
+        case XCB_KEY_PRESS:
+        {
+            // Handle key press
+            xcb_key_press_event_t* keyPressEvent =
+                reinterpret_cast<xcb_key_press_event_t*>(event);
+
+            m_pXkbContext->AddKeyEvent( keyPressEvent->detail, true );
+            break;
+        }
+
+        case XCB_KEY_RELEASE:
+        {
+            // Handle key release
+            xcb_key_release_event_t* keyReleaseEvent =
+                reinterpret_cast<xcb_key_release_event_t*>(event);
+
+            m_pXkbContext->AddKeyEvent( keyReleaseEvent->detail, false );
             break;
         }
         }
