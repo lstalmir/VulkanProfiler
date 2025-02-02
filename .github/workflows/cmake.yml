@@ -28,65 +28,24 @@ on:
     types: [ opened, synchronize, reopened, ready_for_review ]
   workflow_dispatch:
     inputs:
-      build_os_windows:
-        description: 'Windows'
-        type: boolean
-        default: true
-      build_os_ubuntu_24_04:
-        description: 'Ubuntu 24.04'
-        type: boolean
-        default: true
-      build_os_ubuntu_22_04:
-        description: 'Ubuntu 22.04'
-        type: boolean
-        default: true
-      build_os_ubuntu_20_04:
-        description: 'Ubuntu 20.04'
-        type: boolean
-        default: false
-      build_config_release:
-        description: 'Release'
-        type: boolean
-        default: true
-      build_config_debug:
-        description: 'Debug'
-        type: boolean
-        default: false
+      operating_systems:
+        description: 'Comma-separated list of operating systems to target.'
+        required: true
+        default: '"windows-latest","ubuntu-24.04","ubuntu-22.04"'
+      build_types:
+        description: 'Comma-separated list of build configurations.'
+        required: true
+        default: '"Release"'
 
 jobs:
-  configure:
-    if: github.event.pull_request.draft == false
-
-    name: Configure
-    runs-on: ubuntu-latest
-
-    outputs:
-      config: ${{ steps.gen_build_configs.outputs.config }}
-
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-    - id: gen_build_configs
-      run: |
-        oses=$(python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/gen_build_configs.py \
-            "windows-latest=${{ inputs.build_os_windows }}" \
-            "ubuntu-24.04=${{ inputs.build_os_ubuntu_24_04 }}" \
-            "ubuntu-22.04=${{ inputs.build_os_ubuntu_22_04 }}" \
-            "ubuntu-20.04=${{ inputs.build_os_ubuntu_20_04 }}")
-        build_types=$(python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/gen_build_configs.py \
-            "Release=${{ inputs.build_config_release }}" \
-            "Debug=${{ inputs.build_config_debug }}")
-        echo "config={\"matrix\":{\"build_type\":$build_types},\"os\":$oses}"
-        echo "config={\"matrix\":{\"build_type\":$build_types},\"os\":$oses}" >> $GITHUB_OUTPUT
-
   build:
-    needs: [ configure ]
+    if: github.event.pull_request.draft == false
 
     # Build configs.
     strategy:
-      matrix: ${{ fromJson(needs.configure.outputs.config).matrix }}
+      matrix:
+        build_type: ${{fromJson(format('[{0}]', inputs.build_types || '"Release","Debug"'))}}
+        os: ${{fromJson(format('[{0}]', inputs.operating_systems || '"windows-latest","ubuntu-24.04","ubuntu-22.04"'))}}
 
     name: Build ${{matrix.os}} ${{matrix.build_type}}
     runs-on: ${{matrix.os}}
