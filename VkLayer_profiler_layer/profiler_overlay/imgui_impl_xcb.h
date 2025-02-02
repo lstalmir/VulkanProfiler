@@ -21,7 +21,6 @@
 #pragma once
 #include "imgui_window.h"
 #include <xcb/xcb.h>
-#include <xcb/shape.h>
 
 struct ImGuiContext;
 

@@ -20,37 +20,29 @@
 
 cmake_minimum_required (VERSION 3.8...3.31)
 
+find_package (X11)
+
 if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.16.0)
     # ECM is required on Linux to find Wayland and XCB.
     find_package (ECM NO_MODULE)
     if (ECM_FOUND)
         set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
-
+        find_package (XCB COMPONENTS XCB)
         #find_package (Wayland)
-        #if (Wayland_FOUND)
-        #    set (PROFILER_PLATFORM_FOUND 1)
-        #endif ()
-
-        find_package (XCB)
-        if (XCB_FOUND)
-            set (PROFILER_PLATFORM_FOUND 1)
-        endif ()
     endif ()
 endif ()
 
-# If either Wayland or XCB was found, X11 is optional.
-find_package (X11)
 if (X11_FOUND)
     set (PROFILER_PLATFORM_FOUND 1)
-endif ()
-
-# Enable Vulkan platforms for each SDK found.
-if (X11_FOUND)
     add_definitions (-DVK_USE_PLATFORM_XLIB_KHR)
 endif ()
+
 if (XCB_FOUND)
+    set (PROFILER_PLATFORM_FOUND 1)
     add_definitions (-DVK_USE_PLATFORM_XCB_KHR)
 endif ()
+
 if (Wayland_FOUND)
+    set (PROFILER_PLATFORM_FOUND 1)
     add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
 endif ()
