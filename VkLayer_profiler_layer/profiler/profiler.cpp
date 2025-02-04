@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1402,6 +1402,14 @@ namespace Profiler
             if( result == VK_SUCCESS && pipelineExecutablesCount > 0 )
             {
                 pipelineExecutables.resize( pipelineExecutablesCount );
+                memset( pipelineExecutables.data(), 0,
+                    sizeof( VkPipelineExecutablePropertiesKHR ) * pipelineExecutablesCount );
+
+                for( uint32_t i = 0; i < pipelineExecutablesCount; ++i )
+                {
+                    pipelineExecutables[ i ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_PROPERTIES_KHR;
+                }
+
                 m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
                     m_pDevice->Handle,
                     &pipelineInfo,
@@ -1435,6 +1443,14 @@ namespace Profiler
                 if( result == VK_SUCCESS && executableStatisticsCount > 0 )
                 {
                     executableStatistics.resize( executableStatisticsCount );
+                    memset( executableStatistics.data(), 0,
+                        sizeof( VkPipelineExecutableStatisticKHR ) * executableStatisticsCount );
+
+                    for( uint32_t j = 0; j < executableStatisticsCount; ++j )
+                    {
+                        executableStatistics[ j ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_STATISTIC_KHR;
+                    }
+
                     result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
                         m_pDevice->Handle,
                         &executableInfo,
@@ -1460,6 +1476,14 @@ namespace Profiler
                 if( result == VK_SUCCESS && executableInternalRepresentationsCount > 0 )
                 {
                     executableInternalRepresentations.resize( executableInternalRepresentationsCount );
+                    memset( executableInternalRepresentations.data(), 0,
+                        sizeof( VkPipelineExecutableInternalRepresentationKHR ) * executableInternalRepresentationsCount );
+
+                    for( uint32_t j = 0; j < executableInternalRepresentationsCount; ++j )
+                    {
+                        executableInternalRepresentations[ j ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INTERNAL_REPRESENTATION_KHR;
+                    }
+
                     result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
                         m_pDevice->Handle,
                         &executableInfo,
