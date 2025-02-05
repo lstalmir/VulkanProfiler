@@ -19,8 +19,8 @@
 // SOFTWARE.
 
 #include "imgui_impl_xlib.h"
-#include <X11/extensions/shape.h>
 #include <imgui_internal.h>
+#include <X11/extensions/shape.h>
 #include <stdlib.h>
 #include <mutex>
 

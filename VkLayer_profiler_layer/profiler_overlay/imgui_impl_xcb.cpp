@@ -19,8 +19,8 @@
 // SOFTWARE.
 
 #include "imgui_impl_xcb.h"
-#include <xcb/shape.h>
 #include <imgui_internal.h>
+#include <xcb/shape.h>
 #include <stdlib.h>
 #include <mutex>
 
