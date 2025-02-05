@@ -21,6 +21,7 @@
 #pragma once
 #include "imgui_window.h"
 #include "imgui_impl_xkb.h"
+#include <imgui.h>
 #include <xcb/xcb.h>
 
 struct ImGuiContext;
@@ -42,6 +43,7 @@ private:
     xcb_connection_t* m_Connection;
     xcb_window_t m_AppWindow;
     xcb_window_t m_InputWindow;
+    ImVector<xcb_rectangle_t> m_InputRects;
 
     xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
 

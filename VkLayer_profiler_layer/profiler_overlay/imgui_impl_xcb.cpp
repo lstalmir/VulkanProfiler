@@ -19,7 +19,8 @@
 // SOFTWARE.
 
 #include "imgui_impl_xcb.h"
-#include <imgui.h>
+#include <xcb/shape.h>
+#include <imgui_internal.h>
 #include <stdlib.h>
 #include <mutex>
 
@@ -182,6 +183,32 @@ void ImGui_ImplXcb_Context::NewFrame()
     // Update OS mouse position
     UpdateMousePos();
 
+    // Update input capture rects
+    m_InputRects.resize( 0 );
+
+    for( ImGuiWindow* pWindow : GImGui->Windows )
+    {
+        if( pWindow && pWindow->WasActive )
+        {
+            xcb_rectangle_t rect;
+            rect.x = static_cast<int16_t>( pWindow->Pos.x );
+            rect.y = static_cast<int16_t>( pWindow->Pos.y );
+            rect.width = static_cast<uint16_t>( pWindow->Size.x );
+            rect.height = static_cast<uint16_t>( pWindow->Size.y );
+            m_InputRects.push_back( rect );
+        }
+    }
+
+    xcb_shape_rectangles(
+        m_Connection,
+        XCB_SHAPE_SO_SET,
+        XCB_SHAPE_SK_INPUT,
+        XCB_CLIP_ORDERING_UNSORTED,
+        m_InputWindow,
+        0, 0,
+        m_InputRects.Size,
+        m_InputRects.Data );
+
     // Handle incoming input events
     // Don't block if there are no pending events
     xcb_generic_event_t* event = nullptr;
@@ -261,13 +288,6 @@ void ImGui_ImplXcb_Context::NewFrame()
             m_pXkbContext->AddKeyEvent( keyReleaseEvent->detail, false );
             break;
         }
-        }
-
-        if( !io.WantCaptureMouse && !io.WantCaptureKeyboard )
-        {
-            // Forward the event to the parent window
-            xcb_send_event( m_Connection, false, m_AppWindow, XCB_EVENT_MASK_NO_EVENT,
-                reinterpret_cast<const char*>(event) );
         }
 
         // Free received event

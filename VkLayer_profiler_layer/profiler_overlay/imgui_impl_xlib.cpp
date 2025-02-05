@@ -19,9 +19,10 @@
 // SOFTWARE.
 
 #include "imgui_impl_xlib.h"
-#include <mutex>
-#include <imgui.h>
+#include <X11/extensions/shape.h>
+#include <imgui_internal.h>
 #include <stdlib.h>
+#include <mutex>
 
 namespace Profiler
 {
@@ -189,6 +190,32 @@ void ImGui_ImplXlib_Context::NewFrame()
     // Update OS mouse position
     UpdateMousePos();
 
+    // Update input capture rects
+    m_InputRects.resize( 0 );
+
+    for( ImGuiWindow* pWindow : GImGui->Windows )
+    {
+        if( pWindow && pWindow->WasActive )
+        {
+            XRectangle rect;
+            rect.x = static_cast<short>( pWindow->Pos.x );
+            rect.y = static_cast<short>( pWindow->Pos.y );
+            rect.width = static_cast<unsigned short>( pWindow->Size.x );
+            rect.height = static_cast<unsigned short>( pWindow->Size.y );
+            m_InputRects.push_back( rect );
+        }
+    }
+
+    XShapeCombineRectangles(
+        m_Display,
+        m_InputWindow,
+        ShapeInput,
+        0, 0,
+        m_InputRects.Data,
+        m_InputRects.Size,
+        ShapeSet,
+        Unsorted );
+
     // Handle incoming input events
     // Don't block if there are no pending events
     while( XEventsQueued( m_Display, QueuedAlready ) )
@@ -248,12 +275,6 @@ void ImGui_ImplXlib_Context::NewFrame()
             m_pXkbContext->AddKeyEvent( event.xkey.keycode, (event.type == KeyPress) );
             break;
         }
-        }
-
-        if( !io.WantCaptureKeyboard && !io.WantCaptureMouse )
-        {
-            // Forward the event to the parent window
-            XSendEvent( m_Display, m_AppWindow, false, NoEventMask, &event );
         }
     }
 

@@ -21,6 +21,7 @@
 #pragma once
 #include "imgui_window.h"
 #include "imgui_impl_xkb.h"
+#include <imgui.h>
 #include <X11/Xlib.h>
 
 struct ImGuiContext;
@@ -42,6 +43,7 @@ private:
     Display* m_Display;
     Window m_AppWindow;
     Window m_InputWindow;
+    ImVector<XRectangle> m_InputRects;
 
     void UpdateMousePos();
 };
