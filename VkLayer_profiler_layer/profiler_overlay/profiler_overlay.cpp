@@ -1039,15 +1039,6 @@ namespace Profiler
         ImGui::PushFont( m_Resources.GetDefaultFont() );
         ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
 
-        // Update input clipping rect
-        ImVec2 pos = ImGui::GetWindowPos();
-        ImVec2 size = ImGui::GetWindowSize();
-        m_pImGuiWindowContext->AddInputCaptureRect(
-            static_cast<int>(pos.x),
-            static_cast<int>(pos.y),
-            static_cast<int>(size.x),
-            static_cast<int>(size.y) );
-
         if( ImGui::BeginMenuBar() )
         {
             if( ImGui::BeginMenu( Lang::FileMenu ) )
@@ -1147,18 +1138,6 @@ namespace Profiler
                     state.Docked = ImGui::IsWindowDocked() &&
                         (dockSpaceId == m_MainDockSpaceId ||
                             dockSpaceId == m_PerformanceTabDockSpaceId);
-                    
-                    if( !state.Docked )
-                    {
-                        // Add input clipping rect for this window
-                        ImVec2 pos = ImGui::GetWindowPos();
-                        ImVec2 size = ImGui::GetWindowSize();
-                        m_pImGuiWindowContext->AddInputCaptureRect(
-                            static_cast<int>(pos.x),
-                            static_cast<int>(pos.y),
-                            static_cast<int>(size.x),
-                            static_cast<int>(size.y) );
-                    }
 
                     state.Focus = false;
                 }

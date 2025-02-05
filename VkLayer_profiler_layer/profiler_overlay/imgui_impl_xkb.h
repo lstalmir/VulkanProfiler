@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,31 +19,18 @@
 // SOFTWARE.
 
 #pragma once
-#include "imgui_window.h"
-#include "imgui_impl_xkb.h"
-#include <imgui.h>
-#include <X11/Xlib.h>
+#include <xkbcommon/xkbcommon.h>
 
-struct ImGuiContext;
-
-class ImGui_ImplXlib_Context : public ImGui_Window_Context
+class ImGui_ImplXkb_Context
 {
 public:
-    ImGui_ImplXlib_Context( Window window );
-    ~ImGui_ImplXlib_Context();
+    ImGui_ImplXkb_Context();
+    ~ImGui_ImplXkb_Context();
 
-    const char* GetName() const override;
-
-    void NewFrame() override;
+    void AddKeyEvent( int keycode, bool pressed );
 
 private:
-    ImGuiContext* m_pImGuiContext;
-    ImGui_ImplXkb_Context* m_pXkbContext;
-
-    Display* m_Display;
-    Window m_AppWindow;
-    Window m_InputWindow;
-    ImVector<XRectangle> m_InputRects;
-
-    void UpdateMousePos();
+    xkb_context* m_pContext;
+    xkb_keymap* m_pKeymap;
+    xkb_state* m_pState;
 };

@@ -51,22 +51,24 @@ set (imgui_platform
     "imgui_impl_win32.cpp"
     )
 elseif (UNIX)
-if (X11_FOUND)
+if (PROFILER_PLATFORM_XLIB_FOUND)
 set (imgui_platform_x11
     "imgui_impl_xlib.h"
     "imgui_impl_xlib.cpp")
 endif ()
-if (XCB_FOUND)
+if (PROFILER_PLATFORM_XCB_FOUND)
 set (imgui_platform_xcb
     "imgui_impl_xcb.h"
     "imgui_impl_xcb.cpp")
 endif ()
-if (Wayland_FOUND)
+if (PROFILER_PLATFORM_WAYLAND_FOUND)
 set (imgui_platform_wayland
     "imgui_impl_wayland.h"
     "imgui_impl_wayland.cpp")
 endif ()
 set (imgui_platform
+    "imgui_impl_xkb.h"
+    "imgui_impl_xkb.cpp"
     ${imgui_platform_x11}
     ${imgui_platform_xcb}
     #${imgui_platform_wayland}
@@ -120,24 +122,21 @@ add_dependencies (profiler_overlay profiler_overlay_assets)
 # Set include paths and link window libraries in linux builds
 if (UNIX)
 
-    if (Wayland_FOUND)
+    target_link_libraries (profiler_overlay PRIVATE xkbcommon)
+
+    if (PROFILER_PLATFORM_WAYLAND_FOUND)
         target_link_libraries (profiler_overlay PRIVATE ${Wayland_LIBRARIES})
         target_include_directories (profiler_overlay PRIVATE ${Wayland_INCLUDE_DIRS})
-    endif () # Wayland_FOUND
+    endif ()
 
-    if (XCB_FOUND)
+    if (PROFILER_PLATFORM_XCB_FOUND)
         target_link_libraries (profiler_overlay PRIVATE ${XCB_LIBRARIES})
-        target_link_libraries (profiler_overlay PRIVATE XCB::SHAPE)
         target_include_directories (profiler_overlay PRIVATE ${XCB_INCLUDE_DIRS})
-    endif () # XCB_FOUND
+    endif ()
 
-    if (X11_FOUND)
+    if (PROFILER_PLATFORM_XLIB_FOUND)
         target_link_libraries (profiler_overlay PRIVATE ${X11_LIBRARIES} )
         target_include_directories (profiler_overlay PRIVATE ${X11_INCLUDE_DIR})
-    endif () # X11_FOUND
-    if (X11_Xrandr_FOUND)
-        target_link_libraries (profiler_overlay PRIVATE ${X11_Xrandr_LIB})
-        target_include_directories (profiler_overlay PRIVATE ${X11_Xrandr_INCLUDE_PATH})
-    endif () # X11_Xrandr_FOUND
+    endif ()
 
 endif () # UNIX

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,9 +20,9 @@
 
 #pragma once
 #include "imgui_window.h"
-#include <vector>
+#include "imgui_impl_xkb.h"
+#include <imgui.h>
 #include <xcb/xcb.h>
-#include <xcb/shape.h>
 
 struct ImGuiContext;
 
@@ -35,14 +35,15 @@ public:
     const char* GetName() const override;
 
     void NewFrame() override;
-    void AddInputCaptureRect( int x, int y, int width, int height ) override;
 
 private:
     ImGuiContext* m_pImGuiContext;
+    ImGui_ImplXkb_Context* m_pXkbContext;
+
     xcb_connection_t* m_Connection;
     xcb_window_t m_AppWindow;
     xcb_window_t m_InputWindow;
-    std::vector<xcb_rectangle_t> m_InputRects;
+    ImVector<xcb_rectangle_t> m_InputRects;
 
     xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
 

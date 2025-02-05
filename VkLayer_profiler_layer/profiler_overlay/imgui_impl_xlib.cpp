@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,9 +19,10 @@
 // SOFTWARE.
 
 #include "imgui_impl_xlib.h"
-#include <mutex>
-#include <imgui.h>
+#include <imgui_internal.h>
+#include <X11/extensions/shape.h>
 #include <stdlib.h>
+#include <mutex>
 
 namespace Profiler
 {
@@ -41,17 +42,17 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     : m_pImGuiContext( nullptr )
+    , m_pXkbContext( nullptr )
     , m_Display( nullptr )
-    , m_IM( None )
     , m_AppWindow( window )
     , m_InputWindow( None )
 {
+    // Create XKB context
+    m_pXkbContext = new ImGui_ImplXkb_Context();
+
+    // Connect to X server
     m_Display = XOpenDisplay( nullptr );
     if( !m_Display )
-        throw;
-
-    m_IM = XOpenIM( m_Display, nullptr, nullptr, nullptr );
-    if( !m_IM )
         throw;
 
     XWindowAttributes windowAttributes;
@@ -79,6 +80,8 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     XGetWindowAttributes( m_Display, m_InputWindow, &windowAttributes );
 
     const int inputEventMask =
+        KeyPressMask |
+        KeyReleaseMask |
         ButtonPressMask |
         ButtonReleaseMask |
         PointerMotionMask;
@@ -124,11 +127,11 @@ ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
     m_InputWindow = None;
     m_AppWindow = None;
 
-    if( m_IM ) XCloseIM( m_IM );
-    m_IM = None;
-
     if( m_Display ) XCloseDisplay( m_Display );
     m_Display = nullptr;
+
+    delete m_pXkbContext;
+    m_pXkbContext = nullptr;
 
     if( m_pImGuiContext )
     {
@@ -179,17 +182,37 @@ void ImGui_ImplXlib_Context::NewFrame()
     XGetWindowAttributes( m_Display, m_AppWindow, &windowAttributes );
     io.DisplaySize = ImVec2((float)(windowAttributes.width), (float)(windowAttributes.height));
 
+    XWindowChanges inputWindowChanges = {};
+    inputWindowChanges.width = windowAttributes.width;
+    inputWindowChanges.height = windowAttributes.height;
+    XConfigureWindow( m_Display, m_InputWindow, CWWidth | CWHeight, &inputWindowChanges );
+
     // Update OS mouse position
     UpdateMousePos();
 
     // Update input capture rects
+    m_InputRects.resize( 0 );
+
+    for( ImGuiWindow* pWindow : GImGui->Windows )
+    {
+        if( pWindow && pWindow->WasActive )
+        {
+            XRectangle rect;
+            rect.x = static_cast<short>( pWindow->Pos.x );
+            rect.y = static_cast<short>( pWindow->Pos.y );
+            rect.width = static_cast<unsigned short>( pWindow->Size.x );
+            rect.height = static_cast<unsigned short>( pWindow->Size.y );
+            m_InputRects.push_back( rect );
+        }
+    }
+
     XShapeCombineRectangles(
         m_Display,
         m_InputWindow,
         ShapeInput,
         0, 0,
-        m_InputRects.data(),
-        m_InputRects.size(),
+        m_InputRects.Data,
+        m_InputRects.Size,
         ShapeSet,
         Unsorted );
 
@@ -245,32 +268,17 @@ void ImGui_ImplXlib_Context::NewFrame()
             }
             break;
         }
+
+        case KeyPress:
+        case KeyRelease:
+        {
+            m_pXkbContext->AddKeyEvent( event.xkey.keycode, (event.type == KeyPress) );
+            break;
+        }
         }
     }
 
-    // Rebuild input capture rects on each frame
-    m_InputRects.clear();
-}
-
-/***********************************************************************************\
-
-Function:
-    AddInputCaptureRect
-
-Description:
-    X-platform implementations require setting input clipping rects to pass messages
-    to the parent window. This can be only done between ImGui::Begin and ImGui::End,
-    when g.CurrentWindow is set.
-
-\***********************************************************************************/
-void ImGui_ImplXlib_Context::AddInputCaptureRect( int x, int y, int width, int height )
-{
-    // Set input clipping rectangle
-    XRectangle& inputRect = m_InputRects.emplace_back();
-    inputRect.x = x;
-    inputRect.y = y;
-    inputRect.width = width;
-    inputRect.height = height;
+    XFlush( m_Display );
 }
 
 /***********************************************************************************\

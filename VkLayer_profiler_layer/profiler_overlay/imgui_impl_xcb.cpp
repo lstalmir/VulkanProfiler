@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +19,8 @@
 // SOFTWARE.
 
 #include "imgui_impl_xcb.h"
-#include <imgui.h>
+#include <imgui_internal.h>
+#include <xcb/shape.h>
 #include <stdlib.h>
 #include <mutex>
 
@@ -41,10 +42,14 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     : m_pImGuiContext( nullptr )
+    , m_pXkbContext( nullptr )
     , m_Connection( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( 0 )
 {
+    // Create XKB context
+    m_pXkbContext = new ImGui_ImplXkb_Context();
+
     // Connect to X server
     m_Connection = xcb_connect( nullptr, nullptr );
     if( xcb_connection_has_error( m_Connection ) )
@@ -59,7 +64,9 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     const int valwin =
         XCB_EVENT_MASK_POINTER_MOTION |
         XCB_EVENT_MASK_BUTTON_PRESS |
-        XCB_EVENT_MASK_BUTTON_RELEASE;
+        XCB_EVENT_MASK_BUTTON_RELEASE |
+        XCB_EVENT_MASK_KEY_PRESS |
+        XCB_EVENT_MASK_KEY_RELEASE;
 
     xcb_create_window(
         m_Connection,
@@ -111,6 +118,9 @@ ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
     xcb_disconnect( m_Connection );
     m_Connection = nullptr;
 
+    delete m_pXkbContext;
+    m_pXkbContext = nullptr;
+
     if( m_pImGuiContext )
     {
         assert( ImGui::GetCurrentContext() == m_pImGuiContext );
@@ -158,10 +168,37 @@ void ImGui_ImplXcb_Context::NewFrame()
     auto geometry = GetGeometry( m_AppWindow );
     io.DisplaySize = ImVec2((float)(geometry.width), (float)(geometry.height));
 
+    const uint32_t inputWindowChanges[2] = {
+        static_cast<uint32_t>( geometry.width ),
+        static_cast<uint32_t>( geometry.height )
+    };
+
+    xcb_configure_window(
+        m_Connection,
+        m_InputWindow,
+        XCB_CONFIG_WINDOW_WIDTH |
+        XCB_CONFIG_WINDOW_HEIGHT,
+        inputWindowChanges );
+
     // Update OS mouse position
     UpdateMousePos();
 
     // Update input capture rects
+    m_InputRects.resize( 0 );
+
+    for( ImGuiWindow* pWindow : GImGui->Windows )
+    {
+        if( pWindow && pWindow->WasActive )
+        {
+            xcb_rectangle_t rect;
+            rect.x = static_cast<int16_t>( pWindow->Pos.x );
+            rect.y = static_cast<int16_t>( pWindow->Pos.y );
+            rect.width = static_cast<uint16_t>( pWindow->Size.x );
+            rect.height = static_cast<uint16_t>( pWindow->Size.y );
+            m_InputRects.push_back( rect );
+        }
+    }
+
     xcb_shape_rectangles(
         m_Connection,
         XCB_SHAPE_SO_SET,
@@ -169,8 +206,8 @@ void ImGui_ImplXcb_Context::NewFrame()
         XCB_CLIP_ORDERING_UNSORTED,
         m_InputWindow,
         0, 0,
-        m_InputRects.size(),
-        m_InputRects.data() );
+        m_InputRects.Size,
+        m_InputRects.Data );
 
     // Handle incoming input events
     // Don't block if there are no pending events
@@ -231,6 +268,26 @@ void ImGui_ImplXcb_Context::NewFrame()
             }
             break;
         }
+
+        case XCB_KEY_PRESS:
+        {
+            // Handle key press
+            xcb_key_press_event_t* keyPressEvent =
+                reinterpret_cast<xcb_key_press_event_t*>(event);
+
+            m_pXkbContext->AddKeyEvent( keyPressEvent->detail, true );
+            break;
+        }
+
+        case XCB_KEY_RELEASE:
+        {
+            // Handle key release
+            xcb_key_release_event_t* keyReleaseEvent =
+                reinterpret_cast<xcb_key_release_event_t*>(event);
+
+            m_pXkbContext->AddKeyEvent( keyReleaseEvent->detail, false );
+            break;
+        }
         }
 
         // Free received event
@@ -238,30 +295,6 @@ void ImGui_ImplXcb_Context::NewFrame()
     }
 
     xcb_flush( m_Connection );
-
-    // Rebuild input capture rects on each frame
-    m_InputRects.clear();
-}
-
-/***********************************************************************************\
-
-Function:
-    AddInputCaptureRect
-
-Description:
-    X-platform implementations require setting input clipping rects to pass messages
-    to the parent window. This can be only done between ImGui::Begin and ImGui::End,
-    when g.CurrentWindow is set.
-
-\***********************************************************************************/
-void ImGui_ImplXcb_Context::AddInputCaptureRect( int x, int y, int width, int height )
-{
-    // Set input clipping rectangle
-    xcb_rectangle_t& inputRect = m_InputRects.emplace_back();
-    inputRect.x = x;
-    inputRect.y = y;
-    inputRect.width = width;
-    inputRect.height = height;
 }
 
 /***********************************************************************************\
