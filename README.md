@@ -21,8 +21,8 @@ Following packages are required for building on Debian-based systems:
 - cmake-3.8 (or later)
 - extra-cmake-modules
 - libxkbcommon-dev
-- libx11-dev (for Xlib support)
-- libxcb1-dev (for XCB support)
+- libx11-dev, libxext-dev (for Xlib support)
+- libxcb1-dev, libxcb-shape0-dev (for XCB support)
 
 To build the layer create "cmake_build" folder in the project root directory and run following command from it:
 ```
