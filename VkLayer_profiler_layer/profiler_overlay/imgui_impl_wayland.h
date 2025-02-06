@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,19 +19,30 @@
 // SOFTWARE.
 
 #pragma once
-#include "VkInstance_functions_base.h"
+#include "imgui_window.h"
+#include "imgui_impl_xkb.h"
+#include <imgui.h>
+#include <wayland-client.h>
 
-namespace Profiler
+struct ImGuiContext;
+
+class ImGui_ImplWayland_Context : public ImGui_Window_Context
 {
-    struct VkWaylandSurfaceKhr_Functions : VkInstance_Functions_Base
-    {
-        #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-        // vkCreateWin32SurfaceKHR
-        static VKAPI_ATTR VkResult VKAPI_CALL CreateWaylandSurfaceKHR(
-            VkInstance instance,
-            const VkWaylandSurfaceCreateInfoKHR* pCreateInfo,
-            const VkAllocationCallbacks* pAllocator,
-            VkSurfaceKHR* pSurface );
-        #endif
-    };
-}
+public:
+    ImGui_ImplWayland_Context( wl_surface* surface );
+    ~ImGui_ImplWayland_Context();
+
+    const char* GetName() const override;
+
+    void NewFrame() override;
+
+private:
+    ImGuiContext* m_pImGuiContext;
+    ImGui_ImplXkb_Context* m_pXkbContext;
+
+    wl_display* m_Display;
+    wl_surface* m_AppSurface;
+    wl_surface* m_InputSurface;
+
+    void UpdateMousePos();
+};

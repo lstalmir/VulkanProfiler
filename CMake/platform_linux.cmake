@@ -28,7 +28,7 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.16.0)
     if (ECM_FOUND)
         set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
         find_package (XCB COMPONENTS XCB SHAPE)
-        #find_package (Wayland)
+        find_package (Wayland COMPONENTS Client)
     endif ()
 endif ()
 

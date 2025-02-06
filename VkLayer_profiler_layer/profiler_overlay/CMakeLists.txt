@@ -71,7 +71,7 @@ set (imgui_platform
     "imgui_impl_xkb.cpp"
     ${imgui_platform_x11}
     ${imgui_platform_xcb}
-    #${imgui_platform_wayland}
+    ${imgui_platform_wayland}
     )
 endif ()
 

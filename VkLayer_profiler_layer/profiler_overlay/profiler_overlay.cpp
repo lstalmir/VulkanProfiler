@@ -59,7 +59,7 @@ using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
 #endif
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-#include <wayland-client.h>
+#include "imgui_impl_wayland.h"
 #endif
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
