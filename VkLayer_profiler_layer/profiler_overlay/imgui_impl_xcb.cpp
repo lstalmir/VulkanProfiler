@@ -46,6 +46,11 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     , m_Connection( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( 0 )
+    , m_ClipboardSelectionAtom( XCB_NONE )
+    , m_ClipboardPropertyAtom( XCB_NONE )
+    , m_StringAtom( XCB_NONE )
+    , m_Utf8StringAtom( XCB_NONE )
+    , m_pClipboardText( nullptr )
 {
     // Create XKB context
     m_pXkbContext = new ImGui_ImplXkb_Context();
@@ -84,11 +89,21 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     xcb_map_window( m_Connection, m_InputWindow );
     xcb_flush( m_Connection );
 
+    // Initialize clipboard
+    m_ClipboardSelectionAtom = InternAtom( "CLIPBOARD" );
+    m_ClipboardPropertyAtom = InternAtom( "PROFILER_OVERLAY_CLIPBOARD" );
+    m_StringAtom = InternAtom( "STRING" );
+    m_Utf8StringAtom = InternAtom( "UTF8_STRING" );
+
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xcb";
     io.BackendPlatformUserData = this;
+
+    ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+    platformIO.Platform_GetClipboardTextFn = nullptr;
+    platformIO.Platform_SetClipboardTextFn = ImGui_ImplXcb_Context::SetClipboardText;
 
     m_pImGuiContext = ImGui::GetCurrentContext();
 }
@@ -111,6 +126,9 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
 {
+    free( m_pClipboardText );
+    m_pClipboardText = nullptr;
+
     xcb_destroy_window( m_Connection, m_InputWindow );
     m_InputWindow = 0;
     m_AppWindow = 0;
@@ -124,10 +142,15 @@ ImGui_ImplXcb_Context::~ImGui_ImplXcb_Context()
     if( m_pImGuiContext )
     {
         assert( ImGui::GetCurrentContext() == m_pImGuiContext );
+
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags = 0;
         io.BackendPlatformName = nullptr;
         io.BackendPlatformUserData = nullptr;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = nullptr;
+        platformIO.Platform_SetClipboardTextFn = nullptr;
     }
 }
 
@@ -217,6 +240,50 @@ void ImGui_ImplXcb_Context::NewFrame()
     {
         switch( event->response_type & (~0x80) )
         {
+        case XCB_SELECTION_REQUEST:
+        {
+            // Send current selection
+            xcb_selection_request_event_t* selectionRequestEvent =
+                reinterpret_cast<xcb_selection_request_event_t*>(event);
+
+            xcb_selection_notify_event_t selectionNotifyEvent = {};
+            selectionNotifyEvent.response_type = XCB_SELECTION_NOTIFY;
+            selectionNotifyEvent.requestor = selectionRequestEvent->requestor;
+            selectionNotifyEvent.selection = selectionRequestEvent->selection;
+            selectionNotifyEvent.target = selectionRequestEvent->target;
+            selectionNotifyEvent.time = selectionRequestEvent->time;
+
+            if( (selectionRequestEvent->target == m_StringAtom ||
+                 selectionRequestEvent->target == m_Utf8StringAtom) &&
+                (selectionRequestEvent->property != XCB_NONE) )
+            {
+                selectionNotifyEvent.property = selectionRequestEvent->property;
+
+                uint32_t clipboardTextLength = 0;
+                if( m_pClipboardText )
+                {
+                    clipboardTextLength = static_cast<uint32_t>( strlen( m_pClipboardText ) + 1 );
+                }
+
+                xcb_change_property(
+                    m_Connection,
+                    XCB_PROP_MODE_REPLACE,
+                    selectionRequestEvent->requestor,
+                    selectionRequestEvent->property,
+                    XCB_ATOM_STRING, 8,
+                    clipboardTextLength,
+                    m_pClipboardText );
+            }
+
+            xcb_send_event( m_Connection,
+                true,
+                selectionRequestEvent->requestor,
+                XCB_EVENT_MASK_NO_EVENT,
+                reinterpret_cast<const char*>(&selectionNotifyEvent) );
+
+            break;
+        }
+
         case XCB_MOTION_NOTIFY:
         {
             // Update mouse position
@@ -309,18 +376,54 @@ Description:
 xcb_get_geometry_reply_t ImGui_ImplXcb_Context::GetGeometry( xcb_drawable_t drawable )
 {
     // Send request to the server
-    auto cookie = xcb_get_geometry( m_Connection, drawable );
+    xcb_get_geometry_cookie_t cookie = xcb_get_geometry_unchecked( m_Connection, drawable );
     xcb_flush( m_Connection );
 
     // Wait for the response
-    auto* response = xcb_get_geometry_reply( m_Connection, cookie, nullptr );
+    xcb_get_geometry_reply_t* pReply = xcb_get_geometry_reply( m_Connection, cookie, nullptr );
+    xcb_get_geometry_reply_t geometry = {};
 
-    xcb_get_geometry_reply_t geometry = *response;
+    if( pReply )
+    {
+        geometry = *pReply;
+    }
 
     // Free returned pointer
-    free( response );
+    free( pReply );
 
     return geometry;
+}
+
+/***********************************************************************************\
+
+Function:
+    InternAtom
+
+Description:
+    Get a unique id of a string.
+
+\***********************************************************************************/
+xcb_atom_t ImGui_ImplXcb_Context::InternAtom( const char* pName, bool onlyIfExists )
+{
+    uint16_t nameLength = static_cast<uint16_t>( strlen( pName ) );
+
+    // Send request to the server
+    xcb_intern_atom_cookie_t cookie = xcb_intern_atom_unchecked( m_Connection, onlyIfExists, nameLength, pName );
+    xcb_flush( m_Connection );
+
+    // Wait for the response
+    xcb_intern_atom_reply_t* pReply = xcb_intern_atom_reply( m_Connection, cookie, nullptr );
+    xcb_atom_t atom = 0;
+
+    if( pReply )
+    {
+        atom = pReply->atom;
+    }
+
+    // Free returned pointer
+    free( pReply );
+
+    return atom;
 }
 
 /***********************************************************************************\
@@ -341,4 +444,58 @@ void ImGui_ImplXcb_Context::UpdateMousePos()
         xcb_point_t pos = { (short)io.MousePos.x, (short)io.MousePos.y };
         xcb_warp_pointer( m_Connection, 0, m_InputWindow, 0, 0, 0, 0, pos.x, pos.y );
     }
+}
+
+/***********************************************************************************\
+
+Function:
+    SetClipboardText
+
+Description:
+    Copy text to clipboard.
+
+\***********************************************************************************/
+void ImGui_ImplXcb_Context::SetClipboardText( const char* pText )
+{
+    // Clear previous selection
+    free( m_pClipboardText );
+    m_pClipboardText = nullptr;
+
+    // Copy text to local storage
+    size_t clipboardTextLength = strlen( pText ? pText : "" );
+    if( clipboardTextLength )
+    {
+        m_pClipboardText = reinterpret_cast<char*>( malloc( clipboardTextLength + 1 ) );
+        if( !m_pClipboardText )
+        {
+            return;
+        }
+
+        memcpy( m_pClipboardText, pText, clipboardTextLength + 1 );
+    }
+
+    // Notify X server that new selection is available
+    xcb_set_selection_owner(
+        m_Connection,
+        m_InputWindow,
+        m_ClipboardSelectionAtom,
+        XCB_CURRENT_TIME );
+}
+
+/***********************************************************************************\
+
+Function:
+    SetClipboardText
+
+Description:
+    Copy text to clipboard.
+
+\***********************************************************************************/
+void ImGui_ImplXcb_Context::SetClipboardText( ImGuiContext* pContext, const char* pText )
+{
+    ImGui_ImplXcb_Context* pImpl = static_cast<ImGui_ImplXcb_Context*>( pContext->IO.BackendPlatformUserData );
+    IM_ASSERT( pImpl );
+    IM_ASSERT( pImpl->m_pImGuiContext == pContext );
+
+    pImpl->SetClipboardText( pText );
 }
