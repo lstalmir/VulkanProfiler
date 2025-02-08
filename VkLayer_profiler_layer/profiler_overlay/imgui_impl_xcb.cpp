@@ -103,7 +103,7 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
 
     ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
     platformIO.Platform_GetClipboardTextFn = nullptr;
-    platformIO.Platform_SetClipboardTextFn = ImGui_ImplXcb_Context::SetClipboardText;
+    platformIO.Platform_SetClipboardTextFn = ImGui_ImplXcb_Context::SetClipboardTextFn;
 
     m_pImGuiContext = ImGui::GetCurrentContext();
 }
@@ -270,11 +270,12 @@ void ImGui_ImplXcb_Context::NewFrame()
                     XCB_PROP_MODE_REPLACE,
                     selectionRequestEvent->requestor,
                     selectionRequestEvent->property,
-                    XCB_ATOM_STRING, 8,
+                    selectionRequestEvent->target, 8,
                     clipboardTextLength,
                     m_pClipboardText );
             }
 
+            // Notify the requestor that the selection is ready
             xcb_send_event( m_Connection,
                 true,
                 selectionRequestEvent->requestor,
@@ -475,23 +476,19 @@ void ImGui_ImplXcb_Context::SetClipboardText( const char* pText )
     }
 
     // Notify X server that new selection is available
-    xcb_set_selection_owner(
-        m_Connection,
-        m_InputWindow,
-        m_ClipboardSelectionAtom,
-        XCB_CURRENT_TIME );
+    xcb_set_selection_owner( m_Connection, m_InputWindow, m_ClipboardSelectionAtom, XCB_CURRENT_TIME );
 }
 
 /***********************************************************************************\
 
 Function:
-    SetClipboardText
+    SetClipboardTextFn
 
 Description:
     Copy text to clipboard.
 
 \***********************************************************************************/
-void ImGui_ImplXcb_Context::SetClipboardText( ImGuiContext* pContext, const char* pText )
+void ImGui_ImplXcb_Context::SetClipboardTextFn( ImGuiContext* pContext, const char* pText )
 {
     ImGui_ImplXcb_Context* pImpl = static_cast<ImGui_ImplXcb_Context*>( pContext->IO.BackendPlatformUserData );
     IM_ASSERT( pImpl );

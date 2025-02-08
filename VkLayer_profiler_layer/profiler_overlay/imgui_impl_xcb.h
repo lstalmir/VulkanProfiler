@@ -58,6 +58,5 @@ private:
     void UpdateMousePos();
     void SetClipboardText( const char* pText );
 
-
-    static void SetClipboardText( ImGuiContext*, const char* );
+    static void SetClipboardTextFn( ImGuiContext*, const char* );
 };

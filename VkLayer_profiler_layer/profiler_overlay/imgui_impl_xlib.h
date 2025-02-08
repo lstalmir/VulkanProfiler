@@ -45,5 +45,15 @@ private:
     Window m_InputWindow;
     ImVector<XRectangle> m_InputRects;
 
+    Atom m_ClipboardAtom;
+    Atom m_ClipboardPropertyAtom;
+    char* m_pClipboardText;
+
+    Atom m_StringAtom;
+    Atom m_Utf8StringAtom;
+
     void UpdateMousePos();
+    void SetClipboardText( const char* pText );
+
+    static void SetClipboardTextFn( ImGuiContext* pContext, const char* pText );
 };
