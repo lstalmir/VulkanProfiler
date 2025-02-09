@@ -1166,6 +1166,58 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerDeviceMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerDeviceMemoryData
+    {
+        VkDeviceSize m_Size = {};
+        uint32_t m_TypeIndex = {};
+        uint32_t m_HeapIndex = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerBufferMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerBufferMemoryData
+    {
+        VkDeviceSize m_BufferSize = {};
+        VkBufferUsageFlags m_BufferUsage = {};
+        VkMemoryRequirements m_MemoryRequirements = {};
+        VkDeviceMemory m_Memory = {};
+        VkDeviceSize m_MemoryOffset = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerImageMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerImageMemoryData
+    {
+        VkExtent3D m_ImageExtent = {};
+        VkFormat m_ImageFormat = {};
+        VkImageType m_ImageType = {};
+        VkImageUsageFlags m_ImageUsage = {};
+        VkImageTiling m_ImageTiling = {};
+        VkMemoryRequirements m_MemoryRequirements = {};
+        VkDeviceMemory m_Memory = {};
+        VkDeviceSize m_MemoryOffset = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerMemoryData
 
     Description:
@@ -1178,6 +1230,10 @@ namespace Profiler
 
         std::vector<struct DeviceProfilerMemoryHeapData> m_Heaps = {};
         std::vector<struct DeviceProfilerMemoryTypeData> m_Types = {};
+
+        std::unordered_map<VkDeviceMemory, struct DeviceProfilerDeviceMemoryData> m_Allocations = {};
+        std::unordered_map<VkBuffer, struct DeviceProfilerBufferMemoryData> m_Buffers = {};
+        std::unordered_map<VkImage, struct DeviceProfilerImageMemoryData> m_Images = {};
     };
 
     /***********************************************************************************\
