@@ -2454,6 +2454,49 @@ namespace Profiler
                     memoryTypeDescriptorPointers.data() );
             }
         }
+
+        if( ImGui::CollapsingHeader( Lang::Buffers ) )
+        {
+            if( ImGui::BeginTable( "MemoryBuffersTable", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg ) )
+            {
+                ImGui::TableSetupColumn( "Buffer", ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableSetupColumn( "Usage", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableSetupColumn( "Memory", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableHeadersRow();
+
+                for( const auto& [ buffer, data ] : m_pData->m_Memory.m_Buffers )
+                {
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetName( buffer ).c_str() );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%llu", data.m_BufferSize );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%08x", data.m_BufferUsage );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetName( data.m_Memory ).c_str() );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%llu", data.m_MemoryOffset );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+        }
     }
 
     /***********************************************************************************\

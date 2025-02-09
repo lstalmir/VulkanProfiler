@@ -112,6 +112,8 @@ namespace Profiler
         inline static constexpr char MemoryHeap[] = "Heap";
         inline static constexpr char Allocations[] = "Allocations";
         inline static constexpr char MemoryTypeIndex[] = "Memory type index";
+        inline static constexpr char Buffers[] = "Buffers";
+        inline static constexpr char Images[] = "Images";
 
         // Statistics tab
         inline static constexpr char ShowEmptyStatistics[] = "Show empty statistics...";
