@@ -217,5 +217,3 @@ public:
     const_iterator cbegin() const { return BaseType::begin(); }
     const_iterator cend() const { return BaseType::end(); }
 };
-
-
