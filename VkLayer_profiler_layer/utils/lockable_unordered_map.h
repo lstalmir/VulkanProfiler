@@ -192,9 +192,21 @@ public:
     }
 
     // Check if map contains value at key, return that value
+    auto unsafe_find( const KeyType& key )
+    {
+        return BaseType::find( key );
+    }
+
     auto unsafe_find( const KeyType& key ) const
     {
         return BaseType::find( key );
+    }
+
+    // Cast to std::unordered_map
+    BaseType to_unordered_map() const
+    {
+        std::shared_lock lk( m_Mtx );
+        return *this;
     }
 
     // Iterators (unsafe)
@@ -205,3 +217,5 @@ public:
     const_iterator cbegin() const { return BaseType::begin(); }
     const_iterator cend() const { return BaseType::end(); }
 };
+
+
