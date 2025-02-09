@@ -22,6 +22,7 @@
 #include <imgui_internal.h>
 #include <xcb/shape.h>
 #include <stdlib.h>
+#include <array>
 #include <mutex>
 
 namespace Profiler
@@ -48,9 +49,11 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     , m_InputWindow( 0 )
     , m_ClipboardSelectionAtom( XCB_NONE )
     , m_ClipboardPropertyAtom( XCB_NONE )
+    , m_pClipboardText( nullptr )
+    , m_TargetsAtom( XCB_NONE )
+    , m_TextAtom( XCB_NONE )
     , m_StringAtom( XCB_NONE )
     , m_Utf8StringAtom( XCB_NONE )
-    , m_pClipboardText( nullptr )
 {
     // Create XKB context
     m_pXkbContext = new ImGui_ImplXkb_Context();
@@ -92,6 +95,8 @@ ImGui_ImplXcb_Context::ImGui_ImplXcb_Context( xcb_window_t window ) try
     // Initialize clipboard
     m_ClipboardSelectionAtom = InternAtom( "CLIPBOARD" );
     m_ClipboardPropertyAtom = InternAtom( "PROFILER_OVERLAY_CLIPBOARD" );
+    m_TargetsAtom = InternAtom( "TARGETS" );
+    m_TextAtom = InternAtom( "TEXT" );
     m_StringAtom = InternAtom( "STRING" );
     m_Utf8StringAtom = InternAtom( "UTF8_STRING" );
 
@@ -244,7 +249,7 @@ void ImGui_ImplXcb_Context::NewFrame()
         {
             // Send current selection
             xcb_selection_request_event_t* selectionRequestEvent =
-                reinterpret_cast<xcb_selection_request_event_t*>(event);
+                reinterpret_cast<xcb_selection_request_event_t*>( event );
 
             xcb_selection_notify_event_t selectionNotifyEvent = {};
             selectionNotifyEvent.response_type = XCB_SELECTION_NOTIFY;
@@ -253,16 +258,39 @@ void ImGui_ImplXcb_Context::NewFrame()
             selectionNotifyEvent.target = selectionRequestEvent->target;
             selectionNotifyEvent.time = selectionRequestEvent->time;
 
-            if( (selectionRequestEvent->target == m_StringAtom ||
-                 selectionRequestEvent->target == m_Utf8StringAtom) &&
-                (selectionRequestEvent->property != XCB_NONE) )
+            if( selectionRequestEvent->target == m_TargetsAtom )
             {
+                // Send list of available conversions
+                selectionNotifyEvent.property = selectionRequestEvent->property;
+
+                xcb_atom_t targets[] = {
+                    m_TargetsAtom,
+                    m_TextAtom,
+                    m_StringAtom,
+                    m_Utf8StringAtom
+                };
+
+                xcb_change_property(
+                    m_Connection,
+                    XCB_PROP_MODE_REPLACE,
+                    selectionRequestEvent->requestor,
+                    selectionRequestEvent->property,
+                    selectionRequestEvent->target, 32,
+                    std::size( targets ),
+                    targets );
+            }
+
+            if( selectionRequestEvent->target == m_TextAtom ||
+                selectionRequestEvent->target == m_StringAtom ||
+                selectionRequestEvent->target == m_Utf8StringAtom )
+            {
+                // Send selection as string
                 selectionNotifyEvent.property = selectionRequestEvent->property;
 
                 uint32_t clipboardTextLength = 0;
                 if( m_pClipboardText )
                 {
-                    clipboardTextLength = static_cast<uint32_t>( strlen( m_pClipboardText ) + 1 );
+                    clipboardTextLength = strlen( m_pClipboardText );
                 }
 
                 xcb_change_property(
@@ -277,10 +305,10 @@ void ImGui_ImplXcb_Context::NewFrame()
 
             // Notify the requestor that the selection is ready
             xcb_send_event( m_Connection,
-                true,
+                false,
                 selectionRequestEvent->requestor,
                 XCB_EVENT_MASK_NO_EVENT,
-                reinterpret_cast<const char*>(&selectionNotifyEvent) );
+                reinterpret_cast<const char*>( &selectionNotifyEvent ) );
 
             break;
         }

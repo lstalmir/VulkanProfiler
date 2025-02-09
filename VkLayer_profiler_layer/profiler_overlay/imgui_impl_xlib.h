@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -45,10 +45,12 @@ private:
     Window m_InputWindow;
     ImVector<XRectangle> m_InputRects;
 
-    Atom m_ClipboardAtom;
+    Atom m_ClipboardSelectionAtom;
     Atom m_ClipboardPropertyAtom;
     char* m_pClipboardText;
 
+    Atom m_TargetsAtom;
+    Atom m_TextAtom;
     Atom m_StringAtom;
     Atom m_Utf8StringAtom;
 

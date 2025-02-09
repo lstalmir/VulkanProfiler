@@ -49,6 +49,8 @@ private:
     xcb_atom_t m_ClipboardPropertyAtom;
     char* m_pClipboardText;
 
+    xcb_atom_t m_TargetsAtom;
+    xcb_atom_t m_TextAtom;
     xcb_atom_t m_StringAtom;
     xcb_atom_t m_Utf8StringAtom;
 

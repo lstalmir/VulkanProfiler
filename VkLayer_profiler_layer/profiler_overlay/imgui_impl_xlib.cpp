@@ -22,6 +22,7 @@
 #include <imgui_internal.h>
 #include <X11/extensions/shape.h>
 #include <stdlib.h>
+#include <array>
 #include <mutex>
 
 namespace Profiler
@@ -46,6 +47,13 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     , m_Display( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( None )
+    , m_ClipboardSelectionAtom( None )
+    , m_ClipboardPropertyAtom( None )
+    , m_pClipboardText( nullptr )
+    , m_TargetsAtom( None )
+    , m_TextAtom( None )
+    , m_StringAtom( None )
+    , m_Utf8StringAtom( None )
 {
     // Create XKB context
     m_pXkbContext = new ImGui_ImplXkb_Context();
@@ -94,8 +102,10 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
         throw;
 
     // Initialize clipboard
-    m_ClipboardAtom = XInternAtom( m_Display, "CLIPBOARD", False );
+    m_ClipboardSelectionAtom = XInternAtom( m_Display, "CLIPBOARD", False );
     m_ClipboardPropertyAtom = XInternAtom( m_Display, "PROFILER_OVERLAY_CLIPBOARD", False );
+    m_TargetsAtom = XInternAtom( m_Display, "TARGETS", False );
+    m_TextAtom = XInternAtom( m_Display, "TEXT", False );
     m_StringAtom = XInternAtom( m_Display, "STRING", False );
     m_Utf8StringAtom = XInternAtom( m_Display, "UTF8_STRING", False );
 
@@ -255,16 +265,39 @@ void ImGui_ImplXlib_Context::NewFrame()
             selectionEvent.xselection.target = event.xselectionrequest.target;
             selectionEvent.xselection.time = event.xselectionrequest.time;
 
-            if( (event.xselectionrequest.target == m_StringAtom ||
-                 event.xselectionrequest.target == m_Utf8StringAtom) &&
-                (event.xselectionrequest.property != None) )
+            if( event.xselectionrequest.target == m_TargetsAtom )
             {
+                // Send list of available conversions
+                selectionEvent.xselection.property = event.xselectionrequest.property;
+
+                Atom targets[] = {
+                    m_TargetsAtom,
+                    m_TextAtom,
+                    m_StringAtom,
+                    m_Utf8StringAtom
+                };
+
+                XChangeProperty(
+                    m_Display,
+                    event.xselectionrequest.requestor,
+                    event.xselectionrequest.property,
+                    event.xselectionrequest.target, 32,
+                    PropModeReplace,
+                    reinterpret_cast<const unsigned char*>( targets ),
+                    std::size( targets ) );
+            }
+
+            if( event.xselectionrequest.target == m_TextAtom ||
+                event.xselectionrequest.target == m_StringAtom ||
+                event.xselectionrequest.target == m_Utf8StringAtom )
+            {
+                // Send selection as string
                 selectionEvent.xselection.property = event.xselectionrequest.property;
 
                 uint32_t clipboardTextLength = 0;
                 if( m_pClipboardText )
                 {
-                    clipboardTextLength = static_cast<uint32_t>( strlen( m_pClipboardText ) + 1 );
+                    clipboardTextLength = strlen( m_pClipboardText );
                 }
 
                 XChangeProperty(
@@ -386,7 +419,7 @@ void ImGui_ImplXlib_Context::SetClipboardText( const char* pText )
     }
 
     // Notify X server that new selection is available
-    XSetSelectionOwner( m_Display, m_ClipboardAtom, m_InputWindow, CurrentTime );
+    XSetSelectionOwner( m_Display, m_ClipboardSelectionAtom, m_InputWindow, CurrentTime );
 }
 
 /***********************************************************************************\
