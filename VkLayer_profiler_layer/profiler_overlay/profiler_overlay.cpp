@@ -565,10 +565,17 @@ namespace Profiler
 
         m_pData = nullptr;
         m_Pause = false;
+        m_Fullscreen = false;
         m_ShowDebugLabels = true;
         m_ShowShaderCapabilities = true;
         m_ShowEmptyStatistics = false;
         m_ShowAllTopPipelines = false;
+
+        m_SetLastMainWindowPos = false;
+        m_LastMainWindowPos[0] = 0.0f;
+        m_LastMainWindowPos[1] = 0.0f;
+        m_LastMainWindowSize[0] = 0.0f;
+        m_LastMainWindowSize[1] = 0.0f;
 
         m_FrameTime = 0.0f;
 
@@ -1035,9 +1042,59 @@ namespace Profiler
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
 
+        // Configure main window
+        int mainWindowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar;
+
+        bool fullscreen = m_Fullscreen;
+        if( fullscreen )
+        {
+            // Disable title bar and resizing in fullscreen mode
+            mainWindowFlags |=
+                ImGuiWindowFlags_NoDecoration |
+                ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+            // Fix position and size of the window
+            ImGui::SetNextWindowPos( ImVec2( 0, 0 ) );
+            ImGui::SetNextWindowSize( ImGui::GetIO().DisplaySize );
+
+            // Disable rounding
+            ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.f );
+        }
+        else
+        {
+            if( m_SetLastMainWindowPos )
+            {
+                ImVec2 windowPos;
+                windowPos.x = m_LastMainWindowPos[0];
+                windowPos.y = m_LastMainWindowPos[1];
+
+                ImVec2 windowSize;
+                windowSize.x = m_LastMainWindowSize[0];
+                windowSize.y = m_LastMainWindowSize[1];
+
+                ImGui::SetNextWindowPos( windowPos );
+                ImGui::SetNextWindowSize( windowSize );
+
+                m_SetLastMainWindowPos = false;
+            }
+        }
+
         // Begin main window
         ImGui::PushFont( m_Resources.GetDefaultFont() );
-        ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
+        ImGui::Begin( m_Title.c_str(), nullptr, mainWindowFlags );
+
+        if( !m_Fullscreen )
+        {
+            // Save current window position and size to restore it when user exits fullscreen mode
+            ImVec2 windowPos = ImGui::GetWindowPos();
+            m_LastMainWindowPos[0] = windowPos.x;
+            m_LastMainWindowPos[1] = windowPos.y;
+
+            ImVec2 windowSize = ImGui::GetWindowSize();
+            m_LastMainWindowSize[0] = windowSize.x;
+            m_LastMainWindowSize[1] = windowSize.y;
+        }
 
         if( ImGui::BeginMenuBar() )
         {
@@ -1053,6 +1110,13 @@ namespace Profiler
 
             if( ImGui::BeginMenu( Lang::WindowMenu ) )
             {
+                if( ImGui::MenuItem( Lang::Fullscreen, nullptr, &m_Fullscreen ) )
+                {
+                    // Restore pre-fullscreen position and size
+                    m_SetLastMainWindowPos = !m_Fullscreen;
+                }
+
+                ImGui::Separator();
                 ImGui::MenuItem( Lang::PerformanceMenuItem, nullptr, m_PerformanceWindowState.pOpen );
                 ImGui::MenuItem( Lang::QueueUtilizationMenuItem, nullptr, m_QueueUtilizationWindowState.pOpen );
                 ImGui::MenuItem( Lang::TopPipelinesMenuItem, nullptr, m_TopPipelinesWindowState.pOpen );
@@ -1216,6 +1280,12 @@ namespace Profiler
 
         ImGui::PopStyleColor( 3 );
         ImGui::End();
+
+        if( fullscreen )
+        {
+            // Re-enable window rounding
+            ImGui::PopStyleVar();
+        }
 
         // Draw other windows
         UpdatePerformanceCounterExporter();
