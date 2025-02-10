@@ -1045,6 +1045,8 @@ namespace Profiler
         // Configure main window
         int mainWindowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar;
 
+        float defaultWindowRounding = ImGui::GetStyle().WindowRounding;
+
         bool fullscreen = m_Fullscreen;
         if( fullscreen )
         {
@@ -1173,6 +1175,7 @@ namespace Profiler
         ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
         ImU32 defaultTitleBgActive = ImGui::GetColorU32( ImGuiCol_TitleBgActive );
         int numPushedColors = 0;
+        int numPushedVars = 0;
         bool isOpen = false;
         bool isExpanded = false;
 
@@ -1187,6 +1190,9 @@ namespace Profiler
                         ImGui::PushStyleColor( ImGuiCol_TitleBg, defaultTitleBg );
                         ImGui::PushStyleColor( ImGuiCol_TitleBgActive, defaultTitleBgActive );
                         numPushedColors = 3;
+
+                        ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, defaultWindowRounding );
+                        numPushedVars = 1;
                     }
 
                     if( state.Focus )
@@ -1214,7 +1220,9 @@ namespace Profiler
                 {
                     ImGui::End();
                     ImGui::PopStyleColor( numPushedColors );
+                    ImGui::PopStyleVar( numPushedVars );
                     numPushedColors = 0;
+                    numPushedVars = 0;
                 }
             };
 
