@@ -42,9 +42,6 @@ namespace Profiler
         virtual bool PrepareImGuiBackend() = 0;
         virtual void DestroyImGuiBackend() = 0;
 
-        virtual void PrepareMainWindow( const char* pTitle, int& flags ) {}
-        virtual void FinishMainWindow() {}
-
         virtual void WaitIdle() {}
 
         virtual bool NewFrame() = 0;
