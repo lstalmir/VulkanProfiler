@@ -46,6 +46,7 @@ namespace Profiler
         inline static constexpr char StatisticsMenuItem[] = u8"Statystyki" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = u8"Ustawienia" PROFILER_MENU_ITEM;
         inline static constexpr char ApplicationInfoMenuItem[] = u8"Informacje o aplikacji" PROFILER_MENU_ITEM;
+        inline static constexpr char Fullscreen[] = u8"Pełny ekran";
 
         // Tabs
         inline static constexpr char Performance[] = u8"Wydajność###Performance";
