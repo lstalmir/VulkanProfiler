@@ -642,20 +642,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        AddInputCaptureRect
-
-    Description:
-        Add a rectangle to the list of input capture rectangles.
-
-    \***********************************************************************************/
-    void OverlayLayerBackend::AddInputCaptureRect( int x, int y, int width, int height )
-    {
-        m_pPlatformBackend->AddInputCaptureRect( x, y, width, height );
-    }
-
-    /***********************************************************************************\
-
-    Function:
         GetDPIScale
 
     Description:

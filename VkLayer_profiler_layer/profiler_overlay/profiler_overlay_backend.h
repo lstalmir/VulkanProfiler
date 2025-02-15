@@ -47,7 +47,6 @@ namespace Profiler
         virtual bool NewFrame() = 0;
         virtual void RenderDrawData( ImDrawData* draw_data ) = 0;
 
-        virtual void AddInputCaptureRect( int x, int y, int width, int height ) = 0;
         virtual float GetDPIScale() const = 0;
         virtual ImVec2 GetRenderArea() const = 0;
 

@@ -47,7 +47,6 @@ namespace Profiler
 
         virtual void NewFrame() = 0;
 
-        virtual void AddInputCaptureRect( int x, int y, int width, int height ) {}
         virtual float GetDPIScale() const { return 1.0f; }
     };
 
@@ -85,7 +84,6 @@ namespace Profiler
         bool NewFrame() override;
         void RenderDrawData( ImDrawData* pDrawData ) override;
 
-        void AddInputCaptureRect( int x, int y, int width, int height ) override;
         float GetDPIScale() const override;
         ImVec2 GetRenderArea() const override;
 
