@@ -43,7 +43,7 @@ class SpirvDocumentationParser:
             with open( spirv_spec_path ) as f:
                 self.doc = self.bs.BeautifulSoup( f, "html.parser" )
 
-            for a in self.doc.findAll( "a" ):
+            for a in self.doc.find_all( "a" ):
                 try:
                     self.ops_doc_index[a["id"]] = a.parent
                 except KeyError:
@@ -62,7 +62,7 @@ class SpirvDocumentationParser:
             doc_tag = self.ops_doc_index[op]
             op_doc = SpirvDocumentationParser.normalize( doc_tag.text, skip_lines=1 )
             op_operands = [SpirvDocumentationParser.normalize( operand.text )
-                for operand in doc_tag.findParent( "tr" ).findNextSibling( "tr" )
+                for operand in doc_tag.find_parent( "tr" ).find_next_sibling( "tr" )
                 if operand != "\n"]
         except:
             pass
@@ -71,7 +71,7 @@ class SpirvDocumentationParser:
     def get_license( self ) -> str:
         try:
             preamble = self.doc.find( "div", id="preamble" )
-            paragraphs = preamble.findAll( "div", {"class": "paragraph"} )
+            paragraphs = preamble.find_all( "div", {"class": "paragraph"} )
             paragraphs = [p.text for p in paragraphs]
             return "".join( paragraphs )
         except:

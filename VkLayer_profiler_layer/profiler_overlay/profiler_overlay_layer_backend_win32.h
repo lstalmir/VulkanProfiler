@@ -19,12 +19,42 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_overlay_layer_backend.h"
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 
-class ImGui_Window_Context
+struct ImGuiContext;
+
+namespace Profiler
 {
-public:
-    virtual ~ImGui_Window_Context() {}
-    virtual const char* GetName() const = 0;
-    virtual void NewFrame() = 0;
-    virtual float GetDPIScale() const { return 1.0f; }
-};
+    /***********************************************************************************\
+
+    Class:
+        OverlayLayerWin32PlatformBackend
+
+    Description:
+        Implementation of the backend for Windows.
+
+    \***********************************************************************************/
+    class OverlayLayerWin32PlatformBackend
+        : public OverlayLayerPlatformBackend
+    {
+    public:
+        OverlayLayerWin32PlatformBackend( HWND hWnd );
+        ~OverlayLayerWin32PlatformBackend();
+
+        HWND GetWindow() const;
+        void NewFrame() override;
+        float GetDPIScale() const override;
+
+    private:
+        HWND m_AppWindow;
+        DWORD m_AppWindowThreadId;
+        ImGuiContext* m_pImGuiContext;
+        int m_RawMouseX;
+        int m_RawMouseY;
+        int m_RawMouseButtons;
+
+        static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
+    };
+}
