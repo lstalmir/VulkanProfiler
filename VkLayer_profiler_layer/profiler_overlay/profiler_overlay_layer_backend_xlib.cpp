@@ -108,19 +108,17 @@ namespace Profiler
         m_StringAtom = XInternAtom( m_Display, "STRING", False );
         m_Utf8StringAtom = XInternAtom( m_Display, "UTF8_STRING", False );
 
-        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-        platformIO.Platform_GetClipboardTextFn = nullptr;
-        platformIO.Platform_SetClipboardTextFn = OverlayLayerXlibPlatformBackend::SetClipboardTextFn;
-
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
         io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
         io.BackendPlatformName = "xlib";
         io.BackendPlatformUserData = this;
 
-        m_pImGuiContext = ImGui::GetCurrentContext();
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = nullptr;
+        platformIO.Platform_SetClipboardTextFn = OverlayLayerXlibPlatformBackend::SetClipboardTextFn;
 
-        // TODO: keyboard mapping to ImGui
+        m_pImGuiContext = ImGui::GetCurrentContext();
     }
     catch (...)
     {

@@ -37,9 +37,9 @@ namespace Profiler
     public:
         OverlayLayerXkbBackend();
         ~OverlayLayerXkbBackend();
-    
+
         void AddKeyEvent( int keycode, bool pressed );
-    
+
     private:
         xkb_context* m_pContext;
         xkb_keymap* m_pKeymap;
