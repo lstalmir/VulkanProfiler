@@ -45,7 +45,20 @@ private:
     xcb_window_t m_InputWindow;
     ImVector<xcb_rectangle_t> m_InputRects;
 
+    xcb_atom_t m_ClipboardSelectionAtom;
+    xcb_atom_t m_ClipboardPropertyAtom;
+    char* m_pClipboardText;
+
+    xcb_atom_t m_TargetsAtom;
+    xcb_atom_t m_TextAtom;
+    xcb_atom_t m_StringAtom;
+    xcb_atom_t m_Utf8StringAtom;
+
     xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
+    xcb_atom_t InternAtom( const char* pName, bool onlyIfExists = false );
 
     void UpdateMousePos();
+    void SetClipboardText( const char* pText );
+
+    static void SetClipboardTextFn( ImGuiContext*, const char* );
 };

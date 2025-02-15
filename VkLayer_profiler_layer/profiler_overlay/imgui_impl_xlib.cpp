@@ -22,6 +22,7 @@
 #include <imgui_internal.h>
 #include <X11/extensions/shape.h>
 #include <stdlib.h>
+#include <array>
 #include <mutex>
 
 namespace Profiler
@@ -46,6 +47,13 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     , m_Display( nullptr )
     , m_AppWindow( window )
     , m_InputWindow( None )
+    , m_ClipboardSelectionAtom( None )
+    , m_ClipboardPropertyAtom( None )
+    , m_pClipboardText( nullptr )
+    , m_TargetsAtom( None )
+    , m_TextAtom( None )
+    , m_StringAtom( None )
+    , m_Utf8StringAtom( None )
 {
     // Create XKB context
     m_pXkbContext = new ImGui_ImplXkb_Context();
@@ -93,11 +101,23 @@ ImGui_ImplXlib_Context::ImGui_ImplXlib_Context( Window window ) try
     if( !XSelectInput( m_Display, m_InputWindow, inputEventMask ) )
         throw;
 
+    // Initialize clipboard
+    m_ClipboardSelectionAtom = XInternAtom( m_Display, "CLIPBOARD", False );
+    m_ClipboardPropertyAtom = XInternAtom( m_Display, "PROFILER_OVERLAY_CLIPBOARD", False );
+    m_TargetsAtom = XInternAtom( m_Display, "TARGETS", False );
+    m_TextAtom = XInternAtom( m_Display, "TEXT", False );
+    m_StringAtom = XInternAtom( m_Display, "STRING", False );
+    m_Utf8StringAtom = XInternAtom( m_Display, "UTF8_STRING", False );
+
     ImGuiIO& io = ImGui::GetIO();
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
     io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
     io.BackendPlatformName = "imgui_impl_xlib";
     io.BackendPlatformUserData = this;
+
+    ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+    platformIO.Platform_GetClipboardTextFn = nullptr;
+    platformIO.Platform_SetClipboardTextFn = ImGui_ImplXlib_Context::SetClipboardTextFn;
 
     m_pImGuiContext = ImGui::GetCurrentContext();
 
@@ -123,6 +143,9 @@ Description:
 \***********************************************************************************/
 ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
 {
+    free( m_pClipboardText );
+    m_pClipboardText = nullptr;
+
     if( m_InputWindow ) XDestroyWindow( m_Display, m_InputWindow );
     m_InputWindow = None;
     m_AppWindow = None;
@@ -136,10 +159,15 @@ ImGui_ImplXlib_Context::~ImGui_ImplXlib_Context()
     if( m_pImGuiContext )
     {
         assert( ImGui::GetCurrentContext() == m_pImGuiContext );
+
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags = 0;
         io.BackendPlatformName = nullptr;
         io.BackendPlatformUserData = nullptr;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = nullptr;
+        platformIO.Platform_SetClipboardTextFn = nullptr;
     }
 }
 
@@ -226,6 +254,67 @@ void ImGui_ImplXlib_Context::NewFrame()
 
         switch( event.type )
         {
+        case SelectionRequest:
+        {
+            // Send current selection
+            XEvent selectionEvent = {};
+            selectionEvent.type = SelectionNotify;
+            selectionEvent.xselection.display = m_Display;
+            selectionEvent.xselection.requestor = event.xselectionrequest.requestor;
+            selectionEvent.xselection.selection = event.xselectionrequest.selection;
+            selectionEvent.xselection.target = event.xselectionrequest.target;
+            selectionEvent.xselection.time = event.xselectionrequest.time;
+
+            if( event.xselectionrequest.target == m_TargetsAtom )
+            {
+                // Send list of available conversions
+                selectionEvent.xselection.property = event.xselectionrequest.property;
+
+                Atom targets[] = {
+                    m_TargetsAtom,
+                    m_TextAtom,
+                    m_StringAtom,
+                    m_Utf8StringAtom
+                };
+
+                XChangeProperty(
+                    m_Display,
+                    event.xselectionrequest.requestor,
+                    event.xselectionrequest.property,
+                    event.xselectionrequest.target, 32,
+                    PropModeReplace,
+                    reinterpret_cast<const unsigned char*>( targets ),
+                    std::size( targets ) );
+            }
+
+            if( event.xselectionrequest.target == m_TextAtom ||
+                event.xselectionrequest.target == m_StringAtom ||
+                event.xselectionrequest.target == m_Utf8StringAtom )
+            {
+                // Send selection as string
+                selectionEvent.xselection.property = event.xselectionrequest.property;
+
+                uint32_t clipboardTextLength = 0;
+                if( m_pClipboardText )
+                {
+                    clipboardTextLength = strlen( m_pClipboardText );
+                }
+
+                XChangeProperty(
+                    m_Display,
+                    event.xselectionrequest.requestor,
+                    event.xselectionrequest.property,
+                    event.xselectionrequest.target, 8,
+                    PropModeReplace,
+                    reinterpret_cast<const unsigned char*>( m_pClipboardText ),
+                    clipboardTextLength );
+            }
+
+            // Notify the requestor that the selection is ready
+            XSendEvent( m_Display, event.xselectionrequest.requestor, False, 0, &selectionEvent );
+            break;
+        }
+
         case MotionNotify:
         {
             // Update mouse position
@@ -299,4 +388,54 @@ void ImGui_ImplXlib_Context::UpdateMousePos()
         XPoint pos = { (short)io.MousePos.x, (short)io.MousePos.y };
         XWarpPointer( m_Display, None, m_InputWindow, 0, 0, 0, 0, pos.x, pos.y );
     }
+}
+
+/***********************************************************************************\
+
+Function:
+    SetClipboardText
+
+Description:
+    Copy text to clipboard.
+
+\***********************************************************************************/
+void ImGui_ImplXlib_Context::SetClipboardText( const char* pText )
+{
+    // Clear previous selection
+    free( m_pClipboardText );
+    m_pClipboardText = nullptr;
+
+    // Copy text to local storage
+    size_t clipboardTextLength = strlen( pText ? pText : "" );
+    if( clipboardTextLength )
+    {
+        m_pClipboardText = reinterpret_cast<char*>( malloc( clipboardTextLength + 1 ) );
+        if( !m_pClipboardText )
+        {
+            return;
+        }
+
+        memcpy( m_pClipboardText, pText, clipboardTextLength + 1 );
+    }
+
+    // Notify X server that new selection is available
+    XSetSelectionOwner( m_Display, m_ClipboardSelectionAtom, m_InputWindow, CurrentTime );
+}
+
+/***********************************************************************************\
+
+Function:
+    SetClipboardTextFn
+
+Description:
+    Copy text to clipboard.
+
+\***********************************************************************************/
+void ImGui_ImplXlib_Context::SetClipboardTextFn( ImGuiContext* pContext, const char* pText )
+{
+    ImGui_ImplXlib_Context* pImpl = static_cast<ImGui_ImplXlib_Context*>( pContext->IO.BackendPlatformUserData );
+    IM_ASSERT( pImpl );
+    IM_ASSERT( pImpl->m_pImGuiContext == pContext );
+
+    pImpl->SetClipboardText( pText );
 }
