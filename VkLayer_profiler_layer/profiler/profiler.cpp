@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -155,7 +155,7 @@ namespace Profiler
         , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
-        , m_Allocations()
+        , m_MemoryTracker()
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_SubmitFence( VK_NULL_HANDLE )
@@ -287,8 +287,7 @@ namespace Profiler
             m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence ) );
 
         // Prepare for memory usage tracking
-        m_MemoryData.m_Heaps.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeapCount );
-        m_MemoryData.m_Types.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypeCount );
+        m_MemoryTracker.Initialize( m_pDevice );
 
         // Enable vendor-specific extensions
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
@@ -491,7 +490,7 @@ namespace Profiler
         m_pCommandBuffers.clear();
         m_pCommandPools.clear();
 
-        m_Allocations.clear();
+        m_MemoryTracker.Destroy();
 
         m_Synchronization.Destroy();
         m_MemoryManager.Destroy();
@@ -789,7 +788,7 @@ namespace Profiler
             const VkGraphicsPipelineCreateInfo& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline );
 
             profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
 
@@ -818,7 +817,7 @@ namespace Profiler
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
             
             SetPipelineShaderProperties( profilerPipeline, 1, &pCreateInfos[i].stage );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -833,7 +832,7 @@ namespace Profiler
         Register ray-tracing pipelines.
 
     \***********************************************************************************/
-    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines )
+    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines, bool deferred )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -847,7 +846,7 @@ namespace Profiler
             const VkRayTracingPipelineCreateInfoKHR& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline, deferred );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -1270,8 +1269,8 @@ namespace Profiler
         {
             m_pData = std::move( pData );
 
-            // TODO: Move to memory tracker
-            m_pData->m_Memory = m_MemoryData;
+            // Collect memory data
+            m_pData->m_Memory = m_MemoryTracker.GetMemoryData();
 
             // Return TIP data
             m_pDevice->TIP.EndFunction( tip );
@@ -1306,69 +1305,105 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Destroy
+        AllocateMemory
 
     Description:
 
     \***********************************************************************************/
     void DeviceProfiler::AllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        std::scoped_lock lk( m_Allocations );
-
-        // Insert allocation info to the map, it will be needed during deallocation.
-        m_Allocations.unsafe_insert( allocatedMemory, *pAllocateInfo );
-
-        const VkMemoryType& memoryType =
-            m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
-
-        auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
-        heap.m_AllocationCount++;
-        heap.m_AllocationSize += pAllocateInfo->allocationSize;
-
-        auto& type = m_MemoryData.m_Types[ pAllocateInfo->memoryTypeIndex ];
-        type.m_AllocationCount++;
-        type.m_AllocationSize += pAllocateInfo->allocationSize;
-
-        m_MemoryData.m_TotalAllocationCount++;
-        m_MemoryData.m_TotalAllocationSize += pAllocateInfo->allocationSize;
+        m_MemoryTracker.RegisterAllocation( allocatedMemory, pAllocateInfo );
     }
 
     /***********************************************************************************\
 
     Function:
-        Destroy
+        FreeMemory
 
     Description:
 
     \***********************************************************************************/
     void DeviceProfiler::FreeMemory( VkDeviceMemory allocatedMemory )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
+        m_MemoryTracker.UnregisterAllocation( allocatedMemory );
+    }
 
-        std::scoped_lock lk( m_Allocations );
+    /***********************************************************************************\
 
-        auto it = m_Allocations.unsafe_find( allocatedMemory );
-        if( it != m_Allocations.end() )
-        {
-            const VkMemoryType& memoryType =
-                m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
+    Function:
+        CreateBuffer
 
-            auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
-            heap.m_AllocationCount--;
-            heap.m_AllocationSize -= it->second.allocationSize;
+    Description:
 
-            auto& type = m_MemoryData.m_Types[ it->second.memoryTypeIndex ];
-            type.m_AllocationCount--;
-            type.m_AllocationSize -= it->second.allocationSize;
+    \***********************************************************************************/
+    void DeviceProfiler::CreateBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo )
+    {
+        m_MemoryTracker.RegisterBuffer( buffer, pCreateInfo );
+    }
 
-            m_MemoryData.m_TotalAllocationCount--;
-            m_MemoryData.m_TotalAllocationSize -= it->second.allocationSize;
+    /***********************************************************************************\
 
-            // Remove allocation entry from the map
-            m_Allocations.unsafe_remove( it );
-        }
+    Function:
+        DestroyBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyBuffer( VkBuffer buffer )
+    {
+        m_MemoryTracker.UnregisterBuffer( buffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset )
+    {
+        m_MemoryTracker.BindBufferMemory( buffer, memory, offset );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateImage
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateImage( VkImage image, const VkImageCreateInfo* pCreateInfo )
+    {
+        m_MemoryTracker.RegisterImage( image, pCreateInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImage
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyImage( VkImage image )
+    {
+        m_MemoryTracker.UnregisterImage( image );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
+    {
+        m_MemoryTracker.BindImageMemory( image, memory, offset );
     }
 
     /***********************************************************************************\
@@ -1402,6 +1437,14 @@ namespace Profiler
             if( result == VK_SUCCESS && pipelineExecutablesCount > 0 )
             {
                 pipelineExecutables.resize( pipelineExecutablesCount );
+                memset( pipelineExecutables.data(), 0,
+                    sizeof( VkPipelineExecutablePropertiesKHR ) * pipelineExecutablesCount );
+
+                for( uint32_t i = 0; i < pipelineExecutablesCount; ++i )
+                {
+                    pipelineExecutables[ i ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_PROPERTIES_KHR;
+                }
+
                 m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
                     m_pDevice->Handle,
                     &pipelineInfo,
@@ -1435,6 +1478,14 @@ namespace Profiler
                 if( result == VK_SUCCESS && executableStatisticsCount > 0 )
                 {
                     executableStatistics.resize( executableStatisticsCount );
+                    memset( executableStatistics.data(), 0,
+                        sizeof( VkPipelineExecutableStatisticKHR ) * executableStatisticsCount );
+
+                    for( uint32_t j = 0; j < executableStatisticsCount; ++j )
+                    {
+                        executableStatistics[ j ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_STATISTIC_KHR;
+                    }
+
                     result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
                         m_pDevice->Handle,
                         &executableInfo,
@@ -1460,6 +1511,14 @@ namespace Profiler
                 if( result == VK_SUCCESS && executableInternalRepresentationsCount > 0 )
                 {
                     executableInternalRepresentations.resize( executableInternalRepresentationsCount );
+                    memset( executableInternalRepresentations.data(), 0,
+                        sizeof( VkPipelineExecutableInternalRepresentationKHR ) * executableInternalRepresentationsCount );
+
+                    for( uint32_t j = 0; j < executableInternalRepresentationsCount; ++j )
+                    {
+                        executableInternalRepresentations[ j ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INTERNAL_REPRESENTATION_KHR;
+                    }
+
                     result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
                         m_pDevice->Handle,
                         &executableInfo,
@@ -1581,7 +1640,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        m_pDevice->Debug.ObjectNames.insert( object, pName );
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pName );
     }
 
     /***********************************************************************************\
@@ -1601,12 +1660,13 @@ namespace Profiler
         if( object.m_Type == VK_OBJECT_TYPE_PIPELINE )
         {
             SetDefaultObjectName( VkObject_Traits<VkPipeline>::GetObjectHandleAsVulkanHandle( object.m_Handle ) );
+            return;
         }
 
         char pObjectDebugName[ 64 ] = {};
         ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
 
-        m_pDevice->Debug.ObjectNames.insert( object, pObjectDebugName );
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pObjectDebugName );
     }
 
     /***********************************************************************************\
@@ -1620,50 +1680,60 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetDefaultObjectName( VkPipeline object )
     {
-        SetDefaultObjectName( GetPipeline( object ) );
+        SetDefaultPipelineName( GetPipeline( object ) );
     }
 
     /***********************************************************************************\
 
     Function:
-        SetDefaultObjectName
+        SetDefaultPipelineName
 
     Description:
         Set default pipeline name consisting of shader tuple hashes.
 
     \***********************************************************************************/
-    void DeviceProfiler::SetDefaultObjectName( const DeviceProfilerPipeline& pipeline )
+    void DeviceProfiler::SetDefaultPipelineName( const DeviceProfilerPipeline& pipeline, bool deferred )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        std::string pipelineName;
+
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_VERTEX_BIT |
-                    VK_SHADER_STAGE_TASK_BIT_EXT |
-                    VK_SHADER_STAGE_MESH_BIT_EXT |
-                    VK_SHADER_STAGE_FRAGMENT_BIT,
-                    true /*skipEmptyStages*/ ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_VERTEX_BIT |
+                VK_SHADER_STAGE_TASK_BIT_EXT |
+                VK_SHADER_STAGE_MESH_BIT_EXT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                true /*skipEmptyStages*/ );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_COMPUTE_BIT ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_COMPUTE_BIT );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_RAYGEN_BIT_KHR |
-                    VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
-                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR );
+        }
+
+        if( !pipelineName.empty() )
+        {
+            // When deferred operation is joined, the application may have already set a name for the pipeline.
+            // Don't set the default in such case.
+            if( deferred )
+            {
+                m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, std::move( pipelineName ) );
+            }
+            else
+            {
+                m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, std::move( pipelineName ) );
+            }
         }
     }
 
@@ -1685,6 +1755,7 @@ namespace Profiler
         internalPipeline.m_Handle = (VkPipeline)type;
         internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
         internalPipeline.m_Type = type;
+        internalPipeline.m_Internal = true;
 
         // Assign name for the internal pipeline
         SetObjectName( internalPipeline.m_Handle, pName );

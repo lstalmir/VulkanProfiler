@@ -20,9 +20,11 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <string_view>
+#include <string.h>
 
 #define VERIFY_RESULT( VK, EXPR ) VK->VerifyResult( (EXPR), #EXPR )
 
@@ -102,9 +104,9 @@ namespace Profiler
 
         struct CreateInfo
         {
-            std::vector<VulkanExtension*> InstanceExtensions = {};
-            std::vector<VulkanExtension*> DeviceExtensions = {};
-            std::vector<VulkanFeature*> DeviceFeatures = {};
+            std::vector<VulkanExtension*> InstanceExtensions;
+            std::vector<VulkanExtension*> DeviceExtensions;
+            std::vector<VulkanFeature*> DeviceFeatures;
         };
 
     public:
@@ -157,7 +159,7 @@ namespace Profiler
                 vkGetPhysicalDeviceProperties( PhysicalDevice, &PhysicalDeviceProperties );
                 vkGetPhysicalDeviceMemoryProperties( PhysicalDevice, &PhysicalDeviceMemoryProperties );
             }
-            
+
             // Select graphics queue
             {
                 uint32_t queueFamilyCount = 0;
@@ -169,7 +171,7 @@ namespace Profiler
                 for( uint32_t i = 0; i < queueFamilyCount; ++i )
                 {
                     const VkQueueFamilyProperties& properties = PhysicalDeviceQueueProperties[ i ];
-                    
+
                     if( (properties.queueCount > 0) &&
                         (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
                         (properties.timestampValidBits > 0) )
@@ -268,7 +270,7 @@ namespace Profiler
                 descriptorPoolCreateInfo.maxSets = 1000;
                 descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype(descriptorPoolSizes)>;
                 descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
-                
+
                 VERIFY_RESULT( this, vkCreateDescriptorPool( Device, &descriptorPoolCreateInfo, nullptr, &DescriptorPool ) );
             }
 
@@ -285,7 +287,7 @@ namespace Profiler
 
         inline void VerifyResult( VkResult result, const char* message )
         {
-            if( result != VK_SUCCESS && result != VK_INCOMPLETE )
+            if( result < 0 )
             {
                 throw VulkanError( result, message );
             }
@@ -294,6 +296,10 @@ namespace Profiler
         inline ~VulkanState()
         {
             vkDeviceWaitIdle( Device );
+
+            // Destroy resources allocated for the test
+            vkDestroyCommandPool( Device, CommandPool, nullptr );
+            vkDestroyDescriptorPool( Device, DescriptorPool, nullptr );
 
             // This frees all resources created with this device
             vkDestroyDevice( Device, nullptr );

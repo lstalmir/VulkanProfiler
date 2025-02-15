@@ -20,18 +20,16 @@
 
 #pragma once
 #include "profiler_overlay_layer_backend.h"
-#include <vector>
+#include "profiler_overlay_layer_backend_xkb.h"
+#include <imgui.h>
 #include <xcb/xcb.h>
-#include <xcb/shape.h>
-
-struct ImGuiContext;
 
 namespace Profiler
 {
     /***********************************************************************************\
 
     Class:
-        OverlayLayerXlibPlatformBackend
+        OverlayLayerXcbPlatformBackend
 
     Description:
         Implementation of the backend for X11 XCB.
@@ -45,17 +43,31 @@ namespace Profiler
         ~OverlayLayerXcbPlatformBackend();
 
         void NewFrame() override;
-        void AddInputCaptureRect( int x, int y, int width, int height ) override;
 
     private:
         ImGuiContext* m_pImGuiContext;
+        OverlayLayerXkbBackend* m_pXkbBackend;
+
         xcb_connection_t* m_Connection;
         xcb_window_t m_AppWindow;
         xcb_window_t m_InputWindow;
-        std::vector<xcb_rectangle_t> m_InputRects;
+        ImVector<xcb_rectangle_t> m_InputRects;
 
+        xcb_atom_t m_ClipboardSelectionAtom;
+        xcb_atom_t m_ClipboardPropertyAtom;
+        char* m_pClipboardText;
+    
+        xcb_atom_t m_TargetsAtom;
+        xcb_atom_t m_TextAtom;
+        xcb_atom_t m_StringAtom;
+        xcb_atom_t m_Utf8StringAtom;
+    
         xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
+        xcb_atom_t InternAtom( const char* pName, bool onlyIfExists = false );
 
         void UpdateMousePos();
+        void SetClipboardText( const char* pText );
+    
+        static void SetClipboardTextFn( ImGuiContext*, const char* );
     };
 }

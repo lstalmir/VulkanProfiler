@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,9 @@
 
 #include "profiler_testing_common.h"
 #include "profiler_vulkan_simple_triangle.h"
+#include "profiler_vulkan_simple_triangle_rt.h"
+
+#include "profiler/profiler.h"
 
 #include <set>
 #include <string>
@@ -28,7 +31,26 @@ namespace Profiler
 {
     class ProfilerExtensionsULT : public testing::Test
     {
+    public:
+        void TearDown() override
+        {
+            delete Vk;
+        }
+
     protected:
+        VulkanState* Vk = nullptr;
+
+        void SetUpVulkan()
+        {
+            VulkanState::CreateInfo createInfo = {};
+            SetUpVulkan( createInfo );
+        }
+
+        virtual void SetUpVulkan( VulkanState::CreateInfo& vulkanCreateInfo )
+        {
+            Vk = new VulkanState( vulkanCreateInfo );
+        }
+
         inline void VerifyExtensions( const std::set<std::string>& expected, const std::vector<VkExtensionProperties>& actual )
         {
             std::set<std::string> unimplementedExtensions = expected;
@@ -55,6 +77,61 @@ namespace Profiler
                 ADD_FAILURE() << "Unexpected extension " << extension << ".";
             }
         }
+
+        inline DeviceProfiler* GetProfiler()
+        {
+            auto pfn_vkGetProfilerEXT = (PFN_vkGetProfilerEXT)vkGetDeviceProcAddr( Vk->Device, "vkGetProfilerEXT" );
+            if( pfn_vkGetProfilerEXT )
+            {
+                VkProfilerEXT profiler = VK_NULL_HANDLE;
+                pfn_vkGetProfilerEXT( Vk->Device, &profiler );
+                return (DeviceProfiler*)profiler;
+            }
+            return nullptr;
+        }
+    };
+
+    class ProfilerDebugExtensionULT : public ProfilerExtensionsULT
+    {
+    };
+
+    class ProfilerDebugMarkerExtensionULT : public ProfilerDebugExtensionULT
+    {
+    protected:
+        PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectNameEXT = nullptr;
+
+        using ProfilerDebugExtensionULT::SetUpVulkan;
+
+        void SetUpVulkan( VulkanState::CreateInfo& vulkanCreateInfo ) override
+        {
+            VulkanExtension debugReportExtension( VK_EXT_DEBUG_REPORT_EXTENSION_NAME, true );
+            vulkanCreateInfo.InstanceExtensions.push_back( &debugReportExtension );
+
+            VulkanExtension debugMarkerExtension( VK_EXT_DEBUG_MARKER_EXTENSION_NAME, true );
+            vulkanCreateInfo.DeviceExtensions.push_back( &debugMarkerExtension );
+
+            ProfilerDebugExtensionULT::SetUpVulkan( vulkanCreateInfo );
+
+            vkDebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)vkGetInstanceProcAddr( Vk->Instance, "vkDebugMarkerSetObjectNameEXT" );
+        }
+    };
+
+    class ProfilerDebugUtilsExtensionULT : public ProfilerDebugExtensionULT
+    {
+    protected:
+        PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT = nullptr;
+
+        using ProfilerDebugExtensionULT::SetUpVulkan;
+
+        void SetUpVulkan( VulkanState::CreateInfo& vulkanCreateInfo ) override
+        {
+            VulkanExtension debugUtilsExtension( VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true );
+            vulkanCreateInfo.InstanceExtensions.push_back( &debugUtilsExtension );
+
+            ProfilerDebugExtensionULT::SetUpVulkan( vulkanCreateInfo );
+
+            vkSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr( Vk->Instance, "vkSetDebugUtilsObjectNameEXT" );
+        }
     };
 
     TEST_F( ProfilerExtensionsULT, EnumerateInstanceExtensionProperties )
@@ -75,13 +152,13 @@ namespace Profiler
     TEST_F( ProfilerExtensionsULT, EnumerateDeviceExtensionProperties )
     {
         // Create simple vulkan instance
-        VulkanState Vk;
+        SetUpVulkan();
 
         uint32_t extensionCount = 0;
-        vkEnumerateDeviceExtensionProperties( Vk.PhysicalDevice, VK_LAYER_profiler_name, &extensionCount, nullptr );
+        vkEnumerateDeviceExtensionProperties( Vk->PhysicalDevice, VK_LAYER_profiler_name, &extensionCount, nullptr );
 
         std::vector<VkExtensionProperties> extensions( extensionCount );
-        vkEnumerateDeviceExtensionProperties( Vk.PhysicalDevice, VK_LAYER_profiler_name, &extensionCount, extensions.data() );
+        vkEnumerateDeviceExtensionProperties( Vk->PhysicalDevice, VK_LAYER_profiler_name, &extensionCount, extensions.data() );
 
         std::set<std::string> expectedExtensions = {
             VK_EXT_PROFILER_EXTENSION_NAME,
@@ -91,38 +168,260 @@ namespace Profiler
         VerifyExtensions( expectedExtensions, extensions );
     }
 
-    TEST_F( ProfilerExtensionsULT, DebugMarkerEXT )
+    TEST_F( ProfilerDebugMarkerExtensionULT, GetRequiredFunctions )
     {
-        VulkanState::CreateInfo vulkanCreateInfo;
-        VulkanExtension debugReportExtension( VK_EXT_DEBUG_REPORT_EXTENSION_NAME, true );
-        vulkanCreateInfo.InstanceExtensions.push_back( &debugReportExtension );
-        VulkanExtension debugMarkerExtension( VK_EXT_DEBUG_MARKER_EXTENSION_NAME, true );
-        vulkanCreateInfo.DeviceExtensions.push_back( &debugMarkerExtension );
+        SetUpVulkan();
 
-        // Create vulkan instance with profiler layer enabled externally
-        VulkanState Vk( vulkanCreateInfo );
-
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerBeginEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerEndEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdDebugMarkerInsertEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkDebugMarkerSetObjectNameEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkDebugMarkerSetObjectTagEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkCmdDebugMarkerBeginEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkCmdDebugMarkerEndEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkCmdDebugMarkerInsertEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkDebugMarkerSetObjectNameEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkDebugMarkerSetObjectTagEXT" ) );
     }
 
-    TEST_F( ProfilerExtensionsULT, DebugUtilsEXT )
+    TEST_F( ProfilerDebugMarkerExtensionULT, SetObjectName )
     {
-        VulkanState::CreateInfo vulkanCreateInfo;
-        VulkanExtension debugUtilsExtension( VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true );
-        vulkanCreateInfo.InstanceExtensions.push_back( &debugUtilsExtension );
+        SetUpVulkan();
 
-        // Create vulkan instance with profiler layer enabled externally
-        VulkanState Vk( vulkanCreateInfo );
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
 
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdBeginDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdEndDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkCmdInsertDebugUtilsLabelEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkSetDebugUtilsObjectNameEXT" ) );
-        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk.Instance, "vkSetDebugUtilsObjectTagEXT" ) );
+        // Prepare a resource to name
+        VkBufferCreateInfo bufferCreateInfo = {};
+        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferCreateInfo.size = 256;
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkResult result = vkCreateBuffer( Vk->Device, &bufferCreateInfo, nullptr, &buffer );
+        ASSERT_EQ( VK_SUCCESS, result );
+
+        // Set buffer name
+        VkDebugMarkerObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT;
+        objectNameInfo.object = (uint64_t)buffer;
+        objectNameInfo.pObjectName = "TestBuffer";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( buffer ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestBuffer 2";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( buffer ).c_str() );
+
+        vkDestroyBuffer( Vk->Device, buffer, nullptr );
+    }
+
+    TEST_F( ProfilerDebugMarkerExtensionULT, SetPipelineName )
+    {
+        SetUpVulkan();
+
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
+
+        VulkanSimpleTriangle simpleTriangle( Vk );
+
+        // Set pipeline name
+        VkDebugMarkerObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT;
+        objectNameInfo.object = (uint64_t)simpleTriangle.Pipeline;
+        objectNameInfo.pObjectName = "TestPipeline";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestPipeline 2";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+    }
+
+    TEST_F( ProfilerDebugMarkerExtensionULT, SetRayTracingPipelineName )
+    {
+        VulkanState::CreateInfo vulkanCreateInfo = {};
+        VulkanSimpleTriangleRT::ConfigureVulkan( vulkanCreateInfo );
+        SetUpVulkan( vulkanCreateInfo );
+
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
+
+        VulkanSimpleTriangleRT simpleTriangle( Vk );
+        simpleTriangle.CreatePipeline();
+
+        // Set pipeline name
+        VkDebugMarkerObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT;
+        objectNameInfo.object = (uint64_t)simpleTriangle.Pipeline;
+        objectNameInfo.pObjectName = "TestPipeline";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestPipeline 2";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+    }
+
+    TEST_F( ProfilerDebugMarkerExtensionULT, SetRayTracingDeferredPipelineName )
+    {
+        VulkanState::CreateInfo vulkanCreateInfo = {};
+        VulkanSimpleTriangleRT::ConfigureVulkan( vulkanCreateInfo );
+        SetUpVulkan( vulkanCreateInfo );
+
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
+
+        VulkanSimpleTriangleRT simpleTriangle( Vk );
+        VkDeferredOperationKHR deferredOperation = simpleTriangle.CreatePipelineDeferred();
+
+        // Set pipeline name
+        VkDebugMarkerObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT;
+        objectNameInfo.object = (uint64_t)simpleTriangle.Pipeline;
+        objectNameInfo.pObjectName = "TestPipeline";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Join deferred operation
+        simpleTriangle.JoinDeferredOperation( deferredOperation );
+
+        // Name should not change
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestPipeline 2";
+        EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+    }
+
+    TEST_F( ProfilerDebugUtilsExtensionULT, GetRequiredFunctions )
+    {
+        SetUpVulkan();
+
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkCmdBeginDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkCmdEndDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkCmdInsertDebugUtilsLabelEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkSetDebugUtilsObjectNameEXT" ) );
+        EXPECT_NE( nullptr, vkGetInstanceProcAddr( Vk->Instance, "vkSetDebugUtilsObjectTagEXT" ) );
+    }
+
+    TEST_F( ProfilerDebugUtilsExtensionULT, SetObjectName )
+    {
+        SetUpVulkan();
+
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
+
+        // Prepare a resource to name
+        VkBufferCreateInfo bufferCreateInfo = {};
+        bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferCreateInfo.size = 256;
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkResult result = vkCreateBuffer( Vk->Device, &bufferCreateInfo, nullptr, &buffer );
+        ASSERT_EQ( VK_SUCCESS, result );
+
+        // Set buffer name
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
+        objectNameInfo.objectHandle = (uint64_t)buffer;
+        objectNameInfo.pObjectName = "TestBuffer";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( buffer ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestBuffer 2";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( buffer ).c_str() );
+    }
+
+    TEST_F( ProfilerDebugUtilsExtensionULT, SetPipelineName )
+    {
+        SetUpVulkan();
+
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
+
+        VulkanSimpleTriangle simpleTriangle( Vk );
+
+        // Set pipeline name
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_OBJECT_TYPE_PIPELINE;
+        objectNameInfo.objectHandle = (uint64_t)simpleTriangle.Pipeline;
+        objectNameInfo.pObjectName = "TestPipeline";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestPipeline 2";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+    }
+
+    TEST_F( ProfilerDebugUtilsExtensionULT, SetRayTracingPipelineName )
+    {
+        VulkanState::CreateInfo vulkanCreateInfo = {};
+        VulkanSimpleTriangleRT::ConfigureVulkan( vulkanCreateInfo );
+        SetUpVulkan( vulkanCreateInfo );
+
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
+
+        VulkanSimpleTriangleRT simpleTriangle( Vk );
+        simpleTriangle.CreatePipeline();
+
+        // Set pipeline name
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_OBJECT_TYPE_PIPELINE;
+        objectNameInfo.objectHandle = (uint64_t)simpleTriangle.Pipeline;
+        objectNameInfo.pObjectName = "TestPipeline";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestPipeline 2";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+    }
+
+    TEST_F( ProfilerDebugUtilsExtensionULT, SetRayTracingDeferredPipelineName )
+    {
+        VulkanState::CreateInfo vulkanCreateInfo = {};
+        VulkanSimpleTriangleRT::ConfigureVulkan( vulkanCreateInfo );
+        SetUpVulkan( vulkanCreateInfo );
+
+        DeviceProfiler* Prof = GetProfiler();
+        ASSERT_NE( nullptr, Prof );
+
+        VulkanSimpleTriangleRT simpleTriangle( Vk );
+        VkDeferredOperationKHR deferredOperation = simpleTriangle.CreatePipelineDeferred();
+
+        // Set pipeline name
+        VkDebugUtilsObjectNameInfoEXT objectNameInfo = {};
+        objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+        objectNameInfo.objectType = VK_OBJECT_TYPE_PIPELINE;
+        objectNameInfo.objectHandle = (uint64_t)simpleTriangle.Pipeline;
+        objectNameInfo.pObjectName = "TestPipeline";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Join deferred operation
+        simpleTriangle.JoinDeferredOperation( deferredOperation );
+
+        // Name should not change
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
+
+        // Set name again
+        objectNameInfo.pObjectName = "TestPipeline 2";
+        EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->m_pDevice->Debug.ObjectNames.at( simpleTriangle.Pipeline ).c_str() );
     }
 
     TEST_F( ProfilerExtensionsULT, vkGetProfilerFrameDataEXT )
@@ -132,10 +431,10 @@ namespace Profiler
         vulkanCreateInfo.DeviceExtensions.push_back( &profilerExtension );
 
         // Create vulkan instance with profiler layer enabled externally
-        VulkanState Vk( vulkanCreateInfo );
+        SetUpVulkan( vulkanCreateInfo );
 
         // Initialize simple triangle app
-        VulkanSimpleTriangle simpleTriangle( &Vk );
+        VulkanSimpleTriangle simpleTriangle( Vk );
 
         VkCommandBuffer commandBuffer;
 
@@ -143,9 +442,9 @@ namespace Profiler
             VkCommandBufferAllocateInfo allocateInfo = {};
             allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocateInfo.commandPool = Vk.CommandPool;
+            allocateInfo.commandPool = Vk->CommandPool;
             allocateInfo.commandBufferCount = 1;
-            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk.Device, &allocateInfo, &commandBuffer ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffer ) );
         }
         { // Begin command buffer
             VkCommandBufferBeginInfo beginInfo = {};
@@ -160,8 +459,8 @@ namespace Profiler
             barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
             barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            barrier.srcQueueFamilyIndex = Vk.QueueFamilyIndex;
-            barrier.dstQueueFamilyIndex = Vk.QueueFamilyIndex;
+            barrier.srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barrier.dstQueueFamilyIndex = Vk->QueueFamilyIndex;
             barrier.image = simpleTriangle.FramebufferImage;
             barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
@@ -192,24 +491,24 @@ namespace Profiler
             submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffer;
-            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk.Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
 
         VkProfilerDataEXT data = {};
         data.sType = VK_STRUCTURE_TYPE_PROFILER_DATA_EXT;
 
-        PFN_vkFlushProfilerEXT flushProfilerEXT = (PFN_vkFlushProfilerEXT)vkGetDeviceProcAddr( Vk.Device, "vkFlushProfilerEXT" );
-        PFN_vkFreeProfilerFrameDataEXT freeProfilerFrameDataEXT = (PFN_vkFreeProfilerFrameDataEXT)vkGetDeviceProcAddr( Vk.Device, "vkFreeProfilerFrameDataEXT" );
-        PFN_vkGetProfilerFrameDataEXT getProfilerFrameDataEXT = (PFN_vkGetProfilerFrameDataEXT)vkGetDeviceProcAddr( Vk.Device, "vkGetProfilerFrameDataEXT" );
+        PFN_vkFlushProfilerEXT flushProfilerEXT = (PFN_vkFlushProfilerEXT)vkGetDeviceProcAddr( Vk->Device, "vkFlushProfilerEXT" );
+        PFN_vkFreeProfilerFrameDataEXT freeProfilerFrameDataEXT = (PFN_vkFreeProfilerFrameDataEXT)vkGetDeviceProcAddr( Vk->Device, "vkFreeProfilerFrameDataEXT" );
+        PFN_vkGetProfilerFrameDataEXT getProfilerFrameDataEXT = (PFN_vkGetProfilerFrameDataEXT)vkGetDeviceProcAddr( Vk->Device, "vkGetProfilerFrameDataEXT" );
 
         ASSERT_NE( nullptr, flushProfilerEXT );
         ASSERT_NE( nullptr, freeProfilerFrameDataEXT );
         ASSERT_NE( nullptr, getProfilerFrameDataEXT );
 
         { // Collect data
-            vkDeviceWaitIdle( Vk.Device );
-            ASSERT_EQ( VK_SUCCESS, flushProfilerEXT( Vk.Device ) );
-            ASSERT_EQ( VK_SUCCESS, getProfilerFrameDataEXT( Vk.Device, &data ) );
+            vkDeviceWaitIdle( Vk->Device );
+            ASSERT_EQ( VK_SUCCESS, flushProfilerEXT( Vk->Device ) );
+            ASSERT_EQ( VK_SUCCESS, getProfilerFrameDataEXT( Vk->Device, &data ) );
         }
         { // Validate data
             EXPECT_EQ( VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT, data.frame.sType );
@@ -225,7 +524,7 @@ namespace Profiler
             EXPECT_EQ( VK_PROFILER_REGION_TYPE_SUBMIT_EXT, submitData.regionType );
             EXPECT_EQ( 1, submitData.subregionCount );
             EXPECT_EQ( 0, submitData.duration );
-            EXPECT_EQ( Vk.Queue, submitData.properties.submit.queue );
+            EXPECT_EQ( Vk->Queue, submitData.properties.submit.queue );
             ASSERT_NE( nullptr, submitData.pSubregions );
 
             const VkProfilerRegionDataEXT& submitInfoData = submitData.pSubregions[ 0 ];
@@ -299,7 +598,7 @@ namespace Profiler
             EXPECT_LT( 0, drawcall1.duration );
         }
         { // Free data
-            freeProfilerFrameDataEXT( Vk.Device, &data );
+            freeProfilerFrameDataEXT( Vk->Device, &data );
         }
     }
 }

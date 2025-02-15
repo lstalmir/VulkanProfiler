@@ -533,6 +533,35 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        UsesMeshShading
+
+    Description:
+        Checks if any of the shaders in the tuple uses mesh shader capability.
+
+    \***********************************************************************************/
+    bool ProfilerShaderTuple::UsesMeshShading() const
+    {
+        for( const ProfilerShader& shader : m_Shaders )
+        {
+            if( !shader.m_pShaderModule )
+            {
+                continue;
+            }
+
+            auto& capabilities = shader.m_pShaderModule->m_Capabilities;
+            if( capabilities.count( SpvCapabilityMeshShadingNV ) ||
+                capabilities.count( SpvCapabilityMeshShadingEXT ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UpdateHash
 
     Description:

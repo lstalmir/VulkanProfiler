@@ -139,6 +139,7 @@ namespace Profiler
 
         bool UsesRayQuery() const;
         bool UsesRayTracing() const;
+        bool UsesMeshShading() const;
 
         void UpdateHash();
 

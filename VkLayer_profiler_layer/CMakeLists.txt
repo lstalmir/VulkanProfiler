@@ -214,6 +214,8 @@ set (core_functions
 set (extension_functions
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.h"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.cpp"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.cpp"

@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+// Copyright (c) 2025 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -18,18 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-struct VS_Out
-{
-    float4 position : SV_Position;
-    float3 color : COLOR;
-};
+#version 460 core
+#extension GL_EXT_ray_tracing : enable
 
-VS_Out main( int vertId : SV_VertexID )
-{
-    const VS_Out triangleVertices[ 3 ] = {
-        { float4(0, -0.5, 0, 1), float3(1, 0, 0) },
-        { float4(-0.5, 0.5, 0, 1), float3(0, 0, 1) },
-        { float4(0.5, 0.5, 0, 1), float3(0, 1, 0) } };
+layout( location = 0 ) rayPayloadEXT vec3 outputColor;
 
-    return triangleVertices[ vertId ];
+void main()
+{
+    outputColor = vec3( 1.0, 0.0, 0.0 );
 }

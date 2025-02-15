@@ -19,8 +19,10 @@
 // SOFTWARE.
 
 #include "profiler_overlay_layer_backend_xcb.h"
-#include <imgui.h>
+#include <imgui_internal.h>
+#include <xcb/shape.h>
 #include <stdlib.h>
+#include <array>
 #include <mutex>
 
 namespace Profiler
@@ -40,10 +42,21 @@ namespace Profiler
     \***********************************************************************************/
     OverlayLayerXcbPlatformBackend::OverlayLayerXcbPlatformBackend( xcb_window_t window ) try
         : m_pImGuiContext( nullptr )
+        , m_pXkbBackend( nullptr )
         , m_Connection( nullptr )
         , m_AppWindow( window )
         , m_InputWindow( 0 )
+        , m_ClipboardSelectionAtom( XCB_NONE )
+        , m_ClipboardPropertyAtom( XCB_NONE )
+        , m_pClipboardText( nullptr )
+        , m_TargetsAtom( XCB_NONE )
+        , m_TextAtom( XCB_NONE )
+        , m_StringAtom( XCB_NONE )
+        , m_Utf8StringAtom( XCB_NONE )
     {
+        // Create XKB backend
+        m_pXkbBackend = new OverlayLayerXkbBackend();
+
         // Connect to X server
         m_Connection = xcb_connect( nullptr, nullptr );
         if( xcb_connection_has_error( m_Connection ) )
@@ -58,7 +71,9 @@ namespace Profiler
         const int valwin =
             XCB_EVENT_MASK_POINTER_MOTION |
             XCB_EVENT_MASK_BUTTON_PRESS |
-            XCB_EVENT_MASK_BUTTON_RELEASE;
+            XCB_EVENT_MASK_BUTTON_RELEASE |
+            XCB_EVENT_MASK_KEY_PRESS |
+            XCB_EVENT_MASK_KEY_RELEASE;
 
         xcb_create_window(
             m_Connection,
@@ -76,11 +91,23 @@ namespace Profiler
         xcb_map_window( m_Connection, m_InputWindow );
         xcb_flush( m_Connection );
 
+        // Initialize clipboard
+        m_ClipboardSelectionAtom = InternAtom( "CLIPBOARD" );
+        m_ClipboardPropertyAtom = InternAtom( "PROFILER_OVERLAY_CLIPBOARD" );
+        m_TargetsAtom = InternAtom( "TARGETS" );
+        m_TextAtom = InternAtom( "TEXT" );
+        m_StringAtom = InternAtom( "STRING" );
+        m_Utf8StringAtom = InternAtom( "UTF8_STRING" );
+
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
         io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
         io.BackendPlatformName = "xcb";
         io.BackendPlatformUserData = this;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = nullptr;
+        platformIO.Platform_SetClipboardTextFn = OverlayLayerXcbPlatformBackend::SetClipboardTextFn;
 
         m_pImGuiContext = ImGui::GetCurrentContext();
     }
@@ -103,6 +130,9 @@ namespace Profiler
     \***********************************************************************************/
     OverlayLayerXcbPlatformBackend::~OverlayLayerXcbPlatformBackend()
     {
+        free( m_pClipboardText );
+        m_pClipboardText = nullptr;
+
         xcb_destroy_window( m_Connection, m_InputWindow );
         m_InputWindow = 0;
         m_AppWindow = 0;
@@ -110,13 +140,21 @@ namespace Profiler
         xcb_disconnect( m_Connection );
         m_Connection = nullptr;
 
+        delete m_pXkbBackend;
+        m_pXkbBackend = nullptr;
+
         if( m_pImGuiContext )
         {
             assert( ImGui::GetCurrentContext() == m_pImGuiContext );
+
             ImGuiIO& io = ImGui::GetIO();
             io.BackendFlags = 0;
             io.BackendPlatformName = nullptr;
             io.BackendPlatformUserData = nullptr;
+
+            ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+            platformIO.Platform_GetClipboardTextFn = nullptr;
+            platformIO.Platform_SetClipboardTextFn = nullptr;
         }
     }
 
@@ -144,10 +182,37 @@ namespace Profiler
         auto geometry = GetGeometry( m_AppWindow );
         io.DisplaySize = ImVec2((float)(geometry.width), (float)(geometry.height));
 
+        const uint32_t inputWindowChanges[2] = {
+            static_cast<uint32_t>( geometry.width ),
+            static_cast<uint32_t>( geometry.height )
+        };
+
+        xcb_configure_window(
+            m_Connection,
+            m_InputWindow,
+            XCB_CONFIG_WINDOW_WIDTH |
+            XCB_CONFIG_WINDOW_HEIGHT,
+            inputWindowChanges );
+
         // Update OS mouse position
         UpdateMousePos();
 
         // Update input capture rects
+        m_InputRects.resize( 0 );
+
+        for( ImGuiWindow* pWindow : GImGui->Windows )
+        {
+            if( pWindow && pWindow->WasActive )
+            {
+                xcb_rectangle_t rect;
+                rect.x = static_cast<int16_t>( pWindow->Pos.x );
+                rect.y = static_cast<int16_t>( pWindow->Pos.y );
+                rect.width = static_cast<uint16_t>( pWindow->Size.x );
+                rect.height = static_cast<uint16_t>( pWindow->Size.y );
+                m_InputRects.push_back( rect );
+            }
+        }
+
         xcb_shape_rectangles(
             m_Connection,
             XCB_SHAPE_SO_SET,
@@ -155,8 +220,8 @@ namespace Profiler
             XCB_CLIP_ORDERING_UNSORTED,
             m_InputWindow,
             0, 0,
-            m_InputRects.size(),
-            m_InputRects.data() );
+            m_InputRects.Size,
+            m_InputRects.Data );
 
         // Handle incoming input events
         // Don't block if there are no pending events
@@ -166,6 +231,74 @@ namespace Profiler
         {
             switch( event->response_type & (~0x80) )
             {
+            case XCB_SELECTION_REQUEST:
+            {
+                // Send current selection
+                xcb_selection_request_event_t* selectionRequestEvent =
+                    reinterpret_cast<xcb_selection_request_event_t*>( event );
+
+                xcb_selection_notify_event_t selectionNotifyEvent = {};
+                selectionNotifyEvent.response_type = XCB_SELECTION_NOTIFY;
+                selectionNotifyEvent.requestor = selectionRequestEvent->requestor;
+                selectionNotifyEvent.selection = selectionRequestEvent->selection;
+                selectionNotifyEvent.target = selectionRequestEvent->target;
+                selectionNotifyEvent.time = selectionRequestEvent->time;
+
+                if( selectionRequestEvent->target == m_TargetsAtom )
+                {
+                    // Send list of available conversions
+                    selectionNotifyEvent.property = selectionRequestEvent->property;
+
+                    xcb_atom_t targets[] = {
+                        m_TargetsAtom,
+                        m_TextAtom,
+                        m_StringAtom,
+                        m_Utf8StringAtom
+                    };
+
+                    xcb_change_property(
+                        m_Connection,
+                        XCB_PROP_MODE_REPLACE,
+                        selectionRequestEvent->requestor,
+                        selectionRequestEvent->property,
+                        selectionRequestEvent->target, 32,
+                        std::size( targets ),
+                        targets );
+                }
+
+                if( selectionRequestEvent->target == m_TextAtom ||
+                    selectionRequestEvent->target == m_StringAtom ||
+                    selectionRequestEvent->target == m_Utf8StringAtom )
+                {
+                    // Send selection as string
+                    selectionNotifyEvent.property = selectionRequestEvent->property;
+
+                    uint32_t clipboardTextLength = 0;
+                    if( m_pClipboardText )
+                    {
+                        clipboardTextLength = strlen( m_pClipboardText );
+                    }
+
+                    xcb_change_property(
+                        m_Connection,
+                        XCB_PROP_MODE_REPLACE,
+                        selectionRequestEvent->requestor,
+                        selectionRequestEvent->property,
+                        selectionRequestEvent->target, 8,
+                        clipboardTextLength,
+                        m_pClipboardText );
+                }
+
+                // Notify the requestor that the selection is ready
+                xcb_send_event( m_Connection,
+                    false,
+                    selectionRequestEvent->requestor,
+                    XCB_EVENT_MASK_NO_EVENT,
+                    reinterpret_cast<const char*>( &selectionNotifyEvent ) );
+
+                break;
+            }
+
             case XCB_MOTION_NOTIFY:
             {
                 // Update mouse position
@@ -217,6 +350,26 @@ namespace Profiler
                 }
                 break;
             }
+
+            case XCB_KEY_PRESS:
+            {
+                // Handle key press
+                xcb_key_press_event_t* keyPressEvent =
+                    reinterpret_cast<xcb_key_press_event_t*>(event);
+
+                m_pXkbBackend->AddKeyEvent( keyPressEvent->detail, true );
+                break;
+            }
+
+            case XCB_KEY_RELEASE:
+            {
+                // Handle key release
+                xcb_key_release_event_t* keyReleaseEvent =
+                    reinterpret_cast<xcb_key_release_event_t*>(event);
+
+                m_pXkbBackend->AddKeyEvent( keyReleaseEvent->detail, false );
+                break;
+            }
             }
 
             // Free received event
@@ -224,30 +377,6 @@ namespace Profiler
         }
 
         xcb_flush( m_Connection );
-
-        // Rebuild input capture rects on each frame
-        m_InputRects.clear();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        AddInputCaptureRect
-
-    Description:
-        X-platform implementations require setting input clipping rects to pass messages
-        to the parent window. This can be only done between ImGui::Begin and ImGui::End,
-        when g.CurrentWindow is set.
-
-    \***********************************************************************************/
-    void OverlayLayerXcbPlatformBackend::AddInputCaptureRect( int x, int y, int width, int height )
-    {
-        // Set input clipping rectangle
-        xcb_rectangle_t& inputRect = m_InputRects.emplace_back();
-        inputRect.x = x;
-        inputRect.y = y;
-        inputRect.width = width;
-        inputRect.height = height;
     }
 
     /***********************************************************************************\
@@ -262,18 +391,54 @@ namespace Profiler
     xcb_get_geometry_reply_t OverlayLayerXcbPlatformBackend::GetGeometry( xcb_drawable_t drawable )
     {
         // Send request to the server
-        auto cookie = xcb_get_geometry( m_Connection, drawable );
+        xcb_get_geometry_cookie_t cookie = xcb_get_geometry_unchecked( m_Connection, drawable );
         xcb_flush( m_Connection );
 
         // Wait for the response
-        auto* response = xcb_get_geometry_reply( m_Connection, cookie, nullptr );
+        xcb_get_geometry_reply_t* pReply = xcb_get_geometry_reply( m_Connection, cookie, nullptr );
+        xcb_get_geometry_reply_t geometry = {};
 
-        xcb_get_geometry_reply_t geometry = *response;
+        if( pReply )
+        {
+            geometry = *pReply;
+        }
 
         // Free returned pointer
-        free( response );
+        free( pReply );
 
         return geometry;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InternAtom
+
+    Description:
+        Get a unique id of a string.
+
+    \***********************************************************************************/
+    xcb_atom_t OverlayLayerXcbPlatformBackend::InternAtom( const char* pName, bool onlyIfExists )
+    {
+        uint16_t nameLength = static_cast<uint16_t>( strlen( pName ) );
+
+        // Send request to the server
+        xcb_intern_atom_cookie_t cookie = xcb_intern_atom_unchecked( m_Connection, onlyIfExists, nameLength, pName );
+        xcb_flush( m_Connection );
+
+        // Wait for the response
+        xcb_intern_atom_reply_t* pReply = xcb_intern_atom_reply( m_Connection, cookie, nullptr );
+        xcb_atom_t atom = 0;
+
+        if( pReply )
+        {
+            atom = pReply->atom;
+        }
+
+        // Free returned pointer
+        free( pReply );
+
+        return atom;
     }
 
     /***********************************************************************************\
@@ -294,5 +459,56 @@ namespace Profiler
             xcb_point_t pos = { (short)io.MousePos.x, (short)io.MousePos.y };
             xcb_warp_pointer( m_Connection, 0, m_InputWindow, 0, 0, 0, 0, pos.x, pos.y );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetClipboardText
+
+    Description:
+        Copy text to clipboard.
+
+    \***********************************************************************************/
+    void OverlayLayerXcbPlatformBackend::SetClipboardText( const char* pText )
+    {
+        // Clear previous selection
+        free( m_pClipboardText );
+        m_pClipboardText = nullptr;
+
+        // Copy text to local storage
+        size_t clipboardTextLength = strlen( pText ? pText : "" );
+        if( clipboardTextLength )
+        {
+            m_pClipboardText = reinterpret_cast<char*>( malloc( clipboardTextLength + 1 ) );
+            if( !m_pClipboardText )
+            {
+                return;
+            }
+
+            memcpy( m_pClipboardText, pText, clipboardTextLength + 1 );
+        }
+
+        // Notify X server that new selection is available
+        xcb_set_selection_owner( m_Connection, m_InputWindow, m_ClipboardSelectionAtom, XCB_CURRENT_TIME );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetClipboardTextFn
+
+    Description:
+        Copy text to clipboard.
+
+    \***********************************************************************************/
+    void OverlayLayerXcbPlatformBackend::SetClipboardTextFn( ImGuiContext* pContext, const char* pText )
+    {
+        OverlayLayerXcbPlatformBackend* pBackend =
+            static_cast<OverlayLayerXcbPlatformBackend*>( pContext->IO.BackendPlatformUserData );
+        IM_ASSERT( pBackend );
+        IM_ASSERT( pBackend->m_pImGuiContext == pContext );
+
+        pBackend->SetClipboardText( pText );
     }
 }

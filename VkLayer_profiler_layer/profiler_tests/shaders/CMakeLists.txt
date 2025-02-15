@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2019-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,15 +18,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 project (profiler_tests_shaders)
 
 set (sources
-    "simple_triangle.vert.hlsl"
-    "simple_triangle.frag.hlsl"
+    "simple_triangle.vert.glsl"
+    "simple_triangle.frag.glsl"
+    "simple_triangle_rt.rgen.glsl"
+    "simple_triangle_rt.rchit.glsl"
+    "simple_triangle_rt.rmiss.glsl"
     )
-    
+
 set (spirvs
     )
 
@@ -36,7 +39,7 @@ foreach (source ${sources})
     string (REPLACE "." "_" var_name ${source})
     add_custom_command (
         OUTPUT ${out}
-        COMMAND ${glslangvalidator} ${in} -o ${out} -V -D -e main --vn ${var_name}
+        COMMAND ${glslangvalidator} ${in} -o ${out} -V -e main --vn ${var_name} --target-env spirv1.4
         DEPENDS ${in}
         COMMENT ${source}
         )

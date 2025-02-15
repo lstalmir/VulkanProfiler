@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,13 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-struct PS_In
-{
-    float4 position : SV_Position;
-    float3 color : COLOR;
-};
+#pragma once
+#include <xkbcommon/xkbcommon.h>
 
-float4 main( PS_In input ) : SV_Target
+namespace Profiler
 {
-    return float4(input.color, 1);
+    /***********************************************************************************\
+
+    Class:
+        OverlayLayerXkbBackend
+
+    Description:
+        Keyboard handler for Linux.
+
+    \***********************************************************************************/
+    class OverlayLayerXkbBackend
+    {
+    public:
+        OverlayLayerXkbBackend();
+        ~OverlayLayerXkbBackend();
+    
+        void AddKeyEvent( int keycode, bool pressed );
+    
+    private:
+        xkb_context* m_pContext;
+        xkb_keymap* m_pKeymap;
+        xkb_state* m_pState;
+    };
 }

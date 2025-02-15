@@ -136,6 +136,7 @@ namespace Profiler
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
         bool m_ShowEmptyStatistics;
+        bool m_ShowAllTopPipelines;
 
         enum class TimeUnit
         {
@@ -297,6 +298,9 @@ namespace Profiler
         void DrawSignificanceRect( const Data& data, const FrameBrowserTreeNodeIndex& index );
         void DrawSignificanceRect( float significance, const FrameBrowserTreeNodeIndex& index );
         void DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... );
+        void DrawPipelineCapabilityBadges( const DeviceProfilerPipelineData& pipeline );
+        void DrawPipelineStageBadge( const DeviceProfilerPipelineData& pipeline, VkShaderStageFlagBits stage, const char* pStageName );
+        void DrawPipelineContextMenu( const DeviceProfilerPipelineData& pipeline, const char* id = nullptr );
 
         template<typename Data>
         void PrintDuration( const Data& data );
