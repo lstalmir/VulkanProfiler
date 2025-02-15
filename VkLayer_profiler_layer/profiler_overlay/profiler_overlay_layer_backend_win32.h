@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,18 +19,42 @@
 // SOFTWARE.
 
 #pragma once
-#include <xkbcommon/xkbcommon.h>
+#include "profiler_overlay_layer_backend.h"
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 
-class ImGui_ImplXkb_Context
+struct ImGuiContext;
+
+namespace Profiler
 {
-public:
-    ImGui_ImplXkb_Context();
-    ~ImGui_ImplXkb_Context();
+    /***********************************************************************************\
 
-    void AddKeyEvent( int keycode, bool pressed );
+    Class:
+        OverlayLayerWin32PlatformBackend
 
-private:
-    xkb_context* m_pContext;
-    xkb_keymap* m_pKeymap;
-    xkb_state* m_pState;
-};
+    Description:
+        Implementation of the backend for Windows.
+
+    \***********************************************************************************/
+    class OverlayLayerWin32PlatformBackend
+        : public OverlayLayerPlatformBackend
+    {
+    public:
+        OverlayLayerWin32PlatformBackend( HWND hWnd );
+        ~OverlayLayerWin32PlatformBackend();
+
+        HWND GetWindow() const;
+        void NewFrame() override;
+        float GetDPIScale() const override;
+
+    private:
+        HWND m_AppWindow;
+        DWORD m_AppWindowThreadId;
+        ImGuiContext* m_pImGuiContext;
+        int m_RawMouseX;
+        int m_RawMouseY;
+        int m_RawMouseButtons;
+
+        static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
+    };
+}

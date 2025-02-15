@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+// Copyright (c) 2025 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,31 +19,40 @@
 // SOFTWARE.
 
 #pragma once
-#include "imgui_window.h"
-#include "lockable_unordered_map.h"
 
-#include <Windows.h>
+struct ImDrawData;
+struct ImVec2;
 
-struct ImGuiContext;
-
-class ImGui_ImplWin32_Context : public ImGui_Window_Context
+namespace Profiler
 {
-public:
-    ImGui_ImplWin32_Context( HWND hWnd );
-    ~ImGui_ImplWin32_Context();
+    /***********************************************************************************\
 
-    HWND        GetWindow() const;
-    const char* GetName() const override;
-    void        NewFrame() override;
-    float       GetDPIScale() const override;
+    Class:
+        OverlayBackend
 
-private:
-    HWND m_AppWindow;
-    DWORD m_AppWindowThreadId;
-    ImGuiContext* m_pImGuiContext;
-    int m_RawMouseX;
-    int m_RawMouseY;
-    int m_RawMouseButtons;
+    Description:
+        Backend interface for the overlay.
 
-    static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
-};
+    \***********************************************************************************/
+    class OverlayBackend
+    {
+    public:
+        virtual ~OverlayBackend() = default;
+
+        virtual bool PrepareImGuiBackend() = 0;
+        virtual void DestroyImGuiBackend() = 0;
+
+        virtual void WaitIdle() {}
+
+        virtual bool NewFrame() = 0;
+        virtual void RenderDrawData( ImDrawData* draw_data ) = 0;
+
+        virtual float GetDPIScale() const = 0;
+        virtual ImVec2 GetRenderArea() const = 0;
+
+        virtual void* CreateImage( int width, int height, const void* pData ) = 0;
+        virtual void DestroyImage( void* pImage ) = 0;
+        virtual void CreateFontsImage() = 0;
+        virtual void DestroyFontsImage() = 0;
+    };
+}

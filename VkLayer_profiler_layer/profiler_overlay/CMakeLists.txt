@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2019-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,8 @@ project (profiler_overlay)
 
 set (headers
     "profiler_overlay.h"
+    "profiler_overlay_backend.h"
+    "profiler_overlay_layer_backend.h"
     "profiler_overlay_resources.h"
     "profiler_overlay_settings.h"
     "profiler_overlay_shader_view.h"
@@ -33,46 +35,37 @@ set (headers
 
 set (sources
     "profiler_overlay.cpp"
+    "profiler_overlay_layer_backend.cpp"
     "profiler_overlay_resources.cpp"
     "profiler_overlay_settings.cpp"
     "profiler_overlay_shader_view.cpp"
     )
 
-set (imgui
-    "imgui_impl_vulkan_layer.h"
-    "imgui_impl_vulkan_layer.cpp"
-    "imgui_window.h"
-    )
-
 # Platform-dependent implementation
+set (backends)
 if (WIN32)
-set (imgui_platform
-    "imgui_impl_win32.h"
-    "imgui_impl_win32.cpp"
-    )
+    list (APPEND backends
+        "profiler_overlay_layer_backend_win32.h"
+        "profiler_overlay_layer_backend_win32.cpp")
 elseif (UNIX)
-if (PROFILER_PLATFORM_XLIB_FOUND)
-set (imgui_platform_x11
-    "imgui_impl_xlib.h"
-    "imgui_impl_xlib.cpp")
-endif ()
-if (PROFILER_PLATFORM_XCB_FOUND)
-set (imgui_platform_xcb
-    "imgui_impl_xcb.h"
-    "imgui_impl_xcb.cpp")
-endif ()
-if (PROFILER_PLATFORM_WAYLAND_FOUND)
-set (imgui_platform_wayland
-    "imgui_impl_wayland.h"
-    "imgui_impl_wayland.cpp")
-endif ()
-set (imgui_platform
-    "imgui_impl_xkb.h"
-    "imgui_impl_xkb.cpp"
-    ${imgui_platform_x11}
-    ${imgui_platform_xcb}
-    #${imgui_platform_wayland}
-    )
+    if (PROFILER_PLATFORM_XLIB_FOUND)
+        list (APPEND backends
+            "profiler_overlay_layer_backend_xlib.h"
+            "profiler_overlay_layer_backend_xlib.cpp")
+    endif ()
+    if (PROFILER_PLATFORM_XCB_FOUND)
+        list (APPEND backends
+            "profiler_overlay_layer_backend_xcb.h"
+            "profiler_overlay_layer_backend_xcb.cpp")
+    endif ()
+    if (PROFILER_PLATFORM_WAYLAND_FOUND)
+        list (APPEND backends
+            "profiler_overlay_layer_backend_wayland.h"
+            "profiler_overlay_layer_backend_wayland.cpp")
+    endif ()
+    list (APPEND backends
+        "profiler_overlay_layer_backend_xkb.h"
+        "profiler_overlay_layer_backend_xkb.cpp")
 endif ()
 
 set (imgui_widgets
@@ -104,8 +97,7 @@ add_custom_target (profiler_overlay_assets
 add_library (profiler_overlay
     ${sources}
     ${headers}
-    ${imgui}
-    ${imgui_platform}
+    ${backends}
     ${imgui_widgets})
 
 target_link_libraries (profiler_overlay

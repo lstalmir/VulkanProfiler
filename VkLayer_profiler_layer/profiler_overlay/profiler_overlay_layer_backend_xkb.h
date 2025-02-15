@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,12 +19,30 @@
 // SOFTWARE.
 
 #pragma once
+#include <xkbcommon/xkbcommon.h>
 
-class ImGui_Window_Context
+namespace Profiler
 {
-public:
-    virtual ~ImGui_Window_Context() {}
-    virtual const char* GetName() const = 0;
-    virtual void NewFrame() = 0;
-    virtual float GetDPIScale() const { return 1.0f; }
-};
+    /***********************************************************************************\
+
+    Class:
+        OverlayLayerXkbBackend
+
+    Description:
+        Keyboard handler for Linux.
+
+    \***********************************************************************************/
+    class OverlayLayerXkbBackend
+    {
+    public:
+        OverlayLayerXkbBackend();
+        ~OverlayLayerXkbBackend();
+
+        void AddKeyEvent( int keycode, bool pressed );
+
+    private:
+        xkb_context* m_pContext;
+        xkb_keymap* m_pKeymap;
+        xkb_state* m_pState;
+    };
+}
