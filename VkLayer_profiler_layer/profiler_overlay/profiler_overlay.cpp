@@ -2836,16 +2836,13 @@ namespace Profiler
         {
             const float cycleCount = GetDuration( data );
 
-            PerformanceGraphColumn column = {};
+            PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.color = m_RenderPassColumnColor;
             column.userData = &data;
             column.groupMode = HistogramGroupMode::eRenderPass;
             column.nodeIndex = index;
-
-            // Insert render pass cycle count to histogram
-            columns.push_back( column );
         }
         else
         {
@@ -2854,7 +2851,7 @@ namespace Profiler
             {
                 const float cycleCount = GetDuration( data.m_Begin );
 
-                PerformanceGraphColumn column = {};
+                PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
@@ -2862,7 +2859,6 @@ namespace Profiler
                 column.groupMode = HistogramGroupMode::eRenderPassBegin;
                 column.nodeIndex = index;
 
-                columns.push_back( column );
                 index.back()++;
             }
 
@@ -2918,15 +2914,13 @@ namespace Profiler
             {
                 const float cycleCount = GetDuration( data.m_End );
 
-                PerformanceGraphColumn column = {};
+                PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassEnd;
                 column.nodeIndex = index;
-
-                columns.push_back( column );
             }
 
             index.pop_back();
@@ -2954,7 +2948,7 @@ namespace Profiler
         {
             const float cycleCount = GetDuration( data );
 
-            PerformanceGraphColumn column = {};
+            PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.userData = &data;
@@ -2979,9 +2973,6 @@ namespace Profiler
                 assert( !"Unsupported pipeline type" );
                 break;
             }
-
-            // Insert pipeline cycle count to histogram
-            columns.push_back( column );
         }
         else
         {
@@ -3014,7 +3005,7 @@ namespace Profiler
     {
         const float cycleCount = GetDuration( data );
 
-        PerformanceGraphColumn column = {};
+        PerformanceGraphColumn& column = columns.emplace_back();
         column.x = cycleCount;
         column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
         column.userData = &data;
@@ -3035,9 +3026,6 @@ namespace Profiler
             column.color = m_InternalPipelineColumnColor;
             break;
         }
-
-        // Insert drawcall cycle count to histogram
-        columns.push_back( column );
     }
 
     /***********************************************************************************\
@@ -3627,7 +3615,7 @@ namespace Profiler
         }
 
         const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-        const std::string commandBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
+        std::string commandBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
         bool commandBufferTreeExpanded = ImGui::TreeNode( indexStr, "%s",
             commandBufferName.c_str() );
 
@@ -3636,7 +3624,7 @@ namespace Profiler
             if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceQueryResults.empty() ) )
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
-                m_PerformanceQueryCommandBufferFilterName = commandBufferName;
+                m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
                 m_PerformanceCountersWindowState.SetFocus();
             }
             ImGui::EndPopup();

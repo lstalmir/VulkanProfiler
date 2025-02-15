@@ -383,7 +383,7 @@ namespace Profiler
     \***********************************************************************************/
     void* OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
     {
-        int width, height, channels, iAssetSize;
+        int width, height, channels;
         std::unique_ptr<stbi_uc[]> pixels;
 
         // Load image data from asset.
