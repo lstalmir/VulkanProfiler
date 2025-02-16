@@ -38,6 +38,8 @@ namespace Profiler
     class DeviceProfilerStringSerializer
     {
     public:
+        inline static const char* DefaultFlagsSeparator = " | ";
+
         DeviceProfilerStringSerializer( DeviceProfilerFrontend& );
 
         std::string GetName( const struct DeviceProfilerDrawcall& ) const;
@@ -57,6 +59,8 @@ namespace Profiler
         std::string GetVec4( const float* ) const;
 
         std::string GetColorHex( const float* ) const;
+
+        std::string GetByteSize( VkDeviceSize ) const;
 
         std::string GetQueueTypeName( VkQueueFlags ) const;
         std::string GetQueueFlagNames( VkQueueFlags ) const;
@@ -78,6 +82,9 @@ namespace Profiler
         std::string GetCompareOpName( VkCompareOp ) const;
         std::string GetLogicOpName( VkLogicOp ) const;
         std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
+
+        std::string GetMemoryPropertyFlagNames( VkMemoryPropertyFlags, const char* separator = DefaultFlagsSeparator ) const;
+        std::string GetBufferUsageFlagNames( VkBufferUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;

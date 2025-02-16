@@ -37,6 +37,27 @@ namespace ImGuiX
     /***********************************************************************************\
 
     Function:
+        TextAlignRightV
+
+    Description:
+        Displays text in the next line, aligned to right.
+
+    \***********************************************************************************/
+    void TextAlignRightV( float contentAreaWidth, const char* fmt, va_list args )
+    {
+        thread_local char text[1024];
+        vsnprintf( text, sizeof( text ), fmt, args );
+
+        ImVec2 textSize = ImGui::CalcTextSize( text );
+        ImGui::SameLine( 0, 0 );
+        ImGui::Dummy( textSize );
+        ImGui::SameLine( contentAreaWidth - textSize.x );
+        ImGui::TextUnformatted( text );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         TextAlignRight
 
     Description:
@@ -47,16 +68,8 @@ namespace ImGuiX
     {
         va_list args;
         va_start( args, fmt );
-
-        char text[ 128 ];
-        vsnprintf( text, sizeof( text ), fmt, args );
-
+        TextAlignRightV( contentAreaWidth, fmt, args );
         va_end( args );
-
-        uint32_t textSize = static_cast<uint32_t>(ImGui::CalcTextSize( text ).x);
-
-        ImGui::SameLine( contentAreaWidth - textSize );
-        ImGui::TextUnformatted( text );
     }
 
     /***********************************************************************************\
@@ -72,16 +85,8 @@ namespace ImGuiX
     {
         va_list args;
         va_start( args, fmt );
-
-        char text[ 128 ];
-        vsnprintf( text, sizeof( text ), fmt, args );
-
+        TextAlignRightV( ImGui::GetWindowContentRegionMax().x, fmt, args );
         va_end( args );
-
-        uint32_t textSize = static_cast<uint32_t>(ImGui::CalcTextSize( text ).x);
-
-        ImGui::SameLine( ImGui::GetWindowContentRegionMax().x - textSize );
-        ImGui::TextUnformatted( text );
     }
     
     /*************************************************************************\

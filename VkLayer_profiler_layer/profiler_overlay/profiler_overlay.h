@@ -175,6 +175,10 @@ namespace Profiler
         std::vector<InspectorTab> m_InspectorTabs;
         size_t m_InspectorTabIndex;
 
+        // Memory inspector state.
+        char               m_MemoryBufferNameFilter[128];
+        VkBufferUsageFlags m_MemoryBufferUsageFilter;
+
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
