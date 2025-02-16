@@ -42,7 +42,7 @@ namespace ImGuiX
         if( column_index == -1 )
             column_index = table->CurrentColumn;
 
-        return table->Columns[ column_index ].WidthGiven;
+        return table->Columns[column_index].WidthGiven + table->CellPaddingX * 2.f;
     }
 
     /*************************************************************************\
