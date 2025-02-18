@@ -1046,8 +1046,7 @@ namespace Profiler
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
         const float badgeSpacing = 3.f * interfaceScale;
 
-        const char* pEllipsis = "...";
-        const float ellipsisWidth = ImGui::CalcTextSize( pEllipsis ).x;
+        const float ellipsisWidth = ImGui::CalcTextSize( "..." ).x;
 
         // Calculate width of badges to align them.
         const float meshPipelineBadgesWidth =
@@ -1112,16 +1111,21 @@ namespace Profiler
 
                     if( pipelineNameWidth > availableWidth )
                     {
-                        while( ( pipelineNameWidth + ellipsisWidth ) > availableWidth )
+                        while( !pipelineName.empty() && ( pipelineNameWidth + ellipsisWidth ) > availableWidth )
                         {
                             pipelineName.pop_back();
                             pipelineNameWidth = ImGui::CalcTextSize( pipelineName.c_str() ).x;
                         }
 
-                        pipelineName.append( pEllipsis );
+                        if( !pipelineName.empty() )
+                        {
+                            ImGui::Text( "%s...", pipelineName.c_str() );
+                        }
                     }
-
-                    ImGui::TextUnformatted( pipelineName.c_str() );
+                    else
+                    {
+                        ImGui::TextUnformatted( pipelineName.c_str() );
+                    }
 
                     DrawPipelineContextMenu( pipeline, pipelineIndexStr );
                 }
