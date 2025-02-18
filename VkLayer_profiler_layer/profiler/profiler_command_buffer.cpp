@@ -441,17 +441,25 @@ namespace Profiler
                 if( (pAttachmentInfo != nullptr) &&
                     (pAttachmentInfo->imageView != VK_NULL_HANDLE) )
                 {
-                    if( pAttachmentInfo->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR )
+                    // Count clear operations only if the rendering is not resuming.
+                    if( !(pRenderingInfo->flags & VK_RENDERING_RESUMING_BIT) )
                     {
-                        clearStats.m_Count++;
-                        clearFlag = true;
+                        if( pAttachmentInfo->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR )
+                        {
+                            clearStats.m_Count++;
+                            clearFlag = true;
+                        }
                     }
 
-                    if( (pAttachmentInfo->resolveMode != VK_RESOLVE_MODE_NONE) &&
-                        (pAttachmentInfo->resolveImageView != VK_NULL_HANDLE) )
+                    // Count resolve operations only if the rendering will not be suspended in this command buffer.
+                    if( !(pRenderingInfo->flags & VK_RENDERING_SUSPENDING_BIT) )
                     {
-                        resolveStats.m_Count++;
-                        m_pCurrentRenderPassData->m_ResolvesAttachments = true;
+                        if( (pAttachmentInfo->resolveMode != VK_RESOLVE_MODE_NONE) &&
+                            (pAttachmentInfo->resolveImageView != VK_NULL_HANDLE) )
+                        {
+                            resolveStats.m_Count++;
+                            m_pCurrentRenderPassData->m_ResolvesAttachments = true;
+                        }
                     }
                 }
             };
@@ -1451,6 +1459,7 @@ namespace Profiler
         // Check if we're in render pass
         if( !m_pCurrentRenderPassData ||
             ((m_pCurrentRenderPassData->m_Handle == VK_NULL_HANDLE) &&
+                (m_pCurrentRenderPassData->m_Dynamic == false) &&
                 (m_pCurrentRenderPassData->m_Type != renderPassType)) )
         {
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
