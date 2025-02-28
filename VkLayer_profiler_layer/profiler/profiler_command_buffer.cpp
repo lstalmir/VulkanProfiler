@@ -58,7 +58,6 @@ namespace Profiler
         , m_GraphicsPipeline()
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
-        , m_IndirectArgumentBufferCopyList()
     {
         m_Data.m_Handle = commandBuffer;
         m_Data.m_Level = level;
@@ -232,6 +231,9 @@ namespace Profiler
 
             // End collection of vendor metrics.
             m_pQueryPool->EndPerformanceQuery( m_CommandBuffer );
+
+            // Perform deferred indirect argument buffer copies.
+            FlushIndirectArgumentCopyLists();
         }
     }
 
@@ -271,9 +273,8 @@ namespace Profiler
             for( auto& buffer : m_IndirectArgumentBufferList )
             {
                 buffer.m_Offset = 0;
+                buffer.m_PendingCopyList.clear();
             }
-
-            m_IndirectArgumentBufferCopyList.clear();
         }
     }
 
@@ -417,19 +418,10 @@ namespace Profiler
             m_pCurrentPipelineData = nullptr;
         }
 
-        if( !m_IndirectArgumentBufferCopyList.empty() )
+        if( m_ProfilingEnabled )
         {
             // Record pending indirect argument buffer copies after the render pass.
-            for( const auto& copy : m_IndirectArgumentBufferCopyList )
-            {
-                m_Profiler.m_pDevice->Callbacks.CmdCopyBuffer(
-                    m_CommandBuffer,
-                    copy.m_SrcBuffer,
-                    copy.m_DstBuffer,
-                    1, &copy.m_Region );
-            }
-
-            m_IndirectArgumentBufferCopyList.clear();
+            FlushIndirectArgumentCopyLists();
         }
     }
 
@@ -961,6 +953,9 @@ namespace Profiler
                 memoryBarrierCount +
                 bufferMemoryBarrierCount +
                 imageMemoryBarrierCount;
+
+            // Flush any pending indirect argument buffer copies.
+            FlushIndirectArgumentCopyLists();
         }
     }
 
@@ -984,6 +979,9 @@ namespace Profiler
                 pDependencyInfo->memoryBarrierCount +
                 pDependencyInfo->bufferMemoryBarrierCount +
                 pDependencyInfo->imageMemoryBarrierCount;
+
+            // Flush any pending indirect argument buffer copies.
+            FlushIndirectArgumentCopyLists();
         }
     }
 
@@ -1218,6 +1216,24 @@ namespace Profiler
                     m_Data.m_PerformanceQueryResults );
 
                 m_Data.m_PerformanceQueryMetricsSetIndex = performanceQueryMetricsSetIndex;
+            }
+
+            // Copy captured indirect argument buffer data
+            m_Data.m_IndirectPayload.clear();
+
+            for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
+            {
+                const uint8_t* pIndirectData = static_cast<const uint8_t*>( indirectArgumentBuffer.m_AllocationInfo.pMappedData );
+                const size_t indirectDataSize = indirectArgumentBuffer.m_Offset;
+
+                if( indirectDataSize )
+                {
+                    m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
+                    m_Data.m_IndirectPayload.insert(
+                        m_Data.m_IndirectPayload.end(),
+                        pIndirectData,
+                        pIndirectData + indirectDataSize );
+                }
             }
 
             // Subsequent calls to GetData will return the same results
@@ -1615,7 +1631,7 @@ namespace Profiler
             payload.m_IndirectArgsOffset = buffer.m_Offset;
             buffer.m_Offset += indirectPayloadSize;
 
-            IndirectArgumentBufferCopy& copy = m_IndirectArgumentBufferCopyList.emplace_back();
+            IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
             copy.m_SrcBuffer = payload.m_Buffer;
             copy.m_DstBuffer = buffer.m_Buffer;
             copy.m_Region.srcOffset = payload.m_Offset;
@@ -1635,14 +1651,14 @@ namespace Profiler
             payload.m_IndirectArgsOffset = buffer.m_Offset + sizeof( uint32_t );
             buffer.m_Offset += indirectPayloadSize;
 
-            IndirectArgumentBufferCopy& countCopy = m_IndirectArgumentBufferCopyList.emplace_back();
+            IndirectArgumentBufferCopy& countCopy = buffer.m_PendingCopyList.emplace_back();
             countCopy.m_SrcBuffer = payload.m_CountBuffer;
             countCopy.m_DstBuffer = buffer.m_Buffer;
             countCopy.m_Region.srcOffset = payload.m_CountOffset;
             countCopy.m_Region.dstOffset = payload.m_IndirectCountOffset;
             countCopy.m_Region.size = sizeof( uint32_t );
 
-            IndirectArgumentBufferCopy& argsCopy = m_IndirectArgumentBufferCopyList.emplace_back();
+            IndirectArgumentBufferCopy& argsCopy = buffer.m_PendingCopyList.emplace_back();
             argsCopy.m_SrcBuffer = payload.m_Buffer;
             argsCopy.m_DstBuffer = buffer.m_Buffer;
             argsCopy.m_Region.srcOffset = payload.m_Offset;
@@ -1660,7 +1676,7 @@ namespace Profiler
             payload.m_IndirectArgsOffset = buffer.m_Offset;
             buffer.m_Offset += indirectPayloadSize;
 
-            IndirectArgumentBufferCopy& copy = m_IndirectArgumentBufferCopyList.emplace_back();
+            IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
             copy.m_SrcBuffer = payload.m_Buffer;
             copy.m_DstBuffer = buffer.m_Buffer;
             copy.m_Region.srcOffset = payload.m_Offset;
@@ -1669,6 +1685,63 @@ namespace Profiler
 
             break;
         }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FlushIndirectArgumentCopyLists
+
+    Description:
+        Execute all pending indirect argument buffer copies.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::FlushIndirectArgumentCopyLists()
+    {
+        std::vector<VkBufferCopy> bufferCopyRegions;
+
+        for( IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
+        {
+            while( !indirectArgumentBuffer.m_PendingCopyList.empty() )
+            {
+                // Batch copies to the same buffer to save CPU cycles in the driver.
+                VkBuffer srcBuffer = VK_NULL_HANDLE;
+
+                auto firstCopy = indirectArgumentBuffer.m_PendingCopyList.begin();
+                auto lastCopy = indirectArgumentBuffer.m_PendingCopyList.end();
+                while( ( srcBuffer == VK_NULL_HANDLE ) && ( firstCopy != lastCopy ) )
+                {
+                    srcBuffer = ( firstCopy++ )->m_SrcBuffer;
+                }
+
+                if( srcBuffer == VK_NULL_HANDLE )
+                {
+                    // No more buffers to copy in this indirect argument buffer.
+                    indirectArgumentBuffer.m_PendingCopyList.clear();
+                    continue;
+                }
+
+                // Find all regions that copy from the same source buffer.
+                for( auto it = firstCopy - 1; it != lastCopy; ++it )
+                {
+                    if( it->m_SrcBuffer == srcBuffer )
+                    {
+                        bufferCopyRegions.push_back( it->m_Region );
+                        it->m_SrcBuffer = VK_NULL_HANDLE;
+                    }
+                }
+
+                // Execute the copy.
+                m_Profiler.m_pDevice->Callbacks.CmdCopyBuffer(
+                    m_CommandBuffer,
+                    srcBuffer,
+                    indirectArgumentBuffer.m_Buffer,
+                    static_cast<uint32_t>( bufferCopyRegions.size() ),
+                    bufferCopyRegions.data() );
+
+                bufferCopyRegions.clear();
+            }
         }
     }
 

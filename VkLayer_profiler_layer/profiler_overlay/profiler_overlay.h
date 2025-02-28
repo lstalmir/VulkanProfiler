@@ -151,6 +151,14 @@ namespace Profiler
         VkProfilerModeEXT m_SamplingMode;
         VkProfilerSyncModeEXT m_SyncMode;
 
+        // Frame browser state.
+        struct FrameBrowserContext
+        {
+            const DeviceProfilerCommandBufferData* pCommandBuffer;
+            const DeviceProfilerRenderPassData* pRenderPass;
+            const DeviceProfilerPipelineData* pPipeline;
+        };
+
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
         bool ScrollToSelectedFrameBrowserNode( const FrameBrowserTreeNodeIndex& index ) const;
@@ -285,10 +293,10 @@ namespace Profiler
 
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
-        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex& );
-        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool );
-        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex& );
-        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex& );
+        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
+        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool, const FrameBrowserContext& );
+        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
+        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         template<typename Data>

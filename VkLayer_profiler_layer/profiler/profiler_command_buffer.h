@@ -118,14 +118,6 @@ namespace Profiler
         DeviceProfilerPipeline              m_ComputePipeline;
         DeviceProfilerPipeline              m_RayTracingPipeline;
 
-        struct IndirectArgumentBuffer
-        {
-            VkBuffer                        m_Buffer;
-            VmaAllocation                   m_Allocation;
-            VmaAllocationInfo               m_AllocationInfo;
-            size_t                          m_Offset;
-        };
-
         struct IndirectArgumentBufferCopy
         {
             VkBuffer                        m_SrcBuffer;
@@ -133,8 +125,16 @@ namespace Profiler
             VkBufferCopy                    m_Region;
         };
 
+        struct IndirectArgumentBuffer
+        {
+            VkBuffer                        m_Buffer;
+            VmaAllocation                   m_Allocation;
+            VmaAllocationInfo               m_AllocationInfo;
+            size_t                          m_Offset;
+            std::vector<IndirectArgumentBufferCopy> m_PendingCopyList;
+        };
+
         std::list<IndirectArgumentBuffer>   m_IndirectArgumentBufferList;
-        std::list<IndirectArgumentBufferCopy> m_IndirectArgumentBufferCopyList;
 
         void PreBeginRenderPassCommonProlog();
         void PreBeginRenderPassCommonEpilog();
@@ -150,6 +150,7 @@ namespace Profiler
         void ResolveSubpassSecondaryCommandBufferData( DeviceProfilerQueryDataBufferReader, DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
 
         void SaveIndirectArgs( DeviceProfilerDrawcall& drawcall );
+        void FlushIndirectArgumentCopyLists();
 
         IndirectArgumentBuffer& AcquireIndirectArgumentBuffer( size_t size );
     };
