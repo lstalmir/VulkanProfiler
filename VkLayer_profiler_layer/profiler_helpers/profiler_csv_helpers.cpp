@@ -145,7 +145,13 @@ namespace Profiler
     {
         if( m_File.is_open() )
         {
-            m_File.close();
+            try
+            {
+                m_File.close();
+            }
+            catch( ... )
+            {
+            }
         }
     }
 
@@ -286,7 +292,13 @@ namespace Profiler
     {
         if( m_File.is_open() )
         {
-            m_File.close();
+            try
+            {
+                m_File.close();
+            }
+            catch( ... )
+            {
+            }
         }
     }
 

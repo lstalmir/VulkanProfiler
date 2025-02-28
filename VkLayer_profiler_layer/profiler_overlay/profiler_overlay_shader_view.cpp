@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,9 +19,10 @@
 // SOFTWARE.
 
 #include "profiler_overlay_shader_view.h"
-#include "profiler_overlay_fonts.h"
+#include "profiler_overlay_resources.h"
 #include "profiler/profiler_shader.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #include <string_view>
@@ -350,6 +351,46 @@ namespace
     /***********************************************************************************\
 
     Function:
+        TokenizeSpirvLanguageString
+
+    Description:
+        Tokenizes a string that is a part of a SPIR-V instruction.
+        Returns true if a string was found.
+
+        Borrowed from ImGuiTextEditor.
+
+    \***********************************************************************************/
+    static bool TokenizeSpirvLanguageString( const char* in_begin, const char* in_end, const char*& out_begin, const char*& out_end )
+    {
+        if( *in_begin == '"' )
+        {
+            const char* p = in_begin + 1;
+            while( p < in_end )
+            {
+                // handle end of string
+                if( *p == '"' )
+                {
+                    out_begin = in_begin;
+                    out_end = p + 1;
+                    return true;
+                }
+
+                // handle escape character for "
+                if( *p == '\\' && p + 1 < in_end && p[1] == '"' )
+                {
+                    p++;
+                }
+
+                p++;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetSpirvLanguageDefinition
 
     Description:
@@ -357,11 +398,14 @@ namespace
 
     \***********************************************************************************/
     static TextEditor::LanguageDefinition GetSpirvLanguageDefinition(
-        [[maybe_unused]] const Profiler::OverlayFonts& fonts,
+        [[maybe_unused]] const Profiler::OverlayResources& resources,
         [[maybe_unused]] bool& showSpirvDocs )
     {
         static bool initialized = false;
         static TextEditor::LanguageDefinition languageDefinition;
+
+        // Precompiled regexes for tokenizing the SPIR-V language.
+        static std::vector<std::pair<std::regex, TextEditor::PaletteIndex>> tokenRegexStrings;
 
         if( !initialized )
         {
@@ -369,15 +413,69 @@ namespace
             languageDefinition.mName = "SPIR-V";
 
             // Tokenizer.
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "L?\\\"(\\\\.|[^\\\"])*\\\"", TextEditor::PaletteIndex::String ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "\\'\\\\?[^\\']\\'", TextEditor::PaletteIndex::CharLiteral ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "Op[a-zA-Z0-9]+", TextEditor::PaletteIndex::Keyword ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[a-zA-Z_%][a-zA-Z0-9_]*", TextEditor::PaletteIndex::Identifier ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?[0-9]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[0-7]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]", TextEditor::PaletteIndex::Punctuation ) );
+            languageDefinition.mTokenize = []( const char* in_begin, const char* in_end, const char*& out_begin, const char*& out_end, TextEditor::PaletteIndex& paletteIndex ) -> bool {
+                std::cmatch results;
+
+                while( in_begin < in_end && isascii( *in_begin ) && isblank( *in_begin ) )
+                {
+                    in_begin++;
+                }
+
+                if( in_begin == in_end )
+                {
+                    out_begin = in_end;
+                    out_end = in_end;
+                    paletteIndex = TextEditor::PaletteIndex::Default;
+                    return true;
+                }
+
+                // Tokenize strings using a function to avoid stack overflow on Windows.
+                // https://developercommunity.visualstudio.com/t/grouping-within-repetition-causes-regex-stack-erro/885115
+                if( TokenizeSpirvLanguageString( in_begin, in_end, out_begin, out_end ) )
+                {
+                    paletteIndex = TextEditor::PaletteIndex::String;
+                    return true;
+                }
+
+                try
+                {
+                    // Handle other tokens with regex.
+                    for( const auto& [tokenRegex, index] : tokenRegexStrings )
+                    {
+                        if( std::regex_search( in_begin, in_end, results, tokenRegex, std::regex_constants::match_continuous ) )
+                        {
+                            auto& v = *results.begin();
+                            out_begin = v.first;
+                            out_end = v.second;
+                            paletteIndex = index;
+                            return true;
+                        }
+                    }
+                }
+                catch( const std::regex_error& )
+                {
+                    // Tokenization by regex failed, jump to the next word.
+                    while( in_begin < in_end && isascii( *in_begin ) && !isblank( *in_begin ) )
+                    {
+                        in_begin++;
+                    }
+
+                    out_begin = in_begin;
+                    out_end = in_end;
+                }
+
+                paletteIndex = TextEditor::PaletteIndex::Max;
+                return false;
+            };
+
+            tokenRegexStrings.push_back( std::pair( std::regex( "\\'\\\\?[^\\']\\'" ), TextEditor::PaletteIndex::CharLiteral ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "Op[a-zA-Z0-9]+" ), TextEditor::PaletteIndex::Keyword ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[a-zA-Z_%][a-zA-Z0-9_]*" ), TextEditor::PaletteIndex::Identifier ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[+-]?[0-9]+[Uu]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "0[0-7]+[Uu]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]" ), TextEditor::PaletteIndex::Punctuation ) );
 
             // Comments.
             languageDefinition.mSingleLineComment = ";";
@@ -391,7 +489,7 @@ namespace
 
 #if PROFILER_BUILD_SPIRV_DOCS
         // Documentation.
-        languageDefinition.mTooltip = [fonts, &showSpirvDocs]( const char* identifier )
+        languageDefinition.mTooltip = [&resources, &showSpirvDocs]( const char* identifier )
             {
                 if( !showSpirvDocs )
                 {
@@ -416,7 +514,7 @@ namespace
                     ImGui::BeginTooltip();
 
                     // Opcode name.
-                    ImGui::PushFont( fonts.GetBoldFont() );
+                    ImGui::PushFont( resources.GetBoldFont() );
                     ImGui::TextUnformatted( pDesc->m_pName );
                     ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
                     ImGui::PopFont();
@@ -428,22 +526,25 @@ namespace
                         pDoc = "No documentation available for this instruction.";
                     }
 
-                    ImGui::PushFont( fonts.GetDefaultFont() );
+                    ImGui::PushFont( resources.GetDefaultFont() );
                     ImGui::TextWrapped( "%s", pDoc );
 
                     // Operands.
                     if( pDesc->m_OperandsCount )
                     {
                         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 10 );
-
                         ImGui::PushStyleColor( ImGuiCol_TableRowBg, { 1.0f, 1.0f, 1.0f, 0.025f } );
-                        ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg );
-                        for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+
+                        if( ImGui::BeginTable( "##SpvTooltipTable", pDesc->m_OperandsCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg ) )
                         {
-                            ImGui::TableNextColumn();
-                            ImGui::TextUnformatted( pDesc->m_pOperands[ i ] );
+                            for( uint32_t i = 0; i < pDesc->m_OperandsCount; ++i )
+                            {
+                                ImGui::TableNextColumn();
+                                ImGui::TextUnformatted( pDesc->m_pOperands[ i ] );
+                            }
+                            ImGui::EndTable();
                         }
-                        ImGui::EndTable();
+
                         ImGui::PopStyleColor();
                     }
 
@@ -497,14 +598,16 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    OverlayShaderView::OverlayShaderView( const OverlayFonts& fonts )
-        : m_Fonts( fonts )
+    OverlayShaderView::OverlayShaderView( const OverlayResources& resources )
+        : m_Resources( resources )
         , m_pTextEditor( nullptr )
         , m_ShaderName( "shader" )
         , m_EntryPointName( "main" )
+        , m_ShaderIdentifier()
         , m_pShaderRepresentations( 0 )
         , m_SpvTargetEnv( SPV_ENV_UNIVERSAL_1_0 )
         , m_ShowSpirvDocs( PROFILER_BUILD_SPIRV_DOCS )
+        , m_ShowFullShaderIdentifier( false )
         , m_CurrentTabIndex( -1 )
         , m_DefaultWindowBgColor( 0 )
         , m_DefaultTitleBgColor( 0 )
@@ -556,33 +659,35 @@ namespace Profiler
         Selects the SPIR-V target env used for disassembling the shaders.
 
     \***********************************************************************************/
-    void OverlayShaderView::SetTargetDevice( VkDevice_Object* pDevice )
+    void OverlayShaderView::Initialize( DeviceProfilerFrontend& frontend )
     {
         m_SpvTargetEnv = SPV_ENV_UNIVERSAL_1_0;
 
-        if( pDevice )
+        // Select the target env based on the api version used by the application.
+        switch( frontend.GetApplicationInfo().apiVersion )
         {
-            // Select the target env based on the api version used by the application.
-            switch( pDevice->pInstance->ApplicationInfo.apiVersion )
-            {
-            case VK_API_VERSION_1_0:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
-                break;
+        default:
+        case VK_API_VERSION_1_0:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
+            break;
 
-            case VK_API_VERSION_1_1:
-                m_SpvTargetEnv = pDevice->EnabledExtensions.count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
-                    ? SPV_ENV_VULKAN_1_1_SPIRV_1_4
-                    : SPV_ENV_VULKAN_1_1;
-                break;
+        case VK_API_VERSION_1_1:
+            m_SpvTargetEnv = frontend.GetEnabledDeviceExtensions().count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
+                ? SPV_ENV_VULKAN_1_1_SPIRV_1_4
+                : SPV_ENV_VULKAN_1_1;
+            break;
 
-            case VK_API_VERSION_1_2:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_2;
-                break;
+        case VK_API_VERSION_1_2:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_2;
+            break;
 
-            case VK_API_VERSION_1_3:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
-                break;
-            }
+        case VK_API_VERSION_1_3:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
+            break;
+
+        case VK_API_VERSION_1_4:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_4;
+            break;
         }
     }
 
@@ -619,6 +724,36 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetShaderIdentifier
+
+    Description:
+        Sets the shader identifier used to identify the shader module.
+
+    \***********************************************************************************/
+    void OverlayShaderView::SetShaderIdentifier( uint32_t identifierSize, const uint8_t* pIdentifier )
+    {
+        static constexpr char hexDigits[] = "0123456789abcdef";
+
+        m_ShaderIdentifier.clear();
+        m_ShaderIdentifier.reserve( identifierSize * 3 );
+
+        // Convert from the end to keep the little-endian order.
+        for( uint32_t i = identifierSize; i > 0; --i )
+        {
+            m_ShaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] >> 4] );
+            m_ShaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] & 0xF] );
+            
+            if( (i != 1) && ((i - 1) % 8) == 0 )
+            {
+                // Insert a dash separator every 8 bytes for better readability.
+                m_ShaderIdentifier.push_back( '-' );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Clear
 
     Description:
@@ -641,7 +776,10 @@ namespace Profiler
         }
 
         m_ShaderName = "shader";
+        m_EntryPointName = "main";
+        m_ShaderIdentifier.clear();
         m_pShaderRepresentations.clear();
+        m_ShowFullShaderIdentifier = false;
 
         // Reset current tab index.
         m_CurrentTabIndex = -1;
@@ -957,11 +1095,8 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayShaderView::Draw()
     {
-        ImGui::PushFont( m_Fonts.GetDefaultFont() );
+        ImGui::PushFont( m_Resources.GetDefaultFont() );
         ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, 0.0f );
-
-        [[maybe_unused]]
-        ImVec2 cp = ImGui::GetCursorPos();
 
         if( ImGui::BeginTabBar( "ShaderRepresentations", ImGuiTabBarFlags_None ) )
         {
@@ -1035,7 +1170,7 @@ namespace Profiler
                     switch( shaderRepresentationFormat )
                     {
                     case ShaderFormat::eSpirv:
-                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Fonts, m_ShowSpirvDocs ) );
+                        m_pTextEditor->SetLanguageDefinition( GetSpirvLanguageDefinition( m_Resources, m_ShowSpirvDocs ) );
                         break;
                     case ShaderFormat::eGlsl:
                         m_pTextEditor->SetLanguageDefinition( TextEditor::LanguageDefinition::GLSL() );
@@ -1072,14 +1207,132 @@ namespace Profiler
                 ImGui::Checkbox( "Show SPIR-V documentation", &m_ShowSpirvDocs );
             }
 #endif
+            if( !m_ShaderIdentifier.empty() )
+            {
+                DrawShaderIdentifier();
+            }
 
             // Print shader representation data.
-            ImGui::PushFont( m_Fonts.GetCodeFont() );
+            ImGui::PushFont( m_Resources.GetCodeFont() );
 
             m_pTextEditor->Render( "##ShaderRepresentationTextEdit" );
 
             ImGui::PopFont();
             ImGui::EndTabItem();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawShaderIdentifier
+
+    Description:
+        Draws a shader module identifier at the end of the current line.
+
+    \***********************************************************************************/
+    void OverlayShaderView::DrawShaderIdentifier()
+    {
+        // Allow short version for longer identifiers.
+        const size_t longShaderIdentifierLength = 16;
+        const bool isLongShaderIdentifier = ( m_ShaderIdentifier.length() > longShaderIdentifierLength );
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
+        const float copyButtonWidth = iconSize.x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+        float expandButtonWidth = 0.f;
+        float ellipsisWidth = 0.f;
+        float availableWidth = ImGui::GetContentRegionAvail().x;
+
+        // Elide the shader identifier from the beginning if it doesn't fit the available width.
+        const char* pElidedShaderIdentifier = m_ShaderIdentifier.c_str();
+        const char* pShaderIdentifierFormat = "%s";
+
+        if( isLongShaderIdentifier )
+        {
+            if( !m_ShowFullShaderIdentifier )
+            {
+                pElidedShaderIdentifier += ( m_ShaderIdentifier.length() - longShaderIdentifierLength );
+            }
+
+            expandButtonWidth = ImGui::CalcTextSize( "<" ).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+            availableWidth -= expandButtonWidth;
+        }
+
+        float elidedShaderIdentifierWidth = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
+
+        // Move the cursor back to the previous line to get the remaining available width.
+        // Insert a dummy item so the cursor remains at the next line.
+        ImGui::SameLine();
+        availableWidth -= ( ImGui::GetCursorPosX() + copyButtonWidth );
+
+        ImGui::Dummy( { 0.f, 0.f } );
+
+        if( elidedShaderIdentifierWidth > availableWidth )
+        {
+            ellipsisWidth = ImGui::CalcTextSize( "..." ).x;
+            pShaderIdentifierFormat = "...%s";
+            pElidedShaderIdentifier++;
+
+            while( *pElidedShaderIdentifier && ( elidedShaderIdentifierWidth + ellipsisWidth ) > availableWidth )
+            {
+                pElidedShaderIdentifier++;
+                elidedShaderIdentifierWidth = ImGui::CalcTextSize( pElidedShaderIdentifier ).x;
+            }
+        }
+
+        if( *pElidedShaderIdentifier )
+        {
+            const float totalWidth =
+                elidedShaderIdentifierWidth +
+                ellipsisWidth +
+                copyButtonWidth +
+                expandButtonWidth;
+
+            ImGui::SameLine( ImGui::GetContentRegionAvail().x - totalWidth );
+
+            // Expander for longer identifiers.
+            if( isLongShaderIdentifier )
+            {
+                if( ImGui::TextLink( m_ShowFullShaderIdentifier ? ">" : "<" ) )
+                {
+                    m_ShowFullShaderIdentifier = !m_ShowFullShaderIdentifier;
+                }
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip(
+                        m_ShowFullShaderIdentifier
+                            ? "Show short shader module identifier"
+                            : "Show full shader module identifier" );
+                }
+                ImGui::SameLine();
+            }
+
+            // Shader module identifier.
+            ImGui::PushID( "ShaderIdentifier" );
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 192, 192, 192, 255 ) );
+            ImGui::Text( pShaderIdentifierFormat, pElidedShaderIdentifier );
+            ImGui::PopStyleColor();
+            ImGui::PopID();
+
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Shader module identifier" );
+            }
+
+            // Copy button.
+            ImGui::SameLine();
+            ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 0, 0, 0, 0 ) );
+            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 2.f * interfaceScale );
+            if( ImGui::ImageButton( "##CopyShaderIdentifier", m_Resources.GetCopyIconImage(), iconSize ) )
+            {
+                ImGui::SetClipboardText( m_ShaderIdentifier.c_str() );
+            }
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::SetTooltip( "Copy to clipboard" );
+            }
+            ImGui::PopStyleColor();
         }
     }
 
@@ -1234,7 +1487,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayShaderView::SetShaderSavedCallback( ShaderSavedCallback callback )
     {
-        m_ShaderSavedCallback = callback;
+        m_ShaderSavedCallback = std::move( callback );
     }
 
     /***********************************************************************************\

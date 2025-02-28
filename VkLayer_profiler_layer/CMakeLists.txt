@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 find_package (Python3 REQUIRED)
 
@@ -35,9 +35,12 @@ set (PROFILER_LAYER_FILEDESCRIPTION "Simple Vulkan(R) Profiling Layer")
 set (PROFILER_LAYER_LEGALCOPYRIGHT )
 set (PROFILER_LAYER_PRODUCTNAME "Vulkan(R) Profiling Layer")
 
+# Common directories
+set (PROFILER_SCRIPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
+
 # Generate version info
 execute_process (
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_version.py" "${CMAKE_BINARY_DIR}/profiler_version.cmake"
+    COMMAND "${Python3_EXECUTABLE}" "${PROFILER_SCRIPTS_DIR}/gen_version.py" "${CMAKE_BINARY_DIR}/profiler_version.cmake"
     RESULT_VARIABLE PROFILER_GEN_VERSION_INFO_RESULT)
 
 if (PROFILER_GEN_VERSION_INFO_RESULT STREQUAL "0")
@@ -95,22 +98,22 @@ file (GENERATE
 add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py"
+        "${PROFILER_SCRIPTS_DIR}/gen_config.py"
         "${json}"
         --output "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     DEPENDS "${json}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py")
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_config.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h")
 
 # Generate dispatch tables
 add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
     COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py"
+        "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
         "${VULKAN_HEADERS_INSTALL_DIR}"
         "${CMAKE_CURRENT_BINARY_DIR}"
     DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py")
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
 if (BUILD_SPIRV_DOCS)
@@ -119,7 +122,7 @@ if (BUILD_SPIRV_DOCS)
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h"
             "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
         COMMAND "${Python3_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py"
+            "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py"
             --json "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json"
             --grammar "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
             --spec "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
@@ -128,7 +131,7 @@ if (BUILD_SPIRV_DOCS)
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json"
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
-        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py")
+        DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py")
     list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h")
 endif ()
 
@@ -211,6 +214,8 @@ set (core_functions
 set (extension_functions
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.h"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.cpp"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.cpp"
@@ -257,6 +262,8 @@ set (extension_functions
     )
 
 set (objects
+    "profiler_layer_objects/profiler_layer_frontend.cpp"
+    "profiler_layer_objects/profiler_layer_frontend.h"
     "profiler_layer_objects/VkDevice_object.h"
     "profiler_layer_objects/VkInstance_object.h"
     "profiler_layer_objects/VkObject.h"

@@ -40,8 +40,6 @@ namespace Profiler
     DeviceProfilerMemoryManager::DeviceProfilerMemoryManager()
         : m_pDevice( nullptr )
         , m_Allocator( VK_NULL_HANDLE )
-        , m_AllocationMutex()
-        , m_BufferAllocations()
     {
     }
 
@@ -101,14 +99,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerMemoryManager::Destroy()
     {
-        // Free all device memory allocations.
-        std::scoped_lock lk( m_AllocationMutex );
-
-        for( auto [buffer, allocation] : m_BufferAllocations )
-        {
-            vmaDestroyBuffer( m_Allocator, buffer, allocation );
-        }
-
         // Destroy the allocator.
         vmaDestroyAllocator( m_Allocator );
 
@@ -133,7 +123,6 @@ namespace Profiler
         VmaAllocation* pAllocation,
         VmaAllocationInfo* pAllocationInfo )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         return vmaCreateBuffer( m_Allocator,
             &bufferCreateInfo,
             &allocationCreateInfo,
@@ -155,7 +144,82 @@ namespace Profiler
         VkBuffer buffer,
         VmaAllocation allocation )
     {
-        std::scoped_lock lk( m_AllocationMutex );
         vmaDestroyBuffer( m_Allocator, buffer, allocation );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AllocateImage
+
+    Description:
+        Creates an image object and automaticall binds memory to it.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerMemoryManager::AllocateImage(
+        const VkImageCreateInfo& imageCreateInfo,
+        const VmaAllocationCreateInfo& allocationCreateInfo,
+        VkImage* pImage,
+        VmaAllocation* pAllocation,
+        VmaAllocationInfo* pAllocationInfo )
+    {
+        return vmaCreateImage( m_Allocator,
+            &imageCreateInfo,
+            &allocationCreateInfo,
+            pImage,
+            pAllocation,
+            pAllocationInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeImage
+
+    Description:
+        Destroys the buffer and frees its memory.
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryManager::FreeImage(
+        VkImage image,
+        VmaAllocation allocation )
+    {
+        vmaDestroyImage( m_Allocator, image, allocation );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Flush
+
+    Description:
+        Flushes the memory of the allocation to make it visible to the device.
+        Has effect only if the memory type used for the allocation is not HOST_COHERENT.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerMemoryManager::Flush(
+        VmaAllocation allocation,
+        VkDeviceSize offset,
+        VkDeviceSize size )
+    {
+        return vmaFlushAllocation( m_Allocator, allocation, offset, size );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Invalidate
+
+    Description:
+        Invalidates the memory of the allocation to make it visible to the host.
+        Has effect only if the memory type used for the allocation is not HOST_COHERENT.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerMemoryManager::Invalidate(
+        VmaAllocation allocation,
+        VkDeviceSize offset,
+        VkDeviceSize size )
+    {
+        return vmaInvalidateAllocation( m_Allocator, allocation, offset, size );
     }
 }

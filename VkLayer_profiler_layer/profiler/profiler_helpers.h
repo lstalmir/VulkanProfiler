@@ -452,7 +452,7 @@ namespace Profiler
             if( std::filesystem::exists( directory ) )
             {
                 // Enumerate all files in the directory
-                for( auto directoryEntry : std::filesystem::directory_iterator( directory ) )
+                for( const auto& directoryEntry : std::filesystem::directory_iterator( directory ) )
                 {
                     if( directoryEntry.path().filename() == filename )
                     {

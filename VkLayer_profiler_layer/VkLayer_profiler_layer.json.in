@@ -106,6 +106,14 @@
                     "default": true
                 },
                 {
+                    "key": "enable_threading",
+                    "label": "Enable threading",
+                    "description": "Create a background thread to collect and process the data.",
+                    "env": "VKPROF_enable_threading",
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
                     "key": "sampling_mode",
                     "label": "Sampling mode",
                     "description": "Level of timestamp data collection.",

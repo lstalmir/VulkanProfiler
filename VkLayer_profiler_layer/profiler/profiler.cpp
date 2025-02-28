@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -151,11 +151,11 @@ namespace Profiler
         , m_pData( nullptr )
         , m_MemoryManager()
         , m_DataAggregator()
-        , m_CurrentFrame( 0 )
+        , m_NextFrameIndex( 0 )
         , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
-        , m_Allocations()
+        , m_MemoryTracker()
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_SubmitFence( VK_NULL_HANDLE )
@@ -177,10 +177,9 @@ namespace Profiler
     std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo )
     {
         std::unordered_set<std::string> deviceExtensions = {
-            VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
             VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME
+            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
+            VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME
         };
 
         // Load configuration that will be used by the profiler.
@@ -263,7 +262,7 @@ namespace Profiler
     VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice, const VkProfilerCreateInfoEXT* pCreateInfo )
     {
         m_pDevice = pDevice;
-        m_CurrentFrame = 0;
+        m_NextFrameIndex = 0;
 
         // Configure the profiler.
         DeviceProfiler::LoadConfiguration( pDevice->pInstance->LayerSettings, pCreateInfo, &m_Config );
@@ -288,8 +287,7 @@ namespace Profiler
             m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence ) );
 
         // Prepare for memory usage tracking
-        m_MemoryData.m_Heaps.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeapCount );
-        m_MemoryData.m_Types.resize( m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypeCount );
+        m_MemoryTracker.Initialize( m_pDevice );
 
         // Enable vendor-specific extensions
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
@@ -492,7 +490,7 @@ namespace Profiler
         m_pCommandBuffers.clear();
         m_pCommandPools.clear();
 
-        m_Allocations.clear();
+        m_MemoryTracker.Destroy();
 
         m_Synchronization.Destroy();
         m_MemoryManager.Destroy();
@@ -510,7 +508,7 @@ namespace Profiler
             ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
         }
 
-        m_CurrentFrame = 0;
+        m_NextFrameIndex = 0;
         m_pDevice = nullptr;
     }
 
@@ -790,7 +788,7 @@ namespace Profiler
             const VkGraphicsPipelineCreateInfo& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline );
 
             profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
 
@@ -819,7 +817,7 @@ namespace Profiler
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
             
             SetPipelineShaderProperties( profilerPipeline, 1, &pCreateInfos[i].stage );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -834,7 +832,7 @@ namespace Profiler
         Register ray-tracing pipelines.
 
     \***********************************************************************************/
-    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines )
+    void DeviceProfiler::CreatePipelines( uint32_t pipelineCount, const VkRayTracingPipelineCreateInfoKHR* pCreateInfos, VkPipeline* pPipelines, bool deferred )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -848,7 +846,7 @@ namespace Profiler
             const VkRayTracingPipelineCreateInfoKHR& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultObjectName( profilerPipeline );
+            SetDefaultPipelineName( profilerPipeline, deferred );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -881,10 +879,22 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
+        shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
+
+        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+            m_pDevice->Callbacks.GetShaderModuleIdentifierEXT )
+        {
+            // Get shader module identifier.
+            m_pDevice->Callbacks.GetShaderModuleIdentifierEXT( m_pDevice->Handle, module, &shaderModuleIdentifier );
+        }
+
         m_pShaderModules.insert( module,
             std::make_shared<ProfilerShaderModule>(
                 pCreateInfo->pCode,
-                pCreateInfo->codeSize ) );
+                pCreateInfo->codeSize,
+                shaderModuleIdentifier.identifier,
+                shaderModuleIdentifier.identifierSize ) );
     }
 
     /***********************************************************************************\
@@ -921,10 +931,30 @@ namespace Profiler
 
         if( pCreateInfo->codeType == VK_SHADER_CODE_TYPE_SPIRV_EXT )
         {
+            VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
+            shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
+
+            if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+                m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+            {
+                // Get shader module identifier from a temporary shader module info structure based on the provided shader.
+                VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
+                shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+                shaderModuleCreateInfo.codeSize = pCreateInfo->codeSize;
+                shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>( pCreateInfo->pCode );
+
+                m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT(
+                    m_pDevice->Handle,
+                    &shaderModuleCreateInfo,
+                    &shaderModuleIdentifier );
+            }
+
             // Create a shader module for the shader.
             shader.m_pShaderModule = std::make_shared<ProfilerShaderModule>(
                 reinterpret_cast<const uint32_t*>( pCreateInfo->pCode ),
-                pCreateInfo->codeSize );
+                pCreateInfo->codeSize,
+                shaderModuleIdentifier.identifier,
+                shaderModuleIdentifier.identifierSize );
 
             shader.m_Hash = shader.m_pShaderModule->m_Hash;
         }
@@ -1220,9 +1250,9 @@ namespace Profiler
         std::scoped_lock lk( m_PresentMutex );
 
         // Update FPS counter
-        const bool updatePerfCounters = m_CpuFpsCounter.Update();
+        m_CpuFpsCounter.Update();
 
-        m_CurrentFrame++;
+        BeginNextFrame();
 
         if( !m_DataAggregator.IsDataCollectionThreadRunning() )
         {
@@ -1237,17 +1267,15 @@ namespace Profiler
         // Check if new data is available
         if( pData != m_pData )
         {
-            m_pData = pData;
+            m_pData = std::move( pData );
 
-            // TODO: Move to memory tracker
-            m_pData->m_Memory = m_MemoryData;
+            // Collect memory data
+            m_pData->m_Memory = m_MemoryTracker.GetMemoryData();
 
             // Return TIP data
             m_pDevice->TIP.EndFunction( tip );
             m_pData->m_TIP = m_pDevice->TIP.GetData();
         }
-
-        BeginNextFrame();
     }
 
     /***********************************************************************************\
@@ -1265,7 +1293,7 @@ namespace Profiler
 
         // Prepare aggregator for the next frame.
         DeviceProfilerFrame frame = {};
-        frame.m_FrameIndex = m_CurrentFrame;
+        frame.m_FrameIndex = m_NextFrameIndex++;
         frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
         frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
         frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
@@ -1277,69 +1305,105 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Destroy
+        AllocateMemory
 
     Description:
 
     \***********************************************************************************/
     void DeviceProfiler::AllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        std::scoped_lock lk( m_Allocations );
-
-        // Insert allocation info to the map, it will be needed during deallocation.
-        m_Allocations.unsafe_insert( allocatedMemory, *pAllocateInfo );
-
-        const VkMemoryType& memoryType =
-            m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ pAllocateInfo->memoryTypeIndex ];
-
-        auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
-        heap.m_AllocationCount++;
-        heap.m_AllocationSize += pAllocateInfo->allocationSize;
-
-        auto& type = m_MemoryData.m_Types[ pAllocateInfo->memoryTypeIndex ];
-        type.m_AllocationCount++;
-        type.m_AllocationSize += pAllocateInfo->allocationSize;
-
-        m_MemoryData.m_TotalAllocationCount++;
-        m_MemoryData.m_TotalAllocationSize += pAllocateInfo->allocationSize;
+        m_MemoryTracker.RegisterAllocation( allocatedMemory, pAllocateInfo );
     }
 
     /***********************************************************************************\
 
     Function:
-        Destroy
+        FreeMemory
 
     Description:
 
     \***********************************************************************************/
     void DeviceProfiler::FreeMemory( VkDeviceMemory allocatedMemory )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
+        m_MemoryTracker.UnregisterAllocation( allocatedMemory );
+    }
 
-        std::scoped_lock lk( m_Allocations );
+    /***********************************************************************************\
 
-        auto it = m_Allocations.unsafe_find( allocatedMemory );
-        if( it != m_Allocations.end() )
-        {
-            const VkMemoryType& memoryType =
-                m_pDevice->pPhysicalDevice->MemoryProperties.memoryTypes[ it->second.memoryTypeIndex ];
+    Function:
+        CreateBuffer
 
-            auto& heap = m_MemoryData.m_Heaps[ memoryType.heapIndex ];
-            heap.m_AllocationCount--;
-            heap.m_AllocationSize -= it->second.allocationSize;
+    Description:
 
-            auto& type = m_MemoryData.m_Types[ it->second.memoryTypeIndex ];
-            type.m_AllocationCount--;
-            type.m_AllocationSize -= it->second.allocationSize;
+    \***********************************************************************************/
+    void DeviceProfiler::CreateBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo )
+    {
+        m_MemoryTracker.RegisterBuffer( buffer, pCreateInfo );
+    }
 
-            m_MemoryData.m_TotalAllocationCount--;
-            m_MemoryData.m_TotalAllocationSize -= it->second.allocationSize;
+    /***********************************************************************************\
 
-            // Remove allocation entry from the map
-            m_Allocations.unsafe_remove( it );
-        }
+    Function:
+        DestroyBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyBuffer( VkBuffer buffer )
+    {
+        m_MemoryTracker.UnregisterBuffer( buffer );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset )
+    {
+        m_MemoryTracker.BindBufferMemory( buffer, memory, offset );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateImage
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateImage( VkImage image, const VkImageCreateInfo* pCreateInfo )
+    {
+        m_MemoryTracker.RegisterImage( image, pCreateInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImage
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyImage( VkImage image )
+    {
+        m_MemoryTracker.UnregisterImage( image );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
+    {
+        m_MemoryTracker.BindImageMemory( image, memory, offset );
     }
 
     /***********************************************************************************\
@@ -1373,6 +1437,14 @@ namespace Profiler
             if( result == VK_SUCCESS && pipelineExecutablesCount > 0 )
             {
                 pipelineExecutables.resize( pipelineExecutablesCount );
+                memset( pipelineExecutables.data(), 0,
+                    sizeof( VkPipelineExecutablePropertiesKHR ) * pipelineExecutablesCount );
+
+                for( uint32_t i = 0; i < pipelineExecutablesCount; ++i )
+                {
+                    pipelineExecutables[ i ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_PROPERTIES_KHR;
+                }
+
                 m_pDevice->Callbacks.GetPipelineExecutablePropertiesKHR(
                     m_pDevice->Handle,
                     &pipelineInfo,
@@ -1406,6 +1478,14 @@ namespace Profiler
                 if( result == VK_SUCCESS && executableStatisticsCount > 0 )
                 {
                     executableStatistics.resize( executableStatisticsCount );
+                    memset( executableStatistics.data(), 0,
+                        sizeof( VkPipelineExecutableStatisticKHR ) * executableStatisticsCount );
+
+                    for( uint32_t j = 0; j < executableStatisticsCount; ++j )
+                    {
+                        executableStatistics[ j ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_STATISTIC_KHR;
+                    }
+
                     result = m_pDevice->Callbacks.GetPipelineExecutableStatisticsKHR(
                         m_pDevice->Handle,
                         &executableInfo,
@@ -1431,6 +1511,14 @@ namespace Profiler
                 if( result == VK_SUCCESS && executableInternalRepresentationsCount > 0 )
                 {
                     executableInternalRepresentations.resize( executableInternalRepresentationsCount );
+                    memset( executableInternalRepresentations.data(), 0,
+                        sizeof( VkPipelineExecutableInternalRepresentationKHR ) * executableInternalRepresentationsCount );
+
+                    for( uint32_t j = 0; j < executableInternalRepresentationsCount; ++j )
+                    {
+                        executableInternalRepresentations[ j ].sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INTERNAL_REPRESENTATION_KHR;
+                    }
+
                     result = m_pDevice->Callbacks.GetPipelineExecutableInternalRepresentationsKHR(
                         m_pDevice->Handle,
                         &executableInfo,
@@ -1469,15 +1557,67 @@ namespace Profiler
 
         for( uint32_t i = 0; i < stageCount; ++i )
         {
-            // VkShaderModule entry should already be in the map
-            std::shared_ptr<ProfilerShaderModule> sm = m_pShaderModules.at( pStages[ i ].module );
+            std::shared_ptr<ProfilerShaderModule> pShaderModule = nullptr;
+
+            // If module is VK_NULL_HANDLE, either the pNext chain contains a VkShaderModuleCreateInfo, or an identifier is provided.
+            // In the latter case the bytecode may not be available if it is cached.
+            if( pStages[i].module == VK_NULL_HANDLE )
+            {
+                for( const auto& it : PNextIterator( pStages[i].pNext ) )
+                {
+                    if( it.sType == VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO )
+                    {
+                        const VkShaderModuleCreateInfo& shaderModuleCreateInfo =
+                            reinterpret_cast<const VkShaderModuleCreateInfo&>( it );
+
+                        // Get shader identifier from the shader module create info.
+                        VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
+                        shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
+
+                        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+                            m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+                        {
+                            m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT(
+                                m_pDevice->Handle,
+                                &shaderModuleCreateInfo,
+                                &shaderModuleIdentifier );
+                        }
+
+                        // Create shader object from the provided bytecode.
+                        pShaderModule = std::make_shared<ProfilerShaderModule>(
+                            reinterpret_cast<const uint32_t*>( shaderModuleCreateInfo.pCode ),
+                            shaderModuleCreateInfo.codeSize,
+                            shaderModuleIdentifier.identifier,
+                            shaderModuleIdentifier.identifierSize );
+
+                        break;
+                    }
+
+                    if( it.sType == VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_MODULE_IDENTIFIER_CREATE_INFO_EXT )
+                    {
+                        const VkPipelineShaderStageModuleIdentifierCreateInfoEXT& moduleIdentifierCreateInfo =
+                            reinterpret_cast<const VkPipelineShaderStageModuleIdentifierCreateInfoEXT&>( it );
+
+                        // Construct a shader module with no bytecode.
+                        pShaderModule = std::make_shared<ProfilerShaderModule>(
+                            nullptr, 0,
+                            moduleIdentifierCreateInfo.pIdentifier,
+                            moduleIdentifierCreateInfo.identifierSize );
+                    }
+                }
+            }
+            else
+            {
+                // VkShaderModule entry should already be in the map.
+                pShaderModule = m_pShaderModules.at( pStages[i].module );
+            }
 
             ProfilerShader& shader = pipeline.m_ShaderTuple.m_Shaders[ i ];
-            shader.m_Hash = sm->m_Hash;
+            shader.m_Hash = pShaderModule ? pShaderModule->m_Hash : 0;
             shader.m_Index = i;
             shader.m_Stage = pStages[ i ].stage;
             shader.m_EntryPoint = pStages[ i ].pName;
-            shader.m_pShaderModule = sm;
+            shader.m_pShaderModule = std::move( pShaderModule );
 
             // Hash the entrypoint and append it to the final hash
             shader.m_Hash ^= Farmhash::Fingerprint32( shader.m_EntryPoint.data(), shader.m_EntryPoint.length() );
@@ -1500,7 +1640,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        m_pDevice->Debug.ObjectNames.insert( object, pName );
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pName );
     }
 
     /***********************************************************************************\
@@ -1520,12 +1660,13 @@ namespace Profiler
         if( object.m_Type == VK_OBJECT_TYPE_PIPELINE )
         {
             SetDefaultObjectName( VkObject_Traits<VkPipeline>::GetObjectHandleAsVulkanHandle( object.m_Handle ) );
+            return;
         }
 
         char pObjectDebugName[ 64 ] = {};
         ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
 
-        m_pDevice->Debug.ObjectNames.insert( object, pObjectDebugName );
+        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pObjectDebugName );
     }
 
     /***********************************************************************************\
@@ -1539,50 +1680,60 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::SetDefaultObjectName( VkPipeline object )
     {
-        SetDefaultObjectName( GetPipeline( object ) );
+        SetDefaultPipelineName( GetPipeline( object ) );
     }
 
     /***********************************************************************************\
 
     Function:
-        SetDefaultObjectName
+        SetDefaultPipelineName
 
     Description:
         Set default pipeline name consisting of shader tuple hashes.
 
     \***********************************************************************************/
-    void DeviceProfiler::SetDefaultObjectName( const DeviceProfilerPipeline& pipeline )
+    void DeviceProfiler::SetDefaultPipelineName( const DeviceProfilerPipeline& pipeline, bool deferred )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        std::string pipelineName;
+
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_VERTEX_BIT |
-                    VK_SHADER_STAGE_TASK_BIT_EXT |
-                    VK_SHADER_STAGE_MESH_BIT_EXT |
-                    VK_SHADER_STAGE_FRAGMENT_BIT,
-                    true /*skipEmptyStages*/ ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_VERTEX_BIT |
+                VK_SHADER_STAGE_TASK_BIT_EXT |
+                VK_SHADER_STAGE_MESH_BIT_EXT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                true /*skipEmptyStages*/ );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_COMPUTE_BIT ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_COMPUTE_BIT );
         }
 
         if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
         {
-            m_pDevice->Debug.ObjectNames.insert(
-                pipeline.m_Handle,
-                pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_RAYGEN_BIT_KHR |
-                    VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
-                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR ) );
+            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR );
+        }
+
+        if( !pipelineName.empty() )
+        {
+            // When deferred operation is joined, the application may have already set a name for the pipeline.
+            // Don't set the default in such case.
+            if( deferred )
+            {
+                m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, std::move( pipelineName ) );
+            }
+            else
+            {
+                m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, std::move( pipelineName ) );
+            }
         }
     }
 
@@ -1604,6 +1755,7 @@ namespace Profiler
         internalPipeline.m_Handle = (VkPipeline)type;
         internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
         internalPipeline.m_Type = type;
+        internalPipeline.m_Internal = true;
 
         // Assign name for the internal pipeline
         SetObjectName( internalPipeline.m_Handle, pName );

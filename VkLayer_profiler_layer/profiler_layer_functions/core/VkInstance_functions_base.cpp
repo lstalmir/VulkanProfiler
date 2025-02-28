@@ -45,7 +45,27 @@ namespace Profiler
         auto& id = InstanceDispatch.Create( instance );
 
         id.Instance.Handle = instance;
-        id.Instance.ApplicationInfo.apiVersion = pCreateInfo->pApplicationInfo->apiVersion;
+        id.Instance.ApplicationInfo = {};
+
+        // Save application info if present
+        if( pCreateInfo->pApplicationInfo )
+        {
+            id.Instance.ApplicationInfo.apiVersion = pCreateInfo->pApplicationInfo->apiVersion;
+            id.Instance.ApplicationInfo.applicationVersion = pCreateInfo->pApplicationInfo->applicationVersion;
+            id.Instance.ApplicationInfo.engineVersion = pCreateInfo->pApplicationInfo->engineVersion;
+
+            if( pCreateInfo->pApplicationInfo->pApplicationName )
+            {
+                id.Instance.ApplicationName = pCreateInfo->pApplicationInfo->pApplicationName;
+                id.Instance.ApplicationInfo.pApplicationName = id.Instance.ApplicationName.c_str();
+            }
+
+            if( pCreateInfo->pApplicationInfo->pEngineName )
+            {
+                id.Instance.EngineName = pCreateInfo->pApplicationInfo->pEngineName;
+                id.Instance.ApplicationInfo.pEngineName = id.Instance.EngineName.c_str();
+            }
+        }
 
         // Get function addresses
         id.Instance.Callbacks.Initialize( instance, pfnGetInstanceProcAddr );

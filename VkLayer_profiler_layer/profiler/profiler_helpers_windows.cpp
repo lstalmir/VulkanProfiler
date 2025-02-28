@@ -147,6 +147,8 @@ namespace Profiler
             return false;
         }
 
+        memset( pState, 0, sizeof( StablePowerState_T ) );
+
         // Load required modules.
         pState->m_hDXGIModule = LoadLibraryA( "dxgi.dll" );
         if( pState->m_hDXGIModule == nullptr )

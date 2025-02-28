@@ -48,6 +48,7 @@ namespace Profiler
         inline static constexpr char InspectorMenuItem[] = "Inspector" PROFILER_MENU_ITEM;
         inline static constexpr char StatisticsMenuItem[] = "Statistics" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = "Settings" PROFILER_MENU_ITEM;
+        inline static constexpr char ApplicationInfoMenuItem[] = "Application info" PROFILER_MENU_ITEM;
 
         // Tabs
         inline static constexpr char Performance[] = "Performance###Performance";
@@ -55,6 +56,7 @@ namespace Profiler
         inline static constexpr char Inspector[] = "Inspector###Inspector";
         inline static constexpr char Statistics[] = "Statistics###Statistics";
         inline static constexpr char Settings[] = "Settings###Settings";
+        inline static constexpr char ApplicationInfo[] = "Application info###ApplicationInfo";
 
         // Performance tab
         inline static constexpr char GPUTime[] = "GPU Time";
@@ -73,7 +75,11 @@ namespace Profiler
         inline static constexpr char TopPipelines[] = "Top pipelines###Top pipelines";
         inline static constexpr char PerformanceCounters[] = "Performance counters###Performance counters";
         inline static constexpr char Metric[] = "Metric";
+        inline static constexpr char Contrib[] = "Contrib";
         inline static constexpr char Frame[] = "Frame";
+        inline static constexpr char Pipeline[] = "Pipeline";
+        inline static constexpr char Stages[] = "Stages";
+        inline static constexpr char Capabilities[] = "Capabilities";
         inline static constexpr char Ref[] = "Ref";
         inline static constexpr char Delta[] = "Delta";
         inline static constexpr char Value[] = "Value";
@@ -87,6 +93,10 @@ namespace Profiler
         inline static constexpr char Container[] = "Container";
         inline static constexpr char Inspect[] = "Inspect";
         inline static constexpr char ShowPerformanceMetrics[] = "Show performance metrics";
+        inline static constexpr char CopyToClipboard[] = "Copy to clipboard";
+        inline static constexpr char CopyName[] = "Copy name";
+        inline static constexpr char ShowMore[] = "Show more...";
+        inline static constexpr char ShowLess[] = "Show less";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = "At least one shader in the pipeline uses '%s' capability.";
         inline static constexpr char ShaderObjectsTooltip[] = "Pipeline constructed from VkShaderEXT objects passed via vkCmdBindShadersEXT.";
@@ -157,6 +167,13 @@ namespace Profiler
         inline static constexpr char Milliseconds[] = "ms";
         inline static constexpr char Microseconds[] = "us";
         inline static constexpr char Nanoseconds[] = "ns";
+
+        // Application info window
+        inline static constexpr char VulkanVersion[] = "Vulkan version";
+        inline static constexpr char ApplicationName[] = "Application name";
+        inline static constexpr char ApplicationVersion[] = "Application version";
+        inline static constexpr char EngineName[] = "Engine name";
+        inline static constexpr char EngineVersion[] = "Engine version";
 
         inline static constexpr char Unknown[] = "Unknown";
     };

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2024 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,29 +19,47 @@
 // SOFTWARE.
 
 #pragma once
-#include <imgui_impl_vulkan.h>
-#include "vk_dispatch_tables.h"
+#include <stdint.h>
 
-// Initialization data, for ImGui_ImplVulkan_Init()
-// [Please zero-clear before use!]
-struct ImGui_ImplVulkanLayer_InitInfo : ImGui_ImplVulkan_InitInfo
+struct ImFont;
+
+namespace Profiler
 {
-    const VkLayerInstanceDispatchTable* pInstanceDispatchTable;
-    const VkLayerDeviceDispatchTable* pDispatchTable;
-};
+    class OverlayBackend;
 
-class ImGui_ImplVulkan_Context
-{
-public:
-    ImGui_ImplVulkan_Context( ImGui_ImplVulkanLayer_InitInfo* info );
-    ~ImGui_ImplVulkan_Context();
+    /***********************************************************************************\
 
-    void NewFrame();
-    void RenderDrawData( ImDrawData* draw_data, VkCommandBuffer command_buffer );
-    bool CreateFontsTexture();
-    void SetMinImageCount( uint32_t min_image_count );
+    Class:
+        OverlayResources
 
-private:
-    static PFN_vkVoidFunction FunctionLoader( const char* pFunctionName, void* pUserData );
-    static VkResult AllocateCommandBuffers( VkDevice, const VkCommandBufferAllocateInfo*, VkCommandBuffer* );
-};
+    Description:
+        Manages the fonts and images used by the overlay.
+
+    \***********************************************************************************/
+    class OverlayResources
+    {
+    public:
+        bool InitializeFonts();
+        void Destroy();
+
+        bool InitializeImages( OverlayBackend* pBackend );
+        void DestroyImages();
+
+        ImFont* GetDefaultFont() const;
+        ImFont* GetBoldFont() const;
+        ImFont* GetCodeFont() const;
+
+        void* GetCopyIconImage() const;
+
+    private:
+        OverlayBackend* m_pBackend = nullptr;
+
+        ImFont* m_pDefaultFont = nullptr;
+        ImFont* m_pBoldFont = nullptr;
+        ImFont* m_pCodeFont = nullptr;
+
+        void* m_pCopyIconImage = nullptr;
+
+        void* CreateImage( const uint8_t* pAsset, int assetSize );
+    };
+}

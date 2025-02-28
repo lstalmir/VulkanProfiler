@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
-// 
+// Copyright (c) 2025 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -18,32 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
-#include "imgui_window.h"
-#include <vector>
-#include <X11/Xlib.h>
-#include <X11/extensions/shape.h>
+#version 460 core
+#extension GL_EXT_ray_tracing : enable
 
-struct ImGuiContext;
+layout( location = 0 ) rayPayloadEXT vec3 outputColor;
 
-class ImGui_ImplXlib_Context : public ImGui_Window_Context
+void main()
 {
-public:
-    ImGui_ImplXlib_Context( Window window );
-    ~ImGui_ImplXlib_Context();
-
-    const char* GetName() const override;
-
-    void NewFrame() override;
-    void AddInputCaptureRect( int x, int y, int width, int height ) override;
-
-private:
-    ImGuiContext* m_pImGuiContext;
-    Display* m_Display;
-    XIM m_IM;
-    Window m_AppWindow;
-    Window m_InputWindow;
-    std::vector<XRectangle> m_InputRects;
-
-    void UpdateMousePos();
-};
+    outputColor = vec3( 1.0, 0.0, 0.0 );
+}

@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,31 +20,39 @@
 
 #pragma once
 
-struct ImFont;
+struct ImDrawData;
+struct ImVec2;
 
 namespace Profiler
 {
     /***********************************************************************************\
 
     Class:
-        OverlayFonts
+        OverlayBackend
 
     Description:
-        Manages the fonts used by the overlay.
+        Backend interface for the overlay.
 
     \***********************************************************************************/
-    class OverlayFonts
+    class OverlayBackend
     {
     public:
-        void Initialize();
+        virtual ~OverlayBackend() = default;
 
-        ImFont* GetDefaultFont() const;
-        ImFont* GetBoldFont() const;
-        ImFont* GetCodeFont() const;
+        virtual bool PrepareImGuiBackend() = 0;
+        virtual void DestroyImGuiBackend() = 0;
 
-    private:
-        ImFont* m_pDefaultFont = nullptr;
-        ImFont* m_pBoldFont = nullptr;
-        ImFont* m_pCodeFont = nullptr;
+        virtual void WaitIdle() {}
+
+        virtual bool NewFrame() = 0;
+        virtual void RenderDrawData( ImDrawData* draw_data ) = 0;
+
+        virtual float GetDPIScale() const = 0;
+        virtual ImVec2 GetRenderArea() const = 0;
+
+        virtual void* CreateImage( int width, int height, const void* pData ) = 0;
+        virtual void DestroyImage( void* pImage ) = 0;
+        virtual void CreateFontsImage() = 0;
+        virtual void DestroyFontsImage() = 0;
     };
 }

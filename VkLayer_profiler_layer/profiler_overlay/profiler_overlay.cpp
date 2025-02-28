@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,11 +20,13 @@
 
 #include "profiler_overlay.h"
 #include "profiler_overlay_shader_view.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
+#include "profiler_layer_objects/VkObject.h"
+#include "profiler_layer_objects/VkQueue_object.h"
 
-#include "imgui_impl_vulkan_layer.h"
 #include <string>
 #include <sstream>
 #include <stack>
@@ -51,26 +53,6 @@
 using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
 #else
 using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
-#endif
-
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-#include "imgui_impl_win32.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-#include <wayland-client.h>
-#endif
-
-#ifdef VK_USE_PLATFORM_XCB_KHR
-#include "imgui_impl_xcb.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-#include "imgui_impl_xlib.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
-#include <X11/extensions/Xrandr.h>
 #endif
 
 namespace Profiler
@@ -187,81 +169,17 @@ namespace Profiler
 
     \***********************************************************************************/
     ProfilerOverlayOutput::ProfilerOverlayOutput()
-        : m_pDevice( nullptr )
-        , m_pGraphicsQueue( nullptr )
-        , m_pSwapchain( nullptr )
-        , m_Window()
-        , m_pImGuiContext( nullptr )
-        , m_pImGuiVulkanContext( nullptr )
-        , m_pImGuiWindowContext( nullptr )
-        , m_DescriptorPool( VK_NULL_HANDLE )
-        , m_RenderPass( VK_NULL_HANDLE )
-        , m_RenderArea( {} )
-        , m_ImageFormat( VK_FORMAT_UNDEFINED )
-        , m_Images()
-        , m_ImageViews()
-        , m_Framebuffers()
-        , m_CommandPool( VK_NULL_HANDLE )
-        , m_CommandBuffers()
-        , m_CommandFences()
-        , m_CommandSemaphores()
-        , m_Title( Lang::WindowName )
-        , m_ActiveMetricsSetIndex( UINT32_MAX )
-        , m_VendorMetricsSets()
-        , m_VendorMetricFilter()
-        , m_TimestampPeriod( 0 )
-        , m_TimestampDisplayUnit( 1.0f )
-        , m_pTimestampDisplayUnitStr( Lang::Milliseconds )
-        , m_FrameBrowserSortMode( FrameBrowserSortMode::eSubmissionOrder )
-        , m_HistogramGroupMode( HistogramGroupMode::eRenderPass )
-        , m_HistogramValueMode( HistogramValueMode::eDuration )
-        , m_HistogramShowIdle( false )
-        , m_Pause( false )
-        , m_ShowDebugLabels( true )
-        , m_ShowShaderCapabilities( true )
-        , m_ShowEmptyStatistics( false )
-        , m_TimeUnit( TimeUnit::eMilliseconds )
-        , m_SamplingMode( VK_PROFILER_MODE_PER_DRAWCALL_EXT )
-        , m_SyncMode( VK_PROFILER_SYNC_MODE_PRESENT_EXT )
-        , m_SelectedFrameBrowserNodeIndex( { 0xFFFF } )
-        , m_ScrollToSelectedFrameBrowserNode( false )
-        , m_SelectionUpdateTimestamp( std::chrono::high_resolution_clock::duration::zero() )
-        , m_SerializationFinishTimestamp( std::chrono::high_resolution_clock::duration::zero() )
-        , m_InspectorPipeline()
-        , m_InspectorShaderView( m_Fonts )
-        , m_InspectorTabs( 0 )
-        , m_InspectorTabIndex( 0 )
-        , m_PerformanceQueryCommandBufferFilter( VK_NULL_HANDLE )
-        , m_PerformanceQueryCommandBufferFilterName( "Frame" )
-        , m_ReferencePerformanceCounters()
-        , m_pPerformanceCounterExporter( nullptr )
-        , m_SerializationSucceeded( false )
-        , m_SerializationWindowVisible( false )
-        , m_SerializationMessage()
-        , m_SerializationOutputWindowSize( { 0, 0 } )
-        , m_SerializationOutputWindowDuration( std::chrono::seconds( 4 ) )
-        , m_SerializationOutputWindowFadeOutDuration( std::chrono::seconds( 1 ) )
-        , m_pTraceExporter( nullptr )
-        , m_RenderPassColumnColor( 0 )
-        , m_GraphicsPipelineColumnColor( 0 )
-        , m_ComputePipelineColumnColor( 0 )
-        , m_RayTracingPipelineColumnColor( 0 )
-        , m_InternalPipelineColumnColor( 0 )
-        , m_pStringSerializer( nullptr )
-        , m_MainDockSpaceId( 0 )
-        , m_PerformanceTabDockSpaceId( 0 )
-        , m_QueueUtilizationTabDockSpaceId( 0 )
-        , m_TopPipelinesTabDockSpaceId( 0 )
-        , m_FrameBrowserDockSpaceId( 0 )
-        , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true}
-        , m_QueueUtilizationWindowState{ m_Settings.AddBool( "QueueUtilizationWindowOpen", true ), true}
-        , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true}
-        , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true}
-        , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true}
-        , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true}
-        , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true}
-        , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true}
+        : m_InspectorShaderView( m_Resources )
+        , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true }
+        , m_QueueUtilizationWindowState{ m_Settings.AddBool( "QueueUtilizationWindowOpen", true ), true }
+        , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true }
+        , m_PerformanceCountersWindowState{ m_Settings.AddBool( "PerformanceCountersWindowOpen", true ), true }
+        , m_MemoryWindowState{ m_Settings.AddBool( "MemoryWindowOpen", true ), true }
+        , m_InspectorWindowState{ m_Settings.AddBool( "InspectorWindowOpen", true ), true }
+        , m_StatisticsWindowState{ m_Settings.AddBool( "StatisticsWindowOpen", true ), true }
+        , m_SettingsWindowState{ m_Settings.AddBool( "SettingsWindowOpen", true ), true }
     {
+        ResetMembers();
     }
 
     /***********************************************************************************\
@@ -286,81 +204,29 @@ namespace Profiler
         Initializes profiler overlay.
 
     \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::Initialize(
-        VkDevice_Object& device,
-        VkQueue_Object& graphicsQueue,
-        VkSwapchainKhr_Object& swapchain,
-        const VkSwapchainCreateInfoKHR* pCreateInfo )
+    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend )
     {
-        VkResult result = VK_SUCCESS;
+        bool success = true;
 
         // Setup objects
-        m_pDevice = &device;
-        m_pGraphicsQueue = &graphicsQueue;
-        m_pSwapchain = &swapchain;
+        m_pFrontend = &frontend;
+        m_pBackend = &backend;
+
+        const VkPhysicalDeviceProperties& deviceProperties = m_pFrontend->GetPhysicalDeviceProperties();
 
         // Set main window title
         m_Title = fmt::format( "{0} - {1}###VkProfiler",
             Lang::WindowName,
-            m_pDevice->pPhysicalDevice->Properties.deviceName );
-
-        // Create descriptor pool
-        if( result == VK_SUCCESS )
-        {
-            VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-            descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-            descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-
-            // ImGui allocates descriptor sets only for textures/fonts for now.
-            const uint32_t imguiMaxTextureCount = 16;
-            const VkDescriptorPoolSize descriptorPoolSizes[] = {
-                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imguiMaxTextureCount }
-            };
-
-            descriptorPoolCreateInfo.maxSets = imguiMaxTextureCount;
-            descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype(descriptorPoolSizes)>;
-            descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
-
-            result = m_pDevice->Callbacks.CreateDescriptorPool(
-                m_pDevice->Handle,
-                &descriptorPoolCreateInfo,
-                nullptr,
-                &m_DescriptorPool );
-        }
-
-        // Create command pool
-        if( result == VK_SUCCESS )
-        {
-            VkCommandPoolCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            info.flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            info.queueFamilyIndex = m_pGraphicsQueue->Family;
-
-            result = m_pDevice->Callbacks.CreateCommandPool(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_CommandPool );
-        }
+            deviceProperties.deviceName );
 
         // Get timestamp query period
-        if( result == VK_SUCCESS )
-        {
-            m_TimestampPeriod = Nanoseconds( m_pDevice->pPhysicalDevice->Properties.limits.timestampPeriod );
-        }
-
-        // Create swapchain-dependent resources
-        if( result == VK_SUCCESS )
-        {
-            result = ResetSwapchain( swapchain, pCreateInfo );
-        }
+        m_TimestampPeriod = Nanoseconds( deviceProperties.limits.timestampPeriod );
 
         // Init ImGui
-        if( result == VK_SUCCESS )
+        if( success )
         {
             std::scoped_lock lk( s_ImGuiMutex );
             IMGUI_CHECKVERSION();
-
             m_pImGuiContext = ImGui::CreateContext();
 
             ImGui::SetCurrentContext( m_pImGuiContext );
@@ -369,38 +235,37 @@ namespace Profiler
             m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
-            io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
+            io.DisplaySize = m_pBackend->GetRenderArea();
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
 
             m_Settings.Validate( io.IniFilename );
-
-            InitializeImGuiDefaultFont();
+            m_Resources.InitializeFonts();
             InitializeImGuiStyle();
+
+            // Initialize ImGui backends
+            success = m_pBackend->PrepareImGuiBackend();
         }
 
-        // Init window
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            result = InitializeImGuiWindowHooks( pCreateInfo );
-        }
+            // Initialize backend-dependent config
+            float dpiScale = m_pBackend->GetDPIScale();
+            ImGuiIO& io = ImGui::GetIO();
+            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
 
-        // Init vulkan
-        if( result == VK_SUCCESS )
-        {
-            result = InitializeImGuiVulkanContext( pCreateInfo );
+            // Initialize resources
+            success = m_Resources.InitializeImages( m_pBackend );
         }
 
         // Get vendor metrics sets
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            uint32_t vendorMetricsSetCount = 0;
-            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, nullptr );
+            const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
+                m_pFrontend->GetPerformanceMetricsSets();
 
-            std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets( vendorMetricsSetCount );
-            vkEnumerateProfilerPerformanceMetricsSetsEXT( device.Handle, &vendorMetricsSetCount, metricsSets.data() );
-
+            const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
             m_VendorMetricsSets.reserve( vendorMetricsSetCount );
             m_VendorMetricsSetVisibility.reserve( vendorMetricsSetCount );
 
@@ -410,17 +275,12 @@ namespace Profiler
                 memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
 
                 // Get metrics belonging to this set.
-                metricsSet.m_Metrics.resize( metricsSet.m_Properties.metricsCount );
-
-                uint32_t metricsCount = metricsSet.m_Properties.metricsCount;
-                vkEnumerateProfilerPerformanceCounterPropertiesEXT( device.Handle, i,
-                    &metricsCount,
-                    metricsSet.m_Metrics.data() );
+                metricsSet.m_Metrics = m_pFrontend->GetPerformanceCounterProperties( i );
 
                 m_VendorMetricsSetVisibility.push_back( true );
             }
 
-            vkGetProfilerActivePerformanceMetricsSetIndexEXT( device.Handle, &m_ActiveMetricsSetIndex );
+            m_ActiveMetricsSetIndex = m_pFrontend->GetPerformanceMetricsSetIndex();
 
             if( m_ActiveMetricsSetIndex < m_VendorMetricsSets.size() )
             {
@@ -430,10 +290,9 @@ namespace Profiler
         }
 
         // Initialize the disassembler in the shader view
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            m_InspectorShaderView.InitializeStyles();
-            m_InspectorShaderView.SetTargetDevice( m_pDevice );
+            m_InspectorShaderView.Initialize( *m_pFrontend );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
                 this,
@@ -442,27 +301,26 @@ namespace Profiler
         }
 
         // Initialize serializer
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            result = (m_pStringSerializer = new (std::nothrow) DeviceProfilerStringSerializer( device ))
-                         ? VK_SUCCESS
-                         : VK_ERROR_OUT_OF_HOST_MEMORY;
+            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( *m_pFrontend ) );
+            success = (m_pStringSerializer != nullptr);
         }
 
         // Initialize settings
-        if( result == VK_SUCCESS )
+        if( success )
         {
-            vkGetProfilerModeEXT( m_pDevice->Handle, &m_SamplingMode );
-            vkGetProfilerSyncModeEXT( m_pDevice->Handle, &m_SyncMode );
+            m_SamplingMode = m_pFrontend->GetProfilerSamplingMode();
+            m_SyncMode = m_pFrontend->GetProfilerSyncMode();
         }
 
         // Don't leave object in partly-initialized state if something went wrong
-        if( result != VK_SUCCESS )
+        if( !success )
         {
             Destroy();
         }
 
-        return result;
+        return success;
     }
 
     /***********************************************************************************\
@@ -476,91 +334,108 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Destroy()
     {
-        if( m_pDevice )
-        {
-            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
-        }
-
-        if( m_pStringSerializer )
-        {
-            delete m_pStringSerializer;
-            m_pStringSerializer = nullptr;
-        }
-
-        if( m_pImGuiVulkanContext )
-        {
-            delete m_pImGuiVulkanContext;
-            m_pImGuiVulkanContext = nullptr;
-        }
-
-        if( m_pImGuiWindowContext )
-        {
-            delete m_pImGuiWindowContext;
-            m_pImGuiWindowContext = nullptr;
-        }
-
         if( m_pImGuiContext )
         {
             std::scoped_lock imGuiLock( s_ImGuiMutex );
-            ImGui::DestroyContext( m_pImGuiContext );
-            m_pImGuiContext = nullptr;
+            ImGui::SetCurrentContext( m_pImGuiContext );
+
+            // Destroy resources created for the ImGui overlay.
+            m_Resources.Destroy();
+
+            // Destroy ImGui backends.
+            m_pBackend->DestroyImGuiBackend();
+
+            ImGui::DestroyContext();
         }
 
-        if( m_DescriptorPool )
-        {
-            m_pDevice->Callbacks.DestroyDescriptorPool( m_pDevice->Handle, m_DescriptorPool, nullptr );
-            m_DescriptorPool = VK_NULL_HANDLE;
-        }
+        // Reset members to initial values
+        ResetMembers();
+    }
 
-        if( m_RenderPass )
-        {
-            m_pDevice->Callbacks.DestroyRenderPass( m_pDevice->Handle, m_RenderPass, nullptr );
-            m_RenderPass = VK_NULL_HANDLE;
-        }
+    /***********************************************************************************\
 
-        if( m_CommandPool )
-        {
-            m_pDevice->Callbacks.DestroyCommandPool( m_pDevice->Handle, m_CommandPool, nullptr );
-            m_CommandPool = VK_NULL_HANDLE;
-        }
+    Function:
+        ResetMembers
 
-        m_CommandBuffers.clear();
+    Description:
+        Set all members to initial values.
 
-        for( auto& framebuffer : m_Framebuffers )
-        {
-            m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, framebuffer, nullptr );
-        }
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::ResetMembers()
+    {
+        m_pFrontend = nullptr;
+        m_pBackend = nullptr;
 
-        m_Framebuffers.clear();
+        m_pImGuiContext = nullptr;
 
-        for( auto& imageView : m_ImageViews )
-        {
-            m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, imageView, nullptr );
-        }
+        m_Title.clear();
 
-        m_ImageViews.clear();
+        m_ActiveMetricsSetIndex = UINT32_MAX;
+        m_VendorMetricsSetVisibility.clear();
+        m_VendorMetricsSets.clear();
+        memset( m_VendorMetricFilter, 0, sizeof( m_VendorMetricFilter ) );
 
-        m_Images.clear();
+        m_TimestampPeriod = Milliseconds( 0 );
+        m_TimestampDisplayUnit = 1.0f;
+        m_pTimestampDisplayUnitStr = Lang::Milliseconds;
 
-        for( auto& fence : m_CommandFences )
-        {
-            m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
-        }
+        m_FrameBrowserSortMode = FrameBrowserSortMode::eSubmissionOrder;
 
-        m_CommandFences.clear();
+        m_HistogramGroupMode = HistogramGroupMode::eRenderPass;
+        m_HistogramValueMode = HistogramValueMode::eDuration;
+        m_HistogramShowIdle = false;
 
-        for( auto& semaphore : m_CommandSemaphores )
-        {
-            m_pDevice->Callbacks.DestroySemaphore( m_pDevice->Handle, semaphore, nullptr );
-        }
+        m_pData = nullptr;
+        m_Pause = false;
+        m_ShowDebugLabels = true;
+        m_ShowShaderCapabilities = true;
+        m_ShowEmptyStatistics = false;
+        m_ShowAllTopPipelines = false;
 
-        m_CommandSemaphores.clear();
+        m_FrameTime = 0.0f;
 
-        m_ImageFormat = VK_FORMAT_UNDEFINED;
+        m_TimeUnit = TimeUnit::eMilliseconds;
+        m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
+        m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
 
-        m_Window = OSWindowHandle();
-        m_pDevice = nullptr;
-        m_pSwapchain = nullptr;
+        m_SelectedFrameBrowserNodeIndex = { 0xFFFF };
+        m_ScrollToSelectedFrameBrowserNode = false;
+        m_FrameBrowserNodeIndexStr.clear();
+        m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::time_point();
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::time_point();
+
+        m_InspectorPipeline = DeviceProfilerPipeline();
+        m_InspectorShaderView.Clear();
+        m_InspectorTabs.clear();
+        m_InspectorTabIndex = 0;
+
+        m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
+        m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
+        m_ReferencePerformanceCounters.clear();
+        m_pPerformanceCounterExporter = nullptr;
+
+        m_SerializationSucceeded = false;
+        m_SerializationWindowVisible = false;
+        m_SerializationMessage.clear();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationOutputWindowDuration = std::chrono::seconds( 4 );
+        m_SerializationOutputWindowFadeOutDuration = std::chrono::seconds( 1 );
+
+        m_pTraceExporter = nullptr;
+
+        m_RenderPassColumnColor = 0;
+        m_GraphicsPipelineColumnColor = 0;
+        m_ComputePipelineColumnColor = 0;
+        m_RayTracingPipelineColumnColor = 0;
+        m_InternalPipelineColumnColor = 0;
+
+        m_pStringSerializer = nullptr;
+
+        m_MainDockSpaceId = 0;
+        m_PerformanceTabDockSpaceId = 0;
+        m_QueueUtilizationTabDockSpaceId = 0;
+        m_TopPipelinesTabDockSpaceId = 0;
+        m_FrameBrowserDockSpaceId = 0;
     }
 
     /***********************************************************************************\
@@ -574,304 +449,7 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerOverlayOutput::IsAvailable() const
     {
-#ifndef _DEBUG
-        // There are many other objects that could be checked here, but we're keeping
-        // object quite consistent in case of any errors during initialization, so
-        // checking just one should be sufficient.
-        return (m_pSwapchain);
-#else
-        // Check object state to confirm the note above
-        return (m_pSwapchain)
-            && (m_pDevice)
-            && (m_pGraphicsQueue)
-            && (m_pImGuiContext)
-            && (m_pImGuiVulkanContext)
-            && (m_pImGuiWindowContext)
-            && (m_RenderPass)
-            && (!m_CommandBuffers.empty());
-#endif
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetSwapchain
-
-    Description:
-        Return swapchain the overlay is associated with.
-
-    \***********************************************************************************/
-    VkSwapchainKHR ProfilerOverlayOutput::GetSwapchain() const
-    {
-        return m_pSwapchain->Handle;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        ResetSwapchain
-
-    Description:
-        Move overlay to the new swapchain.
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::ResetSwapchain(
-        VkSwapchainKhr_Object& swapchain,
-        const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        assert( m_pSwapchain == nullptr ||
-                pCreateInfo->oldSwapchain == m_pSwapchain->Handle ||
-                pCreateInfo->oldSwapchain == VK_NULL_HANDLE );
-
-        VkResult result = VK_SUCCESS;
-
-        // Get swapchain images
-        uint32_t swapchainImageCount = 0;
-        m_pDevice->Callbacks.GetSwapchainImagesKHR(
-            m_pDevice->Handle,
-            swapchain.Handle,
-            &swapchainImageCount,
-            nullptr );
-
-        std::vector<VkImage> images( swapchainImageCount );
-        result = m_pDevice->Callbacks.GetSwapchainImagesKHR(
-            m_pDevice->Handle,
-            swapchain.Handle,
-            &swapchainImageCount,
-            images.data() );
-
-        assert( result == VK_SUCCESS );
-
-        // Recreate render pass if swapchain format has changed
-        if( (result == VK_SUCCESS) && (pCreateInfo->imageFormat != m_ImageFormat) )
-        {
-            if( m_RenderPass != VK_NULL_HANDLE )
-            {
-                // Destroy old render pass
-                m_pDevice->Callbacks.DestroyRenderPass( m_pDevice->Handle, m_RenderPass, nullptr );
-            }
-
-            VkAttachmentDescription attachment = {};
-            attachment.format = pCreateInfo->imageFormat;
-            attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-            attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-            VkAttachmentReference color_attachment = {};
-            color_attachment.attachment = 0;
-            color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-            VkSubpassDescription subpass = {};
-            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-            subpass.colorAttachmentCount = 1;
-            subpass.pColorAttachments = &color_attachment;
-
-            VkSubpassDependency dependency = {};
-            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstSubpass = 0;
-            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.srcAccessMask = 0;
-            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            VkRenderPassCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-            info.attachmentCount = 1;
-            info.pAttachments = &attachment;
-            info.subpassCount = 1;
-            info.pSubpasses = &subpass;
-            info.dependencyCount = 1;
-            info.pDependencies = &dependency;
-
-            result = m_pDevice->Callbacks.CreateRenderPass(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_RenderPass );
-
-            m_ImageFormat = pCreateInfo->imageFormat;
-        }
-
-        // Recreate image views and framebuffers
-        // This is required because swapchain images have changed and current framebuffer is out of date
-        if( result == VK_SUCCESS )
-        {
-            if( !m_Images.empty() )
-            {
-                // Destroy previous framebuffers
-                for( int i = 0; i < m_Images.size(); ++i )
-                {
-                    m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, m_Framebuffers[ i ], nullptr );
-                    m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, m_ImageViews[ i ], nullptr );
-                }
-
-                m_Framebuffers.clear();
-                m_ImageViews.clear();
-            }
-
-            for( uint32_t i = 0; i < swapchainImageCount; i++ )
-            {
-                VkImageView imageView = VK_NULL_HANDLE;
-                VkFramebuffer framebuffer = VK_NULL_HANDLE;
-
-                // Create swapchain image view
-                if( result == VK_SUCCESS )
-                {
-                    VkImageViewCreateInfo info = {};
-                    info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-                    info.format = pCreateInfo->imageFormat;
-                    info.image = images[ i ];
-                    info.components.r = VK_COMPONENT_SWIZZLE_R;
-                    info.components.g = VK_COMPONENT_SWIZZLE_G;
-                    info.components.b = VK_COMPONENT_SWIZZLE_B;
-                    info.components.a = VK_COMPONENT_SWIZZLE_A;
-
-                    VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-                    info.subresourceRange = range;
-
-                    result = m_pDevice->Callbacks.CreateImageView(
-                        m_pDevice->Handle,
-                        &info,
-                        nullptr,
-                        &imageView );
-
-                    m_ImageViews.push_back( imageView );
-                }
-
-                // Create framebuffer
-                if( result == VK_SUCCESS )
-                {
-                    VkFramebufferCreateInfo info = {};
-                    info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-                    info.renderPass = m_RenderPass;
-                    info.attachmentCount = 1;
-                    info.pAttachments = &imageView;
-                    info.width = pCreateInfo->imageExtent.width;
-                    info.height = pCreateInfo->imageExtent.height;
-                    info.layers = 1;
-
-                    result = m_pDevice->Callbacks.CreateFramebuffer(
-                        m_pDevice->Handle,
-                        &info,
-                        nullptr,
-                        &framebuffer );
-
-                    m_Framebuffers.push_back( framebuffer );
-                }
-            }
-
-            m_RenderArea = pCreateInfo->imageExtent;
-        }
-
-        // Allocate additional command buffers, fences and semaphores
-        if( (result == VK_SUCCESS) && (swapchainImageCount > m_Images.size()) )
-        {
-            VkCommandBufferAllocateInfo allocInfo = {};
-            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandPool = m_CommandPool;
-            allocInfo.commandBufferCount = swapchainImageCount - static_cast<uint32_t>( m_Images.size() );
-
-            std::vector<VkCommandBuffer> commandBuffers( swapchainImageCount );
-
-            result = m_pDevice->Callbacks.AllocateCommandBuffers(
-                m_pDevice->Handle,
-                &allocInfo,
-                commandBuffers.data() );
-
-            if( result == VK_SUCCESS )
-            {
-                // Append created command buffers to end
-                // We need to do this right after allocation to avoid leaks if something fails later
-                m_CommandBuffers.insert( m_CommandBuffers.end(), commandBuffers.begin(), commandBuffers.end() );
-            }
-
-            for( auto cmdBuffer : commandBuffers )
-            {
-                if( result == VK_SUCCESS )
-                {
-                    // Command buffers are dispatchable handles, update pointers to parent's dispatch table
-                    result = m_pDevice->SetDeviceLoaderData( m_pDevice->Handle, cmdBuffer );
-                }
-            }
-
-            // Create additional per-command-buffer semaphores and fences
-            for( size_t i = m_Images.size(); i < swapchainImageCount; ++i )
-            {
-                VkFence fence;
-                VkSemaphore semaphore;
-
-                // Create command buffer fence
-                if( result == VK_SUCCESS )
-                {
-                    VkFenceCreateInfo fenceInfo = {};
-                    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-                    fenceInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
-
-                    result = m_pDevice->Callbacks.CreateFence(
-                        m_pDevice->Handle,
-                        &fenceInfo,
-                        nullptr,
-                        &fence );
-
-                    m_CommandFences.push_back( fence );
-                }
-
-                // Create present semaphore
-                if( result == VK_SUCCESS )
-                {
-                    VkSemaphoreCreateInfo semaphoreInfo = {};
-                    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-                    result = m_pDevice->Callbacks.CreateSemaphore(
-                        m_pDevice->Handle,
-                        &semaphoreInfo,
-                        nullptr,
-                        &semaphore );
-
-                    m_CommandSemaphores.push_back( semaphore );
-                }
-            }
-        }
-
-        // Update objects
-        if( result == VK_SUCCESS )
-        {
-            m_pSwapchain = &swapchain;
-            m_Images = images;
-        }
-
-        // Reinitialize ImGui
-        if( (m_pImGuiContext) )
-        {
-            std::scoped_lock lk( s_ImGuiMutex );
-            ImGui::SetCurrentContext( m_pImGuiContext );
-
-            if( result == VK_SUCCESS )
-            {
-                // Reinit window
-                result = InitializeImGuiWindowHooks( pCreateInfo );
-            }
-
-            if( result == VK_SUCCESS )
-            {
-                // Init vulkan
-                result = InitializeImGuiVulkanContext( pCreateInfo );
-            }
-        }
-
-        // Don't leave object in partly-initialized state
-        if( result != VK_SUCCESS )
-        {
-            Destroy();
-        }
-
-        return result;
+        return (m_pFrontend != nullptr) && (m_pBackend != nullptr);
     }
 
     /***********************************************************************************\
@@ -883,104 +461,35 @@ namespace Profiler
         Draw profiler overlay before presenting the image to screen.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::Present(
-        const std::shared_ptr<DeviceProfilerFrameData>& pData,
-        const VkQueue_Object& queue,
-        VkPresentInfoKHR* pPresentInfo )
+    void ProfilerOverlayOutput::Update()
     {
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
 
-        // Record interface draw commands
-        Update( pData );
+        // Must be set before calling NewFrame to avoid clipping on window resize.
+        ImGuiIO& io = ImGui::GetIO();
+        io.DisplaySize = m_pBackend->GetRenderArea();
 
-        ImDrawData* pDrawData = ImGui::GetDrawData();
-        if( pDrawData )
+        if( !m_pBackend->NewFrame() )
         {
-            // Grab command buffer for overlay commands
-            const uint32_t imageIndex = pPresentInfo->pImageIndices[ 0 ];
-
-            // Per-
-            VkFence& fence = m_CommandFences[ imageIndex ];
-            VkSemaphore& semaphore = m_CommandSemaphores[ imageIndex ];
-            VkCommandBuffer& commandBuffer = m_CommandBuffers[ imageIndex ];
-            VkFramebuffer& framebuffer = m_Framebuffers[ imageIndex ];
-
-            m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &fence, VK_TRUE, UINT64_MAX );
-            m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &fence );
-
-            {
-                VkCommandBufferBeginInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-                m_pDevice->Callbacks.BeginCommandBuffer( commandBuffer, &info );
-            }
-            {
-                VkRenderPassBeginInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                info.renderPass = m_RenderPass;
-                info.framebuffer = framebuffer;
-                info.renderArea.extent.width = m_RenderArea.width;
-                info.renderArea.extent.height = m_RenderArea.height;
-                m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
-            }
-
-            // Record Imgui Draw Data and draw funcs into command buffer
-            m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
-
-            // Submit command buffer
-            m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
-
-            {
-                VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                VkSubmitInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-                info.waitSemaphoreCount = pPresentInfo->waitSemaphoreCount;
-                info.pWaitSemaphores = pPresentInfo->pWaitSemaphores;
-                info.pWaitDstStageMask = &wait_stage;
-                info.commandBufferCount = 1;
-                info.pCommandBuffers = &commandBuffer;
-                info.signalSemaphoreCount = 1;
-                info.pSignalSemaphores = &semaphore;
-
-                m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
-                m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
-            }
-
-            // Override wait semaphore
-            pPresentInfo->waitSemaphoreCount = 1;
-            pPresentInfo->pWaitSemaphores = &semaphore;
+            return;
         }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        Update
-
-    Description:
-        Update overlay.
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::Update( const std::shared_ptr<DeviceProfilerFrameData>& pData )
-    {
-        m_pImGuiVulkanContext->NewFrame();
-
-        m_pImGuiWindowContext->NewFrame();
 
         ImGui::NewFrame();
-        ImGui::PushFont( m_Fonts.GetDefaultFont() );
 
+        // Update data
+        if( !m_Pause || !m_pData )
+        {
+            m_pData = m_pFrontend->GetData();
+            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
+        }
+
+        // Initialize IDs of the popup windows before entering the main window scope
+        uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
+
+        // Begin main window
+        ImGui::PushFont( m_Resources.GetDefaultFont() );
         ImGui::Begin( m_Title.c_str(), nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar );
-
-        // Update input clipping rect
-        ImVec2 pos = ImGui::GetWindowPos();
-        ImVec2 size = ImGui::GetWindowSize();
-        m_pImGuiWindowContext->AddInputCaptureRect(
-            static_cast<int>(pos.x),
-            static_cast<int>(pos.y),
-            static_cast<int>(size.x),
-            static_cast<int>(size.y) );
 
         if( ImGui::BeginMenuBar() )
         {
@@ -1006,6 +515,12 @@ namespace Profiler
                 ImGui::MenuItem( Lang::SettingsMenuItem, nullptr, m_SettingsWindowState.pOpen );
                 ImGui::EndMenu();
             }
+
+            if( ImGui::MenuItem( Lang::ApplicationInfoMenuItem ) )
+            {
+                ImGui::OpenPopup( applicationInfoPopupID );
+            }
+
             ImGui::EndMenuBar();
         }
 
@@ -1024,16 +539,10 @@ namespace Profiler
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
+        const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
-            VK_API_VERSION_MAJOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ),
-            VK_API_VERSION_MINOR( m_pDevice->pInstance->ApplicationInfo.apiVersion ) );
-
-        if( !m_Pause )
-        {
-            // Update data
-            m_pData = pData;
-            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
-        }
+            VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
+            VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
 
         // Add padding
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
@@ -1074,18 +583,6 @@ namespace Profiler
                     state.Docked = ImGui::IsWindowDocked() &&
                         (dockSpaceId == m_MainDockSpaceId ||
                             dockSpaceId == m_PerformanceTabDockSpaceId);
-                    
-                    if( !state.Docked )
-                    {
-                        // Add input clipping rect for this window
-                        ImVec2 pos = ImGui::GetWindowPos();
-                        ImVec2 size = ImGui::GetWindowSize();
-                        m_pImGuiWindowContext->AddInputCaptureRect(
-                            static_cast<int>(pos.x),
-                            static_cast<int>(pos.y),
-                            static_cast<int>(size.x),
-                            static_cast<int>(size.y) );
-                    }
 
                     state.Focus = false;
                 }
@@ -1169,6 +666,7 @@ namespace Profiler
         UpdatePerformanceCounterExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
+        UpdateApplicationInfoWindow();
 
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
@@ -1188,100 +686,8 @@ namespace Profiler
 
         ImGui::PopFont();
         ImGui::Render();
-    }
 
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiWindowHooks
-
-    Description:
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        VkResult result = VK_SUCCESS;
-
-        // Get window handle from the swapchain surface
-        OSWindowHandle window = m_pDevice->pInstance->Surfaces.at( pCreateInfo->surface ).Window;
-
-        if( m_Window == window )
-        {
-            // No need to update window hooks
-            return result;
-        }
-
-        // Free current window
-        delete m_pImGuiWindowContext;
-
-        try
-        {
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-            if( window.Type == OSWindowHandleType::eWin32 )
-            {
-                m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
-            }
-#endif // VK_USE_PLATFORM_WIN32_KHR
-
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-            if( window.Type == OSWindowHandleType::eWayland )
-            {
-                m_pImGuiWindowContext = new ImGui_ImplWayland_Context( window.WaylandHandle );
-            }
-#endif // VK_USE_PLATFORM_WAYLAND_KHR
-
-#ifdef VK_USE_PLATFORM_XCB_KHR
-            if( window.Type == OSWindowHandleType::eXcb )
-            {
-                m_pImGuiWindowContext = new ImGui_ImplXcb_Context( window.XcbHandle );
-            }
-#endif // VK_USE_PLATFORM_XCB_KHR
-
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-            if( window.Type == OSWindowHandleType::eXlib )
-            {
-                m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.XlibHandle );
-            }
-#endif // VK_USE_PLATFORM_XLIB_KHR
-        }
-        catch( ... )
-        {
-            // Catch exceptions thrown by OS-specific ImGui window constructors
-            result = VK_ERROR_INITIALIZATION_FAILED;
-        }
-
-        // Set DPI scaling.
-        if( result == VK_SUCCESS )
-        {
-            ImGuiIO& io = ImGui::GetIO();
-            io.FontGlobalScale = m_pImGuiWindowContext->GetDPIScale();
-            assert(io.FontGlobalScale > 0.0f);
-        }
-
-        // Deinitialize context if something failed
-        if( result != VK_SUCCESS )
-        {
-            delete m_pImGuiWindowContext;
-            m_pImGuiWindowContext = nullptr;
-        }
-
-        // Update objects
-        m_Window = window;
-
-        return result;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiDefaultFont
-
-    Description:
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::InitializeImGuiDefaultFont()
-    {
-        m_Fonts.Initialize();
+        m_pBackend->RenderDrawData( ImGui::GetDrawData() );
     }
 
     /***********************************************************************************\
@@ -1306,74 +712,8 @@ namespace Profiler
         m_ComputePipelineColumnColor = ImGui::GetColorU32( { 0.9f, 0.55f, 0.0f, 1.0f } ); // #ffba42
         m_RayTracingPipelineColumnColor = ImGui::GetColorU32( { 0.2f, 0.73f, 0.92f, 1.0f } ); // #34baeb
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
-    }
 
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiVulkanContext
-
-    Description:
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        VkResult result = VK_SUCCESS;
-
-        // Free current context
-        delete m_pImGuiVulkanContext;
-
-        try
-        {
-            ImGui_ImplVulkanLayer_InitInfo imGuiInitInfo;
-            std::memset( &imGuiInitInfo, 0, sizeof( imGuiInitInfo ) );
-
-            imGuiInitInfo.Queue = m_pGraphicsQueue->Handle;
-            imGuiInitInfo.QueueFamily = m_pGraphicsQueue->Family;
-
-            imGuiInitInfo.Instance = m_pDevice->pInstance->Handle;
-            imGuiInitInfo.PhysicalDevice = m_pDevice->pPhysicalDevice->Handle;
-            imGuiInitInfo.Device = m_pDevice->Handle;
-
-            imGuiInitInfo.pInstanceDispatchTable = &m_pDevice->pInstance->Callbacks;
-            imGuiInitInfo.pDispatchTable = &m_pDevice->Callbacks;
-
-            imGuiInitInfo.Allocator = nullptr;
-            imGuiInitInfo.PipelineCache = VK_NULL_HANDLE;
-            imGuiInitInfo.CheckVkResultFn = nullptr;
-
-            imGuiInitInfo.MinImageCount = pCreateInfo->minImageCount;
-            imGuiInitInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
-            imGuiInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-
-            imGuiInitInfo.DescriptorPool = m_DescriptorPool;
-            imGuiInitInfo.RenderPass = m_RenderPass;
-
-            m_pImGuiVulkanContext = new ImGui_ImplVulkan_Context( &imGuiInitInfo );
-        }
-        catch( ... )
-        {
-            // Catch all exceptions thrown by the context constructor and return VkResult
-            result = VK_ERROR_INITIALIZATION_FAILED;
-        }
-
-        // Initialize fonts
-        if( result == VK_SUCCESS )
-        {
-            if( !m_pImGuiVulkanContext->CreateFontsTexture() )
-            {
-                result = VK_ERROR_INITIALIZATION_FAILED;
-            }
-        }
-
-        // Deinitialize context if something failed
-        if( result != VK_SUCCESS )
-        {
-            delete m_pImGuiVulkanContext;
-            m_pImGuiVulkanContext = nullptr;
-        }
-
-        return result;
+        m_InspectorShaderView.InitializeStyles();
     }
 
     /***********************************************************************************\
@@ -1643,7 +983,7 @@ namespace Profiler
         const float frameDuration = GetDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
 
         std::vector<QueueGraphColumn> queueGraphColumns;
-        for( const auto& [_, queue] : m_pDevice->Queues )
+        for( const auto& [_, queue] : m_pFrontend->GetDeviceQueues() )
         {
             // Enumerate columns for command queue activity graph.
             queueGraphColumns.clear();
@@ -1702,22 +1042,171 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateTopPipelinesTab()
     {
-        uint32_t i = 0;
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float badgeSpacing = 3.f * interfaceScale;
 
-        for( const auto& pipeline : m_pData->m_TopPipelines )
+        const float ellipsisWidth = ImGui::CalcTextSize( "..." ).x;
+
+        // Calculate width of badges to align them.
+        const float meshPipelineBadgesWidth =
+            ImGui::CalcTextSize( "AS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "MS" ).x + badgeSpacing;
+
+        const float traditional3DPipelineBadgesWidth =
+            ImGui::CalcTextSize( "VS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "HS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "DS" ).x + badgeSpacing +
+            ImGui::CalcTextSize( "GS" ).x + badgeSpacing;
+
+        const float meshPipelineBadgesOffset =
+            std::max( 0.f, traditional3DPipelineBadgesWidth - meshPipelineBadgesWidth );
+
+        const float traditional3DPipelineBadgesOffset =
+            std::max( 0.f, meshPipelineBadgesWidth - traditional3DPipelineBadgesWidth );
+
+        // Draw the table with top pipelines.
+        if( ImGui::BeginTable( "TopPipelinesTable", 6,
+                ImGuiTableFlags_Hideable |
+                ImGuiTableFlags_PadOuterX |
+                ImGuiTableFlags_NoClip ) )
         {
-            if( pipeline.m_Handle != VK_NULL_HANDLE )
+            // Headers
+            ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHide );
+            ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHide );
+            ImGui::TableSetupColumn( Lang::Capabilities, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHeaderLabel );
+            ImGui::TableSetupColumn( Lang::Stages, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGuiX::TableSetupColumn( Lang::Contrib, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::StatTotal, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
+
+            uint32_t pipelineIndex = 0;
+            char pipelineIndexStr[32];
+
+            for( const auto& pipeline : m_pData->m_TopPipelines )
             {
+                // Skip debug pipelines.
+                if( (pipeline.m_Type == DeviceProfilerPipelineType::eNone) ||
+                    (pipeline.m_Type == DeviceProfilerPipelineType::eDebug) )
+                {
+                    continue;
+                }
+
+                pipelineIndex++;
+                snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
+
                 const float pipelineTime = GetDuration( pipeline );
+                std::string pipelineName = m_pStringSerializer->GetName( pipeline );
 
-                ImGui::Text( "%2u. %s", i + 1, m_pStringSerializer->GetName( pipeline ).c_str() );
-                ImGuiX::TextAlignRight( "(%.1f %%) %.2f ms",
-                    pipelineTime * 100.f / m_FrameTime,
-                    pipelineTime );
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::Text( "%u", pipelineIndex );
+                }
 
-                // Print up to 10 top pipelines
-                if( (++i) == 10 ) break;
+                if( ImGui::TableNextColumn() )
+                {
+                    // Ellide the pipeline name if it's too long.
+                    const float availableWidth = ImGuiX::TableGetColumnWidth();
+                    float pipelineNameWidth = ImGui::CalcTextSize( pipelineName.c_str() ).x;
+
+                    if( pipelineNameWidth > availableWidth )
+                    {
+                        while( !pipelineName.empty() && ( pipelineNameWidth + ellipsisWidth ) > availableWidth )
+                        {
+                            pipelineName.pop_back();
+                            pipelineNameWidth = ImGui::CalcTextSize( pipelineName.c_str() ).x;
+                        }
+
+                        if( !pipelineName.empty() )
+                        {
+                            ImGui::Text( "%s...", pipelineName.c_str() );
+                        }
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted( pipelineName.c_str() );
+                    }
+
+                    DrawPipelineContextMenu( pipeline, pipelineIndexStr );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    DrawPipelineCapabilityBadges( pipeline );
+
+                    ImGui::SameLine( 0.f, 5.f );
+                    ImGui::Dummy( ImVec2() );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
+                    {
+                        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( badgeSpacing, 0 ) );
+
+                        if( pipeline.m_UsesMeshShading )
+                        {
+                            // Mesh shading pipeline.
+                            ImGui::SameLine( 0.f, meshPipelineBadgesOffset );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TASK_BIT_EXT, "AS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_MESH_BIT_EXT, "MS" );
+                        }
+                        else
+                        {
+                            // Traditional 3D pipeline.
+                            ImGui::SameLine( 0.f, traditional3DPipelineBadgesOffset );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_VERTEX_BIT, "VS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, "HS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, "DS" );
+                            DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_GEOMETRY_BIT, "GS" );
+                        }
+
+                        DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, "PS" );
+                        DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_COMPUTE_BIT, "CS" );
+                        DrawPipelineStageBadge( pipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, "RT" );
+
+                        ImGui::PopStyleVar();
+                    }
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGuiX::TextAlignRight(
+                        ImGuiX::TableGetColumnWidth(),
+                        "%.1f %%",
+                        pipelineTime * 100.f / m_FrameTime );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGuiX::TextAlignRight(
+                        ImGuiX::TableGetColumnWidth(),
+                        "%.2f ms",
+                        pipelineTime );
+                }
+
+                if( !m_ShowAllTopPipelines && pipelineIndex == 10 )
+                {
+                    break;
+                }
             }
+
+            // Show more/less button if there is more than 10 pipelines.
+            if( pipelineIndex >= 10 )
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                if( ImGui::TableNextColumn() )
+                {
+                    if( ImGui::TextLink( m_ShowAllTopPipelines ? Lang::ShowLess : Lang::ShowMore ) )
+                    {
+                        m_ShowAllTopPipelines = !m_ShowAllTopPipelines;
+                    }
+                }
+            }
+
+            ImGui::EndTable();
         }
     }
 
@@ -1885,10 +1374,10 @@ namespace Profiler
             ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
-                if( ImGuiX::TSelectable( "Frame", m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+                if( ImGuiX::TSelectable( Lang::Frame, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
                 {
                     // Selection changed.
-                    m_PerformanceQueryCommandBufferFilterName = "Frame";
+                    m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
                 }
 
                 // Enumerate command buffers.
@@ -1922,7 +1411,7 @@ namespace Profiler
                         if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
                         {
                             // Notify the profiler.
-                            if( vkSetProfilerPerformanceMetricsSetEXT( m_pDevice->Handle, metricsSetIndex ) == VK_SUCCESS )
+                            if( m_pFrontend->SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
                             {
                                 // Refresh the performance metric properties.
                                 m_ActiveMetricsSetIndex = metricsSetIndex;
@@ -2124,7 +1613,7 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
-            m_pDevice->pPhysicalDevice->MemoryProperties;
+            m_pFrontend->GetPhysicalDeviceMemoryProperties();
 
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
@@ -2341,6 +1830,10 @@ namespace Profiler
         // Shader module may not be available if the VkShaderEXT has been created directly from a binary.
         if( shader.m_pShaderModule )
         {
+            m_InspectorShaderView.SetShaderIdentifier(
+                shader.m_pShaderModule->m_IdentifierSize,
+                shader.m_pShaderModule->m_Identifier );
+
             const auto& bytecode = shader.m_pShaderModule->m_Bytecode;
             m_InspectorShaderView.AddBytecode( bytecode.data(), bytecode.size() );
         }
@@ -2478,7 +1971,8 @@ namespace Profiler
 
         // VkPipelineVertexInputStateCreateInfo
         ImGui::BeginDisabled( gci.pVertexInputState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateVertexInput ) &&
+            ( gci.pVertexInputState != nullptr ) )
         {
             const VkPipelineVertexInputStateCreateInfo& state = *gci.pVertexInputState;
 
@@ -2491,7 +1985,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Offset" );
                 ImGui::TableSetupColumn( "Stride" );
                 ImGui::TableSetupColumn( "Input rate", 0, 1.5f );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
                 {
@@ -2536,7 +2030,8 @@ namespace Profiler
 
         // VkPipelineInputAssemblyStateCreateInfo
         ImGui::BeginDisabled( gci.pInputAssemblyState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateInputAssembly ) &&
+            ( gci.pInputAssemblyState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##InputAssemblyState", 3, tableFlags ) )
@@ -2554,7 +2049,8 @@ namespace Profiler
 
         // VkPipelineTessellationStateCreateInfo
         ImGui::BeginDisabled( gci.pTessellationState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateTessellation ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateTessellation ) &&
+            ( gci.pTessellationState != nullptr ) )
         {
             ImGuiX::BeginPadding( 5, 10, 10 );
 
@@ -2572,7 +2068,8 @@ namespace Profiler
 
         // VkPipelineViewportStateCreateInfo
         ImGui::BeginDisabled( gci.pViewportState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateViewport ) &&
+            ( gci.pViewportState != nullptr ) )
         {
             const float firstColumnWidth = ImGui::CalcTextSize( "00 (Dynamic)" ).x + 5;
 
@@ -2586,7 +2083,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Height" );
                 ImGui::TableSetupColumn( "Min Z" );
                 ImGui::TableSetupColumn( "Max Z" );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 const char* format = "%u";
                 if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_VIEWPORT ) )
@@ -2624,7 +2121,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Y" );
                 ImGui::TableSetupColumn( "Width" );
                 ImGui::TableSetupColumn( "Height" );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 const char* format = "%u";
                 if( IsPipelineStateDynamic( gci.pDynamicState, VK_DYNAMIC_STATE_SCISSOR ) )
@@ -2656,7 +2153,8 @@ namespace Profiler
 
         // VkPipelineRasterizationStateCreateInfo
         ImGui::BeginDisabled( gci.pRasterizationState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateRasterization ) &&
+            ( gci.pRasterizationState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##RasterizationState", 3, tableFlags ) )
@@ -2682,7 +2180,8 @@ namespace Profiler
 
         // VkPipelineMultisampleStateCreateInfo
         ImGui::BeginDisabled( gci.pMultisampleState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateMultisampling ) &&
+            ( gci.pMultisampleState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##MultisampleState", 3, tableFlags ) )
@@ -2704,7 +2203,8 @@ namespace Profiler
 
         // VkPipelineDepthStencilStateCreateInfo
         ImGui::BeginDisabled( gci.pDepthStencilState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateDepthStencil ) &&
+            ( gci.pDepthStencilState != nullptr ) )
         {
             ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##DepthStencilState", 3, tableFlags ) )
@@ -2756,7 +2256,8 @@ namespace Profiler
 
         // VkPipelineColorBlendStateCreateInfo
         ImGui::BeginDisabled( gci.pColorBlendState == nullptr );
-        if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) )
+        if( ImGui::CollapsingHeader( Lang::PipelineStateColorBlend ) &&
+            ( gci.pColorBlendState != nullptr ) )
         {
             const VkPipelineColorBlendStateCreateInfo& state = *gci.pColorBlendState;
 
@@ -2786,7 +2287,7 @@ namespace Profiler
                 ImGui::TableSetupColumn( "Dst alpha" );
                 ImGui::TableSetupColumn( "Alpha op" );
                 ImGui::TableSetupColumn( "Mask", ImGuiTableColumnFlags_WidthFixed, maskColumnWidth );
-                ImGuiX::TableHeadersRow( m_Fonts.GetBoldFont() );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 for( uint32_t i = 0; i < state.attachmentCount; ++i )
                 {
@@ -2940,75 +2441,77 @@ namespace Profiler
                     }
                 };
 
-            ImGui::BeginTable( "##StatisticsTable", 6,
-                ImGuiTableFlags_BordersInnerH |
-                ImGuiTableFlags_PadOuterX |
-                ImGuiTableFlags_Hideable |
-                ImGuiTableFlags_ContextMenuInBody |
-                ImGuiTableFlags_NoClip |
-                ImGuiTableFlags_SizingStretchProp );
-
-            ImGui::TableSetupColumn( Lang::StatName, ImGuiTableColumnFlags_NoHide, 3.0f );
-            ImGui::TableSetupColumn( Lang::StatCount, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatTotal, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatMin, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatMax, 0, 1.0f );
-            ImGui::TableSetupColumn( Lang::StatAvg, 0, 1.0f );
-            ImGui::TableNextRow();
-
-            ImGui::PushFont( m_Fonts.GetBoldFont() );
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted( Lang::StatName );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatCount );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatTotal );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMin );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMax );
-            ImGui::TableNextColumn();
-            ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
-            ImGui::PopFont();
-
-            PrintStats( Lang::DrawCalls, m_pData->m_Stats.m_DrawStats );
-            PrintStats( Lang::DrawCallsIndirect, m_pData->m_Stats.m_DrawIndirectStats );
-            PrintStats( Lang::DrawMeshTasksCalls, m_pData->m_Stats.m_DrawMeshTasksStats );
-            PrintStats( Lang::DrawMeshTasksIndirectCalls, m_pData->m_Stats.m_DrawMeshTasksIndirectStats );
-            PrintStats( Lang::DispatchCalls, m_pData->m_Stats.m_DispatchStats );
-            PrintStats( Lang::DispatchCallsIndirect, m_pData->m_Stats.m_DispatchIndirectStats );
-            PrintStats( Lang::TraceRaysCalls, m_pData->m_Stats.m_TraceRaysStats );
-            PrintStats( Lang::TraceRaysIndirectCalls, m_pData->m_Stats.m_TraceRaysIndirectStats );
-            PrintStats( Lang::CopyBufferCalls, m_pData->m_Stats.m_CopyBufferStats );
-            PrintStats( Lang::CopyBufferToImageCalls, m_pData->m_Stats.m_CopyBufferToImageStats );
-            PrintStats( Lang::CopyImageCalls, m_pData->m_Stats.m_CopyImageStats );
-            PrintStats( Lang::CopyImageToBufferCalls, m_pData->m_Stats.m_CopyImageToBufferStats );
-            PrintStats( Lang::PipelineBarriers, m_pData->m_Stats.m_PipelineBarrierStats );
-            PrintStats( Lang::ColorClearCalls, m_pData->m_Stats.m_ClearColorStats );
-            PrintStats( Lang::DepthStencilClearCalls, m_pData->m_Stats.m_ClearDepthStencilStats );
-            PrintStats( Lang::ResolveCalls, m_pData->m_Stats.m_ResolveStats );
-            PrintStats( Lang::BlitCalls, m_pData->m_Stats.m_BlitImageStats );
-            PrintStats( Lang::FillBufferCalls, m_pData->m_Stats.m_FillBufferStats );
-            PrintStats( Lang::UpdateBufferCalls, m_pData->m_Stats.m_UpdateBufferStats );
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            if( m_ShowEmptyStatistics )
+            if( ImGui::BeginTable( "##StatisticsTable", 6,
+                    ImGuiTableFlags_BordersInnerH |
+                    ImGuiTableFlags_PadOuterX |
+                    ImGuiTableFlags_Hideable |
+                    ImGuiTableFlags_ContextMenuInBody |
+                    ImGuiTableFlags_NoClip |
+                    ImGuiTableFlags_SizingStretchProp ) )
             {
-                if( ImGui::TextLink( Lang::HideEmptyStatistics ) )
-                {
-                    m_ShowEmptyStatistics = false;
-                }
-            }
-            else
-            {
-                if( ImGui::TextLink( Lang::ShowEmptyStatistics ) )
-                {
-                    m_ShowEmptyStatistics = true;
-                }
-            }
+                ImGui::TableSetupColumn( Lang::StatName, ImGuiTableColumnFlags_NoHide, 3.0f );
+                ImGui::TableSetupColumn( Lang::StatCount, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatTotal, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatMin, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatMax, 0, 1.0f );
+                ImGui::TableSetupColumn( Lang::StatAvg, 0, 1.0f );
+                ImGui::TableNextRow();
 
-            ImGui::EndTable();
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted( Lang::StatName );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatCount );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatTotal );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMin );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatMax );
+                ImGui::TableNextColumn();
+                ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
+                ImGui::PopFont();
+
+                PrintStats( Lang::DrawCalls, m_pData->m_Stats.m_DrawStats );
+                PrintStats( Lang::DrawCallsIndirect, m_pData->m_Stats.m_DrawIndirectStats );
+                PrintStats( Lang::DrawMeshTasksCalls, m_pData->m_Stats.m_DrawMeshTasksStats );
+                PrintStats( Lang::DrawMeshTasksIndirectCalls, m_pData->m_Stats.m_DrawMeshTasksIndirectStats );
+                PrintStats( Lang::DispatchCalls, m_pData->m_Stats.m_DispatchStats );
+                PrintStats( Lang::DispatchCallsIndirect, m_pData->m_Stats.m_DispatchIndirectStats );
+                PrintStats( Lang::TraceRaysCalls, m_pData->m_Stats.m_TraceRaysStats );
+                PrintStats( Lang::TraceRaysIndirectCalls, m_pData->m_Stats.m_TraceRaysIndirectStats );
+                PrintStats( Lang::CopyBufferCalls, m_pData->m_Stats.m_CopyBufferStats );
+                PrintStats( Lang::CopyBufferToImageCalls, m_pData->m_Stats.m_CopyBufferToImageStats );
+                PrintStats( Lang::CopyImageCalls, m_pData->m_Stats.m_CopyImageStats );
+                PrintStats( Lang::CopyImageToBufferCalls, m_pData->m_Stats.m_CopyImageToBufferStats );
+                PrintStats( Lang::PipelineBarriers, m_pData->m_Stats.m_PipelineBarrierStats );
+                PrintStats( Lang::ColorClearCalls, m_pData->m_Stats.m_ClearColorStats );
+                PrintStats( Lang::DepthStencilClearCalls, m_pData->m_Stats.m_ClearDepthStencilStats );
+                PrintStats( Lang::ResolveCalls, m_pData->m_Stats.m_ResolveStats );
+                PrintStats( Lang::BlitCalls, m_pData->m_Stats.m_BlitImageStats );
+                PrintStats( Lang::FillBufferCalls, m_pData->m_Stats.m_FillBufferStats );
+                PrintStats( Lang::UpdateBufferCalls, m_pData->m_Stats.m_UpdateBufferStats );
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                if( m_ShowEmptyStatistics )
+                {
+                    if( ImGui::TextLink( Lang::HideEmptyStatistics ) )
+                    {
+                        m_ShowEmptyStatistics = false;
+                    }
+                }
+                else
+                {
+                    if( ImGui::TextLink( Lang::ShowEmptyStatistics ) )
+                    {
+                        m_ShowEmptyStatistics = true;
+                    }
+                }
+
+                ImGui::EndTable();
+            }
         }
     }
 
@@ -3058,7 +2561,7 @@ namespace Profiler
             if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
             {
                 VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
-                VkResult result = vkSetProfilerSyncModeEXT( m_pDevice->Handle, syncMode );
+                VkResult result = m_pFrontend->SetProfilerSyncMode( syncMode );
                 if( result == VK_SUCCESS )
                 {
                     m_SyncMode = syncMode;
@@ -3187,7 +2690,8 @@ namespace Profiler
         index.emplace_back( 0 );
 
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
-        const size_t queueCount = m_pDevice->Queues.size();
+        const auto& queues = m_pFrontend->GetDeviceQueues();
+        const size_t queueCount = queues.size();
 
         QueueTimestampPair* pLastTimestampsPerQueue = nullptr;
         bool lastTimstampsPerQueueUsesHeapAllocation = false;
@@ -3214,7 +2718,7 @@ namespace Profiler
             if( pLastTimestampsPerQueue != nullptr )
             {
                 size_t i = 0;
-                for( const auto& queue : m_pDevice->Queues )
+                for( const auto& queue : queues )
                 {
                     pLastTimestampsPerQueue[i].first = queue.second.Handle;
                     pLastTimestampsPerQueue[i].second = 0;
@@ -3336,16 +2840,13 @@ namespace Profiler
         {
             const float cycleCount = GetDuration( data );
 
-            PerformanceGraphColumn column = {};
+            PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.color = m_RenderPassColumnColor;
             column.userData = &data;
             column.groupMode = HistogramGroupMode::eRenderPass;
             column.nodeIndex = index;
-
-            // Insert render pass cycle count to histogram
-            columns.push_back( column );
         }
         else
         {
@@ -3354,7 +2855,7 @@ namespace Profiler
             {
                 const float cycleCount = GetDuration( data.m_Begin );
 
-                PerformanceGraphColumn column = {};
+                PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
@@ -3362,7 +2863,6 @@ namespace Profiler
                 column.groupMode = HistogramGroupMode::eRenderPassBegin;
                 column.nodeIndex = index;
 
-                columns.push_back( column );
                 index.back()++;
             }
 
@@ -3418,15 +2918,13 @@ namespace Profiler
             {
                 const float cycleCount = GetDuration( data.m_End );
 
-                PerformanceGraphColumn column = {};
+                PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassEnd;
                 column.nodeIndex = index;
-
-                columns.push_back( column );
             }
 
             index.pop_back();
@@ -3454,7 +2952,7 @@ namespace Profiler
         {
             const float cycleCount = GetDuration( data );
 
-            PerformanceGraphColumn column = {};
+            PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.userData = &data;
@@ -3479,9 +2977,6 @@ namespace Profiler
                 assert( !"Unsupported pipeline type" );
                 break;
             }
-
-            // Insert pipeline cycle count to histogram
-            columns.push_back( column );
         }
         else
         {
@@ -3514,7 +3009,7 @@ namespace Profiler
     {
         const float cycleCount = GetDuration( data );
 
-        PerformanceGraphColumn column = {};
+        PerformanceGraphColumn& column = columns.emplace_back();
         column.x = cycleCount;
         column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
         column.userData = &data;
@@ -3535,9 +3030,6 @@ namespace Profiler
             column.color = m_InternalPipelineColumnColor;
             break;
         }
-
-        // Insert drawcall cycle count to histogram
-        columns.push_back( column );
     }
 
     /***********************************************************************************\
@@ -3938,7 +3430,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
-        DeviceProfilerTraceSerializer serializer( m_pStringSerializer, m_TimestampPeriod );
+        DeviceProfilerTraceSerializer serializer( m_pStringSerializer.get(), m_TimestampPeriod);
         DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
 
         m_SerializationSucceeded = result.m_Succeeded;
@@ -3968,9 +3460,10 @@ namespace Profiler
 
         if( (now - m_SerializationFinishTimestamp) < 4s )
         {
+            const ImVec2 outputSize = m_pBackend->GetRenderArea();
             const ImVec2 windowPos = {
-                static_cast<float>(m_RenderArea.width - m_SerializationOutputWindowSize.width),
-                static_cast<float>(m_RenderArea.height - m_SerializationOutputWindowSize.height) };
+                static_cast<float>(outputSize.x - m_SerializationOutputWindowSize.width),
+                static_cast<float>(outputSize.y - m_SerializationOutputWindowSize.height) };
 
             const float fadeOutStep =
                 1.f - std::max( 0.f, std::min( 1.f,
@@ -4020,6 +3513,93 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        UpdateApplicationInfoWindow
+
+    Description:
+        Display window with application information.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateApplicationInfoWindow()
+    {
+        const uint32_t applicationInfoWindowFlags = 
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoMove;
+
+        if( ImGui::BeginPopup( Lang::ApplicationInfo, applicationInfoWindowFlags ) )
+        {
+            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+            const float headerColumnWidth = 150.f * interfaceScale;
+            const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
+
+            const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
+
+            ImGui::PushStyleColor( ImGuiCol_Button, { 0, 0, 0, 0 } );
+
+            ImGui::TextUnformatted( Lang::VulkanVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
+
+            ImGui::TextUnformatted( Lang::ApplicationName );
+            if( applicationInfo.pApplicationName )
+            {
+                ImGui::SameLine( headerColumnWidth );
+                ImGui::TextUnformatted( applicationInfo.pApplicationName );
+                
+                ImGui::SameLine();
+                if( ImGui::ImageButton( "##CopyApplicationName", m_Resources.GetCopyIconImage(), iconSize ) )
+                {
+                    ImGui::SetClipboardText( applicationInfo.pApplicationName );
+                }
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNormal ) )
+                {
+                    ImGui::SetTooltip( Lang::CopyToClipboard );
+                }
+            }
+
+            ImGui::TextUnformatted( Lang::ApplicationVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.applicationVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.applicationVersion ),
+                VK_API_VERSION_PATCH( applicationInfo.applicationVersion ) );
+
+            ImGui::TextUnformatted( Lang::EngineName );
+            if( applicationInfo.pEngineName )
+            {
+                ImGui::SameLine( headerColumnWidth );
+                ImGui::TextUnformatted( applicationInfo.pEngineName );
+
+                ImGui::SameLine();
+                if( ImGui::ImageButton( "##CopyEngineName", m_Resources.GetCopyIconImage(), iconSize ) )
+                {
+                    ImGui::SetClipboardText( applicationInfo.pEngineName );
+                }
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNormal ) )
+                {
+                    ImGui::SetTooltip( Lang::CopyToClipboard );
+                }
+            }
+
+            ImGui::TextUnformatted( Lang::EngineVersion );
+            ImGui::SameLine( headerColumnWidth );
+            ImGui::Text( "%u.%u.%u",
+                VK_API_VERSION_MAJOR( applicationInfo.engineVersion ),
+                VK_API_VERSION_MINOR( applicationInfo.engineVersion ),
+                VK_API_VERSION_PATCH( applicationInfo.engineVersion ) );
+
+            ImGui::PopStyleColor();
+            ImGui::EndPopup();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         PrintCommandBuffer
 
     Description:
@@ -4039,7 +3619,7 @@ namespace Profiler
         }
 
         const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-        const std::string commandBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
+        std::string commandBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
         bool commandBufferTreeExpanded = ImGui::TreeNode( indexStr, "%s",
             commandBufferName.c_str() );
 
@@ -4048,7 +3628,7 @@ namespace Profiler
             if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceQueryResults.empty() ) )
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
-                m_PerformanceQueryCommandBufferFilterName = commandBufferName;
+                m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
                 m_PerformanceCountersWindowState.SetFocus();
             }
             ImGui::EndPopup();
@@ -4329,35 +3909,10 @@ namespace Profiler
             inPipelineSubtree =
                 (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
 
-            if( ImGui::BeginPopupContextItem() )
-            {
-                if( ImGui::MenuItem( Lang::Inspect, nullptr, nullptr ) )
-                {
-                    Inspect( pipeline );
-                }
-
-                ImGui::EndPopup();
-            }
+            DrawPipelineContextMenu( pipeline );
         }
 
-        if( m_ShowShaderCapabilities )
-        {
-            if( pipeline.m_UsesShaderObjects )
-            {
-                static ImU32 shaderObjectsColor = IM_COL32( 104, 25, 133, 255 );
-                DrawBadge( shaderObjectsColor, "SO", Lang::ShaderObjectsTooltip );
-            }
-            if( pipeline.m_UsesRayQuery )
-            {
-                static ImU32 rayQueryCapabilityColor = IM_COL32( 133, 82, 25, 255 );
-                DrawBadge( rayQueryCapabilityColor, "RQ", Lang::ShaderCapabilityTooltipFmt, "Ray Query" );
-            }
-            if( pipeline.m_UsesRayTracing )
-            {
-                static ImU32 rayTracingCapabilityColor = IM_COL32( 25, 110, 133, 255 );
-                DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
-            }
-        }
+        DrawPipelineCapabilityBadges( pipeline );
 
         if( !printPipelineInline )
         {
@@ -4488,12 +4043,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... )
     {
-        assert( m_ShowShaderCapabilities );
-
         ImGui::SameLine();
         ImGuiX::BadgeUnformatted( color, 5.f, shortName );
 
-        if (ImGui::IsItemHovered())
+        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
         {
             va_list args;
             va_start( args, fmt );
@@ -4503,6 +4056,114 @@ namespace Profiler
             ImGui::EndTooltip();
 
             va_end( args );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPipelineCapabilityBadges
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPipelineCapabilityBadges( const DeviceProfilerPipelineData& pipeline )
+    {
+        if( !m_ShowShaderCapabilities )
+        {
+            return;
+        }
+
+        if( pipeline.m_UsesShaderObjects )
+        {
+            ImU32 shaderObjectsColor = IM_COL32( 104, 25, 133, 255 );
+            DrawBadge( shaderObjectsColor, "SO", Lang::ShaderObjectsTooltip );
+        }
+
+        if( pipeline.m_UsesRayQuery )
+        {
+            ImU32 rayQueryCapabilityColor = IM_COL32( 133, 82, 25, 255 );
+            DrawBadge( rayQueryCapabilityColor, "RQ", Lang::ShaderCapabilityTooltipFmt, "Ray Query" );
+        }
+
+        if( pipeline.m_UsesRayTracing )
+        {
+            ImU32 rayTracingCapabilityColor = ImGuiX::Darker( m_RayTracingPipelineColumnColor, 0.5f );
+            DrawBadge( rayTracingCapabilityColor, "RT", Lang::ShaderCapabilityTooltipFmt, "Ray Tracing" );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPipelineStageBadge
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPipelineStageBadge( const DeviceProfilerPipelineData& pipeline, VkShaderStageFlagBits stage, const char* pStageName )
+    {
+        const ProfilerShader* pShader = pipeline.m_ShaderTuple.GetFirstShaderAtStage( stage );
+
+        if( !pShader )
+        {
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 255, 255, 48 ) );
+        }
+
+        ImGui::TextUnformatted( pStageName );
+
+        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+        {
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::Text( "%s stage", m_pStringSerializer->GetShaderStageName( stage ).c_str() );
+                ImGui::PopFont();
+
+                if( pShader )
+                {
+                    ImGui::TextUnformatted( m_pStringSerializer->GetShaderName( *pShader ).c_str() );
+                }
+                else
+                {
+                    ImGui::TextUnformatted( "Unused" );
+                }
+
+                ImGui::EndTooltip();
+            }
+        }
+
+        if( !pShader )
+        {
+            ImGui::PopStyleColor();
+        }
+
+        ImGui::SameLine();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPipelineContextMenu
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPipelineContextMenu( const DeviceProfilerPipelineData& pipeline, const char* id )
+    {
+        if( ImGui::BeginPopupContextItem( id ) )
+        {
+            if( ImGui::MenuItem( Lang::Inspect, nullptr, nullptr, !pipeline.m_Internal ) )
+            {
+                Inspect( pipeline );
+            }
+
+            if( ImGui::MenuItem( Lang::CopyName, nullptr, nullptr ) )
+            {
+                ImGui::SetClipboardText( m_pStringSerializer->GetName( pipeline ).c_str() );
+            }
+
+            ImGui::EndPopup();
         }
     }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,13 @@
 #pragma once
 #include <imgui.h>
 
+enum ImGuiXTableColumnFlags_
+{
+    ImGuiXTableColumnFlags_AlignHeaderRight = 1 << 0,
+};
+
+typedef int ImGuiXTableColumnFlags;
+
 namespace ImGuiX
 {
     /*************************************************************************\
@@ -34,6 +41,22 @@ namespace ImGuiX
     \*************************************************************************/
     float TableGetColumnWidth(
         int column_index = -1 );
+
+    /*************************************************************************\
+
+    Function:
+        TableSetupColumn
+
+    Description:
+        Setup a column in the current table.
+
+    \*************************************************************************/
+    void TableSetupColumn(
+        const char* label,
+        ImGuiTableColumnFlags flags = 0,
+        ImGuiXTableColumnFlags xflags = 0,
+        float init_width_or_weight = 0.f,
+        ImU32 user_id = 0 );
 
     /*************************************************************************\
 

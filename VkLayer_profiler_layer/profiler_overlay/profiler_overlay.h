@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,12 +22,10 @@
 #include "profiler/profiler_data_aggregator.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler/profiler_stat_comparators.h"
-#include "profiler_layer_objects/VkDevice_object.h"
-#include "profiler_layer_objects/VkQueue_object.h"
-#include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include "profiler_overlay_backend.h"
 #include "profiler_overlay_settings.h"
-#include "profiler_overlay_fonts.h"
+#include "profiler_overlay_resources.h"
 #include "profiler_overlay_shader_view.h"
 #include <vulkan/vk_layer.h>
 #include <list>
@@ -50,8 +48,7 @@ namespace ImGuiX
 
 namespace Profiler
 {
-    class DeviceProfiler;
-    struct ProfilerSubmitData;
+    class DeviceProfilerFrontend;
 
     /***********************************************************************************\
 
@@ -68,55 +65,21 @@ namespace Profiler
         ProfilerOverlayOutput();
         ~ProfilerOverlayOutput();
 
-        VkResult Initialize(
-            VkDevice_Object& device,
-            VkQueue_Object& graphicsQueue,
-            VkSwapchainKhr_Object& swapchain,
-            const VkSwapchainCreateInfoKHR* pCreateInfo );
-
+        bool Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend );
         void Destroy();
 
         bool IsAvailable() const;
 
-        VkSwapchainKHR GetSwapchain() const;
-
-        VkResult ResetSwapchain(
-            VkSwapchainKhr_Object& swapchain,
-            const VkSwapchainCreateInfoKHR* pCreateInfo );
-
-        void Present(
-            const std::shared_ptr<DeviceProfilerFrameData>& pData,
-            const VkQueue_Object& presentQueue,
-            VkPresentInfoKHR* pPresentInfo );
+        void Update();
 
     private:
         OverlaySettings m_Settings;
 
-        VkDevice_Object* m_pDevice;
-        VkQueue_Object* m_pGraphicsQueue;
-        VkSwapchainKhr_Object* m_pSwapchain;
-
-        OSWindowHandle m_Window;
+        DeviceProfilerFrontend* m_pFrontend;
+        OverlayBackend* m_pBackend;
 
         ImGuiContext* m_pImGuiContext;
-        ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
-        ImGui_Window_Context* m_pImGuiWindowContext;
-
-        OverlayFonts m_Fonts;
-
-        VkDescriptorPool m_DescriptorPool;
-
-        VkRenderPass m_RenderPass;
-        VkExtent2D m_RenderArea;
-        VkFormat m_ImageFormat;
-        std::vector<VkImage> m_Images;
-        std::vector<VkImageView> m_ImageViews;
-        std::vector<VkFramebuffer> m_Framebuffers;
-
-        VkCommandPool m_CommandPool;
-        std::vector<VkCommandBuffer> m_CommandBuffers;
-        std::vector<VkFence> m_CommandFences;
-        std::vector<VkSemaphore> m_CommandSemaphores;
+        OverlayResources m_Resources;
 
         std::string m_Title;
 
@@ -173,6 +136,7 @@ namespace Profiler
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
         bool m_ShowEmptyStatistics;
+        bool m_ShowAllTopPipelines;
 
         enum class TimeUnit
         {
@@ -241,7 +205,7 @@ namespace Profiler
         uint32_t m_RayTracingPipelineColumnColor;
         uint32_t m_InternalPipelineColumnColor;
 
-        class DeviceProfilerStringSerializer* m_pStringSerializer;
+        std::unique_ptr<class DeviceProfilerStringSerializer> m_pStringSerializer;
 
         // Dock space ids
         int m_MainDockSpaceId;
@@ -269,13 +233,10 @@ namespace Profiler
         WindowState m_StatisticsWindowState;
         WindowState m_SettingsWindowState;
 
-        VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
-        VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
+        void ResetMembers();
 
-        void InitializeImGuiDefaultFont();
         void InitializeImGuiStyle();
 
-        void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
         void UpdateQueueUtilizationTab();
         void UpdateTopPipelinesTab();
@@ -311,6 +272,7 @@ namespace Profiler
 
         // Notifications
         void UpdateNotificationWindow();
+        void UpdateApplicationInfoWindow();
 
         // Inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
@@ -336,6 +298,9 @@ namespace Profiler
         void DrawSignificanceRect( const Data& data, const FrameBrowserTreeNodeIndex& index );
         void DrawSignificanceRect( float significance, const FrameBrowserTreeNodeIndex& index );
         void DrawBadge( uint32_t color, const char* shortName, const char* fmt, ... );
+        void DrawPipelineCapabilityBadges( const DeviceProfilerPipelineData& pipeline );
+        void DrawPipelineStageBadge( const DeviceProfilerPipelineData& pipeline, VkShaderStageFlagBits stage, const char* pStageName );
+        void DrawPipelineContextMenu( const DeviceProfilerPipelineData& pipeline, const char* id = nullptr );
 
         template<typename Data>
         void PrintDuration( const Data& data );
