@@ -42,7 +42,7 @@ On Windows, install [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/).
 On Linux (Debian-based systems), install libvulkan-dev and glslang-tools packages.
 
 ## Usage
-To enable the layer add `"VK_LAYER_PROFILER_unified"` to the layer list in VkInstanceCreateInfo or to the VK_INSTANCE_LAYERS environment variable. The later method allows to profile applications without the need to modify the source code and is recommended for manual analysis.
+To enable the layer add `"VK_LAYER_PROFILER_unified"` to the layer list in VkInstanceCreateInfo. It can be also enabled without any modifications to the profiled application using [Vulkan Configurator](https://vulkan.lunarg.com/doc/view/latest/windows/vkconfig.html) (distributed with Vulkan SDK) or via environment variables: `VK_INSTANCE_LAYERS` or `VK_LOADER_LAYERS_ENABLE` (available in 1.3.243 loader or newer).
 
 ### Configuration
 The layer can be configured to handle more specific use cases. The following table describes the options available to the user.
@@ -54,6 +54,7 @@ The layer can be configured to handle more specific use cases. The following tab
 | *BOOL*<br>enable_pipeline_executable_properties_ext | false | Capture VkPipeline's executable properties and internal shader representations for more detailed insights into the shaders executed on the GPU. Enables VK_KHR_pipeline_executable_properties extension. |
 | *BOOL*<br>enable_render_pass_begin_end_profiling | false | Measures time of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode. |
 | *BOOL*<br>set_stable_power_state | true | Use DirectX12 API to set stable power state for GPU time measurements. |
+| *BOOL*<br>enable_threading | true | Create threads to collect and process the data in background. If disabled, the data collection frequency is defined by `sync_mode`. |
 | *ENUM*<br>sampling_mode | drawcall | Controls the frequency of inserting timestamp queries. More frequent queries may impact performance of the applicaiton (but not the peformance of the measured region). See table with available sampling modes for more details. |
 | *ENUM*<br>sync_mode | present | Controls the frequency of collecting data from the submitted command buffers. More frequect synchronization points may impact performance of the application. See table with available synchronization modes for more details. |
 
@@ -83,10 +84,11 @@ The profiler loads the configuration from the sources below, in the following or
    SET VKPROF_sampling_mode=pipeline
    ```
 
-The easiest way to configure the layer is to use the [Vulkan Configurator](https://github.com/LunarG/VulkanTools/blob/main/vkconfig/README.md).
+The easiest way to configure the layer is to use the [Vulkan Configurator](https://vulkan.lunarg.com/doc/view/latest/windows/vkconfig.html).
 
 #### Sampling modes
 Supported sampling modes are described in the following table:
+
 | # | Setting | Description |
 | ---- | ------- | ----------- |
 | 0    | drawcall | `VK_PROFILER_MODE_PER_DRAWCALL_EXT`<br>The profiler will measure GPU time of each command. |
@@ -95,6 +97,7 @@ Supported sampling modes are described in the following table:
 | 3    | commandbuffer | `VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT`<br>The profiler will measure time of each submitted VkCommandBuffer. |
 
 There are also 2 sampling modes which are defined, but not currently supported:
+
 | # | Setting | Description |
 | ---- | ------- | ----------- |
 | 4    | submit | `VK_PROFILER_MODE_PER_SUBMIT_BIT`<br>The profiler will measure GPU time of each vkQueueSubmit. |
@@ -102,10 +105,11 @@ There are also 2 sampling modes which are defined, but not currently supported:
 
 #### Sync mode
 Supported synchronization modes are described in the table below:
+
 | # | Setting | Description |
 | ---- | ------- | ----------- |
-| 0    | present | `VK_PROFILER_SYNC_MODE_PRESENT_EXT`<br>Collects the data on vkQueuePresentKHR. Inserts a vkDeviceWaitIdle before the call is forwarded to the ICD. |
-| 1    | submit | `VK_PROFILER_SYNC_MODE_SUBMIT_EXT`<br>Collects the data on vkQueueSubmit. Inserts a fence after the submitted commands and waits until it is signaled. |
+| 0    | present | `VK_PROFILER_SYNC_MODE_PRESENT_EXT`<br>Checks for complete frames before each vkQueuePresentKHR. |
+| 1    | submit | `VK_PROFILER_SYNC_MODE_SUBMIT_EXT`<br>Checks for complete frames before each vkQueueSubmit. |
 
 Synchronization mode can be changed in the runtime using either the `vkSetProfilerSyncModeEXT` function or by selecting it in the "Settings" tab of the overlay.
 
