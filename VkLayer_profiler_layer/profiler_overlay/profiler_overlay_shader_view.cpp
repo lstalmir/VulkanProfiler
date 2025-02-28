@@ -684,6 +684,10 @@ namespace Profiler
         case VK_API_VERSION_1_3:
             m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
             break;
+
+        case VK_API_VERSION_1_4:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_4;
+            break;
         }
     }
 
