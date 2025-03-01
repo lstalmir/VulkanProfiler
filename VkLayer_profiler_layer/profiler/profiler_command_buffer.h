@@ -151,6 +151,7 @@ namespace Profiler
 
         void SaveIndirectArgs( DeviceProfilerDrawcall& drawcall );
         void FlushIndirectArgumentCopyLists();
+        void ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst );
 
         IndirectArgumentBuffer& AcquireIndirectArgumentBuffer( size_t size );
     };

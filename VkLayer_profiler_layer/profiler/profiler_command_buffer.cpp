@@ -269,11 +269,14 @@ namespace Profiler
 
             m_Data.m_DataValid = false;
 
-            // Reset indirect argument buffers.
-            for( auto& buffer : m_IndirectArgumentBufferList )
+            if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
-                buffer.m_Offset = 0;
-                buffer.m_PendingCopyList.clear();
+                // Reset indirect argument buffers.
+                for( auto& buffer : m_IndirectArgumentBufferList )
+                {
+                    buffer.m_Offset = 0;
+                    buffer.m_PendingCopyList.clear();
+                }
             }
         }
     }
@@ -418,7 +421,8 @@ namespace Profiler
             m_pCurrentPipelineData = nullptr;
         }
 
-        if( m_ProfilingEnabled )
+        if( (m_ProfilingEnabled) &&
+            (m_Profiler.m_Config.m_CaptureIndirectArguments) )
         {
             // Record pending indirect argument buffer copies after the render pass.
             FlushIndirectArgumentCopyLists();
@@ -773,8 +777,11 @@ namespace Profiler
             // Append drawcall to the current pipeline
             m_pCurrentDrawcallData = &m_pCurrentPipelineData->m_Drawcalls.emplace_back( drawcall );
 
-            // Save indirect arguments
-            SaveIndirectArgs( *m_pCurrentDrawcallData );
+            if( m_Profiler.m_Config.m_CaptureIndirectArguments )
+            {
+                // Save indirect arguments
+                SaveIndirectArgs( *m_pCurrentDrawcallData );
+            }
 
             // Increment drawcall stats
             m_Stats.AddCount( drawcall );
@@ -954,8 +961,11 @@ namespace Profiler
                 bufferMemoryBarrierCount +
                 imageMemoryBarrierCount;
 
-            // Flush any pending indirect argument buffer copies.
-            FlushIndirectArgumentCopyLists();
+            if( m_Profiler.m_Config.m_CaptureIndirectArguments )
+            {
+                // Flush any pending indirect argument buffer copies.
+                FlushIndirectArgumentCopyLists();
+            }
         }
     }
 
@@ -980,8 +990,11 @@ namespace Profiler
                 pDependencyInfo->bufferMemoryBarrierCount +
                 pDependencyInfo->imageMemoryBarrierCount;
 
-            // Flush any pending indirect argument buffer copies.
-            FlushIndirectArgumentCopyLists();
+            if( m_Profiler.m_Config.m_CaptureIndirectArguments )
+            {
+                // Flush any pending indirect argument buffer copies.
+                FlushIndirectArgumentCopyLists();
+            }
         }
     }
 
@@ -1221,19 +1234,9 @@ namespace Profiler
             // Copy captured indirect argument buffer data
             m_Data.m_IndirectPayload.clear();
 
-            for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
+            if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
-                const uint8_t* pIndirectData = static_cast<const uint8_t*>( indirectArgumentBuffer.m_AllocationInfo.pMappedData );
-                const size_t indirectDataSize = indirectArgumentBuffer.m_Offset;
-
-                if( indirectDataSize )
-                {
-                    m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
-                    m_Data.m_IndirectPayload.insert(
-                        m_Data.m_IndirectPayload.end(),
-                        pIndirectData,
-                        pIndirectData + indirectDataSize );
-                }
+                ReadIndirectArgumentBuffers( m_Data.m_IndirectPayload );
             }
 
             // Subsequent calls to GetData will return the same results
@@ -1741,6 +1744,32 @@ namespace Profiler
                     bufferCopyRegions.data() );
 
                 bufferCopyRegions.clear();
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ReadIndirectArgumentBuffers
+
+    Description:
+        Copy captured indirect buffers to the destination buffer.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst )
+    {
+        for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
+        {
+            const uint8_t* pIndirectData = static_cast<const uint8_t*>( indirectArgumentBuffer.m_AllocationInfo.pMappedData );
+            const size_t indirectDataSize = indirectArgumentBuffer.m_Offset;
+
+            if( indirectDataSize )
+            {
+                m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
+                dst.insert( dst.end(),
+                    pIndirectData,
+                    pIndirectData + indirectDataSize );
             }
         }
     }

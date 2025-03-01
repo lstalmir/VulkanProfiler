@@ -297,6 +297,7 @@ namespace Profiler
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool, const FrameBrowserContext& );
         void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
         void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
+        void PrintDrawcallIndirectPayload( const DeviceProfilerDrawcall&, const FrameBrowserContext& );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         template<typename Data>

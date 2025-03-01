@@ -612,6 +612,22 @@ namespace Profiler
             std::swap( m_EndTimestamp, dc.m_EndTimestamp );
         }
 
+        // Check if drawcall can have indirect payload
+        inline bool HasIndirectPayload() const
+        {
+            switch( m_Type )
+            {
+            case DeviceProfilerDrawcallType::eDrawIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndirectCount:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+            case DeviceProfilerDrawcallType::eDispatchIndirect:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         // Assignment operators
         inline DeviceProfilerDrawcall& operator=( const DeviceProfilerDrawcall& dc )
         {
