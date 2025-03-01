@@ -23,6 +23,7 @@
 #include "profiler_data.h"
 #include "profiler_counters.h"
 #include <vulkan/vk_layer.h>
+#include <vk_mem_alloc.h>
 #include <vector>
 #include <unordered_set>
 
@@ -117,6 +118,24 @@ namespace Profiler
         DeviceProfilerPipeline              m_ComputePipeline;
         DeviceProfilerPipeline              m_RayTracingPipeline;
 
+        struct IndirectArgumentBufferCopy
+        {
+            VkBuffer                        m_SrcBuffer;
+            VkBuffer                        m_DstBuffer;
+            VkBufferCopy                    m_Region;
+        };
+
+        struct IndirectArgumentBuffer
+        {
+            VkBuffer                        m_Buffer;
+            VmaAllocation                   m_Allocation;
+            VmaAllocationInfo               m_AllocationInfo;
+            size_t                          m_Offset;
+            std::vector<IndirectArgumentBufferCopy> m_PendingCopyList;
+        };
+
+        std::list<IndirectArgumentBuffer>   m_IndirectArgumentBufferList;
+
         void PreBeginRenderPassCommonProlog();
         void PreBeginRenderPassCommonEpilog();
 
@@ -129,5 +148,11 @@ namespace Profiler
 
         void ResolveSubpassPipelineData( const DeviceProfilerQueryDataBufferReader&, DeviceProfilerSubpassData&, size_t );
         void ResolveSubpassSecondaryCommandBufferData( DeviceProfilerQueryDataBufferReader, DeviceProfilerSubpassData&, size_t, size_t, bool&, bool& );
+
+        void SaveIndirectArgs( DeviceProfilerDrawcall& drawcall );
+        void FlushIndirectArgumentCopyLists();
+        void ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst );
+
+        IndirectArgumentBuffer& AcquireIndirectArgumentBuffer( size_t size );
     };
 }
