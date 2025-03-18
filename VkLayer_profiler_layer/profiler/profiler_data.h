@@ -367,6 +367,14 @@ namespace Profiler
         uint32_t m_Width;
         uint32_t m_Height;
         uint32_t m_Depth;
+        VkStridedDeviceAddressRegionKHR m_RaygenShaderBindingTable;
+        VkStridedDeviceAddressRegionKHR m_MissShaderBindingTable;
+        VkStridedDeviceAddressRegionKHR m_HitShaderBindingTable;
+        VkStridedDeviceAddressRegionKHR m_CallableShaderBindingTable;
+        size_t m_RaygenShaderBindingTableOffset;
+        size_t m_MissShaderBindingTableOffset;
+        size_t m_HitShaderBindingTableOffset;
+        size_t m_CallableShaderBindingTableOffset;
     };
 
     struct DeviceProfilerDrawcallTraceRaysIndirectPayload
@@ -622,6 +630,7 @@ namespace Profiler
             case DeviceProfilerDrawcallType::eDrawIndirectCount:
             case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
             case DeviceProfilerDrawcallType::eDispatchIndirect:
+            case DeviceProfilerDrawcallType::eTraceRaysKHR:
                 return true;
             default:
                 return false;
@@ -1215,6 +1224,7 @@ namespace Profiler
     {
         VkDeviceSize m_BufferSize = {};
         VkBufferUsageFlags m_BufferUsage = {};
+        VkDeviceAddress m_BufferAddress = {};
         VkMemoryRequirements m_MemoryRequirements = {};
         VkDeviceMemory m_Memory = {};
         VkDeviceSize m_MemoryOffset = {};

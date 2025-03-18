@@ -1409,6 +1409,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetBufferAtAddress
+
+    Description:
+
+    \***********************************************************************************/
+    std::pair<VkBuffer, DeviceProfilerBufferMemoryData> DeviceProfiler::GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage )
+    {
+        return m_MemoryTracker.GetBufferAtAddress( address, requiredUsage );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateShaderTuple
 
     Description:

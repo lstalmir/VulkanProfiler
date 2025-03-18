@@ -42,6 +42,7 @@ namespace Profiler
         , m_Allocations()
         , m_Buffers()
         , m_Images()
+        , m_pfnGetBufferDeviceAddress( nullptr )
     {
     }
 
@@ -61,6 +62,23 @@ namespace Profiler
             m_pDevice->pPhysicalDevice->MemoryProperties;
         m_Heaps.resize( memoryProperties.memoryHeapCount );
         m_Types.resize( memoryProperties.memoryTypeCount );
+
+        // Use core variant of the function if available.
+        m_pfnGetBufferDeviceAddress = m_pDevice->Callbacks.GetBufferDeviceAddress;
+
+        if( !m_pfnGetBufferDeviceAddress &&
+            m_pDevice->EnabledExtensions.count( VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME ) )
+        {
+            // Use KHR variant if core is not available.
+            m_pfnGetBufferDeviceAddress = m_pDevice->Callbacks.GetBufferDeviceAddressKHR;
+        }
+
+        if( !m_pfnGetBufferDeviceAddress &&
+            m_pDevice->EnabledExtensions.count( VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME ) )
+        {
+            // Use EXT variant if KHR is not available.
+            m_pfnGetBufferDeviceAddress = m_pDevice->Callbacks.GetBufferDeviceAddressEXT;
+        }
 
         ResetMemoryData();
         return VK_SUCCESS;
@@ -163,6 +181,7 @@ namespace Profiler
         DeviceProfilerBufferMemoryData data = {};
         data.m_BufferSize = pCreateInfo->size;
         data.m_BufferUsage = pCreateInfo->usage;
+        data.m_BufferAddress = 0;
         data.m_Memory = VK_NULL_HANDLE;
         data.m_MemoryOffset = 0;
 
@@ -207,6 +226,19 @@ namespace Profiler
         {
             it->second.m_Memory = memory;
             it->second.m_MemoryOffset = offset;
+
+            // Save addresses of shader binding table buffers to read shader group handles.
+            if( ( m_pfnGetBufferDeviceAddress != nullptr ) &&
+                ( it->second.m_BufferUsage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR ) )
+            {
+                VkBufferDeviceAddressInfo deviceAddressInfo = {};
+                deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+                deviceAddressInfo.buffer = buffer;
+
+                it->second.m_BufferAddress = m_pfnGetBufferDeviceAddress(
+                    m_pDevice->Handle,
+                    &deviceAddressInfo );
+            }
         }
     }
 
@@ -274,6 +306,34 @@ namespace Profiler
             it->second.m_Memory = memory;
             it->second.m_MemoryOffset = offset;
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    std::pair<VkBuffer, DeviceProfilerBufferMemoryData> DeviceProfilerMemoryTracker::GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage ) const
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Buffers );
+
+        for( const auto& [buffer, data] : m_Buffers )
+        {
+            if( ( data.m_BufferAddress != 0 ) &&
+                ( ( data.m_BufferUsage & requiredUsage ) == requiredUsage ) &&
+                ( address >= data.m_BufferAddress ) &&
+                ( address < data.m_BufferAddress + data.m_BufferSize ) )
+            {
+                return { buffer, data };
+            }
+        }
+
+        return { VK_NULL_HANDLE, {} };
     }
 
     /***********************************************************************************\

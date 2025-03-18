@@ -1688,6 +1688,48 @@ namespace Profiler
 
             break;
         }
+
+        case DeviceProfilerDrawcallType::eTraceRaysKHR: {
+            DeviceProfilerDrawcallTraceRaysPayload& payload = drawcall.m_Payload.m_TraceRays;
+            const size_t indirectPayloadSize =
+                payload.m_RaygenShaderBindingTable.size +
+                payload.m_MissShaderBindingTable.size +
+                payload.m_HitShaderBindingTable.size +
+                payload.m_CallableShaderBindingTable.size;
+
+            IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
+
+            auto SaveShaderBindingTable = [&]( const VkStridedDeviceAddressRegionKHR& shaderBindingTable, size_t& shaderBindingTableOffset ) {
+                shaderBindingTableOffset = buffer.m_Offset;
+                buffer.m_Offset += shaderBindingTable.size;
+
+                if( shaderBindingTable.size )
+                {
+                    // Find buffer object at the device address.
+                    // There may be multiple buffers at the address due to aliasing, so find the first one with shader binding table bit.
+                    std::pair<VkBuffer, DeviceProfilerBufferMemoryData> bufferMemoryData = m_Profiler.GetBufferAtAddress(
+                        shaderBindingTable.deviceAddress,
+                        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT );
+
+                    assert( bufferMemoryData.first != VK_NULL_HANDLE );
+
+                    IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
+                    copy.m_SrcBuffer = bufferMemoryData.first;
+                    copy.m_DstBuffer = buffer.m_Buffer;
+                    copy.m_Region.srcOffset = shaderBindingTable.deviceAddress - bufferMemoryData.second.m_BufferAddress;
+                    copy.m_Region.dstOffset = shaderBindingTableOffset;
+                    copy.m_Region.size = shaderBindingTable.size;
+                }
+            };
+
+            SaveShaderBindingTable( payload.m_RaygenShaderBindingTable, payload.m_RaygenShaderBindingTableOffset );
+            SaveShaderBindingTable( payload.m_MissShaderBindingTable, payload.m_MissShaderBindingTableOffset );
+            SaveShaderBindingTable( payload.m_HitShaderBindingTable, payload.m_HitShaderBindingTableOffset );
+            SaveShaderBindingTable( payload.m_CallableShaderBindingTable, payload.m_CallableShaderBindingTableOffset );
+
+            break;
+        }
         }
     }
 
