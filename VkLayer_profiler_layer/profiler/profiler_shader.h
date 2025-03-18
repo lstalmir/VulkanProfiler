@@ -94,11 +94,25 @@ namespace Profiler
         ProfilerShaderInternalRepresentation GetInternalRepresentation( uint32_t index ) const;
     };
 
+    struct ProfilerShaderGroup
+    {
+        uint64_t m_Hash = 0;
+
+        VkRayTracingShaderGroupTypeKHR m_Type = {};
+        uint32_t m_GeneralShader = VK_SHADER_UNUSED_KHR;
+        uint32_t m_ClosestHitShader = VK_SHADER_UNUSED_KHR;
+        uint32_t m_AnyHitShader = VK_SHADER_UNUSED_KHR;
+        uint32_t m_IntersectionShader = VK_SHADER_UNUSED_KHR;
+
+        static uint64_t CalculateHash( const uint8_t* pHandle, uint32_t handleSize );
+    };
+
     struct ProfilerShaderTuple
     {
         uint32_t m_Hash = 0;
 
         std::vector<ProfilerShader> m_Shaders = {};
+        std::vector<ProfilerShaderGroup> m_ShaderGroups = {};
         std::vector<ProfilerShaderExecutable> m_ShaderExecutables = {};
 
         inline constexpr bool operator==( const ProfilerShaderTuple& rh ) const
@@ -132,6 +146,20 @@ namespace Profiler
                 if( m_Shaders[ i ].m_Index == index )
                 {
                     return &m_Shaders[ i ];
+                }
+            }
+            return nullptr;
+        }
+
+        inline const ProfilerShaderGroup* GetShaderGroupAtHandle( const uint8_t* pHandle, uint32_t handleSize ) const
+        {
+            const uint64_t hash = ProfilerShaderGroup::CalculateHash( pHandle, handleSize );
+            const size_t shaderGroupCount = m_ShaderGroups.size();
+            for( size_t i = 0; i < shaderGroupCount; ++i )
+            {
+                if( m_ShaderGroups[ i ].m_Hash == hash )
+                {
+                    return &m_ShaderGroups[ i ];
                 }
             }
             return nullptr;

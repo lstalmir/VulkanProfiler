@@ -80,7 +80,36 @@ namespace Profiler
                 physicalDevice, &queueFamilyPropertyCount, dev.QueueFamilyProperties.data() );
 
             // Get physical device description
-            id.Instance.Callbacks.GetPhysicalDeviceProperties( physicalDevice, &dev.Properties );
+            VkPhysicalDeviceProperties2 physicalDeviceProperties = {};
+            physicalDeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+
+            dev.RayTracingPipelineProperties = {};
+            dev.RayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+            physicalDeviceProperties.pNext = &dev.RayTracingPipelineProperties;
+
+            if( id.Instance.Callbacks.GetPhysicalDeviceProperties2 )
+            {
+                // Use new entry point if available.
+                id.Instance.Callbacks.GetPhysicalDeviceProperties2(
+                    physicalDevice,
+                    &physicalDeviceProperties );
+            }
+            else if( id.Instance.Callbacks.GetPhysicalDeviceProperties2KHR )
+            {
+                // Use KHR entry point if available.
+                id.Instance.Callbacks.GetPhysicalDeviceProperties2KHR(
+                    physicalDevice,
+                    &physicalDeviceProperties );
+            }
+            else
+            {
+                // Use Vulkan 1.0 as fallback.
+                id.Instance.Callbacks.GetPhysicalDeviceProperties(
+                    physicalDevice,
+                    &physicalDeviceProperties.properties );
+            }
+
+            dev.Properties = physicalDeviceProperties.properties;
 
             // Get physical device memory properties
             id.Instance.Callbacks.GetPhysicalDeviceMemoryProperties( physicalDevice, &dev.MemoryProperties );
