@@ -97,6 +97,14 @@
                     "default": false
                 },
                 {
+                    "key": "capture_indirect_arguments",
+                    "label": "Capture indirect arguments",
+                    "description": "Capture indirect argument buffers to show sub-commands contents.",
+                    "env": "VKPROF_capture_indirect_arguments",
+                    "type": "BOOL",
+                    "default": false
+                },
+                {
                     "key": "set_stable_power_state",
                     "label": "Set stable power state",
                     "description": "Use DirectX12 API to set stable power state for GPU time measurements.",

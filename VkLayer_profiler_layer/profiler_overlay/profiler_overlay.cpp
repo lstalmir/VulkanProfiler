@@ -3639,6 +3639,9 @@ namespace Profiler
 
         if( commandBufferTreeExpanded )
         {
+            FrameBrowserContext commandBufferContext = {};
+            commandBufferContext.pCommandBuffer = &cmdBuffer;
+
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
                 SortFrameBrowserData( cmdBuffer.m_RenderPasses );
@@ -3648,7 +3651,7 @@ namespace Profiler
             // Enumerate render passes in command buffer
             for( const DeviceProfilerRenderPassData* pRenderPass : pRenderPasses )
             {
-                PrintRenderPass( *pRenderPass, index );
+                PrintRenderPass( *pRenderPass, index, commandBufferContext );
                 index.back()++;
             }
 
@@ -3699,7 +3702,7 @@ namespace Profiler
         Writes render pass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex& index )
+    void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex& index, const FrameBrowserContext& context )
     {
         const bool isValidRenderPass = (renderPass.m_Type != DeviceProfilerRenderPassType::eNone);
 
@@ -3737,6 +3740,9 @@ namespace Profiler
 
         if( inRenderPassSubtree )
         {
+            FrameBrowserContext renderPassContext = context;
+            renderPassContext.pRenderPass = &renderPass;
+
             index.emplace_back( 0 );
 
             // Render pass subtree opened
@@ -3756,7 +3762,7 @@ namespace Profiler
             // Enumerate subpasses
             for( const DeviceProfilerSubpassData* pSubpass : pSubpasses )
             {
-                PrintSubpass( *pSubpass, index, (pSubpasses.size() == 1) );
+                PrintSubpass( *pSubpass, index, ( pSubpasses.size() == 1 ), renderPassContext );
                 index.back()++;
             }
 
@@ -3783,7 +3789,7 @@ namespace Profiler
         Writes subpass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex& index, bool isOnlySubpass )
+    void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex& index, bool isOnlySubpass, const FrameBrowserContext& context )
     {
         bool inSubpassSubtree = false;
         bool printSubpassInline =
@@ -3823,7 +3829,7 @@ namespace Profiler
 
                 for( const DeviceProfilerSubpassData::Data* pData : pDataSorted )
                 {
-                    PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index );
+                    PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index, context );
                     index.back()++;
                 }
             }
@@ -3854,7 +3860,7 @@ namespace Profiler
                     switch( pData->GetType() )
                     {
                     case DeviceProfilerSubpassDataType::ePipeline:
-                        PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index );
+                        PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index, context );
                         break;
 
                     case DeviceProfilerSubpassDataType::eCommandBuffer:
@@ -3884,7 +3890,7 @@ namespace Profiler
         Writes pipeline data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex& index )
+    void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex& index, const FrameBrowserContext& context )
     {
         const bool printPipelineInline =
             ((pipeline.m_Handle == VK_NULL_HANDLE) &&
@@ -3922,6 +3928,9 @@ namespace Profiler
 
         if( inPipelineSubtree || printPipelineInline )
         {
+            FrameBrowserContext pipelineContext = context;
+            pipelineContext.pPipeline = &pipeline;
+
             // Sort frame browser data
             std::list<const DeviceProfilerDrawcall*> pDrawcalls =
                 SortFrameBrowserData( pipeline.m_Drawcalls );
@@ -3931,7 +3940,7 @@ namespace Profiler
             // Enumerate drawcalls in pipeline
             for( const DeviceProfilerDrawcall* pDrawcall : pDrawcalls )
             {
-                PrintDrawcall( *pDrawcall, index );
+                PrintDrawcall( *pDrawcall, index, pipelineContext );
                 index.back()++;
             }
 
@@ -3954,7 +3963,7 @@ namespace Profiler
         Writes drawcall data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall, FrameBrowserTreeNodeIndex& index )
+    void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall, FrameBrowserTreeNodeIndex& index, const FrameBrowserContext& context )
     {
         if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
@@ -3966,15 +3975,151 @@ namespace Profiler
             // Mark hotspots with color
             DrawSignificanceRect( drawcall, index );
 
-            const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
-            ImGui::TextUnformatted( drawcallString.c_str() );
+            const bool indirectPayloadPresent =
+                (drawcall.HasIndirectPayload()) &&
+                (context.pCommandBuffer) &&
+                (!context.pCommandBuffer->m_IndirectPayload.empty());
+
+            const char* indexStr = GetFrameBrowserNodeIndexStr( index );
+            const bool drawcallTreeOpen = ImGui::TreeNodeEx(
+                indexStr,
+                indirectPayloadPresent
+                    ? ImGuiTreeNodeFlags_None
+                    : ImGuiTreeNodeFlags_Leaf,
+                "%s",
+                m_pStringSerializer->GetName( drawcall ).c_str() );
 
             PrintDuration( drawcall );
+
+            if( drawcallTreeOpen )
+            {
+                if( indirectPayloadPresent )
+                {
+                    PrintDrawcallIndirectPayload( drawcall, context );
+                }
+
+                ImGui::TreePop();
+            }
         }
         else
         {
             // Draw debug label
             PrintDebugLabel( drawcall.m_Payload.m_DebugLabel.m_pName, drawcall.m_Payload.m_DebugLabel.m_Color );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawSignificanceRect
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintDrawcallIndirectPayload( const DeviceProfilerDrawcall& drawcall, const FrameBrowserContext& context )
+    {
+        switch( drawcall.m_Type )
+        {
+        case DeviceProfilerDrawcallType::eDrawIndirect:
+        {
+            const DeviceProfilerDrawcallDrawIndirectPayload& payload = drawcall.m_Payload.m_DrawIndirect;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+
+            for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
+            {
+                const VkDrawIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndirectCommand #%u (%u, %u, %u, %u)",
+                    drawIndex,
+                    cmd.vertexCount,
+                    cmd.instanceCount,
+                    cmd.firstVertex,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+        {
+            const DeviceProfilerDrawcallDrawIndexedIndirectPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirect;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+
+            for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
+            {
+                const VkDrawIndexedIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndexedIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndexedIndirectCommand #%u (%u, %u, %u, %d, %u)",
+                    drawIndex,
+                    cmd.indexCount,
+                    cmd.instanceCount,
+                    cmd.firstIndex,
+                    cmd.vertexOffset,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndirectCount:
+        {
+            const DeviceProfilerDrawcallDrawIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndirectCount;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+
+            const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
+            for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
+            {
+                const VkDrawIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndirectCommand #%u (%u, %u, %u, %u)",
+                    drawIndex,
+                    cmd.vertexCount,
+                    cmd.instanceCount,
+                    cmd.firstVertex,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+        {
+            const DeviceProfilerDrawcallDrawIndexedIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirectCount;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+
+            const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
+            for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
+            {
+                const VkDrawIndexedIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndexedIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndexedIndirectCommand #%u (%u, %u, %u, %d, %u)",
+                    drawIndex,
+                    cmd.indexCount,
+                    cmd.instanceCount,
+                    cmd.firstIndex,
+                    cmd.vertexOffset,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDispatchIndirect:
+        {
+            const DeviceProfilerDrawcallDispatchIndirectPayload& payload = drawcall.m_Payload.m_DispatchIndirect;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+
+            const VkDispatchIndirectCommand& cmd =
+                *reinterpret_cast<const VkDispatchIndirectCommand*>( pIndirectData );
+
+            ImGui::Text( "VkDispatchIndirectCommand (%u, %u, %u)",
+                cmd.x,
+                cmd.y,
+                cmd.z );
+            break;
+        }
         }
     }
 
