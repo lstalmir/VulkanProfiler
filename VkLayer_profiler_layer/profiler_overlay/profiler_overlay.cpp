@@ -4120,6 +4120,96 @@ namespace Profiler
                 cmd.z );
             break;
         }
+
+        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+        {
+            const DeviceProfilerDrawcallTraceRaysPayload& payload = drawcall.m_Payload.m_TraceRays;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data();
+
+            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties =
+                m_pFrontend->GetRayTracingPipelineProperties();
+
+            auto PrintShaderBindingTable = [&]( const char* pName, const VkStridedDeviceAddressRegionKHR& table, size_t tableOffset ) {
+                ImGui::Text( "%s Shader Binding Table (0x%016llx, %u, %u)",
+                    pName,
+                    table.deviceAddress,
+                    table.stride,
+                    table.size );
+
+                size_t groupIndex = 0;
+                size_t groupOffset = 0;
+
+                while( groupOffset < table.size )
+                {
+                    const ProfilerShaderGroup* pShaderGroup =
+                        context.pPipeline->m_ShaderTuple.GetShaderGroupAtHandle(
+                            pIndirectData + tableOffset + groupOffset,
+                            rayTracingPipelineProperties.shaderGroupHandleSize );
+
+                    // Print shaders in the group.
+                    switch( pShaderGroup->m_Type )
+                    {
+                    case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+                    {
+                        const ProfilerShader* pShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_GeneralShader );
+
+                        ImGui::Text( "   [%u] %s -> %08X",
+                            groupIndex,
+                            pName,
+                            pShader ? pShader->m_Hash : 0 );
+
+                        break;
+                    }
+
+                    case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+                    {
+                        const ProfilerShader* pClosestHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_ClosestHitShader );
+                        const ProfilerShader* pAnyHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_AnyHitShader );
+
+                        ImGui::Text( "   [%u] Triangles %s -> CHIT=%08X, AHIT=%08X",
+                            groupIndex,
+                            pName,
+                            pClosestHitShader ? pClosestHitShader->m_Hash : 0,
+                            pAnyHitShader ? pAnyHitShader->m_Hash : 0 );
+
+                        break;
+                    }
+
+                    case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+                    {
+                        const ProfilerShader* pClosestHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_ClosestHitShader );
+                        const ProfilerShader* pAnyHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_AnyHitShader );
+                        const ProfilerShader* pIntersectionShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_IntersectionShader );
+
+                        ImGui::Text( "   [%u] Procedural %s -> CHIT=%08X, AHIT=%08X, INT=%08X",
+                            groupIndex,
+                            pName,
+                            pClosestHitShader ? pClosestHitShader->m_Hash : 0,
+                            pAnyHitShader ? pAnyHitShader->m_Hash : 0,
+                            pIntersectionShader ? pIntersectionShader->m_Hash : 0 );
+
+                        break;
+                    }
+                    }
+
+                    groupIndex++;
+                    groupOffset += table.stride;
+                }
+            };
+
+            PrintShaderBindingTable( "Raygen", payload.m_RaygenShaderBindingTable, payload.m_RaygenShaderBindingTableOffset );
+            PrintShaderBindingTable( "Miss Group", payload.m_MissShaderBindingTable, payload.m_MissShaderBindingTableOffset );
+            PrintShaderBindingTable( "Hit Group", payload.m_HitShaderBindingTable, payload.m_HitShaderBindingTableOffset );
+            PrintShaderBindingTable( "Callable", payload.m_CallableShaderBindingTable, payload.m_CallableShaderBindingTableOffset );
+
+            break;
+        }
         }
     }
 
