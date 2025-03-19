@@ -130,6 +130,8 @@ namespace Profiler
         void DestroyImage( VkImage );
         void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
 
+        std::pair<VkBuffer, DeviceProfilerBufferMemoryData> GetBufferAtAddress( VkDeviceAddress, VkBufferUsageFlags );
+
         void SetObjectName( VkObject, const char* );
         void SetDefaultObjectName( VkObject );
         void SetDefaultObjectName( VkPipeline );

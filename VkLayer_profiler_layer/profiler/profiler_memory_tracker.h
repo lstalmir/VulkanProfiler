@@ -55,6 +55,8 @@ namespace Profiler
         void UnregisterImage( VkImage image );
         void BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset );
 
+        std::pair<VkBuffer, DeviceProfilerBufferMemoryData> GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage ) const;
+
         DeviceProfilerMemoryData GetMemoryData() const;
 
     private:
@@ -69,6 +71,8 @@ namespace Profiler
         ConcurrentMap<VkDeviceMemory, DeviceProfilerDeviceMemoryData> m_Allocations;
         ConcurrentMap<VkBuffer, DeviceProfilerBufferMemoryData> m_Buffers;
         ConcurrentMap<VkImage, DeviceProfilerImageMemoryData> m_Images;
+
+        PFN_vkGetBufferDeviceAddress m_pfnGetBufferDeviceAddress;
 
         void ResetMemoryData();
     };

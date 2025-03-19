@@ -130,7 +130,8 @@ namespace Profiler
             VkBuffer                        m_Buffer;
             VmaAllocation                   m_Allocation;
             VmaAllocationInfo               m_AllocationInfo;
-            size_t                          m_Offset;
+            size_t                          m_BaseOffset;
+            size_t                          m_CurrentOffset;
             std::vector<IndirectArgumentBufferCopy> m_PendingCopyList;
         };
 
@@ -151,7 +152,7 @@ namespace Profiler
 
         void SaveIndirectArgs( DeviceProfilerDrawcall& drawcall );
         void FlushIndirectArgumentCopyLists();
-        void ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst );
+        void ReadIndirectArgumentBuffers( std::shared_ptr<uint8_t[]>& dst );
 
         IndirectArgumentBuffer& AcquireIndirectArgumentBuffer( size_t size );
     };
