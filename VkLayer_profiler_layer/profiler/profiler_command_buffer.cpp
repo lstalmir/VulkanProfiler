@@ -1666,7 +1666,7 @@ namespace Profiler
             argsCopy.m_DstBuffer = buffer.m_Buffer;
             argsCopy.m_Region.srcOffset = payload.m_Offset;
             argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
-            argsCopy.m_Region.size = indirectPayloadSize;
+            argsCopy.m_Region.size = payload.m_MaxDrawCount * payload.m_Stride;
 
             break;
         }

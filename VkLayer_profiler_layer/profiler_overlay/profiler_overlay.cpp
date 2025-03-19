@@ -4146,6 +4146,17 @@ namespace Profiler
                             pIndirectData + tableOffset + groupOffset,
                             rayTracingPipelineProperties.shaderGroupHandleSize );
 
+                    if( pShaderGroup == nullptr )
+                    {
+                        ImGui::Text( "   [%u] %s -> Not found",
+                            groupIndex,
+                            pName );
+
+                        groupIndex++;
+                        groupOffset += table.stride;
+                        continue;
+                    }
+
                     // Print shaders in the group.
                     switch( pShaderGroup->m_Type )
                     {
