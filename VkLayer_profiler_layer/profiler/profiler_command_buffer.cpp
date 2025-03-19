@@ -58,7 +58,6 @@ namespace Profiler
         , m_GraphicsPipeline()
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
-        , m_IndirectPayloadSize( 0 )
     {
         m_Data.m_Handle = commandBuffer;
         m_Data.m_Level = level;
@@ -275,12 +274,10 @@ namespace Profiler
                 // Reset indirect argument buffers.
                 for( auto& buffer : m_IndirectArgumentBufferList )
                 {
-                    buffer.m_Offset = 0;
+                    buffer.m_CurrentOffset = 0;
                     buffer.m_PendingCopyList.clear();
                 }
             }
-
-            m_IndirectPayloadSize = 0;
         }
     }
 
@@ -1631,8 +1628,8 @@ namespace Profiler
             const size_t indirectPayloadSize = payload.m_DrawCount * payload.m_Stride;
 
             IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
-            payload.m_IndirectArgsOffset = buffer.m_Offset;
-            buffer.m_Offset += indirectPayloadSize;
+            payload.m_IndirectArgsOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+            buffer.m_CurrentOffset += indirectPayloadSize;
 
             IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
             copy.m_SrcBuffer = payload.m_Buffer;
@@ -1641,7 +1638,6 @@ namespace Profiler
             copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
             copy.m_Region.size = indirectPayloadSize;
 
-            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
 
@@ -1651,9 +1647,9 @@ namespace Profiler
             const size_t indirectPayloadSize = sizeof( uint32_t ) + payload.m_MaxDrawCount * payload.m_Stride;
 
             IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
-            payload.m_IndirectCountOffset = buffer.m_Offset;
-            payload.m_IndirectArgsOffset = buffer.m_Offset + sizeof( uint32_t );
-            buffer.m_Offset += indirectPayloadSize;
+            payload.m_IndirectCountOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+            payload.m_IndirectArgsOffset = payload.m_IndirectCountOffset + sizeof( uint32_t );
+            buffer.m_CurrentOffset += indirectPayloadSize;
 
             IndirectArgumentBufferCopy& countCopy = buffer.m_PendingCopyList.emplace_back();
             countCopy.m_SrcBuffer = payload.m_CountBuffer;
@@ -1669,7 +1665,6 @@ namespace Profiler
             argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
             argsCopy.m_Region.size = payload.m_MaxDrawCount * payload.m_Stride;
 
-            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
 
@@ -1678,8 +1673,8 @@ namespace Profiler
             const size_t indirectPayloadSize = sizeof( VkDispatchIndirectCommand );
 
             IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
-            payload.m_IndirectArgsOffset = buffer.m_Offset;
-            buffer.m_Offset += indirectPayloadSize;
+            payload.m_IndirectArgsOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+            buffer.m_CurrentOffset += indirectPayloadSize;
 
             IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
             copy.m_SrcBuffer = payload.m_Buffer;
@@ -1688,7 +1683,6 @@ namespace Profiler
             copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
             copy.m_Region.size = indirectPayloadSize;
 
-            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
 
@@ -1703,8 +1697,8 @@ namespace Profiler
             IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
 
             auto SaveShaderBindingTable = [&]( const VkStridedDeviceAddressRegionKHR& shaderBindingTable, size_t& shaderBindingTableOffset ) {
-                shaderBindingTableOffset = buffer.m_Offset;
-                buffer.m_Offset += shaderBindingTable.size;
+                shaderBindingTableOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+                buffer.m_CurrentOffset += shaderBindingTable.size;
 
                 if( shaderBindingTable.size )
                 {
@@ -1731,7 +1725,6 @@ namespace Profiler
             SaveShaderBindingTable( payload.m_HitShaderBindingTable, payload.m_HitShaderBindingTableOffset );
             SaveShaderBindingTable( payload.m_CallableShaderBindingTable, payload.m_CallableShaderBindingTableOffset );
 
-            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
         }
@@ -1805,13 +1798,26 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerCommandBuffer::ReadIndirectArgumentBuffers( std::shared_ptr<uint8_t[]>& dst )
     {
-        if( !m_IndirectPayloadSize )
+        size_t indirectPayloadSize = 0;
+
+        for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
+        {
+            if( indirectArgumentBuffer.m_CurrentOffset )
+            {
+                // Base offset of the later buffers always includes the previous buffers.
+                indirectPayloadSize =
+                    indirectArgumentBuffer.m_BaseOffset + indirectArgumentBuffer.m_CurrentOffset;
+            }
+        }
+
+        if( !indirectPayloadSize )
         {
             // Early-out if no indirect payload was captured.
             return;
         }
 
-        dst.reset( new (std::nothrow) uint8_t[m_IndirectPayloadSize] );
+        dst.reset( new( std::nothrow ) uint8_t[indirectPayloadSize] );
+
         if( !dst )
         {
             // Failed to allocate memory for the indirect payload.
@@ -1819,24 +1825,22 @@ namespace Profiler
         }
 
         uint8_t* pDstData = dst.get();
-        size_t dstDataSize = m_IndirectPayloadSize;
+        size_t dstDataSize = indirectPayloadSize;
 
         for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
         {
             // Copy indirect arguments from each buffer to the payload.
             const uint8_t* pIndirectData = static_cast<const uint8_t*>( indirectArgumentBuffer.m_AllocationInfo.pMappedData );
-            const size_t indirectDataSize = indirectArgumentBuffer.m_Offset;
+            const size_t indirectDataSize = indirectArgumentBuffer.m_CurrentOffset;
 
             if( indirectDataSize )
             {
                 m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
                 memcpy_s( pDstData, dstDataSize, pIndirectData, indirectDataSize );
-                pDstData += indirectDataSize;
-                dstDataSize -= indirectDataSize;
+                pDstData += indirectArgumentBuffer.m_AllocationInfo.size;
+                dstDataSize -= indirectArgumentBuffer.m_AllocationInfo.size;
             }
         }
-
-        assert( dstDataSize == 0 );
     }
 
     /***********************************************************************************\
@@ -1850,13 +1854,17 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBuffer::IndirectArgumentBuffer& ProfilerCommandBuffer::AcquireIndirectArgumentBuffer( size_t size )
     {
+        size_t baseOffset = 0;
+
         // Check for an existing buffer in the list.
         for( IndirectArgumentBuffer& buffer : m_IndirectArgumentBufferList )
         {
-            if( buffer.m_AllocationInfo.size - buffer.m_Offset >= size )
+            if( buffer.m_AllocationInfo.size - buffer.m_CurrentOffset >= size )
             {
                 return buffer;
             }
+
+            baseOffset += buffer.m_AllocationInfo.size;
         }
 
         // Create a new buffer.
@@ -1877,7 +1885,8 @@ namespace Profiler
             &buffer.m_Allocation,
             &buffer.m_AllocationInfo );
 
-        buffer.m_Offset = 0;
+        buffer.m_BaseOffset = baseOffset;
+        buffer.m_CurrentOffset = 0;
 
         return buffer;
     }

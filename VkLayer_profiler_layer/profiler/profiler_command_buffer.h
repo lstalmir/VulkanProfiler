@@ -130,12 +130,12 @@ namespace Profiler
             VkBuffer                        m_Buffer;
             VmaAllocation                   m_Allocation;
             VmaAllocationInfo               m_AllocationInfo;
-            size_t                          m_Offset;
+            size_t                          m_BaseOffset;
+            size_t                          m_CurrentOffset;
             std::vector<IndirectArgumentBufferCopy> m_PendingCopyList;
         };
 
         std::list<IndirectArgumentBuffer>   m_IndirectArgumentBufferList;
-        size_t                              m_IndirectPayloadSize;
 
         void PreBeginRenderPassCommonProlog();
         void PreBeginRenderPassCommonEpilog();
