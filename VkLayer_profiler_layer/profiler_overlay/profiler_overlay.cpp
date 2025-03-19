@@ -3978,7 +3978,7 @@ namespace Profiler
             const bool indirectPayloadPresent =
                 (drawcall.HasIndirectPayload()) &&
                 (context.pCommandBuffer) &&
-                (!context.pCommandBuffer->m_IndirectPayload.empty());
+                (context.pCommandBuffer->m_pIndirectPayload);
 
             const char* indexStr = GetFrameBrowserNodeIndexStr( index );
             const bool drawcallTreeOpen = ImGui::TreeNodeEx(
@@ -4023,7 +4023,7 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndirect:
         {
             const DeviceProfilerDrawcallDrawIndirectPayload& payload = drawcall.m_Payload.m_DrawIndirect;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
 
             for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
             {
@@ -4043,7 +4043,7 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
         {
             const DeviceProfilerDrawcallDrawIndexedIndirectPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirect;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
 
             for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
             {
@@ -4064,8 +4064,8 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
         {
             const DeviceProfilerDrawcallDrawIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndirectCount;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
-            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectCountOffset;
 
             const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
             for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
@@ -4086,8 +4086,8 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
         {
             const DeviceProfilerDrawcallDrawIndexedIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirectCount;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
-            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectCountOffset;
 
             const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
             for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
@@ -4109,7 +4109,7 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDispatchIndirect:
         {
             const DeviceProfilerDrawcallDispatchIndirectPayload& payload = drawcall.m_Payload.m_DispatchIndirect;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
 
             const VkDispatchIndirectCommand& cmd =
                 *reinterpret_cast<const VkDispatchIndirectCommand*>( pIndirectData );
@@ -4124,7 +4124,7 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eTraceRaysKHR:
         {
             const DeviceProfilerDrawcallTraceRaysPayload& payload = drawcall.m_Payload.m_TraceRays;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data();
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get();
 
             const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties =
                 m_pFrontend->GetRayTracingPipelineProperties();

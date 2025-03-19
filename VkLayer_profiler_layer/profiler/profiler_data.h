@@ -1122,9 +1122,7 @@ namespace Profiler
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_PerformanceQueryResults = {};
         uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
 
-        uint64_t                                            m_ProfilerCpuOverheadNs = {};
-
-        std::vector<uint8_t>                                m_IndirectPayload = {};
+        std::shared_ptr<uint8_t[]>                          m_pIndirectPayload = nullptr;
 
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }

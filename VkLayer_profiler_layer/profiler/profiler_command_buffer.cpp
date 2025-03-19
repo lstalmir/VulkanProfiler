@@ -58,6 +58,7 @@ namespace Profiler
         , m_GraphicsPipeline()
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
+        , m_IndirectPayloadSize( 0 )
     {
         m_Data.m_Handle = commandBuffer;
         m_Data.m_Level = level;
@@ -278,6 +279,8 @@ namespace Profiler
                     buffer.m_PendingCopyList.clear();
                 }
             }
+
+            m_IndirectPayloadSize = 0;
         }
     }
 
@@ -1232,11 +1235,11 @@ namespace Profiler
             }
 
             // Copy captured indirect argument buffer data
-            m_Data.m_IndirectPayload.clear();
+            m_Data.m_pIndirectPayload.reset();
 
             if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
-                ReadIndirectArgumentBuffers( m_Data.m_IndirectPayload );
+                ReadIndirectArgumentBuffers( m_Data.m_pIndirectPayload );
             }
 
             // Subsequent calls to GetData will return the same results
@@ -1319,9 +1322,6 @@ namespace Profiler
         // Collect secondary command buffer data
         commandBuffer = profilerCommandBuffer.GetData( reader );
         assert( commandBuffer.m_Handle == handle );
-
-        // Include profiling time of the secondary command buffer
-        m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
 
         // Propagate timestamps from command buffer to subpass
         if( subpassDataIndex == 0 )
@@ -1641,6 +1641,7 @@ namespace Profiler
             copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
             copy.m_Region.size = indirectPayloadSize;
 
+            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
 
@@ -1668,6 +1669,7 @@ namespace Profiler
             argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
             argsCopy.m_Region.size = payload.m_MaxDrawCount * payload.m_Stride;
 
+            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
 
@@ -1686,6 +1688,7 @@ namespace Profiler
             copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
             copy.m_Region.size = indirectPayloadSize;
 
+            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
 
@@ -1728,6 +1731,7 @@ namespace Profiler
             SaveShaderBindingTable( payload.m_HitShaderBindingTable, payload.m_HitShaderBindingTableOffset );
             SaveShaderBindingTable( payload.m_CallableShaderBindingTable, payload.m_CallableShaderBindingTableOffset );
 
+            m_IndirectPayloadSize += indirectPayloadSize;
             break;
         }
         }
@@ -1799,21 +1803,40 @@ namespace Profiler
         Copy captured indirect buffers to the destination buffer.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst )
+    void ProfilerCommandBuffer::ReadIndirectArgumentBuffers( std::shared_ptr<uint8_t[]>& dst )
     {
+        if( !m_IndirectPayloadSize )
+        {
+            // Early-out if no indirect payload was captured.
+            return;
+        }
+
+        dst.reset( new (std::nothrow) uint8_t[m_IndirectPayloadSize] );
+        if( !dst )
+        {
+            // Failed to allocate memory for the indirect payload.
+            return;
+        }
+
+        uint8_t* pDstData = dst.get();
+        size_t dstDataSize = m_IndirectPayloadSize;
+
         for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
         {
+            // Copy indirect arguments from each buffer to the payload.
             const uint8_t* pIndirectData = static_cast<const uint8_t*>( indirectArgumentBuffer.m_AllocationInfo.pMappedData );
             const size_t indirectDataSize = indirectArgumentBuffer.m_Offset;
 
             if( indirectDataSize )
             {
                 m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
-                dst.insert( dst.end(),
-                    pIndirectData,
-                    pIndirectData + indirectDataSize );
+                memcpy_s( pDstData, dstDataSize, pIndirectData, indirectDataSize );
+                pDstData += indirectDataSize;
+                dstDataSize -= indirectDataSize;
             }
         }
+
+        assert( dstDataSize == 0 );
     }
 
     /***********************************************************************************\

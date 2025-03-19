@@ -135,6 +135,7 @@ namespace Profiler
         };
 
         std::list<IndirectArgumentBuffer>   m_IndirectArgumentBufferList;
+        size_t                              m_IndirectPayloadSize;
 
         void PreBeginRenderPassCommonProlog();
         void PreBeginRenderPassCommonEpilog();
@@ -151,7 +152,7 @@ namespace Profiler
 
         void SaveIndirectArgs( DeviceProfilerDrawcall& drawcall );
         void FlushIndirectArgumentCopyLists();
-        void ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst );
+        void ReadIndirectArgumentBuffers( std::shared_ptr<uint8_t[]>& dst );
 
         IndirectArgumentBuffer& AcquireIndirectArgumentBuffer( size_t size );
     };
