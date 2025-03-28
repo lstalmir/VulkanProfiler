@@ -1109,12 +1109,14 @@ namespace Profiler
 
             for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
             {
+                const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
+
                 m_ReferenceTopPipelines.try_emplace(
-                    m_pStringSerializer->GetName( pipeline ), GetDuration( pipeline ) );
+                    m_pStringSerializer->GetName( pipeline ), pipelineTimeMs );
             }
         }
 
-        ImGui::SameLine();
+        ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
         if( ImGui::Button( Lang::ClearRef ) )
         {
             m_ReferenceTopPipelines.clear();
@@ -1126,6 +1128,13 @@ namespace Profiler
                 ImGuiTableFlags_PadOuterX |
                 ImGuiTableFlags_NoClip ) )
         {
+            // Hide reference columns if there are no reference pipelines captured.
+            int referenceColumnFlags = ImGuiTableColumnFlags_WidthStretch;
+            if( m_ReferenceTopPipelines.empty() )
+            {
+                referenceColumnFlags |= ImGuiTableColumnFlags_Disabled;
+            }
+
             // Headers
             ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHide );
             ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHide );
@@ -1133,8 +1142,8 @@ namespace Profiler
             ImGui::TableSetupColumn( Lang::Stages, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
             ImGuiX::TableSetupColumn( Lang::Contrib, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
             ImGuiX::TableSetupColumn( Lang::StatTotal, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
-            ImGuiX::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
-            ImGuiX::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::Ref, referenceColumnFlags, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::Delta, referenceColumnFlags, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
             ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
             uint32_t pipelineIndex = 0;
@@ -1240,31 +1249,41 @@ namespace Profiler
                 {
                     ImGuiX::TextAlignRight(
                         ImGuiX::TableGetColumnWidth(),
-                        "%.2f ms",
-                        pipelineTime );
+                        "%.2f %s",
+                        pipelineTime,
+                        m_pTimestampDisplayUnitStr );
                 }
 
                 // Show reference time if available.
-                auto ref = m_ReferenceTopPipelines.find( pipelineName );
-                if( ref != m_ReferenceTopPipelines.end() )
+                if( !m_ReferenceTopPipelines.empty() )
                 {
-                    if( ImGui::TableNextColumn() )
+                    auto ref = m_ReferenceTopPipelines.find( pipelineName );
+                    if( ref != m_ReferenceTopPipelines.end() )
                     {
-                        ImGuiX::TextAlignRight(
-                            ImGuiX::TableGetColumnWidth(),
-                            "%.2f ms",
-                            ref->second );
-                    }
+                        // Convert saved reference time to the same unit as the pipeline time.
+                        float refPipelineTime = ref->second * m_TimestampDisplayUnit;
 
-                    if( ImGui::TableNextColumn() )
-                    {
-                        const float delta = CalcPerformanceCounterDelta( ref->second, pipelineTime );
-                        ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
-                        ImGuiX::TextAlignRight(
-                            ImGuiX::TableGetColumnWidth(),
-                            "%+.1f%%",
-                            delta );
-                        ImGui::PopStyleColor();
+                        if( ImGui::TableNextColumn() )
+                        {
+                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                            ImGuiX::TextAlignRight(
+                                ImGuiX::TableGetColumnWidth(),
+                                "%.2f %s",
+                                refPipelineTime,
+                                m_pTimestampDisplayUnitStr );
+                            ImGui::PopStyleColor();
+                        }
+
+                        if( ImGui::TableNextColumn() )
+                        {
+                            const float delta = CalcPerformanceCounterDelta( refPipelineTime, pipelineTime );
+                            ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
+                            ImGuiX::TextAlignRight(
+                                ImGuiX::TableGetColumnWidth(),
+                                "%+.1f%%",
+                                delta );
+                            ImGui::PopStyleColor();
+                        }
                     }
                 }
 
@@ -1400,6 +1419,14 @@ namespace Profiler
                         m_ReferencePerformanceCounters.try_emplace( activeMetricsSet.m_Metrics[i].shortName, ( *pVendorMetrics )[i] );
                     }
                 }
+            }
+            ImGui::EndDisabled();
+
+            ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+            ImGui::BeginDisabled( pVendorMetrics->empty() );
+            if( ImGui::Button( Lang::ClearRef ) )
+            {
+                m_ReferencePerformanceCounters.clear();
             }
             ImGui::EndDisabled();
 
@@ -3548,7 +3575,7 @@ namespace Profiler
                 const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
 
                 VkProfilerPerformanceCounterPropertiesEXT& pipelineNameInfo = pipelineNames.emplace_back();
-                ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() + 1 );
+                ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() );
                 pipelineNameInfo.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
 
                 VkProfilerPerformanceCounterResultEXT& pipelineDuration = pipelineDurations.emplace_back();
