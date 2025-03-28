@@ -681,6 +681,7 @@ namespace Profiler
 
         // Draw other windows
         UpdatePerformanceCounterExporter();
+        UpdateTopPipelinesExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
         UpdateApplicationInfoWindow();
