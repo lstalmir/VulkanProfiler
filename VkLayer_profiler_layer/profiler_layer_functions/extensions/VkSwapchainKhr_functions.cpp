@@ -90,6 +90,21 @@ namespace Profiler
             {
                 // Initialize overlay for the first time
                 bool success = dd.Overlay.Initialize( dd.ProfilerFrontend, dd.OverlayBackend );
+
+                if( success )
+                {
+                    // Initialize overlay with configuration
+                    if( !dd.Profiler.m_Config.m_RefPipelines.empty() )
+                    {
+                        dd.Overlay.LoadTopPipelinesFromFile( dd.Profiler.m_Config.m_RefPipelines );
+                    }
+
+                    if( !dd.Profiler.m_Config.m_RefMetrics.empty() )
+                    {
+                        dd.Overlay.LoadPerformanceCountersFromFile( dd.Profiler.m_Config.m_RefMetrics );
+                    }
+                }
+
                 if( !success )
                 {
                     result = VK_ERROR_INITIALIZATION_FAILED;

@@ -86,6 +86,20 @@ namespace Profiler
         Action m_Action;
     };
 
+    struct ProfilerOverlayOutput::TopPipelinesExporter
+    {
+        enum class Action
+        {
+            eExport,
+            eImport
+        };
+
+        IGFD::FileDialog m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
+        Action m_Action;
+    };
+
     struct ProfilerOverlayOutput::TraceExporter
     {
         IGFD::FileDialog m_FileDialog;
@@ -414,6 +428,11 @@ namespace Profiler
         m_ReferencePerformanceCounters.clear();
         m_pPerformanceCounterExporter = nullptr;
 
+        m_pTopPipelinesExporter = nullptr;
+        m_ReferenceTopPipelines.clear();
+        m_ReferenceTopPipelinesShortDescription.clear();
+        m_ReferenceTopPipelinesFullDescription.clear();
+
         m_SerializationSucceeded = false;
         m_SerializationWindowVisible = false;
         m_SerializationMessage.clear();
@@ -664,6 +683,7 @@ namespace Profiler
 
         // Draw other windows
         UpdatePerformanceCounterExporter();
+        UpdateTopPipelinesExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
         UpdateApplicationInfoWindow();
@@ -1065,12 +1085,78 @@ namespace Profiler
         const float traditional3DPipelineBadgesOffset =
             std::max( 0.f, meshPipelineBadgesWidth - traditional3DPipelineBadgesWidth );
 
+        // Toolbar with save and load options.
+        ImGui::BeginDisabled( m_pTopPipelinesExporter != nullptr );
+        if( ImGui::Button( Lang::Save ) )
+        {
+            m_pTopPipelinesExporter = std::make_unique<TopPipelinesExporter>();
+            m_pTopPipelinesExporter->m_pData = m_pData;
+            m_pTopPipelinesExporter->m_Action = TopPipelinesExporter::Action::eExport;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+        ImGui::BeginDisabled( m_pTopPipelinesExporter != nullptr );
+        if( ImGui::Button( Lang::Load ) )
+        {
+            m_pTopPipelinesExporter = std::make_unique<TopPipelinesExporter>();
+            m_pTopPipelinesExporter->m_Action = TopPipelinesExporter::Action::eImport;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        if( ImGui::Button( Lang::SetRef ) )
+        {
+            m_ReferenceTopPipelines.clear();
+
+            const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
+            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
+
+            for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
+            {
+                const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
+
+                m_ReferenceTopPipelines.try_emplace(
+                    m_pStringSerializer->GetName( pipeline ), pipelineTimeMs );
+            }
+        }
+
+        ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+        ImGui::BeginDisabled( m_ReferenceTopPipelines.empty() );
+        if( ImGui::Button( Lang::ClearRef ) )
+        {
+            m_ReferenceTopPipelines.clear();
+            m_ReferenceTopPipelinesShortDescription.clear();
+            m_ReferenceTopPipelinesFullDescription.clear();
+        }
+        ImGui::EndDisabled();
+
+        if( !m_ReferenceTopPipelines.empty() )
+        {
+            ImGuiX::TextAlignRight( "Ref: %s", m_ReferenceTopPipelinesShortDescription.c_str() );
+
+            if( !m_ReferenceTopPipelinesFullDescription.empty() )
+            {
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip( "%s", m_ReferenceTopPipelinesFullDescription.c_str() );
+                }
+            }
+        }
+
         // Draw the table with top pipelines.
-        if( ImGui::BeginTable( "TopPipelinesTable", 6,
+        if( ImGui::BeginTable( "TopPipelinesTable", 8,
                 ImGuiTableFlags_Hideable |
                 ImGuiTableFlags_PadOuterX |
                 ImGuiTableFlags_NoClip ) )
         {
+            // Hide reference columns if there are no reference pipelines captured.
+            int referenceColumnFlags = ImGuiTableColumnFlags_WidthStretch;
+            if( m_ReferenceTopPipelines.empty() )
+            {
+                referenceColumnFlags |= ImGuiTableColumnFlags_Disabled;
+            }
+
             // Headers
             ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHide );
             ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHide );
@@ -1078,6 +1164,8 @@ namespace Profiler
             ImGui::TableSetupColumn( Lang::Stages, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
             ImGuiX::TableSetupColumn( Lang::Contrib, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
             ImGuiX::TableSetupColumn( Lang::StatTotal, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::Ref, referenceColumnFlags, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::Delta, referenceColumnFlags, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
             ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
             uint32_t pipelineIndex = 0;
@@ -1086,11 +1174,13 @@ namespace Profiler
             for( const auto& pipeline : m_pData->m_TopPipelines )
             {
                 // Skip debug pipelines.
-                if( (pipeline.m_Type == DeviceProfilerPipelineType::eNone) ||
-                    (pipeline.m_Type == DeviceProfilerPipelineType::eDebug) )
+                if( ( pipeline.m_Type == DeviceProfilerPipelineType::eNone ) ||
+                    ( pipeline.m_Type == DeviceProfilerPipelineType::eDebug ) )
                 {
                     continue;
                 }
+
+                ImGui::TableNextRow();
 
                 pipelineIndex++;
                 snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
@@ -1181,8 +1271,42 @@ namespace Profiler
                 {
                     ImGuiX::TextAlignRight(
                         ImGuiX::TableGetColumnWidth(),
-                        "%.2f ms",
-                        pipelineTime );
+                        "%.2f %s",
+                        pipelineTime,
+                        m_pTimestampDisplayUnitStr );
+                }
+
+                // Show reference time if available.
+                if( !m_ReferenceTopPipelines.empty() )
+                {
+                    auto ref = m_ReferenceTopPipelines.find( pipelineName );
+                    if( ref != m_ReferenceTopPipelines.end() )
+                    {
+                        // Convert saved reference time to the same unit as the pipeline time.
+                        float refPipelineTime = ref->second * m_TimestampDisplayUnit;
+
+                        if( ImGui::TableNextColumn() )
+                        {
+                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                            ImGuiX::TextAlignRight(
+                                ImGuiX::TableGetColumnWidth(),
+                                "%.2f %s",
+                                refPipelineTime,
+                                m_pTimestampDisplayUnitStr );
+                            ImGui::PopStyleColor();
+                        }
+
+                        if( ImGui::TableNextColumn() )
+                        {
+                            const float delta = CalcPerformanceCounterDelta( refPipelineTime, pipelineTime );
+                            ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
+                            ImGuiX::TextAlignRight(
+                                ImGuiX::TableGetColumnWidth(),
+                                "%+.1f%%",
+                                delta );
+                            ImGui::PopStyleColor();
+                        }
+                    }
                 }
 
                 if( !m_ShowAllTopPipelines && pipelineIndex == 10 )
@@ -1317,6 +1441,14 @@ namespace Profiler
                         m_ReferencePerformanceCounters.try_emplace( activeMetricsSet.m_Metrics[i].shortName, ( *pVendorMetrics )[i] );
                     }
                 }
+            }
+            ImGui::EndDisabled();
+
+            ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+            ImGui::BeginDisabled( pVendorMetrics->empty() || m_ReferencePerformanceCounters.empty() );
+            if( ImGui::Button( Lang::ClearRef ) )
+            {
+                m_ReferencePerformanceCounters.clear();
             }
             ImGui::EndDisabled();
 
@@ -3348,13 +3480,190 @@ namespace Profiler
 
             m_ReferencePerformanceCounters.clear();
 
-            for( size_t i = 0; i < results.size(); ++i )
+            const size_t performanceCounterCount = std::min( properties.size(), results.size() );
+            for( size_t i = 0; i < performanceCounterCount; ++i )
             {
                 m_ReferencePerformanceCounters.try_emplace( properties[i].shortName, results[i] );
             }
 
             m_SerializationSucceeded = true;
             m_SerializationMessage = "Performance counters loaded successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for reading.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateTopPipelinesExporter
+
+    Description:
+        Shows a file dialog if top pipelines list save or load was requested and
+        saves/loads them when OK is pressed.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateTopPipelinesExporter()
+    {
+        static const std::string scFileDialogId = "#TopPipelinesSaveFileDialog";
+
+        if( m_pTopPipelinesExporter != nullptr )
+        {
+            // Initialize the file dialog on the first call to this function.
+            if( !m_pTopPipelinesExporter->m_FileDialog.IsOpened() )
+            {
+                m_pTopPipelinesExporter->m_FileDialogConfig.flags =
+                    ImGuiFileDialogFlags_Default;
+
+                if( m_pTopPipelinesExporter->m_Action == TopPipelinesExporter::Action::eImport )
+                {
+                    // Don't ask for overwrite when selecting file to load.
+                    m_pTopPipelinesExporter->m_FileDialogConfig.flags ^=
+                        ImGuiFileDialogFlags_ConfirmOverwrite;
+                }
+
+                if( m_pTopPipelinesExporter->m_Action == TopPipelinesExporter::Action::eExport )
+                {
+                    m_pTopPipelinesExporter->m_FileDialogConfig.fileName =
+                        "top_pipelines.csv";
+                }
+            }
+
+            // Draw the file dialog until the user closes it.
+            bool closed = DisplayFileDialog(
+                scFileDialogId,
+                m_pTopPipelinesExporter->m_FileDialog,
+                m_pTopPipelinesExporter->m_FileDialogConfig,
+                "Select top pipelines file path",
+                ".csv" );
+
+            if( closed )
+            {
+                if( m_pTopPipelinesExporter->m_FileDialog.IsOk() )
+                {
+                    switch( m_pTopPipelinesExporter->m_Action )
+                    {
+                    case TopPipelinesExporter::Action::eExport:
+                        SaveTopPipelinesToFile(
+                            m_pTopPipelinesExporter->m_FileDialog.GetFilePathName(),
+                            *m_pTopPipelinesExporter->m_pData );
+                        break;
+
+                    case TopPipelinesExporter::Action::eImport:
+                        LoadTopPipelinesFromFile(
+                            m_pTopPipelinesExporter->m_FileDialog.GetFilePathName() );
+                        break;
+                    }
+                }
+
+                // Destroy the exporter.
+                m_pTopPipelinesExporter.reset();
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveTopPipelinesToFile
+
+    Description:
+        Writes top pipelines data to a CSV file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SaveTopPipelinesToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
+    {
+        DeviceProfilerCsvSerializer serializer;
+
+        if( serializer.Open( fileName ) )
+        {
+            // Convert top pipelines to performance counter format to reuse existing CSV serializer implementation.
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> pipelineNames;
+            pipelineNames.reserve( data.m_TopPipelines.size() );
+
+            std::vector<VkProfilerPerformanceCounterResultEXT> pipelineDurations;
+            pipelineDurations.reserve( data.m_TopPipelines.size() );
+
+            for( const DeviceProfilerPipelineData& pipeline : data.m_TopPipelines )
+            {
+                const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
+
+                VkProfilerPerformanceCounterPropertiesEXT& pipelineNameInfo = pipelineNames.emplace_back();
+                ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() );
+                pipelineNameInfo.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
+
+                VkProfilerPerformanceCounterResultEXT& pipelineDuration = pipelineDurations.emplace_back();
+                pipelineDuration.float32 = GetDuration( pipeline );
+            }
+
+            // Write converted data to file.
+            serializer.WriteHeader( static_cast<uint32_t>( pipelineNames.size() ), pipelineNames.data() );
+            serializer.WriteRow( static_cast<uint32_t>( pipelineDurations.size() ), pipelineDurations.data() );
+            serializer.Close();
+
+            std::filesystem::path filePath( fileName );
+            m_ReferenceTopPipelinesShortDescription = filePath.filename().string();
+            m_ReferenceTopPipelinesFullDescription = filePath.string();
+
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Top pipelines saved successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for writing.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        LoadTopPipelinesFromFile
+
+    Description:
+        Loads top pipelines data from a CSV file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::LoadTopPipelinesFromFile( const std::string& fileName )
+    {
+        DeviceProfilerCsvDeserializer deserializer;
+
+        if( deserializer.Open( fileName ) )
+        {
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties = deserializer.ReadHeader();
+            std::vector<VkProfilerPerformanceCounterResultEXT> results = deserializer.ReadRow();
+
+            m_ReferenceTopPipelines.clear();
+
+            const size_t topPipelineCount = std::min( properties.size(), results.size() );
+            for( size_t i = 0; i < topPipelineCount; ++i )
+            {
+                // Only float32 storage is supported for top pipelines for now.
+                if( properties[i].storage == VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT )
+                {
+                    m_ReferenceTopPipelines.try_emplace( properties[i].shortName, results[i].float32 );
+                }
+            }
+
+            std::filesystem::path filePath( fileName );
+            m_ReferenceTopPipelinesShortDescription = filePath.filename().string();
+            m_ReferenceTopPipelinesFullDescription = filePath.string();
+
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Top pipelines loaded successfully.\n" + fileName;
         }
         else
         {

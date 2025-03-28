@@ -72,6 +72,9 @@ namespace Profiler
 
         void Update();
 
+        void LoadPerformanceCountersFromFile( const std::string& );
+        void LoadTopPipelinesFromFile( const std::string& );
+
     private:
         OverlaySettings m_Settings;
 
@@ -195,6 +198,13 @@ namespace Profiler
         struct PerformanceCounterExporter;
         std::unique_ptr<PerformanceCounterExporter> m_pPerformanceCounterExporter;
 
+        // Top pipelines serialization
+        struct TopPipelinesExporter;
+        std::unique_ptr<TopPipelinesExporter> m_pTopPipelinesExporter;
+        std::unordered_map<std::string, float> m_ReferenceTopPipelines;
+        std::string m_ReferenceTopPipelinesShortDescription;
+        std::string m_ReferenceTopPipelinesFullDescription;
+
         // Trace serialization output
         bool m_SerializationSucceeded;
         bool m_SerializationWindowVisible;
@@ -272,7 +282,10 @@ namespace Profiler
         std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
         void UpdatePerformanceCounterExporter();
         void SavePerformanceCountersToFile( const std::string&, uint32_t, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
-        void LoadPerformanceCountersFromFile( const std::string& );
+
+        // Top pipelines helpers
+        void UpdateTopPipelinesExporter();
+        void SaveTopPipelinesToFile( const std::string&, const DeviceProfilerFrameData& );
 
         // Trace serialization helpers
         void UpdateTraceExporter();
