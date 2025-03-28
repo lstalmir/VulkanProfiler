@@ -430,6 +430,8 @@ namespace Profiler
 
         m_pTopPipelinesExporter = nullptr;
         m_ReferenceTopPipelines.clear();
+        m_ReferenceTopPipelinesShortDescription.clear();
+        m_ReferenceTopPipelinesFullDescription.clear();
 
         m_SerializationSucceeded = false;
         m_SerializationWindowVisible = false;
@@ -1107,6 +1109,9 @@ namespace Profiler
         {
             m_ReferenceTopPipelines.clear();
 
+            const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
+            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
+
             for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
             {
                 const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
@@ -1117,9 +1122,26 @@ namespace Profiler
         }
 
         ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+        ImGui::BeginDisabled( m_ReferenceTopPipelines.empty() );
         if( ImGui::Button( Lang::ClearRef ) )
         {
             m_ReferenceTopPipelines.clear();
+            m_ReferenceTopPipelinesShortDescription.clear();
+            m_ReferenceTopPipelinesFullDescription.clear();
+        }
+        ImGui::EndDisabled();
+
+        if( !m_ReferenceTopPipelines.empty() )
+        {
+            ImGuiX::TextAlignRight( "Ref: %s", m_ReferenceTopPipelinesShortDescription.c_str() );
+
+            if( !m_ReferenceTopPipelinesFullDescription.empty() )
+            {
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip( "%s", m_ReferenceTopPipelinesFullDescription.c_str() );
+                }
+            }
         }
 
         // Draw the table with top pipelines.
@@ -1423,7 +1445,7 @@ namespace Profiler
             ImGui::EndDisabled();
 
             ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
-            ImGui::BeginDisabled( pVendorMetrics->empty() );
+            ImGui::BeginDisabled( pVendorMetrics->empty() || m_ReferencePerformanceCounters.empty() );
             if( ImGui::Button( Lang::ClearRef ) )
             {
                 m_ReferencePerformanceCounters.clear();
@@ -3587,6 +3609,10 @@ namespace Profiler
             serializer.WriteRow( static_cast<uint32_t>( pipelineDurations.size() ), pipelineDurations.data() );
             serializer.Close();
 
+            std::filesystem::path filePath( fileName );
+            m_ReferenceTopPipelinesShortDescription = filePath.filename().string();
+            m_ReferenceTopPipelinesFullDescription = filePath.string();
+
             m_SerializationSucceeded = true;
             m_SerializationMessage = "Top pipelines saved successfully.\n" + fileName;
         }
@@ -3631,6 +3657,10 @@ namespace Profiler
                     m_ReferenceTopPipelines.try_emplace( properties[i].shortName, results[i].float32 );
                 }
             }
+
+            std::filesystem::path filePath( fileName );
+            m_ReferenceTopPipelinesShortDescription = filePath.filename().string();
+            m_ReferenceTopPipelinesFullDescription = filePath.string();
 
             m_SerializationSucceeded = true;
             m_SerializationMessage = "Top pipelines loaded successfully.\n" + fileName;

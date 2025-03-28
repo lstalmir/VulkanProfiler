@@ -202,6 +202,8 @@ namespace Profiler
         struct TopPipelinesExporter;
         std::unique_ptr<TopPipelinesExporter> m_pTopPipelinesExporter;
         std::unordered_map<std::string, float> m_ReferenceTopPipelines;
+        std::string m_ReferenceTopPipelinesShortDescription;
+        std::string m_ReferenceTopPipelinesFullDescription;
 
         // Trace serialization output
         bool m_SerializationSucceeded;
