@@ -41,6 +41,8 @@ class LayerSetting:
     def c_type( self ):
         if self.type == "ENUM":
             return f"{self.key}_t"
+        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
+            return "std::string"
         return self.type.lower()
 
     def c_name( self ):
@@ -52,6 +54,8 @@ class LayerSetting:
             return "true" if self.default else "false"
         if self.type == "ENUM":
             return f"{self.c_type()}::{self.default}"
+        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
+            return f"\"{self.default}\""
         return str( self.default )
 
     def c_assign_from_string( self, string ):
@@ -59,7 +63,7 @@ class LayerSetting:
             return f"bool_t::TryParse({string}.c_str(), {self.c_name()})"
         if self.type == "ENUM":
             return f"{self.c_type()}::TryParse({string}.c_str(), {self.c_name()})"
-        if self.type == "STRING":
+        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
             return f"{self.c_name()} = {string}"
         return f"{self.c_name()} = static_cast<{self.c_type()}>(std::stoi({string}))"
 
