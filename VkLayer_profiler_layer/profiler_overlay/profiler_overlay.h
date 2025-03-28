@@ -143,8 +143,8 @@ namespace Profiler
         bool m_ShowAllTopPipelines;
 
         bool m_SetLastMainWindowPos;
-        float m_LastMainWindowPos[2];
-        float m_LastMainWindowSize[2];
+        Float2* m_pLastMainWindowPos;
+        Float2* m_pLastMainWindowSize;
 
         enum class TimeUnit
         {

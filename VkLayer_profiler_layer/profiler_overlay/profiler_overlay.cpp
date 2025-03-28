@@ -184,6 +184,8 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerOverlayOutput::ProfilerOverlayOutput()
         : m_InspectorShaderView( m_Resources )
+        , m_pLastMainWindowPos( m_Settings.AddFloat2( "LastMainWindowPos", Float2() ) )
+        , m_pLastMainWindowSize( m_Settings.AddFloat2( "LastMainWindowSize", Float2() ) )
         , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true }
         , m_QueueUtilizationWindowState{ m_Settings.AddBool( "QueueUtilizationWindowOpen", true ), true }
         , m_TopPipelinesWindowState{ m_Settings.AddBool( "TopPipelinesWindowOpen", true ), true }
@@ -255,8 +257,16 @@ namespace Profiler
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
 
             m_Settings.Validate( io.IniFilename );
+            ImGui::LoadIniSettingsFromDisk( io.IniFilename );
+
             m_Resources.InitializeFonts();
             InitializeImGuiStyle();
+
+            // Initialize ImGui window size and position
+            if( m_pLastMainWindowSize->x != 0 || m_pLastMainWindowSize->y != 0 )
+            {
+                m_SetLastMainWindowPos = true;
+            }
 
             // Initialize ImGui backends
             success = m_pBackend->PrepareImGuiBackend();
@@ -408,10 +418,6 @@ namespace Profiler
         m_ShowAllTopPipelines = false;
 
         m_SetLastMainWindowPos = false;
-        m_LastMainWindowPos[0] = 0.0f;
-        m_LastMainWindowPos[1] = 0.0f;
-        m_LastMainWindowSize[0] = 0.0f;
-        m_LastMainWindowSize[1] = 0.0f;
 
         m_FrameTime = 0.0f;
 
@@ -538,18 +544,12 @@ namespace Profiler
         {
             if( m_SetLastMainWindowPos )
             {
-                ImVec2 windowPos;
-                windowPos.x = m_LastMainWindowPos[0];
-                windowPos.y = m_LastMainWindowPos[1];
-
-                ImVec2 windowSize;
-                windowSize.x = m_LastMainWindowSize[0];
-                windowSize.y = m_LastMainWindowSize[1];
-
-                ImGui::SetNextWindowPos( windowPos );
-                ImGui::SetNextWindowSize( windowSize );
+                ImGui::SetNextWindowPos( *m_pLastMainWindowPos );
+                ImGui::SetNextWindowSize( *m_pLastMainWindowSize );
 
                 m_SetLastMainWindowPos = false;
+                *m_pLastMainWindowPos = Float2();
+                *m_pLastMainWindowSize = Float2();
             }
         }
 
@@ -560,13 +560,8 @@ namespace Profiler
         if( !m_Fullscreen )
         {
             // Save current window position and size to restore it when user exits fullscreen mode
-            ImVec2 windowPos = ImGui::GetWindowPos();
-            m_LastMainWindowPos[0] = windowPos.x;
-            m_LastMainWindowPos[1] = windowPos.y;
-
-            ImVec2 windowSize = ImGui::GetWindowSize();
-            m_LastMainWindowSize[0] = windowSize.x;
-            m_LastMainWindowSize[1] = windowSize.y;
+            *m_pLastMainWindowPos = ImGui::GetWindowPos();
+            *m_pLastMainWindowSize = ImGui::GetWindowSize();
         }
 
         if( ImGui::BeginMenuBar() )
