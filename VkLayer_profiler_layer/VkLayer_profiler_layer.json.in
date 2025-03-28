@@ -97,6 +97,14 @@
                     "default": false
                 },
                 {
+                    "key": "capture_indirect_arguments",
+                    "label": "Capture indirect arguments",
+                    "description": "Capture indirect argument buffers to show sub-commands contents.",
+                    "env": "VKPROF_capture_indirect_arguments",
+                    "type": "BOOL",
+                    "default": false
+                },
+                {
                     "key": "set_stable_power_state",
                     "label": "Set stable power state",
                     "description": "Use DirectX12 API to set stable power state for GPU time measurements.",
@@ -162,6 +170,22 @@
                             "description": "Synchronize and collect data on each submit (higher overhead)."
                         }
                     ]
+                },
+                {
+                    "key": "ref_pipelines",
+                    "label": "Reference pipelines",
+                    "description": "Path to the file with reference durations of top pipelines to load automatically.",
+                    "env": "VKPROF_ref_pipelines",
+                    "type": "LOAD_FILE",
+                    "default": ""
+                },
+                {
+                    "key": "ref_metrics",
+                    "label": "Reference metrics",
+                    "description": "Path to the file with reference performance metrics to load automatically.",
+                    "env": "VKPROF_ref_metrics",
+                    "type": "LOAD_FILE",
+                    "default": ""
                 }
             ]
         }

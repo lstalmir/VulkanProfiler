@@ -78,6 +78,7 @@ namespace Profiler
         inline static constexpr char Stages[] = u8"Shadery";
         inline static constexpr char Capabilities[] = u8"Funkcjonalności";
         inline static constexpr char SetRef[] = u8"Ustaw ref";
+        inline static constexpr char ClearRef[] = u8"Wyczyść ref";
         inline static constexpr char Value[] = u8"Wartość";
         inline static constexpr char FrameBrowser[] = u8"Przeglądarka ramki###Frame browser";
         inline static constexpr char SubmissionOrder[] = u8"Kolejność wykonania";

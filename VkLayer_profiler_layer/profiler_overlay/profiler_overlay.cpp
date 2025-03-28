@@ -24,8 +24,9 @@
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
+#include "profiler_layer_objects/VkObject.h"
+#include "profiler_layer_objects/VkQueue_object.h"
 
-#include "imgui_impl_vulkan_layer.h"
 #include <string>
 #include <sstream>
 #include <stack>
@@ -52,26 +53,6 @@
 using Lang = Profiler::DeviceProfilerOverlayLanguage_Base;
 #else
 using Lang = Profiler::DeviceProfilerOverlayLanguage_PL;
-#endif
-
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-#include "imgui_impl_win32.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-#include <wayland-client.h>
-#endif
-
-#ifdef VK_USE_PLATFORM_XCB_KHR
-#include "imgui_impl_xcb.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-#include "imgui_impl_xlib.h"
-#endif
-
-#ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
-#include <X11/extensions/Xrandr.h>
 #endif
 
 namespace Profiler
@@ -102,6 +83,20 @@ namespace Profiler
         std::vector<VkProfilerPerformanceCounterResultEXT> m_Data;
         std::vector<bool> m_DataMask;
         uint32_t m_MetricsSetIndex;
+        Action m_Action;
+    };
+
+    struct ProfilerOverlayOutput::TopPipelinesExporter
+    {
+        enum class Action
+        {
+            eExport,
+            eImport
+        };
+
+        IGFD::FileDialog m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
         Action m_Action;
     };
 
@@ -223,20 +218,13 @@ namespace Profiler
         Initializes profiler overlay.
 
     \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::Initialize(
-        DeviceProfilerFrontend& frontend,
-        VkDevice_Object& device,
-        VkQueue_Object& graphicsQueue,
-        VkSwapchainKhr_Object& swapchain,
-        const VkSwapchainCreateInfoKHR* pCreateInfo )
+    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend )
     {
-        VkResult result = VK_SUCCESS;
+        bool success = true;
 
         // Setup objects
         m_pFrontend = &frontend;
-        m_pDevice = &device;
-        m_pGraphicsQueue = &graphicsQueue;
-        m_pSwapchain = &swapchain;
+        m_pBackend = &backend;
 
         const VkPhysicalDeviceProperties& deviceProperties = m_pFrontend->GetPhysicalDeviceProperties();
 
@@ -245,63 +233,14 @@ namespace Profiler
             Lang::WindowName,
             deviceProperties.deviceName );
 
-        // Create descriptor pool
-        if( result == VK_SUCCESS )
-        {
-            VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-            descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-            descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-
-            // ImGui allocates descriptor sets only for textures/fonts for now.
-            const uint32_t imguiMaxTextureCount = 16;
-            const VkDescriptorPoolSize descriptorPoolSizes[] = {
-                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imguiMaxTextureCount }
-            };
-
-            descriptorPoolCreateInfo.maxSets = imguiMaxTextureCount;
-            descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype(descriptorPoolSizes)>;
-            descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
-
-            result = m_pDevice->Callbacks.CreateDescriptorPool(
-                m_pDevice->Handle,
-                &descriptorPoolCreateInfo,
-                nullptr,
-                &m_DescriptorPool );
-        }
-
-        // Create command pool
-        if( result == VK_SUCCESS )
-        {
-            VkCommandPoolCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            info.flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            info.queueFamilyIndex = m_pGraphicsQueue->Family;
-
-            result = m_pDevice->Callbacks.CreateCommandPool(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_CommandPool );
-        }
-
         // Get timestamp query period
-        if( result == VK_SUCCESS )
-        {
-            m_TimestampPeriod = Nanoseconds( deviceProperties.limits.timestampPeriod );
-        }
-
-        // Create swapchain-dependent resources
-        if( result == VK_SUCCESS )
-        {
-            result = ResetSwapchain( swapchain, pCreateInfo );
-        }
+        m_TimestampPeriod = Nanoseconds( deviceProperties.limits.timestampPeriod );
 
         // Init ImGui
-        if( result == VK_SUCCESS )
+        if( success )
         {
             std::scoped_lock lk( s_ImGuiMutex );
             IMGUI_CHECKVERSION();
-
             m_pImGuiContext = ImGui::CreateContext();
 
             ImGui::SetCurrentContext( m_pImGuiContext );
@@ -310,7 +249,7 @@ namespace Profiler
             m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
-            io.DisplaySize = { (float)m_RenderArea.width, (float)m_RenderArea.height };
+            io.DisplaySize = m_pBackend->GetRenderArea();
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
@@ -319,27 +258,23 @@ namespace Profiler
             m_Resources.InitializeFonts();
             InitializeImGuiStyle();
 
-            // Init window
-            if( result == VK_SUCCESS )
-            {
-                result = InitializeImGuiWindowHooks( pCreateInfo );
-            }
+            // Initialize ImGui backends
+            success = m_pBackend->PrepareImGuiBackend();
+        }
 
-            // Init vulkan
-            if( result == VK_SUCCESS )
-            {
-                result = InitializeImGuiVulkanContext( pCreateInfo );
-            }
-            
-            // Init resources
-            if( result == VK_SUCCESS )
-            {
-                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
-            }
+        if( success )
+        {
+            // Initialize backend-dependent config
+            float dpiScale = m_pBackend->GetDPIScale();
+            ImGuiIO& io = ImGui::GetIO();
+            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
+
+            // Initialize resources
+            success = m_Resources.InitializeImages( m_pBackend );
         }
 
         // Get vendor metrics sets
-        if( result == VK_SUCCESS )
+        if( success )
         {
             const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
                 m_pFrontend->GetPerformanceMetricsSets();
@@ -369,7 +304,7 @@ namespace Profiler
         }
 
         // Initialize the disassembler in the shader view
-        if( result == VK_SUCCESS )
+        if( success )
         {
             m_InspectorShaderView.Initialize( *m_pFrontend );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
@@ -380,28 +315,26 @@ namespace Profiler
         }
 
         // Initialize serializer
-        if( result == VK_SUCCESS )
+        if( success )
         {
             m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( *m_pFrontend ) );
-            result = (m_pStringSerializer != nullptr)
-                ? VK_SUCCESS
-                : VK_ERROR_OUT_OF_HOST_MEMORY;
+            success = (m_pStringSerializer != nullptr);
         }
 
         // Initialize settings
-        if( result == VK_SUCCESS )
+        if( success )
         {
             m_SamplingMode = m_pFrontend->GetProfilerSamplingMode();
             m_SyncMode = m_pFrontend->GetProfilerSyncMode();
         }
 
         // Don't leave object in partly-initialized state if something went wrong
-        if( result != VK_SUCCESS )
+        if( !success )
         {
             Destroy();
         }
 
-        return result;
+        return success;
     }
 
     /***********************************************************************************\
@@ -415,95 +348,18 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::Destroy()
     {
-        if( m_pDevice )
-        {
-            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
-        }
-
         if( m_pImGuiContext )
         {
             std::scoped_lock imGuiLock( s_ImGuiMutex );
             ImGui::SetCurrentContext( m_pImGuiContext );
 
-            // Destroy Vulkan resources created for the ImGui overlay
+            // Destroy resources created for the ImGui overlay.
             m_Resources.Destroy();
 
-            // Destroy ImGui backends
-            delete m_pImGuiVulkanContext;
-            delete m_pImGuiWindowContext;
+            // Destroy ImGui backends.
+            m_pBackend->DestroyImGuiBackend();
 
             ImGui::DestroyContext();
-        }
-
-        if( m_pDevice )
-        {
-            if( m_DescriptorPool != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyDescriptorPool(
-                    m_pDevice->Handle,
-                    m_DescriptorPool,
-                    nullptr );
-            }
-
-            if( m_RenderPass != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyRenderPass(
-                    m_pDevice->Handle,
-                    m_RenderPass,
-                    nullptr );
-            }
-
-            if( m_CommandPool != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyCommandPool(
-                    m_pDevice->Handle,
-                    m_CommandPool,
-                    nullptr );
-            }
-
-            for( VkFramebuffer framebuffer : m_Framebuffers )
-            {
-                if( framebuffer != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroyFramebuffer(
-                        m_pDevice->Handle,
-                        framebuffer,
-                        nullptr );
-                }
-            }
-
-            for( VkImageView imageView : m_ImageViews )
-            {
-                if( imageView != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroyImageView(
-                        m_pDevice->Handle,
-                        imageView,
-                        nullptr );
-                }
-            }
-
-            for( VkFence fence : m_CommandFences )
-            {
-                if( fence != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroyFence(
-                        m_pDevice->Handle,
-                        fence,
-                        nullptr );
-                }
-            }
-
-            for( VkSemaphore semaphore : m_CommandSemaphores )
-            {
-                if( semaphore != VK_NULL_HANDLE )
-                {
-                    m_pDevice->Callbacks.DestroySemaphore(
-                        m_pDevice->Handle,
-                        semaphore,
-                        nullptr );
-                }
-            }
         }
 
         // Reset members to initial values
@@ -522,29 +378,9 @@ namespace Profiler
     void ProfilerOverlayOutput::ResetMembers()
     {
         m_pFrontend = nullptr;
-
-        m_pDevice = nullptr;
-        m_pGraphicsQueue = nullptr;
-        m_pSwapchain = nullptr;
-
-        m_Window = OSWindowHandle();
+        m_pBackend = nullptr;
 
         m_pImGuiContext = nullptr;
-        m_pImGuiVulkanContext = nullptr;
-        m_pImGuiWindowContext = nullptr;
-
-        m_DescriptorPool = VK_NULL_HANDLE;
-        m_RenderPass = VK_NULL_HANDLE;
-        m_RenderArea = {};
-        m_ImageFormat = VK_FORMAT_UNDEFINED;
-        m_Images.clear();
-        m_ImageViews.clear();
-        m_Framebuffers.clear();
-
-        m_CommandPool = VK_NULL_HANDLE;
-        m_CommandBuffers.clear();
-        m_CommandFences.clear();
-        m_CommandSemaphores.clear();
 
         m_Title.clear();
 
@@ -599,6 +435,11 @@ namespace Profiler
         m_ReferencePerformanceCounters.clear();
         m_pPerformanceCounterExporter = nullptr;
 
+        m_pTopPipelinesExporter = nullptr;
+        m_ReferenceTopPipelines.clear();
+        m_ReferenceTopPipelinesShortDescription.clear();
+        m_ReferenceTopPipelinesFullDescription.clear();
+
         m_SerializationSucceeded = false;
         m_SerializationWindowVisible = false;
         m_SerializationMessage.clear();
@@ -634,310 +475,7 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerOverlayOutput::IsAvailable() const
     {
-#ifndef _DEBUG
-        // There are many other objects that could be checked here, but we're keeping
-        // object quite consistent in case of any errors during initialization, so
-        // checking just one should be sufficient.
-        return (m_pSwapchain);
-#else
-        // Check object state to confirm the note above
-        return (m_pSwapchain)
-            && (m_pDevice)
-            && (m_pGraphicsQueue)
-            && (m_pImGuiContext)
-            && (m_pImGuiVulkanContext)
-            && (m_pImGuiWindowContext)
-            && (m_RenderPass)
-            && (!m_CommandBuffers.empty());
-#endif
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetSwapchain
-
-    Description:
-        Return swapchain the overlay is associated with.
-
-    \***********************************************************************************/
-    VkSwapchainKHR ProfilerOverlayOutput::GetSwapchain() const
-    {
-        return m_pSwapchain->Handle;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        ResetSwapchain
-
-    Description:
-        Move overlay to the new swapchain.
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::ResetSwapchain(
-        VkSwapchainKhr_Object& swapchain,
-        const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        assert( m_pSwapchain == nullptr ||
-                pCreateInfo->oldSwapchain == m_pSwapchain->Handle ||
-                pCreateInfo->oldSwapchain == VK_NULL_HANDLE );
-
-        VkResult result = VK_SUCCESS;
-
-        // Get swapchain images
-        uint32_t swapchainImageCount = 0;
-        m_pDevice->Callbacks.GetSwapchainImagesKHR(
-            m_pDevice->Handle,
-            swapchain.Handle,
-            &swapchainImageCount,
-            nullptr );
-
-        std::vector<VkImage> images( swapchainImageCount );
-        result = m_pDevice->Callbacks.GetSwapchainImagesKHR(
-            m_pDevice->Handle,
-            swapchain.Handle,
-            &swapchainImageCount,
-            images.data() );
-
-        assert( result == VK_SUCCESS );
-
-        // Recreate render pass if swapchain format has changed
-        if( (result == VK_SUCCESS) && (pCreateInfo->imageFormat != m_ImageFormat) )
-        {
-            if( m_RenderPass != VK_NULL_HANDLE )
-            {
-                // Destroy old render pass
-                m_pDevice->Callbacks.DestroyRenderPass( m_pDevice->Handle, m_RenderPass, nullptr );
-            }
-
-            VkAttachmentDescription attachment = {};
-            attachment.format = pCreateInfo->imageFormat;
-            attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-            attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-            VkAttachmentReference color_attachment = {};
-            color_attachment.attachment = 0;
-            color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-            VkSubpassDescription subpass = {};
-            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-            subpass.colorAttachmentCount = 1;
-            subpass.pColorAttachments = &color_attachment;
-
-            VkSubpassDependency dependency = {};
-            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstSubpass = 0;
-            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.srcAccessMask = 0;
-            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            VkRenderPassCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-            info.attachmentCount = 1;
-            info.pAttachments = &attachment;
-            info.subpassCount = 1;
-            info.pSubpasses = &subpass;
-            info.dependencyCount = 1;
-            info.pDependencies = &dependency;
-
-            result = m_pDevice->Callbacks.CreateRenderPass(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_RenderPass );
-
-            m_ImageFormat = pCreateInfo->imageFormat;
-        }
-
-        // Recreate image views and framebuffers
-        // This is required because swapchain images have changed and current framebuffer is out of date
-        if( result == VK_SUCCESS )
-        {
-            if( !m_Images.empty() )
-            {
-                // Destroy previous framebuffers
-                for( int i = 0; i < m_Images.size(); ++i )
-                {
-                    m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, m_Framebuffers[ i ], nullptr );
-                    m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, m_ImageViews[ i ], nullptr );
-                }
-
-                m_Framebuffers.clear();
-                m_ImageViews.clear();
-            }
-
-            for( uint32_t i = 0; i < swapchainImageCount; i++ )
-            {
-                VkImageView imageView = VK_NULL_HANDLE;
-                VkFramebuffer framebuffer = VK_NULL_HANDLE;
-
-                // Create swapchain image view
-                if( result == VK_SUCCESS )
-                {
-                    VkImageViewCreateInfo info = {};
-                    info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-                    info.format = pCreateInfo->imageFormat;
-                    info.image = images[ i ];
-                    info.components.r = VK_COMPONENT_SWIZZLE_R;
-                    info.components.g = VK_COMPONENT_SWIZZLE_G;
-                    info.components.b = VK_COMPONENT_SWIZZLE_B;
-                    info.components.a = VK_COMPONENT_SWIZZLE_A;
-
-                    VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-                    info.subresourceRange = range;
-
-                    result = m_pDevice->Callbacks.CreateImageView(
-                        m_pDevice->Handle,
-                        &info,
-                        nullptr,
-                        &imageView );
-
-                    m_ImageViews.push_back( imageView );
-                }
-
-                // Create framebuffer
-                if( result == VK_SUCCESS )
-                {
-                    VkFramebufferCreateInfo info = {};
-                    info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-                    info.renderPass = m_RenderPass;
-                    info.attachmentCount = 1;
-                    info.pAttachments = &imageView;
-                    info.width = pCreateInfo->imageExtent.width;
-                    info.height = pCreateInfo->imageExtent.height;
-                    info.layers = 1;
-
-                    result = m_pDevice->Callbacks.CreateFramebuffer(
-                        m_pDevice->Handle,
-                        &info,
-                        nullptr,
-                        &framebuffer );
-
-                    m_Framebuffers.push_back( framebuffer );
-                }
-            }
-
-            m_RenderArea = pCreateInfo->imageExtent;
-        }
-
-        // Allocate additional command buffers, fences and semaphores
-        if( (result == VK_SUCCESS) && (swapchainImageCount > m_Images.size()) )
-        {
-            VkCommandBufferAllocateInfo allocInfo = {};
-            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandPool = m_CommandPool;
-            allocInfo.commandBufferCount = swapchainImageCount - static_cast<uint32_t>( m_Images.size() );
-
-            std::vector<VkCommandBuffer> commandBuffers( swapchainImageCount );
-
-            result = m_pDevice->Callbacks.AllocateCommandBuffers(
-                m_pDevice->Handle,
-                &allocInfo,
-                commandBuffers.data() );
-
-            if( result == VK_SUCCESS )
-            {
-                // Append created command buffers to end
-                // We need to do this right after allocation to avoid leaks if something fails later
-                m_CommandBuffers.insert( m_CommandBuffers.end(), commandBuffers.begin(), commandBuffers.end() );
-            }
-
-            for( auto cmdBuffer : commandBuffers )
-            {
-                if( result == VK_SUCCESS )
-                {
-                    // Command buffers are dispatchable handles, update pointers to parent's dispatch table
-                    result = m_pDevice->SetDeviceLoaderData( m_pDevice->Handle, cmdBuffer );
-                }
-            }
-
-            // Create additional per-command-buffer semaphores and fences
-            for( size_t i = m_Images.size(); i < swapchainImageCount; ++i )
-            {
-                VkFence fence;
-                VkSemaphore semaphore;
-
-                // Create command buffer fence
-                if( result == VK_SUCCESS )
-                {
-                    VkFenceCreateInfo fenceInfo = {};
-                    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-                    fenceInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
-
-                    result = m_pDevice->Callbacks.CreateFence(
-                        m_pDevice->Handle,
-                        &fenceInfo,
-                        nullptr,
-                        &fence );
-
-                    m_CommandFences.push_back( fence );
-                }
-
-                // Create present semaphore
-                if( result == VK_SUCCESS )
-                {
-                    VkSemaphoreCreateInfo semaphoreInfo = {};
-                    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-                    result = m_pDevice->Callbacks.CreateSemaphore(
-                        m_pDevice->Handle,
-                        &semaphoreInfo,
-                        nullptr,
-                        &semaphore );
-
-                    m_CommandSemaphores.push_back( semaphore );
-                }
-            }
-        }
-
-        // Update objects
-        if( result == VK_SUCCESS )
-        {
-            m_pSwapchain = &swapchain;
-            m_Images = std::move( images );
-        }
-
-        // Reinitialize ImGui
-        if( (m_pImGuiContext) )
-        {
-            std::scoped_lock lk( s_ImGuiMutex );
-            ImGui::SetCurrentContext( m_pImGuiContext );
-
-            if( result == VK_SUCCESS )
-            {
-                // Reinit window
-                result = InitializeImGuiWindowHooks( pCreateInfo );
-            }
-
-            if( result == VK_SUCCESS )
-            {
-                // Init vulkan
-                result = InitializeImGuiVulkanContext( pCreateInfo );
-            }
-
-            if( result == VK_SUCCESS )
-            {
-                // Init resources
-                result = m_Resources.InitializeImages( *m_pDevice, *m_pImGuiVulkanContext );
-            }
-        }
-
-        // Don't leave object in partly-initialized state
-        if( result != VK_SUCCESS )
-        {
-            Destroy();
-        }
-
-        return result;
+        return (m_pFrontend != nullptr) && (m_pBackend != nullptr);
     }
 
     /***********************************************************************************\
@@ -949,95 +487,28 @@ namespace Profiler
         Draw profiler overlay before presenting the image to screen.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::Present(
-        const VkQueue_Object& queue,
-        VkPresentInfoKHR* pPresentInfo )
+    void ProfilerOverlayOutput::Update()
     {
         std::scoped_lock lk( s_ImGuiMutex );
         ImGui::SetCurrentContext( m_pImGuiContext );
 
-        // Record interface draw commands
-        Update( m_pFrontend->GetData() );
+        // Must be set before calling NewFrame to avoid clipping on window resize.
+        ImGuiIO& io = ImGui::GetIO();
+        io.DisplaySize = m_pBackend->GetRenderArea();
 
-        ImDrawData* pDrawData = ImGui::GetDrawData();
-        if( pDrawData )
+        if( !m_pBackend->NewFrame() )
         {
-            // Grab command buffer for overlay commands
-            const uint32_t imageIndex = pPresentInfo->pImageIndices[ 0 ];
-
-            // Per-
-            VkFence& fence = m_CommandFences[ imageIndex ];
-            VkSemaphore& semaphore = m_CommandSemaphores[ imageIndex ];
-            VkCommandBuffer& commandBuffer = m_CommandBuffers[ imageIndex ];
-            VkFramebuffer& framebuffer = m_Framebuffers[ imageIndex ];
-
-            m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &fence, VK_TRUE, UINT64_MAX );
-            m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &fence );
-
-            {
-                VkCommandBufferBeginInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-                info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-                m_pDevice->Callbacks.BeginCommandBuffer( commandBuffer, &info );
-            }
-
-            // Record upload commands
-            m_Resources.RecordUploadCommands( commandBuffer );
-
-            {
-                VkRenderPassBeginInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                info.renderPass = m_RenderPass;
-                info.framebuffer = framebuffer;
-                info.renderArea.extent.width = m_RenderArea.width;
-                info.renderArea.extent.height = m_RenderArea.height;
-                m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
-            }
-
-            // Record Imgui Draw Data and draw funcs into command buffer
-            m_pImGuiVulkanContext->RenderDrawData( pDrawData, commandBuffer );
-
-            // Submit command buffer
-            m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
-
-            {
-                VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                VkSubmitInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-                info.waitSemaphoreCount = pPresentInfo->waitSemaphoreCount;
-                info.pWaitSemaphores = pPresentInfo->pWaitSemaphores;
-                info.pWaitDstStageMask = &wait_stage;
-                info.commandBufferCount = 1;
-                info.pCommandBuffers = &commandBuffer;
-                info.signalSemaphoreCount = 1;
-                info.pSignalSemaphores = &semaphore;
-
-                m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
-                m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
-            }
-
-            // Override wait semaphore
-            pPresentInfo->waitSemaphoreCount = 1;
-            pPresentInfo->pWaitSemaphores = &semaphore;
+            return;
         }
 
-        m_Resources.FreeUploadResources();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        Update
-
-    Description:
-        Update overlay.
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::Update( const std::shared_ptr<DeviceProfilerFrameData>& pData )
-    {
-        m_pImGuiVulkanContext->NewFrame();
-        m_pImGuiWindowContext->NewFrame();
         ImGui::NewFrame();
+
+        // Update data
+        if( !m_Pause || !m_pData )
+        {
+            m_pData = m_pFrontend->GetData();
+            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
+        }
 
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
@@ -1157,13 +628,6 @@ namespace Profiler
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
             VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
             VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
-
-        if( !m_Pause )
-        {
-            // Update data
-            m_pData = pData;
-            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
-        }
 
         // Add padding
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
@@ -1297,6 +761,7 @@ namespace Profiler
 
         // Draw other windows
         UpdatePerformanceCounterExporter();
+        UpdateTopPipelinesExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
         UpdateApplicationInfoWindow();
@@ -1319,103 +784,8 @@ namespace Profiler
 
         ImGui::PopFont();
         ImGui::Render();
-    }
 
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiWindowHooks
-
-    Description:
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        VkResult result = VK_SUCCESS;
-
-        // Get window handle from the swapchain surface
-        OSWindowHandle window = m_pDevice->pInstance->Surfaces.at( pCreateInfo->surface ).Window;
-
-        if( m_Window == window )
-        {
-            // No need to update window hooks
-            return result;
-        }
-
-        // Free current window
-        delete m_pImGuiWindowContext;
-        m_pImGuiWindowContext = nullptr;
-
-        // Update objects
-        m_Window = window;
-
-        try
-        {
-            switch( window.Type )
-            {
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-            case OSWindowHandleType::eWin32:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplWin32_Context( window.Win32Handle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_WIN32_KHR
-
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-            case OSWindowHandleType::eWayland:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplWayland_Context( window.WaylandHandle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_WAYLAND_KHR
-
-#ifdef VK_USE_PLATFORM_XCB_KHR
-            case OSWindowHandleType::eXcb:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplXcb_Context( window.XcbHandle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_XCB_KHR
-
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-            case OSWindowHandleType::eXlib:
-            {
-                m_pImGuiWindowContext = new ImGui_ImplXlib_Context( window.XlibHandle );
-                break;
-            }
-#endif // VK_USE_PLATFORM_XLIB_KHR
-
-            default:
-            {
-                // Unsupported window type
-                result = VK_ERROR_INITIALIZATION_FAILED;
-                break;
-            }
-            }
-        }
-        catch( ... )
-        {
-            // Catch exceptions thrown by OS-specific ImGui window constructors
-            result = VK_ERROR_INITIALIZATION_FAILED;
-        }
-
-        // Set DPI scaling.
-        if( result == VK_SUCCESS )
-        {
-            float dpiScale = m_pImGuiWindowContext->GetDPIScale();
-            ImGuiIO& io = ImGui::GetIO();
-            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
-        }
-
-        // Deinitialize context if something failed
-        if( result != VK_SUCCESS )
-        {
-            delete m_pImGuiWindowContext;
-            m_pImGuiWindowContext = nullptr;
-            m_Window = OSWindowHandle();
-        }
-
-        return result;
+        m_pBackend->RenderDrawData( ImGui::GetDrawData() );
     }
 
     /***********************************************************************************\
@@ -1442,84 +812,6 @@ namespace Profiler
         m_InternalPipelineColumnColor = ImGui::GetColorU32( { 0.5f, 0.22f, 0.9f, 1.0f } ); // #9e30ff
 
         m_InspectorShaderView.InitializeStyles();
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        InitializeImGuiVulkanContext
-
-    Description:
-
-    \***********************************************************************************/
-    VkResult ProfilerOverlayOutput::InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* pCreateInfo )
-    {
-        VkResult result = VK_SUCCESS;
-
-        if( m_pImGuiVulkanContext )
-        {
-            // Make sure nothing is executing on the device before destroying resources
-            m_pDevice->Callbacks.DeviceWaitIdle( m_pDevice->Handle );
-
-            // Destroy resources associated with the current context
-            m_Resources.DestroyImages();
-
-            // Free current context
-            delete m_pImGuiVulkanContext;
-            m_pImGuiVulkanContext = nullptr;
-        }
-
-        try
-        {
-            ImGui_ImplVulkanLayer_InitInfo imGuiInitInfo;
-            std::memset( &imGuiInitInfo, 0, sizeof( imGuiInitInfo ) );
-
-            imGuiInitInfo.Queue = m_pGraphicsQueue->Handle;
-            imGuiInitInfo.QueueFamily = m_pGraphicsQueue->Family;
-
-            imGuiInitInfo.Instance = m_pDevice->pInstance->Handle;
-            imGuiInitInfo.PhysicalDevice = m_pDevice->pPhysicalDevice->Handle;
-            imGuiInitInfo.Device = m_pDevice->Handle;
-
-            imGuiInitInfo.pInstanceDispatchTable = &m_pDevice->pInstance->Callbacks;
-            imGuiInitInfo.pDispatchTable = &m_pDevice->Callbacks;
-
-            imGuiInitInfo.Allocator = nullptr;
-            imGuiInitInfo.PipelineCache = VK_NULL_HANDLE;
-            imGuiInitInfo.CheckVkResultFn = nullptr;
-
-            imGuiInitInfo.MinImageCount = pCreateInfo->minImageCount;
-            imGuiInitInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
-            imGuiInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-
-            imGuiInitInfo.DescriptorPool = m_DescriptorPool;
-            imGuiInitInfo.RenderPass = m_RenderPass;
-
-            m_pImGuiVulkanContext = new ImGui_ImplVulkan_Context( &imGuiInitInfo );
-        }
-        catch( ... )
-        {
-            // Catch all exceptions thrown by the context constructor and return VkResult
-            result = VK_ERROR_INITIALIZATION_FAILED;
-        }
-
-        // Initialize fonts
-        if( result == VK_SUCCESS )
-        {
-            if( !m_pImGuiVulkanContext->CreateFontsTexture() )
-            {
-                result = VK_ERROR_INITIALIZATION_FAILED;
-            }
-        }
-
-        // Deinitialize context if something failed
-        if( result != VK_SUCCESS )
-        {
-            delete m_pImGuiVulkanContext;
-            m_pImGuiVulkanContext = nullptr;
-        }
-
-        return result;
     }
 
     /***********************************************************************************\
@@ -1852,8 +1144,7 @@ namespace Profiler
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
         const float badgeSpacing = 3.f * interfaceScale;
 
-        const char* pEllipsis = "...";
-        const float ellipsisWidth = ImGui::CalcTextSize( pEllipsis ).x;
+        const float ellipsisWidth = ImGui::CalcTextSize( "..." ).x;
 
         // Calculate width of badges to align them.
         const float meshPipelineBadgesWidth =
@@ -1872,12 +1163,78 @@ namespace Profiler
         const float traditional3DPipelineBadgesOffset =
             std::max( 0.f, meshPipelineBadgesWidth - traditional3DPipelineBadgesWidth );
 
+        // Toolbar with save and load options.
+        ImGui::BeginDisabled( m_pTopPipelinesExporter != nullptr );
+        if( ImGui::Button( Lang::Save ) )
+        {
+            m_pTopPipelinesExporter = std::make_unique<TopPipelinesExporter>();
+            m_pTopPipelinesExporter->m_pData = m_pData;
+            m_pTopPipelinesExporter->m_Action = TopPipelinesExporter::Action::eExport;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+        ImGui::BeginDisabled( m_pTopPipelinesExporter != nullptr );
+        if( ImGui::Button( Lang::Load ) )
+        {
+            m_pTopPipelinesExporter = std::make_unique<TopPipelinesExporter>();
+            m_pTopPipelinesExporter->m_Action = TopPipelinesExporter::Action::eImport;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        if( ImGui::Button( Lang::SetRef ) )
+        {
+            m_ReferenceTopPipelines.clear();
+
+            const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
+            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
+
+            for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
+            {
+                const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
+
+                m_ReferenceTopPipelines.try_emplace(
+                    m_pStringSerializer->GetName( pipeline ), pipelineTimeMs );
+            }
+        }
+
+        ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+        ImGui::BeginDisabled( m_ReferenceTopPipelines.empty() );
+        if( ImGui::Button( Lang::ClearRef ) )
+        {
+            m_ReferenceTopPipelines.clear();
+            m_ReferenceTopPipelinesShortDescription.clear();
+            m_ReferenceTopPipelinesFullDescription.clear();
+        }
+        ImGui::EndDisabled();
+
+        if( !m_ReferenceTopPipelines.empty() )
+        {
+            ImGuiX::TextAlignRight( "Ref: %s", m_ReferenceTopPipelinesShortDescription.c_str() );
+
+            if( !m_ReferenceTopPipelinesFullDescription.empty() )
+            {
+                if( ImGui::IsItemHovered() )
+                {
+                    ImGui::SetTooltip( "%s", m_ReferenceTopPipelinesFullDescription.c_str() );
+                }
+            }
+        }
+
         // Draw the table with top pipelines.
-        if( ImGui::BeginTable( "TopPipelinesTable", 6,
+        if( ImGui::BeginTable( "TopPipelinesTable", 8,
                 ImGuiTableFlags_Hideable |
                 ImGuiTableFlags_PadOuterX |
                 ImGuiTableFlags_NoClip ) )
         {
+            // Hide reference columns if there are no reference pipelines captured.
+            int referenceColumnFlags = ImGuiTableColumnFlags_WidthStretch;
+            if( m_ReferenceTopPipelines.empty() )
+            {
+                referenceColumnFlags |= ImGuiTableColumnFlags_Disabled;
+            }
+
             // Headers
             ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHide );
             ImGui::TableSetupColumn( Lang::Pipeline, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHide );
@@ -1885,6 +1242,8 @@ namespace Profiler
             ImGui::TableSetupColumn( Lang::Stages, ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
             ImGuiX::TableSetupColumn( Lang::Contrib, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
             ImGuiX::TableSetupColumn( Lang::StatTotal, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::Ref, referenceColumnFlags, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+            ImGuiX::TableSetupColumn( Lang::Delta, referenceColumnFlags, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
             ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
             uint32_t pipelineIndex = 0;
@@ -1893,11 +1252,13 @@ namespace Profiler
             for( const auto& pipeline : m_pData->m_TopPipelines )
             {
                 // Skip debug pipelines.
-                if( (pipeline.m_Type == DeviceProfilerPipelineType::eNone) ||
-                    (pipeline.m_Type == DeviceProfilerPipelineType::eDebug) )
+                if( ( pipeline.m_Type == DeviceProfilerPipelineType::eNone ) ||
+                    ( pipeline.m_Type == DeviceProfilerPipelineType::eDebug ) )
                 {
                     continue;
                 }
+
+                ImGui::TableNextRow();
 
                 pipelineIndex++;
                 snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
@@ -1918,16 +1279,21 @@ namespace Profiler
 
                     if( pipelineNameWidth > availableWidth )
                     {
-                        while( ( pipelineNameWidth + ellipsisWidth ) > availableWidth )
+                        while( !pipelineName.empty() && ( pipelineNameWidth + ellipsisWidth ) > availableWidth )
                         {
                             pipelineName.pop_back();
                             pipelineNameWidth = ImGui::CalcTextSize( pipelineName.c_str() ).x;
                         }
 
-                        pipelineName.append( pEllipsis );
+                        if( !pipelineName.empty() )
+                        {
+                            ImGui::Text( "%s...", pipelineName.c_str() );
+                        }
                     }
-
-                    ImGui::TextUnformatted( pipelineName.c_str() );
+                    else
+                    {
+                        ImGui::TextUnformatted( pipelineName.c_str() );
+                    }
 
                     DrawPipelineContextMenu( pipeline, pipelineIndexStr );
                 }
@@ -1983,8 +1349,42 @@ namespace Profiler
                 {
                     ImGuiX::TextAlignRight(
                         ImGuiX::TableGetColumnWidth(),
-                        "%.2f ms",
-                        pipelineTime );
+                        "%.2f %s",
+                        pipelineTime,
+                        m_pTimestampDisplayUnitStr );
+                }
+
+                // Show reference time if available.
+                if( !m_ReferenceTopPipelines.empty() )
+                {
+                    auto ref = m_ReferenceTopPipelines.find( pipelineName );
+                    if( ref != m_ReferenceTopPipelines.end() )
+                    {
+                        // Convert saved reference time to the same unit as the pipeline time.
+                        float refPipelineTime = ref->second * m_TimestampDisplayUnit;
+
+                        if( ImGui::TableNextColumn() )
+                        {
+                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                            ImGuiX::TextAlignRight(
+                                ImGuiX::TableGetColumnWidth(),
+                                "%.2f %s",
+                                refPipelineTime,
+                                m_pTimestampDisplayUnitStr );
+                            ImGui::PopStyleColor();
+                        }
+
+                        if( ImGui::TableNextColumn() )
+                        {
+                            const float delta = CalcPerformanceCounterDelta( refPipelineTime, pipelineTime );
+                            ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
+                            ImGuiX::TextAlignRight(
+                                ImGuiX::TableGetColumnWidth(),
+                                "%+.1f%%",
+                                delta );
+                            ImGui::PopStyleColor();
+                        }
+                    }
                 }
 
                 if( !m_ShowAllTopPipelines && pipelineIndex == 10 )
@@ -2119,6 +1519,14 @@ namespace Profiler
                         m_ReferencePerformanceCounters.try_emplace( activeMetricsSet.m_Metrics[i].shortName, ( *pVendorMetrics )[i] );
                     }
                 }
+            }
+            ImGui::EndDisabled();
+
+            ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+            ImGui::BeginDisabled( pVendorMetrics->empty() || m_ReferencePerformanceCounters.empty() );
+            if( ImGui::Button( Lang::ClearRef ) )
+            {
+                m_ReferencePerformanceCounters.clear();
             }
             ImGui::EndDisabled();
 
@@ -3642,16 +3050,13 @@ namespace Profiler
         {
             const float cycleCount = GetDuration( data );
 
-            PerformanceGraphColumn column = {};
+            PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.color = m_RenderPassColumnColor;
             column.userData = &data;
             column.groupMode = HistogramGroupMode::eRenderPass;
             column.nodeIndex = index;
-
-            // Insert render pass cycle count to histogram
-            columns.push_back( column );
         }
         else
         {
@@ -3660,7 +3065,7 @@ namespace Profiler
             {
                 const float cycleCount = GetDuration( data.m_Begin );
 
-                PerformanceGraphColumn column = {};
+                PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
@@ -3668,7 +3073,6 @@ namespace Profiler
                 column.groupMode = HistogramGroupMode::eRenderPassBegin;
                 column.nodeIndex = index;
 
-                columns.push_back( column );
                 index.back()++;
             }
 
@@ -3724,15 +3128,13 @@ namespace Profiler
             {
                 const float cycleCount = GetDuration( data.m_End );
 
-                PerformanceGraphColumn column = {};
+                PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
                 column.color = m_GraphicsPipelineColumnColor;
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassEnd;
                 column.nodeIndex = index;
-
-                columns.push_back( column );
             }
 
             index.pop_back();
@@ -3760,7 +3162,7 @@ namespace Profiler
         {
             const float cycleCount = GetDuration( data );
 
-            PerformanceGraphColumn column = {};
+            PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
             column.userData = &data;
@@ -3785,9 +3187,6 @@ namespace Profiler
                 assert( !"Unsupported pipeline type" );
                 break;
             }
-
-            // Insert pipeline cycle count to histogram
-            columns.push_back( column );
         }
         else
         {
@@ -3820,7 +3219,7 @@ namespace Profiler
     {
         const float cycleCount = GetDuration( data );
 
-        PerformanceGraphColumn column = {};
+        PerformanceGraphColumn& column = columns.emplace_back();
         column.x = cycleCount;
         column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
         column.userData = &data;
@@ -3841,9 +3240,6 @@ namespace Profiler
             column.color = m_InternalPipelineColumnColor;
             break;
         }
-
-        // Insert drawcall cycle count to histogram
-        columns.push_back( column );
     }
 
     /***********************************************************************************\
@@ -4162,13 +3558,190 @@ namespace Profiler
 
             m_ReferencePerformanceCounters.clear();
 
-            for( size_t i = 0; i < results.size(); ++i )
+            const size_t performanceCounterCount = std::min( properties.size(), results.size() );
+            for( size_t i = 0; i < performanceCounterCount; ++i )
             {
                 m_ReferencePerformanceCounters.try_emplace( properties[i].shortName, results[i] );
             }
 
             m_SerializationSucceeded = true;
             m_SerializationMessage = "Performance counters loaded successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for reading.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateTopPipelinesExporter
+
+    Description:
+        Shows a file dialog if top pipelines list save or load was requested and
+        saves/loads them when OK is pressed.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateTopPipelinesExporter()
+    {
+        static const std::string scFileDialogId = "#TopPipelinesSaveFileDialog";
+
+        if( m_pTopPipelinesExporter != nullptr )
+        {
+            // Initialize the file dialog on the first call to this function.
+            if( !m_pTopPipelinesExporter->m_FileDialog.IsOpened() )
+            {
+                m_pTopPipelinesExporter->m_FileDialogConfig.flags =
+                    ImGuiFileDialogFlags_Default;
+
+                if( m_pTopPipelinesExporter->m_Action == TopPipelinesExporter::Action::eImport )
+                {
+                    // Don't ask for overwrite when selecting file to load.
+                    m_pTopPipelinesExporter->m_FileDialogConfig.flags ^=
+                        ImGuiFileDialogFlags_ConfirmOverwrite;
+                }
+
+                if( m_pTopPipelinesExporter->m_Action == TopPipelinesExporter::Action::eExport )
+                {
+                    m_pTopPipelinesExporter->m_FileDialogConfig.fileName =
+                        "top_pipelines.csv";
+                }
+            }
+
+            // Draw the file dialog until the user closes it.
+            bool closed = DisplayFileDialog(
+                scFileDialogId,
+                m_pTopPipelinesExporter->m_FileDialog,
+                m_pTopPipelinesExporter->m_FileDialogConfig,
+                "Select top pipelines file path",
+                ".csv" );
+
+            if( closed )
+            {
+                if( m_pTopPipelinesExporter->m_FileDialog.IsOk() )
+                {
+                    switch( m_pTopPipelinesExporter->m_Action )
+                    {
+                    case TopPipelinesExporter::Action::eExport:
+                        SaveTopPipelinesToFile(
+                            m_pTopPipelinesExporter->m_FileDialog.GetFilePathName(),
+                            *m_pTopPipelinesExporter->m_pData );
+                        break;
+
+                    case TopPipelinesExporter::Action::eImport:
+                        LoadTopPipelinesFromFile(
+                            m_pTopPipelinesExporter->m_FileDialog.GetFilePathName() );
+                        break;
+                    }
+                }
+
+                // Destroy the exporter.
+                m_pTopPipelinesExporter.reset();
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveTopPipelinesToFile
+
+    Description:
+        Writes top pipelines data to a CSV file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SaveTopPipelinesToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
+    {
+        DeviceProfilerCsvSerializer serializer;
+
+        if( serializer.Open( fileName ) )
+        {
+            // Convert top pipelines to performance counter format to reuse existing CSV serializer implementation.
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> pipelineNames;
+            pipelineNames.reserve( data.m_TopPipelines.size() );
+
+            std::vector<VkProfilerPerformanceCounterResultEXT> pipelineDurations;
+            pipelineDurations.reserve( data.m_TopPipelines.size() );
+
+            for( const DeviceProfilerPipelineData& pipeline : data.m_TopPipelines )
+            {
+                const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
+
+                VkProfilerPerformanceCounterPropertiesEXT& pipelineNameInfo = pipelineNames.emplace_back();
+                ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() );
+                pipelineNameInfo.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
+
+                VkProfilerPerformanceCounterResultEXT& pipelineDuration = pipelineDurations.emplace_back();
+                pipelineDuration.float32 = GetDuration( pipeline );
+            }
+
+            // Write converted data to file.
+            serializer.WriteHeader( static_cast<uint32_t>( pipelineNames.size() ), pipelineNames.data() );
+            serializer.WriteRow( static_cast<uint32_t>( pipelineDurations.size() ), pipelineDurations.data() );
+            serializer.Close();
+
+            std::filesystem::path filePath( fileName );
+            m_ReferenceTopPipelinesShortDescription = filePath.filename().string();
+            m_ReferenceTopPipelinesFullDescription = filePath.string();
+
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Top pipelines saved successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for writing.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        LoadTopPipelinesFromFile
+
+    Description:
+        Loads top pipelines data from a CSV file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::LoadTopPipelinesFromFile( const std::string& fileName )
+    {
+        DeviceProfilerCsvDeserializer deserializer;
+
+        if( deserializer.Open( fileName ) )
+        {
+            std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties = deserializer.ReadHeader();
+            std::vector<VkProfilerPerformanceCounterResultEXT> results = deserializer.ReadRow();
+
+            m_ReferenceTopPipelines.clear();
+
+            const size_t topPipelineCount = std::min( properties.size(), results.size() );
+            for( size_t i = 0; i < topPipelineCount; ++i )
+            {
+                // Only float32 storage is supported for top pipelines for now.
+                if( properties[i].storage == VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT )
+                {
+                    m_ReferenceTopPipelines.try_emplace( properties[i].shortName, results[i].float32 );
+                }
+            }
+
+            std::filesystem::path filePath( fileName );
+            m_ReferenceTopPipelinesShortDescription = filePath.filename().string();
+            m_ReferenceTopPipelinesFullDescription = filePath.string();
+
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Top pipelines loaded successfully.\n" + fileName;
         }
         else
         {
@@ -4274,9 +3847,10 @@ namespace Profiler
 
         if( (now - m_SerializationFinishTimestamp) < 4s )
         {
+            const ImVec2 outputSize = m_pBackend->GetRenderArea();
             const ImVec2 windowPos = {
-                static_cast<float>(m_RenderArea.width - m_SerializationOutputWindowSize.width),
-                static_cast<float>(m_RenderArea.height - m_SerializationOutputWindowSize.height) };
+                static_cast<float>(outputSize.x - m_SerializationOutputWindowSize.width),
+                static_cast<float>(outputSize.y - m_SerializationOutputWindowSize.height) };
 
             const float fadeOutStep =
                 1.f - std::max( 0.f, std::min( 1.f,
@@ -4432,7 +4006,7 @@ namespace Profiler
         }
 
         const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-        const std::string commandBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
+        std::string commandBufferName = m_pStringSerializer->GetName( cmdBuffer.m_Handle );
         bool commandBufferTreeExpanded = ImGui::TreeNode( indexStr, "%s",
             commandBufferName.c_str() );
 
@@ -4441,7 +4015,7 @@ namespace Profiler
             if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceQueryResults.empty() ) )
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
-                m_PerformanceQueryCommandBufferFilterName = commandBufferName;
+                m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
                 m_PerformanceCountersWindowState.SetFocus();
             }
             ImGui::EndPopup();
@@ -4452,6 +4026,9 @@ namespace Profiler
 
         if( commandBufferTreeExpanded )
         {
+            FrameBrowserContext commandBufferContext = {};
+            commandBufferContext.pCommandBuffer = &cmdBuffer;
+
             // Sort frame browser data
             std::list<const DeviceProfilerRenderPassData*> pRenderPasses =
                 SortFrameBrowserData( cmdBuffer.m_RenderPasses );
@@ -4461,7 +4038,7 @@ namespace Profiler
             // Enumerate render passes in command buffer
             for( const DeviceProfilerRenderPassData* pRenderPass : pRenderPasses )
             {
-                PrintRenderPass( *pRenderPass, index );
+                PrintRenderPass( *pRenderPass, index, commandBufferContext );
                 index.back()++;
             }
 
@@ -4512,7 +4089,7 @@ namespace Profiler
         Writes render pass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex& index )
+    void ProfilerOverlayOutput::PrintRenderPass( const DeviceProfilerRenderPassData& renderPass, FrameBrowserTreeNodeIndex& index, const FrameBrowserContext& context )
     {
         const bool isValidRenderPass = (renderPass.m_Type != DeviceProfilerRenderPassType::eNone);
 
@@ -4550,6 +4127,9 @@ namespace Profiler
 
         if( inRenderPassSubtree )
         {
+            FrameBrowserContext renderPassContext = context;
+            renderPassContext.pRenderPass = &renderPass;
+
             index.emplace_back( 0 );
 
             // Render pass subtree opened
@@ -4569,7 +4149,7 @@ namespace Profiler
             // Enumerate subpasses
             for( const DeviceProfilerSubpassData* pSubpass : pSubpasses )
             {
-                PrintSubpass( *pSubpass, index, (pSubpasses.size() == 1) );
+                PrintSubpass( *pSubpass, index, ( pSubpasses.size() == 1 ), renderPassContext );
                 index.back()++;
             }
 
@@ -4596,7 +4176,7 @@ namespace Profiler
         Writes subpass data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex& index, bool isOnlySubpass )
+    void ProfilerOverlayOutput::PrintSubpass( const DeviceProfilerSubpassData& subpass, FrameBrowserTreeNodeIndex& index, bool isOnlySubpass, const FrameBrowserContext& context )
     {
         bool inSubpassSubtree = false;
         bool printSubpassInline =
@@ -4636,7 +4216,7 @@ namespace Profiler
 
                 for( const DeviceProfilerSubpassData::Data* pData : pDataSorted )
                 {
-                    PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index );
+                    PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index, context );
                     index.back()++;
                 }
             }
@@ -4667,7 +4247,7 @@ namespace Profiler
                     switch( pData->GetType() )
                     {
                     case DeviceProfilerSubpassDataType::ePipeline:
-                        PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index );
+                        PrintPipeline( std::get<DeviceProfilerPipelineData>( *pData ), index, context );
                         break;
 
                     case DeviceProfilerSubpassDataType::eCommandBuffer:
@@ -4697,7 +4277,7 @@ namespace Profiler
         Writes pipeline data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex& index )
+    void ProfilerOverlayOutput::PrintPipeline( const DeviceProfilerPipelineData& pipeline, FrameBrowserTreeNodeIndex& index, const FrameBrowserContext& context )
     {
         const bool printPipelineInline =
             ((pipeline.m_Handle == VK_NULL_HANDLE) &&
@@ -4735,6 +4315,9 @@ namespace Profiler
 
         if( inPipelineSubtree || printPipelineInline )
         {
+            FrameBrowserContext pipelineContext = context;
+            pipelineContext.pPipeline = &pipeline;
+
             // Sort frame browser data
             std::list<const DeviceProfilerDrawcall*> pDrawcalls =
                 SortFrameBrowserData( pipeline.m_Drawcalls );
@@ -4744,7 +4327,7 @@ namespace Profiler
             // Enumerate drawcalls in pipeline
             for( const DeviceProfilerDrawcall* pDrawcall : pDrawcalls )
             {
-                PrintDrawcall( *pDrawcall, index );
+                PrintDrawcall( *pDrawcall, index, pipelineContext );
                 index.back()++;
             }
 
@@ -4767,7 +4350,7 @@ namespace Profiler
         Writes drawcall data to the overlay.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall, FrameBrowserTreeNodeIndex& index )
+    void ProfilerOverlayOutput::PrintDrawcall( const DeviceProfilerDrawcall& drawcall, FrameBrowserTreeNodeIndex& index, const FrameBrowserContext& context )
     {
         if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
@@ -4779,15 +4362,151 @@ namespace Profiler
             // Mark hotspots with color
             DrawSignificanceRect( drawcall, index );
 
-            const std::string drawcallString = m_pStringSerializer->GetName( drawcall );
-            ImGui::TextUnformatted( drawcallString.c_str() );
+            const bool indirectPayloadPresent =
+                (drawcall.HasIndirectPayload()) &&
+                (context.pCommandBuffer) &&
+                (!context.pCommandBuffer->m_IndirectPayload.empty());
+
+            const char* indexStr = GetFrameBrowserNodeIndexStr( index );
+            const bool drawcallTreeOpen = ImGui::TreeNodeEx(
+                indexStr,
+                indirectPayloadPresent
+                    ? ImGuiTreeNodeFlags_None
+                    : ImGuiTreeNodeFlags_Leaf,
+                "%s",
+                m_pStringSerializer->GetName( drawcall ).c_str() );
 
             PrintDuration( drawcall );
+
+            if( drawcallTreeOpen )
+            {
+                if( indirectPayloadPresent )
+                {
+                    PrintDrawcallIndirectPayload( drawcall, context );
+                }
+
+                ImGui::TreePop();
+            }
         }
         else
         {
             // Draw debug label
             PrintDebugLabel( drawcall.m_Payload.m_DebugLabel.m_pName, drawcall.m_Payload.m_DebugLabel.m_Color );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawSignificanceRect
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintDrawcallIndirectPayload( const DeviceProfilerDrawcall& drawcall, const FrameBrowserContext& context )
+    {
+        switch( drawcall.m_Type )
+        {
+        case DeviceProfilerDrawcallType::eDrawIndirect:
+        {
+            const DeviceProfilerDrawcallDrawIndirectPayload& payload = drawcall.m_Payload.m_DrawIndirect;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+
+            for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
+            {
+                const VkDrawIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndirectCommand #%u (%u, %u, %u, %u)",
+                    drawIndex,
+                    cmd.vertexCount,
+                    cmd.instanceCount,
+                    cmd.firstVertex,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+        {
+            const DeviceProfilerDrawcallDrawIndexedIndirectPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirect;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+
+            for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
+            {
+                const VkDrawIndexedIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndexedIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndexedIndirectCommand #%u (%u, %u, %u, %d, %u)",
+                    drawIndex,
+                    cmd.indexCount,
+                    cmd.instanceCount,
+                    cmd.firstIndex,
+                    cmd.vertexOffset,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndirectCount:
+        {
+            const DeviceProfilerDrawcallDrawIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndirectCount;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+
+            const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
+            for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
+            {
+                const VkDrawIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndirectCommand #%u (%u, %u, %u, %u)",
+                    drawIndex,
+                    cmd.vertexCount,
+                    cmd.instanceCount,
+                    cmd.firstVertex,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+        {
+            const DeviceProfilerDrawcallDrawIndexedIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirectCount;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+
+            const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
+            for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
+            {
+                const VkDrawIndexedIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDrawIndexedIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                ImGui::Text( "VkDrawIndexedIndirectCommand #%u (%u, %u, %u, %d, %u)",
+                    drawIndex,
+                    cmd.indexCount,
+                    cmd.instanceCount,
+                    cmd.firstIndex,
+                    cmd.vertexOffset,
+                    cmd.firstInstance );
+            }
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDispatchIndirect:
+        {
+            const DeviceProfilerDrawcallDispatchIndirectPayload& payload = drawcall.m_Payload.m_DispatchIndirect;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+
+            const VkDispatchIndirectCommand& cmd =
+                *reinterpret_cast<const VkDispatchIndirectCommand*>( pIndirectData );
+
+            ImGui::Text( "VkDispatchIndirectCommand (%u, %u, %u)",
+                cmd.x,
+                cmd.y,
+                cmd.z );
+            break;
+        }
         }
     }
 

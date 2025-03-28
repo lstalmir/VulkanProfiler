@@ -1,15 +1,15 @@
-// Copyright (c) 2024 Lukasz Stalmirski
-//
+// Copyright (c) 2019-2025 Lukasz Stalmirski
+// 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-//
+// 
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-//
+// 
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,47 +19,52 @@
 // SOFTWARE.
 
 #pragma once
-#include <stdint.h>
-
-struct ImFont;
+#include "profiler_overlay_layer_backend.h"
+#include "profiler_overlay_layer_backend_xkb.h"
+#include <imgui.h>
+#include <X11/Xlib.h>
 
 namespace Profiler
 {
-    class OverlayBackend;
-
     /***********************************************************************************\
 
     Class:
-        OverlayResources
+        OverlayLayerXlibPlatformBackend
 
     Description:
-        Manages the fonts and images used by the overlay.
+        Implementation of the backend for X11 Xlib.
 
     \***********************************************************************************/
-    class OverlayResources
+    class OverlayLayerXlibPlatformBackend
+        : public OverlayLayerPlatformBackend
     {
     public:
-        bool InitializeFonts();
-        void Destroy();
+        OverlayLayerXlibPlatformBackend( Window window );
+        ~OverlayLayerXlibPlatformBackend();
 
-        bool InitializeImages( OverlayBackend* pBackend );
-        void DestroyImages();
-
-        ImFont* GetDefaultFont() const;
-        ImFont* GetBoldFont() const;
-        ImFont* GetCodeFont() const;
-
-        void* GetCopyIconImage() const;
+        void NewFrame() override;
 
     private:
-        OverlayBackend* m_pBackend = nullptr;
+        ImGuiContext* m_pImGuiContext;
+        OverlayLayerXkbBackend* m_pXkbBackend;
 
-        ImFont* m_pDefaultFont = nullptr;
-        ImFont* m_pBoldFont = nullptr;
-        ImFont* m_pCodeFont = nullptr;
+        Display* m_Display;
+        Window m_AppWindow;
+        Window m_InputWindow;
+        ImVector<XRectangle> m_InputRects;
 
-        void* m_pCopyIconImage = nullptr;
+        Atom m_ClipboardSelectionAtom;
+        Atom m_ClipboardPropertyAtom;
+        char* m_pClipboardText;
 
-        void* CreateImage( const uint8_t* pAsset, int assetSize );
+        Atom m_TargetsAtom;
+        Atom m_TextAtom;
+        Atom m_StringAtom;
+        Atom m_Utf8StringAtom;
+
+        void UpdateMousePos();
+        void SetClipboardText( const char* pText );
+
+        static void SetClipboardTextFn( ImGuiContext* pContext, const char* pText );
     };
 }

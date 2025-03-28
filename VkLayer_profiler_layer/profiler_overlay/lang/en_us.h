@@ -85,6 +85,7 @@ namespace Profiler
         inline static constexpr char Delta[] = "Delta";
         inline static constexpr char Value[] = "Value";
         inline static constexpr char SetRef[] = "Set ref";
+        inline static constexpr char ClearRef[] = "Clear ref";
         inline static constexpr char FrameBrowser[] = "Frame browser###Frame browser";
         inline static constexpr char SubmissionOrder[] = "Submission order";
         inline static constexpr char DurationDescending[] = "Duration descending";

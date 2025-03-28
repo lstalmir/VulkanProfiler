@@ -22,10 +22,8 @@
 #include "profiler/profiler_data_aggregator.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler/profiler_stat_comparators.h"
-#include "profiler_layer_objects/VkDevice_object.h"
-#include "profiler_layer_objects/VkQueue_object.h"
-#include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include "profiler_overlay_backend.h"
 #include "profiler_overlay_settings.h"
 #include "profiler_overlay_resources.h"
 #include "profiler_overlay_shader_view.h"
@@ -67,57 +65,24 @@ namespace Profiler
         ProfilerOverlayOutput();
         ~ProfilerOverlayOutput();
 
-        VkResult Initialize(
-            DeviceProfilerFrontend& frontend,
-            VkDevice_Object& device,
-            VkQueue_Object& graphicsQueue,
-            VkSwapchainKhr_Object& swapchain,
-            const VkSwapchainCreateInfoKHR* pCreateInfo );
-
+        bool Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend );
         void Destroy();
 
         bool IsAvailable() const;
 
-        VkSwapchainKHR GetSwapchain() const;
+        void Update();
 
-        VkResult ResetSwapchain(
-            VkSwapchainKhr_Object& swapchain,
-            const VkSwapchainCreateInfoKHR* pCreateInfo );
-
-        void Present(
-            const VkQueue_Object& presentQueue,
-            VkPresentInfoKHR* pPresentInfo );
+        void LoadPerformanceCountersFromFile( const std::string& );
+        void LoadTopPipelinesFromFile( const std::string& );
 
     private:
         OverlaySettings m_Settings;
 
         DeviceProfilerFrontend* m_pFrontend;
-
-        VkDevice_Object* m_pDevice;
-        VkQueue_Object* m_pGraphicsQueue;
-        VkSwapchainKhr_Object* m_pSwapchain;
-
-        OSWindowHandle m_Window;
+        OverlayBackend* m_pBackend;
 
         ImGuiContext* m_pImGuiContext;
-        ImGui_ImplVulkan_Context* m_pImGuiVulkanContext;
-        ImGui_Window_Context* m_pImGuiWindowContext;
-
         OverlayResources m_Resources;
-
-        VkDescriptorPool m_DescriptorPool;
-
-        VkRenderPass m_RenderPass;
-        VkExtent2D m_RenderArea;
-        VkFormat m_ImageFormat;
-        std::vector<VkImage> m_Images;
-        std::vector<VkImageView> m_ImageViews;
-        std::vector<VkFramebuffer> m_Framebuffers;
-
-        VkCommandPool m_CommandPool;
-        std::vector<VkCommandBuffer> m_CommandBuffers;
-        std::vector<VkFence> m_CommandFences;
-        std::vector<VkSemaphore> m_CommandSemaphores;
 
         std::string m_Title;
 
@@ -194,6 +159,14 @@ namespace Profiler
         VkProfilerModeEXT m_SamplingMode;
         VkProfilerSyncModeEXT m_SyncMode;
 
+        // Frame browser state.
+        struct FrameBrowserContext
+        {
+            const DeviceProfilerCommandBufferData* pCommandBuffer;
+            const DeviceProfilerRenderPassData* pRenderPass;
+            const DeviceProfilerPipelineData* pPipeline;
+        };
+
         FrameBrowserTreeNodeIndex m_SelectedFrameBrowserNodeIndex;
         bool m_ScrollToSelectedFrameBrowserNode;
         bool ScrollToSelectedFrameBrowserNode( const FrameBrowserTreeNodeIndex& index ) const;
@@ -229,6 +202,13 @@ namespace Profiler
         // Performance counter serialization
         struct PerformanceCounterExporter;
         std::unique_ptr<PerformanceCounterExporter> m_pPerformanceCounterExporter;
+
+        // Top pipelines serialization
+        struct TopPipelinesExporter;
+        std::unique_ptr<TopPipelinesExporter> m_pTopPipelinesExporter;
+        std::unordered_map<std::string, float> m_ReferenceTopPipelines;
+        std::string m_ReferenceTopPipelinesShortDescription;
+        std::string m_ReferenceTopPipelinesFullDescription;
 
         // Trace serialization output
         bool m_SerializationSucceeded;
@@ -278,12 +258,8 @@ namespace Profiler
 
         void ResetMembers();
 
-        VkResult InitializeImGuiWindowHooks( const VkSwapchainCreateInfoKHR* );
-        VkResult InitializeImGuiVulkanContext( const VkSwapchainCreateInfoKHR* );
-
         void InitializeImGuiStyle();
 
-        void Update( const std::shared_ptr<DeviceProfilerFrameData>& );
         void UpdatePerformanceTab();
         void UpdateQueueUtilizationTab();
         void UpdateTopPipelinesTab();
@@ -311,7 +287,10 @@ namespace Profiler
         std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
         void UpdatePerformanceCounterExporter();
         void SavePerformanceCountersToFile( const std::string&, uint32_t, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
-        void LoadPerformanceCountersFromFile( const std::string& );
+
+        // Top pipelines helpers
+        void UpdateTopPipelinesExporter();
+        void SaveTopPipelinesToFile( const std::string&, const DeviceProfilerFrameData& );
 
         // Trace serialization helpers
         void UpdateTraceExporter();
@@ -332,10 +311,11 @@ namespace Profiler
 
         // Frame browser helpers
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
-        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex& );
-        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool );
-        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex& );
-        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex& );
+        void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
+        void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool, const FrameBrowserContext& );
+        void PrintPipeline( const DeviceProfilerPipelineData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
+        void PrintDrawcall( const DeviceProfilerDrawcall&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
+        void PrintDrawcallIndirectPayload( const DeviceProfilerDrawcall&, const FrameBrowserContext& );
         void PrintDebugLabel( const char*, const float[ 4 ] );
 
         template<typename Data>

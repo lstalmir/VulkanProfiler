@@ -839,21 +839,21 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
-        if( it == aggregatedPipelines.end() )
-        {
-            // Create aggregated data struct for this pipeline
-            DeviceProfilerPipelineData aggregatedPipelineData = pipeline;
-            aggregatedPipelineData.m_BeginTimestamp.m_Index = UINT64_MAX;
-            aggregatedPipelineData.m_BeginTimestamp.m_Value = 0;
-            aggregatedPipelineData.m_EndTimestamp.m_Index = UINT64_MAX;
-            aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
+        auto emplaced = aggregatedPipelines.try_emplace(
+            pipeline.m_ShaderTuple.m_Hash,
+            static_cast<const DeviceProfilerPipeline&>( pipeline ) );
 
-            it = aggregatedPipelines.emplace( pipeline.m_ShaderTuple.m_Hash, aggregatedPipelineData ).first;
+        DeviceProfilerPipelineData& aggregatedPipelineData = emplaced.first->second;
+
+        if( emplaced.second )
+        {
+            // Initialize aggregated pipeline data if new element was inserted into the map
+            aggregatedPipelineData.m_BeginTimestamp.m_Value = 0;
+            aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
         }
 
         // Increase total pipeline time
-        (*it).second.m_EndTimestamp.m_Value += (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+        aggregatedPipelineData.m_EndTimestamp.m_Value += ( pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value );
     }
 
     /***********************************************************************************\
