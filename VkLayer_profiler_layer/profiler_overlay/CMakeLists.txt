@@ -29,6 +29,7 @@ set (headers
     "profiler_overlay_resources.h"
     "profiler_overlay_settings.h"
     "profiler_overlay_shader_view.h"
+    "profiler_overlay_types.h"
     "lang/en_us.h"
     "lang/pl_pl.h"
     )
