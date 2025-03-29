@@ -236,6 +236,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkMeshShaderExt_functions.h"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.cpp"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.h"
+    "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.h"
     "profiler_layer_functions/extensions/VkPipelineExecutablePropertiesKhr_functions.h"
     "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.h"

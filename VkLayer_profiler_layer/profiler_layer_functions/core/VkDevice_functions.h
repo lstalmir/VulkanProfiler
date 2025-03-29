@@ -33,6 +33,7 @@
 #include "VkDynamicRenderingKhr_functions.h"
 #include "VkMeshShaderExt_functions.h"
 #include "VkMeshShaderNv_functions.h"
+#include "VkOpacityMicromapExt_functions.h"
 #include "VkPipelineExecutablePropertiesKhr_functions.h"
 #include "VkRayTracingMaintenance1Khr_functions.h"
 #include "VkRayTracingPipelineKhr_functions.h"
@@ -66,6 +67,7 @@ namespace Profiler
         , VkDynamicRenderingKhr_Functions
         , VkMeshShaderExt_Functions
         , VkMeshShaderNv_Functions
+        , VkOpacityMicromapExt_Functions
         , VkPipelineExecutablePropertiesKhr_Functions
         , VkRayTracingMaintenance1Khr_Functions
         , VkRayTracingPipelineKhr_Functions

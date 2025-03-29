@@ -322,6 +322,47 @@ namespace Profiler
                 { "infoCount", infoCount },
                 { "infos", infos } };
         }
+
+        case DeviceProfilerDrawcallType::eBuildMicromapsEXT:
+        {
+            const uint32_t infoCount = drawcall.m_Payload.m_BuildMicromaps.m_InfoCount;
+
+            std::vector<nlohmann::json> infos;
+            infos.reserve( infoCount );
+
+            for( uint32_t i = 0; i < infoCount; ++i )
+            {
+                const auto& info = drawcall.m_Payload.m_BuildMicromaps.m_pInfos[i];
+
+                std::vector<nlohmann::json> usageCounts;
+                usageCounts.reserve( info.usageCountsCount );
+
+                for( uint32_t j = 0; j < info.usageCountsCount; ++j )
+                {
+                    const auto& usageCount = info.pUsageCounts[j];
+                    usageCounts.push_back( {
+                        { "count", usageCount.count },
+                        { "format", usageCount.format },
+                        { "subdivisionLevel", usageCount.subdivisionLevel } } );
+                }
+
+                infos.push_back( {
+                    { "type", m_pStringSerializer->GetMicromapTypeName( info.type ) },
+                    { "flags", m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ) },
+                    { "mode", m_pStringSerializer->GetBuildMicromapModeName( info.mode ) },
+                    { "dst", m_pStringSerializer->GetName( info.dstMicromap ) },
+                    { "usageCountsCount", info.usageCountsCount },
+                    { "usageCounts", usageCounts },
+                    { "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) },
+                    { "scratchData", m_pStringSerializer->GetPointer( info.scratchData.hostAddress ) },
+                    { "triangleArray", m_pStringSerializer->GetPointer( info.triangleArray.hostAddress ) },
+                    { "triangleArrayStride", info.triangleArrayStride } } );
+            }
+
+            return {
+                { "infoCount", infoCount },
+                { "infos", infos } };
+        }
         }
     }
 

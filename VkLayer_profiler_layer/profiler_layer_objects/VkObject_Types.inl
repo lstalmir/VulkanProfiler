@@ -256,4 +256,10 @@ VK_OBJECT_FN(
     /* VkDebugReportObjectTypeEXT */ VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT,
     /* ShouldHaveDebugName        */ 0 )
 
+VK_OBJECT_FN(
+    /* typename                   */ VkMicromapEXT,
+    /* VkObjectType               */ VK_OBJECT_TYPE_MICROMAP_EXT,
+    /* VkDebugReportObjectTypeEXT */ VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT,
+    /* ShouldHaveDebugName        */ true )
+
 #undef VK_OBJECT_FN
