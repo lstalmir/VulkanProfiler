@@ -174,6 +174,12 @@ namespace Profiler
         GETPROCADDR( CmdDrawMeshTasksIndirectNV );
         GETPROCADDR( CmdDrawMeshTasksIndirectCountNV );
 
+        // VK_EXT_opacity_micromap functions
+        GETPROCADDR( CmdBuildMicromapsEXT );
+        GETPROCADDR( CmdCopyMicromapEXT );
+        GETPROCADDR( CmdCopyMemoryToMicromapEXT );
+        GETPROCADDR( CmdCopyMicromapToMemoryEXT );
+
         // VK_KHR_ray_tracing_maintenance1 functions
         GETPROCADDR( CmdTraceRaysIndirect2KHR );
 
