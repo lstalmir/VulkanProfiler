@@ -136,10 +136,15 @@ namespace Profiler
 
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;
+        bool m_Fullscreen;
         bool m_ShowDebugLabels;
         bool m_ShowShaderCapabilities;
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
+
+        bool m_SetLastMainWindowPos;
+        Float2* m_pLastMainWindowPos;
+        Float2* m_pLastMainWindowSize;
 
         enum class TimeUnit
         {
