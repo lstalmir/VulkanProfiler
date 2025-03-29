@@ -49,12 +49,12 @@ namespace Profiler
         {
         }
 
-        inline constexpr T& operator[]( size_t index )
+        inline constexpr T& operator[]( int index )
         {
             return ( &x )[index];
         }
 
-        inline constexpr T operator[]( size_t index ) const
+        inline constexpr T operator[]( int index ) const
         {
             return ( &x )[index];
         }
