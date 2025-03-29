@@ -564,6 +564,12 @@ namespace Profiler
             *m_pLastMainWindowSize = ImGui::GetWindowSize();
         }
 
+        if( m_Fullscreen )
+        {
+            // Keep the main window always at the back when in fullscreen mode
+            ImGui::BringWindowToDisplayBack( ImGui::GetCurrentWindow() );
+        }
+
         if( ImGui::BeginMenuBar() )
         {
             if( ImGui::BeginMenu( Lang::FileMenu ) )
