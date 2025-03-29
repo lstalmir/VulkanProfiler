@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -84,8 +84,12 @@ namespace Profiler
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eBuildAccelerationStructuresIndirectKHR = 0x000F0001,
         eCopyAccelerationStructureKHR = 0x00100000,
-        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
-        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00110000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00120000,
+        eBuildMicromapsEXT = 0x00130000,
+        eCopyMicromapEXT = 0x00140000,
+        eCopyMemoryToMicromapEXT = 0x00150000,
+        eCopyMicromapToMemoryEXT = 0x00160000,
     };
 
     /***********************************************************************************\
@@ -118,8 +122,12 @@ namespace Profiler
         eRayTracingKHR = 0x000E0000,
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eCopyAccelerationStructureKHR = 0x00100000,
-        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
-        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00110000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00120000,
+        eBuildMicromapsEXT = 0x00130000,
+        eCopyMicromapEXT = 0x00140000,
+        eCopyMemoryToMicromapEXT = 0x00150000,
+        eCopyMicromapToMemoryEXT = 0x00160000,
     };
 
     /***********************************************************************************\
@@ -427,6 +435,34 @@ namespace Profiler
         VkCopyAccelerationStructureModeKHR m_Mode;
     };
 
+    struct DeviceProfilerDrawcallBuildMicromapsPayload
+    {
+        uint32_t m_InfoCount;
+        bool m_OwnsDynamicAllocations;
+        const VkMicromapBuildInfoEXT* m_pInfos;
+    };
+
+    struct DeviceProfilerDrawcallCopyMicromapPayload
+    {
+        VkMicromapEXT m_Src;
+        VkMicromapEXT m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyMemoryToMicromapPayload
+    {
+        VkDeviceOrHostAddressConstKHR m_Src;
+        VkMicromapEXT m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyMicromapToMemoryPayload
+    {
+        VkMicromapEXT m_Src;
+        VkDeviceOrHostAddressKHR m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
 #define PROFILER_DECL_DRAWCALL_PAYLOAD( type, name )                   \
     type name;                                                         \
     inline void operator=( const type& value ) { this->name = value; }
@@ -476,6 +512,10 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload, m_CopyAccelerationStructureToMemory );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload, m_CopyMemoryToAccelerationStructure );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildMicromapsPayload, m_BuildMicromaps );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapPayload, m_CopyMicromap );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToMicromapPayload, m_CopyMemoryToMicromap );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapToMemoryPayload, m_CopyMicromapToMemory );
     };
 
     /***********************************************************************************\
@@ -551,6 +591,16 @@ namespace Profiler
 
                 m_Payload.m_BuildAccelerationStructuresIndirect.m_OwnsDynamicAllocations = true;
             }
+
+            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
+            {
+                // Create copy of build infos
+                m_Payload.m_BuildMicromaps.m_pInfos = CopyMicromapBuildInfos(
+                    dc.m_Payload.m_BuildMicromaps.m_InfoCount,
+                    dc.m_Payload.m_BuildMicromaps.m_pInfos );
+
+                m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations = true;
+            }
         }
 
         inline DeviceProfilerDrawcall( DeviceProfilerDrawcall&& dc )
@@ -599,6 +649,19 @@ namespace Profiler
 
                     FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos );
                     FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
+                }
+            }
+
+            if( m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
+            {
+                if( m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations )
+                {
+                    for (uint32_t i = 0; i < m_Payload.m_BuildMicromaps.m_InfoCount; ++i)
+                    {
+                        FreeConst( m_Payload.m_BuildMicromaps.m_pInfos[ i ].pUsageCounts );
+                    }
+
+                    FreeConst( m_Payload.m_BuildMicromaps.m_pInfos );
                 }
             }
         }
@@ -664,6 +727,10 @@ namespace Profiler
             uint32_t infoCount,
             const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
             const uint32_t* const* ppMaxPrimitiveCounts );
+
+        static VkMicromapBuildInfoEXT* CopyMicromapBuildInfos(
+            uint32_t infoCount,
+            const VkMicromapBuildInfoEXT* pInfos );
     };
 
     /***********************************************************************************\

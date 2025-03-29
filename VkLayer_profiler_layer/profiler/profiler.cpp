@@ -336,6 +336,10 @@ namespace Profiler
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyAccelerationStructureKHR, "CopyAccelerationStructureKHR" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyAccelerationStructureToMemoryKHR, "CopyAccelerationStructureToMemoryKHR" );
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyMemoryToAccelerationStructureKHR, "CopyMemoryToAccelerationStructureKHR" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eBuildMicromapsEXT, "BuildMircomapsEXT" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyMicromapEXT, "CopyMicromapEXT" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyMicromapToMemoryEXT, "CopyMicromapToMemoryEXT" );
+        CreateInternalPipeline( DeviceProfilerPipelineType::eCopyMemoryToMicromapEXT, "CopyMemoryToMicromapEXT" );
 
         if( m_Config.m_SetStablePowerState )
         {

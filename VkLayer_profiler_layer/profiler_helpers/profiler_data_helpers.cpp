@@ -286,6 +286,28 @@ namespace Profiler
                 drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Src.hostAddress,
                 GetName(drawcall.m_Payload.m_CopyMemoryToAccelerationStructure.m_Dst),
                 GetCopyAccelerationStructureModeName(drawcall.m_Payload.m_CopyAccelerationStructure.m_Mode));
+
+        case DeviceProfilerDrawcallType::eBuildMicromapsEXT:
+            return fmt::format( "vkCmdBuildMicromapsEXT ({})",
+                drawcall.m_Payload.m_BuildMicromaps.m_InfoCount );
+
+        case DeviceProfilerDrawcallType::eCopyMicromapEXT:
+            return fmt::format( "vkCmdCopyMicromapEXT ({}, {}, {})",
+                GetName( drawcall.m_Payload.m_CopyMicromap.m_Src ),
+                GetName( drawcall.m_Payload.m_CopyMicromap.m_Dst ),
+                GetCopyMicromapModeName( drawcall.m_Payload.m_CopyMicromap.m_Mode ) );
+
+        case DeviceProfilerDrawcallType::eCopyMemoryToMicromapEXT:
+            return fmt::format( "vkCmdCopyMemoryToMicromapEXT ({}, {}, {})",
+                drawcall.m_Payload.m_CopyMemoryToMicromap.m_Src.hostAddress,
+                GetName( drawcall.m_Payload.m_CopyMemoryToMicromap.m_Dst ),
+                GetCopyMicromapModeName( drawcall.m_Payload.m_CopyMemoryToMicromap.m_Mode ) );
+
+        case DeviceProfilerDrawcallType::eCopyMicromapToMemoryEXT:
+            return fmt::format( "vkCmdCopyMicromapToMemoryEXT ({}, {}, {})",
+                GetName( drawcall.m_Payload.m_CopyMicromapToMemory.m_Src ),
+                drawcall.m_Payload.m_CopyMicromapToMemory.m_Dst.hostAddress,
+                GetCopyMicromapModeName( drawcall.m_Payload.m_CopyMicromapToMemory.m_Mode ) );
         }
     }
 
@@ -559,6 +581,18 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
             return "vkCmdCopyMemoryToAccelerationStructureKHR";
+
+        case DeviceProfilerDrawcallType::eBuildMicromapsEXT:
+            return "vkCmdBuildMicromapsEXT";
+
+        case DeviceProfilerDrawcallType::eCopyMicromapEXT:
+            return "vkCmdCopyMicromapEXT";
+
+        case DeviceProfilerDrawcallType::eCopyMemoryToMicromapEXT:
+            return "vkCmdCopyMemoryToMicromapEXT";
+
+        case DeviceProfilerDrawcallType::eCopyMicromapToMemoryEXT:
+            return "vkCmdCopyMicromapToMemoryEXT";
         }
     }
 
@@ -1880,6 +1914,99 @@ namespace Profiler
             return "Update";
         }
         return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCopyMicromapModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetCopyMicromapModeName(
+        VkCopyMicromapModeEXT mode ) const
+    {
+        switch( mode )
+        {
+        case VK_COPY_MICROMAP_MODE_CLONE_EXT:
+            return "Clone";
+        case VK_COPY_MICROMAP_MODE_SERIALIZE_EXT:
+            return "Serialize";
+        case VK_COPY_MICROMAP_MODE_DESERIALIZE_EXT:
+            return "Deserialize";
+        case VK_COPY_MICROMAP_MODE_COMPACT_EXT:
+            return "Compact";
+        }
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMicromapTypeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetMicromapTypeName(
+        VkMicromapTypeEXT type ) const
+    {
+        switch( type )
+        {
+        case VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT:
+            return "Opacity Micromap";
+        }
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBuildMicromapModeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBuildMicromapModeName(
+        VkBuildMicromapModeEXT mode ) const
+    {
+        switch( mode )
+        {
+        case VK_BUILD_MICROMAP_MODE_BUILD_EXT:
+            return "Build";
+        }
+        return fmt::format( "Unknown mode ({})", static_cast<uint32_t>( mode ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBuildMicromapFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBuildMicromapFlagNames(
+        VkBuildMicromapFlagsEXT flags ) const
+    {
+        FlagsStringBuilder builder;
+
+        if( flags & VK_BUILD_MICROMAP_PREFER_FAST_TRACE_BIT_EXT )
+            builder.AddFlag( "Prefer fast trace (1)" );
+        if( flags & VK_BUILD_MICROMAP_PREFER_FAST_BUILD_BIT_EXT )
+            builder.AddFlag( "Prefer fast build (2)" );
+        if( flags & VK_BUILD_MICROMAP_ALLOW_COMPACTION_BIT_EXT )
+            builder.AddFlag( "Allow compaction (4)" );
+
+        for( uint32_t i = 3; i < 8 * sizeof( flags ); ++i )
+        {
+            uint32_t unkownFlag = 1U << i;
+            if( flags & unkownFlag )
+                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
+        }
+
+        return builder.BuildString();
     }
 
     /***********************************************************************************\
