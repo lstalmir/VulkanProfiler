@@ -1883,7 +1883,7 @@ namespace Profiler
             if( indirectDataSize )
             {
                 m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
-                memcpy_s( pDstData, dstDataSize, pIndirectData, indirectDataSize );
+                memcpy( pDstData, pIndirectData, indirectDataSize );
                 pDstData += indirectArgumentBuffer.m_Size;
                 dstDataSize -= indirectArgumentBuffer.m_Size;
             }
