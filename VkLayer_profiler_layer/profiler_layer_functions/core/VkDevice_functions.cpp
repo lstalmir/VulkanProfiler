@@ -114,6 +114,7 @@ namespace Profiler
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueueSubmit2 );
+        GETPROCADDR( QueueBindSparse );
 
         // VK_KHR_bind_memory2 functions
         GETPROCADDR( BindBufferMemory2KHR );

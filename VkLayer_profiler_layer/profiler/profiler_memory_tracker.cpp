@@ -181,9 +181,6 @@ namespace Profiler
         DeviceProfilerBufferMemoryData data = {};
         data.m_BufferSize = pCreateInfo->size;
         data.m_BufferUsage = pCreateInfo->usage;
-        data.m_BufferAddress = 0;
-        data.m_Memory = VK_NULL_HANDLE;
-        data.m_MemoryOffset = 0;
 
         m_pDevice->Callbacks.GetBufferMemoryRequirements(
             m_pDevice->Handle,
@@ -230,9 +227,47 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
-            it->second.m_Memory = memory;
-            it->second.m_MemoryOffset = offset;
+            it->second.m_MemoryBindingCount = 1;
+            it->second.m_pMemoryBindings.reset( new DeviceProfilerBufferMemoryBindingData[1] );
+
+            DeviceProfilerBufferMemoryBindingData& binding = it->second.m_pMemoryBindings[0];
+            binding.m_Memory = memory;
+            binding.m_MemoryOffset = offset;
+            binding.m_BufferOffset = 0;
+            binding.m_Size = it->second.m_BufferSize;
+
             it->second.m_BufferAddress = GetBufferDeviceAddress( buffer, it->second.m_BufferUsage );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::BindBufferMemory( const VkSparseBufferMemoryBindInfo* pBindInfo )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Buffers );
+
+        auto it = m_Buffers.unsafe_find( pBindInfo->buffer );
+        if( it != m_Buffers.end() )
+        {
+            it->second.m_MemoryBindingCount = pBindInfo->bindCount;
+            it->second.m_pMemoryBindings.reset( new DeviceProfilerBufferMemoryBindingData[pBindInfo->bindCount] );
+
+            for( uint32_t i = 0; i < pBindInfo->bindCount; ++i )
+            {
+                DeviceProfilerBufferMemoryBindingData& binding = it->second.m_pMemoryBindings[i];
+                binding.m_Memory = pBindInfo->pBinds[i].memory;
+                binding.m_MemoryOffset = pBindInfo->pBinds[i].memoryOffset;
+                binding.m_BufferOffset = pBindInfo->pBinds[i].resourceOffset;
+                binding.m_Size = pBindInfo->pBinds[i].size;
+            }
         }
     }
 

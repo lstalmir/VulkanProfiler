@@ -1708,14 +1708,62 @@ namespace Profiler
                         shaderBindingTable.deviceAddress,
                         VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR );
 
-                    assert( bufferMemoryData.first != VK_NULL_HANDLE );
+                    if( bufferMemoryData.first == VK_NULL_HANDLE )
+                    {
+                        // Buffer not found.
+                        assert( false );
+                        return;
+                    }
 
-                    IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
-                    copy.m_SrcBuffer = bufferMemoryData.first;
-                    copy.m_DstBuffer = buffer.m_Buffer;
-                    copy.m_Region.srcOffset = shaderBindingTable.deviceAddress - bufferMemoryData.second.m_BufferAddress;
-                    copy.m_Region.dstOffset = shaderBindingTableOffset - buffer.m_BaseOffset;
-                    copy.m_Region.size = shaderBindingTable.size;
+                    // Get base address of the shader binding table buffer.
+                    VkDeviceAddress baseAddress = bufferMemoryData.second.m_BufferAddress;
+                    assert( baseAddress != 0 );
+
+                    VkDeviceAddress shaderBindingTableStartOffset = shaderBindingTable.deviceAddress - baseAddress;
+                    VkDeviceAddress shaderBindingTableEndOffset = shaderBindingTableStartOffset + shaderBindingTable.size;
+
+                    if( bufferMemoryData.second.m_MemoryBindingCount == 1 )
+                    {
+                        IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
+                        copy.m_SrcBuffer = bufferMemoryData.first;
+                        copy.m_DstBuffer = buffer.m_Buffer;
+                        copy.m_Region.srcOffset = shaderBindingTableStartOffset;
+                        copy.m_Region.dstOffset = shaderBindingTableOffset - buffer.m_BaseOffset;
+                        copy.m_Region.size = shaderBindingTable.size;
+
+                        // Reduce size of copy if the buffer memory binding is smaller than size of the shader binding table.
+                        if( shaderBindingTable.size > bufferMemoryData.second.m_pMemoryBindings[0].m_Size )
+                        {
+                            copy.m_Region.size = bufferMemoryData.second.m_pMemoryBindings[0].m_Size;
+                        }
+                    }
+                    else
+                    {
+                        // Copy only valid ranges of the shader binding table in case of sparse allocations.
+                        for( uint32_t i = 0; i < bufferMemoryData.second.m_MemoryBindingCount; ++i )
+                        {
+                            const DeviceProfilerBufferMemoryBindingData& binding = bufferMemoryData.second.m_pMemoryBindings[i];
+
+                            if( ( binding.m_BufferOffset > shaderBindingTableEndOffset ) ||
+                                ( binding.m_BufferOffset + binding.m_Size < shaderBindingTableStartOffset ) )
+                            {
+                                // Not part of the shader binding table.
+                                continue;
+                            }
+
+                            // Copy only the shader binding table part from the binding.
+                            VkDeviceSize startOffset = std::max( shaderBindingTableStartOffset, binding.m_BufferOffset );
+                            VkDeviceSize endOffset = std::min( shaderBindingTableEndOffset, binding.m_BufferOffset + binding.m_Size );
+                            VkDeviceSize copySize = endOffset - startOffset;
+
+                            IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
+                            copy.m_SrcBuffer = bufferMemoryData.first;
+                            copy.m_DstBuffer = buffer.m_Buffer;
+                            copy.m_Region.srcOffset = startOffset;
+                            copy.m_Region.dstOffset = shaderBindingTableOffset - buffer.m_BaseOffset;
+                            copy.m_Region.size = copySize;
+                        }
+                    }
                 }
             };
 

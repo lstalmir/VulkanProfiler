@@ -50,6 +50,7 @@ namespace Profiler
         void RegisterBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo );
         void UnregisterBuffer( VkBuffer buffer );
         void BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset );
+        void BindBufferMemory( const VkSparseBufferMemoryBindInfo* );
 
         void RegisterImage( VkImage image, const VkImageCreateInfo* pCreateInfo );
         void UnregisterImage( VkImage image );

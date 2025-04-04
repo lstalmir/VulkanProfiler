@@ -1403,6 +1403,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindBufferMemory( const VkSparseBufferMemoryBindInfo* pBindInfo )
+    {
+        m_MemoryTracker.BindBufferMemory( pBindInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateImage
 
     Description:
