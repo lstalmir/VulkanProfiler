@@ -840,6 +840,10 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        const uint32_t shaderGroupHandleSize =
+            m_pDevice->pPhysicalDevice->RayTracingPipelineProperties.shaderGroupHandleSize;
+        std::unique_ptr<uint8_t[]> pShaderGroupHandle = std::make_unique<uint8_t[]>( shaderGroupHandleSize );
+
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             DeviceProfilerPipeline profilerPipeline;
@@ -851,6 +855,35 @@ namespace Profiler
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultPipelineName( profilerPipeline, deferred );
+
+            // Save shader groups.
+            for( uint32_t groupIndex = 0; groupIndex < createInfo.groupCount; ++groupIndex )
+            {
+                const VkRayTracingShaderGroupCreateInfoKHR& groupCreateInfo = createInfo.pGroups[groupIndex];
+
+                ProfilerShaderGroup& shaderGroup = profilerPipeline.m_ShaderTuple.m_ShaderGroups.emplace_back();
+                shaderGroup.m_Type = groupCreateInfo.type;
+                shaderGroup.m_GeneralShader = groupCreateInfo.generalShader;
+                shaderGroup.m_ClosestHitShader = groupCreateInfo.closestHitShader;
+                shaderGroup.m_AnyHitShader = groupCreateInfo.anyHitShader;
+                shaderGroup.m_IntersectionShader = groupCreateInfo.intersectionShader;
+
+                // Get handle of the shader group.
+                VkResult result = m_pDevice->Callbacks.GetRayTracingShaderGroupHandlesKHR(
+                    m_pDevice->Handle,
+                    profilerPipeline.m_Handle,
+                    groupIndex, 1,
+                    shaderGroupHandleSize,
+                    pShaderGroupHandle.get() );
+
+                if( result == VK_SUCCESS )
+                {
+                    // Convert handle to a short hash.
+                    shaderGroup.m_Hash = ProfilerShaderGroup::CalculateHash(
+                        pShaderGroupHandle.get(),
+                        shaderGroupHandleSize );
+                }
+            }
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -1374,6 +1407,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindBufferMemory( const VkSparseBufferMemoryBindInfo* pBindInfo )
+    {
+        m_MemoryTracker.BindBufferMemory( pBindInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateImage
 
     Description:
@@ -1408,6 +1454,19 @@ namespace Profiler
     void DeviceProfiler::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
     {
         m_MemoryTracker.BindImageMemory( image, memory, offset );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBufferAtAddress
+
+    Description:
+
+    \***********************************************************************************/
+    std::pair<VkBuffer, DeviceProfilerBufferMemoryData> DeviceProfiler::GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage )
+    {
+        return m_MemoryTracker.GetBufferAtAddress( address, requiredUsage );
     }
 
     /***********************************************************************************\

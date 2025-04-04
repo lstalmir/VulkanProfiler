@@ -274,7 +274,7 @@ namespace Profiler
                 // Reset indirect argument buffers.
                 for( auto& buffer : m_IndirectArgumentBufferList )
                 {
-                    buffer.m_Offset = 0;
+                    buffer.m_CurrentOffset = 0;
                     buffer.m_PendingCopyList.clear();
                 }
             }
@@ -1232,11 +1232,11 @@ namespace Profiler
             }
 
             // Copy captured indirect argument buffer data
-            m_Data.m_IndirectPayload.clear();
+            m_Data.m_pIndirectPayload.reset();
 
             if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
-                ReadIndirectArgumentBuffers( m_Data.m_IndirectPayload );
+                ReadIndirectArgumentBuffers( m_Data.m_pIndirectPayload );
             }
 
             // Subsequent calls to GetData will return the same results
@@ -1319,9 +1319,6 @@ namespace Profiler
         // Collect secondary command buffer data
         commandBuffer = profilerCommandBuffer.GetData( reader );
         assert( commandBuffer.m_Handle == handle );
-
-        // Include profiling time of the secondary command buffer
-        m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
 
         // Propagate timestamps from command buffer to subpass
         if( subpassDataIndex == 0 )
@@ -1631,14 +1628,14 @@ namespace Profiler
             const size_t indirectPayloadSize = payload.m_DrawCount * payload.m_Stride;
 
             IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
-            payload.m_IndirectArgsOffset = buffer.m_Offset;
-            buffer.m_Offset += indirectPayloadSize;
+            payload.m_IndirectArgsOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+            buffer.m_CurrentOffset += indirectPayloadSize;
 
             IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
             copy.m_SrcBuffer = payload.m_Buffer;
             copy.m_DstBuffer = buffer.m_Buffer;
             copy.m_Region.srcOffset = payload.m_Offset;
-            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset - buffer.m_BaseOffset;
             copy.m_Region.size = indirectPayloadSize;
 
             break;
@@ -1650,23 +1647,23 @@ namespace Profiler
             const size_t indirectPayloadSize = sizeof( uint32_t ) + payload.m_MaxDrawCount * payload.m_Stride;
 
             IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
-            payload.m_IndirectCountOffset = buffer.m_Offset;
-            payload.m_IndirectArgsOffset = buffer.m_Offset + sizeof( uint32_t );
-            buffer.m_Offset += indirectPayloadSize;
+            payload.m_IndirectCountOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+            payload.m_IndirectArgsOffset = payload.m_IndirectCountOffset + sizeof( uint32_t );
+            buffer.m_CurrentOffset += indirectPayloadSize;
 
             IndirectArgumentBufferCopy& countCopy = buffer.m_PendingCopyList.emplace_back();
             countCopy.m_SrcBuffer = payload.m_CountBuffer;
             countCopy.m_DstBuffer = buffer.m_Buffer;
             countCopy.m_Region.srcOffset = payload.m_CountOffset;
-            countCopy.m_Region.dstOffset = payload.m_IndirectCountOffset;
+            countCopy.m_Region.dstOffset = payload.m_IndirectCountOffset - buffer.m_BaseOffset;
             countCopy.m_Region.size = sizeof( uint32_t );
 
             IndirectArgumentBufferCopy& argsCopy = buffer.m_PendingCopyList.emplace_back();
             argsCopy.m_SrcBuffer = payload.m_Buffer;
             argsCopy.m_DstBuffer = buffer.m_Buffer;
             argsCopy.m_Region.srcOffset = payload.m_Offset;
-            argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
-            argsCopy.m_Region.size = indirectPayloadSize;
+            argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset - buffer.m_BaseOffset;
+            argsCopy.m_Region.size = payload.m_MaxDrawCount * payload.m_Stride;
 
             break;
         }
@@ -1676,15 +1673,104 @@ namespace Profiler
             const size_t indirectPayloadSize = sizeof( VkDispatchIndirectCommand );
 
             IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
-            payload.m_IndirectArgsOffset = buffer.m_Offset;
-            buffer.m_Offset += indirectPayloadSize;
+            payload.m_IndirectArgsOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+            buffer.m_CurrentOffset += indirectPayloadSize;
 
             IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
             copy.m_SrcBuffer = payload.m_Buffer;
             copy.m_DstBuffer = buffer.m_Buffer;
             copy.m_Region.srcOffset = payload.m_Offset;
-            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset - buffer.m_BaseOffset;
             copy.m_Region.size = indirectPayloadSize;
+
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eTraceRaysKHR: {
+            DeviceProfilerDrawcallTraceRaysPayload& payload = drawcall.m_Payload.m_TraceRays;
+            const size_t indirectPayloadSize =
+                payload.m_RaygenShaderBindingTable.size +
+                payload.m_MissShaderBindingTable.size +
+                payload.m_HitShaderBindingTable.size +
+                payload.m_CallableShaderBindingTable.size;
+
+            IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
+
+            auto SaveShaderBindingTable = [&]( const VkStridedDeviceAddressRegionKHR& shaderBindingTable, size_t& shaderBindingTableOffset ) {
+                shaderBindingTableOffset = buffer.m_BaseOffset + buffer.m_CurrentOffset;
+                buffer.m_CurrentOffset += shaderBindingTable.size;
+
+                if( shaderBindingTable.size )
+                {
+                    // Find buffer object at the device address.
+                    // There may be multiple buffers at the address due to aliasing, so find the first one with shader binding table bit.
+                    std::pair<VkBuffer, DeviceProfilerBufferMemoryData> bufferMemoryData = m_Profiler.GetBufferAtAddress(
+                        shaderBindingTable.deviceAddress,
+                        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR );
+
+                    if( bufferMemoryData.first == VK_NULL_HANDLE )
+                    {
+                        // Buffer not found.
+                        assert( false );
+                        return;
+                    }
+
+                    // Get base address of the shader binding table buffer.
+                    VkDeviceAddress baseAddress = bufferMemoryData.second.m_BufferAddress;
+                    assert( baseAddress != 0 );
+
+                    VkDeviceAddress shaderBindingTableStartOffset = shaderBindingTable.deviceAddress - baseAddress;
+                    VkDeviceAddress shaderBindingTableEndOffset = shaderBindingTableStartOffset + shaderBindingTable.size;
+
+                    if( bufferMemoryData.second.m_MemoryBindingCount == 1 )
+                    {
+                        IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
+                        copy.m_SrcBuffer = bufferMemoryData.first;
+                        copy.m_DstBuffer = buffer.m_Buffer;
+                        copy.m_Region.srcOffset = shaderBindingTableStartOffset;
+                        copy.m_Region.dstOffset = shaderBindingTableOffset - buffer.m_BaseOffset;
+                        copy.m_Region.size = shaderBindingTable.size;
+
+                        // Reduce size of copy if the buffer memory binding is smaller than size of the shader binding table.
+                        if( shaderBindingTable.size > bufferMemoryData.second.m_pMemoryBindings[0].m_Size )
+                        {
+                            copy.m_Region.size = bufferMemoryData.second.m_pMemoryBindings[0].m_Size;
+                        }
+                    }
+                    else
+                    {
+                        // Copy only valid ranges of the shader binding table in case of sparse allocations.
+                        for( uint32_t i = 0; i < bufferMemoryData.second.m_MemoryBindingCount; ++i )
+                        {
+                            const DeviceProfilerBufferMemoryBindingData& binding = bufferMemoryData.second.m_pMemoryBindings[i];
+
+                            if( ( binding.m_BufferOffset > shaderBindingTableEndOffset ) ||
+                                ( binding.m_BufferOffset + binding.m_Size < shaderBindingTableStartOffset ) )
+                            {
+                                // Not part of the shader binding table.
+                                continue;
+                            }
+
+                            // Copy only the shader binding table part from the binding.
+                            VkDeviceSize startOffset = std::max( shaderBindingTableStartOffset, binding.m_BufferOffset );
+                            VkDeviceSize endOffset = std::min( shaderBindingTableEndOffset, binding.m_BufferOffset + binding.m_Size );
+                            VkDeviceSize copySize = endOffset - startOffset;
+
+                            IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
+                            copy.m_SrcBuffer = bufferMemoryData.first;
+                            copy.m_DstBuffer = buffer.m_Buffer;
+                            copy.m_Region.srcOffset = startOffset;
+                            copy.m_Region.dstOffset = shaderBindingTableOffset - buffer.m_BaseOffset;
+                            copy.m_Region.size = copySize;
+                        }
+                    }
+                }
+            };
+
+            SaveShaderBindingTable( payload.m_RaygenShaderBindingTable, payload.m_RaygenShaderBindingTableOffset );
+            SaveShaderBindingTable( payload.m_MissShaderBindingTable, payload.m_MissShaderBindingTableOffset );
+            SaveShaderBindingTable( payload.m_HitShaderBindingTable, payload.m_HitShaderBindingTableOffset );
+            SaveShaderBindingTable( payload.m_CallableShaderBindingTable, payload.m_CallableShaderBindingTableOffset );
 
             break;
         }
@@ -1757,19 +1843,49 @@ namespace Profiler
         Copy captured indirect buffers to the destination buffer.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst )
+    void ProfilerCommandBuffer::ReadIndirectArgumentBuffers( std::shared_ptr<uint8_t[]>& dst )
     {
+        size_t indirectPayloadSize = 0;
+
         for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
         {
-            const uint8_t* pIndirectData = static_cast<const uint8_t*>( indirectArgumentBuffer.m_AllocationInfo.pMappedData );
-            const size_t indirectDataSize = indirectArgumentBuffer.m_Offset;
+            if( indirectArgumentBuffer.m_CurrentOffset )
+            {
+                // Base offset of the later buffers always includes the previous buffers.
+                indirectPayloadSize =
+                    indirectArgumentBuffer.m_BaseOffset + indirectArgumentBuffer.m_CurrentOffset;
+            }
+        }
+
+        if( !indirectPayloadSize )
+        {
+            // Early-out if no indirect payload was captured.
+            return;
+        }
+
+        dst.reset( new( std::nothrow ) uint8_t[indirectPayloadSize] );
+
+        if( !dst )
+        {
+            // Failed to allocate memory for the indirect payload.
+            return;
+        }
+
+        uint8_t* pDstData = dst.get();
+        size_t dstDataSize = indirectPayloadSize;
+
+        for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
+        {
+            // Copy indirect arguments from each buffer to the payload.
+            const uint8_t* pIndirectData = indirectArgumentBuffer.m_pMappedData;
+            const size_t indirectDataSize = indirectArgumentBuffer.m_CurrentOffset;
 
             if( indirectDataSize )
             {
                 m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
-                dst.insert( dst.end(),
-                    pIndirectData,
-                    pIndirectData + indirectDataSize );
+                memcpy( pDstData, pIndirectData, indirectDataSize );
+                pDstData += indirectArgumentBuffer.m_Size;
+                dstDataSize -= indirectArgumentBuffer.m_Size;
             }
         }
     }
@@ -1785,13 +1901,17 @@ namespace Profiler
     \***********************************************************************************/
     ProfilerCommandBuffer::IndirectArgumentBuffer& ProfilerCommandBuffer::AcquireIndirectArgumentBuffer( size_t size )
     {
+        size_t baseOffset = 0;
+
         // Check for an existing buffer in the list.
         for( IndirectArgumentBuffer& buffer : m_IndirectArgumentBufferList )
         {
-            if( buffer.m_AllocationInfo.size - buffer.m_Offset >= size )
+            if( buffer.m_Size - buffer.m_CurrentOffset >= size )
             {
                 return buffer;
             }
+
+            baseOffset += buffer.m_Size;
         }
 
         // Create a new buffer.
@@ -1804,15 +1924,20 @@ namespace Profiler
         allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 
+        VmaAllocationInfo allocationInfo = {};
+
         IndirectArgumentBuffer& buffer = m_IndirectArgumentBufferList.emplace_back();
         m_Profiler.m_MemoryManager.AllocateBuffer(
             bufferCreateInfo,
             allocationCreateInfo,
             &buffer.m_Buffer,
             &buffer.m_Allocation,
-            &buffer.m_AllocationInfo );
+            &allocationInfo );
 
-        buffer.m_Offset = 0;
+        buffer.m_BaseOffset = baseOffset;
+        buffer.m_CurrentOffset = 0;
+        buffer.m_Size = static_cast<size_t>( bufferCreateInfo.size );
+        buffer.m_pMappedData = static_cast<uint8_t*>( allocationInfo.pMappedData );
 
         return buffer;
     }
