@@ -75,5 +75,7 @@ namespace Profiler
         PFN_vkGetBufferDeviceAddress m_pfnGetBufferDeviceAddress;
 
         void ResetMemoryData();
+
+        VkDeviceAddress GetBufferDeviceAddress( VkBuffer buffer, VkBufferUsageFlags usage ) const;
     };
 }

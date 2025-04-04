@@ -1635,7 +1635,7 @@ namespace Profiler
             copy.m_SrcBuffer = payload.m_Buffer;
             copy.m_DstBuffer = buffer.m_Buffer;
             copy.m_Region.srcOffset = payload.m_Offset;
-            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset - buffer.m_BaseOffset;
             copy.m_Region.size = indirectPayloadSize;
 
             break;
@@ -1655,14 +1655,14 @@ namespace Profiler
             countCopy.m_SrcBuffer = payload.m_CountBuffer;
             countCopy.m_DstBuffer = buffer.m_Buffer;
             countCopy.m_Region.srcOffset = payload.m_CountOffset;
-            countCopy.m_Region.dstOffset = payload.m_IndirectCountOffset;
+            countCopy.m_Region.dstOffset = payload.m_IndirectCountOffset - buffer.m_BaseOffset;
             countCopy.m_Region.size = sizeof( uint32_t );
 
             IndirectArgumentBufferCopy& argsCopy = buffer.m_PendingCopyList.emplace_back();
             argsCopy.m_SrcBuffer = payload.m_Buffer;
             argsCopy.m_DstBuffer = buffer.m_Buffer;
             argsCopy.m_Region.srcOffset = payload.m_Offset;
-            argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            argsCopy.m_Region.dstOffset = payload.m_IndirectArgsOffset - buffer.m_BaseOffset;
             argsCopy.m_Region.size = payload.m_MaxDrawCount * payload.m_Stride;
 
             break;
@@ -1680,7 +1680,7 @@ namespace Profiler
             copy.m_SrcBuffer = payload.m_Buffer;
             copy.m_DstBuffer = buffer.m_Buffer;
             copy.m_Region.srcOffset = payload.m_Offset;
-            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset;
+            copy.m_Region.dstOffset = payload.m_IndirectArgsOffset - buffer.m_BaseOffset;
             copy.m_Region.size = indirectPayloadSize;
 
             break;
@@ -1706,8 +1706,7 @@ namespace Profiler
                     // There may be multiple buffers at the address due to aliasing, so find the first one with shader binding table bit.
                     std::pair<VkBuffer, DeviceProfilerBufferMemoryData> bufferMemoryData = m_Profiler.GetBufferAtAddress(
                         shaderBindingTable.deviceAddress,
-                        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
-                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT );
+                        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR );
 
                     assert( bufferMemoryData.first != VK_NULL_HANDLE );
 
@@ -1715,7 +1714,7 @@ namespace Profiler
                     copy.m_SrcBuffer = bufferMemoryData.first;
                     copy.m_DstBuffer = buffer.m_Buffer;
                     copy.m_Region.srcOffset = shaderBindingTable.deviceAddress - bufferMemoryData.second.m_BufferAddress;
-                    copy.m_Region.dstOffset = shaderBindingTableOffset;
+                    copy.m_Region.dstOffset = shaderBindingTableOffset - buffer.m_BaseOffset;
                     copy.m_Region.size = shaderBindingTable.size;
                 }
             };
@@ -1830,15 +1829,15 @@ namespace Profiler
         for( const IndirectArgumentBuffer& indirectArgumentBuffer : m_IndirectArgumentBufferList )
         {
             // Copy indirect arguments from each buffer to the payload.
-            const uint8_t* pIndirectData = static_cast<const uint8_t*>( indirectArgumentBuffer.m_AllocationInfo.pMappedData );
+            const uint8_t* pIndirectData = indirectArgumentBuffer.m_pMappedData;
             const size_t indirectDataSize = indirectArgumentBuffer.m_CurrentOffset;
 
             if( indirectDataSize )
             {
                 m_Profiler.m_MemoryManager.Invalidate( indirectArgumentBuffer.m_Allocation );
                 memcpy_s( pDstData, dstDataSize, pIndirectData, indirectDataSize );
-                pDstData += indirectArgumentBuffer.m_AllocationInfo.size;
-                dstDataSize -= indirectArgumentBuffer.m_AllocationInfo.size;
+                pDstData += indirectArgumentBuffer.m_Size;
+                dstDataSize -= indirectArgumentBuffer.m_Size;
             }
         }
     }
@@ -1859,12 +1858,12 @@ namespace Profiler
         // Check for an existing buffer in the list.
         for( IndirectArgumentBuffer& buffer : m_IndirectArgumentBufferList )
         {
-            if( buffer.m_AllocationInfo.size - buffer.m_CurrentOffset >= size )
+            if( buffer.m_Size - buffer.m_CurrentOffset >= size )
             {
                 return buffer;
             }
 
-            baseOffset += buffer.m_AllocationInfo.size;
+            baseOffset += buffer.m_Size;
         }
 
         // Create a new buffer.
@@ -1877,16 +1876,20 @@ namespace Profiler
         allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 
+        VmaAllocationInfo allocationInfo = {};
+
         IndirectArgumentBuffer& buffer = m_IndirectArgumentBufferList.emplace_back();
         m_Profiler.m_MemoryManager.AllocateBuffer(
             bufferCreateInfo,
             allocationCreateInfo,
             &buffer.m_Buffer,
             &buffer.m_Allocation,
-            &buffer.m_AllocationInfo );
+            &allocationInfo );
 
         buffer.m_BaseOffset = baseOffset;
         buffer.m_CurrentOffset = 0;
+        buffer.m_Size = static_cast<size_t>( bufferCreateInfo.size );
+        buffer.m_pMappedData = static_cast<uint8_t*>( allocationInfo.pMappedData );
 
         return buffer;
     }

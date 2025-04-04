@@ -190,6 +190,12 @@ namespace Profiler
             buffer,
             &data.m_MemoryRequirements );
 
+        if( pCreateInfo->flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT )
+        {
+            // Get virtual address of the buffer if sparse binding is enabled.
+            data.m_BufferAddress = GetBufferDeviceAddress( buffer, pCreateInfo->usage );
+        }
+
         m_Buffers.insert( buffer, data );
     }
 
@@ -226,19 +232,7 @@ namespace Profiler
         {
             it->second.m_Memory = memory;
             it->second.m_MemoryOffset = offset;
-
-            // Save addresses of shader binding table buffers to read shader group handles.
-            if( ( m_pfnGetBufferDeviceAddress != nullptr ) &&
-                ( it->second.m_BufferUsage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR ) )
-            {
-                VkBufferDeviceAddressInfo deviceAddressInfo = {};
-                deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-                deviceAddressInfo.buffer = buffer;
-
-                it->second.m_BufferAddress = m_pfnGetBufferDeviceAddress(
-                    m_pDevice->Handle,
-                    &deviceAddressInfo );
-            }
+            it->second.m_BufferAddress = GetBufferDeviceAddress( buffer, it->second.m_BufferUsage );
         }
     }
 
@@ -379,5 +373,39 @@ namespace Profiler
         m_Allocations.clear();
         m_Buffers.clear();
         m_Images.clear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBufferDeviceAddress
+
+    Description:
+
+    \***********************************************************************************/
+    VkDeviceAddress DeviceProfilerMemoryTracker::GetBufferDeviceAddress( VkBuffer buffer, VkBufferUsageFlags usage ) const
+    {
+        // Check if extension is available.
+        if( !m_pfnGetBufferDeviceAddress )
+        {
+            return 0;
+        }
+
+        // Save addresses of shader binding table buffers to read shader group handles.
+        if( usage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR )
+        {
+            VkBufferDeviceAddressInfo deviceAddressInfo = {};
+            deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+            deviceAddressInfo.buffer = buffer;
+
+            VkDeviceAddress bufferAddress = m_pfnGetBufferDeviceAddress(
+                m_pDevice->Handle,
+                &deviceAddressInfo );
+
+            assert( bufferAddress );
+            return bufferAddress;
+        }
+
+        return 0;
     }
 }

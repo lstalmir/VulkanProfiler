@@ -836,7 +836,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        const size_t shaderGroupHandleSize =
+        const uint32_t shaderGroupHandleSize =
             m_pDevice->pPhysicalDevice->RayTracingPipelineProperties.shaderGroupHandleSize;
         std::unique_ptr<uint8_t[]> pShaderGroupHandle = std::make_unique<uint8_t[]>( shaderGroupHandleSize );
 
