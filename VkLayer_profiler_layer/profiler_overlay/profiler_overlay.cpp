@@ -4139,7 +4139,21 @@ namespace Profiler
                 size_t groupIndex = 0;
                 size_t groupOffset = 0;
 
-                while( groupOffset < table.size )
+                ImVec2 lineSize = ImGui::CalcTextSize( "[0]" );
+
+                // Cull invisible shader groups to save rendering time.
+                ImVec2 skipSize = ImVec2( 1, 1 );
+                while( ( groupOffset < table.size ) && !ImGui::IsRectVisible( skipSize ) )
+                {
+                    skipSize.y += lineSize.y;
+                    groupIndex++;
+                    groupOffset += table.stride;
+                }
+
+                ImGui::Dummy( skipSize );
+
+                // Print shader groups.
+                while( ( groupOffset < table.size ) && ImGui::IsRectVisible( lineSize ) )
                 {
                     const ProfilerShaderGroup* pShaderGroup =
                         context.pPipeline->m_ShaderTuple.GetShaderGroupAtHandle(
@@ -4148,9 +4162,10 @@ namespace Profiler
 
                     if( pShaderGroup == nullptr )
                     {
-                        ImGui::Text( "   [%u] %s -> Not found",
+                        ImGui::Text( "   [%u] %s -> 0x%016llx (Not found)",
                             groupIndex,
-                            pName );
+                            pName,
+                            *reinterpret_cast<const uint64_t*>( pIndirectData + tableOffset + groupOffset ) );
 
                         groupIndex++;
                         groupOffset += table.stride;
@@ -4211,6 +4226,12 @@ namespace Profiler
 
                     groupIndex++;
                     groupOffset += table.stride;
+                }
+
+                // Cull invisible shader groups to save rendering time.
+                if( groupOffset < table.size )
+                {
+                    ImGui::Dummy( ImVec2( 1, lineSize.y * ( table.size - groupOffset ) / rayTracingPipelineProperties.shaderGroupHandleSize ) );
                 }
             };
 
