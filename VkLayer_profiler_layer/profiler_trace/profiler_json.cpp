@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,8 +20,11 @@
 
 #include "profiler_json.h"
 #include "profiler/profiler_data.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_data_helpers.h"
 #include "profiler_layer_objects/VkObject.h"
+
+#include <fmt/format.h>
 
 namespace Profiler
 {
@@ -34,8 +37,9 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerJsonSerializer::DeviceProfilerJsonSerializer( const DeviceProfilerStringSerializer* pStringSerializer )
-        : m_pStringSerializer( pStringSerializer )
+    DeviceProfilerJsonSerializer::DeviceProfilerJsonSerializer( DeviceProfilerFrontend* pFrontend, const DeviceProfilerStringSerializer* pStringSerializer )
+        : m_pFrontend( pFrontend )
+        , m_pStringSerializer( pStringSerializer )
     {
     }
 
@@ -48,8 +52,10 @@ namespace Profiler
         Serialize command arguments into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetCommandArgs( const DeviceProfilerDrawcall& drawcall ) const
+    nlohmann::json DeviceProfilerJsonSerializer::GetCommandArgs( const DeviceProfilerDrawcall& drawcall, const DeviceProfilerPipeline& pipeline, const DeviceProfilerCommandBufferData& commandBuffer ) const
     {
+        const bool indirectPayloadPresent = ( drawcall.HasIndirectPayload() && commandBuffer.m_pIndirectPayload );
+
         switch( drawcall.m_Type )
         {
         default:
@@ -75,36 +81,154 @@ namespace Profiler
                 { "firstInstance", drawcall.m_Payload.m_DrawIndexed.m_FirstInstance } };
 
         case DeviceProfilerDrawcallType::eDrawIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirect.m_Stride } };
+        {
+            const DeviceProfilerDrawcallDrawIndirectPayload& payload = drawcall.m_Payload.m_DrawIndirect;
+
+            nlohmann::json args = {
+                { "buffer", m_pStringSerializer->GetName( payload.m_Buffer ) },
+                { "offset", payload.m_Offset },
+                { "drawCount", payload.m_DrawCount },
+                { "stride", payload.m_Stride }
+            };
+
+            if( indirectPayloadPresent )
+            {
+                std::vector<nlohmann::json> indirectCommands;
+
+                const uint8_t* pIndirectData = commandBuffer.m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+                for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
+                {
+                    const VkDrawIndirectCommand& cmd =
+                        *reinterpret_cast<const VkDrawIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                    indirectCommands.push_back( {
+                        { "vertexCount", cmd.vertexCount },
+                        { "instanceCount", cmd.instanceCount },
+                        { "firstVertex", cmd.firstVertex },
+                        { "firstInstance", cmd.firstInstance } } );
+                }
+
+                args["indirectCommands"] = indirectCommands;
+            }
+
+            return args;
+        }
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride } };
+        {
+            const DeviceProfilerDrawcallDrawIndexedIndirectPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirect;
+
+            nlohmann::json args = {
+                { "buffer", m_pStringSerializer->GetName( payload.m_Buffer ) },
+                { "offset", payload.m_Offset },
+                { "drawCount", payload.m_DrawCount },
+                { "stride", payload.m_Stride }
+            };
+
+            if( indirectPayloadPresent )
+            {
+                std::vector<nlohmann::json> indirectCommands;
+
+                const uint8_t* pIndirectData = commandBuffer.m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+                for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
+                {
+                    const VkDrawIndexedIndirectCommand& cmd =
+                        *reinterpret_cast<const VkDrawIndexedIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                    indirectCommands.push_back( {
+                        { "indexCount", cmd.indexCount },
+                        { "instanceCount", cmd.instanceCount },
+                        { "firstIndex", cmd.firstIndex },
+                        { "vertexOffset", cmd.vertexOffset },
+                        { "firstInstance", cmd.firstInstance } } );
+                }
+
+                args["indirectCommands"] = indirectCommands;
+            }
+
+            return args;
+        }
 
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirectCount.m_Stride } };
+        {
+            const DeviceProfilerDrawcallDrawIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndirectCount;
+
+            nlohmann::json args = {
+                { "buffer", m_pStringSerializer->GetName( payload.m_Buffer ) },
+                { "offset", payload.m_Offset },
+                { "countBuffer", m_pStringSerializer->GetName( payload.m_CountBuffer ) },
+                { "countOffset", payload.m_CountOffset },
+                { "maxDrawCount", payload.m_MaxDrawCount },
+                { "stride", payload.m_Stride }
+            };
+
+            if( indirectPayloadPresent )
+            {
+                std::vector<nlohmann::json> indirectCommands;
+
+                const uint8_t* pIndirectData = commandBuffer.m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+                const uint8_t* pIndirectCount = commandBuffer.m_pIndirectPayload.get() + payload.m_IndirectCountOffset;
+
+                const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
+                for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
+                {
+                    const VkDrawIndirectCommand& cmd =
+                        *reinterpret_cast<const VkDrawIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                    indirectCommands.push_back( {
+                        { "vertexCount", cmd.vertexCount },
+                        { "instanceCount", cmd.instanceCount },
+                        { "firstVertex", cmd.firstVertex },
+                        { "firstInstance", cmd.firstInstance } } );
+                }
+
+                args["indirectCount"] = drawCount;
+                args["indirectCommands"] = indirectCommands;
+            }
+
+            return args;
+        }
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride } };
+        {
+            const DeviceProfilerDrawcallDrawIndexedIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirectCount;
+
+            nlohmann::json args = {
+                { "buffer", m_pStringSerializer->GetName( payload.m_Buffer ) },
+                { "offset", payload.m_Offset },
+                { "countBuffer", m_pStringSerializer->GetName( payload.m_CountBuffer ) },
+                { "countOffset", payload.m_CountOffset },
+                { "maxDrawCount", payload.m_MaxDrawCount },
+                { "stride", payload.m_Stride }
+            };
+
+            if( indirectPayloadPresent )
+            {
+                std::vector<nlohmann::json> indirectCommands;
+
+                const uint8_t* pIndirectData = commandBuffer.m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+                const uint8_t* pIndirectCount = commandBuffer.m_pIndirectPayload.get() + payload.m_IndirectCountOffset;
+
+                const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
+                for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
+                {
+                    const VkDrawIndexedIndirectCommand& cmd =
+                        *reinterpret_cast<const VkDrawIndexedIndirectCommand*>( pIndirectData + drawIndex * payload.m_Stride );
+
+                    indirectCommands.push_back( {
+                        { "indexCount", cmd.indexCount },
+                        { "instanceCount", cmd.instanceCount },
+                        { "firstIndex", cmd.firstIndex },
+                        { "vertexOffset", cmd.vertexOffset },
+                        { "firstInstance", cmd.firstInstance } } );
+                }
+
+                args["indirectCount"] = drawCount;
+                args["indirectCommands"] = indirectCommands;
+            }
+
+            return args;
+        }
 
         case DeviceProfilerDrawcallType::eDrawMeshTasks:
             return {
@@ -162,9 +286,29 @@ namespace Profiler
                 { "groupCountZ", drawcall.m_Payload.m_Dispatch.m_GroupCountZ } };
 
         case DeviceProfilerDrawcallType::eDispatchIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DispatchIndirect.m_Offset } };
+        {
+            const DeviceProfilerDrawcallDispatchIndirectPayload& payload = drawcall.m_Payload.m_DispatchIndirect;
+
+            nlohmann::json args = {
+                { "buffer", m_pStringSerializer->GetName( payload.m_Buffer ) },
+                { "offset", payload.m_Offset }
+            };
+
+            if( indirectPayloadPresent )
+            {
+                const uint8_t* pIndirectData = commandBuffer.m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+                const VkDispatchIndirectCommand& cmd =
+                    *reinterpret_cast<const VkDispatchIndirectCommand*>( pIndirectData );
+
+                args["indirectCommand"] = {
+                    { "groupCountX", cmd.x },
+                    { "groupCountY", cmd.y },
+                    { "groupCountZ", cmd.z }
+                };
+            }
+
+            return args;
+        }
 
         case DeviceProfilerDrawcallType::eCopyBuffer:
             return {
@@ -224,10 +368,143 @@ namespace Profiler
                 { "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size } };
 
         case DeviceProfilerDrawcallType::eTraceRaysKHR:
-            return {
-                { "width", drawcall.m_Payload.m_TraceRays.m_Width },
-                { "height", drawcall.m_Payload.m_TraceRays.m_Height },
-                { "depth", drawcall.m_Payload.m_TraceRays.m_Depth } };
+        {
+            const DeviceProfilerDrawcallTraceRaysPayload& payload = drawcall.m_Payload.m_TraceRays;
+
+            nlohmann::json args = {
+                { "width", payload.m_Width },
+                { "height", payload.m_Height },
+                { "depth", payload.m_Depth }
+            };
+
+            if( indirectPayloadPresent )
+            {
+                const uint8_t* pIndirectData = commandBuffer.m_pIndirectPayload.get();
+                const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties =
+                    m_pFrontend->GetRayTracingPipelineProperties();
+
+                auto GetShaderHash = []( const ProfilerShader* pShader ) -> std::string {
+                    char hash[9] = "00000000";
+                    snprintf( hash, sizeof( hash ), "%08X", pShader ? pShader->m_Hash : 0 );
+                    return hash;
+                };
+
+                auto GetShaderRecordData = []( const void* pData, size_t size ) -> std::string {
+                    std::string dataStr( size * 2, '0' );
+                    for( size_t i = 0; i < size; ++i )
+                        snprintf( &dataStr[i * 2], 3, "%02X", static_cast<const uint8_t*>( pData )[i] );
+                    return dataStr;
+                };
+
+                auto SerializeShaderBindingTable = [&]( const VkStridedDeviceAddressRegionKHR& table, size_t tableOffset ) -> nlohmann::json {
+                    nlohmann::json sbt = {
+                        { "deviceAddress", m_pStringSerializer->GetPointer( (void*)table.deviceAddress ) },
+                        { "stride", table.stride },
+                        { "size", table.size }
+                    };
+
+                    std::vector<nlohmann::json> sbtRecords;
+
+                    size_t groupIndex = 0;
+                    size_t groupOffset = 0;
+
+                    // Print shader groups.
+                    while( groupOffset < table.size )
+                    {
+                        const ProfilerShaderGroup* pShaderGroup =
+                            pipeline.m_ShaderTuple.GetShaderGroupAtHandle(
+                                pIndirectData + tableOffset + groupOffset,
+                                rayTracingPipelineProperties.shaderGroupHandleSize );
+
+                        if( pShaderGroup == nullptr )
+                        {
+                            sbtRecords.emplace_back();
+                            groupIndex++;
+                            groupOffset += table.stride;
+                            continue;
+                        }
+
+                        // Print shaders in the group.
+                        switch( pShaderGroup->m_Type )
+                        {
+                        case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+                        {
+                            sbtRecords.push_back( {
+                                { "general", GetShaderHash( pipeline.m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_GeneralShader ) ) } } );
+                            break;
+                        }
+
+                        case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+                        {
+                            nlohmann::json shaderRecord = {
+                                { "closestHit", GetShaderHash( pipeline.m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_ClosestHitShader ) ) },
+                                { "anyHit", GetShaderHash( pipeline.m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_AnyHitShader ) ) }
+                            };
+
+                            if( table.stride > rayTracingPipelineProperties.shaderGroupHandleSize )
+                            {
+                                // Append application data following the shader group handle.
+                                shaderRecord["data"] = GetShaderRecordData(
+                                    pIndirectData + tableOffset + groupOffset + rayTracingPipelineProperties.shaderGroupHandleSize,
+                                    table.stride - rayTracingPipelineProperties.shaderGroupHandleSize );
+                            }
+
+                            sbtRecords.push_back( std::move( shaderRecord ) );
+                            break;
+                        }
+
+                        case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+                        {
+                            nlohmann::json shaderRecord = {
+                                { "closestHit", GetShaderHash( pipeline.m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_ClosestHitShader ) ) },
+                                { "anyHit", GetShaderHash( pipeline.m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_AnyHitShader ) ) },
+                                { "intersection", GetShaderHash( pipeline.m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_IntersectionShader ) ) }
+                            };
+
+                            if( table.stride > rayTracingPipelineProperties.shaderGroupHandleSize )
+                            {
+                                // Append application data following the shader group handle.
+                                shaderRecord["data"] = GetShaderRecordData(
+                                    pIndirectData + tableOffset + groupOffset + rayTracingPipelineProperties.shaderGroupHandleSize,
+                                    table.stride - rayTracingPipelineProperties.shaderGroupHandleSize );
+                            }
+
+                            sbtRecords.push_back( std::move( shaderRecord ) );
+                            break;
+                        }
+                        }
+
+                        groupIndex++;
+                        groupOffset += table.stride;
+                    }
+
+                    // Remove unused records from the end of the list.
+                    while( !sbtRecords.empty() && sbtRecords.back().empty() )
+                    {
+                        sbtRecords.pop_back();
+                    }
+
+                    for( nlohmann::json& record : sbtRecords )
+                    {
+                        if( record.empty() )
+                        {
+                            // Mark unused records.
+                            record = "Unused";
+                        }
+                    }
+
+                    sbt["records"] = std::move( sbtRecords );
+                    return sbt;
+                };
+
+                args["raygenShaderBindingTable"] = SerializeShaderBindingTable( payload.m_RaygenShaderBindingTable, payload.m_RaygenShaderBindingTableOffset );
+                args["missShaderBindingTable"] = SerializeShaderBindingTable( payload.m_MissShaderBindingTable, payload.m_MissShaderBindingTableOffset );
+                args["hitShaderBindingTable"] = SerializeShaderBindingTable( payload.m_HitShaderBindingTable, payload.m_HitShaderBindingTableOffset );
+                args["callableShaderBindingTable"] = SerializeShaderBindingTable( payload.m_CallableShaderBindingTable, payload.m_CallableShaderBindingTableOffset );
+            }
+
+            return args;
+        }
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
             return {

@@ -3430,7 +3430,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
-        DeviceProfilerTraceSerializer serializer( m_pStringSerializer.get(), m_TimestampPeriod);
+        DeviceProfilerTraceSerializer serializer( m_pFrontend, m_pStringSerializer.get(), m_TimestampPeriod );
         DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
 
         m_SerializationSucceeded = result.m_Succeeded;

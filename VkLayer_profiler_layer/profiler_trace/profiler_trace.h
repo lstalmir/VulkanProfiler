@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -61,14 +61,15 @@ namespace Profiler
     {
     public:
         template<typename GpuDurationType>
-        inline DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, GpuDurationType gpuTimestampPeriod )
+        inline DeviceProfilerTraceSerializer( class DeviceProfilerFrontend * pFrontend, const class DeviceProfilerStringSerializer* pStringSerializer, GpuDurationType gpuTimestampPeriod )
             : DeviceProfilerTraceSerializer(
+                pFrontend,
                 pStringSerializer,
                 std::chrono::duration_cast<Milliseconds>(gpuTimestampPeriod) )
         {
         }
 
-        DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
+        DeviceProfilerTraceSerializer( class DeviceProfilerFrontend* pFrontend, const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
         ~DeviceProfilerTraceSerializer();
 
         DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
@@ -84,6 +85,10 @@ namespace Profiler
 
         // Target command queue for the current batch
         VkQueue      m_CommandQueue;
+
+        // Command buffer being currently serialized
+        const struct DeviceProfilerCommandBufferData* m_pCommandBufferData;
+        const struct DeviceProfilerPipelineData* m_pPipelineData;
 
         std::vector<struct TraceEvent*> m_pEvents;
 
