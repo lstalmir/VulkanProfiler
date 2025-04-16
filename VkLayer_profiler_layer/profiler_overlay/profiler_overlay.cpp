@@ -72,6 +72,8 @@ namespace Profiler
         {
             eIdle,
             eCommandBuffer,
+            eSignalSemaphores,
+            eWaitSemaphores,
         };
 
         DataType userDataType;
@@ -1161,6 +1163,38 @@ namespace Profiler
                 column.x,
                 m_pTimestampDisplayUnitStr );
 
+            break;
+        }
+        case QueueGraphColumn::eSignalSemaphores:
+        {
+            const std::vector<VkSemaphore>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::Text( "Signal semaphores:" );
+                for( const auto& semaphore : semaphores )
+                {
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( semaphore ).c_str() );
+                }
+                ImGui::EndTooltip();
+            }
+            break;
+        }
+        case QueueGraphColumn::eWaitSemaphores:
+        {
+            const std::vector<VkSemaphore>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::Text( "Wait semaphores:" );
+                for( const auto& semaphore : semaphores )
+                {
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( semaphore ).c_str() );
+                }
+                ImGui::EndTooltip();
+            }
             break;
         }
         }
@@ -2900,6 +2934,8 @@ namespace Profiler
                 // Count command buffers.
                 index.emplace_back( 0 );
 
+                bool firstCommandBuffer = true;
+
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     if( !commandBuffer.m_DataValid )
@@ -2919,6 +2955,16 @@ namespace Profiler
                         idle.userData = nullptr;
                     }
 
+                    if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
+                    {
+                        // Enumerate wait semaphores before the first executed command buffer.
+                        QueueGraphColumn& semaphores = columns.emplace_back();
+                        semaphores.flags = ImGuiX::HistogramColumnFlags_Event;
+                        semaphores.color = IM_COL32( 255, 0, 0, 255 );
+                        semaphores.userDataType = QueueGraphColumn::eWaitSemaphores;
+                        semaphores.userData = &submit.m_WaitSemaphores;
+                    }
+
                     QueueGraphColumn& column = columns.emplace_back();
                     column.x = GetDuration( commandBuffer );
                     column.y = 1;
@@ -2928,8 +2974,29 @@ namespace Profiler
                     column.nodeIndex = index;
 
                     lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+                    firstCommandBuffer = false;
 
                     index.back()++;
+                }
+
+                // Insert wait semaphores if no command buffers were submitted.
+                if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
+                {
+                    QueueGraphColumn& semaphores = columns.emplace_back();
+                    semaphores.flags = ImGuiX::HistogramColumnFlags_Event;
+                    semaphores.color = IM_COL32( 255, 0, 0, 255 );
+                    semaphores.userDataType = QueueGraphColumn::eWaitSemaphores;
+                    semaphores.userData = &submit.m_WaitSemaphores;
+                }
+
+                // Enumerate signal semaphores after the last executed command buffer.
+                if( !submit.m_SignalSemaphores.empty() )
+                {
+                    QueueGraphColumn& semaphores = columns.emplace_back();
+                    semaphores.flags = ImGuiX::HistogramColumnFlags_Event;
+                    semaphores.color = IM_COL32( 128, 255, 255, 255 );
+                    semaphores.userDataType = QueueGraphColumn::eSignalSemaphores;
+                    semaphores.userData = &submit.m_SignalSemaphores;
                 }
 
                 index.pop_back();
