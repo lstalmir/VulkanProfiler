@@ -68,6 +68,7 @@ namespace Profiler
 
     struct ProfilerOverlayOutput::QueueGraphColumn : ImGuiX::HistogramColumnData
     {
+        FrameBrowserTreeNodeIndex nodeIndex;
     };
 
     struct ProfilerOverlayOutput::PerformanceCounterExporter
@@ -1112,22 +1113,55 @@ namespace Profiler
                     0,
                     sizeof( queueGraphColumns.front() ),
                     "", 0, FLT_MAX, { 0, 8 * interfaceScale },
-                    ImGuiX::HistogramFlags_NoHover |
-                        ImGuiX::HistogramFlags_NoScale );
-
-                if( ImGui::IsItemHovered() )
-                {
-                    ImGui::BeginTooltip();
-                    ImGui::Text( "%s", queueName.c_str() );
-                    ImGui::Text( "%s", m_pStringSerializer->GetQueueFlagNames( queue.Flags ).c_str() );
-                    ImGui::EndTooltip();
-                }
+                    ImGuiX::HistogramFlags_NoScale,
+                    std::bind( &ProfilerOverlayOutput::DrawQueueGraphLabel, this, std::placeholders::_1 ),
+                    std::bind( &ProfilerOverlayOutput::SelectQueueGraphColumn, this, std::placeholders::_1 ) );
             }
         }
 
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawQueueGraphLabel
+
+    Description:
+        Show a tooltip with queue submit description.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawQueueGraphLabel( const ImGuiX::HistogramColumnData& data )
+    {
+        const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
+        const DeviceProfilerCommandBufferData& commandBufferData =
+            *reinterpret_cast<const DeviceProfilerCommandBufferData*>( column.userData );
+
+        ImGui::SetTooltip( "%s\n%.2f %s",
+            m_pStringSerializer->GetName( commandBufferData.m_Handle ).c_str(),
+            GetDuration( commandBufferData ),
+            m_pTimestampDisplayUnitStr );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SelectQueueGraphColumn
+
+    Description:
+        Select a queue graph column and scroll to it in the frame browser.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SelectQueueGraphColumn( const ImGuiX::HistogramColumnData& data )
+    {
+        const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
+
+        m_SelectedFrameBrowserNodeIndex = column.nodeIndex;
+        m_ScrollToSelectedFrameBrowserNode = true;
+
+        m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
     }
 
     /***********************************************************************************\
@@ -2820,21 +2854,34 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
     {
+        FrameBrowserTreeNodeIndex index;
+        index.emplace_back( 0 );
+
         uint64_t lastTimestamp = m_pData->m_BeginTimestamp;
 
         for( const auto& submitBatch : m_pData->m_Submits )
         {
             if( submitBatch.m_Handle != queue )
             {
+                // Index must be incremented to account for the submissions on the other queues.
+                index.back()++;
                 continue;
             }
 
+            // Count submit infos.
+            index.emplace_back( 0 );
+
             for( const auto& submit : submitBatch.m_Submits )
             {
+                // Count command buffers.
+                index.emplace_back( 0 );
+
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     if( !commandBuffer.m_DataValid )
                     {
+                        // Take command buffers with no data into account.
+                        index.back()++;
                         continue;
                     }
 
@@ -2850,10 +2897,20 @@ namespace Profiler
                     column.x = GetDuration( commandBuffer );
                     column.y = 1;
                     column.color = m_GraphicsPipelineColumnColor;
+                    column.userData = &commandBuffer;
+                    column.nodeIndex = index;
 
                     lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+
+                    index.back()++;
                 }
+
+                index.pop_back();
+                index.back()++;
             }
+
+            index.pop_back();
+            index.back()++;
         }
 
         if( ( lastTimestamp != m_pData->m_BeginTimestamp ) &&

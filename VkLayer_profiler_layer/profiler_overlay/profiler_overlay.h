@@ -282,6 +282,8 @@ namespace Profiler
         struct QueueGraphColumn;
         void GetQueueGraphColumns( VkQueue, std::vector<QueueGraphColumn>& ) const;
         float GetQueueUtilization( const std::vector<QueueGraphColumn>& ) const;
+        void DrawQueueGraphLabel( const ImGuiX::HistogramColumnData& );
+        void SelectQueueGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Performance counter helpers
         std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
