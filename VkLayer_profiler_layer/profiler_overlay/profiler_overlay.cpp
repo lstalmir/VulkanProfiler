@@ -1136,13 +1136,20 @@ namespace Profiler
     void ProfilerOverlayOutput::DrawQueueGraphLabel( const ImGuiX::HistogramColumnData& data )
     {
         const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
-        const DeviceProfilerCommandBufferData& commandBufferData =
-            *reinterpret_cast<const DeviceProfilerCommandBufferData*>( column.userData );
+        const DeviceProfilerCommandBufferData* pCommandBufferData =
+            reinterpret_cast<const DeviceProfilerCommandBufferData*>( column.userData );
 
-        ImGui::SetTooltip( "%s\n%.2f %s",
-            m_pStringSerializer->GetName( commandBufferData.m_Handle ).c_str(),
-            GetDuration( commandBufferData ),
-            m_pTimestampDisplayUnitStr );
+        if( pCommandBufferData )
+        {
+            ImGui::SetTooltip( "%s\n%.2f %s",
+                m_pStringSerializer->GetName( pCommandBufferData->m_Handle ).c_str(),
+                column.x,
+                m_pTimestampDisplayUnitStr );
+        }
+        else
+        {
+            ImGui::SetTooltip( "Idle\n%.2f %s", column.x, m_pTimestampDisplayUnitStr );
+        }
     }
 
     /***********************************************************************************\
@@ -1158,10 +1165,13 @@ namespace Profiler
     {
         const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
 
-        m_SelectedFrameBrowserNodeIndex = column.nodeIndex;
-        m_ScrollToSelectedFrameBrowserNode = true;
+        if( !column.nodeIndex.empty() )
+        {
+            m_SelectedFrameBrowserNodeIndex = column.nodeIndex;
+            m_ScrollToSelectedFrameBrowserNode = true;
 
-        m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
+            m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
+        }
     }
 
     /***********************************************************************************\
@@ -2889,8 +2899,9 @@ namespace Profiler
                     {
                         QueueGraphColumn& idle = columns.emplace_back();
                         idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
-                        idle.y = 0;
+                        idle.y = 1;
                         idle.color = 0;
+                        idle.userData = nullptr;
                     }
 
                     QueueGraphColumn& column = columns.emplace_back();
@@ -2918,8 +2929,9 @@ namespace Profiler
         {
             QueueGraphColumn& idle = columns.emplace_back();
             idle.x = GetDuration( lastTimestamp, m_pData->m_EndTimestamp );
-            idle.y = 0;
+            idle.y = 1;
             idle.color = 0;
+            idle.userData = nullptr;
         }
     }
 
