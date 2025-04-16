@@ -68,6 +68,13 @@ namespace Profiler
 
     struct ProfilerOverlayOutput::QueueGraphColumn : ImGuiX::HistogramColumnData
     {
+        enum DataType
+        {
+            eIdle,
+            eCommandBuffer,
+        };
+
+        DataType userDataType;
         FrameBrowserTreeNodeIndex nodeIndex;
     };
 
@@ -1136,19 +1143,26 @@ namespace Profiler
     void ProfilerOverlayOutput::DrawQueueGraphLabel( const ImGuiX::HistogramColumnData& data )
     {
         const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
-        const DeviceProfilerCommandBufferData* pCommandBufferData =
-            reinterpret_cast<const DeviceProfilerCommandBufferData*>( column.userData );
 
-        if( pCommandBufferData )
+        switch( column.userDataType )
         {
-            ImGui::SetTooltip( "%s\n%.2f %s",
-                m_pStringSerializer->GetName( pCommandBufferData->m_Handle ).c_str(),
-                column.x,
-                m_pTimestampDisplayUnitStr );
-        }
-        else
+        case QueueGraphColumn::eIdle:
         {
             ImGui::SetTooltip( "Idle\n%.2f %s", column.x, m_pTimestampDisplayUnitStr );
+            break;
+        }
+        case QueueGraphColumn::eCommandBuffer:
+        {
+            const DeviceProfilerCommandBufferData& commandBufferData =
+                *reinterpret_cast<const DeviceProfilerCommandBufferData*>( column.userData );
+
+            ImGui::SetTooltip( "%s\n%.2f %s",
+                m_pStringSerializer->GetName( commandBufferData.m_Handle ).c_str(),
+                column.x,
+                m_pTimestampDisplayUnitStr );
+
+            break;
+        }
         }
     }
 
@@ -2901,6 +2915,7 @@ namespace Profiler
                         idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
                         idle.y = 1;
                         idle.color = 0;
+                        idle.userDataType = QueueGraphColumn::eIdle;
                         idle.userData = nullptr;
                     }
 
@@ -2908,6 +2923,7 @@ namespace Profiler
                     column.x = GetDuration( commandBuffer );
                     column.y = 1;
                     column.color = m_GraphicsPipelineColumnColor;
+                    column.userDataType = QueueGraphColumn::eCommandBuffer;
                     column.userData = &commandBuffer;
                     column.nodeIndex = index;
 
@@ -2931,6 +2947,7 @@ namespace Profiler
             idle.x = GetDuration( lastTimestamp, m_pData->m_EndTimestamp );
             idle.y = 1;
             idle.color = 0;
+            idle.userDataType = QueueGraphColumn::eIdle;
             idle.userData = nullptr;
         }
     }
@@ -2949,7 +2966,10 @@ namespace Profiler
         float utilization = 0.0f;
         for( const auto& column : columns )
         {
-            utilization += column.x * column.y;
+            if( column.userDataType == QueueGraphColumn::eCommandBuffer )
+            {
+                utilization += column.x * column.y;
+            }
         }
 
         return utilization;
