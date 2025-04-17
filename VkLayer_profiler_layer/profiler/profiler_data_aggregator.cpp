@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -176,14 +176,17 @@ namespace Profiler
         m_pCurrentFrameData->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
 
         // Try to start data collection thread.
-        try
+        if( m_pProfiler->m_Config.m_EnableThreading )
         {
-            m_DataCollectionThreadRunning = true;
-            m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
-        }
-        catch( ... )
-        {
-            m_DataCollectionThreadRunning = false;
+            try
+            {
+                m_DataCollectionThreadRunning = true;
+                m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
+            }
+            catch( ... )
+            {
+                m_DataCollectionThreadRunning = false;
+            }
         }
 
         // Cleanup if initialization failed.
@@ -573,19 +576,17 @@ namespace Profiler
 
                 if( m_VendorMetricsSetIndex != UINT32_MAX )
                 {
+                    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metricsProperties =
+                        m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( m_VendorMetricsSetIndex );
+
                     // Preallocate space for the metrics properties.
-                    uint32_t vendorMetricsCount = m_pProfiler->m_MetricsApiINTEL.GetMetricsCount( m_VendorMetricsSetIndex );
-                    m_VendorMetricProperties.resize( vendorMetricsCount );
+                    m_VendorMetricProperties.resize( metricsProperties.size() );
 
                     // Copy metrics properties to the local vector.
-                    VkResult result = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties(
-                        m_VendorMetricsSetIndex,
-                        &vendorMetricsCount,
-                        m_VendorMetricProperties.data() );
-
-                    if( result != VK_SUCCESS )
+                    if( !metricsProperties.empty() )
                     {
-                        m_VendorMetricProperties.clear();
+                        memcpy( m_VendorMetricProperties.data(), metricsProperties.data(),
+                            metricsProperties.size() * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
                     }
                 }
                 else
@@ -838,20 +839,21 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
-        if( it == aggregatedPipelines.end() )
-        {
-            // Create aggregated data struct for this pipeline
-            DeviceProfilerPipelineData aggregatedPipelineData = {};
-            aggregatedPipelineData.m_Handle = pipeline.m_Handle;
-            aggregatedPipelineData.m_BindPoint = pipeline.m_BindPoint;
-            aggregatedPipelineData.m_ShaderTuple = pipeline.m_ShaderTuple;
+        auto emplaced = aggregatedPipelines.try_emplace(
+            pipeline.m_ShaderTuple.m_Hash,
+            static_cast<const DeviceProfilerPipeline&>( pipeline ) );
 
-            it = aggregatedPipelines.emplace( pipeline.m_ShaderTuple.m_Hash, aggregatedPipelineData ).first;
+        DeviceProfilerPipelineData& aggregatedPipelineData = emplaced.first->second;
+
+        if( emplaced.second )
+        {
+            // Initialize aggregated pipeline data if new element was inserted into the map
+            aggregatedPipelineData.m_BeginTimestamp.m_Value = 0;
+            aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
         }
 
         // Increase total pipeline time
-        (*it).second.m_EndTimestamp.m_Value += (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+        aggregatedPipelineData.m_EndTimestamp.m_Value += ( pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value );
     }
 
     /***********************************************************************************\

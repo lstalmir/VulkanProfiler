@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 #include "profiler_overlay_resources.h"
 #include "profiler/profiler_shader.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #include <string_view>
@@ -350,6 +351,46 @@ namespace
     /***********************************************************************************\
 
     Function:
+        TokenizeSpirvLanguageString
+
+    Description:
+        Tokenizes a string that is a part of a SPIR-V instruction.
+        Returns true if a string was found.
+
+        Borrowed from ImGuiTextEditor.
+
+    \***********************************************************************************/
+    static bool TokenizeSpirvLanguageString( const char* in_begin, const char* in_end, const char*& out_begin, const char*& out_end )
+    {
+        if( *in_begin == '"' )
+        {
+            const char* p = in_begin + 1;
+            while( p < in_end )
+            {
+                // handle end of string
+                if( *p == '"' )
+                {
+                    out_begin = in_begin;
+                    out_end = p + 1;
+                    return true;
+                }
+
+                // handle escape character for "
+                if( *p == '\\' && p + 1 < in_end && p[1] == '"' )
+                {
+                    p++;
+                }
+
+                p++;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetSpirvLanguageDefinition
 
     Description:
@@ -363,21 +404,78 @@ namespace
         static bool initialized = false;
         static TextEditor::LanguageDefinition languageDefinition;
 
+        // Precompiled regexes for tokenizing the SPIR-V language.
+        static std::vector<std::pair<std::regex, TextEditor::PaletteIndex>> tokenRegexStrings;
+
         if( !initialized )
         {
             // Initialize the language definition on the first call to this function.
             languageDefinition.mName = "SPIR-V";
 
             // Tokenizer.
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "L?\\\"(\\\\.|[^\\\"])*\\\"", TextEditor::PaletteIndex::String ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "\\'\\\\?[^\\']\\'", TextEditor::PaletteIndex::CharLiteral ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "Op[a-zA-Z0-9]+", TextEditor::PaletteIndex::Keyword ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[a-zA-Z_%][a-zA-Z0-9_]*", TextEditor::PaletteIndex::Identifier ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[+-]?[0-9]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[0-7]+[Uu]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?", TextEditor::PaletteIndex::Number ) );
-            languageDefinition.mTokenRegexStrings.push_back( std::pair( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]", TextEditor::PaletteIndex::Punctuation ) );
+            languageDefinition.mTokenize = []( const char* in_begin, const char* in_end, const char*& out_begin, const char*& out_end, TextEditor::PaletteIndex& paletteIndex ) -> bool {
+                std::cmatch results;
+
+                while( in_begin < in_end && isascii( *in_begin ) && isblank( *in_begin ) )
+                {
+                    in_begin++;
+                }
+
+                if( in_begin == in_end )
+                {
+                    out_begin = in_end;
+                    out_end = in_end;
+                    paletteIndex = TextEditor::PaletteIndex::Default;
+                    return true;
+                }
+
+                // Tokenize strings using a function to avoid stack overflow on Windows.
+                // https://developercommunity.visualstudio.com/t/grouping-within-repetition-causes-regex-stack-erro/885115
+                if( TokenizeSpirvLanguageString( in_begin, in_end, out_begin, out_end ) )
+                {
+                    paletteIndex = TextEditor::PaletteIndex::String;
+                    return true;
+                }
+
+                try
+                {
+                    // Handle other tokens with regex.
+                    for( const auto& [tokenRegex, index] : tokenRegexStrings )
+                    {
+                        if( std::regex_search( in_begin, in_end, results, tokenRegex, std::regex_constants::match_continuous ) )
+                        {
+                            auto& v = *results.begin();
+                            out_begin = v.first;
+                            out_end = v.second;
+                            paletteIndex = index;
+                            return true;
+                        }
+                    }
+                }
+                catch( const std::regex_error& )
+                {
+                    // Tokenization by regex failed, jump to the next word.
+                    while( in_begin < in_end && isascii( *in_begin ) && !isblank( *in_begin ) )
+                    {
+                        in_begin++;
+                    }
+
+                    out_begin = in_begin;
+                    out_end = in_end;
+                }
+
+                paletteIndex = TextEditor::PaletteIndex::Max;
+                return false;
+            };
+
+            tokenRegexStrings.push_back( std::pair( std::regex( "\\'\\\\?[^\\']\\'" ), TextEditor::PaletteIndex::CharLiteral ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "Op[a-zA-Z0-9]+" ), TextEditor::PaletteIndex::Keyword ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[a-zA-Z_%][a-zA-Z0-9_]*" ), TextEditor::PaletteIndex::Identifier ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[+-]?[0-9]+[Uu]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "0[0-7]+[Uu]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "0[xX][0-9a-fA-F]+[uU]?[lL]?[lL]?" ), TextEditor::PaletteIndex::Number ) );
+            tokenRegexStrings.push_back( std::pair( std::regex( "[\\[\\]\\{\\}\\!\\^\\&\\*\\(\\)\\-\\+\\=\\~\\|\\<\\>\\?\\/\\,\\.]" ), TextEditor::PaletteIndex::Punctuation ) );
 
             // Comments.
             languageDefinition.mSingleLineComment = ";";
@@ -561,34 +659,35 @@ namespace Profiler
         Selects the SPIR-V target env used for disassembling the shaders.
 
     \***********************************************************************************/
-    void OverlayShaderView::SetTargetDevice( VkDevice_Object* pDevice )
+    void OverlayShaderView::Initialize( DeviceProfilerFrontend& frontend )
     {
         m_SpvTargetEnv = SPV_ENV_UNIVERSAL_1_0;
 
-        if( pDevice )
+        // Select the target env based on the api version used by the application.
+        switch( frontend.GetApplicationInfo().apiVersion )
         {
-            // Select the target env based on the api version used by the application.
-            switch( pDevice->pInstance->ApplicationInfo.apiVersion )
-            {
-            default:
-            case VK_API_VERSION_1_0:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
-                break;
+        default:
+        case VK_API_VERSION_1_0:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_0;
+            break;
 
-            case VK_API_VERSION_1_1:
-                m_SpvTargetEnv = pDevice->EnabledExtensions.count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
-                    ? SPV_ENV_VULKAN_1_1_SPIRV_1_4
-                    : SPV_ENV_VULKAN_1_1;
-                break;
+        case VK_API_VERSION_1_1:
+            m_SpvTargetEnv = frontend.GetEnabledDeviceExtensions().count( VK_KHR_SPIRV_1_4_EXTENSION_NAME )
+                ? SPV_ENV_VULKAN_1_1_SPIRV_1_4
+                : SPV_ENV_VULKAN_1_1;
+            break;
 
-            case VK_API_VERSION_1_2:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_2;
-                break;
+        case VK_API_VERSION_1_2:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_2;
+            break;
 
-            case VK_API_VERSION_1_3:
-                m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
-                break;
-            }
+        case VK_API_VERSION_1_3:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
+            break;
+
+        case VK_API_VERSION_1_4:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_4;
+            break;
         }
     }
 
@@ -699,9 +798,11 @@ namespace Profiler
     void OverlayShaderView::AddBytecode( const uint32_t* pBinary, size_t wordCount )
     {
         spv_context context = spvContextCreate( static_cast<spv_target_env>(m_SpvTargetEnv) );
-        spv_text text;
+        spv_text text = nullptr;
+        spv_diagnostic diagnostic = nullptr;
 
         // Parse the SPIR-V binary first and remove any instructions that will become redundant.
+        // This step is optional, so we ignore any diagnostic errors returned from this function.
         SpirvParseOutputData parsedSpirv;
         spv_result_t result = spvBinaryParse( context, &parsedSpirv, pBinary, wordCount, ParseSpirvHeader, ParseSpirvInstruction, nullptr );
 
@@ -709,6 +810,11 @@ namespace Profiler
         {
             pBinary = parsedSpirv.m_Bytecode.data();
             wordCount = parsedSpirv.m_Bytecode.size();
+        }
+        else
+        {
+            // Clear the data if the parsing failed to avoid using it in partially-loaded state.
+            parsedSpirv = {};
         }
 
         // Disassembler options.
@@ -718,7 +824,7 @@ namespace Profiler
             SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
 
         // Disassemble the binary.
-        result = spvBinaryToText( context, pBinary, wordCount, options, &text, nullptr );
+        result = spvBinaryToText( context, pBinary, wordCount, options, &text, &diagnostic );
 
         if( result == SPV_SUCCESS )
         {
@@ -857,6 +963,7 @@ namespace Profiler
                             {
                             case SpvSourceLanguageESSL:
                                 spvc_compiler_options_set_bool( options, SPVC_COMPILER_OPTION_GLSL_ES, true );
+                                [[fallthrough]];
 
                             case SpvSourceLanguageGLSL:
                                 spvc_compiler_options_set_uint( options, SPVC_COMPILER_OPTION_GLSL_VERSION, sourceLanguageVersion );
@@ -887,6 +994,30 @@ namespace Profiler
             }
         }
 
+        if( result != SPV_SUCCESS )
+        {
+            // Report an error if the SPIR-V binary parsing failed.
+            std::string errorMessage = "Failed to parse SPIR-V binary";
+
+            if( diagnostic )
+            {
+                errorMessage += ":\n";
+                errorMessage += diagnostic->error;
+
+                if( diagnostic->isTextSource )
+                {
+                    errorMessage += " (line " + std::to_string( diagnostic->position.line ) + "," + std::to_string( diagnostic->position.column ) + ")";
+                }
+                else
+                {
+                    errorMessage += " (word " + std::to_string( diagnostic->position.index ) + ")";
+                }
+            }
+
+            AddShaderRepresentation( "Disassembly", errorMessage.c_str(), errorMessage.length(), ShaderFormat::eText );
+        }
+
+        spvDiagnosticDestroy( diagnostic );
         spvTextDestroy( text );
         spvContextDestroy( context );
     }

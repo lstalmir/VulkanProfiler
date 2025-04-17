@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
 #include "profiler_memory_manager.h"
+#include "profiler_memory_tracker.h"
 #include "profiler_data.h"
 #include "profiler_sync.h"
 #include "profiler_layer_objects/VkObject.h"
@@ -100,7 +101,7 @@ namespace Profiler
 
         void CreatePipelines( uint32_t, const VkGraphicsPipelineCreateInfo*, VkPipeline* );
         void CreatePipelines( uint32_t, const VkComputePipelineCreateInfo*, VkPipeline* );
-        void CreatePipelines( uint32_t, const VkRayTracingPipelineCreateInfoKHR*, VkPipeline* );
+        void CreatePipelines( uint32_t, const VkRayTracingPipelineCreateInfoKHR*, VkPipeline*, bool deferred );
         void DestroyPipeline( VkPipeline );
 
         void CreateShaderModule( VkShaderModule, const VkShaderModuleCreateInfo* );
@@ -122,6 +123,14 @@ namespace Profiler
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );
 
+        void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
+        void DestroyBuffer( VkBuffer );
+        void BindBufferMemory( VkBuffer, VkDeviceMemory, VkDeviceSize );
+
+        void CreateImage( VkImage, const VkImageCreateInfo* );
+        void DestroyImage( VkImage );
+        void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
+
         void SetObjectName( VkObject, const char* );
         void SetDefaultObjectName( VkObject );
         void SetDefaultObjectName( VkPipeline );
@@ -141,14 +150,13 @@ namespace Profiler
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
-        uint32_t                m_CurrentFrame;
+        uint32_t                m_NextFrameIndex;
         uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;
         CpuEventFrequencyCounter m_CpuFpsCounter;
 
-        ConcurrentMap<VkDeviceMemory, VkMemoryAllocateInfo> m_Allocations;
-        DeviceProfilerMemoryData m_MemoryData;
+        DeviceProfilerMemoryTracker m_MemoryTracker;
 
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;
@@ -183,7 +191,7 @@ namespace Profiler
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 
         void SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages );
-        void SetDefaultObjectName( const DeviceProfilerPipeline& pipeline );
+        void SetDefaultPipelineName( const DeviceProfilerPipeline& pipeline, bool deferred = false );
 
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );

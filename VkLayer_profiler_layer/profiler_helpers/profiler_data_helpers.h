@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,8 @@
 
 namespace Profiler
 {
+    class DeviceProfilerFrontend;
+
     /***********************************************************************************\
 
     Class:
@@ -36,7 +38,7 @@ namespace Profiler
     class DeviceProfilerStringSerializer
     {
     public:
-        DeviceProfilerStringSerializer( const struct VkDevice_Object& );
+        DeviceProfilerStringSerializer( DeviceProfilerFrontend& );
 
         std::string GetName( const struct DeviceProfilerDrawcall& ) const;
         std::string GetName( const struct DeviceProfilerPipelineData& ) const;
@@ -82,10 +84,15 @@ namespace Profiler
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
         std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
 
+        std::string GetCopyMicromapModeName( VkCopyMicromapModeEXT mode ) const;
+        std::string GetMicromapTypeName( VkMicromapTypeEXT type ) const;
+        std::string GetBuildMicromapModeName( VkBuildMicromapModeEXT mode ) const;
+        std::string GetBuildMicromapFlagNames( VkBuildMicromapFlagsEXT flags ) const;
+
         std::string GetGeometryTypeName( VkGeometryTypeKHR ) const;
         std::string GetGeometryFlagNames( VkGeometryFlagsKHR ) const;
 
     private:
-        const struct VkDevice_Object& m_Device;
+        DeviceProfilerFrontend& m_Frontend;
     };
 }

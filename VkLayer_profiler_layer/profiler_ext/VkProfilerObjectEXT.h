@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,32 +19,26 @@
 // SOFTWARE.
 
 #pragma once
-#include "imgui_window.h"
-#include <vector>
-#include <xcb/xcb.h>
-#include <xcb/shape.h>
+#include <vulkan/vulkan.h>
 
-struct ImGuiContext;
+#ifndef VK_EXT_profiler_object
+#define VK_EXT_profiler_object 1
+#define VK_EXT_PROFILER_OBJECT_SPEC_VERSION 1
+#define VK_EXT_PROFILER_OBJECT_EXTENSION_NAME "VK_EXT_profiler_object"
 
-class ImGui_ImplXcb_Context : public ImGui_Window_Context
-{
-public:
-    ImGui_ImplXcb_Context( xcb_window_t window );
-    ~ImGui_ImplXcb_Context();
+VK_DEFINE_NON_DISPATCHABLE_HANDLE( VkProfilerEXT );
+VK_DEFINE_NON_DISPATCHABLE_HANDLE( VkProfilerOverlayEXT );
 
-    const char* GetName() const override;
+typedef void( VKAPI_PTR* PFN_vkGetProfilerEXT )(VkDevice, VkProfilerEXT*);
+typedef void( VKAPI_PTR* PFN_vkGetProfilerOverlayEXT )(VkDevice, VkProfilerOverlayEXT*);
 
-    void NewFrame() override;
-    void AddInputCaptureRect( int x, int y, int width, int height ) override;
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerEXT(
+    VkDevice device,
+    VkProfilerEXT* pProfiler );
 
-private:
-    ImGuiContext* m_pImGuiContext;
-    xcb_connection_t* m_Connection;
-    xcb_window_t m_AppWindow;
-    xcb_window_t m_InputWindow;
-    std::vector<xcb_rectangle_t> m_InputRects;
-
-    xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
-
-    void UpdateMousePos();
-};
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerOverlayEXT(
+    VkDevice device,
+    VkProfilerOverlayEXT* pOverlay );
+#endif // VK_NO_PROTOTYPES
+#endif // VK_EXT_profiler_object

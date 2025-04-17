@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +20,11 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
+#include <algorithm>
 #include <vector>
+#include <string>
 #include <string_view>
-
-#include "vk_dispatch_tables.h"
-
-#include "profiler_layer_functions/core/VkInstance_functions.h"
-#include "profiler_layer_functions/core/VkDevice_functions.h"
+#include <string.h>
 
 #define VERIFY_RESULT( VK, EXPR ) VK->VerifyResult( (EXPR), #EXPR )
 
@@ -106,9 +104,9 @@ namespace Profiler
 
         struct CreateInfo
         {
-            std::vector<VulkanExtension*> InstanceExtensions = {};
-            std::vector<VulkanExtension*> DeviceExtensions = {};
-            std::vector<VulkanFeature*> DeviceFeatures = {};
+            std::vector<VulkanExtension*> InstanceExtensions;
+            std::vector<VulkanExtension*> DeviceExtensions;
+            std::vector<VulkanFeature*> DeviceFeatures;
         };
 
     public:
@@ -123,13 +121,11 @@ namespace Profiler
             , CommandPool( VK_NULL_HANDLE )
             , DescriptorPool( VK_NULL_HANDLE )
         {
-            DeviceProfiler* profiler = nullptr;
-
             // Application info
             {
                 ApplicationInfo = {};
                 ApplicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-                ApplicationInfo.apiVersion = VK_API_VERSION_1_0;
+                ApplicationInfo.apiVersion = VK_API_VERSION_1_1;
                 ApplicationInfo.applicationVersion = VK_MAKE_VERSION( 1, 0, 0 );
                 ApplicationInfo.pApplicationName = "VK_LAYER_profiler_ULT";
                 ApplicationInfo.engineVersion = VK_MAKE_VERSION( 1, 0, 0 );
@@ -163,7 +159,7 @@ namespace Profiler
                 vkGetPhysicalDeviceProperties( PhysicalDevice, &PhysicalDeviceProperties );
                 vkGetPhysicalDeviceMemoryProperties( PhysicalDevice, &PhysicalDeviceMemoryProperties );
             }
-            
+
             // Select graphics queue
             {
                 uint32_t queueFamilyCount = 0;
@@ -175,7 +171,7 @@ namespace Profiler
                 for( uint32_t i = 0; i < queueFamilyCount; ++i )
                 {
                     const VkQueueFamilyProperties& properties = PhysicalDeviceQueueProperties[ i ];
-                    
+
                     if( (properties.queueCount > 0) &&
                         (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
                         (properties.timestampValidBits > 0) )
@@ -274,39 +270,8 @@ namespace Profiler
                 descriptorPoolCreateInfo.maxSets = 1000;
                 descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype(descriptorPoolSizes)>;
                 descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
-                
+
                 VERIFY_RESULT( this, vkCreateDescriptorPool( Device, &descriptorPoolCreateInfo, nullptr, &DescriptorPool ) );
-            }
-
-            // Initialize layer
-            {
-                VkInstance_Functions::Dispatch& id = VkInstance_Functions::InstanceDispatch.Create( Instance );
-                id.Instance.Handle = Instance;
-                id.Instance.ApplicationInfo = ApplicationInfo;
-                id.Instance.SetInstanceLoaderData = SetInstanceLoaderData;
-                id.Instance.Callbacks.Initialize( Instance, vkGetInstanceProcAddr );
-
-                VkPhysicalDevice_Object& dev = id.Instance.PhysicalDevices[ PhysicalDevice ];
-                dev.Properties = PhysicalDeviceProperties;
-                dev.MemoryProperties = PhysicalDeviceMemoryProperties;
-                dev.QueueFamilyProperties = PhysicalDeviceQueueProperties;
-
-                VkDevice_Functions::Dispatch& dd = VkDevice_Functions::DeviceDispatch.Create( Device );
-                dd.Device.Handle = Device;
-                dd.Device.pPhysicalDevice = &dev;
-                dd.Device.pInstance = &id.Instance;
-                dd.Device.SetDeviceLoaderData = SetDeviceLoaderData;
-                dd.Device.Callbacks.Initialize( Device, vkGetDeviceProcAddr );
-
-                VkQueue_Object queue = {};
-                queue.Handle = Queue;
-                queue.Family = QueueFamilyIndex;
-                queue.Index = 0;
-                queue.Flags = VK_QUEUE_GRAPHICS_BIT;
-                dd.Device.Queues.emplace( Queue, queue );
-
-                dd.Profiler.Initialize( &dd.Device, nullptr );
-                profiler = &dd.Profiler;
             }
 
             // Create command pool
@@ -317,15 +282,12 @@ namespace Profiler
                 commandPoolCreateInfo.queueFamilyIndex = QueueFamilyIndex;
 
                 VERIFY_RESULT( this, vkCreateCommandPool( Device, &commandPoolCreateInfo, nullptr, &CommandPool ) );
-
-                // Register the command pool.
-                profiler->CreateCommandPool( CommandPool, &commandPoolCreateInfo );
             }
         }
 
         inline void VerifyResult( VkResult result, const char* message )
         {
-            if( result != VK_SUCCESS && result != VK_INCOMPLETE )
+            if( result < 0 )
             {
                 throw VulkanError( result, message );
             }
@@ -335,10 +297,10 @@ namespace Profiler
         {
             vkDeviceWaitIdle( Device );
 
-            VkDevice_Functions::Dispatch& dd = VkDevice_Functions::DeviceDispatch.Get( Device );
-            dd.Profiler.Destroy();
+            // Destroy resources allocated for the test
+            vkDestroyCommandPool( Device, CommandPool, nullptr );
+            vkDestroyDescriptorPool( Device, DescriptorPool, nullptr );
 
-            VkDevice_Functions::DeviceDispatch.Erase( Device );
             // This frees all resources created with this device
             vkDestroyDevice( Device, nullptr );
             Device = VK_NULL_HANDLE;
@@ -347,39 +309,12 @@ namespace Profiler
             CommandPool = VK_NULL_HANDLE;
             DescriptorPool = VK_NULL_HANDLE;
 
-            VkInstance_Functions::InstanceDispatch.Erase( Instance );
             // This frees all resources created with this instance
             vkDestroyInstance( Instance, nullptr );
             Instance = VK_NULL_HANDLE;
             PhysicalDevice = VK_NULL_HANDLE;
             PhysicalDeviceProperties = {};
             ApplicationInfo = {};
-        }
-
-        inline VkLayerDeviceDispatchTable GetLayerDispatchTable() const
-        {
-            VkLayerDeviceDispatchTable dispatchTable = {};
-            dispatchTable.Initialize( Device, VkDevice_Functions::GetDeviceProcAddr );
-            return dispatchTable;
-        }
-
-        inline VkLayerInstanceDispatchTable GetLayerInstanceDispatchTable() const
-        {
-            VkLayerInstanceDispatchTable dispatchTable = {};
-            dispatchTable.Initialize( Instance, VkInstance_Functions::GetInstanceProcAddr );
-            return dispatchTable;
-        }
-
-        inline static VkResult SetInstanceLoaderData( VkInstance instance, void *object )
-        {
-            (*(void**)object) = (*(void**)instance);
-            return VK_SUCCESS;
-        }
-
-        inline static VkResult SetDeviceLoaderData( VkDevice device, void *object )
-        {
-            (*(void**)object) = (*(void**)device);
-            return VK_SUCCESS;
         }
 
     private:
@@ -406,6 +341,7 @@ namespace Profiler
                         throw VulkanError( VK_ERROR_EXTENSION_NOT_PRESENT,
                             pExtension->Name + ", spec " + std::to_string( pExtension->Spec ) );
                     }
+                    continue;
                 }
 
                 extensions.push_back( pExtension->Name.c_str() );

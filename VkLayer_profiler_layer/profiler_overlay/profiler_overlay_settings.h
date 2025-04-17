@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_overlay_types.h"
 #include <string>
 
 struct ImGuiContext;
@@ -52,6 +53,7 @@ namespace Profiler
 
         bool* AddBool( const char* pName, bool defaultValue = false );
         int* AddInt( const char* pName, int defaultValue = 0 );
+        Float2* AddFloat2( const char* pName, const Float2& defaultValue = Float2() );
         std::string* AddString( const char* pName, const std::string& defaultValue = std::string() );
 
     private:
@@ -65,6 +67,7 @@ namespace Profiler
         struct Setting;
         struct BoolSetting;
         struct IntSetting;
+        struct Float2Setting;
         struct StringSetting;
 
         Setting* m_pSettings;

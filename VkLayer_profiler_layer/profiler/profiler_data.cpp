@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -390,5 +390,44 @@ namespace Profiler
         }
 
         return ppDuplicatedPrimitiveCounts;
+    }
+
+    VkMicromapBuildInfoEXT* DeviceProfilerDrawcall::CopyMicromapBuildInfos(
+        uint32_t infoCount,
+        const VkMicromapBuildInfoEXT* pInfos )
+    {
+        VkMicromapBuildInfoEXT* pDuplicatedInfos = CopyElements( infoCount, pInfos );
+
+        // Create copy of usage counts of each build info
+        for( uint32_t i = 0; i < infoCount; ++i )
+        {
+            VkMicromapBuildInfoEXT& buildInfo = pDuplicatedInfos[i];
+            const uint32_t usageCount = buildInfo.usageCountsCount;
+
+            if( buildInfo.pUsageCounts != nullptr )
+            {
+                buildInfo.pUsageCounts = CopyElements( usageCount, buildInfo.pUsageCounts );
+            }
+
+            else if( buildInfo.ppUsageCounts != nullptr )
+            {
+                VkMicromapUsageEXT* pUsageCounts =
+                    reinterpret_cast<VkMicromapUsageEXT*>( malloc( usageCount * sizeof( VkMicromapUsageEXT ) ) );
+
+                if( pUsageCounts != nullptr )
+                {
+                    for( uint32_t j = 0; j < usageCount; ++j )
+                    {
+                        pUsageCounts[j] = *buildInfo.ppUsageCounts[j];
+                    }
+                }
+
+                buildInfo.pUsageCounts = pUsageCounts;
+            }
+
+            buildInfo.ppUsageCounts = nullptr;
+        }
+
+        return pDuplicatedInfos;
     }
 }

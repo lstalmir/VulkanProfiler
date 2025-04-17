@@ -214,6 +214,8 @@ set (core_functions
 set (extension_functions
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.h"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.cpp"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.cpp"
@@ -234,6 +236,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkMeshShaderExt_functions.h"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.cpp"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.h"
+    "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.h"
     "profiler_layer_functions/extensions/VkPipelineExecutablePropertiesKhr_functions.h"
     "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.h"
@@ -260,6 +264,8 @@ set (extension_functions
     )
 
 set (objects
+    "profiler_layer_objects/profiler_layer_frontend.cpp"
+    "profiler_layer_objects/profiler_layer_frontend.h"
     "profiler_layer_objects/VkDevice_object.h"
     "profiler_layer_objects/VkInstance_object.h"
     "profiler_layer_objects/VkObject.h"

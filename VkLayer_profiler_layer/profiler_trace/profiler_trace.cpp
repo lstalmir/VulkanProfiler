@@ -532,18 +532,20 @@ namespace Profiler
         {
             if( data.m_Type == DeviceProfilerDrawcallType::eInsertDebugLabel )
             {
+                const char* pDebugLabel = data.m_Payload.m_DebugLabel.m_pName == nullptr ? "" : data.m_Payload.m_DebugLabel.m_pName;
                 // Insert debug labels as instant events
                 m_pEvents.push_back( new DebugTraceEvent(
                     TraceEvent::Phase::eInstant,
-                    data.m_Payload.m_DebugLabel.m_pName,
+                    pDebugLabel,
                     GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
             }
 
             if( data.m_Type == DeviceProfilerDrawcallType::eBeginDebugLabel )
             {
+                const char* pDebugLabel = data.m_Payload.m_DebugLabel.m_pName == nullptr ? "" : data.m_Payload.m_DebugLabel.m_pName;
                 m_pEvents.push_back( new DebugTraceEvent(
                     TraceEvent::Phase::eDurationBegin,
-                    data.m_Payload.m_DebugLabel.m_pName,
+                    pDebugLabel,
                     GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
 
                 m_DebugLabelStackDepth++;

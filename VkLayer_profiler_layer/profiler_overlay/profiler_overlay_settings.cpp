@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -105,6 +105,32 @@ namespace Profiler
         void Reset() final { m_Value = m_Default; }
         void Read( const std::string_view& value ) final { m_Value = std::stoi( std::string( value ) ); }
         void Write( ImGuiTextBuffer* pOut ) const final { pOut->appendf( "%d", m_Value ); }
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        Float2Setting
+
+    Description:
+        Implements a setting that holds an pair of floats.
+
+    \***********************************************************************************/
+    struct OverlaySettings::Float2Setting : public OverlaySettings::Setting
+    {
+        Float2 m_Value;
+        Float2 m_Default;
+
+        Float2Setting( Setting*& pSettings, const char* pName, Float2 value )
+            : Setting( pSettings, pName )
+            , m_Value( value )
+            , m_Default( value )
+        {
+        }
+
+        void Reset() final { m_Value = m_Default; }
+        void Read( const std::string_view& value ) final { sscanf( value.data(), "%f %f", &m_Value.x, &m_Value.y ); }
+        void Write( ImGuiTextBuffer* pOut ) const final { pOut->appendf( "%f %f", m_Value.x, m_Value.y ); }
     };
 
     /***********************************************************************************\
@@ -268,6 +294,21 @@ namespace Profiler
     int* OverlaySettings::AddInt( const char* pName, int defaultValue )
     {
         return &(new IntSetting( m_pSettings, pName, defaultValue ))->m_Value;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AddFloat2
+
+    Description:
+        Registers an Float2 setting and returns a pointer to the value that will be
+        read from the ini file.
+
+    \***********************************************************************************/
+    Float2* OverlaySettings::AddFloat2( const char* pName, const Float2& defaultValue )
+    {
+        return &(new Float2Setting( m_pSettings, pName, defaultValue ))->m_Value;
     }
 
     /***********************************************************************************\

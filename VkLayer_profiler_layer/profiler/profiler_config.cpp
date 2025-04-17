@@ -33,6 +33,7 @@ namespace Profiler
         m_EnablePerformanceQueryExt = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) == 0;
         m_EnableRenderPassBeginEndProfiling = (pCreateInfo->flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0;
         m_SetStablePowerState = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_STABLE_POWER_STATE) == 0;
+        m_EnableThreading = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_THREADING_EXT) == 0;
         m_SamplingMode = pCreateInfo->samplingMode;
         m_SyncMode = pCreateInfo->syncMode;
     }
