@@ -161,6 +161,7 @@ namespace Profiler
         , m_SubmitFence( VK_NULL_HANDLE )
         , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
         , m_PipelineExecutablePropertiesEnabled( false )
+        , m_ShaderModuleIdentifierEnabled( false )
         , m_pStablePowerStateHandle( nullptr )
     {
     }
@@ -168,54 +169,123 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        EnumerateOptionalDeviceExtensions
+        SetupDeviceCreateInfo
 
     Description:
         Get list of optional device extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo )
+    void DeviceProfiler::SetupDeviceCreateInfo(
+        VkPhysicalDevice_Object& physicalDevice,
+        const ProfilerLayerSettings& settings,
+        std::unordered_set<std::string>& deviceExtensions,
+        PNextChain& devicePNextChain )
     {
-        std::unordered_set<std::string> deviceExtensions = {
-            VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME
-        };
+        // Check if profiler create info was provided.
+        const VkProfilerCreateInfoEXT* pProfilerCreateInfo =
+            devicePNextChain.Find<VkProfilerCreateInfoEXT>( VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT );
 
         // Load configuration that will be used by the profiler.
         DeviceProfilerConfig config;
-        DeviceProfiler::LoadConfiguration( settings, pCreateInfo, &config );
+        DeviceProfiler::LoadConfiguration( settings, pProfilerCreateInfo, &config );
+
+        // Enumerate available extensions.
+        uint32_t extensionCount = 0;
+        physicalDevice.pInstance->Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice.Handle, nullptr, &extensionCount, nullptr );
+
+        std::vector<VkExtensionProperties> availableExtensions( extensionCount );
+        physicalDevice.pInstance->Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice.Handle, nullptr, &extensionCount, availableExtensions.data() );
+
+        std::unordered_set<std::string> availableExtensionNames;
+        for( const VkExtensionProperties& extension : availableExtensions )
+        {
+            availableExtensionNames.insert( extension.extensionName );
+        }
+
+        // Enable shader module identifier if available.
+        if( availableExtensionNames.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+            !devicePNextChain.Contains( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT ) )
+        {
+            bool enableShaderModuleIdentifier = false;
+
+            if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_3 ) &&
+                ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_3 ) )
+            {
+                enableShaderModuleIdentifier = true;
+            }
+            else
+            {
+                if( availableExtensionNames.count( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME ) )
+                {
+                    if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 ) &&
+                        ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) )
+                    {
+                        deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
+                        enableShaderModuleIdentifier = true;
+                    }
+                    else if( availableExtensionNames.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+                    {
+                        deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
+                        deviceExtensions.insert( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+                        enableShaderModuleIdentifier = true;
+                    }
+                }
+            }
+
+            if( enableShaderModuleIdentifier )
+            {
+                // Enable shader module identifiers.
+                deviceExtensions.insert( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME );
+
+                VkPhysicalDeviceShaderModuleIdentifierFeaturesEXT shaderModuleIdentifierFeatures = {};
+                shaderModuleIdentifierFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT;
+                shaderModuleIdentifierFeatures.shaderModuleIdentifier = VK_TRUE;
+
+                devicePNextChain.Append( shaderModuleIdentifierFeatures );
+            }
+        }
 
         if( config.m_EnablePerformanceQueryExt )
         {
-            // Enable MDAPI data collection on Intel GPUs
-            deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+            if( availableExtensionNames.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+            {
+                // Enable MDAPI data collection on Intel GPUs.
+                deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+            }
         }
 
         if( config.m_EnablePipelineExecutablePropertiesExt )
         {
-            // Enable pipeline executable properties capture
-            deviceExtensions.insert( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
-        }
+            if( availableExtensionNames.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME ) &&
+                !devicePNextChain.Contains( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR ) )
+            {
+                // Enable pipeline executable properties capture.
+                deviceExtensions.insert( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
 
-        return deviceExtensions;
+                VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR pipelineExecutablePropertiesFeatures = {};
+                pipelineExecutablePropertiesFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
+                pipelineExecutablePropertiesFeatures.pipelineExecutableInfo = VK_TRUE;
+
+                devicePNextChain.Append( pipelineExecutablePropertiesFeatures );
+            }
+        }
     }
 
     /***********************************************************************************\
 
     Function:
-        EnumerateOptionalInstanceExtensions
+        SetupInstanceCreateInfo
 
     Description:
         Get list of optional instance extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalInstanceExtensions()
+    void DeviceProfiler::SetupInstanceCreateInfo( std::unordered_set<std::string>& instanceExtensions )
     {
-        return {
-            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-        };
+        instanceExtensions.insert( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
+        instanceExtensions.insert( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
     }
 
     /***********************************************************************************\
@@ -259,13 +329,18 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice, const VkProfilerCreateInfoEXT* pCreateInfo )
+    VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice, const VkDeviceCreateInfo* pCreateInfo )
     {
         m_pDevice = pDevice;
         m_NextFrameIndex = 0;
 
+        // Check if profiler create info was provided.
+        const PNextChain pNextChain( pCreateInfo->pNext );
+        const VkProfilerCreateInfoEXT* pProfilerCreateInfo =
+            pNextChain.Find<VkProfilerCreateInfoEXT>( VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT );
+
         // Configure the profiler.
-        DeviceProfiler::LoadConfiguration( pDevice->pInstance->LayerSettings, pCreateInfo, &m_Config );
+        DeviceProfiler::LoadConfiguration( pDevice->pInstance->LayerSettings, pProfilerCreateInfo, &m_Config );
 
         // Check if preemption is enabled
         // It may break the results
@@ -299,6 +374,30 @@ namespace Profiler
         m_PipelineExecutablePropertiesEnabled =
             m_Config.m_EnablePipelineExecutablePropertiesExt &&
             m_pDevice->EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
+
+        if( m_PipelineExecutablePropertiesEnabled )
+        {
+            const VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR* pPipelineExecutablePropertiesFeatures =
+                pNextChain.Find<VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR>( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR );
+
+            m_PipelineExecutablePropertiesEnabled =
+                ( pPipelineExecutablePropertiesFeatures != nullptr ) &&
+                ( pPipelineExecutablePropertiesFeatures->pipelineExecutableInfo == VK_TRUE );
+        }
+
+        // Collect shader module identifiers if available
+        m_ShaderModuleIdentifierEnabled =
+            m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME );
+
+        if( m_ShaderModuleIdentifierEnabled )
+        {
+            const VkPhysicalDeviceShaderModuleIdentifierFeaturesEXT* pShaderModuleIdentifierFeatures =
+                pNextChain.Find<VkPhysicalDeviceShaderModuleIdentifierFeaturesEXT>( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT );
+
+            m_ShaderModuleIdentifierEnabled =
+                ( pShaderModuleIdentifierFeatures != nullptr ) &&
+                ( pShaderModuleIdentifierFeatures->shaderModuleIdentifier == VK_TRUE );
+        }
 
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
@@ -886,8 +985,7 @@ namespace Profiler
         VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
         shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
 
-        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
-            m_pDevice->Callbacks.GetShaderModuleIdentifierEXT )
+        if( m_ShaderModuleIdentifierEnabled )
         {
             // Get shader module identifier.
             m_pDevice->Callbacks.GetShaderModuleIdentifierEXT( m_pDevice->Handle, module, &shaderModuleIdentifier );
@@ -938,8 +1036,7 @@ namespace Profiler
             VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
             shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
 
-            if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
-                m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+            if( m_ShaderModuleIdentifierEnabled )
             {
                 // Get shader module identifier from a temporary shader module info structure based on the provided shader.
                 VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
@@ -1578,8 +1675,7 @@ namespace Profiler
                         VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
                         shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
 
-                        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
-                            m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+                        if( m_ShaderModuleIdentifierEnabled )
                         {
                             m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT(
                                 m_pDevice->Handle,
