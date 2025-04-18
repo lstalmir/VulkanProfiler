@@ -97,33 +97,13 @@ namespace Profiler
             deviceExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
         }
 
-        // Check if profiler create info was provided
-        const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
-
-        for( const auto& it : PNextIterator( pCreateInfo->pNext ) )
-        {
-            if( it.sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
-            {
-                pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>( &it );
-                break;
-            }
-        }
-
-        // Enable available optional device extensions
-        std::unordered_set<std::string> requestedExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions(
+        // Configure device extensions and pNext chain to enable profiler features
+        PNextChain pNextChain( pCreateInfo->pNext );
+        DeviceProfiler::SetupDeviceCreateInfo(
             dev,
             id.Instance.LayerSettings,
-            pProfilerCreateInfo );
-
-        for( uint32_t i = 0; i < availableExtensionCount; ++i )
-        {
-            if( optionalDeviceExtensions.count( pAvailableDeviceExtensions[ i ].extensionName ) )
-            {
-                deviceExtensions.insert( pAvailableDeviceExtensions[ i ].extensionName );
-            }
-        }
-
-        delete[] pAvailableDeviceExtensions;
+            deviceExtensions,
+            pNextChain );
 
         // Convert to continuous memory block
         std::vector<const char*> enabledDeviceExtensions;

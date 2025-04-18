@@ -190,62 +190,64 @@ namespace Profiler
     \***********************************************************************************/
     struct PNextChain
     {
-        const void*                             m_pApplicationData;
-        std::list<std::unique_ptr<std::byte[]>> m_pOverriddenData;
+        // Head of the pNext chain.
+        void* m_pHead;
 
-        template<typename StructureType>
-        StructureType* Append( VkStructureType sType )
+        // Pointer to the tail of the chain provided by the application.
+        // Used to mark end of dynamic allocations made by the layer.
+        const void* m_pTail;
+
+        // Create a new chain initialized with data from the application.
+        explicit PNextChain( const void* pNext = nullptr )
+            : m_pHead( nullptr )
+            , m_pTail( pNext )
         {
-            // Check if the structure is already present in the overridden chain.
-            if (!m_pOverriddenData.empty())
+        }
+
+        const void* GetHead() const
+        {
+            return ( m_pHead != nullptr ) ? m_pHead : m_pTail;
+        }
+
+        bool Contains( VkStructureType sType ) const
+        {
+            return Find( sType ) != nullptr;
+        }
+
+        const void* Find( VkStructureType sType ) const
+        {
+            const VkBaseInStructure* pStructure = reinterpret_cast<const VkBaseInStructure*>( GetHead() );
+            while( pStructure )
             {
-                for (VkBaseOutStructure& structure : PNextIterator((void*)m_pOverriddenData.front().get()))
+                if( pStructure->sType == sType )
                 {
-                    if (structure.sType == sType)
-                    {
-                        return reinterpret_cast<StructureType*>(&structure);
-                    }
+                    return pStructure;
                 }
+                pStructure = pStructure->pNext;
             }
-
-            // Check if the structure is present in the application chain.
-            const StructureType* pApplicationStructure = nullptr;
-            for (const VkBaseInStructure& structure : PNextIterator(m_pApplicationData))
-            {
-                if (structure.sType == sType)
-                {
-                    pApplicationStructure = reinterpret_cast<const StructureType*>(&structure);
-                    break;
-                }
-            }
-
-            // Allocate memory for the structure.
-            std::unique_ptr<std::byte[]> pData;
-            pData.reset( new (std::nothrow) std::byte[ sizeof( StructureType ) ] );
-
-            if( pData )
-            {
-                StructureType* pStructure = reinterpret_cast<StructureType*>( pData.get() );
-
-                if( pApplicationStructure )
-                {
-                    // Initialize with application data.
-                    *pStructure = *pApplicationStructure;
-                }
-
-                if( !m_pData.empty() )
-                {
-                    // Append to the last structure in the chain.
-                    VkBaseOutStructure* pPreviousStructure = reinterpret_cast<VkBaseOutStructure*>( m_pData.back().get() );
-                    pPreviousStructure->pNext = reinterpret_cast<VkBaseOutStructure*>( pStructure );
-                }
-
-                m_pData.emplace_back( std::move( pData ) );
-
-                return pStructure;
-            }
-
             return nullptr;
+        }
+
+        template<typename T>
+        const T* Find( VkStructureType sType ) const
+        {
+            return reinterpret_cast<const T*>( Find( sType ) );
+        }
+
+        template<typename T>
+        void Append( const T& structure )
+        {
+            assert( !Contains( structure.sType ) );
+
+            void* pStructure = malloc( sizeof( T ) );
+            if( pStructure )
+            {
+                memcpy( pStructure, &structure, sizeof( T ) );
+                reinterpret_cast<VkBaseInStructure*>( pStructure )->pNext =
+                    reinterpret_cast<const VkBaseInStructure*>( GetHead() );
+
+                m_pHead = pStructure;
+            }
         }
     };
 

@@ -66,8 +66,8 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( VkPhysicalDevice_Object&, const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT* );
-        static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
+        static void SetupDeviceCreateInfo( VkPhysicalDevice_Object&, const ProfilerLayerSettings&, std::unordered_set<std::string>&, PNextChain& );
+        static void SetupInstanceCreateInfo( std::unordered_set<std::string>& );
 
         static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
