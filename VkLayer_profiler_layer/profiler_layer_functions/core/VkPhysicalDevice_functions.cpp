@@ -116,6 +116,7 @@ namespace Profiler
 
         // Override device create info
         VkDeviceCreateInfo createInfo = (*pCreateInfo);
+        createInfo.pNext = pNextChain.GetHead();
         createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledDeviceExtensions.size());
         createInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
 
