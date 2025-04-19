@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Lukasz Stalmirski
+# Copyright (c) 2024-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,3 +27,6 @@ else ()
     cmake_policy (SET CMP0091 NEW)
     set (CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif ()
+
+# Use all available cores to compile each target.
+add_compile_options ($<$<CXX_COMPILER_ID:MSVC>:/MP>)
