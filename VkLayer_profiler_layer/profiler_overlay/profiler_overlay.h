@@ -134,7 +134,14 @@ namespace Profiler
 
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
-        std::shared_ptr<DeviceProfilerFrameData> m_pData;
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pFrames;
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pSelectedFrames;
+         // 0 - current frame, 1 - previous frame, etc. (0xFFFFFFFF - all frames)
+        uint32_t m_SelectedFrameIndex;
+        uint32_t m_MaxFrameCount;
+
+        static constexpr uint32_t m_SelectedAllFrames = UINT32_MAX;
+
         bool m_Pause;
         bool m_Fullscreen;
         bool m_ShowDebugLabels;
@@ -315,6 +322,7 @@ namespace Profiler
         void ShaderRepresentationSaved( bool, const std::string& );
 
         // Frame browser helpers
+        void PrintFrame( const DeviceProfilerFrameData&, FrameBrowserTreeNodeIndex& );
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
         void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool, const FrameBrowserContext& );
@@ -336,6 +344,7 @@ namespace Profiler
 
         template<typename Data>
         void PrintDuration( const Data& data );
+        void PrintDuration( uint64_t from, uint64_t to );
 
         template<typename Data>
         float GetDuration( const Data& data ) const;
