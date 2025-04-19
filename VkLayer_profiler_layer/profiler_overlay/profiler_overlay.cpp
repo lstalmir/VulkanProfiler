@@ -441,6 +441,8 @@ namespace Profiler
         m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::time_point();
         m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::time_point();
 
+        m_SelectedSemaphores.clear();
+
         m_InspectorPipeline = DeviceProfilerPipeline();
         m_InspectorShaderView.Clear();
         m_InspectorTabs.clear();
@@ -1114,7 +1116,6 @@ namespace Profiler
                     queueUtilization * 100.f / frameDuration );
 
                 ImGui::PushItemWidth( -1 );
-                ImGui::SetCursorPosY( ImGui::GetCursorPosY() - 3 * interfaceScale );
                 ImGuiX::PlotHistogramEx(
                     queueGraphId,
                     queueGraphColumns.data(),
@@ -1158,11 +1159,19 @@ namespace Profiler
             const DeviceProfilerCommandBufferData& commandBufferData =
                 *reinterpret_cast<const DeviceProfilerCommandBufferData*>( column.userData );
 
-            ImGui::SetTooltip( "%s\n%.2f %s",
-                m_pStringSerializer->GetName( commandBufferData.m_Handle ).c_str(),
-                column.x,
-                m_pTimestampDisplayUnitStr );
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::Text( "%s\n%.2f %s",
+                    m_pStringSerializer->GetName( commandBufferData.m_Handle ).c_str(),
+                    column.x,
+                    m_pTimestampDisplayUnitStr );
 
+                ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
+                ImGui::TextUnformatted( "Click to show in Frame Browser" );
+                ImGui::PopStyleColor();
+
+                ImGui::EndTooltip();
+            }
             break;
         }
         case QueueGraphColumn::eSignalSemaphores:
@@ -1173,10 +1182,19 @@ namespace Profiler
             if( ImGui::BeginTooltip() )
             {
                 ImGui::Text( "Signal semaphores:" );
-                for( const auto& semaphore : semaphores )
+
+                ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
+                for( VkSemaphore semaphore : semaphores )
                 {
-                    ImGui::TextUnformatted( m_pStringSerializer->GetName( semaphore ).c_str() );
+                    ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
+                ImGui::PopStyleVar();
+                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+
+                ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
+                ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
+                ImGui::PopStyleColor();
+
                 ImGui::EndTooltip();
             }
             break;
@@ -1189,10 +1207,19 @@ namespace Profiler
             if( ImGui::BeginTooltip() )
             {
                 ImGui::Text( "Wait semaphores:" );
-                for( const auto& semaphore : semaphores )
+
+                ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
+                for( VkSemaphore semaphore : semaphores )
                 {
-                    ImGui::TextUnformatted( m_pStringSerializer->GetName( semaphore ).c_str() );
+                    ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
+                ImGui::PopStyleVar();
+                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+
+                ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
+                ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
+                ImGui::PopStyleColor();
+
                 ImGui::EndTooltip();
             }
             break;
@@ -1213,12 +1240,41 @@ namespace Profiler
     {
         const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
 
-        if( !column.nodeIndex.empty() )
+        switch( column.userDataType )
+        {
+        case QueueGraphColumn::eCommandBuffer:
         {
             m_SelectedFrameBrowserNodeIndex = column.nodeIndex;
             m_ScrollToSelectedFrameBrowserNode = true;
 
             m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
+            break;
+        }
+        case QueueGraphColumn::eSignalSemaphores:
+        case QueueGraphColumn::eWaitSemaphores:
+        {
+            const std::vector<VkSemaphore>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+
+            // Unselect the semaphores if they are already selected.
+            bool unselect = false;
+            for( VkSemaphore semaphore : semaphores )
+            {
+                if( m_SelectedSemaphores.count( semaphore ) )
+                {
+                    unselect = true;
+                    break;
+                }
+            }
+
+            m_SelectedSemaphores.clear();
+
+            if( !unselect )
+            {
+                m_SelectedSemaphores.insert( semaphores.begin(), semaphores.end() );
+            }
+            break;
+        }
         }
     }
 
@@ -2917,6 +2973,24 @@ namespace Profiler
 
         uint64_t lastTimestamp = m_pData->m_BeginTimestamp;
 
+        auto AppendSemaphoreEvent = [&]( const std::vector<VkSemaphore>& semaphores, QueueGraphColumn::DataType type ) {
+            QueueGraphColumn& column = columns.emplace_back();
+            column.flags = ImGuiX::HistogramColumnFlags_Event;
+            column.color = IM_COL32( 128, 128, 128, 255 );
+            column.userDataType = type;
+            column.userData = &semaphores;
+
+            // Highlight events with selected semaphores.
+            for( VkSemaphore semaphore : semaphores )
+            {
+                if( m_SelectedSemaphores.count( semaphore ) )
+                {
+                    column.color = IM_COL32( 255, 32, 16, 255 );
+                    break;
+                }
+            }
+        };
+
         for( const auto& submitBatch : m_pData->m_Submits )
         {
             if( submitBatch.m_Handle != queue )
@@ -2958,11 +3032,7 @@ namespace Profiler
                     if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
                     {
                         // Enumerate wait semaphores before the first executed command buffer.
-                        QueueGraphColumn& semaphores = columns.emplace_back();
-                        semaphores.flags = ImGuiX::HistogramColumnFlags_Event;
-                        semaphores.color = IM_COL32( 255, 0, 0, 255 );
-                        semaphores.userDataType = QueueGraphColumn::eWaitSemaphores;
-                        semaphores.userData = &submit.m_WaitSemaphores;
+                        AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
                     }
 
                     QueueGraphColumn& column = columns.emplace_back();
@@ -2982,21 +3052,13 @@ namespace Profiler
                 // Insert wait semaphores if no command buffers were submitted.
                 if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
                 {
-                    QueueGraphColumn& semaphores = columns.emplace_back();
-                    semaphores.flags = ImGuiX::HistogramColumnFlags_Event;
-                    semaphores.color = IM_COL32( 255, 0, 0, 255 );
-                    semaphores.userDataType = QueueGraphColumn::eWaitSemaphores;
-                    semaphores.userData = &submit.m_WaitSemaphores;
+                    AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
                 }
 
                 // Enumerate signal semaphores after the last executed command buffer.
                 if( !submit.m_SignalSemaphores.empty() )
                 {
-                    QueueGraphColumn& semaphores = columns.emplace_back();
-                    semaphores.flags = ImGuiX::HistogramColumnFlags_Event;
-                    semaphores.color = IM_COL32( 128, 255, 255, 255 );
-                    semaphores.userDataType = QueueGraphColumn::eSignalSemaphores;
-                    semaphores.userData = &submit.m_SignalSemaphores;
+                    AppendSemaphoreEvent( submit.m_SignalSemaphores, QueueGraphColumn::eSignalSemaphores );
                 }
 
                 index.pop_back();

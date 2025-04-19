@@ -194,6 +194,28 @@ namespace ImGuiX
                     { x_pos, y_pos + 5.0f * g.IO.FontGlobalScale },
                     data.color );
 
+                // Check if mouse is over the event
+                const ImRect event_bb(
+                    { x_pos - 5.0f * g.IO.FontGlobalScale, y_pos - 5.0f * g.IO.FontGlobalScale },
+                    { x_pos + 5.0f * g.IO.FontGlobalScale, y_pos + 5.0f * g.IO.FontGlobalScale } );
+
+                const bool event_hovered =
+                    ( flags & HistogramFlags_NoHover ) == 0 &&
+                    ( data.flags & HistogramColumnFlags_NoHover ) == 0 &&
+                    event_bb.Contains( g.IO.MousePos );
+
+                if( event_hovered )
+                {
+                    if( click_cb && IsMouseClicked( ImGuiMouseButton_Left ) )
+                    {
+                        click_cb( data );
+                    }
+
+                    if( hover_cb )
+                    {
+                        hover_cb( data );
+                    }
+                }
                 continue;
             }
 
