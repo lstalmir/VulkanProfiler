@@ -419,7 +419,11 @@ namespace Profiler
         m_HistogramValueMode = HistogramValueMode::eDuration;
         m_HistogramShowIdle = false;
 
-        m_pData = nullptr;
+        m_pFrames.clear();
+        m_pSelectedFrames.clear();
+        m_SelectedFrameIndex = m_SelectedAllFrames;
+        m_MaxFrameCount = 1;
+
         m_Pause = false;
         m_Fullscreen = false;
         m_ShowDebugLabels = true;
@@ -522,11 +526,17 @@ namespace Profiler
         ImGui::NewFrame();
 
         // Update data
-        if( !m_Pause || !m_pData )
+        if( !m_Pause || m_pFrames.empty() )
         {
-            m_pData = m_pFrontend->GetData();
-            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
+            m_pFrames.push_back( m_pFrontend->GetData() );
         }
+
+        while( m_pFrames.size() > m_MaxFrameCount )
+        {
+            m_pFrames.pop_front();
+        }
+
+        m_FrameTime = GetDuration( 0, m_pFrames.back()->m_Ticks );
 
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
@@ -1309,7 +1319,7 @@ namespace Profiler
         if( ImGui::Button( Lang::Save ) )
         {
             m_pTopPipelinesExporter = std::make_unique<TopPipelinesExporter>();
-            m_pTopPipelinesExporter->m_pData = m_pData;
+            m_pTopPipelinesExporter->m_pData = m_pFrames.back();
             m_pTopPipelinesExporter->m_Action = TopPipelinesExporter::Action::eExport;
         }
         ImGui::EndDisabled();
@@ -1328,10 +1338,10 @@ namespace Profiler
         {
             m_ReferenceTopPipelines.clear();
 
-            const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
+            const uint32_t frameIndex = m_pFrames.back()->m_CPU.m_FrameIndex;
             m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
 
-            for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
+            for( const DeviceProfilerPipelineData& pipeline : m_pFrames.back()->m_TopPipelines )
             {
                 const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
 
@@ -3006,74 +3016,83 @@ namespace Profiler
             }
         };
 
-        for( const auto& submitBatch : m_pData->m_Submits )
+        for( const auto& frame : m_pSelectedFrames )
         {
-            if( submitBatch.m_Handle != queue )
-            {
-                // Index must be incremented to account for the submissions on the other queues.
-                index.back()++;
-                continue;
-            }
-
-            // Count submit infos.
+            // Count queue submits in the frame.
             index.emplace_back( 0 );
 
-            for( const auto& submit : submitBatch.m_Submits )
+            for( const auto& submitBatch : m_pFrames.back()->m_Submits )
             {
-                // Count command buffers.
+                if( submitBatch.m_Handle != queue )
+                {
+                    // Index must be incremented to account for the submissions on the other queues.
+                    index.back()++;
+                    continue;
+                }
+
+                // Count submit infos.
                 index.emplace_back( 0 );
 
-                bool firstCommandBuffer = true;
-
-                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                for( const auto& submit : submitBatch.m_Submits )
                 {
-                    if( !commandBuffer.m_DataValid )
+                    // Count command buffers.
+                    index.emplace_back( 0 );
+
+                    bool firstCommandBuffer = true;
+
+                    for( const auto& commandBuffer : submit.m_CommandBuffers )
                     {
-                        // Take command buffers with no data into account.
+                        if( !commandBuffer.m_DataValid )
+                        {
+                            // Take command buffers with no data into account.
+                            index.back()++;
+                            continue;
+                        }
+
+                        if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
+                        {
+                            QueueGraphColumn& idle = columns.emplace_back();
+                            idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                            idle.y = 1;
+                            idle.color = 0;
+                            idle.userDataType = QueueGraphColumn::eIdle;
+                            idle.userData = nullptr;
+                        }
+
+                        if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
+                        {
+                            // Enumerate wait semaphores before the first executed command buffer.
+                            AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
+                        }
+
+                        QueueGraphColumn& column = columns.emplace_back();
+                        column.x = GetDuration( commandBuffer );
+                        column.y = 1;
+                        column.color = m_GraphicsPipelineColumnColor;
+                        column.userDataType = QueueGraphColumn::eCommandBuffer;
+                        column.userData = &commandBuffer;
+                        column.nodeIndex = index;
+
+                        lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+                        firstCommandBuffer = false;
+
                         index.back()++;
-                        continue;
                     }
 
-                    if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
-                    {
-                        QueueGraphColumn& idle = columns.emplace_back();
-                        idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
-                        idle.y = 1;
-                        idle.color = 0;
-                        idle.userDataType = QueueGraphColumn::eIdle;
-                        idle.userData = nullptr;
-                    }
-
+                    // Insert wait semaphores if no command buffers were submitted.
                     if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
                     {
-                        // Enumerate wait semaphores before the first executed command buffer.
                         AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
                     }
 
-                    QueueGraphColumn& column = columns.emplace_back();
-                    column.x = GetDuration( commandBuffer );
-                    column.y = 1;
-                    column.color = m_GraphicsPipelineColumnColor;
-                    column.userDataType = QueueGraphColumn::eCommandBuffer;
-                    column.userData = &commandBuffer;
-                    column.nodeIndex = index;
+                    // Enumerate signal semaphores after the last executed command buffer.
+                    if( !submit.m_SignalSemaphores.empty() )
+                    {
+                        AppendSemaphoreEvent( submit.m_SignalSemaphores, QueueGraphColumn::eSignalSemaphores );
+                    }
 
-                    lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
-                    firstCommandBuffer = false;
-
+                    index.pop_back();
                     index.back()++;
-                }
-
-                // Insert wait semaphores if no command buffers were submitted.
-                if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
-                {
-                    AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
-                }
-
-                // Enumerate signal semaphores after the last executed command buffer.
-                if( !submit.m_SignalSemaphores.empty() )
-                {
-                    AppendSemaphoreEvent( submit.m_SignalSemaphores, QueueGraphColumn::eSignalSemaphores );
                 }
 
                 index.pop_back();
