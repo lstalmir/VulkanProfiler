@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 # There is only one platform on Windows
 set (PROFILER_PLATFORM_FOUND 1)
@@ -28,11 +28,3 @@ add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
 
 # Disable macros that would collide with stl.
 add_definitions (-DNOMINMAX)
-
-# Link MSVC runtime libraries statically to avoid compatibility issues.
-if (CMAKE_VERSION VERSION_LESS 3.15.0)
-    add_compile_options ("/MT$<$<CONFIG:Debug>:d>")
-else ()
-    cmake_policy (SET CMP0091 NEW)
-    set (CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif ()

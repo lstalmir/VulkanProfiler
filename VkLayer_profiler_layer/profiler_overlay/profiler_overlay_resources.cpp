@@ -18,8 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "profiler_overlay_fonts.h"
+#include "profiler_overlay_resources.h"
+#include "profiler_overlay_backend.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_overlay/profiler_overlay_assets.h"
+#include "profiler_layer_objects/VkDevice_object.h"
 
 #include <filesystem>
 #include <fstream>
@@ -27,6 +30,9 @@
 #include <string>
 
 #include <imgui.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #ifdef WIN32
 #include <ShlObj.h> // SHGetKnownFolderPath
@@ -106,15 +112,13 @@ namespace Profiler
         m_FontSearchPaths = {
             "/usr/share/fonts",
             "/usr/local/share/fonts",
-            "~/.fonts"
-        };
+            "~/.fonts" };
 
         // Some systems may have these directories specified in conf file
         // https://stackoverflow.com/questions/3954223/platform-independent-way-to-get-font-directory
         const char* fontConfigurationFiles[] = {
             "/etc/fonts/fonts.conf",
-            "/etc/fonts/local.conf"
-        };
+            "/etc/fonts/local.conf" };
 
         std::vector<std::filesystem::path> configurationDirectories = {};
 
@@ -166,7 +170,7 @@ namespace Profiler
     {
         for( size_t i = 0; i < fontCount; ++i )
         {
-            const char* font = ppFonts[i];
+            const char* font = ppFonts[ i ];
 
             for( const std::filesystem::path& dir : m_FontSearchPaths )
             {
@@ -194,13 +198,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Initialize
+        InitializeFonts
 
     Description:
         Loads fonts for the overlay.
 
     \***********************************************************************************/
-    void OverlayFonts::Initialize()
+    bool OverlayResources::InitializeFonts()
     {
         ImFontAtlas* fonts = ImGui::GetIO().Fonts;
         ImFont* defaultFont = fonts->AddFontDefault();
@@ -239,6 +243,77 @@ namespace Profiler
         unsigned char* tex_pixels = NULL;
         int tex_w, tex_h;
         fonts->GetTexDataAsRGBA32( &tex_pixels, &tex_w, &tex_h );
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        InitializeImages
+
+    Description:
+        Loads images for the overlay.
+
+    \***********************************************************************************/
+    bool OverlayResources::InitializeImages( OverlayBackend* pBackend )
+    {
+        // Destroy existing resources.
+        DestroyImages();
+
+        m_pBackend = pBackend;
+
+        // Create fonts image
+        m_pBackend->CreateFontsImage();
+
+        // Create image objects
+        m_pCopyIconImage = CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Frees all resources.
+
+    \***********************************************************************************/
+    void OverlayResources::Destroy()
+    {
+        DestroyImages();
+
+        m_pDefaultFont = nullptr;
+        m_pBoldFont = nullptr;
+        m_pCodeFont = nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImages
+
+    Description:
+        Frees image resources.
+
+    \***********************************************************************************/
+    void OverlayResources::DestroyImages()
+    {
+        if( m_pBackend )
+        {
+            m_pBackend->WaitIdle();
+            m_pBackend->DestroyFontsImage();
+
+            if( m_pCopyIconImage )
+            {
+                m_pBackend->DestroyImage( m_pCopyIconImage );
+                m_pCopyIconImage = nullptr;
+            }
+        }
+
+        m_pBackend = nullptr;
     }
 
     /***********************************************************************************\
@@ -250,7 +325,7 @@ namespace Profiler
         Returns the default font.
 
     \***********************************************************************************/
-    ImFont* OverlayFonts::GetDefaultFont() const
+    ImFont* OverlayResources::GetDefaultFont() const
     {
         return m_pDefaultFont;
     }
@@ -264,7 +339,7 @@ namespace Profiler
         Returns the bold font.
 
     \***********************************************************************************/
-    ImFont* OverlayFonts::GetBoldFont() const
+    ImFont* OverlayResources::GetBoldFont() const
     {
         return m_pBoldFont;
     }
@@ -278,8 +353,53 @@ namespace Profiler
         Returns the code font.
 
     \***********************************************************************************/
-    ImFont* OverlayFonts::GetCodeFont() const
+    ImFont* OverlayResources::GetCodeFont() const
     {
         return m_pCodeFont;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCopyIconImage
+
+    Description:
+        Returns the copy icon image descriptor set.
+
+    \***********************************************************************************/
+    void* OverlayResources::GetCopyIconImage() const
+    {
+        return m_pCopyIconImage;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateImage
+
+    Description:
+        Creates an image object from the asset data.
+
+    \***********************************************************************************/
+    void* OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
+    {
+        int width, height, channels;
+        std::unique_ptr<stbi_uc[]> pixels;
+
+        // Load image data from asset.
+        pixels.reset( stbi_load_from_memory(
+            pAsset,
+            assetSize,
+            &width,
+            &height,
+            &channels,
+            STBI_rgb_alpha ) );
+
+        if( !pixels || channels != 4 )
+        {
+            return nullptr;
+        }
+
+        return m_pBackend->CreateImage( width, height, pixels.get() );
     }
 }

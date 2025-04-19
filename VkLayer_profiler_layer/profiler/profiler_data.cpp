@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -308,5 +308,126 @@ namespace Profiler
         CopyStructure( pCreateInfo, &pNext );
 
         return std::shared_ptr<CreateInfo>( ci, free );
+    }
+
+    VkAccelerationStructureBuildGeometryInfoKHR* DeviceProfilerDrawcall::CopyAccelerationStructureBuildGeometryInfos(
+        uint32_t infoCount,
+        const VkAccelerationStructureBuildGeometryInfoKHR* pInfos )
+    {
+        // Create copy of build infos
+        VkAccelerationStructureBuildGeometryInfoKHR* pDuplicatedInfos = CopyElements( infoCount, pInfos );
+
+        // Create copy of geometry infos of each build info
+        for( uint32_t i = 0; i < infoCount; ++i )
+        {
+            VkAccelerationStructureBuildGeometryInfoKHR& buildInfo = pDuplicatedInfos[ i ];
+            const uint32_t geometryCount = buildInfo.geometryCount;
+
+            if( buildInfo.pGeometries != nullptr )
+            {
+                buildInfo.pGeometries = CopyElements( geometryCount, buildInfo.pGeometries );
+            }
+
+            else if( buildInfo.ppGeometries != nullptr )
+            {
+                VkAccelerationStructureGeometryKHR* pGeometries =
+                    reinterpret_cast<VkAccelerationStructureGeometryKHR*>(malloc(geometryCount * sizeof(VkAccelerationStructureGeometryKHR)));
+
+                if( pGeometries != nullptr )
+                {
+                    for( uint32_t j = 0; j < geometryCount; ++j )
+                    {
+                        pGeometries[ j ] = *buildInfo.ppGeometries[ j ];
+                    }
+                }
+
+                buildInfo.pGeometries = pGeometries;
+            }
+
+            buildInfo.ppGeometries = nullptr;
+        }
+
+        return pDuplicatedInfos;
+    }
+
+    VkAccelerationStructureBuildRangeInfoKHR** DeviceProfilerDrawcall::CopyAccelerationStructureBuildRangeInfos(
+        uint32_t infoCount,
+        const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
+        const VkAccelerationStructureBuildRangeInfoKHR* const* ppRanges )
+    {
+        // Allocate an array of range pointers
+        VkAccelerationStructureBuildRangeInfoKHR** ppDuplicatedRanges =
+            reinterpret_cast<VkAccelerationStructureBuildRangeInfoKHR**>( malloc( infoCount * sizeof( VkAccelerationStructureBuildRangeInfoKHR* ) ) );
+
+        if( ppDuplicatedRanges != nullptr )
+        {
+            for( uint32_t i = 0; i < infoCount; ++i )
+            {
+                // Copy ranges for geometries of the current build info
+                ppDuplicatedRanges[ i ] = CopyElements( pInfos[ i ].geometryCount, ppRanges[ i ] );
+            }
+        }
+
+        return ppDuplicatedRanges;
+    }
+
+    uint32_t** DeviceProfilerDrawcall::CopyMaxPrimitiveCounts(
+        uint32_t infoCount,
+        const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
+        const uint32_t* const* ppMaxPrimitiveCounts )
+    {
+        // Allocate an array of range pointers
+        uint32_t** ppDuplicatedPrimitiveCounts =
+            reinterpret_cast<uint32_t**>( malloc( infoCount * sizeof( uint32_t* ) ) );
+
+        if( ppDuplicatedPrimitiveCounts != nullptr )
+        {
+            for( uint32_t i = 0; i < infoCount; ++i )
+            {
+                // Copy max primitive counts for geometries of the current build info
+                ppDuplicatedPrimitiveCounts[ i ] = CopyElements( pInfos[ i ].geometryCount, ppMaxPrimitiveCounts[ i ] );
+            }
+        }
+
+        return ppDuplicatedPrimitiveCounts;
+    }
+
+    VkMicromapBuildInfoEXT* DeviceProfilerDrawcall::CopyMicromapBuildInfos(
+        uint32_t infoCount,
+        const VkMicromapBuildInfoEXT* pInfos )
+    {
+        VkMicromapBuildInfoEXT* pDuplicatedInfos = CopyElements( infoCount, pInfos );
+
+        // Create copy of usage counts of each build info
+        for( uint32_t i = 0; i < infoCount; ++i )
+        {
+            VkMicromapBuildInfoEXT& buildInfo = pDuplicatedInfos[i];
+            const uint32_t usageCount = buildInfo.usageCountsCount;
+
+            if( buildInfo.pUsageCounts != nullptr )
+            {
+                buildInfo.pUsageCounts = CopyElements( usageCount, buildInfo.pUsageCounts );
+            }
+
+            else if( buildInfo.ppUsageCounts != nullptr )
+            {
+                VkMicromapUsageEXT* pUsageCounts =
+                    reinterpret_cast<VkMicromapUsageEXT*>( malloc( usageCount * sizeof( VkMicromapUsageEXT ) ) );
+
+                if( pUsageCounts != nullptr )
+                {
+                    for( uint32_t j = 0; j < usageCount; ++j )
+                    {
+                        pUsageCounts[j] = *buildInfo.ppUsageCounts[j];
+                    }
+                }
+
+                buildInfo.pUsageCounts = pUsageCounts;
+            }
+
+            buildInfo.ppUsageCounts = nullptr;
+        }
+
+        return pDuplicatedInfos;
     }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,30 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
-#include <imgui_impl_vulkan.h>
-#include "vk_dispatch_tables.h"
+#version 460 core
+#extension GL_EXT_ray_tracing : enable
 
-// Initialization data, for ImGui_ImplVulkan_Init()
-// [Please zero-clear before use!]
-struct ImGui_ImplVulkanLayer_InitInfo : ImGui_ImplVulkan_InitInfo
+layout( location = 0 ) rayPayloadEXT vec3 outputColor;
+
+void main()
 {
-    const VkLayerInstanceDispatchTable* pInstanceDispatchTable;
-    const VkLayerDeviceDispatchTable* pDispatchTable;
-};
-
-class ImGui_ImplVulkan_Context
-{
-public:
-    ImGui_ImplVulkan_Context( ImGui_ImplVulkanLayer_InitInfo* info );
-    ~ImGui_ImplVulkan_Context();
-
-    void NewFrame();
-    void RenderDrawData( ImDrawData* draw_data, VkCommandBuffer command_buffer );
-    bool CreateFontsTexture();
-    void SetMinImageCount( uint32_t min_image_count );
-
-private:
-    static PFN_vkVoidFunction FunctionLoader( const char* pFunctionName, void* pUserData );
-    static VkResult AllocateCommandBuffers( VkDevice, const VkCommandBufferAllocateInfo*, VkCommandBuffer* );
-};
+    outputColor = vec3( 0.0, 0.0, 0.25 );
+}

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -66,23 +66,13 @@ namespace Profiler
         bool IsAvailable() const;
 
         uint32_t GetReportSize( uint32_t metricsSetIndex ) const;
-
         uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const;
-
         uint32_t GetMetricsSetCount() const;
-
-        VkResult GetMetricsSets(
-            uint32_t*                                     pPropertyCount,
-            VkProfilerPerformanceMetricsSetPropertiesEXT* pProperties ) const;
-
         VkResult SetActiveMetricsSet( uint32_t metricsSetIndex );
-
         uint32_t GetActiveMetricsSetIndex() const;
 
-        VkResult GetMetricsProperties(
-            uint32_t                                   metricsSetIndex,
-            uint32_t*                                  pPropertyCount,
-            VkProfilerPerformanceCounterPropertiesEXT* pProperties ) const;
+        const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& GetMetricsSets() const;
+        const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& GetMetricsProperties( uint32_t metricsSetIndex ) const;
 
         void ParseReport(
             uint32_t                                            metricsSetIndex,
@@ -108,6 +98,7 @@ namespace Profiler
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
         std::vector<ProfilerMetricsSet_INTEL> m_MetricsSets;
+        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> m_MetricsSetsProperties;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
         uint32_t                              m_ActiveMetricsSetIndex;

@@ -18,16 +18,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 project (profiler_helpers)
 
 set (headers
+    "profiler_csv_helpers.h"
     "profiler_data_helpers.h"
     "profiler_time_helpers.h"
     )
 
 set (sources
+    "profiler_csv_helpers.cpp"
     "profiler_data_helpers.cpp"
     )
 

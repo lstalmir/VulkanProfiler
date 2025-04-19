@@ -57,11 +57,29 @@ namespace Profiler
             VkBuffer buffer,
             VmaAllocation allocation );
 
+        VkResult AllocateImage(
+            const VkImageCreateInfo& imageCreateInfo,
+            const VmaAllocationCreateInfo& allocationCreateInfo,
+            VkImage* pImage,
+            VmaAllocation* pAllocation,
+            VmaAllocationInfo* pAllocationInfo = nullptr );
+
+        void FreeImage(
+            VkImage image,
+            VmaAllocation allocation );
+
+        VkResult Flush(
+            VmaAllocation allocation,
+            VkDeviceSize offset = 0,
+            VkDeviceSize size = VK_WHOLE_SIZE );
+
+        VkResult Invalidate(
+            VmaAllocation allocation,
+            VkDeviceSize offset = 0,
+            VkDeviceSize size = VK_WHOLE_SIZE );
+
     private:
         VkDevice_Object* m_pDevice;
         VmaAllocator m_Allocator;
-
-        std::mutex m_AllocationMutex;
-        std::unordered_map<VkBuffer, VmaAllocation> m_BufferAllocations;
     };
 }

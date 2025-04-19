@@ -191,6 +191,7 @@ namespace Profiler
         {
             m_EventCount = 0;
             m_EventFrequency = 0;
+            m_LastEventCount = 0;
             m_BeginTimestamp = OSGetTimestamp( m_TimeDomain );
         }
 

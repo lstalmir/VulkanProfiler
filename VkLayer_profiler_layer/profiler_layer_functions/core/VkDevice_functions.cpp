@@ -24,7 +24,9 @@
 #include "VkLayer_profiler_layer.generated.h"
 #include "profiler_layer_functions/Helpers.h"
 
+#undef VK_NO_PROTOTYPES
 #include "profiler_ext/VkProfilerEXT.h"
+#include "profiler_ext/VkProfilerObjectEXT.h"
 
 namespace Profiler
 {
@@ -58,6 +60,14 @@ namespace Profiler
         GETPROCADDR( FreeCommandBuffers );
         GETPROCADDR( AllocateMemory );
         GETPROCADDR( FreeMemory );
+        GETPROCADDR( CreateBuffer );
+        GETPROCADDR( DestroyBuffer );
+        GETPROCADDR( BindBufferMemory );
+        GETPROCADDR( BindBufferMemory2 );
+        GETPROCADDR( CreateImage );
+        GETPROCADDR( DestroyImage );
+        GETPROCADDR( BindImageMemory );
+        GETPROCADDR( BindImageMemory2 );
 
         // VkCommandBuffer core functions
         GETPROCADDR( BeginCommandBuffer );
@@ -94,10 +104,28 @@ namespace Profiler
         GETPROCADDR( CmdBlitImage );
         GETPROCADDR( CmdFillBuffer );
         GETPROCADDR( CmdUpdateBuffer );
+        GETPROCADDR( CmdBlitImage2 );
+        GETPROCADDR( CmdCopyBuffer2 );
+        GETPROCADDR( CmdCopyBufferToImage2 );
+        GETPROCADDR( CmdCopyImage2 );
+        GETPROCADDR( CmdCopyImageToBuffer2 );
+        GETPROCADDR( CmdResolveImage2 );
 
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueueSubmit2 );
+
+        // VK_KHR_bind_memory2 functions
+        GETPROCADDR( BindBufferMemory2KHR );
+        GETPROCADDR( BindImageMemory2KHR );
+
+        // VK_KHR_copy_commands2 functions
+        GETPROCADDR( CmdBlitImage2KHR );
+        GETPROCADDR( CmdCopyBuffer2KHR );
+        GETPROCADDR( CmdCopyBufferToImage2KHR );
+        GETPROCADDR( CmdCopyImage2KHR );
+        GETPROCADDR( CmdCopyImageToBuffer2KHR );
+        GETPROCADDR( CmdResolveImage2KHR );
 
         // VK_KHR_create_renderpass2 functions
         GETPROCADDR( CreateRenderPass2KHR );
@@ -146,6 +174,12 @@ namespace Profiler
         GETPROCADDR( CmdDrawMeshTasksIndirectNV );
         GETPROCADDR( CmdDrawMeshTasksIndirectCountNV );
 
+        // VK_EXT_opacity_micromap functions
+        GETPROCADDR( CmdBuildMicromapsEXT );
+        GETPROCADDR( CmdCopyMicromapEXT );
+        GETPROCADDR( CmdCopyMemoryToMicromapEXT );
+        GETPROCADDR( CmdCopyMicromapToMemoryEXT );
+
         // VK_KHR_ray_tracing_maintenance1 functions
         GETPROCADDR( CmdTraceRaysIndirect2KHR );
 
@@ -187,6 +221,10 @@ namespace Profiler
         GETPROCADDR_EXT( vkEnumerateProfilerPerformanceCounterPropertiesEXT );
         GETPROCADDR_EXT( vkSetProfilerPerformanceMetricsSetEXT );
         GETPROCADDR_EXT( vkGetProfilerActivePerformanceMetricsSetIndexEXT );
+
+        // VK_EXT_profiler_object functions
+        GETPROCADDR_EXT( vkGetProfilerEXT );
+        GETPROCADDR_EXT( vkGetProfilerOverlayEXT );
 
         if( device )
         {
@@ -621,5 +659,251 @@ namespace Profiler
 
         // Free the memory
         dd.Device.Callbacks.FreeMemory( device, memory, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateBuffer(
+        VkDevice device,
+        const VkBufferCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkBuffer* pBuffer )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Make sure all indirect buffers are created with VK_BUFFER_USAGE_TRANSFER_SRC_BIT flag,
+        // so the layer can copy the data from it.
+        VkBufferCreateInfo createInfo = *pCreateInfo;
+
+        if( ( createInfo.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT ) ||
+            ( createInfo.usage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR ) )
+        {
+            createInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        }
+
+        // Create the buffer
+        VkResult result = dd.Device.Callbacks.CreateBuffer(
+            device, &createInfo, pAllocator, pBuffer );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register buffer
+            dd.Profiler.CreateBuffer( *pBuffer, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyBuffer
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyBuffer(
+        VkDevice device,
+        VkBuffer buffer,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Unregister the buffer
+        dd.Profiler.DestroyBuffer( buffer );
+
+        // Destroy the buffer
+        dd.Device.Callbacks.DestroyBuffer( device, buffer, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindBufferMemory(
+        VkDevice device,
+        VkBuffer buffer,
+        VkDeviceMemory memory,
+        VkDeviceSize offset )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Bind buffer memory
+        VkResult result = dd.Device.Callbacks.BindBufferMemory(
+            device, buffer, memory, offset );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register buffer memory binding
+            dd.Profiler.BindBufferMemory( buffer, memory, offset );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindBufferMemory2(
+        VkDevice device,
+        uint32_t bindInfoCount,
+        const VkBindBufferMemoryInfo* pBindInfos )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Bind buffer memory
+        VkResult result = dd.Device.Callbacks.BindBufferMemory2(
+            device, bindInfoCount, pBindInfos );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register buffer memory bindings
+            for( uint32_t i = 0; i < bindInfoCount; ++i )
+            {
+                dd.Profiler.BindBufferMemory(
+                    pBindInfos[ i ].buffer,
+                    pBindInfos[ i ].memory,
+                    pBindInfos[ i ].memoryOffset );
+            }
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::CreateImage(
+        VkDevice device,
+        const VkImageCreateInfo* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkImage* pImage )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Create the image
+        VkResult result = dd.Device.Callbacks.CreateImage(
+            device, pCreateInfo, pAllocator, pImage );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register image
+            dd.Profiler.CreateImage( *pImage, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImage
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::DestroyImage(
+        VkDevice device,
+        VkImage image,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Unregister the image
+        dd.Profiler.DestroyImage( image );
+
+        // Destroy the image
+        dd.Device.Callbacks.DestroyImage( device, image, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindImageMemory(
+        VkDevice device,
+        VkImage image,
+        VkDeviceMemory memory,
+        VkDeviceSize offset )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Bind image memory
+        VkResult result = dd.Device.Callbacks.BindImageMemory(
+            device, image, memory, offset );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register image memory binding
+            dd.Profiler.BindImageMemory( image, memory, offset );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkDevice_Functions::BindImageMemory2(
+        VkDevice device,
+        uint32_t bindInfoCount,
+        const VkBindImageMemoryInfo* pBindInfos )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Bind image memory
+        VkResult result = dd.Device.Callbacks.BindImageMemory2(
+            device, bindInfoCount, pBindInfos );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register image memory bindings
+            for( uint32_t i = 0; i < bindInfoCount; ++i )
+            {
+                dd.Profiler.BindImageMemory(
+                    pBindInfos[ i ].image,
+                    pBindInfos[ i ].memory,
+                    pBindInfos[ i ].memoryOffset );
+            }
+        }
+
+        return result;
     }
 }

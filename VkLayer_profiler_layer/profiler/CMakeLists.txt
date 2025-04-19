@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 project (profiler)
 
@@ -31,8 +31,10 @@ set (headers
     "profiler_counters.h"
     "profiler_data.h"
     "profiler_data_aggregator.h"
+    "profiler_frontend.h"
     "profiler_helpers.h"
     "profiler_memory_manager.h"
+    "profiler_memory_tracker.h"
     "profiler_query_pool.h"
     "profiler_resources.h"
     "profiler_shader.h"
@@ -49,6 +51,7 @@ set (sources
     "profiler_data.cpp"
     "profiler_data_aggregator.cpp"
     "profiler_memory_manager.cpp"
+    "profiler_memory_tracker.cpp"
     "profiler_query_pool.cpp"
     "profiler_shader.cpp"
     "profiler_sync.cpp"

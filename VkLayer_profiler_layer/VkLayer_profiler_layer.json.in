@@ -19,6 +19,10 @@
                     "vkSetDebugUtilsObjectNameEXT",
                     "vkSetDebugUtilsObjectTagEXT"
                 ]
+            },
+            {
+                "name": "VK_EXT_layer_settings",
+                "spec_version": "2"
             }
         ],
         "device_extensions": [
@@ -48,6 +52,13 @@
                     "vkCmdDebugMarkerInsertEXT",
                     "vkDebugMarkerSetObjectNameEXT",
                     "vkDebugMarkerSetObjectTagEXT"
+                ]
+            },
+            {
+                "name": "VK_EXT_tooling_info",
+                "spec_version": "1",
+                "entrypoints": [
+                    "vkGetPhysicalDeviceToolPropertiesEXT"
                 ]
             }
         ],
@@ -86,11 +97,27 @@
                     "default": false
                 },
                 {
+                    "key": "capture_indirect_arguments",
+                    "label": "Capture indirect arguments",
+                    "description": "Capture indirect argument buffers to show sub-commands contents.",
+                    "env": "VKPROF_capture_indirect_arguments",
+                    "type": "BOOL",
+                    "default": false
+                },
+                {
                     "key": "set_stable_power_state",
                     "label": "Set stable power state",
                     "description": "Use DirectX12 API to set stable power state for GPU time measurements.",
                     "env": "VKPROF_set_stable_power_state",
                     "platforms": [ "WINDOWS" ],
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
+                    "key": "enable_threading",
+                    "label": "Enable threading",
+                    "description": "Create a background thread to collect and process the data.",
+                    "env": "VKPROF_enable_threading",
                     "type": "BOOL",
                     "default": true
                 },
@@ -143,6 +170,22 @@
                             "description": "Synchronize and collect data on each submit (higher overhead)."
                         }
                     ]
+                },
+                {
+                    "key": "ref_pipelines",
+                    "label": "Reference pipelines",
+                    "description": "Path to the file with reference durations of top pipelines to load automatically.",
+                    "env": "VKPROF_ref_pipelines",
+                    "type": "LOAD_FILE",
+                    "default": ""
+                },
+                {
+                    "key": "ref_metrics",
+                    "label": "Reference metrics",
+                    "description": "Path to the file with reference performance metrics to load automatically.",
+                    "env": "VKPROF_ref_metrics",
+                    "type": "LOAD_FILE",
+                    "default": ""
                 }
             ]
         }

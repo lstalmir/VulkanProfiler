@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 set (CMAKE_FOLDER External)
 
@@ -131,3 +131,8 @@ target_include_directories (imgui-file-dialog
 
 target_link_libraries (imgui-file-dialog
     PUBLIC imgui)
+
+# nothings/stb
+add_library (stb INTERFACE)
+target_include_directories (stb
+    INTERFACE stb)

@@ -436,26 +436,39 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerShaderModule::ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize )
+    ProfilerShaderModule::ProfilerShaderModule( const uint32_t* pBytecode, size_t bytecodeSize, const uint8_t* pIdentifier, uint32_t identifierSize )
     {
-        // Compute shader code hash to use later
-        m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( pBytecode ), bytecodeSize );
+        // ProfilerShaderModuleIdentifier size should match VK_MAX_SHADER_MODULE_IDENTIFIER_SIZE_EXT,
+        // but clamp it just in case anyone tries to pass a larger value.
+        m_IdentifierSize = std::min<uint32_t>( identifierSize, sizeof( m_Identifier ) );
 
-        // Save the bytecode to display the shader's disassembly
-        m_Bytecode.resize( bytecodeSize / sizeof( uint32_t ) );
-        memcpy( m_Bytecode.data(), pBytecode, bytecodeSize );
-
-        // Enumerate capabilities of the shader module
-        const uint32_t* pCurrentWord = pBytecode + 5; // skip header bytes
-        const uint32_t* pLastWord = pBytecode + ( bytecodeSize / sizeof( uint32_t ) ) - 1;
-
-        while( (pCurrentWord < pLastWord) &&
-               ((*pCurrentWord & 0xffff) == SpvOpCapability) )
+        if( m_IdentifierSize > 0 )
         {
-            assert( (*pCurrentWord >> 16) == 2 );
+            // Save the shader module identifier if available
+            memcpy( m_Identifier, pIdentifier, identifierSize );
+        }
 
-            m_Capabilities.insert( static_cast<SpvCapability>( *(pCurrentWord + 1) ) );
-            pCurrentWord += 2; // SpvOpCapability is 2 words long
+        if( bytecodeSize > 0 )
+        {
+            // Compute shader code hash from the bytecode
+            m_Hash = Farmhash::Fingerprint32( reinterpret_cast<const char*>( pBytecode ), bytecodeSize );
+
+            // Save the bytecode to display the shader's disassembly
+            m_Bytecode.resize( bytecodeSize / sizeof( uint32_t ) );
+            memcpy( m_Bytecode.data(), pBytecode, bytecodeSize );
+
+            // Enumerate capabilities of the shader module
+            const uint32_t* pCurrentWord = pBytecode + 5; // skip header bytes
+            const uint32_t* pLastWord = pBytecode + ( bytecodeSize / sizeof( uint32_t ) ) - 1;
+
+            while( (pCurrentWord < pLastWord) &&
+                   ((*pCurrentWord & 0xffff) == SpvOpCapability) )
+            {
+                assert( (*pCurrentWord >> 16) == 2 );
+
+                m_Capabilities.insert( static_cast<SpvCapability>( *(pCurrentWord + 1) ) );
+                pCurrentWord += 2; // SpvOpCapability is 2 words long
+            }
         }
     }
 
@@ -509,6 +522,35 @@ namespace Profiler
             auto& capabilities = shader.m_pShaderModule->m_Capabilities;
             if( capabilities.count( SpvCapabilityRayTracingKHR ) ||
                 capabilities.count( SpvCapabilityRayTracingProvisionalKHR ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UsesMeshShading
+
+    Description:
+        Checks if any of the shaders in the tuple uses mesh shader capability.
+
+    \***********************************************************************************/
+    bool ProfilerShaderTuple::UsesMeshShading() const
+    {
+        for( const ProfilerShader& shader : m_Shaders )
+        {
+            if( !shader.m_pShaderModule )
+            {
+                continue;
+            }
+
+            auto& capabilities = shader.m_pShaderModule->m_Capabilities;
+            if( capabilities.count( SpvCapabilityMeshShadingNV ) ||
+                capabilities.count( SpvCapabilityMeshShadingEXT ) )
             {
                 return true;
             }

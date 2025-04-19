@@ -22,6 +22,7 @@
 #include "VkInstance_functions_base.h"
 #include "VkPhysicalDevice_functions.h"
 #include "VkSurfaceKhr_functions.h"
+#include "VkToolingInfoExt_functions.h"
 #include "VkWin32SurfaceKhr_functions.h"
 #include "VkXcbSurfaceKhr_functions.h"
 #include "VkXlibSurfaceKhr_functions.h"
@@ -41,6 +42,7 @@ namespace Profiler
     struct VkInstance_Functions
         : VkPhysicalDevice_Functions
         , VkSurfaceKhr_Functions
+        , VkToolingInfoExt_Functions
         , VkWin32SurfaceKhr_Functions
         , VkXcbSurfaceKhr_Functions
         , VkXlibSurfaceKhr_Functions
