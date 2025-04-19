@@ -177,6 +177,9 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
 
+        // Queue utilization state.
+        std::unordered_set<VkSemaphore> m_SelectedSemaphores;
+
         // Cached inspector tab state.
         DeviceProfilerPipeline m_InspectorPipeline;
         OverlayShaderView m_InspectorShaderView;
