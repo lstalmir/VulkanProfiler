@@ -135,13 +135,11 @@ namespace Profiler
         typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
 
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pFrames;
-        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pSelectedFrames;
-         // 0 - current frame, 1 - previous frame, etc. (0xFFFFFFFF - all frames)
+         // 0 - current frame, 1 - previous frame, etc.
         uint32_t m_SelectedFrameIndex;
         uint32_t m_MaxFrameCount;
 
-        static constexpr uint32_t m_SelectedAllFrames = UINT32_MAX;
-
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;
         bool m_Fullscreen;
         bool m_ShowDebugLabels;

@@ -130,6 +130,27 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        GetNthElement
+
+    Description:
+        Returns the N-th element of an iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable>
+    PROFILER_FORCE_INLINE auto GetNthElement( const Iterable& iterable, size_t n )
+    {
+        if( n >= std::size( iterable ) )
+        {
+            throw std::out_of_range( "Index out of range" );
+        }
+        auto it = std::begin( iterable );
+        std::advance( it, n );
+        return *it;
+    }
+
+    /***********************************************************************************\
+
     Class:
         __PNextTypeTraits
 

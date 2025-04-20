@@ -420,10 +420,10 @@ namespace Profiler
         m_HistogramShowIdle = false;
 
         m_pFrames.clear();
-        m_pSelectedFrames.clear();
-        m_SelectedFrameIndex = m_SelectedAllFrames;
+        m_SelectedFrameIndex = 0;
         m_MaxFrameCount = 1;
 
+        m_pData = nullptr;
         m_Pause = false;
         m_Fullscreen = false;
         m_ShowDebugLabels = true;
@@ -528,7 +528,11 @@ namespace Profiler
         // Update data
         if( !m_Pause || m_pFrames.empty() )
         {
-            m_pFrames.push_back( m_pFrontend->GetData() );
+            auto pData = m_pFrontend->GetData();
+            if( pData )
+            {
+                m_pFrames.push_back( m_pFrontend->GetData() );
+            }
         }
 
         while( m_pFrames.size() > m_MaxFrameCount )
@@ -536,7 +540,10 @@ namespace Profiler
             m_pFrames.pop_front();
         }
 
-        m_FrameTime = GetDuration( 0, m_pFrames.back()->m_Ticks );
+        m_SelectedFrameIndex = std::min<uint32_t>( m_SelectedFrameIndex, m_pFrames.size() - 1 );
+        m_pData = GetNthElement( m_pFrames, m_pFrames.size() - m_SelectedFrameIndex - 1 );
+
+        m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
 
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
@@ -599,7 +606,7 @@ namespace Profiler
                 if( ImGui::MenuItem( Lang::SaveTrace ) )
                 {
                     m_pTraceExporter = std::make_unique<TraceExporter>();
-                    m_pTraceExporter->m_pData = m_pSelectedFrames.back();
+                    m_pTraceExporter->m_pData = m_pData;
                 }
                 ImGui::EndMenu();
             }
@@ -636,7 +643,7 @@ namespace Profiler
         if( ImGui::Button( Lang::SaveTrace ) )
         {
             m_pTraceExporter = std::make_unique<TraceExporter>();
-            m_pTraceExporter->m_pData = m_pSelectedFrames.back();
+            m_pTraceExporter->m_pData = m_pData;
         }
         if( ImGui::IsItemHovered() )
         {
@@ -653,39 +660,14 @@ namespace Profiler
         int selectedFrameIndex = static_cast<int>( m_SelectedFrameIndex );
         if( ImGui::InputInt( Lang::SelectedFrame, &selectedFrameIndex ) )
         {
-            if( selectedFrameIndex < 0 )
-            {
-                m_SelectedFrameIndex = m_SelectedAllFrames;
-            }
-            else
-            {
-                m_SelectedFrameIndex = std::min<uint32_t>(
-                    static_cast<uint32_t>( m_pFrames.size() - 1 ), selectedFrameIndex );
-            }
+            m_SelectedFrameIndex = std::clamp<uint32_t>(
+                selectedFrameIndex, 0, static_cast<uint32_t>( m_pFrames.size() - 1 ) );
         }
 
         const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
             VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
             VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
-
-        // Update selected frames
-        m_pSelectedFrames.clear();
-
-        if( m_SelectedFrameIndex == m_SelectedAllFrames )
-        {
-            m_pSelectedFrames = m_pFrames;
-        }
-        else
-        {
-            auto it = m_pFrames.rbegin();
-            std::advance( it, m_SelectedFrameIndex );
-            m_pSelectedFrames.push_back( *it );
-        }
-
-        assert( !m_pSelectedFrames.empty() );
-
-        m_FrameTime = GetDuration( 0, m_pSelectedFrames.back()->m_Ticks );
 
         // Add padding
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
@@ -916,21 +898,19 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceTab()
     {
-        std::shared_ptr<DeviceProfilerFrameData> pSelectedFrame = m_pSelectedFrames.back();
-
         // Header
         {
-            const uint64_t cpuTimestampFreq = OSGetTimestampFrequency( pSelectedFrame->m_SyncTimestamps.m_HostTimeDomain );
-            const Milliseconds gpuTimeMs = pSelectedFrame->m_Ticks * m_TimestampPeriod;
+            const uint64_t cpuTimestampFreq = OSGetTimestampFrequency( m_pData->m_SyncTimestamps.m_HostTimeDomain );
+            const Milliseconds gpuTimeMs = m_pData->m_Ticks * m_TimestampPeriod;
             const Milliseconds cpuTimeMs = std::chrono::nanoseconds(
-                ((pSelectedFrame->m_CPU.m_EndTimestamp - pSelectedFrame->m_CPU.m_BeginTimestamp) * 1'000'000'000) / cpuTimestampFreq );
+                ((m_pData->m_CPU.m_EndTimestamp - m_pData->m_CPU.m_BeginTimestamp) * 1'000'000'000) / cpuTimestampFreq );
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
             ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
-            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, pSelectedFrame->m_CPU.m_FrameIndex );
+            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
             ImGui::PopStyleColor();
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
-            ImGuiX::TextAlignRight( "%.1f %s", pSelectedFrame->m_CPU.m_FramesPerSec, Lang::FPS );
+            ImGuiX::TextAlignRight( "%.1f %s", m_pData->m_CPU.m_FramesPerSec, Lang::FPS );
         }
 
         // Histogram
@@ -1010,10 +990,21 @@ namespace Profiler
 
         PerformanceTabDockSpace();
 
+        // m_pData may be temporarily replaced by another frame to correctly scroll to its node.
+        // Save pointer to the current frame to restore it later.
+        std::shared_ptr<DeviceProfilerFrameData> pCurrentFrameData = m_pData;
+
         // Force frame browser open
         if( m_ScrollToSelectedFrameBrowserNode )
         {
             ImGui::SetNextItemOpen( true );
+
+            // Update frame index when scrolling to a node from a different frame
+            m_SelectedFrameIndex = std::clamp<uint32_t>(
+                m_SelectedFrameBrowserNodeIndex.front(), 0, m_pFrames.size() - 1 );
+
+            // Temporarily replace pointer to the current frame data
+            m_pData = GetNthElement( m_pFrames, m_SelectedFrameIndex );
         }
 
         // Frame browser
@@ -1024,18 +1015,19 @@ namespace Profiler
                 static const char* sortOptions[] = {
                     Lang::SubmissionOrder,
                     Lang::DurationDescending,
-                    Lang::DurationAscending };
+                    Lang::DurationAscending
+                };
 
-                const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
+                const char* selectedOption = sortOptions[(size_t)m_FrameBrowserSortMode];
 
                 ImGui::Text( Lang::Sort );
                 ImGui::SameLine();
 
                 if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
                 {
-                    for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
+                    for( size_t i = 0; i < std::extent_v<decltype( sortOptions )>; ++i )
                     {
-                        if( ImGuiX::TSelectable( sortOptions[ i ], selectedOption, sortOptions[ i ] ) )
+                        if( ImGuiX::TSelectable( sortOptions[i], selectedOption, sortOptions[i] ) )
                         {
                             // Selection changed
                             m_FrameBrowserSortMode = FrameBrowserSortMode( i );
@@ -1047,29 +1039,18 @@ namespace Profiler
             }
 
             FrameBrowserTreeNodeIndex index;
-            index.emplace_back( 0 );
+            index.emplace_back( m_SelectedFrameIndex );
 
-            for( std::shared_ptr<DeviceProfilerFrameData> pFrame : m_pSelectedFrames )
-            {
-                const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-                bool frameTreeExpanded = ImGui::TreeNode( indexStr, "Frame #%u",
-                    pFrame->m_CPU.m_FrameIndex );
+            ImGui::Text( "%s #%u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
+            PrintDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
 
-                PrintDuration( pFrame->m_BeginTimestamp, pFrame->m_EndTimestamp );
-
-                if( frameTreeExpanded )
-                {
-                    PrintFrame( *pFrame, index );
-                    ImGui::TreePop();
-                }
-
-                index.back()++;
-            }
+            PrintFrame( *m_pData, index );
         }
 
         ImGui::End();
 
         m_ScrollToSelectedFrameBrowserNode = false;
+        m_pData = pCurrentFrameData;
     }
 
     /***********************************************************************************\
@@ -1089,8 +1070,8 @@ namespace Profiler
         ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
 
         // Select first and last frame for queue utilization calculation.
-        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_pSelectedFrames.front();
-        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_pSelectedFrames.back();
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_pFrames.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_pFrames.back();
 
         // m_FrameTime is active time, queue utilization calculation should take idle time into account as well.
         const float frameDuration = GetDuration( pFirstFrame->m_BeginTimestamp, pLastFrame->m_EndTimestamp );
@@ -1400,10 +1381,7 @@ namespace Profiler
             uint32_t pipelineIndex = 0;
             char pipelineIndexStr[32];
 
-            // Only single frame statistics supported for now
-            std::shared_ptr<DeviceProfilerFrameData> pSelectedFrame = m_pSelectedFrames.back();
-
-            for( const auto& pipeline : pSelectedFrame->m_TopPipelines )
+            for( const auto& pipeline : m_pData->m_TopPipelines )
             {
                 // Skip debug pipelines.
                 if( ( pipeline.m_Type == DeviceProfilerPipelineType::eNone ) ||
@@ -1577,16 +1555,13 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
     {
-        // Only single frame statistics supported for now
-        std::shared_ptr<DeviceProfilerFrameData> pSelectedFrame = m_pSelectedFrames.back();
-
         // Vendor-specific
-        if( !pSelectedFrame->m_VendorMetrics.empty() )
+        if( !m_pData->m_VendorMetrics.empty() )
         {
             std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
             // Data source
-            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &pSelectedFrame->m_VendorMetrics;
+            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_VendorMetrics;
 
             bool performanceQueryResultsFiltered = false;
             auto regexFilterFlags =
@@ -1619,7 +1594,7 @@ namespace Profiler
 
             // Find the first command buffer that matches the filter.
             // TODO: Aggregation.
-            for( const auto& submitBatch : pSelectedFrame->m_Submits )
+            for( const auto& submitBatch : m_pData->m_Submits )
             {
                 for( const auto& submit : submitBatch.m_Submits )
                 {
@@ -1979,9 +1954,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
-        // Only single frame statistics supported for now
-        std::shared_ptr<DeviceProfilerFrameData> pSelectedFrame = m_pSelectedFrames.back();
-
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pFrontend->GetPhysicalDeviceMemoryProperties();
 
@@ -1991,18 +1963,18 @@ namespace Profiler
             {
                 ImGui::Text( "%s %u", Lang::MemoryHeap, i );
 
-                ImGuiX::TextAlignRight( "%u %s", pSelectedFrame->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
+                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
 
                 float usage = 0.f;
                 char usageStr[ 64 ] = {};
 
                 if( memoryProperties.memoryHeaps[ i ].size != 0 )
                 {
-                    usage = (float)pSelectedFrame->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
+                    usage = (float)m_pData->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
 
                     snprintf( usageStr, sizeof( usageStr ),
                         "%.2f/%.2f MB (%.1f%%)",
-                        pSelectedFrame->m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
+                        m_pData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576.f,
                         memoryProperties.memoryHeaps[ i ].size / 1048576.f,
                         usage * 100.f );
                 }
@@ -2033,13 +2005,13 @@ namespace Profiler
                 {
                     if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
                     {
-                        memoryTypeUsages[ typeIndex ] = static_cast<float>( pSelectedFrame->m_Memory.m_Types[ typeIndex ].m_AllocationSize );
+                        memoryTypeUsages[ typeIndex ] = static_cast<float>( m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationSize );
 
                         // Prepare descriptor for memory type
                         std::stringstream sstr;
 
                         sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << pSelectedFrame->m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
+                             << m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
 
                         if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
                         {
@@ -2842,28 +2814,25 @@ namespace Profiler
                 ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(), Lang::StatAvg );
                 ImGui::PopFont();
 
-                // Only single frame statistics supported for now
-                std::shared_ptr<DeviceProfilerFrameData> pSelectedFrame = m_pSelectedFrames.back();
-
-                PrintStats( Lang::DrawCalls, pSelectedFrame->m_Stats.m_DrawStats );
-                PrintStats( Lang::DrawCallsIndirect, pSelectedFrame->m_Stats.m_DrawIndirectStats );
-                PrintStats( Lang::DrawMeshTasksCalls, pSelectedFrame->m_Stats.m_DrawMeshTasksStats );
-                PrintStats( Lang::DrawMeshTasksIndirectCalls, pSelectedFrame->m_Stats.m_DrawMeshTasksIndirectStats );
-                PrintStats( Lang::DispatchCalls, pSelectedFrame->m_Stats.m_DispatchStats );
-                PrintStats( Lang::DispatchCallsIndirect, pSelectedFrame->m_Stats.m_DispatchIndirectStats );
-                PrintStats( Lang::TraceRaysCalls, pSelectedFrame->m_Stats.m_TraceRaysStats );
-                PrintStats( Lang::TraceRaysIndirectCalls, pSelectedFrame->m_Stats.m_TraceRaysIndirectStats );
-                PrintStats( Lang::CopyBufferCalls, pSelectedFrame->m_Stats.m_CopyBufferStats );
-                PrintStats( Lang::CopyBufferToImageCalls, pSelectedFrame->m_Stats.m_CopyBufferToImageStats );
-                PrintStats( Lang::CopyImageCalls, pSelectedFrame->m_Stats.m_CopyImageStats );
-                PrintStats( Lang::CopyImageToBufferCalls, pSelectedFrame->m_Stats.m_CopyImageToBufferStats );
-                PrintStats( Lang::PipelineBarriers, pSelectedFrame->m_Stats.m_PipelineBarrierStats );
-                PrintStats( Lang::ColorClearCalls, pSelectedFrame->m_Stats.m_ClearColorStats );
-                PrintStats( Lang::DepthStencilClearCalls, pSelectedFrame->m_Stats.m_ClearDepthStencilStats );
-                PrintStats( Lang::ResolveCalls, pSelectedFrame->m_Stats.m_ResolveStats );
-                PrintStats( Lang::BlitCalls, pSelectedFrame->m_Stats.m_BlitImageStats );
-                PrintStats( Lang::FillBufferCalls, pSelectedFrame->m_Stats.m_FillBufferStats );
-                PrintStats( Lang::UpdateBufferCalls, pSelectedFrame->m_Stats.m_UpdateBufferStats );
+                PrintStats( Lang::DrawCalls, m_pData->m_Stats.m_DrawStats );
+                PrintStats( Lang::DrawCallsIndirect, m_pData->m_Stats.m_DrawIndirectStats );
+                PrintStats( Lang::DrawMeshTasksCalls, m_pData->m_Stats.m_DrawMeshTasksStats );
+                PrintStats( Lang::DrawMeshTasksIndirectCalls, m_pData->m_Stats.m_DrawMeshTasksIndirectStats );
+                PrintStats( Lang::DispatchCalls, m_pData->m_Stats.m_DispatchStats );
+                PrintStats( Lang::DispatchCallsIndirect, m_pData->m_Stats.m_DispatchIndirectStats );
+                PrintStats( Lang::TraceRaysCalls, m_pData->m_Stats.m_TraceRaysStats );
+                PrintStats( Lang::TraceRaysIndirectCalls, m_pData->m_Stats.m_TraceRaysIndirectStats );
+                PrintStats( Lang::CopyBufferCalls, m_pData->m_Stats.m_CopyBufferStats );
+                PrintStats( Lang::CopyBufferToImageCalls, m_pData->m_Stats.m_CopyBufferToImageStats );
+                PrintStats( Lang::CopyImageCalls, m_pData->m_Stats.m_CopyImageStats );
+                PrintStats( Lang::CopyImageToBufferCalls, m_pData->m_Stats.m_CopyImageToBufferStats );
+                PrintStats( Lang::PipelineBarriers, m_pData->m_Stats.m_PipelineBarrierStats );
+                PrintStats( Lang::ColorClearCalls, m_pData->m_Stats.m_ClearColorStats );
+                PrintStats( Lang::DepthStencilClearCalls, m_pData->m_Stats.m_ClearDepthStencilStats );
+                PrintStats( Lang::ResolveCalls, m_pData->m_Stats.m_ResolveStats );
+                PrintStats( Lang::BlitCalls, m_pData->m_Stats.m_BlitImageStats );
+                PrintStats( Lang::FillBufferCalls, m_pData->m_Stats.m_FillBufferStats );
+                PrintStats( Lang::UpdateBufferCalls, m_pData->m_Stats.m_UpdateBufferStats );
 
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -2994,8 +2963,8 @@ namespace Profiler
 
         uint64_t lastTimestamp;
 
-        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_pSelectedFrames.front();
-        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_pSelectedFrames.back();
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_pFrames.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_pFrames.back();
         lastTimestamp = pFirstFrame->m_BeginTimestamp;
 
         auto AppendSemaphoreEvent = [&]( const std::vector<VkSemaphore>& semaphores, QueueGraphColumn::DataType type ) {
@@ -3016,7 +2985,7 @@ namespace Profiler
             }
         };
 
-        for( const auto& frame : m_pSelectedFrames )
+        for( const auto& frame : m_pFrames )
         {
             // Count queue submits in the frame.
             index.emplace_back( 0 );
@@ -3190,7 +3159,7 @@ namespace Profiler
             }
         }
 
-        for (std::shared_ptr<DeviceProfilerFrameData> pFrame : m_pSelectedFrames)
+        for( std::shared_ptr<DeviceProfilerFrameData> pFrame : m_pFrames )
         {
             index.emplace_back( 0 );
 
@@ -3638,12 +3607,12 @@ namespace Profiler
     {
         // Allocate size for the string.
         m_FrameBrowserNodeIndexStr.resize(
-            (index.size() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
+            ((index.size() - 1) * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
 
         ProfilerStringFunctions::Hex(
             m_FrameBrowserNodeIndexStr.data(),
-            index.data(),
-            index.size() );
+            (index.data() + 1),
+            (index.size() - 1) );
 
         return m_FrameBrowserNodeIndexStr.data();
     }
