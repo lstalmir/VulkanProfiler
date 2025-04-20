@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "profiler_data_helpers.h"
+#include "profiler_string_serializer.h"
 #include "profiler/profiler_data.h"
 #include "profiler/profiler_frontend.h"
 #include "profiler/profiler_helpers.h"

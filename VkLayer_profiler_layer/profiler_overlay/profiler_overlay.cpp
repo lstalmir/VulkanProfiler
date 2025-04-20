@@ -22,7 +22,7 @@
 #include "profiler_overlay_shader_view.h"
 #include "profiler/profiler_frontend.h"
 #include "profiler_trace/profiler_trace.h"
-#include "profiler_helpers/profiler_data_helpers.h"
+#include "profiler_helpers/profiler_string_serializer.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkQueue_object.h"

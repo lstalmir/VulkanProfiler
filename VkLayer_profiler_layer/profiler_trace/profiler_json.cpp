@@ -20,7 +20,7 @@
 
 #include "profiler_json.h"
 #include "profiler/profiler_data.h"
-#include "profiler_helpers/profiler_data_helpers.h"
+#include "profiler_helpers/profiler_string_serializer.h"
 #include "profiler_layer_objects/VkObject.h"
 
 namespace Profiler
