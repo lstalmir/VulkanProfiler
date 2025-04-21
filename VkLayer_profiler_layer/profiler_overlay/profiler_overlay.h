@@ -75,6 +75,8 @@ namespace Profiler
         void LoadPerformanceCountersFromFile( const std::string& );
         void LoadTopPipelinesFromFile( const std::string& );
 
+        void SetMaxFrameCount( uint32_t maxFrameCount );
+
     private:
         OverlaySettings m_Settings;
 

@@ -532,6 +532,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetMaxFrameCount
+
+    Description:
+        Set maximum number of frames to be displayed in the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SetMaxFrameCount( uint32_t maxFrameCount )
+    {
+        m_MaxFrameCount = maxFrameCount;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Present
 
     Description:

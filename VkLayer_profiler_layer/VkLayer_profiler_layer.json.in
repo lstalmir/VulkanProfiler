@@ -122,6 +122,14 @@
                     "default": true
                 },
                 {
+                    "key": "frame_count",
+                    "label": "Frame count",
+                    "description": "Number of frames to collect and display in the overlay. Set 0 to collect all frames.",
+                    "env": "VKPROF_frame_count",
+                    "type": "INT",
+                    "default": 1
+                },
+                {
                     "key": "sampling_mode",
                     "label": "Sampling mode",
                     "description": "Level of timestamp data collection.",

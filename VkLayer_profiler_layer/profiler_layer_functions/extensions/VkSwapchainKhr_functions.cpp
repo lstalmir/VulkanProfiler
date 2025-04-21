@@ -94,6 +94,8 @@ namespace Profiler
                 if( success )
                 {
                     // Initialize overlay with configuration
+                    dd.Overlay.SetMaxFrameCount( std::max( dd.Profiler.m_Config.m_FrameCount, 0 ) );
+
                     if( !dd.Profiler.m_Config.m_RefPipelines.empty() )
                     {
                         dd.Overlay.LoadTopPipelinesFromFile( dd.Profiler.m_Config.m_RefPipelines );
