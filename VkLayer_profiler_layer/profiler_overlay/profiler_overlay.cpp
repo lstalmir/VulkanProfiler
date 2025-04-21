@@ -3050,12 +3050,12 @@ namespace Profiler
             }
         };
 
-        for( const auto& frame : m_pFrames )
+        for( const auto& pFrame : m_pFrames )
         {
             // Count queue submits in the frame.
             index.emplace_back( 0 );
 
-            for( const auto& submitBatch : m_pFrames.back()->m_Submits )
+            for( const auto& submitBatch : pFrame->m_Submits )
             {
                 if( submitBatch.m_Handle != queue )
                 {
