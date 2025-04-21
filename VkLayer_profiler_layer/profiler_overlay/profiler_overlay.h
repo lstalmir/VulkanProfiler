@@ -146,6 +146,7 @@ namespace Profiler
         bool m_ShowShaderCapabilities;
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
+        bool m_ShowActiveFrame;
 
         bool m_SetLastMainWindowPos;
         Float2* m_pLastMainWindowPos;

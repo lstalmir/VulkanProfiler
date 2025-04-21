@@ -430,6 +430,7 @@ namespace Profiler
         m_ShowShaderCapabilities = true;
         m_ShowEmptyStatistics = false;
         m_ShowAllTopPipelines = false;
+        m_ShowActiveFrame = false;
 
         m_SetLastMainWindowPos = false;
 
@@ -953,6 +954,11 @@ namespace Profiler
                 ImGui::PushItemWidth( 100 * interfaceScale );
 
                 ImGui::Checkbox( Lang::ShowIdle, &m_HistogramShowIdle );
+
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
+
+                ImGui::Checkbox( "Show active frame", &m_ShowActiveFrame );
             }
 
             float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;
@@ -3024,12 +3030,12 @@ namespace Profiler
     void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
     {
         FrameBrowserTreeNodeIndex index;
-        index.emplace_back( 0 );
+        index.emplace_back( static_cast<uint16_t>( m_pFrames.size() - 1 ) );
 
         uint64_t lastTimestamp;
 
-        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_pFrames.front();
-        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_pFrames.back();
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_ShowActiveFrame ? m_pData : m_pFrames.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_ShowActiveFrame ? m_pData : m_pFrames.back();
         lastTimestamp = pFirstFrame->m_BeginTimestamp;
 
         auto AppendSemaphoreEvent = [&]( const std::vector<VkSemaphore>& semaphores, QueueGraphColumn::DataType type ) {
@@ -3052,6 +3058,18 @@ namespace Profiler
 
         for( const auto& pFrame : m_pFrames )
         {
+            // Skip other frames if requested
+            if( m_ShowActiveFrame )
+            {
+                if( index.back() != m_SelectedFrameIndex )
+                {
+                    index.back()--;
+                    continue;
+                }
+            }
+
+            const bool isActiveFrame = ( index.back() == m_SelectedFrameIndex );
+
             // Count queue submits in the frame.
             index.emplace_back( 0 );
 
@@ -3102,7 +3120,7 @@ namespace Profiler
                         QueueGraphColumn& column = columns.emplace_back();
                         column.x = GetDuration( commandBuffer );
                         column.y = 1;
-                        column.color = m_GraphicsPipelineColumnColor;
+                        column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                         column.userDataType = QueueGraphColumn::eCommandBuffer;
                         column.userData = &commandBuffer;
                         column.nodeIndex = index;
@@ -3134,7 +3152,7 @@ namespace Profiler
             }
 
             index.pop_back();
-            index.back()++;
+            index.back()--;
         }
 
         if( ( lastTimestamp != pFirstFrame->m_BeginTimestamp ) &&
@@ -3184,7 +3202,7 @@ namespace Profiler
     void ProfilerOverlayOutput::GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& columns ) const
     {
         FrameBrowserTreeNodeIndex index;
-        index.emplace_back( 0 );
+        index.emplace_back( static_cast<uint16_t>( m_pFrames.size() - 1 ) );
 
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
         const auto& queues = m_pFrontend->GetDeviceQueues();
@@ -3226,6 +3244,16 @@ namespace Profiler
 
         for( std::shared_ptr<DeviceProfilerFrameData> pFrame : m_pFrames )
         {
+            // Skip other frames if requested
+            if( m_ShowActiveFrame )
+            {
+                if( index.back() != m_SelectedFrameIndex )
+                {
+                    index.back()--;
+                    continue;
+                }
+            }
+
             index.emplace_back( 0 );
 
             // Enumerate submits batches in frame
@@ -3285,7 +3313,7 @@ namespace Profiler
             }
 
             index.pop_back();
-            index.back()++;
+            index.back()--;
         }
 
         // Free memory allocated on heap
