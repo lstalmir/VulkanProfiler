@@ -700,16 +700,6 @@ namespace Profiler
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
-        // Select frame to display
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth( 100 );
-        int selectedFrameIndex = static_cast<int>( m_SelectedFrameIndex );
-        if( ImGui::InputInt( Lang::SelectedFrame, &selectedFrameIndex ) )
-        {
-            m_SelectedFrameIndex = std::clamp<uint32_t>(
-                selectedFrameIndex, 0, static_cast<uint32_t>( m_pFrames.size() - 1 ) );
-        }
-
         const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
             VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
@@ -921,13 +911,18 @@ namespace Profiler
             ImGui::DockBuilderSetNodeSize( m_PerformanceTabDockSpaceId, ImGui::GetMainViewport()->Size );
 
             ImGuiID dockMain = m_PerformanceTabDockSpaceId;
+            ImGuiID dockLeft;
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Left, 0.3f, &dockLeft, &dockMain );
             ImGuiID dockQueueUtilization, dockTopPipelines;
             ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.12f, &dockQueueUtilization, &dockMain );
             ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.2f, &dockTopPipelines, &dockMain );
+            ImGuiID dockFrames;
+            ImGui::DockBuilderSplitNode( dockLeft, ImGuiDir_Up, 0.2f, &dockFrames, &dockLeft );
 
+            ImGui::DockBuilderDockWindow( Lang::Frames, dockFrames );
             ImGui::DockBuilderDockWindow( Lang::QueueUtilization, dockQueueUtilization );
             ImGui::DockBuilderDockWindow( Lang::TopPipelines, dockTopPipelines );
-            ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockMain );
+            ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockLeft );
             ImGui::DockBuilderDockWindow( Lang::PerformanceCounters, dockMain );
             ImGui::DockBuilderFinish( m_PerformanceTabDockSpaceId );
         }
@@ -1045,6 +1040,32 @@ namespace Profiler
         }
 
         PerformanceTabDockSpace();
+
+        // Frames list
+        if( ImGui::Begin( Lang::Frames, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            uint32_t frameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
+
+            for( const auto& pFrame : m_pFrames )
+            {
+                std::string frameName = fmt::format(
+                    "{} #{} ({:.2f} {})",
+                    Lang::Frame,
+                    pFrame->m_CPU.m_FrameIndex,
+                    GetDuration( 0, pFrame->m_Ticks ),
+                    m_pTimestampDisplayUnitStr );
+
+                bool selected = ( frameIndex == m_SelectedFrameIndex );
+                if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+                {
+                    m_SelectedFrameIndex = frameIndex;
+                }
+
+                frameIndex--;
+            }
+        }
+
+        ImGui::End();
 
         // m_pData may be temporarily replaced by another frame to correctly scroll to its node.
         // Save pointer to the current frame to restore it later.
