@@ -3338,6 +3338,8 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
+        const bool isActiveFrame = ( index.front() == m_SelectedFrameIndex );
+
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             ((data.m_Handle != VK_NULL_HANDLE) ||
              (data.m_Dynamic == true) ||
@@ -3348,7 +3350,7 @@ namespace Profiler
             PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-            column.color = m_RenderPassColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_RenderPassColumnColor, isActiveFrame ? 1.0f : 0.2f );
             column.userData = &data;
             column.groupMode = HistogramGroupMode::eRenderPass;
             column.nodeIndex = index;
@@ -3363,7 +3365,7 @@ namespace Profiler
                 PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassBegin;
                 column.nodeIndex = index;
@@ -3426,7 +3428,7 @@ namespace Profiler
                 PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassEnd;
                 column.nodeIndex = index;
@@ -3455,6 +3457,7 @@ namespace Profiler
               (data.m_Handle != VK_NULL_HANDLE)) ||
              (m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT)) )
         {
+            const bool isActiveFrame = ( index.front() == m_SelectedFrameIndex );
             const float cycleCount = GetDuration( data );
 
             PerformanceGraphColumn& column = columns.emplace_back();
@@ -3467,15 +3470,15 @@ namespace Profiler
             switch( data.m_BindPoint )
             {
             case VK_PIPELINE_BIND_POINT_GRAPHICS:
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             case VK_PIPELINE_BIND_POINT_COMPUTE:
-                column.color = m_ComputePipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_ComputePipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
-                column.color = m_RayTracingPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_RayTracingPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             default:
@@ -3512,6 +3515,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
+        const bool isActiveFrame = ( index.front() == m_SelectedFrameIndex );
         const float cycleCount = GetDuration( data );
 
         PerformanceGraphColumn& column = columns.emplace_back();
@@ -3524,15 +3528,15 @@ namespace Profiler
         switch( data.GetPipelineType() )
         {
         case DeviceProfilerPipelineType::eGraphics:
-            column.color = m_GraphicsPipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
 
         case DeviceProfilerPipelineType::eCompute:
-            column.color = m_ComputePipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_ComputePipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
 
         default:
-            column.color = m_InternalPipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_InternalPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
         }
     }
