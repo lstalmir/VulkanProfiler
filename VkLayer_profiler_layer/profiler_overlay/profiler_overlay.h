@@ -117,6 +117,7 @@ namespace Profiler
 
         enum class HistogramGroupMode
         {
+            eFrame,
             eRenderPass,
             ePipeline,
             eDrawcall,

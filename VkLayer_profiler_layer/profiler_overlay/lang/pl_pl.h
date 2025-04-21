@@ -59,6 +59,7 @@ namespace Profiler
         // Performance tab
         inline static constexpr char GPUTime[] = u8"Czas GPU";
         inline static constexpr char CPUTime[] = u8"Czas CPU";
+        inline static constexpr char Frames[] = u8"Ramki";
         inline static constexpr char RenderPasses[] = u8"Render passy";
         inline static constexpr char Pipelines[] = u8"Stany potoku";
         inline static constexpr char Drawcalls[] = u8"Komendy";

@@ -578,9 +578,12 @@ namespace Profiler
             }
         }
 
-        while( m_pFrames.size() > m_MaxFrameCount )
+        if( m_MaxFrameCount )
         {
-            m_pFrames.pop_front();
+            while( m_pFrames.size() > m_MaxFrameCount )
+            {
+                m_pFrames.pop_front();
+            }
         }
 
         m_SelectedFrameIndex = std::min<uint32_t>( m_SelectedFrameIndex, m_pFrames.size() - 1 );
@@ -959,6 +962,7 @@ namespace Profiler
         // Histogram
         {
             static const char* groupOptions[] = {
+                Lang::Frames,
                 Lang::RenderPasses,
                 Lang::Pipelines,
                 Lang::Drawcalls };
@@ -969,7 +973,11 @@ namespace Profiler
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, nullptr, ImGuiComboFlags_NoPreview ) )
                 {
+                    ImGuiX::TSelectable( Lang::Frames, m_HistogramGroupMode, HistogramGroupMode::eFrame );
+
+                    ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
                     ImGuiX::TSelectable( Lang::RenderPasses, m_HistogramGroupMode, HistogramGroupMode::eRenderPass );
+                    ImGui::EndDisabled();
 
                     ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_PIPELINE_EXT );
                     ImGuiX::TSelectable( Lang::Pipelines, m_HistogramGroupMode, HistogramGroupMode::ePipeline );
@@ -2992,7 +3000,7 @@ namespace Profiler
         int maxFrameCount = static_cast<int>( m_MaxFrameCount );
         if( ImGui::InputInt( Lang::CollectedFrameCount, &maxFrameCount ) )
         {
-            m_MaxFrameCount = std::max<uint32_t>( 1, maxFrameCount );
+            m_MaxFrameCount = std::max<uint32_t>( 0, maxFrameCount );
         }
 
         // Select sampling mode (constant in runtime for now)
@@ -3298,6 +3306,21 @@ namespace Profiler
                     index.SetFrameIndex( frameIndex - 1 );
                     continue;
                 }
+            }
+
+            // Enumerate frames only
+            if( m_HistogramGroupMode == HistogramGroupMode::eFrame )
+            {
+                PerformanceGraphColumn& column = columns.emplace_back();
+                column.x = GetDuration( pFrame->m_BeginTimestamp, pFrame->m_EndTimestamp );
+                column.y = ( m_HistogramValueMode == HistogramValueMode::eDuration ? column.x : 1 );
+                column.color = ImGuiX::ColorAlpha( m_RenderPassColumnColor, frameIndex == m_SelectedFrameIndex ? 1.0f : 0.2f );
+                column.userData = pFrame.get();
+                column.groupMode = HistogramGroupMode::eFrame;
+                column.nodeIndex = index;
+
+                index.SetFrameIndex( frameIndex - 1 );
+                continue;
             }
 
             index.emplace_back( 0 );
@@ -3633,6 +3656,16 @@ namespace Profiler
 
         switch( data.groupMode )
         {
+        case HistogramGroupMode::eFrame:
+        {
+            const DeviceProfilerFrameData& frameData =
+                *reinterpret_cast<const DeviceProfilerFrameData*>( data.userData );
+
+            regionName = fmt::format( "{} #{}", Lang::Frame, frameData.m_CPU.m_FrameIndex );
+            regionDuration = GetDuration( frameData.m_BeginTimestamp, frameData.m_EndTimestamp );
+            break;
+        }
+
         case HistogramGroupMode::eRenderPass:
         {
             const DeviceProfilerRenderPassData& renderPassData =
