@@ -1169,8 +1169,8 @@ namespace Profiler
         ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
 
         // Select first and last frame for queue utilization calculation.
-        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_pFrames.front();
-        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_pFrames.back();
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_ShowActiveFrame ? m_pData : m_pFrames.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_ShowActiveFrame ? m_pData : m_pFrames.back();
 
         // m_FrameTime is active time, queue utilization calculation should take idle time into account as well.
         const float frameDuration = GetDuration( pFirstFrame->m_BeginTimestamp, pLastFrame->m_EndTimestamp );
