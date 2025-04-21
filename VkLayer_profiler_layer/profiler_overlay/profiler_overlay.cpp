@@ -574,7 +574,7 @@ namespace Profiler
             auto pData = m_pFrontend->GetData();
             if( pData )
             {
-                m_pFrames.push_back( m_pFrontend->GetData() );
+                m_pFrames.push_back( pData );
             }
         }
 
