@@ -132,7 +132,16 @@ namespace Profiler
         HistogramValueMode m_HistogramValueMode;
         bool m_HistogramShowIdle;
 
-        typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
+        struct FrameBrowserTreeNodeIndex : std::vector<uint16_t>
+        {
+            using std::vector<uint16_t>::vector;
+
+            void SetFrameIndex( uint32_t frameIndex );
+            uint32_t GetFrameIndex() const;
+
+            const uint16_t* GetTreeNodeIndex() const;
+            size_t GetTreeNodeIndexSize() const;
+        };
 
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pFrames;
          // 0 - current frame, 1 - previous frame, etc.

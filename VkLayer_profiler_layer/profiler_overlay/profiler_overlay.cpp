@@ -183,6 +183,34 @@ namespace Profiler
         return IM_COL32( 255, 128, 128, 255 );
     }
 
+    void ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::SetFrameIndex( uint32_t frameIndex )
+    {
+        if( size() < 2 ) resize( 2 );
+        uint16_t* pIndex = data();
+        pIndex[0] = static_cast<uint16_t>( frameIndex & 0xff );
+        pIndex[1] = static_cast<uint16_t>( ( frameIndex >> 8 ) & 0xff );
+    }
+
+    uint32_t ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetFrameIndex() const
+    {
+        if( size() < 2 ) return 0;
+        const uint16_t* pIndex = data();
+        return ( static_cast<uint32_t>( pIndex[0] ) & 0xff ) |
+               ( static_cast<uint32_t>( pIndex[1] ) << 8 );
+    }
+
+    const uint16_t* ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetTreeNodeIndex() const
+    {
+        if( size() < 2 ) return nullptr;
+        return data() + 2;
+    }
+
+    size_t ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetTreeNodeIndexSize() const
+    {
+        if( size() < 2 ) return 0;
+        return size() - 2;
+    }
+
     /***********************************************************************************\
 
     Function:
@@ -440,7 +468,7 @@ namespace Profiler
         m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
         m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
 
-        m_SelectedFrameBrowserNodeIndex = { 0xFFFF };
+        m_SelectedFrameBrowserNodeIndex = { 0, 0, 0xFFFF };
         m_ScrollToSelectedFrameBrowserNode = false;
         m_FrameBrowserNodeIndexStr.clear();
         m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::time_point();
@@ -1044,7 +1072,7 @@ namespace Profiler
             }
 
             FrameBrowserTreeNodeIndex index;
-            index.emplace_back( m_SelectedFrameIndex );
+            index.SetFrameIndex( m_SelectedFrameIndex );
 
             ImGui::Text( "%s #%u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
             PrintDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
@@ -3030,7 +3058,7 @@ namespace Profiler
     void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
     {
         FrameBrowserTreeNodeIndex index;
-        index.emplace_back( static_cast<uint16_t>( m_pFrames.size() - 1 ) );
+        index.SetFrameIndex( static_cast<uint32_t>( m_pFrames.size() - 1 ) );
 
         uint64_t lastTimestamp;
 
@@ -3058,17 +3086,19 @@ namespace Profiler
 
         for( const auto& pFrame : m_pFrames )
         {
+            const uint32_t frameIndex = index.GetFrameIndex();
+
             // Skip other frames if requested
             if( m_ShowActiveFrame )
             {
-                if( index.back() != m_SelectedFrameIndex )
+                if( frameIndex != m_SelectedFrameIndex )
                 {
-                    index.back()--;
+                    index.SetFrameIndex( frameIndex - 1 );
                     continue;
                 }
             }
 
-            const bool isActiveFrame = ( index.back() == m_SelectedFrameIndex );
+            const bool isActiveFrame = ( frameIndex == m_SelectedFrameIndex );
 
             // Count queue submits in the frame.
             index.emplace_back( 0 );
@@ -3152,7 +3182,7 @@ namespace Profiler
             }
 
             index.pop_back();
-            index.back()--;
+            index.SetFrameIndex( frameIndex - 1 );
         }
 
         if( ( lastTimestamp != pFirstFrame->m_BeginTimestamp ) &&
@@ -3202,7 +3232,7 @@ namespace Profiler
     void ProfilerOverlayOutput::GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& columns ) const
     {
         FrameBrowserTreeNodeIndex index;
-        index.emplace_back( static_cast<uint16_t>( m_pFrames.size() - 1 ) );
+        index.SetFrameIndex( static_cast<uint32_t>( m_pFrames.size() - 1 ) );
 
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
         const auto& queues = m_pFrontend->GetDeviceQueues();
@@ -3244,12 +3274,14 @@ namespace Profiler
 
         for( std::shared_ptr<DeviceProfilerFrameData> pFrame : m_pFrames )
         {
+            const uint32_t frameIndex = index.GetFrameIndex();
+
             // Skip other frames if requested
             if( m_ShowActiveFrame )
             {
-                if( index.back() != m_SelectedFrameIndex )
+                if( frameIndex != m_SelectedFrameIndex )
                 {
-                    index.back()--;
+                    index.SetFrameIndex( frameIndex - 1 );
                     continue;
                 }
             }
@@ -3313,7 +3345,7 @@ namespace Profiler
             }
 
             index.pop_back();
-            index.back()--;
+            index.SetFrameIndex( index.GetFrameIndex() - 1 );
         }
 
         // Free memory allocated on heap
@@ -3704,12 +3736,12 @@ namespace Profiler
     {
         // Allocate size for the string.
         m_FrameBrowserNodeIndexStr.resize(
-            ((index.size() - 1) * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
+            (index.GetTreeNodeIndexSize() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
 
         ProfilerStringFunctions::Hex(
             m_FrameBrowserNodeIndexStr.data(),
-            (index.data() + 1),
-            (index.size() - 1) );
+            index.GetTreeNodeIndex(),
+            index.GetTreeNodeIndexSize() );
 
         return m_FrameBrowserNodeIndexStr.data();
     }
