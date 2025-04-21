@@ -320,7 +320,6 @@ namespace Profiler
         void ShaderRepresentationSaved( bool, const std::string& );
 
         // Frame browser helpers
-        void PrintFrame( const DeviceProfilerFrameData&, FrameBrowserTreeNodeIndex& );
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
         void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool, const FrameBrowserContext& );

@@ -1015,8 +1015,7 @@ namespace Profiler
                 static const char* sortOptions[] = {
                     Lang::SubmissionOrder,
                     Lang::DurationDescending,
-                    Lang::DurationAscending
-                };
+                    Lang::DurationAscending };
 
                 const char* selectedOption = sortOptions[(size_t)m_FrameBrowserSortMode];
 
@@ -1044,7 +1043,73 @@ namespace Profiler
             ImGui::Text( "%s #%u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
             PrintDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
 
-            PrintFrame( *m_pData, index );
+            index.emplace_back( 0 );
+
+            // Enumerate submits in frame
+            for( const auto& submitBatch : m_pData->m_Submits )
+            {
+                const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
+
+                if( ScrollToSelectedFrameBrowserNode( index ) )
+                {
+                    ImGui::SetNextItemOpen( true );
+                }
+
+                const char* indexStr = GetFrameBrowserNodeIndexStr( index );
+                if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
+                        queueName.c_str(),
+                        static_cast<uint32_t>( submitBatch.m_Submits.size() ) ) )
+                {
+                    index.emplace_back( 0 );
+
+                    for( const auto& submit : submitBatch.m_Submits )
+                    {
+                        if( ScrollToSelectedFrameBrowserNode( index ) )
+                        {
+                            ImGui::SetNextItemOpen( true );
+                        }
+
+                        const char* indexStr = GetFrameBrowserNodeIndexStr( index );
+                        const bool inSubmitSubtree =
+                            ( submitBatch.m_Submits.size() > 1 ) &&
+                            ( ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.back() ) );
+
+                        if( ( inSubmitSubtree ) || ( submitBatch.m_Submits.size() == 1 ) )
+                        {
+                            index.emplace_back( 0 );
+
+                            // Sort frame browser data
+                            std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
+                                SortFrameBrowserData( submit.m_CommandBuffers );
+
+                            // Enumerate command buffers in submit
+                            for( const auto* pCommandBuffer : pCommandBuffers )
+                            {
+                                PrintCommandBuffer( *pCommandBuffer, index );
+                                index.back()++;
+                            }
+
+                            index.pop_back();
+                        }
+
+                        if( inSubmitSubtree )
+                        {
+                            // Finish submit subtree
+                            ImGui::TreePop();
+                        }
+
+                        index.back()++;
+                    }
+
+                    // Finish submit batch subtree
+                    ImGui::TreePop();
+
+                    // Invalidate submit index
+                    index.pop_back();
+                }
+
+                index.back()++;
+            }
         }
 
         ImGui::End();
@@ -1300,7 +1365,7 @@ namespace Profiler
         if( ImGui::Button( Lang::Save ) )
         {
             m_pTopPipelinesExporter = std::make_unique<TopPipelinesExporter>();
-            m_pTopPipelinesExporter->m_pData = m_pFrames.back();
+            m_pTopPipelinesExporter->m_pData = m_pData;
             m_pTopPipelinesExporter->m_Action = TopPipelinesExporter::Action::eExport;
         }
         ImGui::EndDisabled();
@@ -1319,10 +1384,10 @@ namespace Profiler
         {
             m_ReferenceTopPipelines.clear();
 
-            const uint32_t frameIndex = m_pFrames.back()->m_CPU.m_FrameIndex;
+            const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
             m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
 
-            for( const DeviceProfilerPipelineData& pipeline : m_pFrames.back()->m_TopPipelines )
+            for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
             {
                 const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
 
@@ -4125,88 +4190,6 @@ namespace Profiler
 
             m_SerializationWindowVisible = true;
         }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PrintFrame
-
-    Description:
-        Writes frame data to the overlay.
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::PrintFrame( const DeviceProfilerFrameData& frame, FrameBrowserTreeNodeIndex& index )
-    {
-        index.emplace_back( 0 );
-
-        // Enumerate submits in frame
-        for( const auto& submitBatch : frame.m_Submits )
-        {
-            const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
-
-            if( ScrollToSelectedFrameBrowserNode( index ) )
-            {
-                ImGui::SetNextItemOpen( true );
-            }
-
-            const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-            if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
-                    queueName.c_str(),
-                    static_cast<uint32_t>( submitBatch.m_Submits.size() ) ) )
-            {
-                index.emplace_back( 0 );
-
-                for( const auto& submit : submitBatch.m_Submits )
-                {
-                    if( ScrollToSelectedFrameBrowserNode( index ) )
-                    {
-                        ImGui::SetNextItemOpen( true );
-                    }
-
-                    const char* indexStr = GetFrameBrowserNodeIndexStr( index );
-                    const bool inSubmitSubtree =
-                        ( submitBatch.m_Submits.size() > 1 ) &&
-                        ( ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.back() ) );
-
-                    if( ( inSubmitSubtree ) || ( submitBatch.m_Submits.size() == 1 ) )
-                    {
-                        index.emplace_back( 0 );
-
-                        // Sort frame browser data
-                        std::list<const DeviceProfilerCommandBufferData*> pCommandBuffers =
-                            SortFrameBrowserData( submit.m_CommandBuffers );
-
-                        // Enumerate command buffers in submit
-                        for( const auto* pCommandBuffer : pCommandBuffers )
-                        {
-                            PrintCommandBuffer( *pCommandBuffer, index );
-                            index.back()++;
-                        }
-
-                        index.pop_back();
-                    }
-
-                    if( inSubmitSubtree )
-                    {
-                        // Finish submit subtree
-                        ImGui::TreePop();
-                    }
-
-                    index.back()++;
-                }
-
-                // Finish submit batch subtree
-                ImGui::TreePop();
-
-                // Invalidate submit index
-                index.pop_back();
-            }
-
-            index.back()++;
-        }
-
-        index.pop_back();
     }
 
     /***********************************************************************************\
