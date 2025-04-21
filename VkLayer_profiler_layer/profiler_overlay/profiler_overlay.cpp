@@ -187,16 +187,16 @@ namespace Profiler
     {
         if( size() < 2 ) resize( 2 );
         uint16_t* pIndex = data();
-        pIndex[0] = static_cast<uint16_t>( frameIndex & 0xff );
-        pIndex[1] = static_cast<uint16_t>( ( frameIndex >> 8 ) & 0xff );
+        pIndex[0] = static_cast<uint16_t>( frameIndex & 0xffff );
+        pIndex[1] = static_cast<uint16_t>( ( frameIndex >> 16 ) & 0xffff );
     }
 
     uint32_t ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetFrameIndex() const
     {
         if( size() < 2 ) return 0;
         const uint16_t* pIndex = data();
-        return ( static_cast<uint32_t>( pIndex[0] ) & 0xff ) |
-               ( static_cast<uint32_t>( pIndex[1] ) << 8 );
+        return ( static_cast<uint32_t>( pIndex[0] ) ) |
+               ( static_cast<uint32_t>( pIndex[1] ) << 16 );
     }
 
     const uint16_t* ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetTreeNodeIndex() const
@@ -1078,7 +1078,7 @@ namespace Profiler
 
             // Update frame index when scrolling to a node from a different frame
             m_SelectedFrameIndex = std::clamp<uint32_t>(
-                m_SelectedFrameBrowserNodeIndex.front(), 0, m_pFrames.size() - 1 );
+                m_SelectedFrameBrowserNodeIndex.GetFrameIndex(), 0, m_pFrames.size() - 1 );
 
             // Temporarily replace pointer to the current frame data
             m_pData = GetNthElement( m_pFrames, m_SelectedFrameIndex );
@@ -3456,7 +3456,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        const bool isActiveFrame = ( index.front() == m_SelectedFrameIndex );
+        const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
 
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             ((data.m_Handle != VK_NULL_HANDLE) ||
@@ -3575,7 +3575,7 @@ namespace Profiler
               (data.m_Handle != VK_NULL_HANDLE)) ||
              (m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT)) )
         {
-            const bool isActiveFrame = ( index.front() == m_SelectedFrameIndex );
+            const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
             const float cycleCount = GetDuration( data );
 
             PerformanceGraphColumn& column = columns.emplace_back();
@@ -3633,7 +3633,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
-        const bool isActiveFrame = ( index.front() == m_SelectedFrameIndex );
+        const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
         const float cycleCount = GetDuration( data );
 
         PerformanceGraphColumn& column = columns.emplace_back();
