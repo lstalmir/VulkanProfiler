@@ -416,7 +416,7 @@ namespace Profiler
         DESTROYANDRETURNONFAIL( m_DataAggregator.Initialize( this ) );
 
         m_pData = m_DataAggregator.GetAggregatedData();
-        assert( m_pData );
+        assert( !m_pData.empty() );
 
         // Initialize internal pipelines
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBuffer, "CopyBuffer" );
