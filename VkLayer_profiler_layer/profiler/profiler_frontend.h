@@ -71,5 +71,6 @@ namespace Profiler
         virtual void SetObjectName( const struct VkObject& object, const std::string& name ) = 0;
 
         virtual std::shared_ptr<DeviceProfilerFrameData> GetData() = 0;
+        virtual void SetDataBufferSize( uint32_t maxFrames ) = 0;
     };
 }

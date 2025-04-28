@@ -524,7 +524,13 @@ namespace Profiler
         // Update data
         if( !m_Pause || !m_pData )
         {
-            m_pData = m_pFrontend->GetData();
+            auto pData = m_pFrontend->GetData();
+            while( pData )
+            {
+                // Read the data until the last resolved frame
+                m_pData = std::exchange( pData, m_pFrontend->GetData() );
+            }
+
             m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
         }
 
