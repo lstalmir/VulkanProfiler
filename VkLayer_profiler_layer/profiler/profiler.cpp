@@ -148,10 +148,11 @@ namespace Profiler
         , m_Config()
         , m_PresentMutex()
         , m_SubmitMutex()
-        , m_pData( nullptr )
+        , m_pData()
         , m_MemoryManager()
         , m_DataAggregator()
         , m_NextFrameIndex( 0 )
+        , m_DataBufferSize( 1 )
         , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
@@ -415,7 +416,7 @@ namespace Profiler
         DESTROYANDRETURNONFAIL( m_DataAggregator.Initialize( this ) );
 
         m_pData = m_DataAggregator.GetAggregatedData();
-        assert( m_pData );
+        assert( !m_pData.empty() );
 
         // Initialize internal pipelines
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBuffer, "CopyBuffer" );
@@ -653,10 +654,38 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        SetDataBufferSize
+
+    Description:
+        Set the maximum number of buffered frames.
+
     \***********************************************************************************/
-    std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData() const
+    VkResult DeviceProfiler::SetDataBufferSize( uint32_t size )
     {
-        return m_pData;
+        std::scoped_lock lk( m_PresentMutex );
+
+        m_DataAggregator.SetDataBufferSize( size );
+        m_DataBufferSize = size;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    \***********************************************************************************/
+    std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData()
+    {
+        std::scoped_lock lk( m_PresentMutex );
+        std::shared_ptr<DeviceProfilerFrameData> pData = nullptr;
+
+        if( !m_pData.empty() )
+        {
+            pData = m_pData.front();
+            m_pData.pop_front();
+        }
+
+        return pData;
     }
 
     /***********************************************************************************\
@@ -1362,20 +1391,26 @@ namespace Profiler
         }
 
         // Get data captured during the last frame
-        std::shared_ptr<DeviceProfilerFrameData> pData = m_DataAggregator.GetAggregatedData();
-        assert( pData );
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedData =
+            m_DataAggregator.GetAggregatedData();
 
         // Check if new data is available
-        if( pData != m_pData )
+        if( !pResolvedData.empty() )
         {
-            m_pData = std::move( pData );
-
-            // Collect memory data
-            m_pData->m_Memory = m_MemoryTracker.GetMemoryData();
+            m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
 
             // Return TIP data
             m_pDevice->TIP.EndFunction( tip );
-            m_pData->m_TIP = m_pDevice->TIP.GetData();
+            m_pData.back()->m_TIP = m_pDevice->TIP.GetData();
+
+            // Free frames above the buffer size
+            if( m_DataBufferSize )
+            {
+                while( m_pData.size() > m_DataBufferSize )
+                {
+                    m_pData.pop_front();
+                }
+            }
         }
     }
 

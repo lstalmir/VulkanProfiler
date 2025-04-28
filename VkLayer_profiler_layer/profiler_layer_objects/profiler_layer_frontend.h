@@ -72,6 +72,7 @@ namespace Profiler
         void SetObjectName( const VkObject& object, const std::string& name ) final;
 
         std::shared_ptr<DeviceProfilerFrameData> GetData() final;
+        void SetDataBufferSize( uint32_t maxFrames ) final;
 
     private:
         VkDevice_Object* m_pDevice = nullptr;

@@ -122,10 +122,11 @@ namespace Profiler
         : m_pProfiler( nullptr )
         , m_DataCollectionThread()
         , m_DataCollectionThreadRunning( false )
-        , m_pCurrentFrameData( nullptr )
+        , m_pResolvedFrames()
         , m_NextFrames()
         , m_Mutex()
         , m_FrameIndex( 0 )
+        , m_MaxResolvedFrameCount( 1 )
         , m_CopyCommandPools()
         , m_VendorMetricProperties()
         , m_VendorMetricsSetIndex( UINT32_MAX )
@@ -172,8 +173,8 @@ namespace Profiler
         }
 
         // Use default time domain until the actual data is ready.
-        m_pCurrentFrameData = std::make_shared<DeviceProfilerFrameData>();
-        m_pCurrentFrameData->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+        m_pResolvedFrames.push_back( std::make_shared<DeviceProfilerFrameData>() );
+        m_pResolvedFrames.back()->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
 
         // Try to start data collection thread.
         if( m_pProfiler->m_Config.m_EnableThreading )
@@ -217,6 +218,20 @@ namespace Profiler
 
         m_CopyCommandPools.clear();
         m_pProfiler = nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDataBufferSize
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::SetDataBufferSize( uint32_t maxFrames )
+    {
+        std::scoped_lock lk( m_Mutex );
+        m_MaxResolvedFrameCount = maxFrames;
     }
 
     /***********************************************************************************\
@@ -412,22 +427,46 @@ namespace Profiler
             auto frameIt = m_NextFrames.begin();
             while( (frameIt != m_NextFrames.end()) && (frameIt->m_FrameIndex < m_FrameIndex) && (frameIt->m_PendingSubmits.empty()) )
             {
+                LoadVendorMetricsProperties();
+
+                std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
+                ResolveFrameData( *frameIt, *pFrameData );
+
+                // Remove unconsumed frames.
+                if( m_MaxResolvedFrameCount != 0 )
+                {
+                    while( m_pResolvedFrames.size() >= m_MaxResolvedFrameCount )
+                    {
+                        m_pResolvedFrames.pop_front();
+                    }
+                }
+
+                m_pResolvedFrames.push_back( std::move( pFrameData ) );
+
                 frameIt++;
             }
 
             if( frameIt != m_NextFrames.begin() )
             {
-                auto lastFrameIt = frameIt--;
-
-                LoadVendorMetricsProperties();
-
-                std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
-                ResolveFrameData( *frameIt, *pFrameData );
-                std::swap( m_pCurrentFrameData, pFrameData );
-
-                m_NextFrames.erase( m_NextFrames.begin(), lastFrameIt );
+                m_NextFrames.erase( m_NextFrames.begin(), frameIt );
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetAggregatedData
+
+    Description:
+
+    \***********************************************************************************/
+    std::list<std::shared_ptr<DeviceProfilerFrameData>> ProfilerDataAggregator::GetAggregatedData()
+    {
+        std::scoped_lock lk( m_Mutex );
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedFrames;
+        std::swap( pResolvedFrames, m_pResolvedFrames );
+        return pResolvedFrames;
     }
 
     /***********************************************************************************\
@@ -514,6 +553,9 @@ namespace Profiler
         }
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
+
+        // Collect memory data.
+        frameData.m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();
 
         // Return CPU data.
         frameData.m_CPU.m_BeginTimestamp = frame.m_Timestamp;
