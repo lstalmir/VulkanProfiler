@@ -126,7 +126,7 @@ namespace Profiler
         , m_NextFrames()
         , m_Mutex()
         , m_FrameIndex( 0 )
-        , m_MaxResolvedFrameCount( 1 )
+        , m_MaxResolvedFrameCount( 3 )
         , m_CopyCommandPools()
         , m_VendorMetricProperties()
         , m_VendorMetricsSetIndex( UINT32_MAX )
