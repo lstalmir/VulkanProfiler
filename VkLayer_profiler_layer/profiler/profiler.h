@@ -78,7 +78,8 @@ namespace Profiler
         // Public interface
         VkResult SetMode( VkProfilerModeEXT );
         VkResult SetSyncMode( VkProfilerSyncModeEXT );
-        std::shared_ptr<DeviceProfilerFrameData> GetData() const;
+        VkResult SetDataBufferSize( uint32_t );
+        std::shared_ptr<DeviceProfilerFrameData> GetData();
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
         DeviceProfilerCommandPool& GetCommandPool( VkCommandPool commandPool );
@@ -145,12 +146,13 @@ namespace Profiler
 
         mutable std::mutex      m_SubmitMutex;
         mutable std::mutex      m_PresentMutex;
-        std::shared_ptr<DeviceProfilerFrameData> m_pData;
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pData;
 
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
         uint32_t                m_NextFrameIndex;
+        uint32_t                m_DataBufferSize;
         uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;

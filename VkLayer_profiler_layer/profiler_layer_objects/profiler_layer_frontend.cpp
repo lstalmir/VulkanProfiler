@@ -331,4 +331,18 @@ namespace Profiler
     {
         return m_pProfiler->GetData();
     }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDataBufferSize
+
+    Description:
+        Sets the maximum number of buffered frames.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::SetDataBufferSize( uint32_t maxFrames )
+    {
+        m_pProfiler->SetDataBufferSize( maxFrames );
+    }
 }
