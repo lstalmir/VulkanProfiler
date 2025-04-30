@@ -1047,11 +1047,12 @@ namespace Profiler
             for( const auto& pFrame : m_pFrames )
             {
                 std::string frameName = fmt::format(
-                    "{} #{} ({:.2f} {})",
+                    "{} #{} ({:.2f} {})###Selectable_frame_{}",
                     Lang::Frame,
                     pFrame->m_CPU.m_FrameIndex,
                     GetDuration( 0, pFrame->m_Ticks ),
-                    m_pTimestampDisplayUnitStr );
+                    m_pTimestampDisplayUnitStr,
+                    frameIndex );
 
                 bool selected = ( frameIndex == m_SelectedFrameIndex );
                 if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
