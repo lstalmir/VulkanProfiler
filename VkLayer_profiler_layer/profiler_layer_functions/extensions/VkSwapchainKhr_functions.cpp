@@ -70,6 +70,9 @@ namespace Profiler
                 device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
 
             dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
+
+            // Resize the buffers to fit all frames in flight so that the data is not dropped when the next present is late.
+            dd.Profiler.SetDataBufferSize( swapchainImageCount + 1 );
         }
 
         if( createProfilerOverlay )
