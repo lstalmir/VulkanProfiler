@@ -75,6 +75,8 @@ namespace Profiler
         void LoadPerformanceCountersFromFile( const std::string& );
         void LoadTopPipelinesFromFile( const std::string& );
 
+        void SetMaxFrameCount( uint32_t maxFrameCount );
+
     private:
         OverlaySettings m_Settings;
 
@@ -115,6 +117,7 @@ namespace Profiler
 
         enum class HistogramGroupMode
         {
+            eFrame,
             eRenderPass,
             ePipeline,
             eDrawcall,
@@ -132,7 +135,21 @@ namespace Profiler
         HistogramValueMode m_HistogramValueMode;
         bool m_HistogramShowIdle;
 
-        typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
+        struct FrameBrowserTreeNodeIndex : std::vector<uint16_t>
+        {
+            using std::vector<uint16_t>::vector;
+
+            void SetFrameIndex( uint32_t frameIndex );
+            uint32_t GetFrameIndex() const;
+
+            const uint16_t* GetTreeNodeIndex() const;
+            size_t GetTreeNodeIndexSize() const;
+        };
+
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pFrames;
+         // 0 - current frame, 1 - previous frame, etc.
+        uint32_t m_SelectedFrameIndex;
+        uint32_t m_MaxFrameCount;
 
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;
@@ -141,6 +158,7 @@ namespace Profiler
         bool m_ShowShaderCapabilities;
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
+        bool m_ShowActiveFrame;
 
         bool m_SetLastMainWindowPos;
         Float2* m_pLastMainWindowPos;
@@ -336,6 +354,7 @@ namespace Profiler
 
         template<typename Data>
         void PrintDuration( const Data& data );
+        void PrintDuration( uint64_t from, uint64_t to );
 
         template<typename Data>
         float GetDuration( const Data& data ) const;

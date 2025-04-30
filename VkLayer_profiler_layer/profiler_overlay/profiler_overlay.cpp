@@ -183,6 +183,34 @@ namespace Profiler
         return IM_COL32( 255, 128, 128, 255 );
     }
 
+    void ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::SetFrameIndex( uint32_t frameIndex )
+    {
+        if( size() < 2 ) resize( 2 );
+        uint16_t* pIndex = data();
+        pIndex[0] = static_cast<uint16_t>( frameIndex & 0xffff );
+        pIndex[1] = static_cast<uint16_t>( ( frameIndex >> 16 ) & 0xffff );
+    }
+
+    uint32_t ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetFrameIndex() const
+    {
+        if( size() < 2 ) return 0;
+        const uint16_t* pIndex = data();
+        return ( static_cast<uint32_t>( pIndex[0] ) ) |
+               ( static_cast<uint32_t>( pIndex[1] ) << 16 );
+    }
+
+    const uint16_t* ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetTreeNodeIndex() const
+    {
+        if( size() < 2 ) return nullptr;
+        return data() + 2;
+    }
+
+    size_t ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetTreeNodeIndexSize() const
+    {
+        if( size() < 2 ) return 0;
+        return size() - 2;
+    }
+
     /***********************************************************************************\
 
     Function:
@@ -419,6 +447,10 @@ namespace Profiler
         m_HistogramValueMode = HistogramValueMode::eDuration;
         m_HistogramShowIdle = false;
 
+        m_pFrames.clear();
+        m_SelectedFrameIndex = 0;
+        m_MaxFrameCount = 1;
+
         m_pData = nullptr;
         m_Pause = false;
         m_Fullscreen = false;
@@ -426,6 +458,7 @@ namespace Profiler
         m_ShowShaderCapabilities = true;
         m_ShowEmptyStatistics = false;
         m_ShowAllTopPipelines = false;
+        m_ShowActiveFrame = false;
 
         m_SetLastMainWindowPos = false;
 
@@ -435,7 +468,7 @@ namespace Profiler
         m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
         m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
 
-        m_SelectedFrameBrowserNodeIndex = { 0xFFFF };
+        m_SelectedFrameBrowserNodeIndex = { 0, 0, 0xFFFF };
         m_ScrollToSelectedFrameBrowserNode = false;
         m_FrameBrowserNodeIndexStr.clear();
         m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::time_point();
@@ -499,6 +532,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetMaxFrameCount
+
+    Description:
+        Set maximum number of frames to be displayed in the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SetMaxFrameCount( uint32_t maxFrameCount )
+    {
+        m_MaxFrameCount = maxFrameCount;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Present
 
     Description:
@@ -522,17 +569,27 @@ namespace Profiler
         ImGui::NewFrame();
 
         // Update data
-        if( !m_Pause || !m_pData )
+        if( !m_Pause || m_pFrames.empty() )
         {
             auto pData = m_pFrontend->GetData();
-            while( pData )
+            if( pData )
             {
-                // Read the data until the last resolved frame
-                m_pData = std::exchange( pData, m_pFrontend->GetData() );
+                m_pFrames.push_back( pData );
             }
-
-            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
         }
+
+        if( m_MaxFrameCount )
+        {
+            while( m_pFrames.size() > m_MaxFrameCount )
+            {
+                m_pFrames.pop_front();
+            }
+        }
+
+        m_SelectedFrameIndex = std::min<uint32_t>( m_SelectedFrameIndex, m_pFrames.size() - 1 );
+        m_pData = GetNthElement( m_pFrames, m_pFrames.size() - m_SelectedFrameIndex - 1 );
+
+        m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
 
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
@@ -652,7 +709,7 @@ namespace Profiler
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
-        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_1" );
+        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_2" );
 
         ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
         ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
@@ -850,17 +907,22 @@ namespace Profiler
         if( requiresInitialization )
         {
             ImGui::DockBuilderRemoveNode( m_PerformanceTabDockSpaceId );
-            ImGui::DockBuilderAddNode( m_PerformanceTabDockSpaceId, ImGuiDockNodeFlags_DockSpace );
+            ImGui::DockBuilderAddNode( m_PerformanceTabDockSpaceId, ImGuiDockNodeFlags_None );
             ImGui::DockBuilderSetNodeSize( m_PerformanceTabDockSpaceId, ImGui::GetMainViewport()->Size );
 
             ImGuiID dockMain = m_PerformanceTabDockSpaceId;
+            ImGuiID dockLeft;
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Left, 0.3f, &dockLeft, &dockMain );
             ImGuiID dockQueueUtilization, dockTopPipelines;
             ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.12f, &dockQueueUtilization, &dockMain );
             ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.2f, &dockTopPipelines, &dockMain );
+            ImGuiID dockFrames;
+            ImGui::DockBuilderSplitNode( dockLeft, ImGuiDir_Up, 0.2f, &dockFrames, &dockLeft );
 
+            ImGui::DockBuilderDockWindow( Lang::Frames, dockFrames );
             ImGui::DockBuilderDockWindow( Lang::QueueUtilization, dockQueueUtilization );
             ImGui::DockBuilderDockWindow( Lang::TopPipelines, dockTopPipelines );
-            ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockMain );
+            ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockLeft );
             ImGui::DockBuilderDockWindow( Lang::PerformanceCounters, dockMain );
             ImGui::DockBuilderFinish( m_PerformanceTabDockSpaceId );
         }
@@ -895,6 +957,7 @@ namespace Profiler
         // Histogram
         {
             static const char* groupOptions[] = {
+                Lang::Frames,
                 Lang::RenderPasses,
                 Lang::Pipelines,
                 Lang::Drawcalls };
@@ -905,7 +968,11 @@ namespace Profiler
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, nullptr, ImGuiComboFlags_NoPreview ) )
                 {
+                    ImGuiX::TSelectable( Lang::Frames, m_HistogramGroupMode, HistogramGroupMode::eFrame );
+
+                    ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
                     ImGuiX::TSelectable( Lang::RenderPasses, m_HistogramGroupMode, HistogramGroupMode::eRenderPass );
+                    ImGui::EndDisabled();
 
                     ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_PIPELINE_EXT );
                     ImGuiX::TSelectable( Lang::Pipelines, m_HistogramGroupMode, HistogramGroupMode::ePipeline );
@@ -930,8 +997,11 @@ namespace Profiler
 
                 ImGui::SameLine( 0, 20 * interfaceScale );
                 ImGui::PushItemWidth( 100 * interfaceScale );
-
                 ImGui::Checkbox( Lang::ShowIdle, &m_HistogramShowIdle );
+
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
+                ImGui::Checkbox( Lang::ShowActiveFrame, &m_ShowActiveFrame );
             }
 
             float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;
@@ -969,10 +1039,48 @@ namespace Profiler
 
         PerformanceTabDockSpace();
 
+        // Frames list
+        if( ImGui::Begin( Lang::Frames, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            uint32_t frameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
+
+            for( const auto& pFrame : m_pFrames )
+            {
+                std::string frameName = fmt::format(
+                    "{} #{} ({:.2f} {})###Selectable_frame_{}",
+                    Lang::Frame,
+                    pFrame->m_CPU.m_FrameIndex,
+                    GetDuration( 0, pFrame->m_Ticks ),
+                    m_pTimestampDisplayUnitStr,
+                    frameIndex );
+
+                bool selected = ( frameIndex == m_SelectedFrameIndex );
+                if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+                {
+                    m_SelectedFrameIndex = frameIndex;
+                }
+
+                frameIndex--;
+            }
+        }
+
+        ImGui::End();
+
+        // m_pData may be temporarily replaced by another frame to correctly scroll to its node.
+        // Save pointer to the current frame to restore it later.
+        std::shared_ptr<DeviceProfilerFrameData> pCurrentFrameData = m_pData;
+
         // Force frame browser open
         if( m_ScrollToSelectedFrameBrowserNode )
         {
             ImGui::SetNextItemOpen( true );
+
+            // Update frame index when scrolling to a node from a different frame
+            m_SelectedFrameIndex = std::clamp<uint32_t>(
+                m_SelectedFrameBrowserNodeIndex.GetFrameIndex(), 0, m_pFrames.size() - 1 );
+
+            // Temporarily replace pointer to the current frame data
+            m_pData = GetNthElement( m_pFrames, m_SelectedFrameIndex );
         }
 
         // Frame browser
@@ -985,16 +1093,16 @@ namespace Profiler
                     Lang::DurationDescending,
                     Lang::DurationAscending };
 
-                const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
+                const char* selectedOption = sortOptions[(size_t)m_FrameBrowserSortMode];
 
                 ImGui::Text( Lang::Sort );
                 ImGui::SameLine();
 
                 if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
                 {
-                    for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
+                    for( size_t i = 0; i < std::extent_v<decltype( sortOptions )>; ++i )
                     {
-                        if( ImGuiX::TSelectable( sortOptions[ i ], selectedOption, sortOptions[ i ] ) )
+                        if( ImGuiX::TSelectable( sortOptions[i], selectedOption, sortOptions[i] ) )
                         {
                             // Selection changed
                             m_FrameBrowserSortMode = FrameBrowserSortMode( i );
@@ -1006,6 +1114,11 @@ namespace Profiler
             }
 
             FrameBrowserTreeNodeIndex index;
+            index.SetFrameIndex( m_SelectedFrameIndex );
+
+            ImGui::Text( "%s #%u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
+            PrintDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
+
             index.emplace_back( 0 );
 
             // Enumerate submits in frame
@@ -1021,7 +1134,7 @@ namespace Profiler
                 const char* indexStr = GetFrameBrowserNodeIndexStr( index );
                 if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
                         queueName.c_str(),
-                        static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
+                        static_cast<uint32_t>( submitBatch.m_Submits.size() ) ) )
                 {
                     index.emplace_back( 0 );
 
@@ -1034,10 +1147,10 @@ namespace Profiler
 
                         const char* indexStr = GetFrameBrowserNodeIndexStr( index );
                         const bool inSubmitSubtree =
-                            (submitBatch.m_Submits.size() > 1) &&
-                            (ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.back() ));
+                            ( submitBatch.m_Submits.size() > 1 ) &&
+                            ( ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.back() ) );
 
-                        if( (inSubmitSubtree) || (submitBatch.m_Submits.size() == 1) )
+                        if( ( inSubmitSubtree ) || ( submitBatch.m_Submits.size() == 1 ) )
                         {
                             index.emplace_back( 0 );
 
@@ -1078,6 +1191,7 @@ namespace Profiler
         ImGui::End();
 
         m_ScrollToSelectedFrameBrowserNode = false;
+        m_pData = pCurrentFrameData;
     }
 
     /***********************************************************************************\
@@ -1096,8 +1210,12 @@ namespace Profiler
         ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, { 1, 1 } );
         ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
 
+        // Select first and last frame for queue utilization calculation.
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_ShowActiveFrame ? m_pData : m_pFrames.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_ShowActiveFrame ? m_pData : m_pFrames.back();
+
         // m_FrameTime is active time, queue utilization calculation should take idle time into account as well.
-        const float frameDuration = GetDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
+        const float frameDuration = GetDuration( pFirstFrame->m_BeginTimestamp, pLastFrame->m_EndTimestamp );
 
         std::vector<QueueGraphColumn> queueGraphColumns;
         for( const auto& [_, queue] : m_pFrontend->GetDeviceQueues() )
@@ -1986,18 +2104,18 @@ namespace Profiler
             {
                 ImGui::Text( "%s %u", Lang::MemoryHeap, i );
 
-                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[ i ].m_AllocationCount, Lang::Allocations );
+                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
 
                 float usage = 0.f;
                 char usageStr[ 64 ] = {};
 
                 if( memoryProperties.memoryHeaps[ i ].size != 0 )
                 {
-                    usage = (float)m_pData->m_Memory.m_Heaps[ i ].m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
+                    usage = (float)m_pData->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
 
                     snprintf( usageStr, sizeof( usageStr ),
                         "%.2f/%.2f MB (%.1f%%)",
-                        m_pData->m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
+                        m_pData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576.f,
                         memoryProperties.memoryHeaps[ i ].size / 1048576.f,
                         usage * 100.f );
                 }
@@ -2898,6 +3016,13 @@ namespace Profiler
             ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
         }
 
+        // Set number of collected frames
+        int maxFrameCount = static_cast<int>( m_MaxFrameCount );
+        if( ImGui::InputInt( Lang::CollectedFrameCount, &maxFrameCount ) )
+        {
+            m_MaxFrameCount = std::max<uint32_t>( 0, maxFrameCount );
+        }
+
         // Select sampling mode (constant in runtime for now)
         ImGui::BeginDisabled();
         {
@@ -2975,9 +3100,13 @@ namespace Profiler
     void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
     {
         FrameBrowserTreeNodeIndex index;
-        index.emplace_back( 0 );
+        index.SetFrameIndex( static_cast<uint32_t>( m_pFrames.size() - 1 ) );
 
-        uint64_t lastTimestamp = m_pData->m_BeginTimestamp;
+        uint64_t lastTimestamp;
+
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = m_ShowActiveFrame ? m_pData : m_pFrames.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = m_ShowActiveFrame ? m_pData : m_pFrames.back();
+        lastTimestamp = pFirstFrame->m_BeginTimestamp;
 
         auto AppendSemaphoreEvent = [&]( const std::vector<VkSemaphore>& semaphores, QueueGraphColumn::DataType type ) {
             QueueGraphColumn& column = columns.emplace_back();
@@ -2997,74 +3126,97 @@ namespace Profiler
             }
         };
 
-        for( const auto& submitBatch : m_pData->m_Submits )
+        for( const auto& pFrame : m_pFrames )
         {
-            if( submitBatch.m_Handle != queue )
+            const uint32_t frameIndex = index.GetFrameIndex();
+
+            // Skip other frames if requested
+            if( m_ShowActiveFrame )
             {
-                // Index must be incremented to account for the submissions on the other queues.
-                index.back()++;
-                continue;
+                if( frameIndex != m_SelectedFrameIndex )
+                {
+                    index.SetFrameIndex( frameIndex - 1 );
+                    continue;
+                }
             }
 
-            // Count submit infos.
+            const bool isActiveFrame = ( frameIndex == m_SelectedFrameIndex );
+
+            // Count queue submits in the frame.
             index.emplace_back( 0 );
 
-            for( const auto& submit : submitBatch.m_Submits )
+            for( const auto& submitBatch : pFrame->m_Submits )
             {
-                // Count command buffers.
+                if( submitBatch.m_Handle != queue )
+                {
+                    // Index must be incremented to account for the submissions on the other queues.
+                    index.back()++;
+                    continue;
+                }
+
+                // Count submit infos.
                 index.emplace_back( 0 );
 
-                bool firstCommandBuffer = true;
-
-                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                for( const auto& submit : submitBatch.m_Submits )
                 {
-                    if( !commandBuffer.m_DataValid )
+                    // Count command buffers.
+                    index.emplace_back( 0 );
+
+                    bool firstCommandBuffer = true;
+
+                    for( const auto& commandBuffer : submit.m_CommandBuffers )
                     {
-                        // Take command buffers with no data into account.
+                        if( !commandBuffer.m_DataValid )
+                        {
+                            // Take command buffers with no data into account.
+                            index.back()++;
+                            continue;
+                        }
+
+                        if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
+                        {
+                            QueueGraphColumn& idle = columns.emplace_back();
+                            idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                            idle.y = 1;
+                            idle.color = 0;
+                            idle.userDataType = QueueGraphColumn::eIdle;
+                            idle.userData = nullptr;
+                        }
+
+                        if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
+                        {
+                            // Enumerate wait semaphores before the first executed command buffer.
+                            AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
+                        }
+
+                        QueueGraphColumn& column = columns.emplace_back();
+                        column.x = GetDuration( commandBuffer );
+                        column.y = 1;
+                        column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
+                        column.userDataType = QueueGraphColumn::eCommandBuffer;
+                        column.userData = &commandBuffer;
+                        column.nodeIndex = index;
+
+                        lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+                        firstCommandBuffer = false;
+
                         index.back()++;
-                        continue;
                     }
 
-                    if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
-                    {
-                        QueueGraphColumn& idle = columns.emplace_back();
-                        idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
-                        idle.y = 1;
-                        idle.color = 0;
-                        idle.userDataType = QueueGraphColumn::eIdle;
-                        idle.userData = nullptr;
-                    }
-
+                    // Insert wait semaphores if no command buffers were submitted.
                     if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
                     {
-                        // Enumerate wait semaphores before the first executed command buffer.
                         AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
                     }
 
-                    QueueGraphColumn& column = columns.emplace_back();
-                    column.x = GetDuration( commandBuffer );
-                    column.y = 1;
-                    column.color = m_GraphicsPipelineColumnColor;
-                    column.userDataType = QueueGraphColumn::eCommandBuffer;
-                    column.userData = &commandBuffer;
-                    column.nodeIndex = index;
+                    // Enumerate signal semaphores after the last executed command buffer.
+                    if( !submit.m_SignalSemaphores.empty() )
+                    {
+                        AppendSemaphoreEvent( submit.m_SignalSemaphores, QueueGraphColumn::eSignalSemaphores );
+                    }
 
-                    lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
-                    firstCommandBuffer = false;
-
+                    index.pop_back();
                     index.back()++;
-                }
-
-                // Insert wait semaphores if no command buffers were submitted.
-                if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
-                {
-                    AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
-                }
-
-                // Enumerate signal semaphores after the last executed command buffer.
-                if( !submit.m_SignalSemaphores.empty() )
-                {
-                    AppendSemaphoreEvent( submit.m_SignalSemaphores, QueueGraphColumn::eSignalSemaphores );
                 }
 
                 index.pop_back();
@@ -3072,14 +3224,14 @@ namespace Profiler
             }
 
             index.pop_back();
-            index.back()++;
+            index.SetFrameIndex( frameIndex - 1 );
         }
 
-        if( ( lastTimestamp != m_pData->m_BeginTimestamp ) &&
-            ( lastTimestamp != m_pData->m_EndTimestamp ) )
+        if( ( lastTimestamp != pFirstFrame->m_BeginTimestamp ) &&
+            ( lastTimestamp != pLastFrame->m_EndTimestamp ) )
         {
             QueueGraphColumn& idle = columns.emplace_back();
-            idle.x = GetDuration( lastTimestamp, m_pData->m_EndTimestamp );
+            idle.x = GetDuration( lastTimestamp, pLastFrame->m_EndTimestamp );
             idle.y = 1;
             idle.color = 0;
             idle.userDataType = QueueGraphColumn::eIdle;
@@ -3122,7 +3274,7 @@ namespace Profiler
     void ProfilerOverlayOutput::GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& columns ) const
     {
         FrameBrowserTreeNodeIndex index;
-        index.emplace_back( 0 );
+        index.SetFrameIndex( static_cast<uint32_t>( m_pFrames.size() - 1 ) );
 
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
         const auto& queues = m_pFrontend->GetDeviceQueues();
@@ -3162,51 +3314,86 @@ namespace Profiler
             }
         }
 
-        // Enumerate submits batches in frame
-        for( const auto& submitBatch : m_pData->m_Submits )
+        for( std::shared_ptr<DeviceProfilerFrameData> pFrame : m_pFrames )
         {
-            index.emplace_back( 0 );
+            const uint32_t frameIndex = index.GetFrameIndex();
 
-            // End timestamp of the last executed command buffer on this queue
-            QueueTimestampPair* pLastQueueTimestamp = nullptr;
-
-            if( m_HistogramShowIdle && pLastTimestampsPerQueue != nullptr )
+            // Skip other frames if requested
+            if( m_ShowActiveFrame )
             {
-                for( size_t i = 0; i < queueCount; ++i )
+                if( frameIndex != m_SelectedFrameIndex )
                 {
-                    if( pLastTimestampsPerQueue[i].first == submitBatch.m_Handle )
-                    {
-                        pLastQueueTimestamp = &pLastTimestampsPerQueue[i];
-                        break;
-                    }
+                    index.SetFrameIndex( frameIndex - 1 );
+                    continue;
                 }
             }
 
-            // Enumerate submits in submit batch
-            for( const auto& submit : submitBatch.m_Submits )
+            // Enumerate frames only
+            if( m_HistogramGroupMode == HistogramGroupMode::eFrame )
+            {
+                PerformanceGraphColumn& column = columns.emplace_back();
+                column.x = GetDuration( pFrame->m_BeginTimestamp, pFrame->m_EndTimestamp );
+                column.y = ( m_HistogramValueMode == HistogramValueMode::eDuration ? column.x : 1 );
+                column.color = ImGuiX::ColorAlpha( m_RenderPassColumnColor, frameIndex == m_SelectedFrameIndex ? 1.0f : 0.2f );
+                column.userData = pFrame.get();
+                column.groupMode = HistogramGroupMode::eFrame;
+                column.nodeIndex = index;
+
+                index.SetFrameIndex( frameIndex - 1 );
+                continue;
+            }
+
+            index.emplace_back( 0 );
+
+            // Enumerate submits batches in frame
+            for( const auto& submitBatch : pFrame->m_Submits )
             {
                 index.emplace_back( 0 );
 
-                // Enumerate command buffers in submit
-                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                // End timestamp of the last executed command buffer on this queue
+                QueueTimestampPair* pLastQueueTimestamp = nullptr;
+
+                if( m_HistogramShowIdle && pLastTimestampsPerQueue != nullptr )
                 {
-                    // Insert idle time since last command buffer
-                    if( m_HistogramShowIdle &&
-                        ( pLastQueueTimestamp != nullptr ) &&
-                        ( commandBuffer.m_BeginTimestamp.m_Index != UINT64_MAX ) &&
-                        ( commandBuffer.m_EndTimestamp.m_Index != UINT64_MAX ) )
+                    for( size_t i = 0; i < queueCount; ++i )
                     {
-                        if( pLastQueueTimestamp->second != 0 )
+                        if( pLastTimestampsPerQueue[i].first == submitBatch.m_Handle )
                         {
-                            PerformanceGraphColumn& column = columns.emplace_back();
-                            column.x = GetDuration( pLastQueueTimestamp->second, commandBuffer.m_BeginTimestamp.m_Value );
-                            column.y = 0;
+                            pLastQueueTimestamp = &pLastTimestampsPerQueue[i];
+                            break;
+                        }
+                    }
+                }
+
+                // Enumerate submits in submit batch
+                for( const auto& submit : submitBatch.m_Submits )
+                {
+                    index.emplace_back( 0 );
+
+                    // Enumerate command buffers in submit
+                    for( const auto& commandBuffer : submit.m_CommandBuffers )
+                    {
+                        // Insert idle time since last command buffer
+                        if( m_HistogramShowIdle &&
+                            ( pLastQueueTimestamp != nullptr ) &&
+                            ( commandBuffer.m_BeginTimestamp.m_Index != UINT64_MAX ) &&
+                            ( commandBuffer.m_EndTimestamp.m_Index != UINT64_MAX ) )
+                        {
+                            if( pLastQueueTimestamp->second != 0 )
+                            {
+                                PerformanceGraphColumn& column = columns.emplace_back();
+                                column.x = GetDuration( pLastQueueTimestamp->second, commandBuffer.m_BeginTimestamp.m_Value );
+                                column.y = 0;
+                            }
+
+                            pLastQueueTimestamp->second = commandBuffer.m_EndTimestamp.m_Value;
                         }
 
-                        pLastQueueTimestamp->second = commandBuffer.m_EndTimestamp.m_Value;
+                        GetPerformanceGraphColumns( commandBuffer, index, columns );
+                        index.back()++;
                     }
 
-                    GetPerformanceGraphColumns( commandBuffer, index, columns );
+                    index.pop_back();
                     index.back()++;
                 }
 
@@ -3215,7 +3402,7 @@ namespace Profiler
             }
 
             index.pop_back();
-            index.back()++;
+            index.SetFrameIndex( index.GetFrameIndex() - 1 );
         }
 
         // Free memory allocated on heap
@@ -3268,6 +3455,8 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
+        const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
+
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             ((data.m_Handle != VK_NULL_HANDLE) ||
              (data.m_Dynamic == true) ||
@@ -3278,7 +3467,7 @@ namespace Profiler
             PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-            column.color = m_RenderPassColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_RenderPassColumnColor, isActiveFrame ? 1.0f : 0.2f );
             column.userData = &data;
             column.groupMode = HistogramGroupMode::eRenderPass;
             column.nodeIndex = index;
@@ -3293,7 +3482,7 @@ namespace Profiler
                 PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassBegin;
                 column.nodeIndex = index;
@@ -3356,7 +3545,7 @@ namespace Profiler
                 PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassEnd;
                 column.nodeIndex = index;
@@ -3385,6 +3574,7 @@ namespace Profiler
               (data.m_Handle != VK_NULL_HANDLE)) ||
              (m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT)) )
         {
+            const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
             const float cycleCount = GetDuration( data );
 
             PerformanceGraphColumn& column = columns.emplace_back();
@@ -3397,15 +3587,15 @@ namespace Profiler
             switch( data.m_BindPoint )
             {
             case VK_PIPELINE_BIND_POINT_GRAPHICS:
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             case VK_PIPELINE_BIND_POINT_COMPUTE:
-                column.color = m_ComputePipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_ComputePipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
-                column.color = m_RayTracingPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_RayTracingPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             default:
@@ -3442,6 +3632,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
+        const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
         const float cycleCount = GetDuration( data );
 
         PerformanceGraphColumn& column = columns.emplace_back();
@@ -3454,15 +3645,15 @@ namespace Profiler
         switch( data.GetPipelineType() )
         {
         case DeviceProfilerPipelineType::eGraphics:
-            column.color = m_GraphicsPipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
 
         case DeviceProfilerPipelineType::eCompute:
-            column.color = m_ComputePipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_ComputePipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
 
         default:
-            column.color = m_InternalPipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_InternalPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
         }
     }
@@ -3485,6 +3676,16 @@ namespace Profiler
 
         switch( data.groupMode )
         {
+        case HistogramGroupMode::eFrame:
+        {
+            const DeviceProfilerFrameData& frameData =
+                *reinterpret_cast<const DeviceProfilerFrameData*>( data.userData );
+
+            regionName = fmt::format( "{} #{}", Lang::Frame, frameData.m_CPU.m_FrameIndex );
+            regionDuration = GetDuration( frameData.m_BeginTimestamp, frameData.m_EndTimestamp );
+            break;
+        }
+
         case HistogramGroupMode::eRenderPass:
         {
             const DeviceProfilerRenderPassData& renderPassData =
@@ -3602,12 +3803,12 @@ namespace Profiler
     {
         // Allocate size for the string.
         m_FrameBrowserNodeIndexStr.resize(
-            (index.size() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
+            (index.GetTreeNodeIndexSize() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
 
         ProfilerStringFunctions::Hex(
             m_FrameBrowserNodeIndexStr.data(),
-            index.data(),
-            index.size() );
+            index.GetTreeNodeIndex(),
+            index.GetTreeNodeIndexSize() );
 
         return m_FrameBrowserNodeIndexStr.data();
     }
@@ -4972,9 +5173,22 @@ namespace Profiler
     template <typename Data>
     void ProfilerOverlayOutput::PrintDuration( const Data& data )
     {
-        if( ( data.m_BeginTimestamp.m_Value != UINT64_MAX ) && ( data.m_EndTimestamp.m_Value != UINT64_MAX ) )
+        PrintDuration( data.m_BeginTimestamp.m_Value, data.m_EndTimestamp.m_Value );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintDuration
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintDuration( uint64_t from, uint64_t to )
+    {
+        if( ( from != UINT64_MAX ) && ( to != UINT64_MAX ) )
         {
-            const float time = this->template GetDuration<Data>( data );
+            const float time = GetDuration( from, to );
 
             // Print the duration
             ImGuiX::TextAlignRight( "%.2f %s",

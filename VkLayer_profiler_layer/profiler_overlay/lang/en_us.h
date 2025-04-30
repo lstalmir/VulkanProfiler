@@ -63,6 +63,7 @@ namespace Profiler
         inline static constexpr char GPUTime[] = "GPU Time";
         inline static constexpr char CPUTime[] = "CPU Time";
         inline static constexpr char FPS[] = "fps";
+        inline static constexpr char Frames[] = "Frames###Frames";
         inline static constexpr char RenderPasses[] = "Render passes";
         inline static constexpr char Pipelines[] = "Pipelines";
         inline static constexpr char Drawcalls[] = "Drawcalls";
@@ -70,6 +71,7 @@ namespace Profiler
         inline static constexpr char Duration[] = "Duration";
         inline static constexpr char Height[] = "Height";
         inline static constexpr char ShowIdle[] = "Show idle";
+        inline static constexpr char ShowActiveFrame[] = "Show active frame";
         inline static constexpr char HistogramGroups[] = "Histogram groups";
         inline static constexpr char GPUCycles[] = "GPU Cycles";
         inline static constexpr char QueueUtilization[] = "Queue utilization###QueueUtilization";
@@ -95,6 +97,7 @@ namespace Profiler
         inline static constexpr char Container[] = "Container";
         inline static constexpr char Inspect[] = "Inspect";
         inline static constexpr char ShowPerformanceMetrics[] = "Show performance metrics";
+        inline static constexpr char SelectedFrame[] = "Selected frame";
         inline static constexpr char CopyToClipboard[] = "Copy to clipboard";
         inline static constexpr char CopyName[] = "Copy name";
         inline static constexpr char ShowMore[] = "Show more...";
@@ -162,6 +165,7 @@ namespace Profiler
         inline static constexpr char SamplingMode[] = "Sampling mode";
         inline static constexpr char SyncMode[] = "Sync mode";
         inline static constexpr char InterfaceScale[] = "Interface scale";
+        inline static constexpr char CollectedFrameCount[] = "Collected frame count";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
         inline static constexpr char ShowShaderCapabilities[] = "Show shader capabilities";
         inline static constexpr char TimeUnit[] = "Time unit";
