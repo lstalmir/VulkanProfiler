@@ -997,13 +997,11 @@ namespace Profiler
 
                 ImGui::SameLine( 0, 20 * interfaceScale );
                 ImGui::PushItemWidth( 100 * interfaceScale );
-
                 ImGui::Checkbox( Lang::ShowIdle, &m_HistogramShowIdle );
 
                 ImGui::SameLine( 0, 20 * interfaceScale );
                 ImGui::PushItemWidth( 100 * interfaceScale );
-
-                ImGui::Checkbox( "Show active frame", &m_ShowActiveFrame );
+                ImGui::Checkbox( Lang::ShowActiveFrame, &m_ShowActiveFrame );
             }
 
             float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;

@@ -71,6 +71,7 @@ namespace Profiler
         inline static constexpr char Duration[] = "Duration";
         inline static constexpr char Height[] = "Height";
         inline static constexpr char ShowIdle[] = "Show idle";
+        inline static constexpr char ShowActiveFrame[] = "Show active frame";
         inline static constexpr char HistogramGroups[] = "Histogram groups";
         inline static constexpr char GPUCycles[] = "GPU Cycles";
         inline static constexpr char QueueUtilization[] = "Queue utilization###QueueUtilization";
