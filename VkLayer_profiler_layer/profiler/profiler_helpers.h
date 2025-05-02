@@ -81,6 +81,21 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T>
+    PROFILER_FORCE_INLINE VkResult VerifyHandle( T handle )
+    {
+        return ( handle != VK_NULL_HANDLE ) ? VK_SUCCESS : VK_ERROR_VALIDATION_FAILED_EXT;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ClearMemory
+
+    Description:
+        Fill memory region with zeros.
+
+    \***********************************************************************************/
+    template<typename T>
     PROFILER_FORCE_INLINE void ClearMemory( T* pMemory )
     {
         memset( pMemory, 0, sizeof( T ) );

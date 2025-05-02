@@ -171,7 +171,7 @@ namespace Profiler
         if( (dd.Overlay.IsAvailable()) &&
             (dd.OverlayBackend.GetSwapchain() == pPresentInfo->pSwapchains[ 0 ]) )
         {
-            dd.OverlayBackend.SetFramePresentInfo( *pPresentInfo );
+            dd.OverlayBackend.SetFramePresentInfo( dd.Device.Queues.at( queue ), *pPresentInfo );
             dd.Overlay.Update();
             pPresentInfo = &dd.OverlayBackend.GetFramePresentInfo();
         }

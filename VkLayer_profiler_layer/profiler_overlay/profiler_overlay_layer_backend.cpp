@@ -114,19 +114,43 @@ namespace Profiler
                 &m_DescriptorPool );
         }
 
-        // Create command pool
+        // Create command pool for each queue family
         if( result == VK_SUCCESS )
         {
             VkCommandPoolCreateInfo info = {};
             info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
             info.flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            info.queueFamilyIndex = m_pGraphicsQueue->Family;
 
-            result = m_pDevice->Callbacks.CreateCommandPool(
+            for( auto& [_, queue] : m_pDevice->Queues )
+            {
+                auto& commandPool = m_CommandPools[queue.Family];
+                if( !commandPool.Handle )
+                {
+                    result = m_pDevice->Callbacks.CreateCommandPool(
+                        m_pDevice->Handle,
+                        &info,
+                        nullptr,
+                        &commandPool.Handle );
+                }
+
+                if( result != VK_SUCCESS )
+                {
+                    break; 
+                }
+            }
+        }
+
+        // Create render semaphore
+        if( result == VK_SUCCESS )
+        {
+            VkSemaphoreCreateInfo info = {};
+            info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+            result = m_pDevice->Callbacks.CreateSemaphore(
                 m_pDevice->Handle,
                 &info,
                 nullptr,
-                &m_CommandPool );
+                &m_RenderSemaphore );
         }
 
         // Create linear sampler
@@ -189,12 +213,26 @@ namespace Profiler
                 nullptr );
         }
 
-        if( m_CommandPool != VK_NULL_HANDLE )
+        for( auto& [_, commandPool] : m_CommandPools )
         {
-            m_pDevice->Callbacks.DestroyCommandPool(
-                m_pDevice->Handle,
-                m_CommandPool,
-                nullptr );
+            for( VkFence fence : commandPool.CommandFences )
+            {
+                if( fence != VK_NULL_HANDLE )
+                {
+                    m_pDevice->Callbacks.DestroyFence(
+                        m_pDevice->Handle,
+                        fence,
+                        nullptr );
+                }
+            }
+
+            if( commandPool.Handle != VK_NULL_HANDLE )
+            {
+                m_pDevice->Callbacks.DestroyCommandPool(
+                    m_pDevice->Handle,
+                    commandPool.Handle,
+                    nullptr );
+            }
         }
 
         if( m_LinearSampler != VK_NULL_HANDLE )
@@ -261,12 +299,12 @@ namespace Profiler
             VkAttachmentDescription attachment = {};
             attachment.format = createInfo.imageFormat;
             attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             VkAttachmentReference color_attachment = {};
             color_attachment.attachment = 0;
@@ -277,22 +315,12 @@ namespace Profiler
             subpass.colorAttachmentCount = 1;
             subpass.pColorAttachments = &color_attachment;
 
-            VkSubpassDependency dependency = {};
-            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstSubpass = 0;
-            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.srcAccessMask = 0;
-            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
             VkRenderPassCreateInfo info = {};
             info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
             info.attachmentCount = 1;
             info.pAttachments = &attachment;
             info.subpassCount = 1;
             info.pSubpasses = &subpass;
-            info.dependencyCount = 1;
-            info.pDependencies = &dependency;
 
             result = m_pDevice->Callbacks.CreateRenderPass(
                 m_pDevice->Handle,
@@ -310,15 +338,12 @@ namespace Profiler
                 // Destroy previous framebuffers
                 for( int i = 0; i < m_Images.size(); ++i )
                 {
-                    m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, m_Framebuffers[i], nullptr );
                     m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, m_ImageViews[i], nullptr );
                 }
 
-                m_Framebuffers.clear();
                 m_ImageViews.clear();
             }
 
-            m_Framebuffers.reserve( swapchainImageCount );
             m_ImageViews.reserve( swapchainImageCount );
 
             for( uint32_t i = 0; i < swapchainImageCount; i++ )
@@ -350,91 +375,76 @@ namespace Profiler
 
                     m_ImageViews.push_back( imageView );
                 }
-
-                // Create framebuffer
-                if( result == VK_SUCCESS )
-                {
-                    VkFramebufferCreateInfo info = {};
-                    info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-                    info.renderPass = m_RenderPass;
-                    info.attachmentCount = 1;
-                    info.pAttachments = &imageView;
-                    info.width = createInfo.imageExtent.width;
-                    info.height = createInfo.imageExtent.height;
-                    info.layers = 1;
-
-                    result = m_pDevice->Callbacks.CreateFramebuffer(
-                        m_pDevice->Handle,
-                        &info,
-                        nullptr,
-                        &framebuffer );
-
-                    m_Framebuffers.push_back( framebuffer );
-                }
             }
         }
 
-        // Allocate additional command buffers, fences and semaphores
-        if( ( result == VK_SUCCESS ) && ( swapchainImageCount > m_Images.size() ) )
+        // Allocate intermediate image resources
+        if( ( result == VK_SUCCESS ) &&
+            ( m_RenderArea.width != createInfo.imageExtent.width ||
+                m_RenderArea.height != createInfo.imageExtent.height ) )
         {
-            VkCommandBufferAllocateInfo allocInfo = {};
-            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandPool = m_CommandPool;
-            allocInfo.commandBufferCount = swapchainImageCount - static_cast<uint32_t>( m_Images.size() );
+            DestroyGuiImageResources();
 
-            std::vector<VkCommandBuffer> commandBuffers( swapchainImageCount );
-            result = AllocateCommandBuffers(
-                m_pDevice->Handle,
-                &allocInfo,
-                commandBuffers.data() );
+            VkImageCreateInfo imageCreateInfo = {};
+            imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageCreateInfo.format = createInfo.imageFormat;
+            imageCreateInfo.extent.width = createInfo.imageExtent.width;
+            imageCreateInfo.extent.height = createInfo.imageExtent.height;
+            imageCreateInfo.extent.depth = 1;
+            imageCreateInfo.mipLevels = 1;
+            imageCreateInfo.arrayLayers = 1;
+            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+            VmaAllocationCreateInfo allocationCreateInfo = {};
+            allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+            result = m_MemoryManager.AllocateImage(
+                imageCreateInfo,
+                allocationCreateInfo,
+                &m_GuiImage,
+                &m_GuiImageAllocation );
 
             if( result == VK_SUCCESS )
             {
-                // Append created command buffers to end
-                // We need to do this right after allocation to avoid leaks if something fails later
-                m_CommandBuffers.insert( m_CommandBuffers.end(), commandBuffers.begin(), commandBuffers.end() );
+                VkImageViewCreateInfo imageViewCreateInfo = {};
+                imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                imageViewCreateInfo.format = createInfo.imageFormat;
+                imageViewCreateInfo.image = m_GuiImage;
+                imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+                imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+                imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+                imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+
+                VkImageSubresourceRange range = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+                imageViewCreateInfo.subresourceRange = range;
+
+                result = m_pDevice->Callbacks.CreateImageView(
+                    m_pDevice->Handle,
+                    &imageViewCreateInfo,
+                    nullptr,
+                    &m_GuiImageView );
             }
 
-            m_CommandFences.reserve( swapchainImageCount );
-            m_CommandSemaphores.reserve( swapchainImageCount );
-
-            // Create additional per-command-buffer semaphores and fences
-            for( size_t i = m_Images.size(); i < swapchainImageCount; ++i )
+            if( result == VK_SUCCESS )
             {
-                VkFence fence;
-                VkSemaphore semaphore;
+                VkFramebufferCreateInfo framebufferCreateInfo = {};
+                framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+                framebufferCreateInfo.renderPass = m_RenderPass;
+                framebufferCreateInfo.attachmentCount = 1;
+                framebufferCreateInfo.pAttachments = &m_GuiImageView;
+                framebufferCreateInfo.width = createInfo.imageExtent.width;
+                framebufferCreateInfo.height = createInfo.imageExtent.height;
+                framebufferCreateInfo.layers = 1;
 
-                // Create command buffer fence
-                if( result == VK_SUCCESS )
-                {
-                    VkFenceCreateInfo fenceInfo = {};
-                    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-                    fenceInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
-
-                    result = m_pDevice->Callbacks.CreateFence(
-                        m_pDevice->Handle,
-                        &fenceInfo,
-                        nullptr,
-                        &fence );
-
-                    m_CommandFences.push_back( fence );
-                }
-
-                // Create present semaphore
-                if( result == VK_SUCCESS )
-                {
-                    VkSemaphoreCreateInfo semaphoreInfo = {};
-                    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-                    result = m_pDevice->Callbacks.CreateSemaphore(
-                        m_pDevice->Handle,
-                        &semaphoreInfo,
-                        nullptr,
-                        &semaphore );
-
-                    m_CommandSemaphores.push_back( semaphore );
-                }
+                result = m_pDevice->Callbacks.CreateFramebuffer(
+                    m_pDevice->Handle,
+                    &framebufferCreateInfo,
+                    nullptr,
+                    &m_GuiFramebuffer );
             }
         }
 
@@ -445,6 +455,9 @@ namespace Profiler
         m_ImageFormat = createInfo.imageFormat;
         m_MinImageCount = createInfo.minImageCount;
         m_Images = std::move( images );
+
+        m_GuiImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        m_GuiImageQueueFamilyIndex = m_pGraphicsQueue->Family;
 
         // Force reinitialization of ImGui context at the beginning of the next frame
         m_ResetBackendsBeforeNextFrame = true;
@@ -481,9 +494,10 @@ namespace Profiler
         Prepare VkPresentInfoKHR for the next frame.
 
     \***********************************************************************************/
-    void OverlayLayerBackend::SetFramePresentInfo( const VkPresentInfoKHR& presentInfo )
+    void OverlayLayerBackend::SetFramePresentInfo( VkQueue_Object& queue, const VkPresentInfoKHR& presentInfo )
     {
         m_PresentInfo = presentInfo;
+        m_pPresentQueue = &queue;
     }
 
     /***********************************************************************************\
@@ -708,20 +722,23 @@ namespace Profiler
     {
         VkResult result = VK_SUCCESS;
 
+        // Select queue for rendering.
+        VkQueue_Object& graphicsQueue =
+            ( ( m_pPresentQueue != nullptr ) && ( m_pPresentQueue->Flags & VK_QUEUE_GRAPHICS_BIT ) )
+                ? *m_pPresentQueue
+                : *m_pGraphicsQueue;
+
+        // Record copy commands to the same command buffer if the present happens on the same queue,
+        // or the present queue doesn't support compute operations.
+        const bool submitCopyCommandsOnGraphicsQueue =
+            ( m_pPresentQueue == nullptr ) ||
+            ( m_pPresentQueue->Handle == graphicsQueue.Handle ) ||
+            ( m_pPresentQueue->Flags & VK_QUEUE_COMPUTE_BIT ) == 0;
+
         // Grab command buffer for overlay commands.
-        uint32_t imageIndex = 0;
-        if( m_PresentInfo.swapchainCount && m_PresentInfo.pImageIndices )
-        {
-            imageIndex = m_PresentInfo.pImageIndices[0];
-        }
-
-        VkFence& fence = m_CommandFences[imageIndex];
-        VkSemaphore& semaphore = m_CommandSemaphores[imageIndex];
-        VkCommandBuffer& commandBuffer = m_CommandBuffers[imageIndex];
-        VkFramebuffer& framebuffer = m_Framebuffers[imageIndex];
-
-        m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &fence, VK_TRUE, UINT64_MAX );
-        m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &fence );
+        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+        VkFence fence = VK_NULL_HANDLE;
+        result = AcquireCommandBuffer( graphicsQueue, &commandBuffer, &fence );
 
         if( result == VK_SUCCESS )
         {
@@ -736,49 +753,275 @@ namespace Profiler
         {
             // Record upload commands before starting the render pass.
             RecordUploadCommands( commandBuffer );
-        }
+            RecordRenderCommands( commandBuffer, pDrawData );
 
-        if( result == VK_SUCCESS )
-        {
-            VkRenderPassBeginInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            info.renderPass = m_RenderPass;
-            info.framebuffer = framebuffer;
-            info.renderArea.extent.width = m_RenderArea.width;
-            info.renderArea.extent.height = m_RenderArea.height;
-
-            // Record Imgui Draw Data into the command buffer.
-            m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
-            ImGui_ImplVulkan_RenderDrawData( pDrawData, commandBuffer );
-            m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
+            if( submitCopyCommandsOnGraphicsQueue )
+            {
+                RecordCopyCommands( commandBuffer );
+            }
 
             result = m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
         }
 
         if( result == VK_SUCCESS )
         {
-            // Submit the command buffer to the GPU.
-            VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            std::vector<VkPipelineStageFlags> waitStages;
+
+            // Submit upload and render commands to the graphics queue.
             VkSubmitInfo info = {};
             info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            info.waitSemaphoreCount = m_PresentInfo.waitSemaphoreCount;
-            info.pWaitSemaphores = m_PresentInfo.pWaitSemaphores;
-            info.pWaitDstStageMask = &waitStage;
             info.commandBufferCount = 1;
             info.pCommandBuffers = &commandBuffer;
             info.signalSemaphoreCount = 1;
-            info.pSignalSemaphores = &semaphore;
+            info.pSignalSemaphores = &m_RenderSemaphore;
 
-            result = m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
+            if( submitCopyCommandsOnGraphicsQueue )
+            {
+                waitStages.resize( m_PresentInfo.waitSemaphoreCount, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+
+                info.waitSemaphoreCount = m_PresentInfo.waitSemaphoreCount;
+                info.pWaitSemaphores = m_PresentInfo.pWaitSemaphores;
+                info.pWaitDstStageMask = waitStages.data();
+            }
+
+            result = m_pDevice->Callbacks.QueueSubmit( graphicsQueue.Handle, 1, &info, fence );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            // Override wait semaphore.
+            m_PresentInfo.waitSemaphoreCount = 1;
+            m_PresentInfo.pWaitSemaphores = &m_RenderSemaphore;
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            if( !submitCopyCommandsOnGraphicsQueue )
+            {
+                // Record copy commands to the additional command buffer and execute it before the present.
+                result = AcquireCommandBuffer( *m_pPresentQueue, &commandBuffer, &fence );
+
+                if( result == VK_SUCCESS )
+                {
+                    VkCommandBufferBeginInfo info = {};
+                    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                    info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+                    result = m_pDevice->Callbacks.BeginCommandBuffer( commandBuffer, &info );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    RecordCopyCommands( commandBuffer );
+                    result = m_pDevice->Callbacks.EndCommandBuffer( commandBuffer );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Synchronize with the graphics queue.
+                    std::vector<VkSemaphore> waitSemaphores( m_PresentInfo.waitSemaphoreCount + 1 );
+                    std::copy( m_PresentInfo.pWaitSemaphores,
+                        m_PresentInfo.pWaitSemaphores + m_PresentInfo.waitSemaphoreCount,
+                        waitSemaphores.begin() );
+                    waitSemaphores[m_PresentInfo.waitSemaphoreCount] = m_RenderSemaphore;
+
+                    std::vector<VkPipelineStageFlags> waitStages(
+                        m_PresentInfo.waitSemaphoreCount + 1, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+
+                    // Submit copy commands to the present queue.
+                    VkSubmitInfo info = {};
+                    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                    info.commandBufferCount = 1;
+                    info.pCommandBuffers = &commandBuffer;
+                    info.waitSemaphoreCount = static_cast<uint32_t>( waitSemaphores.size() );
+                    info.pWaitSemaphores = waitSemaphores.data();
+                    info.pWaitDstStageMask = waitStages.data();
+
+                    result = m_pDevice->Callbacks.QueueSubmit( m_pPresentQueue->Handle, 1, &info, fence );
+                }
+
+                if( result == VK_SUCCESS )
+                {
+                    // Implicit synchronization with the QueueSubmit above.
+                    m_PresentInfo.waitSemaphoreCount = 0;
+                    m_PresentInfo.pWaitSemaphores = nullptr;
+                }
+            }
         }
 
         if( result == VK_SUCCESS )
         {
             m_LastSubmittedFence = fence;
+        }
+    }
 
-            // Override wait semaphore.
-            m_PresentInfo.waitSemaphoreCount = 1;
-            m_PresentInfo.pWaitSemaphores = &semaphore;
+    /***********************************************************************************\
+
+    Function:
+        RecordRenderCommands
+
+    Description:
+        Record draw commands into the command buffer.
+
+    \***********************************************************************************/
+    void OverlayLayerBackend::RecordRenderCommands( VkCommandBuffer commandBuffer, ImDrawData* pDrawData )
+    {
+        {
+            // Transfer the image to the graphics queue and set color attachment layout for rendering.
+            VkImageMemoryBarrier imageMemoryBarrier = {};
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageMemoryBarrier.srcAccessMask = 0;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            imageMemoryBarrier.oldLayout = m_GuiImageLayout;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            imageMemoryBarrier.srcQueueFamilyIndex = m_GuiImageQueueFamilyIndex;
+            imageMemoryBarrier.dstQueueFamilyIndex = m_pGraphicsQueue->Family;
+            imageMemoryBarrier.image = m_GuiImage;
+            imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+            imageMemoryBarrier.subresourceRange.levelCount = 1;
+            imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+            imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+            m_pDevice->Callbacks.CmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr, 0, nullptr, 1, &imageMemoryBarrier );
+        }
+        {
+            // Record Imgui Draw Data into the command buffer.
+            VkRenderPassBeginInfo info = {};
+            info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            info.renderPass = m_RenderPass;
+            info.framebuffer = m_GuiFramebuffer;
+            info.renderArea.extent.width = m_RenderArea.width;
+            info.renderArea.extent.height = m_RenderArea.height;
+
+            m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
+            ImGui_ImplVulkan_RenderDrawData( pDrawData, commandBuffer );
+            m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
+        }
+        {
+            // Transfer the rendered image to the present queue.
+            VkImageMemoryBarrier imageMemoryBarrier = {};
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            imageMemoryBarrier.srcQueueFamilyIndex = m_pGraphicsQueue->Family;
+            imageMemoryBarrier.dstQueueFamilyIndex = m_pPresentQueue->Family;
+            imageMemoryBarrier.image = m_GuiImage;
+            imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+            imageMemoryBarrier.subresourceRange.levelCount = 1;
+            imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+            imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+            m_pDevice->Callbacks.CmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr, 0, nullptr, 1, &imageMemoryBarrier );
+
+            m_GuiImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            m_GuiImageQueueFamilyIndex = m_pPresentQueue->Family;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RecordCopyCommands
+
+    Description:
+        Record copy commands into the command buffer.
+
+    \***********************************************************************************/
+    void OverlayLayerBackend::RecordCopyCommands( VkCommandBuffer commandBuffer )
+    {
+        if( !m_PresentInfo.swapchainCount || !m_PresentInfo.pImageIndices )
+        {
+            return;
+        }
+
+        VkImage swapchainImage = m_Images[m_PresentInfo.pImageIndices[0]];
+
+        {
+            // Transfer the presented image to the correct layout.
+            VkImageMemoryBarrier imageMemoryBarrier = {};
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageMemoryBarrier.srcAccessMask = 0;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.image = swapchainImage;
+            imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+            imageMemoryBarrier.subresourceRange.levelCount = 1;
+            imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+            imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+            m_pDevice->Callbacks.CmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr, 0, nullptr, 1, &imageMemoryBarrier );
+        }
+        {
+            // Copy the rendered overlay to the presented image.
+            VkImageCopy imageCopy = {};
+            imageCopy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageCopy.srcSubresource.layerCount = 1;
+            imageCopy.srcSubresource.mipLevel = 0;
+            imageCopy.srcSubresource.baseArrayLayer = 0;
+            imageCopy.srcOffset = { 0, 0, 0 };
+            imageCopy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageCopy.dstSubresource.layerCount = 1;
+            imageCopy.dstSubresource.mipLevel = 0;
+            imageCopy.dstSubresource.baseArrayLayer = 0;
+            imageCopy.dstOffset = { 0, 0, 0 };
+            imageCopy.extent.width = m_RenderArea.width;
+            imageCopy.extent.height = m_RenderArea.height;
+            imageCopy.extent.depth = 1;
+
+            m_pDevice->Callbacks.CmdCopyImage(
+                commandBuffer,
+                m_GuiImage,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                swapchainImage,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1, &imageCopy );
+        }
+        {
+            // Transfer the presented image to the correct layout.
+            VkImageMemoryBarrier imageMemoryBarrier = {};
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.image = swapchainImage;
+            imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+            imageMemoryBarrier.subresourceRange.levelCount = 1;
+            imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+            imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+            m_pDevice->Callbacks.CmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr, 0, nullptr, 1, &imageMemoryBarrier );
         }
     }
 
@@ -868,7 +1111,7 @@ namespace Profiler
         m_pDevice = nullptr;
         m_pGraphicsQueue = nullptr;
 
-        m_CommandPool = VK_NULL_HANDLE;
+        m_CommandPools.clear();
         m_DescriptorPool = VK_NULL_HANDLE;
 
         m_Initialized = false;
@@ -896,14 +1139,6 @@ namespace Profiler
             m_pDevice->Callbacks.DestroyRenderPass( m_pDevice->Handle, m_RenderPass, nullptr );
         }
 
-        for( VkFramebuffer framebuffer : m_Framebuffers )
-        {
-            if( framebuffer != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, framebuffer, nullptr );
-            }
-        }
-
         for( VkImageView imageView : m_ImageViews )
         {
             if( imageView != VK_NULL_HANDLE )
@@ -912,31 +1147,12 @@ namespace Profiler
             }
         }
 
-        for( VkFence fence : m_CommandFences )
+        if( m_RenderSemaphore != VK_NULL_HANDLE )
         {
-            if( fence != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
-            }
+            m_pDevice->Callbacks.DestroySemaphore( m_pDevice->Handle, m_RenderSemaphore, nullptr );
         }
 
-        for( VkSemaphore semaphore : m_CommandSemaphores )
-        {
-            if( semaphore != VK_NULL_HANDLE )
-            {
-                m_pDevice->Callbacks.DestroySemaphore( m_pDevice->Handle, semaphore, nullptr );
-            }
-        }
-
-        if( !m_CommandBuffers.empty() )
-        {
-            m_pDevice->Callbacks.FreeCommandBuffers(
-                m_pDevice->Handle,
-                m_CommandPool,
-                static_cast<uint32_t>( m_CommandBuffers.size() ),
-                m_CommandBuffers.data() );
-        }
-
+        DestroyGuiImageResources();
         ResetSwapchainMembers();
     }
 
@@ -959,6 +1175,7 @@ namespace Profiler
         m_Surface = VK_NULL_HANDLE;
         m_Swapchain = VK_NULL_HANDLE;
         m_PresentInfo = {};
+        m_pPresentQueue = nullptr;
 
         m_RenderPass = VK_NULL_HANDLE;
         m_RenderArea = { 0, 0 };
@@ -966,11 +1183,58 @@ namespace Profiler
         m_MinImageCount = 0;
         m_Images.clear();
         m_ImageViews.clear();
-        m_Framebuffers.clear();
-        m_CommandBuffers.clear();
-        m_CommandFences.clear();
-        m_CommandSemaphores.clear();
+        m_RenderSemaphore = VK_NULL_HANDLE;
         m_LastSubmittedFence = VK_NULL_HANDLE;
+
+        ResetGuiImageMembers();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyGuiImageResources
+
+    Description:
+        Destroy the resources associated with the intermediate gui image.
+
+    \***********************************************************************************/
+    void OverlayLayerBackend::DestroyGuiImageResources()
+    {
+        if( m_GuiImage != VK_NULL_HANDLE )
+        {
+            m_MemoryManager.FreeImage( m_GuiImage, m_GuiImageAllocation );
+        }
+
+        if( m_GuiImageView != VK_NULL_HANDLE )
+        {
+            m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, m_GuiImageView, nullptr );
+        }
+
+        if( m_GuiFramebuffer != VK_NULL_HANDLE )
+        {
+            m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, m_GuiFramebuffer, nullptr );
+        }
+
+        ResetGuiImageMembers();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetGuiImageMembers
+
+    Description:
+        Set all members related to the intermediate gui image to initial values.
+
+    \***********************************************************************************/
+    void OverlayLayerBackend::ResetGuiImageMembers()
+    {
+        m_GuiImage = VK_NULL_HANDLE;
+        m_GuiImageView = VK_NULL_HANDLE;
+        m_GuiImageAllocation = VK_NULL_HANDLE;
+        m_GuiFramebuffer = VK_NULL_HANDLE;
+        m_GuiImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        m_GuiImageQueueFamilyIndex = 0;
     }
 
     /***********************************************************************************\
@@ -1063,6 +1327,92 @@ namespace Profiler
         }
 
         m_ImageResources.clear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AcquireCommandBuffer
+
+    Description:
+        Get the command buffer for rendering on the selected command queue.
+
+    \***********************************************************************************/
+    VkResult OverlayLayerBackend::AcquireCommandBuffer( const VkQueue_Object& queue, VkCommandBuffer* pCommandBuffer, VkFence* pFence )
+    {
+        const uint32_t maxCommandBufferCount = ( m_Images.size() * 2 ) + 1;
+
+        // Get the command pool for the selected queue.
+        CommandPool& commandPool = m_CommandPools.at( queue.Family );
+
+        // Check if the next command buffer has already finished rendering.
+        if( !commandPool.CommandBuffers.empty() )
+        {
+            VkCommandBuffer commandBuffer = commandPool.CommandBuffers[commandPool.NextCommandBufferIndex];
+            VkFence fence = commandPool.CommandFences[commandPool.NextCommandBufferIndex];
+
+            uint64_t timeout = 0;
+            if( commandPool.CommandBuffers.size() >= maxCommandBufferCount )
+            {
+                timeout = UINT64_MAX;
+            }
+
+            VkResult result = m_pDevice->Callbacks.WaitForFences( m_pDevice->Handle, 1, &fence, VK_TRUE, timeout );
+            if( result == VK_SUCCESS )
+            {
+                // Reset the fence and command buffer.
+                m_pDevice->Callbacks.ResetFences( m_pDevice->Handle, 1, &fence );
+                m_pDevice->Callbacks.ResetCommandBuffer( commandBuffer, 0 );
+
+                // Update the command buffer index.
+                commandPool.NextCommandBufferIndex = ( commandPool.NextCommandBufferIndex + 1 ) % commandPool.CommandBuffers.size();
+
+                *pCommandBuffer = commandBuffer;
+                *pFence = fence;
+                return VK_SUCCESS;
+            }
+
+            if( commandPool.CommandBuffers.size() >= maxCommandBufferCount )
+            {
+                // Don't allocate the new command buffers if limit has been reached and the wait failed.
+                return result;
+            }
+        }
+
+        // Allocate a new command buffer.
+        VkCommandBufferAllocateInfo allocateInfo = {};
+        allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocateInfo.commandPool = commandPool.Handle;
+        allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocateInfo.commandBufferCount = 1;
+
+        VkResult result = AllocateCommandBuffers( m_pDevice->Handle, &allocateInfo, pCommandBuffer );
+        if( result == VK_SUCCESS )
+        {
+            // Create a new fence for the command buffer.
+            VkFenceCreateInfo fenceInfo = {};
+            fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+            fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+            result = m_pDevice->Callbacks.CreateFence( m_pDevice->Handle, &fenceInfo, nullptr, pFence );
+            if( result == VK_SUCCESS )
+            {
+                // Insert the command buffer and the fence at the current index.
+                commandPool.CommandBuffers.insert(
+                    commandPool.CommandBuffers.begin() + commandPool.NextCommandBufferIndex, *pCommandBuffer );
+                commandPool.CommandFences.insert(
+                    commandPool.CommandFences.begin() + commandPool.NextCommandBufferIndex, *pFence );
+
+                commandPool.NextCommandBufferIndex = ( commandPool.NextCommandBufferIndex + 1 ) % commandPool.CommandBuffers.size();
+            }
+            else
+            {
+                // Failed to create a fence, free the command buffer.
+                m_pDevice->Callbacks.FreeCommandBuffers( m_pDevice->Handle, commandPool.Handle, 1, pCommandBuffer );
+            }
+        }
+
+        return result;
     }
 
     /***********************************************************************************\
