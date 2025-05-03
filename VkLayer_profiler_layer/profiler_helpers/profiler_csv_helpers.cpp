@@ -68,11 +68,11 @@ namespace Profiler
         Get performance counter storage type by its name.
 
     \***********************************************************************************/
-    static VkProfilerPerformanceCounterStorageEXT GetPerformanceCounterStorageType( const char* name )
+    static VkProfilerPerformanceCounterStorageEXT GetPerformanceCounterStorageType( const std::string_view& name )
     {
         for( const auto& pair : g_StorageNames )
         {
-            if( strcmp( pair.second, name ) == 0 )
+            if( strncmp( pair.second, name.data(), name.length() ) == 0 )
             {
                 return pair.first;
             }
@@ -174,7 +174,7 @@ namespace Profiler
             m_Properties[i] = pProperties[i];
             m_File << sep( i )
                    << GetPerformanceCounterStorageName( pProperties[i].storage ) << ":"
-                   << pProperties[i].shortName;
+                   << "\"" << pProperties[i].shortName << "\"";
         }
 
         m_File << std::endl;
@@ -324,17 +324,34 @@ namespace Profiler
 
             while( end != std::string::npos )
             {
-                end = line.find( ",", start );
-                std::string header = line.substr( start, end - start );
+                std::string_view lineview( line );
+                end = lineview.find_first_of( ",\"", start );
+
+                // Check if string is quoted.
+                bool quoted = ( end != std::string::npos && lineview[end] == '"' );
+                if( quoted )
+                {
+                    end = lineview.find( "\"", end + 1 );
+                    if( end == std::string::npos )
+                    {
+                        break;
+                    }
+
+                    end = lineview.find( ",", end + 1 );
+                }
+
+                std::string_view header = lineview.substr( start, end - start );
 
                 size_t colon = header.find( ":" );
                 if( colon != std::string::npos )
                 {
                     VkProfilerPerformanceCounterPropertiesEXT property = {};
-                    property.storage = GetPerformanceCounterStorageType( header.substr( 0, colon ).c_str() );
+                    property.storage = GetPerformanceCounterStorageType( header.substr( 0, colon ) );
 
-                    std::string name = header.substr( colon + 1 );
-                    ProfilerStringFunctions::CopyString( property.shortName, name.c_str(), name.length() + 1 );
+                    std::string_view name =
+                        ( quoted ? header.substr( colon + 2, header.length() - colon - 3 )
+                                 : header.substr( colon + 1 ) );
+                    ProfilerStringFunctions::CopyString( property.shortName, name.data(), name.length() );
 
                     m_Properties.push_back( property );
                 }

@@ -25,7 +25,7 @@
 #include "profiler/profiler_counters.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkObject.h"
-#include "profiler_helpers/profiler_data_helpers.h"
+#include "profiler_helpers/profiler_string_serializer.h"
 
 #include "VkLayer_profiler_layer.generated.h"
 

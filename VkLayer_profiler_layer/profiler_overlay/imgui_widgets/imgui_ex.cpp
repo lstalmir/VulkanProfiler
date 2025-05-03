@@ -159,10 +159,10 @@ namespace ImGuiX
     /*************************************************************************\
 
     Function:
-        ColorLerp
+        Darker
 
     Description:
-        Interpolate colors.
+        Return darker color.
 
     \*************************************************************************/
     ImU32 Darker( ImU32 color, float factor )
@@ -171,6 +171,22 @@ namespace ImGuiX
         const ImU8 g = static_cast<ImU8>( ImClamp( ((color >> 8) & 0xFF) * factor, 0.f, 255.f ) );
         const ImU8 b = static_cast<ImU8>( ImClamp( ((color >> 16) & 0xFF) * factor, 0.f, 255.f ) );
         return (color & 0xFF000000) | (b << 16) | (g << 8) | (r);
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ColorAlpha
+
+    Description:
+        Set color alpha.
+
+    \*************************************************************************/
+    ImU32 ColorAlpha( ImU32 color, float alpha )
+    {
+        ImU32 c = color & 0x00FFFFFF;
+        ImU8 a = ImClamp( 255.f * alpha, 0.f, 255.f );
+        return ( c & 0x00FFFFFF ) | ( a << 24 );
     }
 
     /*************************************************************************\

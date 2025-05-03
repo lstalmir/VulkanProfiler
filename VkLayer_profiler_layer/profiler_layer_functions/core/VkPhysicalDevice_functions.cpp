@@ -69,6 +69,7 @@ namespace Profiler
         if( !dev.Handle )
         {
             dev.Handle = physicalDevice;
+            dev.pInstance = &id.Instance;
 
             // Enumerate queue families
             uint32_t queueFamilyPropertyCount = 0;
@@ -96,41 +97,13 @@ namespace Profiler
             deviceExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
         }
 
-        // Enumerate available device extensions
-        uint32_t availableExtensionCount = 0;
-        id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
-            physicalDevice, nullptr, &availableExtensionCount, nullptr );
-
-        VkExtensionProperties* pAvailableDeviceExtensions = new VkExtensionProperties[ availableExtensionCount ];
-        id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
-            physicalDevice, nullptr, &availableExtensionCount, pAvailableDeviceExtensions );
-
-        // Check if profiler create info was provided
-        const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
-
-        for( const auto& it : PNextIterator( pCreateInfo->pNext ) )
-        {
-            if( it.sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
-            {
-                pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>( &it );
-                break;
-            }
-        }
-
-        // Enable available optional device extensions
-        const auto optionalDeviceExtensions = DeviceProfiler::EnumerateOptionalDeviceExtensions(
+        // Configure device extensions and pNext chain to enable profiler features
+        PNextChain pNextChain( pCreateInfo->pNext );
+        DeviceProfiler::SetupDeviceCreateInfo(
+            dev,
             id.Instance.LayerSettings,
-            pProfilerCreateInfo );
-
-        for( uint32_t i = 0; i < availableExtensionCount; ++i )
-        {
-            if( optionalDeviceExtensions.count( pAvailableDeviceExtensions[ i ].extensionName ) )
-            {
-                deviceExtensions.insert( pAvailableDeviceExtensions[ i ].extensionName );
-            }
-        }
-
-        delete[] pAvailableDeviceExtensions;
+            deviceExtensions,
+            pNextChain );
 
         // Convert to continuous memory block
         std::vector<const char*> enabledDeviceExtensions;
@@ -143,6 +116,7 @@ namespace Profiler
 
         // Override device create info
         VkDeviceCreateInfo createInfo = (*pCreateInfo);
+        createInfo.pNext = pNextChain.GetHead();
         createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledDeviceExtensions.size());
         createInfo.ppEnabledExtensionNames = enabledDeviceExtensions.data();
 

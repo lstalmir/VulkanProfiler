@@ -70,6 +70,9 @@ namespace Profiler
                 device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
 
             dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
+
+            // Resize the buffers to fit all frames in flight so that the data is not dropped when the next present is late.
+            dd.Profiler.SetDataBufferSize( swapchainImageCount + 1 );
         }
 
         if( createProfilerOverlay )
@@ -90,6 +93,23 @@ namespace Profiler
             {
                 // Initialize overlay for the first time
                 bool success = dd.Overlay.Initialize( dd.ProfilerFrontend, dd.OverlayBackend );
+
+                if( success )
+                {
+                    // Initialize overlay with configuration
+                    dd.Overlay.SetMaxFrameCount( std::max( dd.Profiler.m_Config.m_FrameCount, 0 ) );
+
+                    if( !dd.Profiler.m_Config.m_RefPipelines.empty() )
+                    {
+                        dd.Overlay.LoadTopPipelinesFromFile( dd.Profiler.m_Config.m_RefPipelines );
+                    }
+
+                    if( !dd.Profiler.m_Config.m_RefMetrics.empty() )
+                    {
+                        dd.Overlay.LoadPerformanceCountersFromFile( dd.Profiler.m_Config.m_RefMetrics );
+                    }
+                }
+
                 if( !success )
                 {
                     result = VK_ERROR_INITIALIZATION_FAILED;

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -84,8 +84,12 @@ namespace Profiler
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eBuildAccelerationStructuresIndirectKHR = 0x000F0001,
         eCopyAccelerationStructureKHR = 0x00100000,
-        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
-        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00110000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00120000,
+        eBuildMicromapsEXT = 0x00130000,
+        eCopyMicromapEXT = 0x00140000,
+        eCopyMemoryToMicromapEXT = 0x00150000,
+        eCopyMicromapToMemoryEXT = 0x00160000,
     };
 
     /***********************************************************************************\
@@ -118,8 +122,12 @@ namespace Profiler
         eRayTracingKHR = 0x000E0000,
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eCopyAccelerationStructureKHR = 0x00100000,
-        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
-        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00110000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00120000,
+        eBuildMicromapsEXT = 0x00130000,
+        eCopyMicromapEXT = 0x00140000,
+        eCopyMemoryToMicromapEXT = 0x00150000,
+        eCopyMicromapToMemoryEXT = 0x00160000,
     };
 
     /***********************************************************************************\
@@ -211,6 +219,7 @@ namespace Profiler
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallDrawIndexedIndirectPayload
@@ -226,6 +235,8 @@ namespace Profiler
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
+        size_t m_IndirectCountOffset;
     };
 
     struct DeviceProfilerDrawcallDrawIndexedIndirectCountPayload
@@ -246,6 +257,7 @@ namespace Profiler
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
@@ -256,6 +268,8 @@ namespace Profiler
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
+        size_t m_IndirectCountOffset;
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksNvPayload
@@ -285,6 +299,7 @@ namespace Profiler
     {
         VkBuffer m_Buffer;
         VkDeviceSize m_Offset;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallCopyBufferPayload
@@ -412,6 +427,34 @@ namespace Profiler
         VkCopyAccelerationStructureModeKHR m_Mode;
     };
 
+    struct DeviceProfilerDrawcallBuildMicromapsPayload
+    {
+        uint32_t m_InfoCount;
+        bool m_OwnsDynamicAllocations;
+        const VkMicromapBuildInfoEXT* m_pInfos;
+    };
+
+    struct DeviceProfilerDrawcallCopyMicromapPayload
+    {
+        VkMicromapEXT m_Src;
+        VkMicromapEXT m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyMemoryToMicromapPayload
+    {
+        VkDeviceOrHostAddressConstKHR m_Src;
+        VkMicromapEXT m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyMicromapToMemoryPayload
+    {
+        VkMicromapEXT m_Src;
+        VkDeviceOrHostAddressKHR m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
 #define PROFILER_DECL_DRAWCALL_PAYLOAD( type, name )                   \
     type name;                                                         \
     inline void operator=( const type& value ) { this->name = value; }
@@ -461,6 +504,10 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload, m_CopyAccelerationStructureToMemory );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload, m_CopyMemoryToAccelerationStructure );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildMicromapsPayload, m_BuildMicromaps );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapPayload, m_CopyMicromap );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToMicromapPayload, m_CopyMemoryToMicromap );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapToMemoryPayload, m_CopyMicromapToMemory );
     };
 
     /***********************************************************************************\
@@ -536,6 +583,16 @@ namespace Profiler
 
                 m_Payload.m_BuildAccelerationStructuresIndirect.m_OwnsDynamicAllocations = true;
             }
+
+            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
+            {
+                // Create copy of build infos
+                m_Payload.m_BuildMicromaps.m_pInfos = CopyMicromapBuildInfos(
+                    dc.m_Payload.m_BuildMicromaps.m_InfoCount,
+                    dc.m_Payload.m_BuildMicromaps.m_pInfos );
+
+                m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations = true;
+            }
         }
 
         inline DeviceProfilerDrawcall( DeviceProfilerDrawcall&& dc )
@@ -586,6 +643,19 @@ namespace Profiler
                     FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
                 }
             }
+
+            if( m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
+            {
+                if( m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations )
+                {
+                    for (uint32_t i = 0; i < m_Payload.m_BuildMicromaps.m_InfoCount; ++i)
+                    {
+                        FreeConst( m_Payload.m_BuildMicromaps.m_pInfos[ i ].pUsageCounts );
+                    }
+
+                    FreeConst( m_Payload.m_BuildMicromaps.m_pInfos );
+                }
+            }
         }
 
         template<typename T>
@@ -603,6 +673,22 @@ namespace Profiler
             std::swap( m_Payload, dc.m_Payload );
             std::swap( m_BeginTimestamp, dc.m_BeginTimestamp );
             std::swap( m_EndTimestamp, dc.m_EndTimestamp );
+        }
+
+        // Check if drawcall can have indirect payload
+        inline bool HasIndirectPayload() const
+        {
+            switch( m_Type )
+            {
+            case DeviceProfilerDrawcallType::eDrawIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndirectCount:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+            case DeviceProfilerDrawcallType::eDispatchIndirect:
+                return true;
+            default:
+                return false;
+            }
         }
 
         // Assignment operators
@@ -632,6 +718,10 @@ namespace Profiler
             uint32_t infoCount,
             const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
             const uint32_t* const* ppMaxPrimitiveCounts );
+
+        static VkMicromapBuildInfoEXT* CopyMicromapBuildInfos(
+            uint32_t infoCount,
+            const VkMicromapBuildInfoEXT* pInfos );
     };
 
     /***********************************************************************************\
@@ -1091,6 +1181,8 @@ namespace Profiler
         uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
 
         uint64_t                                            m_ProfilerCpuOverheadNs = {};
+
+        std::vector<uint8_t>                                m_IndirectPayload = {};
 
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }

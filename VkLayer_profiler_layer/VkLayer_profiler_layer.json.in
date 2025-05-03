@@ -97,6 +97,14 @@
                     "default": false
                 },
                 {
+                    "key": "capture_indirect_arguments",
+                    "label": "Capture indirect arguments",
+                    "description": "Capture indirect argument buffers to show sub-commands contents.",
+                    "env": "VKPROF_capture_indirect_arguments",
+                    "type": "BOOL",
+                    "default": false
+                },
+                {
                     "key": "set_stable_power_state",
                     "label": "Set stable power state",
                     "description": "Use DirectX12 API to set stable power state for GPU time measurements.",
@@ -112,6 +120,14 @@
                     "env": "VKPROF_enable_threading",
                     "type": "BOOL",
                     "default": true
+                },
+                {
+                    "key": "frame_count",
+                    "label": "Frame count",
+                    "description": "Number of frames to collect and display in the overlay. Set 0 to collect all frames.",
+                    "env": "VKPROF_frame_count",
+                    "type": "INT",
+                    "default": 1
                 },
                 {
                     "key": "sampling_mode",
@@ -162,6 +178,22 @@
                             "description": "Synchronize and collect data on each submit (higher overhead)."
                         }
                     ]
+                },
+                {
+                    "key": "ref_pipelines",
+                    "label": "Reference pipelines",
+                    "description": "Path to the file with reference durations of top pipelines to load automatically.",
+                    "env": "VKPROF_ref_pipelines",
+                    "type": "LOAD_FILE",
+                    "default": ""
+                },
+                {
+                    "key": "ref_metrics",
+                    "label": "Reference metrics",
+                    "description": "Path to the file with reference performance metrics to load automatically.",
+                    "env": "VKPROF_ref_metrics",
+                    "type": "LOAD_FILE",
+                    "default": ""
                 }
             ]
         }

@@ -91,20 +91,8 @@ namespace Profiler
             }
         }
 
-        // Check if profiler create info was provided
-        const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
-
-        for( const auto& it : PNextIterator( pCreateInfo->pNext ) )
-        {
-            if( it.sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
-            {
-                pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>(&it);
-                break;
-            }
-        }
-
         // Initialize the profiler object
-        VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
+        VkResult result = dd.Profiler.Initialize( &dd.Device, pCreateInfo );
 
         // Initialize the profiler frontend object
         dd.ProfilerFrontend.Initialize( dd.Device, dd.Profiler );

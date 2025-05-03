@@ -684,6 +684,10 @@ namespace Profiler
         case VK_API_VERSION_1_3:
             m_SpvTargetEnv = SPV_ENV_VULKAN_1_3;
             break;
+
+        case VK_API_VERSION_1_4:
+            m_SpvTargetEnv = SPV_ENV_VULKAN_1_4;
+            break;
         }
     }
 
@@ -794,9 +798,11 @@ namespace Profiler
     void OverlayShaderView::AddBytecode( const uint32_t* pBinary, size_t wordCount )
     {
         spv_context context = spvContextCreate( static_cast<spv_target_env>(m_SpvTargetEnv) );
-        spv_text text;
+        spv_text text = nullptr;
+        spv_diagnostic diagnostic = nullptr;
 
         // Parse the SPIR-V binary first and remove any instructions that will become redundant.
+        // This step is optional, so we ignore any diagnostic errors returned from this function.
         SpirvParseOutputData parsedSpirv;
         spv_result_t result = spvBinaryParse( context, &parsedSpirv, pBinary, wordCount, ParseSpirvHeader, ParseSpirvInstruction, nullptr );
 
@@ -804,6 +810,11 @@ namespace Profiler
         {
             pBinary = parsedSpirv.m_Bytecode.data();
             wordCount = parsedSpirv.m_Bytecode.size();
+        }
+        else
+        {
+            // Clear the data if the parsing failed to avoid using it in partially-loaded state.
+            parsedSpirv = {};
         }
 
         // Disassembler options.
@@ -813,7 +824,7 @@ namespace Profiler
             SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
 
         // Disassemble the binary.
-        result = spvBinaryToText( context, pBinary, wordCount, options, &text, nullptr );
+        result = spvBinaryToText( context, pBinary, wordCount, options, &text, &diagnostic );
 
         if( result == SPV_SUCCESS )
         {
@@ -952,6 +963,7 @@ namespace Profiler
                             {
                             case SpvSourceLanguageESSL:
                                 spvc_compiler_options_set_bool( options, SPVC_COMPILER_OPTION_GLSL_ES, true );
+                                [[fallthrough]];
 
                             case SpvSourceLanguageGLSL:
                                 spvc_compiler_options_set_uint( options, SPVC_COMPILER_OPTION_GLSL_VERSION, sourceLanguageVersion );
@@ -982,6 +994,30 @@ namespace Profiler
             }
         }
 
+        if( result != SPV_SUCCESS )
+        {
+            // Report an error if the SPIR-V binary parsing failed.
+            std::string errorMessage = "Failed to parse SPIR-V binary";
+
+            if( diagnostic )
+            {
+                errorMessage += ":\n";
+                errorMessage += diagnostic->error;
+
+                if( diagnostic->isTextSource )
+                {
+                    errorMessage += " (line " + std::to_string( diagnostic->position.line ) + "," + std::to_string( diagnostic->position.column ) + ")";
+                }
+                else
+                {
+                    errorMessage += " (word " + std::to_string( diagnostic->position.index ) + ")";
+                }
+            }
+
+            AddShaderRepresentation( "Disassembly", errorMessage.c_str(), errorMessage.length(), ShaderFormat::eText );
+        }
+
+        spvDiagnosticDestroy( diagnostic );
         spvTextDestroy( text );
         spvContextDestroy( context );
     }

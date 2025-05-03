@@ -31,6 +31,7 @@
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
+#include "profiler_layer_objects/VkPhysicalDevice_object.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <sstream>
@@ -65,19 +66,20 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT* );
-        static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
+        static void SetupDeviceCreateInfo( VkPhysicalDevice_Object&, const ProfilerLayerSettings&, std::unordered_set<std::string>&, PNextChain& );
+        static void SetupInstanceCreateInfo( std::unordered_set<std::string>& );
 
         static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
-        VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
+        VkResult Initialize( VkDevice_Object*, const VkDeviceCreateInfo* );
 
         void Destroy();
 
         // Public interface
         VkResult SetMode( VkProfilerModeEXT );
         VkResult SetSyncMode( VkProfilerSyncModeEXT );
-        std::shared_ptr<DeviceProfilerFrameData> GetData() const;
+        VkResult SetDataBufferSize( uint32_t );
+        std::shared_ptr<DeviceProfilerFrameData> GetData();
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
         DeviceProfilerCommandPool& GetCommandPool( VkCommandPool commandPool );
@@ -144,12 +146,13 @@ namespace Profiler
 
         mutable std::mutex      m_SubmitMutex;
         mutable std::mutex      m_PresentMutex;
-        std::shared_ptr<DeviceProfilerFrameData> m_pData;
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pData;
 
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
         uint32_t                m_NextFrameIndex;
+        uint32_t                m_DataBufferSize;
         uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;
@@ -179,6 +182,9 @@ namespace Profiler
         // Whether VK_KHR_pipeline_executable_properties is available for the profiled device.
         // In such case the internal representations of pipelines may be inspected to give more insight on potential performance issues.
         bool                    m_PipelineExecutablePropertiesEnabled;
+
+        // Whether VK_EXT_shader_module_identifier is available for the profiled device.
+        bool                    m_ShaderModuleIdentifierEnabled;
 
         void*                   m_pStablePowerStateHandle;
 

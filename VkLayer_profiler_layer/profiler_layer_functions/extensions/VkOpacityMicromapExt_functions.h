@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
-// 
+// Copyright (c) 2025 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,32 +19,31 @@
 // SOFTWARE.
 
 #pragma once
-#include "vk_dispatch_tables.h"
-#include <vector>
+#include "VkDevice_functions_base.h"
 
 namespace Profiler
 {
-    enum class VkPhysicalDevice_Vendor_ID
+    struct VkOpacityMicromapExt_Functions : VkDevice_Functions_Base
     {
-        eUnknown = 0,
-        eAMD = 0x1002,
-        eARM = 0x13B3,
-        eINTEL = 0x8086,
-        eNV = 0x10DE,
-        eQualcomm = 0x5143
-    };
+        // vkCmdBuildMicromapsEXT
+        static VKAPI_ATTR void VKAPI_CALL CmdBuildMicromapsEXT(
+            VkCommandBuffer commandBuffer,
+            uint32_t infoCount,
+            const VkMicromapBuildInfoEXT* pInfos );
 
-    struct VkPhysicalDevice_Object
-    {
-        VkPhysicalDevice Handle = VK_NULL_HANDLE;
+        // vkCmdCopyMicromapEXT
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyMicromapEXT(
+            VkCommandBuffer commandBuffer,
+            const VkCopyMicromapInfoEXT* pInfo );
 
-        struct VkInstance_Object* pInstance;
+        // vkCmdCopyMemoryToMicromapEXT
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyMemoryToMicromapEXT(
+            VkCommandBuffer commandBuffer,
+            const VkCopyMemoryToMicromapInfoEXT* pInfo );
 
-        VkPhysicalDeviceProperties Properties;
-        VkPhysicalDeviceMemoryProperties MemoryProperties;
-
-        VkPhysicalDevice_Vendor_ID VendorID;
-
-        std::vector<VkQueueFamilyProperties> QueueFamilyProperties;
+        // vkCmdCopyMicromapToMemoryEXT
+        static VKAPI_ATTR void VKAPI_CALL CmdCopyMicromapToMemoryEXT(
+            VkCommandBuffer commandBuffer,
+            const VkCopyMicromapToMemoryInfoEXT* pInfo );
     };
 }

@@ -174,6 +174,12 @@ namespace Profiler
         GETPROCADDR( CmdDrawMeshTasksIndirectNV );
         GETPROCADDR( CmdDrawMeshTasksIndirectCountNV );
 
+        // VK_EXT_opacity_micromap functions
+        GETPROCADDR( CmdBuildMicromapsEXT );
+        GETPROCADDR( CmdCopyMicromapEXT );
+        GETPROCADDR( CmdCopyMemoryToMicromapEXT );
+        GETPROCADDR( CmdCopyMicromapToMemoryEXT );
+
         // VK_KHR_ray_tracing_maintenance1 functions
         GETPROCADDR( CmdTraceRaysIndirect2KHR );
 
@@ -672,9 +678,19 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Make sure all indirect buffers are created with VK_BUFFER_USAGE_TRANSFER_SRC_BIT flag,
+        // so the layer can copy the data from it.
+        VkBufferCreateInfo createInfo = *pCreateInfo;
+
+        if( ( createInfo.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT ) ||
+            ( createInfo.usage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR ) )
+        {
+            createInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        }
+
         // Create the buffer
         VkResult result = dd.Device.Callbacks.CreateBuffer(
-            device, pCreateInfo, pAllocator, pBuffer );
+            device, &createInfo, pAllocator, pBuffer );
 
         if( result == VK_SUCCESS )
         {

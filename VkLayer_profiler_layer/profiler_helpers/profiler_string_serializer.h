@@ -91,6 +91,11 @@ namespace Profiler
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
         std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
 
+        std::string GetCopyMicromapModeName( VkCopyMicromapModeEXT mode ) const;
+        std::string GetMicromapTypeName( VkMicromapTypeEXT type ) const;
+        std::string GetBuildMicromapModeName( VkBuildMicromapModeEXT mode ) const;
+        std::string GetBuildMicromapFlagNames( VkBuildMicromapFlagsEXT flags ) const;
+
         std::string GetGeometryTypeName( VkGeometryTypeKHR ) const;
         std::string GetGeometryFlagNames( VkGeometryFlagsKHR ) const;
 

@@ -130,6 +130,27 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        GetNthElement
+
+    Description:
+        Returns the N-th element of an iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable>
+    PROFILER_FORCE_INLINE auto GetNthElement( const Iterable& iterable, size_t n )
+    {
+        if( n >= std::size( iterable ) )
+        {
+            throw std::out_of_range( "Index out of range" );
+        }
+        auto it = std::begin( iterable );
+        std::advance( it, n );
+        return *it;
+    }
+
+    /***********************************************************************************\
+
     Class:
         __PNextTypeTraits
 
@@ -177,6 +198,78 @@ namespace Profiler
 
         inline IteratorType begin() { return IteratorType( pNext ); }
         inline IteratorType end()   { return IteratorType( nullptr ); }
+    };
+
+    /***********************************************************************************\
+
+    Struct:
+        PNextChain
+
+    Description:
+        Helper structure for dynamic pNext chain creation.
+
+    \***********************************************************************************/
+    struct PNextChain
+    {
+        // Head of the pNext chain.
+        void* m_pHead;
+
+        // Pointer to the tail of the chain provided by the application.
+        // Used to mark end of dynamic allocations made by the layer.
+        const void* m_pTail;
+
+        // Create a new chain initialized with data from the application.
+        explicit PNextChain( const void* pNext = nullptr )
+            : m_pHead( nullptr )
+            , m_pTail( pNext )
+        {
+        }
+
+        const void* GetHead() const
+        {
+            return ( m_pHead != nullptr ) ? m_pHead : m_pTail;
+        }
+
+        bool Contains( VkStructureType sType ) const
+        {
+            return Find( sType ) != nullptr;
+        }
+
+        const void* Find( VkStructureType sType ) const
+        {
+            const VkBaseInStructure* pStructure = reinterpret_cast<const VkBaseInStructure*>( GetHead() );
+            while( pStructure )
+            {
+                if( pStructure->sType == sType )
+                {
+                    return pStructure;
+                }
+                pStructure = pStructure->pNext;
+            }
+            return nullptr;
+        }
+
+        template<typename T>
+        const T* Find( VkStructureType sType ) const
+        {
+            return reinterpret_cast<const T*>( Find( sType ) );
+        }
+
+        template<typename T>
+        void Append( const T& structure )
+        {
+            assert( !Contains( structure.sType ) );
+
+            void* pStructure = malloc( sizeof( T ) );
+            if( pStructure )
+            {
+                memcpy( pStructure, &structure, sizeof( T ) );
+                reinterpret_cast<VkBaseInStructure*>( pStructure )->pNext =
+                    reinterpret_cast<const VkBaseInStructure*>( GetHead() );
+
+                m_pHead = pStructure;
+            }
+        }
     };
 
     /***********************************************************************************\
