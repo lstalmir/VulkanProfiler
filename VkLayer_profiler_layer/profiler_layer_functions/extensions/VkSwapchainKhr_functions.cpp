@@ -47,7 +47,7 @@ namespace Profiler
         if( createProfilerOverlay )
         {
             // Make sure we are able to write to presented image
-            createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
         }
 
         // Create the swapchain

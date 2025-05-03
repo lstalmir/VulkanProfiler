@@ -137,6 +137,11 @@ namespace Profiler
         VkImageLayout m_GuiImageLayout;
         uint32_t m_GuiImageQueueFamilyIndex;
 
+        VkPipeline m_GuiCombinePipeline;
+        VkPipelineLayout m_GuiCombinePipelineLayout;
+        VkDescriptorSetLayout m_GuiCombineDescriptorSetLayout;
+        std::vector<VkDescriptorSet> m_GuiCombineDescriptorSets;
+
         VkEvent m_ResourcesUploadEvent;
         VkSampler m_LinearSampler;
 

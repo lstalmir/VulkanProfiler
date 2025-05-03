@@ -26,6 +26,8 @@
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_layer_functions/core/VkDevice_functions_base.h"
 
+#include "shaders/spv_combine_imgui_overlay.h"
+
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
 
@@ -99,12 +101,14 @@ namespace Profiler
 
             // ImGui allocates descriptor sets only for textures/fonts for now.
             const uint32_t imguiMaxTextureCount = 16;
+            const uint32_t imguiMaxFramebufferCount = 8;
             const VkDescriptorPoolSize descriptorPoolSizes[] = {
-                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imguiMaxTextureCount }
+                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imguiMaxTextureCount },
+                { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, imguiMaxFramebufferCount * 2 }
             };
 
-            descriptorPoolCreateInfo.maxSets = imguiMaxTextureCount;
-            descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype( descriptorPoolSizes )>;
+            descriptorPoolCreateInfo.maxSets = imguiMaxTextureCount + imguiMaxFramebufferCount;
+            descriptorPoolCreateInfo.poolSizeCount = std::size( descriptorPoolSizes );
             descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
 
             result = m_pDevice->Callbacks.CreateDescriptorPool(
@@ -396,7 +400,7 @@ namespace Profiler
             imageCreateInfo.arrayLayers = 1;
             imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
             imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-            imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+            imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
             VmaAllocationCreateInfo allocationCreateInfo = {};
             allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
@@ -446,6 +450,155 @@ namespace Profiler
                     nullptr,
                     &m_GuiFramebuffer );
             }
+        }
+
+        // Create gui combine descriptor set layout
+        if( result == VK_SUCCESS )
+        {
+            VkDescriptorSetLayoutBinding bindings[2] = {};
+            bindings[0].binding = 0;
+            bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            bindings[0].descriptorCount = 1;
+            bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            bindings[1].binding = 1;
+            bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            bindings[1].descriptorCount = 1;
+            bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+            descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutCreateInfo.bindingCount = 2;
+            descriptorSetLayoutCreateInfo.pBindings = bindings;
+
+            result = m_pDevice->Callbacks.CreateDescriptorSetLayout(
+                m_pDevice->Handle,
+                &descriptorSetLayoutCreateInfo,
+                nullptr,
+                &m_GuiCombineDescriptorSetLayout );
+        }
+
+        // Create a descriptor set with each swapchain image
+        if( result == VK_SUCCESS )
+        {
+            std::vector<VkDescriptorSetLayout> descriptorSetLayouts( swapchainImageCount, m_GuiCombineDescriptorSetLayout );
+            VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+            descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            descriptorSetAllocateInfo.descriptorPool = m_DescriptorPool;
+            descriptorSetAllocateInfo.descriptorSetCount = swapchainImageCount;
+            descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts.data();
+
+            m_GuiCombineDescriptorSets.resize( swapchainImageCount, VK_NULL_HANDLE );
+            result = m_pDevice->Callbacks.AllocateDescriptorSets(
+                m_pDevice->Handle,
+                &descriptorSetAllocateInfo,
+                m_GuiCombineDescriptorSets.data() );
+        }
+
+        // Write the descriptors
+        if( result == VK_SUCCESS )
+        {
+            std::vector<VkWriteDescriptorSet> writeDescriptorSets( swapchainImageCount * 2 );
+            std::vector<VkDescriptorImageInfo> swapchainImageInfos( swapchainImageCount );
+
+            VkDescriptorImageInfo guiImageInfo = {};
+            guiImageInfo.imageView = m_GuiImageView;
+            guiImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+            for( uint32_t i = 0; i < swapchainImageCount; ++i )
+            {
+                VkDescriptorImageInfo& swapchainImageInfo = swapchainImageInfos[i];
+                swapchainImageInfo.imageView = m_ImageViews[i];
+                swapchainImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+                VkWriteDescriptorSet& writeGuiDescriptor = writeDescriptorSets[2 * i];
+                writeGuiDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                writeGuiDescriptor.dstSet = m_GuiCombineDescriptorSets[i];
+                writeGuiDescriptor.dstBinding = 0;
+                writeGuiDescriptor.descriptorCount = 1;
+                writeGuiDescriptor.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                writeGuiDescriptor.pImageInfo = &guiImageInfo;
+
+                VkWriteDescriptorSet& writeSwapchainDescriptor = writeDescriptorSets[2 * i + 1];
+                writeSwapchainDescriptor.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                writeSwapchainDescriptor.dstSet = m_GuiCombineDescriptorSets[i];
+                writeSwapchainDescriptor.dstBinding = 1;
+                writeSwapchainDescriptor.descriptorCount = 1;
+                writeSwapchainDescriptor.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                writeSwapchainDescriptor.pImageInfo = &swapchainImageInfo;
+            }
+
+            m_pDevice->Callbacks.UpdateDescriptorSets(
+                m_pDevice->Handle,
+                static_cast<uint32_t>( writeDescriptorSets.size() ),
+                writeDescriptorSets.data(),
+                0, nullptr );
+        }
+
+        // Create gui combine pipeline layout
+        if( result == VK_SUCCESS )
+        {
+            VkPushConstantRange pushConstantRange = {};
+            pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            pushConstantRange.offset = 0;
+            pushConstantRange.size = sizeof( VkExtent2D );
+
+            VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+            pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            pipelineLayoutCreateInfo.setLayoutCount = 1;
+            pipelineLayoutCreateInfo.pSetLayouts = &m_GuiCombineDescriptorSetLayout;
+            pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+            pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+
+            result = m_pDevice->Callbacks.CreatePipelineLayout(
+                m_pDevice->Handle,
+                &pipelineLayoutCreateInfo,
+                nullptr,
+                &m_GuiCombinePipelineLayout );
+        }
+
+        // Create gui shader module
+        VkShaderModule guiCombineShaderModule = VK_NULL_HANDLE;
+
+        if( result == VK_SUCCESS )
+        {
+            VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
+            shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+            shaderModuleCreateInfo.codeSize = sizeof( spv_combine_imgui_overlay );
+            shaderModuleCreateInfo.pCode = spv_combine_imgui_overlay;
+
+            result = m_pDevice->Callbacks.CreateShaderModule(
+                m_pDevice->Handle,
+                &shaderModuleCreateInfo,
+                nullptr,
+                &guiCombineShaderModule );
+        }
+
+        // Create gui combine pipeline
+        if( result == VK_SUCCESS )
+        {
+            VkComputePipelineCreateInfo pipelineCreateInfo = {};
+            pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+            pipelineCreateInfo.layout = m_GuiCombinePipelineLayout;
+            pipelineCreateInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            pipelineCreateInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+            pipelineCreateInfo.stage.module = guiCombineShaderModule;
+            pipelineCreateInfo.stage.pName = "main";
+
+            result = m_pDevice->Callbacks.CreateComputePipelines(
+                m_pDevice->Handle,
+                VK_NULL_HANDLE,
+                1,
+                &pipelineCreateInfo,
+                nullptr,
+                &m_GuiCombinePipeline );
+        }
+
+        if( guiCombineShaderModule != VK_NULL_HANDLE )
+        {
+            m_pDevice->Callbacks.DestroyShaderModule(
+                m_pDevice->Handle,
+                guiCombineShaderModule,
+                nullptr );
         }
 
         // Update objects
@@ -899,6 +1052,10 @@ namespace Profiler
             info.renderArea.extent.width = m_RenderArea.width;
             info.renderArea.extent.height = m_RenderArea.height;
 
+            VkClearValue clearValue = { 0, 0, 0, 1 };
+            info.clearValueCount = 1;
+            info.pClearValues = &clearValue;
+
             m_pDevice->Callbacks.CmdBeginRenderPass( commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE );
             ImGui_ImplVulkan_RenderDrawData( pDrawData, commandBuffer );
             m_pDevice->Callbacks.CmdEndRenderPass( commandBuffer );
@@ -908,9 +1065,9 @@ namespace Profiler
             VkImageMemoryBarrier imageMemoryBarrier = {};
             imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             imageMemoryBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
             imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
             imageMemoryBarrier.srcQueueFamilyIndex = m_pGraphicsQueue->Family;
             imageMemoryBarrier.dstQueueFamilyIndex = m_pPresentQueue->Family;
             imageMemoryBarrier.image = m_GuiImage;
@@ -923,11 +1080,11 @@ namespace Profiler
             m_pDevice->Callbacks.CmdPipelineBarrier(
                 commandBuffer,
                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
                 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier );
 
-            m_GuiImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            m_GuiImageLayout = VK_IMAGE_LAYOUT_GENERAL;
             m_GuiImageQueueFamilyIndex = m_pPresentQueue->Family;
         }
     }
@@ -948,16 +1105,18 @@ namespace Profiler
             return;
         }
 
-        VkImage swapchainImage = m_Images[m_PresentInfo.pImageIndices[0]];
+        uint32_t swapchainImageIndex = m_PresentInfo.pImageIndices[0];
+        VkImage swapchainImage = m_Images[swapchainImageIndex];
+        VkDescriptorSet swapchainImageDescriptorSet = m_GuiCombineDescriptorSets[swapchainImageIndex];
 
         {
             // Transfer the presented image to the correct layout.
             VkImageMemoryBarrier imageMemoryBarrier = {};
             imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             imageMemoryBarrier.srcAccessMask = 0;
-            imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
             imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
             imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageMemoryBarrier.image = swapchainImage;
@@ -970,42 +1129,41 @@ namespace Profiler
             m_pDevice->Callbacks.CmdPipelineBarrier(
                 commandBuffer,
                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
                 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier );
         }
         {
-            // Copy the rendered overlay to the presented image.
-            VkImageCopy imageCopy = {};
-            imageCopy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageCopy.srcSubresource.layerCount = 1;
-            imageCopy.srcSubresource.mipLevel = 0;
-            imageCopy.srcSubresource.baseArrayLayer = 0;
-            imageCopy.srcOffset = { 0, 0, 0 };
-            imageCopy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageCopy.dstSubresource.layerCount = 1;
-            imageCopy.dstSubresource.mipLevel = 0;
-            imageCopy.dstSubresource.baseArrayLayer = 0;
-            imageCopy.dstOffset = { 0, 0, 0 };
-            imageCopy.extent.width = m_RenderArea.width;
-            imageCopy.extent.height = m_RenderArea.height;
-            imageCopy.extent.depth = 1;
-
-            m_pDevice->Callbacks.CmdCopyImage(
+            m_pDevice->Callbacks.CmdPushConstants(
                 commandBuffer,
-                m_GuiImage,
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                swapchainImage,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1, &imageCopy );
+                m_GuiCombinePipelineLayout,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                0, sizeof( VkExtent2D ),
+                &m_RenderArea );
+
+            m_pDevice->Callbacks.CmdBindDescriptorSets(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_COMPUTE,
+                m_GuiCombinePipelineLayout,
+                0, 1, &swapchainImageDescriptorSet, 0, nullptr );
+
+            m_pDevice->Callbacks.CmdBindPipeline(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_COMPUTE,
+                m_GuiCombinePipeline );
+
+            m_pDevice->Callbacks.CmdDispatch(
+                commandBuffer,
+                ( m_RenderArea.width + 7 ) / 8,
+                ( m_RenderArea.height + 7 ) / 8, 1 );
         }
         {
             // Transfer the presented image to the correct layout.
             VkImageMemoryBarrier imageMemoryBarrier = {};
             imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
             imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
             imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
             imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1018,7 +1176,7 @@ namespace Profiler
 
             m_pDevice->Callbacks.CmdPipelineBarrier(
                 commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
                 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier );
@@ -1215,6 +1373,30 @@ namespace Profiler
             m_pDevice->Callbacks.DestroyFramebuffer( m_pDevice->Handle, m_GuiFramebuffer, nullptr );
         }
 
+        if( m_GuiCombinePipeline != VK_NULL_HANDLE )
+        {
+            m_pDevice->Callbacks.DestroyPipeline( m_pDevice->Handle, m_GuiCombinePipeline, nullptr );
+        }
+
+        if( m_GuiCombinePipelineLayout != VK_NULL_HANDLE )
+        {
+            m_pDevice->Callbacks.DestroyPipelineLayout( m_pDevice->Handle, m_GuiCombinePipelineLayout, nullptr );
+        }
+
+        if( m_GuiCombineDescriptorSetLayout != VK_NULL_HANDLE )
+        {
+            m_pDevice->Callbacks.DestroyDescriptorSetLayout( m_pDevice->Handle, m_GuiCombineDescriptorSetLayout, nullptr );
+        }
+
+        if( !m_GuiCombineDescriptorSets.empty() )
+        {
+            m_pDevice->Callbacks.FreeDescriptorSets(
+                m_pDevice->Handle,
+                m_DescriptorPool,
+                static_cast<uint32_t>( m_GuiCombineDescriptorSets.size() ),
+                m_GuiCombineDescriptorSets.data() );
+        }
+
         ResetGuiImageMembers();
     }
 
@@ -1235,6 +1417,11 @@ namespace Profiler
         m_GuiFramebuffer = VK_NULL_HANDLE;
         m_GuiImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         m_GuiImageQueueFamilyIndex = 0;
+
+        m_GuiCombinePipeline = VK_NULL_HANDLE;
+        m_GuiCombinePipelineLayout = VK_NULL_HANDLE;
+        m_GuiCombineDescriptorSetLayout = VK_NULL_HANDLE;
+        m_GuiCombineDescriptorSets.clear();
     }
 
     /***********************************************************************************\
@@ -1392,7 +1579,6 @@ namespace Profiler
             // Create a new fence for the command buffer.
             VkFenceCreateInfo fenceInfo = {};
             fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-            fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
             result = m_pDevice->Callbacks.CreateFence( m_pDevice->Handle, &fenceInfo, nullptr, pFence );
             if( result == VK_SUCCESS )
