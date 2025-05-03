@@ -47,7 +47,7 @@ namespace Profiler
         if( createProfilerOverlay )
         {
             // Make sure we are able to write to presented image
-            createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            createInfo.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
         }
 
         // Create the swapchain
@@ -171,7 +171,7 @@ namespace Profiler
         if( (dd.Overlay.IsAvailable()) &&
             (dd.OverlayBackend.GetSwapchain() == pPresentInfo->pSwapchains[ 0 ]) )
         {
-            dd.OverlayBackend.SetFramePresentInfo( *pPresentInfo );
+            dd.OverlayBackend.SetFramePresentInfo( dd.Device.Queues.at( queue ), *pPresentInfo );
             dd.Overlay.Update();
             pPresentInfo = &dd.OverlayBackend.GetFramePresentInfo();
         }

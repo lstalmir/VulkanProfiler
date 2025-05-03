@@ -73,7 +73,7 @@ namespace Profiler
         VkResult SetSwapchain( VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR& createInfo );
         VkSwapchainKHR GetSwapchain() const;
 
-        void SetFramePresentInfo( const VkPresentInfoKHR& presentInfo );
+        void SetFramePresentInfo( VkQueue_Object& queue, const VkPresentInfoKHR& presentInfo );
         const VkPresentInfoKHR& GetFramePresentInfo() const;
 
         bool PrepareImGuiBackend() override;
@@ -96,7 +96,15 @@ namespace Profiler
         VkDevice_Object* m_pDevice;
         VkQueue_Object* m_pGraphicsQueue;
 
-        VkCommandPool m_CommandPool;
+        struct CommandPool
+        {
+            VkCommandPool Handle = VK_NULL_HANDLE;
+            std::vector<VkCommandBuffer> CommandBuffers = {};
+            std::vector<VkFence> CommandFences = {};
+            uint32_t NextCommandBufferIndex = 0;
+        };
+
+        std::unordered_map<uint32_t, CommandPool> m_CommandPools;
         VkDescriptorPool m_DescriptorPool;
 
         DeviceProfilerMemoryManager m_MemoryManager;
@@ -111,6 +119,7 @@ namespace Profiler
         VkSurfaceKHR m_Surface;
         VkSwapchainKHR m_Swapchain;
         VkPresentInfoKHR m_PresentInfo;
+        VkQueue_Object* m_pPresentQueue;
 
         VkRenderPass m_RenderPass;
         VkExtent2D m_RenderArea;
@@ -118,11 +127,20 @@ namespace Profiler
         uint32_t m_MinImageCount;
         std::vector<VkImage> m_Images;
         std::vector<VkImageView> m_ImageViews;
-        std::vector<VkFramebuffer> m_Framebuffers;
-        std::vector<VkCommandBuffer> m_CommandBuffers;
-        std::vector<VkFence> m_CommandFences;
-        std::vector<VkSemaphore> m_CommandSemaphores;
+        VkSemaphore m_RenderSemaphore;
         VkFence m_LastSubmittedFence;
+
+        VkImage m_GuiImage;
+        VkImageView m_GuiImageView;
+        VmaAllocation m_GuiImageAllocation;
+        VkFramebuffer m_GuiFramebuffer;
+        VkImageLayout m_GuiImageLayout;
+        uint32_t m_GuiImageQueueFamilyIndex;
+
+        VkPipeline m_GuiCombinePipeline;
+        VkPipelineLayout m_GuiCombinePipelineLayout;
+        VkDescriptorSetLayout m_GuiCombineDescriptorSetLayout;
+        std::vector<VkDescriptorSet> m_GuiCombineDescriptorSets;
 
         VkEvent m_ResourcesUploadEvent;
         VkSampler m_LinearSampler;
@@ -148,10 +166,17 @@ namespace Profiler
 
         void DestroySwapchainResources();
         void ResetSwapchainMembers();
+        void DestroyGuiImageResources();
+        void ResetGuiImageMembers();
+
+        VkResult AcquireCommandBuffer( const VkQueue_Object& queue, VkCommandBuffer* pCommandBuffer, VkFence* pFence );
 
         void RecordUploadCommands( VkCommandBuffer commandBuffer );
         void DestroyUploadResources();
         void DestroyResources();
+
+        void RecordRenderCommands( VkCommandBuffer commandBuffer, ImDrawData* pDrawData );
+        void RecordCopyCommands( VkCommandBuffer commandBuffer );
 
         VkResult InitializeImage( ImageResource& image, int width, int height, const void* pData );
         void DestroyImage( ImageResource& image );
