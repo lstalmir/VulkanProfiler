@@ -82,4 +82,16 @@ namespace ImGuiX
     bool TableTextColumn(
         const char* format,
         ... );
+
+    /*************************************************************************\
+
+    Function:
+        TableBorderInnerH
+
+    Description:
+        Draw a horizontal line inside the table.
+
+    \*************************************************************************/
+    void TableBorderInnerH( ImU32 color, float thickness );
+    void TableBorderInnerH( float thickness = 1.0f );
 }
