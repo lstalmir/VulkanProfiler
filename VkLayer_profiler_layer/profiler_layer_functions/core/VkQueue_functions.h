@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,13 @@ namespace Profiler
             VkQueue queue,
             uint32_t submitCount,
             const VkSubmitInfo2* pSubmits,
+            VkFence fence );
+
+        // vkQueueBindSparse
+        static VKAPI_ATTR VkResult VKAPI_CALL QueueBindSparse(
+            VkQueue queue,
+            uint32_t bindInfoCount,
+            const VkBindSparseInfo* pBindInfos,
             VkFence fence );
     };
 }

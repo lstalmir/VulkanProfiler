@@ -1273,6 +1273,22 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerBufferMemoryBindingData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerBufferMemoryBindingData
+    {
+        VkDeviceMemory m_Memory = {};
+        VkDeviceSize m_MemoryOffset = {};
+        VkDeviceSize m_BufferOffset = {};
+        VkDeviceSize m_Size = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerBufferMemoryData
 
     Description:
@@ -1281,10 +1297,10 @@ namespace Profiler
     struct DeviceProfilerBufferMemoryData
     {
         VkDeviceSize m_BufferSize = {};
+        VkBufferCreateFlags m_BufferFlags = {};
         VkBufferUsageFlags m_BufferUsage = {};
         VkMemoryRequirements m_MemoryRequirements = {};
-        VkDeviceMemory m_Memory = {};
-        VkDeviceSize m_MemoryOffset = {};
+        std::vector<DeviceProfilerBufferMemoryBindingData> m_MemoryBindings = {};
     };
 
     /***********************************************************************************\
