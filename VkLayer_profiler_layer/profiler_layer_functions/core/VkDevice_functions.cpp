@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -114,6 +114,7 @@ namespace Profiler
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueueSubmit2 );
+        GETPROCADDR( QueueBindSparse );
 
         // VK_KHR_bind_memory2 functions
         GETPROCADDR( BindBufferMemory2KHR );

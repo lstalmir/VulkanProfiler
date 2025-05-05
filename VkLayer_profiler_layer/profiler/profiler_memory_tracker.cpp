@@ -162,9 +162,8 @@ namespace Profiler
 
         DeviceProfilerBufferMemoryData data = {};
         data.m_BufferSize = pCreateInfo->size;
+        data.m_BufferFlags = pCreateInfo->flags;
         data.m_BufferUsage = pCreateInfo->usage;
-        data.m_Memory = VK_NULL_HANDLE;
-        data.m_MemoryOffset = 0;
 
         m_pDevice->Callbacks.GetBufferMemoryRequirements(
             m_pDevice->Handle,
@@ -205,8 +204,45 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
-            it->second.m_Memory = memory;
-            it->second.m_MemoryOffset = offset;
+            if( !it->second.m_MemoryBindings.empty() )
+            {
+                // Only one binding at a time is allowed using this API.
+                it->second.m_MemoryBindings.clear();
+            }
+
+            DeviceProfilerBufferMemoryBindingData& binding = it->second.m_MemoryBindings.emplace_back();
+            binding.m_Memory = memory;
+            binding.m_MemoryOffset = offset;
+            binding.m_BufferOffset = 0;
+            binding.m_Size = it->second.m_BufferSize;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::BindBufferMemory( VkBuffer buffer, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Buffers );
+
+        auto it = m_Buffers.unsafe_find( buffer );
+        if( it != m_Buffers.end() )
+        {
+            for( uint32_t i = 0; i < bindCount; ++i )
+            {
+                DeviceProfilerBufferMemoryBindingData& binding = it->second.m_MemoryBindings.emplace_back();
+                binding.m_Memory = pBinds[i].memory;
+                binding.m_MemoryOffset = pBinds[i].memoryOffset;
+                binding.m_BufferOffset = pBinds[i].resourceOffset;
+                binding.m_Size = pBinds[i].size;
+            }
         }
     }
 
