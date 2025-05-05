@@ -2250,16 +2250,11 @@ namespace Profiler
             }
 
             // Buffers table.
-            if( ImGui::BeginTable( "MemoryBuffersTable", 8, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX ) )
+            if( ImGui::BeginTable( "MemoryBuffersTable", 3, ImGuiTableFlags_PadOuterX | ImGuiTableFlags_NoClip ) )
             {
-                ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
                 ImGui::TableSetupColumn( "Buffer", ImGuiTableColumnFlags_WidthStretch );
                 ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
                 ImGui::TableSetupColumn( "Usage", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( "Memory", ImGuiTableColumnFlags_WidthStretch );
-                ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( "T", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( "H", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
                 ImGui::TableHeadersRow();
 
                 size_t bufferIndex = 0;
@@ -2271,90 +2266,99 @@ namespace Profiler
                         continue;
                     }
 
-                    const std::string bufferName = m_pStringSerializer->GetName( buffer );
-
+                    auto bufferName = m_pStringSerializer->GetName( buffer );
                     if( bufferName.find( m_MemoryBufferNameFilter ) == std::string::npos )
                     {
                         continue;
                     }
 
+                    bufferName += "##" + std::to_string( bufferIndex );
                     bufferIndex++;
                     ImGui::TableNextRow();
 
                     if( ImGui::TableNextColumn() )
                     {
-                        ImGuiX::TextAlignRight(
-                            ImGuiX::TableGetColumnWidth(),
-                            "%zu",
-                            bufferIndex );
-                    }
-
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGui::TextUnformatted( bufferName.c_str() );
-                    }
-
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGuiX::TextAlignRight(
-                            ImGuiX::TableGetColumnWidth(),
-                            "  %s",
-                            m_pStringSerializer->GetByteSize( data.m_BufferSize ) );
-                    }
-
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGui::Text( "  %08X", data.m_BufferUsage );
-
-                        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
-                        {
-                            // Print tooltip with all usage flags.
-                            ImGui::SetTooltip( "%s",
-                                m_pStringSerializer->GetBufferUsageFlagNames( data.m_BufferUsage, "\n" ).c_str() );
-                        }
-                    }
-
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGui::TextUnformatted( m_pStringSerializer->GetName( data.m_Memory ).c_str() );
-                    }
-
-                    if( ImGui::TableNextColumn() )
-                    {
-                        ImGuiX::TextAlignRight(
-                            ImGuiX::TableGetColumnWidth(),
-                            "%llu",
-                            data.m_MemoryOffset );
-                    }
-
-                    auto allocationIt = m_pData->m_Memory.m_Allocations.find( data.m_Memory );
-                    if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
-                    {
-                        const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                        bool bufferExpanded = ImGui::TreeNodeEx( bufferName.c_str(), ImGuiTreeNodeFlags_SpanAllColumns );
 
                         if( ImGui::TableNextColumn() )
                         {
-                            ImGui::Text( "%u", memoryData.m_TypeIndex );
+                            ImGuiX::TextAlignRight(
+                                ImGuiX::TableGetColumnWidth(),
+                                "  %s",
+                                m_pStringSerializer->GetByteSize( data.m_BufferSize ) );
 
                             if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
                             {
-                                if (ImGui::BeginTooltip())
-                                {
-                                    VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
-                                    ImGui::PushFont( m_Resources.GetBoldFont() );
-                                    ImGui::Text( "%s %u", Lang::MemoryTypeIndex, memoryData.m_TypeIndex );
-                                    ImGui::PopFont();
-                                    ImGui::Text( "%s", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
-                                    ImGui::EndTooltip();
-                                }
+                                // Print tooltip with exact size.
+                                ImGui::SetTooltip( "%llu bytes", data.m_BufferSize );
                             }
                         }
 
                         if( ImGui::TableNextColumn() )
                         {
-                            ImGui::Text( "%u", memoryData.m_HeapIndex );
+                            ImGui::Text( "  %08X", data.m_BufferUsage );
+
+                            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                            {
+                                // Print tooltip with all usage flags.
+                                ImGui::SetTooltip( "%s",
+                                    m_pStringSerializer->GetBufferUsageFlagNames( data.m_BufferUsage, "\n" ).c_str() );
+                            }
+                        }
+
+                        if( bufferExpanded )
+                        {
+                            ImGui::TableNextRow();
+                            ImGui::TableNextColumn();
+                            ImGuiX::BeginPadding( 5.f * interfaceScale, 0, 0 );
+
+                            for( const auto& binding : data.m_MemoryBindings )
+                            {
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
+
+                                ImGui::SameLine( 0.f, 15.f * interfaceScale );
+                                ImGui::Text( "Offset: %llx", binding.m_MemoryOffset );
+
+                                ImGui::SameLine( 0.f, 15.f * interfaceScale );
+                                ImGui::Text( "Size: %llx", binding.m_Size );
+
+                                auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
+                                if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                                {
+                                    const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+
+                                    ImGui::SameLine( 0.f, 15.f * interfaceScale );
+                                    ImGui::Text( "Type: %u", memoryData.m_TypeIndex );
+
+                                    if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                                    {
+                                        if( ImGui::BeginTooltip() )
+                                        {
+                                            VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+                                            ImGui::PushFont( m_Resources.GetBoldFont() );
+                                            ImGui::Text( "%s %u", Lang::MemoryTypeIndex, memoryData.m_TypeIndex );
+                                            ImGui::PopFont();
+                                            ImGui::Text( "%s", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                                            ImGui::EndTooltip();
+                                        }
+                                    }
+
+                                    ImGui::SameLine( 0.f, 15.f * interfaceScale );
+                                    ImGui::Text( "Heap: %u", memoryData.m_HeapIndex );
+                                }
+                            }
+
+                            if( data.m_MemoryBindings.empty() )
+                            {
+                                ImGui::TextUnformatted( "Buffer not bound" );
+                            }
+
+                            ImGuiX::EndPadding( 5.f * interfaceScale );
+                            ImGui::TreePop();
                         }
                     }
+
+                    ImGuiX::TableBorderInnerH();
                 }
 
                 ImGui::EndTable();

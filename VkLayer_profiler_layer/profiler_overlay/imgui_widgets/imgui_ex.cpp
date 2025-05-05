@@ -257,6 +257,14 @@ namespace ImGuiX
     \*************************************************************************/
     void BeginPadding( float top, float right, float left )
     {
+        // Tables support.
+        ImGuiTable* table = ImGui::GetCurrentTable();
+        if( table )
+        {
+            table->RowPosY1 += top;
+            table->RowPosY2 += top;
+        }
+
         ImVec2 cp = ImGui::GetCursorPos();
         cp.x += left;
         cp.y += top;
@@ -273,6 +281,14 @@ namespace ImGuiX
 
     void EndPadding( float bottom )
     {
+        // Tables support.
+        ImGuiTable* table = ImGui::GetCurrentTable();
+        if( table )
+        {
+            table->RowPosY1 += bottom;
+            table->RowPosY2 += bottom;
+        }
+
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + bottom );
     }
 }
