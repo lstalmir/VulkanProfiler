@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -75,6 +75,42 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueBindSparse
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueBindSparse(
+        VkQueue queue,
+        uint32_t bindInfoCount,
+        const VkBindSparseInfo* pBindInfo,
+        VkFence fence )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        VkResult result = dd.Device.Callbacks.QueueBindSparse( queue, bindInfoCount, pBindInfo, fence );
+
+        if( result == VK_SUCCESS )
+        {
+            for( uint32_t i = 0; i < bindInfoCount; ++i )
+            {
+                const VkBindSparseInfo& bindInfo = pBindInfo[i];
+
+                // Register sparse buffers memory bindings.
+                for( uint32_t j = 0; j < bindInfo.bufferBindCount; ++j )
+                {
+                    dd.Profiler.BindBufferMemory( &bindInfo.pBufferBinds[j] );
+                }
+            }
+        }
+
         return result;
     }
 }

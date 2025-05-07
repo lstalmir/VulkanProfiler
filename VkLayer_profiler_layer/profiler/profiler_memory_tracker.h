@@ -50,10 +50,13 @@ namespace Profiler
         void RegisterBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo );
         void UnregisterBuffer( VkBuffer buffer );
         void BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset );
+        void BindBufferMemory( const VkSparseBufferMemoryBindInfo* );
 
         void RegisterImage( VkImage image, const VkImageCreateInfo* pCreateInfo );
         void UnregisterImage( VkImage image );
         void BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset );
+
+        std::pair<VkBuffer, DeviceProfilerBufferMemoryData> GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage ) const;
 
         DeviceProfilerMemoryData GetMemoryData() const;
 
@@ -70,6 +73,10 @@ namespace Profiler
         ConcurrentMap<VkBuffer, DeviceProfilerBufferMemoryData> m_Buffers;
         ConcurrentMap<VkImage, DeviceProfilerImageMemoryData> m_Images;
 
+        PFN_vkGetBufferDeviceAddress m_pfnGetBufferDeviceAddress;
+
         void ResetMemoryData();
+
+        VkDeviceAddress GetBufferDeviceAddress( VkBuffer buffer, VkBufferUsageFlags usage ) const;
     };
 }
