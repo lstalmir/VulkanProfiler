@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,9 +23,12 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
+#include <mutex>
 
 namespace Profiler
 {
+    class DeviceProfilerFrontend;
+
     /*************************************************************************\
 
     Structure:
@@ -71,7 +74,10 @@ namespace Profiler
         DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
         ~DeviceProfilerTraceSerializer();
 
+        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
         DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+
+        DeviceProfilerTraceSerializationResult SaveEventsToFile( const std::string& fileName );
 
         static std::string GetDefaultTraceFileName( int samplingMode );
 
@@ -116,8 +122,49 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
-        void SaveEventsToFile( const std::string&, DeviceProfilerTraceSerializationResult& );
-
         void Cleanup();
+    };
+
+    /*************************************************************************\
+
+    Class:
+        ProfilerTraceOutput
+
+    Description:
+        Reads data from the profiler and writes it to a file.
+
+    \*************************************************************************/
+    class ProfilerTraceOutput
+    {
+    public:
+        ProfilerTraceOutput();
+        ~ProfilerTraceOutput();
+
+        bool Initialize( DeviceProfilerFrontend& frontend );
+        void Destroy();
+
+        bool IsAvailable() const;
+
+        void Update();
+
+        void SetOutputFileName( const std::string& fileName );
+        void SetMaxFrameCount( uint32_t maxFrameCount );
+
+    private:
+        DeviceProfilerFrontend* m_pFrontend;
+
+        DeviceProfilerStringSerializer* m_pStringSerializer;
+        DeviceProfilerTraceSerializer* m_pTraceSerializer;
+        std::mutex m_TraceSerializerMutex;
+
+        std::string m_OutputFileName;
+
+        uint32_t m_MaxFrameCount;
+        uint32_t m_SerializedFrameCount;
+        bool m_Flushed;
+
+        void ResetMembers();
+
+        void Flush();
     };
 }
