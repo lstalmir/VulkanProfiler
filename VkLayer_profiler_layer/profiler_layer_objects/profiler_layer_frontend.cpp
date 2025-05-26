@@ -229,6 +229,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetProfilerConfig
+
+    Description:
+        Returns the configuration of the profiler.
+
+    \***********************************************************************************/
+    const DeviceProfilerConfig& DeviceProfilerLayerFrontend::GetProfilerConfig()
+    {
+        return m_pProfiler->m_Config;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetProfilerSyncMode
 
     Description:

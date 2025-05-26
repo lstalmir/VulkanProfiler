@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "VkSwapchainKhr_functions.h"
+#include "profiler_layer_functions/Helpers.h"
 
 namespace Profiler
 {
@@ -77,6 +78,12 @@ namespace Profiler
 
         if( createProfilerOverlay )
         {
+            if( dd.pOutput )
+            {
+                // Destroy the previous output before creating an overlay
+                dd.pOutput->Destroy();
+            }
+
             if( result == VK_SUCCESS && !dd.OverlayBackend.IsInitialized() )
             {
                 // Initialize overlay backend
@@ -89,27 +96,19 @@ namespace Profiler
                 result = dd.OverlayBackend.SetSwapchain( *pSwapchain, *pCreateInfo );
             }
 
-            if( result == VK_SUCCESS && !dd.Overlay.IsAvailable() )
+            if( result == VK_SUCCESS && !dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() ) )
             {
                 // Initialize overlay for the first time
-                bool success = dd.Overlay.Initialize( dd.ProfilerFrontend, dd.OverlayBackend );
+                result = CreateUniqueObject<ProfilerOverlayOutput>(
+                    &dd.pOutput,
+                    dd.ProfilerFrontend,
+                    dd.OverlayBackend );
+            }
 
-                if( success )
-                {
-                    // Initialize overlay with configuration
-                    dd.Overlay.SetMaxFrameCount( std::max( dd.Profiler.m_Config.m_FrameCount, 0 ) );
-
-                    if( !dd.Profiler.m_Config.m_RefPipelines.empty() )
-                    {
-                        dd.Overlay.LoadTopPipelinesFromFile( dd.Profiler.m_Config.m_RefPipelines );
-                    }
-
-                    if( !dd.Profiler.m_Config.m_RefMetrics.empty() )
-                    {
-                        dd.Overlay.LoadPerformanceCountersFromFile( dd.Profiler.m_Config.m_RefMetrics );
-                    }
-                }
-
+            if( result == VK_SUCCESS )
+            {
+                // Initialize the overlay output
+                bool success = dd.pOutput->Initialize();
                 if( !success )
                 {
                     result = VK_ERROR_INITIALIZATION_FAILED;
@@ -138,9 +137,14 @@ namespace Profiler
         // After recreating swapchain using CreateSwapchainKHR parent swapchain of the overlay has changed.
         // The old swapchain is then destroyed and will invalidate the overlay if we don't check which
         // swapchain is actually being destreoyed.
-        if( (dd.Overlay.IsAvailable()) && (dd.OverlayBackend.GetSwapchain() == swapchain) )
+        if( dd.OverlayBackend.GetSwapchain() == swapchain )
         {
-            dd.Overlay.Destroy();
+            if( dd.pOutput )
+            {
+                // Destroy the output associated with the backend.
+                dd.pOutput->Destroy();
+            }
+
             dd.OverlayBackend.Destroy();
         }
 
@@ -167,12 +171,31 @@ namespace Profiler
         // End profiling of the previous frame
         dd.Profiler.FinishFrame();
 
-        // Display overlay
-        if( (dd.Overlay.IsAvailable()) &&
-            (dd.OverlayBackend.GetSwapchain() == pPresentInfo->pSwapchains[ 0 ]) )
+        // Overlay rendering may be executed on a different queue than the one used for presenting.
+        // Synchronization of rendering is required, so override the pointer to the present info.
+        const bool overridePresentInfo =
+            ( dd.OverlayBackend.IsInitialized() ) &&
+            ( dd.OverlayBackend.GetSwapchain() == pPresentInfo->pSwapchains[0] );
+
+        if( overridePresentInfo )
         {
             dd.OverlayBackend.SetFramePresentInfo( *pPresentInfo );
-            dd.Overlay.Update();
+        }
+
+        if( dd.pOutput )
+        {
+            // Consume the collected data
+            if( dd.Profiler.m_Config.m_SyncMode == sync_mode_t::present )
+            {
+                dd.pOutput->Update();
+            }
+
+            // Present the data
+            dd.pOutput->Present();
+        }
+
+        if( overridePresentInfo )
+        {
             pPresentInfo = &dd.OverlayBackend.GetFramePresentInfo();
         }
 

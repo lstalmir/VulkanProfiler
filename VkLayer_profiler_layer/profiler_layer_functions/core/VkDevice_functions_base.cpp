@@ -95,7 +95,10 @@ namespace Profiler
         VkResult result = dd.Profiler.Initialize( &dd.Device, pCreateInfo );
 
         // Initialize the profiler frontend object
-        dd.ProfilerFrontend.Initialize( dd.Device, dd.Profiler );
+        if( result == VK_SUCCESS )
+        {
+            dd.ProfilerFrontend.Initialize( dd.Device, dd.Profiler );
+        }
 
         if( result != VK_SUCCESS )
         {
@@ -121,8 +124,15 @@ namespace Profiler
 
         // Destroy the profiler instance
         dd.Profiler.Destroy();
-        // Destroy the overlay
-        dd.Overlay.Destroy();
+
+        // Destroy the output if present
+        if( dd.pOutput )
+        {
+            dd.pOutput->Destroy();
+            dd.pOutput.reset();
+        }
+
+        dd.OverlayBackend.Destroy();
 
         DeviceDispatch.Erase( device );
     }

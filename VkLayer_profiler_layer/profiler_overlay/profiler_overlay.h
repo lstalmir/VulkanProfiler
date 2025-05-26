@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_frontend.h"
 #include "profiler/profiler_data_aggregator.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler/profiler_stat_comparators.h"
@@ -48,8 +49,6 @@ namespace ImGuiX
 
 namespace Profiler
 {
-    class DeviceProfilerFrontend;
-
     /***********************************************************************************\
 
     Class:
@@ -59,18 +58,19 @@ namespace Profiler
         Writes profiling output to the overlay.
 
     \***********************************************************************************/
-    class ProfilerOverlayOutput final
+    class ProfilerOverlayOutput final : public DeviceProfilerOutput
     {
     public:
-        ProfilerOverlayOutput();
+        ProfilerOverlayOutput( DeviceProfilerFrontend& frontend, OverlayBackend& backend );
         ~ProfilerOverlayOutput();
 
-        bool Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend );
-        void Destroy();
+        bool Initialize() override;
+        void Destroy() override;
 
-        bool IsAvailable() const;
+        bool IsAvailable() override;
 
-        void Update();
+        void Update() override;
+        void Present() override;
 
         void LoadPerformanceCountersFromFile( const std::string& );
         void LoadTopPipelinesFromFile( const std::string& );
@@ -80,8 +80,7 @@ namespace Profiler
     private:
         OverlaySettings m_Settings;
 
-        DeviceProfilerFrontend* m_pFrontend;
-        OverlayBackend* m_pBackend;
+        OverlayBackend& m_Backend;
 
         ImGuiContext* m_pImGuiContext;
         OverlayResources m_Resources;
@@ -146,6 +145,7 @@ namespace Profiler
             size_t GetTreeNodeIndexSize() const;
         };
 
+        std::shared_mutex m_DataMutex;
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pFrames;
          // 0 - current frame, 1 - previous frame, etc.
         uint32_t m_SelectedFrameIndex;

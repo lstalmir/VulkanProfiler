@@ -47,6 +47,16 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, submitCount, pSubmits, fence );
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+
+        // Consume the collected data
+        if( dd.Profiler.m_Config.m_SyncMode == sync_mode_t::submit )
+        {
+            if( dd.pOutput )
+            {
+                dd.pOutput->Update();
+            }
+        }
+
         return result;
     }
 
