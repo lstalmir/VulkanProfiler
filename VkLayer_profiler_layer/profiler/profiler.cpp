@@ -665,8 +665,34 @@ namespace Profiler
     {
         std::scoped_lock lk( m_PresentMutex );
 
+        size = std::max( size, m_MinDataBufferSize );
+
         m_DataAggregator.SetDataBufferSize( size );
         m_DataBufferSize = size;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetMinDataBufferSize
+
+    Description:
+        Set the minimum number of buffered frames.
+
+    \***********************************************************************************/
+    VkResult DeviceProfiler::SetMinDataBufferSize( uint32_t size )
+    {
+        std::scoped_lock lk( m_PresentMutex );
+
+        if( size > m_DataBufferSize )
+        {
+            m_DataAggregator.SetDataBufferSize( size );
+            m_DataBufferSize = size;
+        }
+
+        m_MinDataBufferSize = size;
 
         return VK_SUCCESS;
     }
@@ -1261,11 +1287,17 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
         if( m_MetricsApiINTEL.IsAvailable() )
         {
             ReleasePerformanceConfigurationINTEL();
+        }
+
+        if( m_Config.m_SyncMode == sync_mode_t::submit )
+        {
+            // Begin the next frame
+            BeginNextFrame();
         }
 
         if( !m_DataAggregator.IsDataCollectionThreadRunning() )
@@ -1275,6 +1307,9 @@ namespace Profiler
 
         // Append the submit batch for aggregation
         m_DataAggregator.AppendSubmit( submitBatch );
+
+        // Get data captured during the last frame
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\
@@ -1382,7 +1417,11 @@ namespace Profiler
         // Update FPS counter
         m_CpuFpsCounter.Update();
 
-        BeginNextFrame();
+        if( m_Config.m_SyncMode == sync_mode_t::present )
+        {
+            // Begin the next frame
+            BeginNextFrame();
+        }
 
         if( !m_DataAggregator.IsDataCollectionThreadRunning() )
         {
@@ -1391,27 +1430,7 @@ namespace Profiler
         }
 
         // Get data captured during the last frame
-        std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedData =
-            m_DataAggregator.GetAggregatedData();
-
-        // Check if new data is available
-        if( !pResolvedData.empty() )
-        {
-            m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
-
-            // Return TIP data
-            m_pDevice->TIP.EndFunction( tip );
-            m_pData.back()->m_TIP = m_pDevice->TIP.GetData();
-
-            // Free frames above the buffer size
-            if( m_DataBufferSize )
-            {
-                while( m_pData.size() > m_DataBufferSize )
-                {
-                    m_pData.pop_front();
-                }
-            }
-        }
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\
@@ -1436,6 +1455,39 @@ namespace Profiler
         frame.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
 
         m_DataAggregator.AppendFrame( frame );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveFrameData
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::ResolveFrameData( TipRangeId& tip )
+    {
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedData =
+            m_DataAggregator.GetAggregatedData();
+
+        // Check if new data is available
+        if( !pResolvedData.empty() )
+        {
+            m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
+
+            // Return TIP data
+            m_pDevice->TIP.EndFunction( tip );
+            m_pData.back()->m_TIP = m_pDevice->TIP.GetData();
+
+            // Free frames above the buffer size
+            if( m_DataBufferSize )
+            {
+                while( m_pData.size() > m_DataBufferSize )
+                {
+                    m_pData.pop_front();
+                }
+            }
+        }
     }
 
     /***********************************************************************************\

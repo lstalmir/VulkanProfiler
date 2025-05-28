@@ -150,6 +150,8 @@ namespace Profiler
          // 0 - current frame, 1 - previous frame, etc.
         uint32_t m_SelectedFrameIndex;
         uint32_t m_MaxFrameCount;
+        const char* m_pFramesStr;
+        const char* m_pFrameStr;
 
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;

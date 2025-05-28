@@ -464,6 +464,10 @@ namespace Profiler
         m_SelectedFrameIndex = 0;
         m_MaxFrameCount = 1;
 
+        const sync_mode_t syncMode = m_Frontend.GetProfilerSyncMode();
+        m_pFrameStr = ( syncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT ) ? Lang::Submit : Lang::Frame;
+        m_pFramesStr = ( syncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT ) ? Lang::Submits : Lang::Frames;
+
         m_pData = nullptr;
         m_Pause = false;
         m_Fullscreen = false;
@@ -495,7 +499,7 @@ namespace Profiler
         m_InspectorTabIndex = 0;
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
-        m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
+        m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
         m_ReferencePerformanceCounters.clear();
         m_pPerformanceCounterExporter = nullptr;
 
@@ -554,6 +558,9 @@ namespace Profiler
     void ProfilerOverlayOutput::SetMaxFrameCount( uint32_t maxFrameCount )
     {
         m_MaxFrameCount = maxFrameCount;
+
+        // Update buffers in the frontend to avoid dropping data.
+        m_Frontend.SetDataBufferSize( maxFrameCount + 1 );
     }
 
     /***********************************************************************************\
@@ -723,7 +730,7 @@ namespace Profiler
         }
         if( ImGui::IsItemHovered() )
         {
-            ImGui::SetTooltip( "Save trace of the current frame to file" );
+            ImGui::SetTooltip( "Save trace of the current %s to file", m_pFrameStr );
         }
 
         // Keep results
@@ -952,7 +959,7 @@ namespace Profiler
             ImGuiID dockFrames;
             ImGui::DockBuilderSplitNode( dockLeft, ImGuiDir_Up, 0.2f, &dockFrames, &dockLeft );
 
-            ImGui::DockBuilderDockWindow( Lang::Frames, dockFrames );
+            ImGui::DockBuilderDockWindow( m_pFramesStr, dockFrames );
             ImGui::DockBuilderDockWindow( Lang::QueueUtilization, dockQueueUtilization );
             ImGui::DockBuilderDockWindow( Lang::TopPipelines, dockTopPipelines );
             ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockLeft );
@@ -981,7 +988,7 @@ namespace Profiler
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
             ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
-            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
+            ImGuiX::TextAlignRight( "%s %u", m_pFrameStr, m_pData->m_CPU.m_FrameIndex );
             ImGui::PopStyleColor();
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
             ImGuiX::TextAlignRight( "%.1f %s", m_pData->m_CPU.m_FramesPerSec, Lang::FPS );
@@ -990,7 +997,7 @@ namespace Profiler
         // Histogram
         {
             static const char* groupOptions[] = {
-                Lang::Frames,
+                m_pFramesStr,
                 Lang::RenderPasses,
                 Lang::Pipelines,
                 Lang::Drawcalls };
@@ -1001,7 +1008,7 @@ namespace Profiler
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, nullptr, ImGuiComboFlags_NoPreview ) )
                 {
-                    ImGuiX::TSelectable( Lang::Frames, m_HistogramGroupMode, HistogramGroupMode::eFrame );
+                    ImGuiX::TSelectable( m_pFramesStr, m_HistogramGroupMode, HistogramGroupMode::eFrame );
 
                     ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
                     ImGuiX::TSelectable( Lang::RenderPasses, m_HistogramGroupMode, HistogramGroupMode::eRenderPass );
@@ -1073,7 +1080,7 @@ namespace Profiler
         PerformanceTabDockSpace();
 
         // Frames list
-        if( ImGui::Begin( Lang::Frames, nullptr, ImGuiWindowFlags_NoMove ) )
+        if( ImGui::Begin( m_pFramesStr, nullptr, ImGuiWindowFlags_NoMove ) )
         {
             uint32_t frameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
 
@@ -1081,7 +1088,7 @@ namespace Profiler
             {
                 std::string frameName = fmt::format(
                     "{} #{} ({:.2f} {})###Selectable_frame_{}",
-                    Lang::Frame,
+                    m_pFrameStr,
                     pFrame->m_CPU.m_FrameIndex,
                     GetDuration( 0, pFrame->m_Ticks ),
                     m_pTimestampDisplayUnitStr,
@@ -1149,7 +1156,7 @@ namespace Profiler
             FrameBrowserTreeNodeIndex index;
             index.SetFrameIndex( m_SelectedFrameIndex );
 
-            ImGui::Text( "%s #%u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
+            ImGui::Text( "%s #%u", m_pFrameStr, m_pData->m_CPU.m_FrameIndex );
             PrintDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
 
             index.emplace_back( 0 );
@@ -1494,7 +1501,7 @@ namespace Profiler
             m_ReferenceTopPipelines.clear();
 
             const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
-            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
+            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", m_pFrameStr, frameIndex );
 
             for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
             {
@@ -1890,10 +1897,10 @@ namespace Profiler
             ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
-                if( ImGuiX::TSelectable( Lang::Frame, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+                if( ImGuiX::TSelectable( m_pFrameStr, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
                 {
                     // Selection changed.
-                    m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
+                    m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
                 }
 
                 // Enumerate command buffers.
@@ -3053,7 +3060,7 @@ namespace Profiler
         int maxFrameCount = static_cast<int>( m_MaxFrameCount );
         if( ImGui::InputInt( Lang::CollectedFrameCount, &maxFrameCount ) )
         {
-            m_MaxFrameCount = std::max<uint32_t>( 0, maxFrameCount );
+            SetMaxFrameCount( std::max<uint32_t>( 0, maxFrameCount ) );
         }
 
         // Select sampling mode (constant in runtime for now)
@@ -3710,7 +3717,7 @@ namespace Profiler
             const DeviceProfilerFrameData& frameData =
                 *reinterpret_cast<const DeviceProfilerFrameData*>( data.userData );
 
-            regionName = fmt::format( "{} #{}", Lang::Frame, frameData.m_CPU.m_FrameIndex );
+            regionName = fmt::format( "{} #{}", m_pFrameStr, frameData.m_CPU.m_FrameIndex );
             regionDuration = GetDuration( frameData.m_BeginTimestamp, frameData.m_EndTimestamp );
             break;
         }
