@@ -98,6 +98,13 @@ namespace Profiler
 
             if( result == VK_SUCCESS && !dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() ) )
             {
+                // Destructor doesn't call Destroy, so explicit call is required to avoid resource leaks
+                if( dd.pOutput )
+                {
+                    dd.pOutput->Destroy();
+                    dd.pOutput.reset();
+                }
+
                 // Initialize overlay for the first time
                 result = CreateUniqueObject<ProfilerOverlayOutput>(
                     &dd.pOutput,
@@ -139,10 +146,11 @@ namespace Profiler
         // swapchain is actually being destreoyed.
         if( dd.OverlayBackend.GetSwapchain() == swapchain )
         {
-            if( dd.pOutput )
+            // Destroy the overlay output associated with the backend.
+            if( dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() ) )
             {
-                // Destroy the output associated with the backend.
                 dd.pOutput->Destroy();
+                dd.pOutput.reset();
             }
 
             dd.OverlayBackend.Destroy();
@@ -184,8 +192,9 @@ namespace Profiler
 
         if( dd.pOutput )
         {
-            // Consume the collected data
-            if( dd.Profiler.m_Config.m_SyncMode == sync_mode_t::present )
+            // Consume the collected data from the profiler.
+            // Treat QueuePresentKHR as a submit to collect at least one frame of data before the presentation.
+            if( dd.Profiler.m_Config.m_SyncMode >= sync_mode_t::present )
             {
                 dd.pOutput->Update();
             }
