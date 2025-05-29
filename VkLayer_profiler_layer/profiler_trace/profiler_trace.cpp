@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -179,12 +179,15 @@ namespace Profiler
             }
         }
 
-        // Insert present event
-        m_pEvents.push_back( new ApiTraceEvent(
-            TraceEvent::Phase::eInstant,
-            "vkQueuePresentKHR",
-            data.m_CPU.m_ThreadId,
-            GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
+        if( data.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
+        {
+            // Insert present event
+            m_pEvents.push_back( new ApiTraceEvent(
+                TraceEvent::Phase::eInstant,
+                "vkQueuePresentKHR",
+                data.m_CPU.m_ThreadId,
+                GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
+        }
 
         // Insert TIP events
         Serialize( data.m_TIP );

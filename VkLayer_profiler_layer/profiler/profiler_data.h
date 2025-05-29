@@ -1379,6 +1379,8 @@ namespace Profiler
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
 
+        VkProfilerFrameDelimiterEXT                         m_FrameDelimiter = {};
+
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};
         std::vector<struct TipRange>                        m_TIP = {};
