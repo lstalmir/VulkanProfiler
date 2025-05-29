@@ -537,6 +537,8 @@ namespace Profiler
         frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
         frameData.m_EndTimestamp = 0;
 
+        frameData.m_SyncMode = frame.m_SyncMode;
+
         // Collect per-frame stats
         for( const auto& submitBatch : frame.m_CompleteSubmits )
         {

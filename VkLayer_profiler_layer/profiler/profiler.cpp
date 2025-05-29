@@ -1441,6 +1441,7 @@ namespace Profiler
         frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
         frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
         frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
+        frame.m_SyncMode = static_cast<VkProfilerSyncModeEXT>( m_Config.m_SyncMode.value );
         frame.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
 
         m_DataAggregator.AppendFrame( frame );
