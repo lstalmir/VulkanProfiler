@@ -3097,8 +3097,8 @@ namespace Profiler
         ImGui::BeginDisabled();
         {
             static const char* frameDelimiterOptions[] = {
-                "vkQueuePresentKHR",
-                "vkQueueSubmit" };
+                Lang::Present,
+                Lang::Submit };
 
             int frameDelimiterSelectedOption = static_cast<int>(m_FrameDelimiter);
             if( ImGui::Combo( Lang::FrameDelimiter, &frameDelimiterSelectedOption, frameDelimiterOptions, 2 ) )

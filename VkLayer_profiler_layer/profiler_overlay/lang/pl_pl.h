@@ -77,7 +77,6 @@ namespace Profiler
         inline static constexpr char Metric[] = u8"Metryka";
         inline static constexpr char Contrib[] = u8"Udział";
         inline static constexpr char Frame[] = u8"Ramka";
-        inline static constexpr char Submit[] = u8"Wykonanie";
         inline static constexpr char Pipeline[] = u8"Stan potoku";
         inline static constexpr char Stages[] = u8"Shadery";
         inline static constexpr char Capabilities[] = u8"Funkcjonalności";
