@@ -1294,19 +1294,14 @@ namespace Profiler
             ReleasePerformanceConfigurationINTEL();
         }
 
+        // Append the submit batch for aggregation
+        m_DataAggregator.AppendSubmit( submitBatch );
+
         if( m_Config.m_SyncMode == sync_mode_t::submit )
         {
             // Begin the next frame
             BeginNextFrame();
         }
-
-        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
-        {
-            m_DataAggregator.Aggregate();
-        }
-
-        // Append the submit batch for aggregation
-        m_DataAggregator.AppendSubmit( submitBatch );
 
         // Get data captured during the last frame
         ResolveFrameData( tip );
@@ -1423,12 +1418,6 @@ namespace Profiler
             BeginNextFrame();
         }
 
-        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
-        {
-            // Collect data from the submitted command buffers
-            m_DataAggregator.Aggregate();
-        }
-
         // Get data captured during the last frame
         ResolveFrameData( tip );
     }
@@ -1467,16 +1456,21 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::ResolveFrameData( TipRangeId& tip )
     {
-        std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedData =
-            m_DataAggregator.GetAggregatedData();
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        {
+            // Collect data from the submitted command buffers
+            m_DataAggregator.Aggregate();
+        }
+
+        m_pDevice->TIP.EndFunction( tip );
 
         // Check if new data is available
+        auto pResolvedData = m_DataAggregator.GetAggregatedData();
         if( !pResolvedData.empty() )
         {
             m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
 
             // Return TIP data
-            m_pDevice->TIP.EndFunction( tip );
             m_pData.back()->m_TIP = m_pDevice->TIP.GetData();
 
             // Free frames above the buffer size
