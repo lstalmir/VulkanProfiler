@@ -62,6 +62,8 @@ namespace Profiler
         VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) final;
         uint32_t GetPerformanceMetricsSetIndex() final;
 
+        const DeviceProfilerConfig& GetProfilerConfig() final;
+
         VkProfilerSyncModeEXT GetProfilerSyncMode() final;
         VkResult SetProfilerSyncMode( VkProfilerSyncModeEXT mode ) final;
 
