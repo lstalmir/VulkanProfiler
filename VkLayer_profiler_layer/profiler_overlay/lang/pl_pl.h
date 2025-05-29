@@ -147,10 +147,8 @@ namespace Profiler
         inline static constexpr char PipelineStateNotAvailable[] = u8"Informacje o stanie potoku nie są dostępne.";
 
         // Settings tab
-        inline static constexpr char Present[] = u8"Co ramkę";
-        inline static constexpr char Submit[] = u8"Co przesłanie komend";
         inline static constexpr char SamplingMode[] = u8"Częstotliwość próbkowania";
-        inline static constexpr char SyncMode[] = u8"Częstotliwość synchronizacji";
+        inline static constexpr char FrameDelimiter[] = u8"Podział ramek";
         inline static constexpr char InterfaceScale[] = u8"Skala interfejsu";
         inline static constexpr char CollectedFrameCount[] = u8"Liczba zebranych ramek";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";

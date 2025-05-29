@@ -1379,7 +1379,7 @@ namespace Profiler
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
 
-        VkProfilerSyncModeEXT                               m_SyncMode = {};
+        VkProfilerFrameDelimiterEXT                         m_FrameDelimiter = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};

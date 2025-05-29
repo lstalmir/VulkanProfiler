@@ -179,7 +179,7 @@ namespace Profiler
             }
         }
 
-        if( data.m_SyncMode == VK_PROFILER_SYNC_MODE_PRESENT_EXT )
+        if( data.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
         {
             // Insert present event
             m_pEvents.push_back( new ApiTraceEvent(

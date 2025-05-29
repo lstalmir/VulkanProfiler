@@ -57,7 +57,7 @@ namespace Profiler
         uint32_t                                        m_ThreadId = 0;
         uint64_t                                        m_Timestamp = 0;
         float                                           m_FramesPerSec = 0;
-        VkProfilerSyncModeEXT                           m_SyncMode = {};
+        VkProfilerFrameDelimiterEXT                     m_FrameDelimiter = {};
         DeviceProfilerSynchronizationTimestamps         m_SyncTimestamps = {};
     };
 
