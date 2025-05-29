@@ -194,7 +194,7 @@ namespace Profiler
         {
             // Consume the collected data from the profiler.
             // Treat QueuePresentKHR as a submit to collect at least one frame of data before the presentation.
-            if( dd.Profiler.m_Config.m_SyncMode >= sync_mode_t::present )
+            if( dd.Profiler.m_Config.m_FrameDelimiter >= VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
             {
                 dd.pOutput->Update();
             }

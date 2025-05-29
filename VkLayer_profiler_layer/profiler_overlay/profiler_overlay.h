@@ -177,7 +177,7 @@ namespace Profiler
 
         TimeUnit m_TimeUnit;
         VkProfilerModeEXT m_SamplingMode;
-        VkProfilerSyncModeEXT m_SyncMode;
+        VkProfilerFrameDelimiterEXT m_FrameDelimiter;
 
         // Frame browser state.
         struct FrameBrowserContext

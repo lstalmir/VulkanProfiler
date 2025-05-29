@@ -139,6 +139,8 @@ namespace Profiler
         // Serialize the data
         for( const auto& submitBatchData : data.m_Submits )
         {
+            // !!! TODO: When multiple frames are serialized, the first frame's host timestamp should be used as a reference. !!!!
+            // The GPU timestamps can be then adjusted using the following frames' synchronization timestamps, but the 0 should always remain at the first frame.
             SetupTimestampNormalizationConstants( submitBatchData.m_Handle );
 
             // Insert queue submission event
@@ -181,12 +183,15 @@ namespace Profiler
             }
         }
 
-        // Insert present event
-        m_pEvents.push_back( new ApiTraceEvent(
-            TraceEvent::Phase::eInstant,
-            "vkQueuePresentKHR",
-            data.m_CPU.m_ThreadId,
-            GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
+        if( data.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
+        {
+            // Insert present event
+            m_pEvents.push_back( new ApiTraceEvent(
+                TraceEvent::Phase::eInstant,
+                "vkQueuePresentKHR",
+                data.m_CPU.m_ThreadId,
+                GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
+        }
 
         // Insert TIP events
         Serialize( data.m_TIP );

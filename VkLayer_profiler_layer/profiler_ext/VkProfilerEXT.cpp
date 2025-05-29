@@ -282,28 +282,28 @@ public:
 /***************************************************************************************\
 
 Function:
-    vkSetProfilerModeEXT
+    vkSetProfilerSamplingModeEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSamplingModeEXT(
     VkDevice device,
     VkProfilerModeEXT mode )
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-    return dd.Profiler.SetMode( mode );
+    return dd.Profiler.SetSamplingMode( mode );
 }
 
 /***************************************************************************************\
 
 Function:
-    vkGetProfilerModeEXT
+    vkGetProfilerSamplingModeEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerSamplingModeEXT(
     VkDevice device,
     VkProfilerModeEXT* pMode )
 {
@@ -314,33 +314,33 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
 /***************************************************************************************\
 
 Function:
-    vkSetProfilerSyncModeEXT
+    vkSetProfilerFrameDelimiterEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerFrameDelimiterEXT(
     VkDevice device,
-    VkProfilerSyncModeEXT syncMode )
+    VkProfilerFrameDelimiterEXT frameDelimiter )
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-    return dd.Profiler.SetSyncMode( syncMode );
+    return dd.Profiler.SetFrameDelimiter( frameDelimiter );
 }
 
 /***************************************************************************************\
 
 Function:
-    vkGetProfilerSyncModeEXT
+    vkGetProfilerFrameDelimiterEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR void VKAPI_CALL vkGetProfilerSyncModeEXT(
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerFrameDelimiterEXT(
     VkDevice device,
-    VkProfilerSyncModeEXT* pSyncMode )
+    VkProfilerFrameDelimiterEXT* pFrameDelimiter )
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-    *pSyncMode = static_cast<VkProfilerSyncModeEXT>(dd.Profiler.m_Config.m_SyncMode.value);
+    *pFrameDelimiter = static_cast<VkProfilerFrameDelimiterEXT>(dd.Profiler.m_Config.m_FrameDelimiter.value);
 }
 
 /***************************************************************************************\

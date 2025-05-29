@@ -39,6 +39,6 @@ namespace Profiler
         m_SetStablePowerState = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_STABLE_POWER_STATE) == 0;
         m_EnableThreading = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_THREADING_EXT) == 0;
         m_SamplingMode = pCreateInfo->samplingMode;
-        m_SyncMode = pCreateInfo->syncMode;
+        m_FrameDelimiter = pCreateInfo->frameDelimiter;
     }
 }

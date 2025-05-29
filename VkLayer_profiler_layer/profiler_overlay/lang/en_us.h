@@ -164,7 +164,7 @@ namespace Profiler
         inline static constexpr char Present[] = "Present";
         inline static constexpr char Submit[] = "Submit";
         inline static constexpr char SamplingMode[] = "Sampling mode";
-        inline static constexpr char SyncMode[] = "Sync mode";
+        inline static constexpr char FrameDelimiter[] = "Frame delimiter";
         inline static constexpr char InterfaceScale[] = "Interface scale";
         inline static constexpr char CollectedFrameCount[] = "Collected frame count";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
