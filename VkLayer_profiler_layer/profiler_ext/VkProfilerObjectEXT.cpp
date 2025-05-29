@@ -54,9 +54,10 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerOverlayEXT(
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    if( dd.Overlay.IsAvailable() )
+    auto pOverlayOutput = dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() );
+    if( pOverlayOutput && pOverlayOutput->IsAvailable() )
     {
-        (*pOverlay) = (VkProfilerOverlayEXT)( &dd.Overlay );
+        (*pOverlay) = (VkProfilerOverlayEXT)( pOverlayOutput );
     }
     else
     {
