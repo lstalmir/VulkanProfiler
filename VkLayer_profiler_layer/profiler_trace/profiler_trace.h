@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -27,8 +28,6 @@
 
 namespace Profiler
 {
-    class DeviceProfilerFrontend;
-
     /*************************************************************************\
 
     Structure:
@@ -134,25 +133,24 @@ namespace Profiler
         Reads data from the profiler and writes it to a file.
 
     \*************************************************************************/
-    class ProfilerTraceOutput
+    class ProfilerTraceOutput : public DeviceProfilerOutput
     {
     public:
-        ProfilerTraceOutput();
+        ProfilerTraceOutput( DeviceProfilerFrontend& frontend );
         ~ProfilerTraceOutput();
 
-        bool Initialize( DeviceProfilerFrontend& frontend );
-        void Destroy();
+        bool Initialize() override;
+        void Destroy() override;
 
-        bool IsAvailable() const;
+        bool IsAvailable() override;
 
-        void Update();
+        void Update() override;
+        void Present() override;
 
         void SetOutputFileName( const std::string& fileName );
         void SetMaxFrameCount( uint32_t maxFrameCount );
 
     private:
-        DeviceProfilerFrontend* m_pFrontend;
-
         DeviceProfilerStringSerializer* m_pStringSerializer;
         DeviceProfilerTraceSerializer* m_pTraceSerializer;
         std::mutex m_TraceSerializerMutex;

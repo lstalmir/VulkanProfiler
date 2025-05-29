@@ -87,6 +87,22 @@
                             "label": "Trace file",
                             "description": "Write profiling data to a trace file. The file will be created in the directory of the profiled application."
                         }
+                    ],
+                    "settings": [
+                        {
+                            "key": "output_trace_file",
+                            "label": "Output trace file",
+                            "description": "Path to the output file.",
+                            "env": "VKPROF_output_trace_file",
+                            "type": "SAVE_FILE",
+                            "default": "",
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    { "key": "output", "value": "trace" }
+                                ]
+                            }
+                        }
                     ]
                 },
                 {

@@ -22,6 +22,7 @@
 #include "VkInstance_functions.h"
 #include "profiler_layer_functions/Helpers.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_trace/profiler_trace.h"
 
 namespace Profiler
 {
@@ -98,6 +99,26 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             dd.ProfilerFrontend.Initialize( dd.Device, dd.Profiler );
+        }
+
+        // Initialize the file output
+        if( result == VK_SUCCESS )
+        {
+            if( dd.Profiler.m_Config.m_Output == output_t::trace )
+            {
+                result = CreateUniqueObject<ProfilerTraceOutput>(
+                    &dd.pOutput,
+                    dd.ProfilerFrontend );
+
+                if( result == VK_SUCCESS )
+                {
+                    bool success = dd.pOutput->Initialize();
+                    if( !success )
+                    {
+                        result = VK_ERROR_INITIALIZATION_FAILED;
+                    }
+                }
+            }
         }
 
         if( result != VK_SUCCESS )

@@ -721,7 +721,8 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    ProfilerTraceOutput::ProfilerTraceOutput()
+    ProfilerTraceOutput::ProfilerTraceOutput( DeviceProfilerFrontend& frontend )
+        : DeviceProfilerOutput( frontend )
     {
         ResetMembers();
     }
@@ -737,7 +738,6 @@ namespace Profiler
     \*************************************************************************/
     ProfilerTraceOutput::~ProfilerTraceOutput()
     {
-        Destroy();
     }
 
     /*************************************************************************\
@@ -749,18 +749,21 @@ namespace Profiler
         Initializes the trace file output for the given profiler.
 
     \*************************************************************************/
-    bool ProfilerTraceOutput::Initialize( DeviceProfilerFrontend& frontend )
+    bool ProfilerTraceOutput::Initialize()
     {
-        m_pFrontend = &frontend;
-
         // Create string serializer.
         m_pStringSerializer = new DeviceProfilerStringSerializer(
-            frontend );
+            m_Frontend );
 
         // Create trace serializer.
         m_pTraceSerializer = new DeviceProfilerTraceSerializer(
             m_pStringSerializer,
-            Nanoseconds( frontend.GetPhysicalDeviceProperties().limits.timestampPeriod ) );
+            Nanoseconds( m_Frontend.GetPhysicalDeviceProperties().limits.timestampPeriod ) );
+
+        // Configure the output.
+        const DeviceProfilerConfig& config = m_Frontend.GetProfilerConfig();
+        SetOutputFileName( config.m_OutputTraceFile );
+        SetMaxFrameCount( config.m_FrameCount );
 
         return true;
     }
@@ -796,7 +799,7 @@ namespace Profiler
         Checks if the trace file output is available.
 
     \*************************************************************************/
-    bool ProfilerTraceOutput::IsAvailable() const
+    bool ProfilerTraceOutput::IsAvailable()
     {
         return m_pTraceSerializer != nullptr;
     }
@@ -812,7 +815,7 @@ namespace Profiler
     \*************************************************************************/
     void ProfilerTraceOutput::Update()
     {
-        auto pData = m_pFrontend->GetData();
+        auto pData = m_Frontend.GetData();
         while( pData )
         {
             if( m_SerializedFrameCount < m_MaxFrameCount )
@@ -822,13 +825,26 @@ namespace Profiler
                 m_SerializedFrameCount++;
             }
 
-            pData = m_pFrontend->GetData();
+            pData = m_Frontend.GetData();
         }
 
         if( !m_Flushed && m_SerializedFrameCount == m_MaxFrameCount )
         {
             Flush();
         }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Present
+
+    Description:
+        No-op.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::Present()
+    {
     }
 
     /*************************************************************************\
@@ -856,7 +872,10 @@ namespace Profiler
     \*************************************************************************/
     void ProfilerTraceOutput::SetMaxFrameCount( uint32_t maxFrameCount )
     {
-        m_MaxFrameCount = maxFrameCount;
+        m_MaxFrameCount = ( maxFrameCount ? maxFrameCount : UINT32_MAX );
+
+        // Update data buffers.
+        m_Frontend.SetDataBufferSize( m_MaxFrameCount );
     }
 
     /*************************************************************************\
@@ -870,8 +889,6 @@ namespace Profiler
     \*************************************************************************/
     void ProfilerTraceOutput::ResetMembers()
     {
-        m_pFrontend = nullptr;
-
         m_pStringSerializer = nullptr;
         m_pTraceSerializer = nullptr;
 
@@ -900,7 +917,7 @@ namespace Profiler
             {
                 // Construct default trace file name if not provided.
                 fileName = DeviceProfilerTraceSerializer::GetDefaultTraceFileName(
-                    m_pFrontend->GetProfilerSamplingMode() );
+                    m_Frontend.GetProfilerSamplingMode() );
             }
 
             std::scoped_lock lock( m_TraceSerializerMutex );
