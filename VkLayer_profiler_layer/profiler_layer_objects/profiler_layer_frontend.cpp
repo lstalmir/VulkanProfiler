@@ -243,29 +243,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetProfilerSyncMode
+        GetProfilerFrameDelimiter
 
     Description:
-        Returns the data synchronization mode currently used by the profiler.
+        Returns the frame delimiter currently used by the profiler.
 
     \***********************************************************************************/
-    VkProfilerSyncModeEXT DeviceProfilerLayerFrontend::GetProfilerSyncMode()
+    VkProfilerFrameDelimiterEXT DeviceProfilerLayerFrontend::GetProfilerFrameDelimiter()
     {
-        return static_cast<VkProfilerSyncModeEXT>( m_pProfiler->m_Config.m_SyncMode.value );
+        return static_cast<VkProfilerFrameDelimiterEXT>( m_pProfiler->m_Config.m_FrameDelimiter.value );
     }
 
     /***********************************************************************************\
 
     Function:
-        SetProfilerSyncMode
+        SetProfilerFrameDelimiter
 
     Description:
-        Sets the data synchronization mode used by the profiler.
+        Sets the frame delimiter used by the profiler.
 
     \***********************************************************************************/
-    VkResult DeviceProfilerLayerFrontend::SetProfilerSyncMode( VkProfilerSyncModeEXT mode )
+    VkResult DeviceProfilerLayerFrontend::SetProfilerFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter )
     {
-        return m_pProfiler->SetSyncMode( mode );
+        return m_pProfiler->SetFrameDelimiter( frameDelimiter );
     }
 
     /***********************************************************************************\
@@ -293,7 +293,7 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerLayerFrontend::SetProfilerSamplingMode( VkProfilerModeEXT mode )
     {
-        return m_pProfiler->SetMode( mode );
+        return m_pProfiler->SetSamplingMode( mode );
     }
 
     /***********************************************************************************\

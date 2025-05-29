@@ -77,6 +77,7 @@ namespace Profiler
         inline static constexpr char Metric[] = u8"Metryka";
         inline static constexpr char Contrib[] = u8"Udział";
         inline static constexpr char Frame[] = u8"Ramka";
+        inline static constexpr char Submit[] = u8"Wykonanie";
         inline static constexpr char Pipeline[] = u8"Stan potoku";
         inline static constexpr char Stages[] = u8"Shadery";
         inline static constexpr char Capabilities[] = u8"Funkcjonalności";
@@ -147,10 +148,8 @@ namespace Profiler
         inline static constexpr char PipelineStateNotAvailable[] = u8"Informacje o stanie potoku nie są dostępne.";
 
         // Settings tab
-        inline static constexpr char Present[] = u8"Co ramkę";
-        inline static constexpr char Submit[] = u8"Co przesłanie komend";
         inline static constexpr char SamplingMode[] = u8"Częstotliwość próbkowania";
-        inline static constexpr char SyncMode[] = u8"Częstotliwość synchronizacji";
+        inline static constexpr char FrameDelimiter[] = u8"Podział ramek";
         inline static constexpr char InterfaceScale[] = u8"Skala interfejsu";
         inline static constexpr char CollectedFrameCount[] = u8"Liczba zebranych ramek";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";

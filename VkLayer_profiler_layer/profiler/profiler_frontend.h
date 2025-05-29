@@ -64,8 +64,8 @@ namespace Profiler
 
         virtual const DeviceProfilerConfig& GetProfilerConfig() = 0;
 
-        virtual VkProfilerSyncModeEXT GetProfilerSyncMode() = 0;
-        virtual VkResult SetProfilerSyncMode( VkProfilerSyncModeEXT mode ) = 0;
+        virtual VkProfilerFrameDelimiterEXT GetProfilerFrameDelimiter() = 0;
+        virtual VkResult SetProfilerFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter ) = 0;
 
         virtual VkProfilerModeEXT GetProfilerSamplingMode() = 0;
         virtual VkResult SetProfilerSamplingMode( VkProfilerModeEXT mode ) = 0;

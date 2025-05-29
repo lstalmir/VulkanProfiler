@@ -371,7 +371,20 @@ namespace Profiler
         if( success )
         {
             m_SamplingMode = m_Frontend.GetProfilerSamplingMode();
-            m_SyncMode = m_Frontend.GetProfilerSyncMode();
+            m_FrameDelimiter = m_Frontend.GetProfilerFrameDelimiter();
+
+            switch( m_FrameDelimiter )
+            {
+            case VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT:
+                m_pFrameStr = Lang::Frame;
+                m_pFramesStr = Lang::Frames;
+                break;
+
+            case VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT:
+                m_pFrameStr = Lang::Submit;
+                m_pFramesStr = Lang::Submits;
+                break;
+            }
         }
 
         // Initialize the overlay according to the configuration
@@ -464,9 +477,8 @@ namespace Profiler
         m_SelectedFrameIndex = 0;
         m_MaxFrameCount = 1;
 
-        const sync_mode_t syncMode = m_Frontend.GetProfilerSyncMode();
-        m_pFrameStr = ( syncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT ) ? Lang::Submit : Lang::Frame;
-        m_pFramesStr = ( syncMode == VK_PROFILER_SYNC_MODE_SUBMIT_EXT ) ? Lang::Submits : Lang::Frames;
+        m_pFrameStr = Lang::Frame;
+        m_pFramesStr = Lang::Frames;
 
         m_pData = nullptr;
         m_Pause = false;
@@ -483,7 +495,7 @@ namespace Profiler
 
         m_TimeUnit = TimeUnit::eMilliseconds;
         m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
-        m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
+        m_FrameDelimiter = VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT;
 
         m_SelectedFrameBrowserNodeIndex = { 0, 0, 0xFFFF };
         m_ScrollToSelectedFrameBrowserNode = false;
@@ -3081,15 +3093,15 @@ namespace Profiler
         }
         ImGui::EndDisabled();
 
-        // Select synchronization mode (constant in runtime)
+        // Select frame delimiter (constant in runtime)
         ImGui::BeginDisabled();
         {
-            static const char* syncGroupOptions[] = {
-                Lang::Present,
-                Lang::Submit };
+            static const char* frameDelimiterOptions[] = {
+                "vkQueuePresentKHR",
+                "vkQueueSubmit" };
 
-            int syncModeSelectedOption = static_cast<int>(m_SyncMode);
-            if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
+            int frameDelimiterSelectedOption = static_cast<int>(m_FrameDelimiter);
+            if( ImGui::Combo( Lang::FrameDelimiter, &frameDelimiterSelectedOption, frameDelimiterOptions, 2 ) )
             {
                 assert( false );
             }

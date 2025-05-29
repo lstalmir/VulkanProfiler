@@ -81,6 +81,7 @@ namespace Profiler
         inline static constexpr char Metric[] = "Metric";
         inline static constexpr char Contrib[] = "Contrib";
         inline static constexpr char Frame[] = "Frame";
+        inline static constexpr char Submit[] = "Submit";
         inline static constexpr char Pipeline[] = "Pipeline";
         inline static constexpr char Stages[] = "Stages";
         inline static constexpr char Capabilities[] = "Capabilities";
@@ -161,10 +162,8 @@ namespace Profiler
         inline static constexpr char PipelineStateColorBlend[] = "Color blend";
 
         // Settings tab
-        inline static constexpr char Present[] = "Present";
-        inline static constexpr char Submit[] = "Submit";
         inline static constexpr char SamplingMode[] = "Sampling mode";
-        inline static constexpr char SyncMode[] = "Sync mode";
+        inline static constexpr char FrameDelimiter[] = "Frame delimiter";
         inline static constexpr char InterfaceScale[] = "Interface scale";
         inline static constexpr char CollectedFrameCount[] = "Collected frame count";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";

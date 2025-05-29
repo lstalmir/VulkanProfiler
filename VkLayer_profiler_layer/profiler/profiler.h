@@ -76,8 +76,8 @@ namespace Profiler
         void Destroy();
 
         // Public interface
-        VkResult SetMode( VkProfilerModeEXT );
-        VkResult SetSyncMode( VkProfilerSyncModeEXT );
+        VkResult SetSamplingMode( VkProfilerModeEXT );
+        VkResult SetFrameDelimiter( VkProfilerFrameDelimiterEXT );
         VkResult SetDataBufferSize( uint32_t );
         VkResult SetMinDataBufferSize( uint32_t );
         std::shared_ptr<DeviceProfilerFrameData> GetData();
