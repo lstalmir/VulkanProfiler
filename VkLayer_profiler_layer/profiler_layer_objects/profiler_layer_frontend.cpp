@@ -229,6 +229,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetHostTimestampFrequency
+
+    Description:
+        Returns the timestamp query frequency in the selected time domain.
+
+    \***********************************************************************************/
+    uint64_t DeviceProfilerLayerFrontend::GetHostTimestampFrequency( VkTimeDomainEXT timeDomain )
+    {
+        return OSGetTimestampFrequency( timeDomain );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetProfilerConfig
 
     Description:

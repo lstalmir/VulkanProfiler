@@ -62,15 +62,7 @@ namespace Profiler
     class DeviceProfilerTraceSerializer
     {
     public:
-        template<typename GpuDurationType>
-        inline DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, GpuDurationType gpuTimestampPeriod )
-            : DeviceProfilerTraceSerializer(
-                pStringSerializer,
-                std::chrono::duration_cast<Milliseconds>(gpuTimestampPeriod) )
-        {
-        }
-
-        DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
+        DeviceProfilerTraceSerializer( DeviceProfilerFrontend& frontend );
         ~DeviceProfilerTraceSerializer();
 
         DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
@@ -81,8 +73,10 @@ namespace Profiler
         static std::string GetDefaultTraceFileName( int samplingMode );
 
     private:
-        const class DeviceProfilerStringSerializer* m_pStringSerializer;
-        const class DeviceProfilerJsonSerializer* m_pJsonSerializer;
+        DeviceProfilerFrontend& m_Frontend;
+
+        class DeviceProfilerStringSerializer* m_pStringSerializer;
+        class DeviceProfilerJsonSerializer* m_pJsonSerializer;
 
         // Currently serialized frame data
         const struct DeviceProfilerFrameData* m_pData;

@@ -87,9 +87,10 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerTraceSerializer::DeviceProfilerTraceSerializer( const DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod )
-        : m_pStringSerializer( pStringSerializer )
-        , m_pJsonSerializer( nullptr )
+    DeviceProfilerTraceSerializer::DeviceProfilerTraceSerializer( DeviceProfilerFrontend& frontend )
+        : m_Frontend( frontend )
+        , m_pStringSerializer( new DeviceProfilerStringSerializer( m_Frontend ) )
+        , m_pJsonSerializer( new DeviceProfilerJsonSerializer( m_pStringSerializer ) )
         , m_pData( nullptr )
         , m_CommandQueue( VK_NULL_HANDLE )
         , m_pEvents()
@@ -98,10 +99,8 @@ namespace Profiler
         , m_HostCalibratedTimestamp( 0 )
         , m_DeviceCalibratedTimestamp( 0 )
         , m_HostTimestampFrequency( OSGetTimestampFrequency( m_HostTimeDomain ) )
-        , m_GpuTimestampPeriod( gpuTimestampPeriod )
+        , m_GpuTimestampPeriod( Nanoseconds( m_Frontend.GetPhysicalDeviceProperties().limits.timestampPeriod ) )
     {
-        // Initialize JSON serializer
-        m_pJsonSerializer = new DeviceProfilerJsonSerializer( m_pStringSerializer );
     }
 
     /*************************************************************************\
@@ -116,6 +115,7 @@ namespace Profiler
     DeviceProfilerTraceSerializer::~DeviceProfilerTraceSerializer()
     {
         delete m_pJsonSerializer;
+        delete m_pStringSerializer;
     }
 
     /*************************************************************************\
@@ -261,7 +261,7 @@ namespace Profiler
         m_HostTimeDomain = m_pData->m_SyncTimestamps.m_HostTimeDomain;
         m_HostCalibratedTimestamp = m_pData->m_SyncTimestamps.m_HostCalibratedTimestamp;
         m_DeviceCalibratedTimestamp = m_pData->m_SyncTimestamps.m_DeviceCalibratedTimestamp;
-        m_HostTimestampFrequency = OSGetTimestampFrequency( m_HostTimeDomain );
+        m_HostTimestampFrequency = m_Frontend.GetHostTimestampFrequency( m_HostTimeDomain );
 
         // Manually select calibration timestamps from the data.
         if( m_HostCalibratedTimestamp == 0 )
@@ -779,8 +779,7 @@ namespace Profiler
 
         // Create trace serializer.
         m_pTraceSerializer = new DeviceProfilerTraceSerializer(
-            m_pStringSerializer,
-            Nanoseconds( m_Frontend.GetPhysicalDeviceProperties().limits.timestampPeriod ) );
+            m_Frontend );
 
         // Configure the output.
         const DeviceProfilerConfig& config = m_Frontend.GetProfilerConfig();
