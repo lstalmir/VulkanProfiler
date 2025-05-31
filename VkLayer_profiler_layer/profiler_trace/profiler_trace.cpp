@@ -99,8 +99,6 @@ namespace Profiler
         , m_DeviceCalibratedTimestamp( 0 )
         , m_HostTimestampFrequency( OSGetTimestampFrequency( m_HostTimeDomain ) )
         , m_GpuTimestampPeriod( gpuTimestampPeriod )
-        , m_FirstFrameBeginTimestamp( 0 )
-        , m_FrameTimestampOffset( 0 )
     {
         // Initialize JSON serializer
         m_pJsonSerializer = new DeviceProfilerJsonSerializer( m_pStringSerializer );
@@ -138,10 +136,20 @@ namespace Profiler
         DeviceProfilerTraceSerializationResult result = {};
         result.m_Succeeded = true;
 
+        SetupTimestampNormalizationConstants();
+
+        std::string frameName = "Frame #" + std::to_string( data.m_CPU.m_FrameIndex );
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationBegin,
+            frameName,
+            "Frames",
+            GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+            VK_NULL_HANDLE ) );
+
         // Serialize the data
         for( const auto& submitBatchData : data.m_Submits )
         {
-            SetupTimestampNormalizationConstants( submitBatchData.m_Handle );
+            m_CommandQueue = submitBatchData.m_Handle;
 
             // Insert queue submission event
             m_pEvents.push_back( new ApiTraceEvent(
@@ -193,6 +201,13 @@ namespace Profiler
                 GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
         }
 
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationEnd,
+            frameName,
+            "Frames",
+            GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+            VK_NULL_HANDLE ) );
+
         // Insert TIP events
         Serialize( data.m_TIP );
 
@@ -233,9 +248,14 @@ namespace Profiler
         CPU timestamp relative to the beginning of the frame.
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::SetupTimestampNormalizationConstants( VkQueue queue )
+    void DeviceProfilerTraceSerializer::SetupTimestampNormalizationConstants()
     {
-        m_CommandQueue = queue;
+        // When multiple frames are serialized, the first frame's synchronization timestamp should be used as a reference
+        // to avoid overlapping of the regions due to changing the time base frequently.
+        if( m_HostCalibratedTimestamp != 0 && m_DeviceCalibratedTimestamp != 0 )
+        {
+            return;
+        }
 
         // Try to use calibrated timestamps if available.
         m_HostTimeDomain = m_pData->m_SyncTimestamps.m_HostTimeDomain;
@@ -252,39 +272,26 @@ namespace Profiler
         // Use first submitted packet's begin timestamp as a reference if synchronization timestamps were not sent.
         if( m_DeviceCalibratedTimestamp == 0 )
         {
+            uint64_t deviceBeginTimestamp = UINT64_MAX;
+
             for( const DeviceProfilerSubmitBatchData& submitBatch : m_pData->m_Submits )
             {
-                if( submitBatch.m_Handle != queue )
-                {
-                    continue;
-                }
-
                 for( const DeviceProfilerSubmitData& submit : submitBatch.m_Submits )
                 {
                     uint64_t gpuTimestamp = submit.GetBeginTimestamp().m_Value;
                     if( gpuTimestamp )
                     {
-                        m_DeviceCalibratedTimestamp = gpuTimestamp;
+                        deviceBeginTimestamp = std::min( deviceBeginTimestamp, gpuTimestamp );
                         break;
                     }
                 }
+            }
 
-                if( m_DeviceCalibratedTimestamp != 0 )
-                {
-                    break;
-                }
+            if( deviceBeginTimestamp != UINT64_MAX )
+            {
+                m_DeviceCalibratedTimestamp = deviceBeginTimestamp;
             }
         }
-
-        // When multiple frames are serialized, the first frame's host timestamp should be used as a reference.
-        // The GPU timestamps can be then adjusted using the following frames' synchronization timestamps, but the 0 should always remain at the first frame.
-        if( !m_FirstFrameBeginTimestamp )
-        {
-            m_FirstFrameBeginTimestamp = m_pData->m_CPU.m_BeginTimestamp;
-        }
-
-        m_FrameTimestampOffset = std::chrono::duration_cast<Milliseconds>( std::chrono::nanoseconds(
-            ( ( m_pData->m_CPU.m_BeginTimestamp - m_FirstFrameBeginTimestamp ) * 1'000'000'000 ) / m_HostTimestampFrequency ) );
     }
 
     /*************************************************************************\
@@ -298,9 +305,8 @@ namespace Profiler
     \*************************************************************************/
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( uint64_t timestamp ) const
     {
-        return std::chrono::duration_cast<Milliseconds>( std::chrono::nanoseconds(
-                   ( ( timestamp - m_HostCalibratedTimestamp ) * 1'000'000'000 ) / m_HostTimestampFrequency ) ) +
-               m_FrameTimestampOffset;
+        return std::chrono::duration_cast<Milliseconds>(std::chrono::nanoseconds(
+            ((timestamp - m_HostCalibratedTimestamp) * 1'000'000'000) / m_HostTimestampFrequency ));
     }
 
     /*************************************************************************\
@@ -314,8 +320,7 @@ namespace Profiler
     \*************************************************************************/
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedGpuTimestamp( uint64_t gpuTimestamp ) const
     {
-        return ( ( gpuTimestamp - m_DeviceCalibratedTimestamp ) * m_GpuTimestampPeriod ) +
-               m_FrameTimestampOffset;
+        return ((gpuTimestamp - m_DeviceCalibratedTimestamp) * m_GpuTimestampPeriod);
     }
 
     /*************************************************************************\
@@ -727,9 +732,6 @@ namespace Profiler
         }
 
         m_pEvents.clear();
-
-        m_FirstFrameBeginTimestamp = 0;
-        m_FrameTimestampOffset = Milliseconds( 0 );
     }
 
     /*************************************************************************\

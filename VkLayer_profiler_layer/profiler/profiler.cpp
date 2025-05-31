@@ -272,6 +272,16 @@ namespace Profiler
                 devicePNextChain.Append( pipelineExecutablePropertiesFeatures );
             }
         }
+
+        // Enable calibrated timestamps extension to synchronize CPU and GPU events in traces.
+        if( availableExtensionNames.count( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
+        else if( availableExtensionNames.count( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
     }
 
     /***********************************************************************************\
