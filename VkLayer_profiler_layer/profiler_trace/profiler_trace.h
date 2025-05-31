@@ -102,6 +102,8 @@ namespace Profiler
         uint64_t     m_DeviceCalibratedTimestamp;
         uint64_t     m_HostTimestampFrequency;
         Milliseconds m_GpuTimestampPeriod;
+        uint64_t     m_FirstFrameBeginTimestamp;
+        Milliseconds m_FrameTimestampOffset;
 
         void SetupTimestampNormalizationConstants( VkQueue );
         Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;

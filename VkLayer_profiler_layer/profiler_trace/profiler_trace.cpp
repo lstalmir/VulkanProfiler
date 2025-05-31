@@ -99,6 +99,8 @@ namespace Profiler
         , m_DeviceCalibratedTimestamp( 0 )
         , m_HostTimestampFrequency( OSGetTimestampFrequency( m_HostTimeDomain ) )
         , m_GpuTimestampPeriod( gpuTimestampPeriod )
+        , m_FirstFrameBeginTimestamp( 0 )
+        , m_FrameTimestampOffset( 0 )
     {
         // Initialize JSON serializer
         m_pJsonSerializer = new DeviceProfilerJsonSerializer( m_pStringSerializer );
@@ -139,8 +141,6 @@ namespace Profiler
         // Serialize the data
         for( const auto& submitBatchData : data.m_Submits )
         {
-            // !!! TODO: When multiple frames are serialized, the first frame's host timestamp should be used as a reference. !!!!
-            // The GPU timestamps can be then adjusted using the following frames' synchronization timestamps, but the 0 should always remain at the first frame.
             SetupTimestampNormalizationConstants( submitBatchData.m_Handle );
 
             // Insert queue submission event
@@ -275,6 +275,16 @@ namespace Profiler
                 }
             }
         }
+
+        // When multiple frames are serialized, the first frame's host timestamp should be used as a reference.
+        // The GPU timestamps can be then adjusted using the following frames' synchronization timestamps, but the 0 should always remain at the first frame.
+        if( !m_FirstFrameBeginTimestamp )
+        {
+            m_FirstFrameBeginTimestamp = m_pData->m_CPU.m_BeginTimestamp;
+        }
+
+        m_FrameTimestampOffset = std::chrono::duration_cast<Milliseconds>( std::chrono::nanoseconds(
+            ( ( m_pData->m_CPU.m_BeginTimestamp - m_FirstFrameBeginTimestamp ) * 1'000'000'000 ) / m_HostTimestampFrequency ) );
     }
 
     /*************************************************************************\
@@ -288,8 +298,9 @@ namespace Profiler
     \*************************************************************************/
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedCpuTimestamp( uint64_t timestamp ) const
     {
-        return std::chrono::duration_cast<Milliseconds>(std::chrono::nanoseconds(
-            ((timestamp - m_HostCalibratedTimestamp) * 1'000'000'000) / m_HostTimestampFrequency ));
+        return std::chrono::duration_cast<Milliseconds>( std::chrono::nanoseconds(
+                   ( ( timestamp - m_HostCalibratedTimestamp ) * 1'000'000'000 ) / m_HostTimestampFrequency ) ) +
+               m_FrameTimestampOffset;
     }
 
     /*************************************************************************\
@@ -303,7 +314,8 @@ namespace Profiler
     \*************************************************************************/
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedGpuTimestamp( uint64_t gpuTimestamp ) const
     {
-        return ((gpuTimestamp - m_DeviceCalibratedTimestamp) * m_GpuTimestampPeriod);
+        return ( ( gpuTimestamp - m_DeviceCalibratedTimestamp ) * m_GpuTimestampPeriod ) +
+               m_FrameTimestampOffset;
     }
 
     /*************************************************************************\
@@ -715,6 +727,9 @@ namespace Profiler
         }
 
         m_pEvents.clear();
+
+        m_FirstFrameBeginTimestamp = 0;
+        m_FrameTimestampOffset = Milliseconds( 0 );
     }
 
     /*************************************************************************\
