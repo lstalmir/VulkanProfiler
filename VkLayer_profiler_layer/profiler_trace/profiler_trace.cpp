@@ -840,7 +840,7 @@ namespace Profiler
         auto pData = m_Frontend.GetData();
         while( pData )
         {
-            if( m_SerializedFrameCount < m_MaxFrameCount )
+            if( m_SerializedFrameCount <= m_MaxFrameCount )
             {
                 std::scoped_lock lock( m_TraceSerializerMutex );
                 m_pTraceSerializer->Serialize( *pData );
@@ -850,7 +850,7 @@ namespace Profiler
             pData = m_Frontend.GetData();
         }
 
-        if( !m_Flushed && m_SerializedFrameCount == m_MaxFrameCount )
+        if( !m_Flushed && m_SerializedFrameCount > m_MaxFrameCount )
         {
             Flush();
         }
