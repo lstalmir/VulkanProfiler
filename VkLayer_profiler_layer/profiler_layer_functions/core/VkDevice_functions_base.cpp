@@ -146,9 +146,12 @@ namespace Profiler
         // Destroy the profiler instance
         dd.Profiler.Destroy();
 
-        // Destroy the output if present
         if( dd.pOutput )
         {
+            // Consume the last frame data
+            dd.pOutput->Update();
+
+            // Close the output
             dd.pOutput->Destroy();
             dd.pOutput.reset();
         }

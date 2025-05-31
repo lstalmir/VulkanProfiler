@@ -599,6 +599,19 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Destroy()
     {
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        // Begin a fake frame at the end to allow finalization of the last submitted frame.
+        BeginNextFrame();
+
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        {
+            m_DataAggregator.Aggregate();
+        }
+
+        ResolveFrameData( tip );
+
+        // Reset members and destroy resources.
         m_DeferredOperationCallbacks.clear();
 
         m_pCommandBuffers.clear();
