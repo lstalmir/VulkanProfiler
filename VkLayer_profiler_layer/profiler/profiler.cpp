@@ -272,6 +272,16 @@ namespace Profiler
                 devicePNextChain.Append( pipelineExecutablePropertiesFeatures );
             }
         }
+
+        // Enable calibrated timestamps extension to synchronize CPU and GPU events in traces.
+        if( availableExtensionNames.count( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
+        else if( availableExtensionNames.count( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
     }
 
     /***********************************************************************************\
@@ -589,6 +599,19 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Destroy()
     {
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        // Begin a fake frame at the end to allow finalization of the last submitted frame.
+        BeginNextFrame();
+
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        {
+            m_DataAggregator.Aggregate();
+        }
+
+        ResolveFrameData( tip );
+
+        // Reset members and destroy resources.
         m_DeferredOperationCallbacks.clear();
 
         m_pCommandBuffers.clear();

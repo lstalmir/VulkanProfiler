@@ -24,6 +24,7 @@
 #include "profiler/profiler_data.h"
 #include "profiler/profiler_counters.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler/profiler_frontend.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_helpers/profiler_string_serializer.h"
 
@@ -123,10 +124,11 @@ namespace Profiler
         Serialize
 
     Description:
-        Write collected results to the trace file.
+        Serialize collected results to the trace events without writing to
+        the file.
 
     \*************************************************************************/
-    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const std::string& fileName, const DeviceProfilerFrameData& data )
+    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
     {
         // Setup state for serialization
         m_pData = &data;
@@ -134,10 +136,20 @@ namespace Profiler
         DeviceProfilerTraceSerializationResult result = {};
         result.m_Succeeded = true;
 
+        SetupTimestampNormalizationConstants();
+
+        std::string frameName = "Frame #" + std::to_string( data.m_CPU.m_FrameIndex );
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationBegin,
+            frameName,
+            "Frames",
+            GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+            VK_NULL_HANDLE ) );
+
         // Serialize the data
         for( const auto& submitBatchData : data.m_Submits )
         {
-            SetupTimestampNormalizationConstants( submitBatchData.m_Handle );
+            m_CommandQueue = submitBatchData.m_Handle;
 
             // Insert queue submission event
             m_pEvents.push_back( new ApiTraceEvent(
@@ -189,15 +201,40 @@ namespace Profiler
                 GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
         }
 
+        m_pEvents.push_back( new TraceEvent(
+            TraceEvent::Phase::eDurationEnd,
+            frameName,
+            "Frames",
+            GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+            VK_NULL_HANDLE ) );
+
         // Insert TIP events
         Serialize( data.m_TIP );
 
-        // Write JSON file
-        SaveEventsToFile( fileName, result );
+        m_pData = nullptr;
 
-        // Cleanup serializer state
-        Cleanup();
-        
+        return result;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Write collected results to the trace file.
+
+    \*************************************************************************/
+    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const std::string& fileName, const DeviceProfilerFrameData& data )
+    {
+        DeviceProfilerTraceSerializationResult result = Serialize( data );
+
+        // Write JSON file
+        if( result.m_Succeeded )
+        {
+            result = SaveEventsToFile( fileName );
+        }
+
         return result;
     }
 
@@ -211,9 +248,14 @@ namespace Profiler
         CPU timestamp relative to the beginning of the frame.
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::SetupTimestampNormalizationConstants( VkQueue queue )
+    void DeviceProfilerTraceSerializer::SetupTimestampNormalizationConstants()
     {
-        m_CommandQueue = queue;
+        // When multiple frames are serialized, the first frame's synchronization timestamp should be used as a reference
+        // to avoid overlapping of the regions due to changing the time base frequently.
+        if( m_HostCalibratedTimestamp != 0 && m_DeviceCalibratedTimestamp != 0 )
+        {
+            return;
+        }
 
         // Try to use calibrated timestamps if available.
         m_HostTimeDomain = m_pData->m_SyncTimestamps.m_HostTimeDomain;
@@ -230,27 +272,24 @@ namespace Profiler
         // Use first submitted packet's begin timestamp as a reference if synchronization timestamps were not sent.
         if( m_DeviceCalibratedTimestamp == 0 )
         {
+            uint64_t deviceBeginTimestamp = UINT64_MAX;
+
             for( const DeviceProfilerSubmitBatchData& submitBatch : m_pData->m_Submits )
             {
-                if( submitBatch.m_Handle != queue )
-                {
-                    continue;
-                }
-
                 for( const DeviceProfilerSubmitData& submit : submitBatch.m_Submits )
                 {
                     uint64_t gpuTimestamp = submit.GetBeginTimestamp().m_Value;
                     if( gpuTimestamp )
                     {
-                        m_DeviceCalibratedTimestamp = gpuTimestamp;
+                        deviceBeginTimestamp = std::min( deviceBeginTimestamp, gpuTimestamp );
                         break;
                     }
                 }
+            }
 
-                if( m_DeviceCalibratedTimestamp != 0 )
-                {
-                    break;
-                }
+            if( deviceBeginTimestamp != UINT64_MAX )
+            {
+                m_DeviceCalibratedTimestamp = deviceBeginTimestamp;
             }
         }
     }
@@ -631,50 +670,51 @@ namespace Profiler
         SaveEventsToFile
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::SaveEventsToFile( const std::string& fileName, DeviceProfilerTraceSerializationResult& result )
+    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::SaveEventsToFile( const std::string& fileName )
     {
+        DeviceProfilerTraceSerializationResult result = {};
+        const char* pStatusMessage = "";
+
+        json traceJson = {
+            { "traceEvents", json::array() },
+            { "displayTimeUnit", "ns" },
+            { "otherData", json::object() }
+        };
+
+        // Create JSON objects
+        json& traceEvents = traceJson["traceEvents"];
+
+        for( const TraceEvent* pEvent : m_pEvents )
+        {
+            traceEvents.push_back( *pEvent );
+        }
+
+        // Open output file
+        std::ofstream out( fileName );
+        result.m_Succeeded = out.is_open();
+        pStatusMessage = "Failed to open file for writing\n";
+
         if( result.m_Succeeded )
         {
-            json traceJson = {
-                { "traceEvents", json::array() },
-                { "displayTimeUnit", "ns" },
-                { "otherData", json::object() } };
-
-            // Create JSON objects
-            json& traceEvents = traceJson[ "traceEvents" ];
-
-            for( const TraceEvent* pEvent : m_pEvents )
-            {
-                traceEvents.push_back( *pEvent );
-            }
-
-            // Open output file
-            std::ofstream out( fileName );
-
-            if( !out.is_open() )
-            {
-                // Failed to open file for writing
-                result.m_Succeeded = false;
-                result.m_Message = "Failed to open file\n" + fileName;
-                return;
-            }
-
             // Write JSON to file
             out << traceJson;
             out.flush();
 
-            if( out.bad() )
-            {
-                // Failed to write data
-                result.m_Succeeded = false;
-                result.m_Message = "Failed to write file\n" + fileName;
-                return;
-            }
-
-            // Success
-            result.m_Succeeded = true;
-            result.m_Message = "Saved trace to\n" + fileName;
+            result.m_Succeeded = !out.fail();
+            pStatusMessage = "Failed to write trace to file\n";
         }
+
+        if( result.m_Succeeded )
+        {
+            // Success
+            pStatusMessage = "Saved trace to\n";
+        }
+
+        // Cleanup serializer state
+        Cleanup();
+
+        result.m_Message = pStatusMessage + fileName;
+        return result;
     }
 
     /*************************************************************************\
@@ -692,6 +732,221 @@ namespace Profiler
         }
 
         m_pEvents.clear();
-        m_pData = nullptr;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ProfilerTraceOutput
+
+    Description:
+        Constructor.
+
+    \*************************************************************************/
+    ProfilerTraceOutput::ProfilerTraceOutput( DeviceProfilerFrontend& frontend )
+        : DeviceProfilerOutput( frontend )
+    {
+        ResetMembers();
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ~ProfilerTraceOutput
+
+    Description:
+        Destructor.
+
+    \*************************************************************************/
+    ProfilerTraceOutput::~ProfilerTraceOutput()
+    {
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Initialize
+
+    Description:
+        Initializes the trace file output for the given profiler.
+
+    \*************************************************************************/
+    bool ProfilerTraceOutput::Initialize()
+    {
+        // Create string serializer.
+        m_pStringSerializer = new DeviceProfilerStringSerializer(
+            m_Frontend );
+
+        // Create trace serializer.
+        m_pTraceSerializer = new DeviceProfilerTraceSerializer(
+            m_pStringSerializer,
+            Nanoseconds( m_Frontend.GetPhysicalDeviceProperties().limits.timestampPeriod ) );
+
+        // Configure the output.
+        const DeviceProfilerConfig& config = m_Frontend.GetProfilerConfig();
+        SetOutputFileName( config.m_OutputTraceFile );
+        SetMaxFrameCount( config.m_FrameCount );
+
+        return true;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Flushes and destroys the trace file output.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::Destroy()
+    {
+        if( !m_Flushed )
+        {
+            Flush();
+        }
+
+        delete m_pTraceSerializer;
+        delete m_pStringSerializer;
+
+        ResetMembers();
+    }
+
+    /*************************************************************************\
+
+    Function:
+        IsAvailable
+
+    Description:
+        Checks if the trace file output is available.
+
+    \*************************************************************************/
+    bool ProfilerTraceOutput::IsAvailable()
+    {
+        return m_pTraceSerializer != nullptr;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Update
+
+    Description:
+        Reads data collected by the profiler and appends it to the serializer.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::Update()
+    {
+        auto pData = m_Frontend.GetData();
+        while( pData )
+        {
+            if( m_SerializedFrameCount <= m_MaxFrameCount )
+            {
+                std::scoped_lock lock( m_TraceSerializerMutex );
+                m_pTraceSerializer->Serialize( *pData );
+                m_SerializedFrameCount++;
+            }
+
+            pData = m_Frontend.GetData();
+        }
+
+        if( !m_Flushed && m_SerializedFrameCount > m_MaxFrameCount )
+        {
+            Flush();
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Present
+
+    Description:
+        No-op.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::Present()
+    {
+    }
+
+    /*************************************************************************\
+
+    Function:
+        SetOutputFileName
+
+    Description:
+        Sets output file name.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::SetOutputFileName( const std::string& fileName )
+    {
+        m_OutputFileName = fileName;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        SetMaxFrameCount
+
+    Description:
+        Sets max serialized frame count.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::SetMaxFrameCount( uint32_t maxFrameCount )
+    {
+        m_MaxFrameCount = ( maxFrameCount ? maxFrameCount : UINT32_MAX );
+
+        // Update data buffers.
+        m_Frontend.SetDataBufferSize( m_MaxFrameCount );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ResetMembers
+
+    Description:
+        Sets all members to default values.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::ResetMembers()
+    {
+        m_pStringSerializer = nullptr;
+        m_pTraceSerializer = nullptr;
+
+        m_OutputFileName.clear();
+
+        m_MaxFrameCount = UINT32_MAX;
+        m_SerializedFrameCount = 0;
+        m_Flushed = false;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Flush
+
+    Description:
+        Flushes the trace file output.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::Flush()
+    {
+        if( !m_Flushed && m_pTraceSerializer )
+        {
+            std::string fileName = m_OutputFileName;
+            if( fileName.empty() )
+            {
+                // Construct default trace file name if not provided.
+                fileName = DeviceProfilerTraceSerializer::GetDefaultTraceFileName(
+                    m_Frontend.GetProfilerSamplingMode() );
+            }
+
+            std::scoped_lock lock( m_TraceSerializerMutex );
+            m_pTraceSerializer->SaveEventsToFile( fileName );
+
+            // Don't flush again.
+            m_Flushed = true;
+        }
     }
 }

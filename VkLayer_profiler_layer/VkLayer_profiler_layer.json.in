@@ -65,12 +65,45 @@
         "features": {
             "settings": [
                 {
-                    "key": "enable_overlay",
-                    "label": "Enable overlay",
-                    "description": "Show an interactive overlay window with data on top of the profiled application.",
-                    "env": "VKPROF_enable_overlay",
-                    "type": "BOOL",
-                    "default": true
+                    "key": "output",
+                    "label": "Output",
+                    "description": "Output mode of the profiler.",
+                    "env": "VKPROF_output",
+                    "type": "ENUM",
+                    "default": "overlay",
+                    "flags": [
+                        {
+                            "key": "none",
+                            "label": "None",
+                            "description": "Do not write the data anywhere."
+                        },
+                        {
+                            "key": "overlay",
+                            "label": "Overlay",
+                            "description": "Show an interactive overlay window with data on top of the profiled application."
+                        },
+                        {
+                            "key": "trace",
+                            "label": "Trace file",
+                            "description": "Write profiling data to a trace file. The file will be created in the directory of the profiled application."
+                        }
+                    ],
+                    "settings": [
+                        {
+                            "key": "output_trace_file",
+                            "label": "Output trace file",
+                            "description": "Path to the output file.",
+                            "env": "VKPROF_output_trace_file",
+                            "type": "SAVE_FILE",
+                            "default": "",
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    { "key": "output", "value": "trace" }
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "key": "enable_performance_query_ext",

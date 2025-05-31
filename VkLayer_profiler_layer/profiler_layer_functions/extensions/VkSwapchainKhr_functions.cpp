@@ -43,7 +43,7 @@ namespace Profiler
 
         // TODO: Move to separate layer
         const bool createProfilerOverlay =
-            dd.Profiler.m_Config.m_EnableOverlay;
+            (dd.Profiler.m_Config.m_Output == Profiler::output_t::overlay);
 
         if( createProfilerOverlay )
         {
