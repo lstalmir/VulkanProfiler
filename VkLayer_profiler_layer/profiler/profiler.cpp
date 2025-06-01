@@ -153,6 +153,7 @@ namespace Profiler
         , m_DataAggregator()
         , m_NextFrameIndex( 0 )
         , m_DataBufferSize( 1 )
+        , m_MinDataBufferSize( 1 )
         , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()

@@ -594,7 +594,7 @@ namespace Profiler
             auto pData = m_Frontend.GetData();
             if( pData )
             {
-                m_pFrames.push_back( pData );
+                m_pFrames.push_back( std::move( pData ) );
             }
         }
 
@@ -1243,7 +1243,7 @@ namespace Profiler
         ImGui::End();
 
         m_ScrollToSelectedFrameBrowserNode = false;
-        m_pData = pCurrentFrameData;
+        m_pData = std::move( pCurrentFrameData );
     }
 
     /***********************************************************************************\

@@ -202,6 +202,9 @@ namespace ImGuiX
             if( scale_max == FLT_MAX )
                 scale_max = y_max;
         }
+        // Avoid division by zero
+        if( !x_size )
+            x_size = 1.f;
 
         RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
 
