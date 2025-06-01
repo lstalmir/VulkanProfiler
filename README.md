@@ -20,8 +20,9 @@ Following packages are required for building on Debian-based systems:
 - g++-8.3 (or later)
 - cmake-3.8 (or later)
 - extra-cmake-modules
-- libx11-dev, libxext-dev, libxrandr-dev (for Xlib support)
-- libx11-xcb-dev, libxcb-shape0-dev (for XCB support)
+- libxkbcommon-dev
+- libx11-dev, libxext-dev (for Xlib support)
+- libxcb1-dev, libxcb-shape0-dev (for XCB support)
 
 To build the layer create "cmake_build" folder in the project root directory and run following command from it:
 ```
@@ -41,7 +42,7 @@ On Windows, install [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/).
 On Linux (Debian-based systems), install libvulkan-dev and glslang-tools packages.
 
 ## Usage
-To enable the layer add `"VK_LAYER_PROFILER_unified"` to the layer list in VkInstanceCreateInfo or to the VK_INSTANCE_LAYERS environment variable. The later method allows to profile applications without the need to modify the source code and is recommended for manual analysis.
+To enable the layer add `"VK_LAYER_PROFILER_unified"` to the layer list in VkInstanceCreateInfo. It can be also enabled without any modifications to the profiled application using [Vulkan Configurator](https://vulkan.lunarg.com/doc/view/latest/windows/vkconfig.html) (distributed with Vulkan SDK) or via environment variables: `VK_INSTANCE_LAYERS` or `VK_LOADER_LAYERS_ENABLE` (available in 1.3.243 loader or newer).
 
 ### Configuration
 The layer can be configured to handle more specific use cases. The following table describes the options available to the user.
@@ -52,9 +53,12 @@ The layer can be configured to handle more specific use cases. The following tab
 | *BOOL*<br>enable_performance_query_ext | true | Available on Intel graphics cards. Enables VK_INTEL_performance_query device extension and collects more detailed metrics. |
 | *BOOL*<br>enable_pipeline_executable_properties_ext | false | Capture VkPipeline's executable properties and internal shader representations for more detailed insights into the shaders executed on the GPU. Enables VK_KHR_pipeline_executable_properties extension. |
 | *BOOL*<br>enable_render_pass_begin_end_profiling | false | Measures time of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode. |
+| *BOOL*<br>capture_indirect_args | false | Capture indirect draw and dispatch arguments in the profiler data. The arguments will be available in the profiler overlay and in the saved traces. May negatively impact performance due to additional copying of the indirect buffers to the host memory. |
 | *BOOL*<br>set_stable_power_state | true | Use DirectX12 API to set stable power state for GPU time measurements. |
+| *BOOL*<br>enable_threading | true | Create threads to collect and process the data in background. If disabled, the data is collected on each present and submit. |
 | *ENUM*<br>sampling_mode | drawcall | Controls the frequency of inserting timestamp queries. More frequent queries may impact performance of the applicaiton (but not the peformance of the measured region). See table with available sampling modes for more details. |
-| *ENUM*<br>sync_mode | present | Controls the frequency of collecting data from the submitted command buffers. More frequect synchronization points may impact performance of the application. See table with available synchronization modes for more details. |
+| *ENUM*<br>frame_delimiter | present | Controls the frequency of splitting the collected data into frames. See table with available frame delimitation modes for more details. |
+| *INT*<br>frame_count | 1 | Number of frames displayed in the profiler overlay. When set to 0, the profiler will display all frames collected since the application's start. |
 
 The profiler loads the configuration from the sources below, in the following order (which implies the priority of each source):
 1. VkLayerSettingsCreateInfoEXT - Provided as a pNext to VkInstanceCreateInfo. See [Integration](#integration).
@@ -82,10 +86,11 @@ The profiler loads the configuration from the sources below, in the following or
    SET VKPROF_sampling_mode=pipeline
    ```
 
-The easiest way to configure the layer is to use the [Vulkan Configurator](https://github.com/LunarG/VulkanTools/blob/main/vkconfig/README.md).
+The easiest way to configure the layer is to use the [Vulkan Configurator](https://vulkan.lunarg.com/doc/view/latest/windows/vkconfig.html).
 
 #### Sampling modes
 Supported sampling modes are described in the following table:
+
 | # | Setting | Description |
 | ---- | ------- | ----------- |
 | 0    | drawcall | `VK_PROFILER_MODE_PER_DRAWCALL_EXT`<br>The profiler will measure GPU time of each command. |
@@ -94,19 +99,21 @@ Supported sampling modes are described in the following table:
 | 3    | commandbuffer | `VK_PROFILER_MODE_PER_COMMAND_BUFFER_EXT`<br>The profiler will measure time of each submitted VkCommandBuffer. |
 
 There are also 2 sampling modes which are defined, but not currently supported:
+
 | # | Setting | Description |
 | ---- | ------- | ----------- |
 | 4    | submit | `VK_PROFILER_MODE_PER_SUBMIT_BIT`<br>The profiler will measure GPU time of each vkQueueSubmit. |
 | 5    | present | `VK_PROFILER_MODE_PER_FRAME_BIT`<br>The profiler will measure GPU time of each frame, separated by vkQueuePresentKHR. |
 
-#### Sync mode
-Supported synchronization modes are described in the table below:
+#### Frame delimiters
+Supported frame delimiters are described in the table below:
+
 | # | Setting | Description |
 | ---- | ------- | ----------- |
-| 0    | present | `VK_PROFILER_SYNC_MODE_PRESENT_EXT`<br>Collects the data on vkQueuePresentKHR. Inserts a vkDeviceWaitIdle before the call is forwarded to the ICD. |
-| 1    | submit | `VK_PROFILER_SYNC_MODE_SUBMIT_EXT`<br>Collects the data on vkQueueSubmit. Inserts a fence after the submitted commands and waits until it is signaled. |
+| 0    | present | `VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT`<br>Delimits and checks for complete frames before each vkQueuePresentKHR. |
+| 1    | submit | `VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT`<br>Delimits and checks for complete frames after each vkQueueSubmit. |
 
-Synchronization mode can be changed in the runtime using either the `vkSetProfilerSyncModeEXT` function or by selecting it in the "Settings" tab of the overlay.
+Frame delimiter can be changed in the runtime using the `vkSetProfilerFrameDelimiterEXT` function.
 
 ### Integration
 The layer can be integrated into the application and provide performance data e.g.: for runtime optimizations or as a base tool for more advanced profiling.

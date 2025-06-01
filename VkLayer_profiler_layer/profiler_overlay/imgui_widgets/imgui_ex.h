@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -77,6 +77,28 @@ namespace ImGuiX
 
     \*************************************************************************/
     ImU32 ColorLerp( ImU32, ImU32, float );
+
+    /*************************************************************************\
+
+    Function:
+        ColorAlpha
+
+    Description:
+        Set color alpha.
+
+    \*************************************************************************/
+    ImU32 ColorAlpha( ImU32, float );
+
+    /*************************************************************************\
+
+    Function:
+        Darker
+
+    Description:
+        Return darker color.
+
+    \*************************************************************************/
+    ImU32 Darker( ImU32, float = 0.75f );
 
     /*************************************************************************\
 

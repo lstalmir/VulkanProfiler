@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,8 @@ namespace IGFD { class FileDialog; }
 
 namespace Profiler
 {
-    class OverlayFonts;
+    class OverlayResources;
+    class DeviceProfilerFrontend;
     struct ProfilerShaderExecutable;
 
     /***********************************************************************************\
@@ -65,15 +66,18 @@ namespace Profiler
     class OverlayShaderView
     {
     public:
-        OverlayShaderView( const OverlayFonts& fonts );
+        OverlayShaderView( const OverlayResources& resources );
         ~OverlayShaderView();
 
         OverlayShaderView( const OverlayShaderView& ) = delete;
         OverlayShaderView( OverlayShaderView&& ) = delete;
 
         void InitializeStyles();
-        void SetTargetDevice( struct VkDevice_Object* pDevice );
+        void Initialize( DeviceProfilerFrontend& frontend );
+
         void SetShaderName( const std::string& name );
+        void SetEntryPointName( const std::string& name );
+        void SetShaderIdentifier( uint32_t identifierSize, const uint8_t* pIdentifier );
 
         void Clear();
 
@@ -93,14 +97,17 @@ namespace Profiler
 
         static constexpr ShaderFormat      m_scExecutableShaderFormat = ShaderFormat( -1 );
 
-        const OverlayFonts&                m_Fonts;
+        const OverlayResources&            m_Resources;
         std::unique_ptr<TextEditor>        m_pTextEditor;
 
         std::string                        m_ShaderName;
+        std::string                        m_EntryPointName;
+        std::string                        m_ShaderIdentifier;
         std::vector<ShaderRepresentation*> m_pShaderRepresentations;
 
         int                                m_SpvTargetEnv;
         bool                               m_ShowSpirvDocs;
+        bool                               m_ShowFullShaderIdentifier;
 
         int                                m_CurrentTabIndex;
 
@@ -111,6 +118,7 @@ namespace Profiler
         std::unique_ptr<ShaderExporter>    m_pShaderExporter;
         ShaderSavedCallback                m_ShaderSavedCallback;
 
+        void DrawShaderIdentifier();
         void DrawShaderRepresentation( int tabIndex, ShaderRepresentation* pShaderRepresentation );
         void DrawShaderStatistics( ShaderExecutableRepresentation* pShaderExecutable );
         bool SelectShaderInternalRepresentation( ShaderExecutableRepresentation* pShaderExecutable, ShaderFormat* pShaderFormat );

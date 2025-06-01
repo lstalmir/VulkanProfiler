@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -112,6 +112,30 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ProfilerDataAggregator
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
+    ProfilerDataAggregator::ProfilerDataAggregator()
+        : m_pProfiler( nullptr )
+        , m_DataCollectionThread()
+        , m_DataCollectionThreadRunning( false )
+        , m_pResolvedFrames()
+        , m_NextFrames()
+        , m_Mutex()
+        , m_FrameIndex( 0 )
+        , m_MaxResolvedFrameCount( 1 )
+        , m_CopyCommandPools()
+        , m_VendorMetricProperties()
+        , m_VendorMetricsSetIndex( UINT32_MAX )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Initialize
 
     Description:
@@ -149,18 +173,21 @@ namespace Profiler
         }
 
         // Use default time domain until the actual data is ready.
-        m_pCurrentFrameData = std::make_shared<DeviceProfilerFrameData>();
-        m_pCurrentFrameData->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+        m_pResolvedFrames.push_back( std::make_shared<DeviceProfilerFrameData>() );
+        m_pResolvedFrames.back()->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
 
         // Try to start data collection thread.
-        try
+        if( m_pProfiler->m_Config.m_EnableThreading )
         {
-            m_DataCollectionThreadRunning = true;
-            m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
-        }
-        catch( ... )
-        {
-            m_DataCollectionThreadRunning = false;
+            try
+            {
+                m_DataCollectionThreadRunning = true;
+                m_DataCollectionThread = std::thread( &ProfilerDataAggregator::DataCollectionThreadProc, this );
+            }
+            catch( ... )
+            {
+                m_DataCollectionThreadRunning = false;
+            }
         }
 
         // Cleanup if initialization failed.
@@ -191,6 +218,20 @@ namespace Profiler
 
         m_CopyCommandPools.clear();
         m_pProfiler = nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDataBufferSize
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::SetDataBufferSize( uint32_t maxFrames )
+    {
+        std::scoped_lock lk( m_Mutex );
+        m_MaxResolvedFrameCount = maxFrames;
     }
 
     /***********************************************************************************\
@@ -386,22 +427,46 @@ namespace Profiler
             auto frameIt = m_NextFrames.begin();
             while( (frameIt != m_NextFrames.end()) && (frameIt->m_FrameIndex < m_FrameIndex) && (frameIt->m_PendingSubmits.empty()) )
             {
+                LoadVendorMetricsProperties();
+
+                std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
+                ResolveFrameData( *frameIt, *pFrameData );
+
+                // Remove unconsumed frames.
+                if( m_MaxResolvedFrameCount != 0 )
+                {
+                    while( m_pResolvedFrames.size() >= m_MaxResolvedFrameCount )
+                    {
+                        m_pResolvedFrames.pop_front();
+                    }
+                }
+
+                m_pResolvedFrames.push_back( std::move( pFrameData ) );
+
                 frameIt++;
             }
 
             if( frameIt != m_NextFrames.begin() )
             {
-                auto lastFrameIt = frameIt--;
-
-                LoadVendorMetricsProperties();
-
-                std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
-                ResolveFrameData( *frameIt, *pFrameData );
-                std::swap( m_pCurrentFrameData, pFrameData );
-
-                m_NextFrames.erase( m_NextFrames.begin(), lastFrameIt );
+                m_NextFrames.erase( m_NextFrames.begin(), frameIt );
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetAggregatedData
+
+    Description:
+
+    \***********************************************************************************/
+    std::list<std::shared_ptr<DeviceProfilerFrameData>> ProfilerDataAggregator::GetAggregatedData()
+    {
+        std::scoped_lock lk( m_Mutex );
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedFrames;
+        std::swap( pResolvedFrames, m_pResolvedFrames );
+        return pResolvedFrames;
     }
 
     /***********************************************************************************\
@@ -472,6 +537,8 @@ namespace Profiler
         frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
         frameData.m_EndTimestamp = 0;
 
+        frameData.m_FrameDelimiter = frame.m_FrameDelimiter;
+
         // Collect per-frame stats
         for( const auto& submitBatch : frame.m_CompleteSubmits )
         {
@@ -488,6 +555,9 @@ namespace Profiler
         }
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
+
+        // Collect memory data.
+        frameData.m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();
 
         // Return CPU data.
         frameData.m_CPU.m_BeginTimestamp = frame.m_Timestamp;
@@ -550,19 +620,17 @@ namespace Profiler
 
                 if( m_VendorMetricsSetIndex != UINT32_MAX )
                 {
+                    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metricsProperties =
+                        m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( m_VendorMetricsSetIndex );
+
                     // Preallocate space for the metrics properties.
-                    uint32_t vendorMetricsCount = m_pProfiler->m_MetricsApiINTEL.GetMetricsCount( m_VendorMetricsSetIndex );
-                    m_VendorMetricProperties.resize( vendorMetricsCount );
+                    m_VendorMetricProperties.resize( metricsProperties.size() );
 
                     // Copy metrics properties to the local vector.
-                    VkResult result = m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties(
-                        m_VendorMetricsSetIndex,
-                        &vendorMetricsCount,
-                        m_VendorMetricProperties.data() );
-
-                    if( result != VK_SUCCESS )
+                    if( !metricsProperties.empty() )
                     {
-                        m_VendorMetricProperties.clear();
+                        memcpy( m_VendorMetricProperties.data(), metricsProperties.data(),
+                            metricsProperties.size() * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
                     }
                 }
                 else
@@ -815,20 +883,21 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        auto it = aggregatedPipelines.find( pipeline.m_ShaderTuple.m_Hash );
-        if( it == aggregatedPipelines.end() )
-        {
-            // Create aggregated data struct for this pipeline
-            DeviceProfilerPipelineData aggregatedPipelineData = {};
-            aggregatedPipelineData.m_Handle = pipeline.m_Handle;
-            aggregatedPipelineData.m_BindPoint = pipeline.m_BindPoint;
-            aggregatedPipelineData.m_ShaderTuple = pipeline.m_ShaderTuple;
+        auto emplaced = aggregatedPipelines.try_emplace(
+            pipeline.m_ShaderTuple.m_Hash,
+            static_cast<const DeviceProfilerPipeline&>( pipeline ) );
 
-            it = aggregatedPipelines.emplace( pipeline.m_ShaderTuple.m_Hash, aggregatedPipelineData ).first;
+        DeviceProfilerPipelineData& aggregatedPipelineData = emplaced.first->second;
+
+        if( emplaced.second )
+        {
+            // Initialize aggregated pipeline data if new element was inserted into the map
+            aggregatedPipelineData.m_BeginTimestamp.m_Value = 0;
+            aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
         }
 
         // Increase total pipeline time
-        (*it).second.m_EndTimestamp.m_Value += (pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value);
+        aggregatedPipelineData.m_EndTimestamp.m_Value += ( pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value );
     }
 
     /***********************************************************************************\
@@ -966,6 +1035,10 @@ namespace Profiler
 
         if( result == VK_SUCCESS )
         {
+            // Shared lock because application should have already synchronized the access,
+            // but a Present may cause the overlay commands to be submitted from another thread.
+            std::shared_lock lk( m_pProfiler->m_pDevice->Queues.at( submitBatch.m_Handle ).Mutex );
+
             // Submit the fence, and optionally the command buffer, for execution.
             result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
                 submitBatch.m_Handle,

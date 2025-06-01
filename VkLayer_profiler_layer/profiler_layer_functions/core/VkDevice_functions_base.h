@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,8 @@
 #pragma once
 #include "profiler/profiler.h"
 #include "profiler_overlay/profiler_overlay.h"
+#include "profiler_overlay/profiler_overlay_layer_backend.h"
+#include "profiler_layer_objects/profiler_layer_frontend.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_functions/Dispatch.h"
 #include <vulkan/vk_layer.h>
@@ -46,8 +48,9 @@ namespace Profiler
         {
             VkDevice_Object Device;
             DeviceProfiler Profiler;
-
-            ProfilerOverlayOutput Overlay;
+            DeviceProfilerLayerFrontend ProfilerFrontend;
+            OverlayLayerBackend OverlayBackend;
+            std::unique_ptr<DeviceProfilerOutput> pOutput;
         };
 
         static DispatchableMap<Dispatch> DeviceDispatch;

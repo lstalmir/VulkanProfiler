@@ -18,15 +18,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 set (PROFILER_PLATFORM_FOUND 0)
 
 if (WIN32)
-    include (CMake/platform_windows.cmake)
+    include (CMake/platform_windows.cmake NO_POLICY_SCOPE)
 endif ()
 if (UNIX)
-    include (CMake/platform_linux.cmake)
+    include (CMake/platform_linux.cmake NO_POLICY_SCOPE)
 endif ()
 
 if (NOT PROFILER_PLATFORM_FOUND)

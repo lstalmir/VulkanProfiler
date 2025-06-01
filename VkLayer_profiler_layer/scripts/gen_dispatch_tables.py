@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2019-2024 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -98,7 +98,15 @@ class DispatchTableGenerator:
         out.write( "#pragma once\n" )
         out.write( "#include <vulkan/vulkan.h>\n" )
         out.write( "#include <vulkan/vk_layer.h>\n" )
-        out.write( "#include <string.h>\n\n" )
+        out.write( "#include <string.h>\n" )
+        out.write( "#include <optional>\n\n" )
+
+        out.write( "enum class VkLayerFunctionNotFoundBehavior {\n" )
+        out.write( "  eReturnNextLayer = 0,\n" )
+        out.write( "  eReturnNullptr = 1,\n" )
+        out.write( "  eReturnNullopt = 2\n" )
+        out.write( "};\n\n" )
+
         self.write_commands_struct( out, self.instance_dispatch_table, "VkLayerInstanceDispatchTable", "VkInstance", "GetInstanceProcAddr" )
         self.write_commands_struct( out, self.device_dispatch_table,   "VkLayerDeviceDispatchTable",   "VkDevice",   "GetDeviceProcAddr" )
 
@@ -118,13 +126,21 @@ class DispatchTableGenerator:
         out.write( "  }\n\n" )
         
         # GetProcAddr of the known command or call the next layer
-        out.write( f"  PFN_vkVoidFunction Get( {handle_type} handle, const char* pName ) const {{\n" )
+        out.write( f"  std::optional<PFN_vkVoidFunction> Get( {handle_type} handle, const char* pName, VkLayerFunctionNotFoundBehavior notFoundBehavior = VkLayerFunctionNotFoundBehavior::eReturnNextLayer ) const {{\n" )
         out.write( "    // Try to return the loaded function address first to avoid unnecessary calls to the next layer.\n" )
         for extension, commands in items:
             self.write_extension_commands( out, extension, commands, "    if( !strcmp( \"vk{name}\", pName ) ) return (PFN_vkVoidFunction) {name};\n" )
-        out.write( "    // Function not found in the cache, invoke next layer.\n" )
-        out.write( "    // The function could have been added in the newer Vulkan version, so this layer may be unaware of it.\n" )
-        out.write( f"    return {get_proc_addr}( handle, pName );\n" )
+        out.write( "    switch( notFoundBehavior ) {\n" )
+        out.write( "    case VkLayerFunctionNotFoundBehavior::eReturnNextLayer:\n" )
+        out.write( "    default:\n" )
+        out.write( "      // Function not found in the cache, invoke next layer.\n" )
+        out.write( "      // The function could have been added in the newer Vulkan version, so this layer may be unaware of it.\n" )
+        out.write( f"      return {get_proc_addr}( handle, pName );\n" )
+        out.write( "    case VkLayerFunctionNotFoundBehavior::eReturnNullptr:\n" )
+        out.write( "      return nullptr;\n" )
+        out.write( "    case VkLayerFunctionNotFoundBehavior::eReturnNullopt:\n" )
+        out.write( "      return std::nullopt;\n" )
+        out.write( "    }\n" )
         out.write( "  }\n" )
         out.write( "};\n\n" )
 

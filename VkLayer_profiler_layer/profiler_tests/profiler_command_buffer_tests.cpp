@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2024 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 
 #include "profiler_testing_common.h"
 #include "profiler_vulkan_simple_triangle.h"
+#include "profiler/profiler_stat_comparators.h"
 
 #define VALIDATE_RANGES( parentRange, childRange ) \
     { const auto parentRange##_Time = GetDuration(parentRange); \
@@ -81,7 +82,7 @@ namespace Profiler
         allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocateInfo.commandBufferCount = 1;
         allocateInfo.commandPool = Vk->CommandPool;
-        ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffer ) );
+        ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffer ) );
 
         ASSERT_EQ( 1, Prof->m_pCommandBuffers.size() );
         const auto it = Prof->m_pCommandBuffers.cbegin();
@@ -93,7 +94,7 @@ namespace Profiler
     TEST_F( ProfilerCommandBufferULT, ProfileSecondaryCommandBuffer )
     {
         // Create simple triangle app
-        VulkanSimpleTriangle simpleTriangle( Vk, IDT, DT );
+        VulkanSimpleTriangle simpleTriangle( Vk );
         VkCommandBuffer commandBuffers[ 2 ] = {};
 
         { // Allocate command buffers
@@ -102,9 +103,9 @@ namespace Profiler
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocateInfo.commandBufferCount = 1;
             allocateInfo.commandPool = Vk->CommandPool;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[ 0 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[ 0 ] ) );
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[ 1 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[ 1 ] ) );
         }
         { // Begin secondary command buffer
             VkCommandBufferInheritanceInfo inheritanceInfo = {};
@@ -115,20 +116,20 @@ namespace Profiler
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
             beginInfo.pInheritanceInfo = &inheritanceInfo;
-            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffers[ 1 ], &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[ 1 ], &beginInfo ) );
         }
         { // Record commands
-            DT.CmdBindPipeline( commandBuffers[ 1 ], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
-            DT.CmdDraw( commandBuffers[ 1 ], 3, 1, 0, 0 );
+            vkCmdBindPipeline( commandBuffers[ 1 ], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            vkCmdDraw( commandBuffers[ 1 ], 3, 1, 0, 0 );
         }
         { // End secondary command buffer
-            DT.EndCommandBuffer( commandBuffers[ 1 ] );
+            vkEndCommandBuffer( commandBuffers[ 1 ] );
         }
         { // Begin primary command buffer
             VkCommandBufferBeginInfo beginInfo = {};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffers[ 0 ], &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[ 0 ], &beginInfo ) );
         }
         { // Image layout transitions
             VkImageMemoryBarrier barrier = {};
@@ -144,7 +145,7 @@ namespace Profiler
             barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
             barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 
-            DT.CmdPipelineBarrier( commandBuffers[ 0 ],
+            vkCmdPipelineBarrier( commandBuffers[ 0 ],
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
@@ -158,27 +159,29 @@ namespace Profiler
             beginInfo.renderPass = simpleTriangle.RenderPass;
             beginInfo.renderArea = simpleTriangle.RenderArea;
             beginInfo.framebuffer = simpleTriangle.Framebuffer;
-            DT.CmdBeginRenderPass( commandBuffers[ 0 ], &beginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
+            vkCmdBeginRenderPass( commandBuffers[ 0 ], &beginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
         }
         { // Submit secondary command buffer
-            DT.CmdExecuteCommands( commandBuffers[ 0 ], 1, &commandBuffers[ 1 ] );
+            vkCmdExecuteCommands( commandBuffers[ 0 ], 1, &commandBuffers[ 1 ] );
         }
         { // End render pass
-            DT.CmdEndRenderPass( commandBuffers[ 0 ] );
+            vkCmdEndRenderPass( commandBuffers[ 0 ] );
         }
         { // End primary command buffer
-            ASSERT_EQ( VK_SUCCESS, DT.EndCommandBuffer( commandBuffers[ 0 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffers[ 0 ] ) );
         }
         { // Submit primary command buffer
             VkSubmitInfo submitInfo = {};
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffers[ 0 ];
-            ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
         { // Collect data
+            vkDeviceWaitIdle( Vk->Device );
             Prof->FinishFrame();
-
-            const auto& data = Prof->GetData();
+        }
+        { // Validate data
+            const auto& data = *Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -187,7 +190,7 @@ namespace Profiler
 
             const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
             EXPECT_EQ( commandBuffers[ 0 ], cmdBufferData.m_Handle );
-            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawStats.m_Count );
             EXPECT_FALSE( cmdBufferData.m_RenderPasses.empty() );
 
             const auto& renderPassData = cmdBufferData.m_RenderPasses.front();
@@ -206,7 +209,7 @@ namespace Profiler
             const auto& secondaryCmdBufferData = std::get<DeviceProfilerCommandBufferData>( subpassContentsData );
             EXPECT_EQ( commandBuffers[ 1 ], secondaryCmdBufferData.m_Handle );
             EXPECT_FALSE( secondaryCmdBufferData.m_RenderPasses.empty() );
-            EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawStats.m_Count );
             VALIDATE_RANGES( subpassData, secondaryCmdBufferData );
 
             const auto& inheritedRenderPassData = secondaryCmdBufferData.m_RenderPasses.front();
@@ -246,7 +249,7 @@ namespace Profiler
         }
 
         // Create simple triangle app
-        VulkanSimpleTriangle simpleTriangle( Vk, IDT, DT );
+        VulkanSimpleTriangle simpleTriangle( Vk );
         VkCommandBuffer commandBuffers[4] = {};
 
         { // Allocate command buffers
@@ -255,10 +258,10 @@ namespace Profiler
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocateInfo.commandBufferCount = 1;
             allocateInfo.commandPool = Vk->CommandPool;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[0] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[0] ) );
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
             allocateInfo.commandBufferCount = 3;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[1] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[1] ) );
         }
         { // Begin secondary command buffer
             VkCommandBufferInheritanceInfo inheritanceInfo = {};
@@ -269,14 +272,14 @@ namespace Profiler
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
             beginInfo.pInheritanceInfo = &inheritanceInfo;
-            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffers[1], &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[1], &beginInfo ) );
         }
         { // Record commands
-            DT.CmdBindPipeline( commandBuffers[1], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
-            DT.CmdDraw( commandBuffers[1], 3, 1, 0, 0 );
+            vkCmdBindPipeline( commandBuffers[1], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            vkCmdDraw( commandBuffers[1], 3, 1, 0, 0 );
         }
         { // End secondary command buffer
-            DT.EndCommandBuffer( commandBuffers[1] );
+            vkEndCommandBuffer( commandBuffers[1] );
         }
         for( int i = 2; i < 4; ++i )
         { // Record nested command buffers
@@ -288,15 +291,15 @@ namespace Profiler
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
             beginInfo.pInheritanceInfo = &inheritanceInfo;
-            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffers[i], &beginInfo ) );
-            DT.CmdExecuteCommands( commandBuffers[i], 1, &commandBuffers[i - 1] );
-            DT.EndCommandBuffer( commandBuffers[i] );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[i], &beginInfo ) );
+            vkCmdExecuteCommands( commandBuffers[i], 1, &commandBuffers[i - 1] );
+            vkEndCommandBuffer( commandBuffers[i] );
         }
         { // Begin primary command buffer
             VkCommandBufferBeginInfo beginInfo = {};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffers[0], &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[0], &beginInfo ) );
         }
         { // Image layout transitions
             VkImageMemoryBarrier barrier = {};
@@ -312,7 +315,7 @@ namespace Profiler
             barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
             barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 
-            DT.CmdPipelineBarrier( commandBuffers[0],
+            vkCmdPipelineBarrier( commandBuffers[0],
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
@@ -326,27 +329,29 @@ namespace Profiler
             beginInfo.renderPass = simpleTriangle.RenderPass;
             beginInfo.renderArea = simpleTriangle.RenderArea;
             beginInfo.framebuffer = simpleTriangle.Framebuffer;
-            DT.CmdBeginRenderPass( commandBuffers[0], &beginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
+            vkCmdBeginRenderPass( commandBuffers[0], &beginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
         }
         { // Submit secondary command buffer
-            DT.CmdExecuteCommands( commandBuffers[0], 1, &commandBuffers[3] );
+            vkCmdExecuteCommands( commandBuffers[0], 1, &commandBuffers[3] );
         }
         { // End render pass
-            DT.CmdEndRenderPass( commandBuffers[0] );
+            vkCmdEndRenderPass( commandBuffers[0] );
         }
         { // End primary command buffer
-            ASSERT_EQ( VK_SUCCESS, DT.EndCommandBuffer( commandBuffers[0] ) );
+            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffers[0] ) );
         }
         { // Submit primary command buffer
             VkSubmitInfo submitInfo = {};
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffers[0];
-            ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
         { // Collect data
+            vkDeviceWaitIdle( Vk->Device );
             Prof->FinishFrame();
-
-            const auto& data = Prof->GetData();
+        }
+        { // Validate data
+            const auto& data = *Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -356,7 +361,7 @@ namespace Profiler
             // Primary command buffer
             const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
             EXPECT_EQ( commandBuffers[0], cmdBufferData.m_Handle );
-            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawStats.m_Count );
             EXPECT_FALSE( cmdBufferData.m_RenderPasses.empty() );
 
             const auto& renderPassData = cmdBufferData.m_RenderPasses.front();
@@ -375,7 +380,7 @@ namespace Profiler
             const auto& secondaryCmdBufferData = std::get<DeviceProfilerCommandBufferData>( subpassContentsData );
             EXPECT_EQ( commandBuffers[3], secondaryCmdBufferData.m_Handle );
             EXPECT_FALSE( secondaryCmdBufferData.m_RenderPasses.empty() );
-            EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawStats.m_Count );
             VALIDATE_RANGES( subpassData, secondaryCmdBufferData );
 
             // Secondary [3]
@@ -395,7 +400,7 @@ namespace Profiler
             const auto& secondaryCmdBufferData2 = std::get<DeviceProfilerCommandBufferData>( inheritedSubpassContentsData );
             EXPECT_EQ( commandBuffers[2], secondaryCmdBufferData2.m_Handle );
             EXPECT_FALSE( secondaryCmdBufferData2.m_RenderPasses.empty() );
-            EXPECT_EQ( 1, secondaryCmdBufferData2.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, secondaryCmdBufferData2.m_Stats.m_DrawStats.m_Count );
             VALIDATE_RANGES( inheritedSubpassData, secondaryCmdBufferData2 );
 
             // Secondary [2]
@@ -415,7 +420,7 @@ namespace Profiler
             const auto& secondaryCmdBufferData3 = std::get<DeviceProfilerCommandBufferData>( inheritedSubpassContentsData2 );
             EXPECT_EQ( commandBuffers[1], secondaryCmdBufferData3.m_Handle );
             EXPECT_FALSE( secondaryCmdBufferData3.m_RenderPasses.empty() );
-            EXPECT_EQ( 1, secondaryCmdBufferData3.m_Stats.m_DrawCount );
+            EXPECT_EQ( 1, secondaryCmdBufferData3.m_Stats.m_DrawStats.m_Count );
             VALIDATE_RANGES( inheritedSubpassData2, secondaryCmdBufferData3 );
 
             // Secondary [1]
@@ -450,7 +455,7 @@ namespace Profiler
     TEST_F( ProfilerCommandBufferULT, MultipleCommandBufferSubmission )
     {
         // Create simple triangle app
-        VulkanSimpleTriangle simpleTriangle( Vk, IDT, DT );
+        VulkanSimpleTriangle simpleTriangle( Vk );
         VkCommandBuffer commandBuffer = {};
 
         { // Allocate command buffers
@@ -459,13 +464,13 @@ namespace Profiler
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocateInfo.commandBufferCount = 1;
             allocateInfo.commandPool = Vk->CommandPool;
-            ASSERT_EQ( VK_SUCCESS, DT.AllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffer ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffer ) );
         }
         { // Begin command buffer
             VkCommandBufferBeginInfo beginInfo = {};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-            ASSERT_EQ( VK_SUCCESS, DT.BeginCommandBuffer( commandBuffer, &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffer, &beginInfo ) );
         }
         { // Image layout transitions
             VkImageMemoryBarrier barrier = {};
@@ -481,7 +486,7 @@ namespace Profiler
             barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
             barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 
-            DT.CmdPipelineBarrier( commandBuffer,
+            vkCmdPipelineBarrier( commandBuffer,
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
@@ -495,28 +500,30 @@ namespace Profiler
             beginInfo.renderPass = simpleTriangle.RenderPass;
             beginInfo.renderArea = simpleTriangle.RenderArea;
             beginInfo.framebuffer = simpleTriangle.Framebuffer;
-            DT.CmdBeginRenderPass( commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
+            vkCmdBeginRenderPass( commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
         }
         { // Record commands
-            DT.CmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
-            DT.CmdDraw( commandBuffer, 3, 1, 0, 0 );
+            vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
         }
         { // End render pass
-            DT.CmdEndRenderPass( commandBuffer );
+            vkCmdEndRenderPass( commandBuffer );
         }
         { // End command buffer
-            ASSERT_EQ( VK_SUCCESS, DT.EndCommandBuffer( commandBuffer ) );
+            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffer ) );
         }
         { // Submit command buffer 2 times
             VkSubmitInfo submitInfo = {};
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffer;
-            ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
-        { // Validate first submit data
+        { // Collect data
+            vkDeviceWaitIdle( Vk->Device );
             Prof->FinishFrame();
-
-            const auto& data = Prof->GetData();
+        }
+        { // Validate data
+            const auto& data = *Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -525,19 +532,20 @@ namespace Profiler
 
             const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
             EXPECT_EQ( commandBuffer, cmdBufferData.m_Handle );
-            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
-            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_PipelineBarrierCount );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawStats.m_Count );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_PipelineBarrierStats.m_Count );
         }
         { // Submit command buffer again
             VkSubmitInfo submitInfo = {};
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffer;
-            ASSERT_EQ( VK_SUCCESS, DT.QueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
-        { // Validate second submit data
+        { // Collect data
             Prof->FinishFrame();
-
-            const auto& data = Prof->GetData();
+        }
+        { // Validate data
+            const auto& data = *Prof->GetData();
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -546,8 +554,8 @@ namespace Profiler
 
             const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
             EXPECT_EQ( commandBuffer, cmdBufferData.m_Handle );
-            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawCount );
-            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_PipelineBarrierCount );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawStats.m_Count );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_PipelineBarrierStats.m_Count );
         }
     }
 }

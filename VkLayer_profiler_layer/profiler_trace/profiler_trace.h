@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,10 +19,12 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
+#include <mutex>
 
 namespace Profiler
 {
@@ -60,24 +62,21 @@ namespace Profiler
     class DeviceProfilerTraceSerializer
     {
     public:
-        template<typename GpuDurationType>
-        inline DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, GpuDurationType gpuTimestampPeriod )
-            : DeviceProfilerTraceSerializer(
-                pStringSerializer,
-                std::chrono::duration_cast<Milliseconds>(gpuTimestampPeriod) )
-        {
-        }
-
-        DeviceProfilerTraceSerializer( const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
+        DeviceProfilerTraceSerializer( DeviceProfilerFrontend& frontend );
         ~DeviceProfilerTraceSerializer();
 
+        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
         DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+
+        DeviceProfilerTraceSerializationResult SaveEventsToFile( const std::string& fileName );
 
         static std::string GetDefaultTraceFileName( int samplingMode );
 
     private:
-        const class DeviceProfilerStringSerializer* m_pStringSerializer;
-        const class DeviceProfilerJsonSerializer* m_pJsonSerializer;
+        DeviceProfilerFrontend& m_Frontend;
+
+        class DeviceProfilerStringSerializer* m_pStringSerializer;
+        class DeviceProfilerJsonSerializer* m_pJsonSerializer;
 
         // Currently serialized frame data
         const struct DeviceProfilerFrameData* m_pData;
@@ -98,7 +97,7 @@ namespace Profiler
         uint64_t     m_HostTimestampFrequency;
         Milliseconds m_GpuTimestampPeriod;
 
-        void SetupTimestampNormalizationConstants( VkQueue );
+        void SetupTimestampNormalizationConstants();
         Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 
@@ -116,8 +115,48 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
-        void SaveEventsToFile( const std::string&, DeviceProfilerTraceSerializationResult& );
-
         void Cleanup();
+    };
+
+    /*************************************************************************\
+
+    Class:
+        ProfilerTraceOutput
+
+    Description:
+        Reads data from the profiler and writes it to a file.
+
+    \*************************************************************************/
+    class ProfilerTraceOutput : public DeviceProfilerOutput
+    {
+    public:
+        ProfilerTraceOutput( DeviceProfilerFrontend& frontend );
+        ~ProfilerTraceOutput();
+
+        bool Initialize() override;
+        void Destroy() override;
+
+        bool IsAvailable() override;
+
+        void Update() override;
+        void Present() override;
+
+        void SetOutputFileName( const std::string& fileName );
+        void SetMaxFrameCount( uint32_t maxFrameCount );
+
+    private:
+        DeviceProfilerStringSerializer* m_pStringSerializer;
+        DeviceProfilerTraceSerializer* m_pTraceSerializer;
+        std::mutex m_TraceSerializerMutex;
+
+        std::string m_OutputFileName;
+
+        uint32_t m_MaxFrameCount;
+        uint32_t m_SerializedFrameCount;
+        bool m_Flushed;
+
+        void ResetMembers();
+
+        void Flush();
     };
 }

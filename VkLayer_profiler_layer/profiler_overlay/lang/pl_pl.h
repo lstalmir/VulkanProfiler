@@ -30,7 +30,9 @@ namespace Profiler
         inline static constexpr char Device[] = u8"Urządzenie";
         inline static constexpr char Instance[] = u8"Instancja";
         inline static constexpr char Pause[] = u8"Wstrzymaj";
-        inline static constexpr char Save[] = u8"Zapisz dane";
+        inline static constexpr char Save[] = u8"Zapisz";
+        inline static constexpr char Load[] = u8"Wczytaj";
+        inline static constexpr char SaveTrace[] = u8"Zapisz dane";
 
         // Menu
         inline static constexpr char FileMenu[] = u8"Plik" PROFILER_MENU;
@@ -43,6 +45,8 @@ namespace Profiler
         inline static constexpr char InspectorMenuItem[] = u8"Inspektor" PROFILER_MENU_ITEM;
         inline static constexpr char StatisticsMenuItem[] = u8"Statystyki" PROFILER_MENU_ITEM;
         inline static constexpr char SettingsMenuItem[] = u8"Ustawienia" PROFILER_MENU_ITEM;
+        inline static constexpr char ApplicationInfoMenuItem[] = u8"Informacje o aplikacji" PROFILER_MENU_ITEM;
+        inline static constexpr char Fullscreen[] = u8"Pełny ekran";
 
         // Tabs
         inline static constexpr char Performance[] = u8"Wydajność###Performance";
@@ -50,10 +54,13 @@ namespace Profiler
         inline static constexpr char Inspector[] = u8"Inspektor###Inspector";
         inline static constexpr char Statistics[] = u8"Statystyki###Statistics";
         inline static constexpr char Settings[] = u8"Ustawienia###Settings";
+        inline static constexpr char ApplicationInfo[] = "Informacje o aplikacji###ApplicationInfo";
 
         // Performance tab
         inline static constexpr char GPUTime[] = u8"Czas GPU";
         inline static constexpr char CPUTime[] = u8"Czas CPU";
+        inline static constexpr char Frames[] = u8"Ramki###Frames";
+        inline static constexpr char Submits[] = u8"Przesłania komend###Frames";
         inline static constexpr char RenderPasses[] = u8"Render passy";
         inline static constexpr char Pipelines[] = u8"Stany potoku";
         inline static constexpr char Drawcalls[] = u8"Komendy";
@@ -61,13 +68,21 @@ namespace Profiler
         inline static constexpr char Duration[] = u8"Czas trwania";
         inline static constexpr char Height[] = u8"Wysokość";
         inline static constexpr char ShowIdle[] = u8"Pokaż przerwy";
+        inline static constexpr char ShowActiveFrame[] = u8"Pokaż aktywną ramkę";
         inline static constexpr char HistogramGroups[] = u8"Grupowanie histogramu";
         inline static constexpr char GPUCycles[] = u8"Cykle GPU";
         inline static constexpr char QueueUtilization[] = u8"Wykorzystanie kolejek###QueueUtilization";
         inline static constexpr char TopPipelines[] = u8"Najdłuższe stany potoku###Top pipelines";
         inline static constexpr char PerformanceCounters[] = u8"Liczniki wydajności###Performance counters";
         inline static constexpr char Metric[] = u8"Metryka";
+        inline static constexpr char Contrib[] = u8"Udział";
         inline static constexpr char Frame[] = u8"Ramka";
+        inline static constexpr char Pipeline[] = u8"Stan potoku";
+        inline static constexpr char Stages[] = u8"Shadery";
+        inline static constexpr char Capabilities[] = u8"Funkcjonalności";
+        inline static constexpr char SetRef[] = u8"Ustaw ref";
+        inline static constexpr char ClearRef[] = u8"Wyczyść ref";
+        inline static constexpr char Value[] = u8"Wartość";
         inline static constexpr char FrameBrowser[] = u8"Przeglądarka ramki###Frame browser";
         inline static constexpr char SubmissionOrder[] = u8"Kolejność wykonania";
         inline static constexpr char DurationDescending[] = u8"Malejący czas wykonania";
@@ -75,6 +90,13 @@ namespace Profiler
         inline static constexpr char Sort[] = u8"Sortowanie";
         inline static constexpr char CustomStatistics[] = u8"Własne statystyki";
         inline static constexpr char Container[] = u8"Kontener";
+        inline static constexpr char Inspect[] = u8"Inspekcja";
+        inline static constexpr char ShowPerformanceMetrics[] = u8"Pokaż liczniki wydajności";
+        inline static constexpr char SelectedFrame[] = u8"Wybrana ramka";
+        inline static constexpr char CopyToClipboard[] = u8"Kopiuj do schowka";
+        inline static constexpr char CopyName[] = u8"Kopiuj nazwę";
+        inline static constexpr char ShowMore[] = u8"Pokaż więcej...";
+        inline static constexpr char ShowLess[] = u8"Pokaż mniej";
 
         inline static constexpr char ShaderCapabilityTooltipFmt[] = u8"Co najmniej jeden shader w potoku korzysta z funkcjonalności '%s'.";
         inline static constexpr char ShaderObjectsTooltip[] = u8"Potok utworzony z objektów VkShaderEXT za pomocą vkCmdBindShadersEXT.";
@@ -125,14 +147,20 @@ namespace Profiler
         inline static constexpr char PipelineStateNotAvailable[] = u8"Informacje o stanie potoku nie są dostępne.";
 
         // Settings tab
-        inline static constexpr char Present[] = u8"Co ramkę";
-        inline static constexpr char Submit[] = u8"Co przesłanie komend";
         inline static constexpr char SamplingMode[] = u8"Częstotliwość próbkowania";
-        inline static constexpr char SyncMode[] = u8"Częstotliwość synchronizacji";
+        inline static constexpr char FrameDelimiter[] = u8"Podział ramek";
         inline static constexpr char InterfaceScale[] = u8"Skala interfejsu";
+        inline static constexpr char CollectedFrameCount[] = u8"Liczba zebranych ramek";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
         inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
         inline static constexpr char TimeUnit[] = u8"Jednostka czasu";
+
+        // Application info window
+        inline static constexpr char VulkanVersion[] = u8"Wersja Vulkan";
+        inline static constexpr char ApplicationName[] = u8"Nazwa aplikacji";
+        inline static constexpr char ApplicationVersion[] = u8"Wersja aplikacji";
+        inline static constexpr char EngineName[] = u8"Nazwa silnika";
+        inline static constexpr char EngineVersion[] = u8"Wersja silnika";
 
         inline static constexpr char Unknown[] = u8"Nieznany";
     };

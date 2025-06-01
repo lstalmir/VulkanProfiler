@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -47,6 +47,30 @@ namespace ImGuiX
 
     /*************************************************************************\
 
+        TableSetupColumn
+
+    \*************************************************************************/
+    void TableSetupColumn(
+        const char* label,
+        ImGuiTableColumnFlags flags,
+        ImGuiXTableColumnFlags xflags,
+        float init_width_or_weight,
+        ImU32 user_id )
+    {
+        ImGui::TableSetupColumn( label, flags, init_width_or_weight, user_id );
+
+        if( xflags & ImGuiXTableColumnFlags_AlignHeaderRight )
+        {
+            ImGuiTable* table = ImGui::GetCurrentTable();
+            IM_ASSERT( table );
+
+            table->ColumnsNames.Buf.pop_back(); // Remove '\0' terminator.
+            table->ColumnsNames.append( "##>" );
+        }
+    }
+
+    /*************************************************************************\
+
         TableHeadersRow
 
     \*************************************************************************/
@@ -57,8 +81,11 @@ namespace ImGuiX
         ImGuiTable* table = ImGui::GetCurrentTable();
         IM_ASSERT( table );
 
+        const float row_y1 = ImGui::GetCursorScreenPos().y;
+        const float row_height = TableGetHeaderRowHeight();
+
         // Draw the headers row.
-        ImGui::TableNextRow();
+        ImGui::TableNextRow( 0, row_height );
 
         if( font )
         {
@@ -69,14 +96,43 @@ namespace ImGuiX
         {
             if( ImGui::TableNextColumn() )
             {
+                if( table->Columns[i].Flags & ImGuiTableColumnFlags_NoHeaderLabel )
+                {
+                    continue;
+                }
+
                 ImS16 offset = table->Columns[i].NameOffset;
-                ImGui::TextUnformatted( &table->ColumnsNames.Buf.Data[offset] );
+                if( offset != -1 )
+                {
+                    const char* column_name = &table->ColumnsNames.Buf.Data[offset];
+                    const char* display_text_end = ImGui::FindRenderedTextEnd( column_name );
+
+                    if( display_text_end[0] == '#' && display_text_end[1] == '#' && display_text_end[2] == '>' )
+                    {
+                        // Align header right.
+                        float column_name_width = ImGui::CalcTextSize( column_name, display_text_end ).x;
+                        float column_width = table->Columns[i].WidthGiven;
+                        float padding = table->OuterPaddingX * 2.f;
+                        ImGui::SetCursorPosX( ImGui::GetCursorPosX() + column_width - column_name_width - padding );
+                    }
+
+                    ImGui::TextUnformatted( column_name, display_text_end );
+                }
             }
         }
 
         if( font )
         {
             ImGui::PopFont();
+        }
+
+        // Handle context menu in headers row.
+        if( !( table->Flags & ImGuiTableFlags_ContextMenuInBody ) )
+        {
+            ImVec2 mouse_pos = ImGui::GetMousePos();
+            if( IsMouseReleased( ImGuiMouseButton_Right ) )
+                if( mouse_pos.y >= row_y1 && mouse_pos.y < row_y1 + row_height )
+                    TableOpenContextMenu( table->ColumnsCount );
         }
 
         // Draw a horizontal line below the headers row.

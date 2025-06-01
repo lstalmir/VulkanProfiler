@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -282,28 +282,28 @@ public:
 /***************************************************************************************\
 
 Function:
-    vkSetProfilerModeEXT
+    vkSetProfilerSamplingModeEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSamplingModeEXT(
     VkDevice device,
     VkProfilerModeEXT mode )
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-    return dd.Profiler.SetMode( mode );
+    return dd.Profiler.SetSamplingMode( mode );
 }
 
 /***************************************************************************************\
 
 Function:
-    vkGetProfilerModeEXT
+    vkGetProfilerSamplingModeEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerSamplingModeEXT(
     VkDevice device,
     VkProfilerModeEXT* pMode )
 {
@@ -314,33 +314,33 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
 /***************************************************************************************\
 
 Function:
-    vkSetProfilerSyncModeEXT
+    vkSetProfilerFrameDelimiterEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerFrameDelimiterEXT(
     VkDevice device,
-    VkProfilerSyncModeEXT syncMode )
+    VkProfilerFrameDelimiterEXT frameDelimiter )
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-    return dd.Profiler.SetSyncMode( syncMode );
+    return dd.Profiler.SetFrameDelimiter( frameDelimiter );
 }
 
 /***************************************************************************************\
 
 Function:
-    vkGetProfilerSyncModeEXT
+    vkGetProfilerFrameDelimiterEXT
 
 Description:
 
 \***************************************************************************************/
-VKAPI_ATTR void VKAPI_CALL vkGetProfilerSyncModeEXT(
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerFrameDelimiterEXT(
     VkDevice device,
-    VkProfilerSyncModeEXT* pSyncMode )
+    VkProfilerFrameDelimiterEXT* pFrameDelimiter )
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-    *pSyncMode = static_cast<VkProfilerSyncModeEXT>(dd.Profiler.m_Config.m_SyncMode.value);
+    *pFrameDelimiter = static_cast<VkProfilerFrameDelimiterEXT>(dd.Profiler.m_Config.m_FrameDelimiter.value);
 }
 
 /***************************************************************************************\
@@ -431,23 +431,40 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    VkResult result = VK_SUCCESS;
-
-    bool hasSufficientSpace = true;
-
     if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
     {
-        // Get reported metrics descriptions
-        result = dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties( metricsSetIndex, pProfilerMetricCount, pProfilerMetricProperties );
+        // Return metrics supported by Intel Metrics Discovery API.
+        const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& properties =
+            dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties( metricsSetIndex );
+
+        const uint32_t propertyCount = static_cast<uint32_t>( properties.size() );
+
+        if( pProfilerMetricProperties == nullptr )
+        {
+            ( *pProfilerMetricCount ) = propertyCount;
+            return VK_SUCCESS;
+        }
+
+        // Copy metrics set properties to the output buffer.
+        const uint32_t maxPropertyCount = std::min( *pProfilerMetricCount, propertyCount );
+        std::memcpy( pProfilerMetricProperties, properties.data(),
+            maxPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+
+        // Check if the output buffer was sufficient.
+        const uint32_t bufferSize = std::exchange( *pProfilerMetricCount, maxPropertyCount );
+        if( bufferSize < propertyCount )
+        {
+            return VK_INCOMPLETE;
+        }
     }
     else
     {
-        (*pProfilerMetricCount) = 0;
+        ( *pProfilerMetricCount ) = 0;
     }
 
     // TODO: Other metric sources (VK_KHR_performance_query)
 
-    return result;
+    return VK_SUCCESS;
 }
 
 /***************************************************************************************\
@@ -469,17 +486,38 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
 
     if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
     {
-        // Get reported metrics descriptions
-        result = dd.Profiler.m_MetricsApiINTEL.GetMetricsSets( pMetricsSetCount, pMetricSets );
+        // Return metrics sets supported by Intel Metrics Discovery API.
+        const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
+            dd.Profiler.m_MetricsApiINTEL.GetMetricsSets();
+
+        const uint32_t metricsSetCount = static_cast<uint32_t>( metricsSets.size() );
+
+        if( pMetricSets == nullptr )
+        {
+            ( *pMetricsSetCount ) = metricsSetCount;
+            return VK_SUCCESS;
+        }
+
+        // Copy metrics set properties to the output buffer.
+        const uint32_t maxMetricsSetCount = std::min( *pMetricsSetCount, metricsSetCount );
+        std::memcpy( pMetricSets, metricsSets.data(),
+            maxMetricsSetCount * sizeof( VkProfilerPerformanceMetricsSetPropertiesEXT ) );
+
+        // Check if the output buffer was sufficient.
+        const uint32_t bufferSize = std::exchange( *pMetricsSetCount, maxMetricsSetCount );
+        if( bufferSize < metricsSetCount )
+        {
+            return VK_INCOMPLETE;
+        }
     }
     else
     {
-        (*pMetricsSetCount) = 0;
+        ( *pMetricsSetCount ) = 0;
     }
 
     // TODO: Other metric sources (VK_KHR_performance_query)
 
-    return result;
+    return VK_SUCCESS;
 }
 
 /***************************************************************************************\

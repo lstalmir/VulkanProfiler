@@ -49,6 +49,16 @@ namespace Profiler
         lock.unlock();
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+
+        // Consume the collected data
+        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        {
+            if( dd.pOutput )
+            {
+                dd.pOutput->Update();
+            }
+        }
+
         return result;
     }
 
@@ -79,6 +89,16 @@ namespace Profiler
         lock.unlock();
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+
+        // Consume the collected data
+        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        {
+            if( dd.pOutput )
+            {
+                dd.pOutput->Update();
+            }
+        }
+
         return result;
     }
 

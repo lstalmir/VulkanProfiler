@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 find_package (Python3 REQUIRED)
 
@@ -35,9 +35,12 @@ set (PROFILER_LAYER_FILEDESCRIPTION "Simple Vulkan(R) Profiling Layer")
 set (PROFILER_LAYER_LEGALCOPYRIGHT )
 set (PROFILER_LAYER_PRODUCTNAME "Vulkan(R) Profiling Layer")
 
+# Common directories
+set (PROFILER_SCRIPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
+
 # Generate version info
 execute_process (
-    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_version.py" "${CMAKE_BINARY_DIR}/profiler_version.cmake"
+    COMMAND "${Python3_EXECUTABLE}" "${PROFILER_SCRIPTS_DIR}/gen_version.py" "${CMAKE_BINARY_DIR}/profiler_version.cmake"
     RESULT_VARIABLE PROFILER_GEN_VERSION_INFO_RESULT)
 
 if (PROFILER_GEN_VERSION_INFO_RESULT STREQUAL "0")
@@ -72,7 +75,7 @@ message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
 
 # Generate layer manifest file
 set (json
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json
+    "${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json"
     )
 
 if (WIN32)
@@ -84,52 +87,52 @@ else ()
 endif ()
 
 configure_file (
-    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in
-    ${json}_configured
+    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in"
+    "${json}_configured"
     @ONLY)
     
 file (GENERATE
-    OUTPUT ${json}
-    INPUT ${json}_configured)
+    OUTPUT "${json}"
+    INPUT "${json}_configured")
     
 add_custom_command (
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
-    COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py
-        ${json}
-        --output ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h
-    DEPENDS ${json}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_config.py)
-list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h)
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_config.py"
+        "${json}"
+        --output "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
+    DEPENDS "${json}"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_config.py")
+list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h")
 
 # Generate dispatch tables
 add_custom_command (
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
-    COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py
-        ${VULKAN_HEADERS_INSTALL_DIR}
-        ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS ${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_dispatch_tables.py)
-list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h)
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
+        "${VULKAN_HEADERS_INSTALL_DIR}"
+        "${CMAKE_CURRENT_BINARY_DIR}"
+    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py")
+list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
 if (BUILD_SPIRV_DOCS)
     # Generate SPIR-V documentation
     add_custom_command (
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
-            ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
-        COMMAND ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py
-            --json ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
-            --grammar ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
-            --spec ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
-            --out-license ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE
-            --out-header ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h
-        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json
-        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json
-        DEPENDS ${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gen_spirv_docs.py)
-    list (APPEND PROFILER_CODEGEN_FILES ${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h)
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h"
+            "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
+        COMMAND "${Python3_EXECUTABLE}"
+            "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py"
+            --json "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json"
+            --grammar "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
+            --spec "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
+            --out-license "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
+            --out-header "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h"
+        DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json"
+        DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
+        DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
+        DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py")
+    list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h")
 endif ()
 
 add_custom_target (profiler_codegen
@@ -143,12 +146,13 @@ target_link_libraries (profiler_common
     INTERFACE VulkanMemoryAllocator
     INTERFACE SPIRV-Headers
     INTERFACE SPIRV-Tools
+    INTERFACE spirv-cross-c
     INTERFACE farmhash
     INTERFACE fmt
     INTERFACE nlohmann_json)
 target_include_directories (profiler_common
-    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
-    INTERFACE ${CMAKE_CURRENT_BINARY_DIR}
+    INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}"
+    INTERFACE "${CMAKE_CURRENT_BINARY_DIR}"
     INTERFACE utils)
 target_compile_definitions (profiler_common INTERFACE
     $<$<CONFIG:Debug>:PROFILER_CONFIG_DEBUG>
@@ -176,11 +180,11 @@ if (BUILD_TESTS)
 endif ()
 
 set (resource
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc
+    "${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc"
     )
 
 set (generated
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h
+    "${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h"
     )
 
 set (helper_functions
@@ -210,6 +214,10 @@ set (core_functions
 set (extension_functions
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.h"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.cpp"
+    "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.h"
+    "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.cpp"
+    "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkCreateRenderPass2Khr_functions.h"
     "profiler_layer_functions/extensions/VkDebugMarkerExt_functions.cpp"
@@ -228,6 +236,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkMeshShaderExt_functions.h"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.cpp"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.h"
+    "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.h"
     "profiler_layer_functions/extensions/VkPipelineExecutablePropertiesKhr_functions.h"
     "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkRayTracingMaintenance1Khr_functions.h"
@@ -241,6 +251,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkSwapchainKhr_functions.h"
     "profiler_layer_functions/extensions/VkSynchronization2Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkSynchronization2Khr_functions.h"
+    "profiler_layer_functions/extensions/VkToolingInfoExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkToolingInfoExt_functions.h"
     "profiler_layer_functions/extensions/VkWaylandSurfaceKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkWaylandSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkWin32SurfaceKhr_functions.cpp"
@@ -252,6 +264,8 @@ set (extension_functions
     )
 
 set (objects
+    "profiler_layer_objects/profiler_layer_frontend.cpp"
+    "profiler_layer_objects/profiler_layer_frontend.h"
     "profiler_layer_objects/VkDevice_object.h"
     "profiler_layer_objects/VkInstance_object.h"
     "profiler_layer_objects/VkObject.h"
@@ -269,17 +283,17 @@ source_group ("Objects" FILES ${objects})
 
 # Configure resources file
 configure_file (
-    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in
+    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in"
     ${resource}
     @ONLY)
 
 configure_file (
-    ${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h.in
+    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h.in"
     ${generated}
     @ONLY)
 
 add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
-    ${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h
+    "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
     ${helper_functions}
     ${core_functions}
     ${extension_functions}
@@ -300,25 +314,25 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC profiler_overlay
     PUBLIC profiler_trace)
 
-target_link_libraries (${PROFILER_LAYER_PROJECTNAME} PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
+target_link_libraries (${PROFILER_LAYER_PROJECTNAME}
+    PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
 
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
-    PUBLIC ${VULKAN_HEADERS_INCLUDE_DIR}
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/core
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/extensions
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/utils/ctrie/include)
+    PUBLIC "${VULKAN_HEADERS_INCLUDE_DIR}"
+    PUBLIC "${CMAKE_CURRENT_BINARY_DIR}"
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/core"
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/extensions")
 
 # Install target
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 
 # Copy JSON to the path where DLL/SO is installed
 if (WIN32)
-install (FILES ${json} DESTINATION ${CMAKE_INSTALL_BINDIR})
+install (FILES ${json} DESTINATION "${CMAKE_INSTALL_BINDIR}")
 else ()
-install (FILES ${json} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install (FILES ${json} DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 endif ()

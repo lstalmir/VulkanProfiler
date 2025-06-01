@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Lukasz Stalmirski
+# Copyright (c) 2024-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,8 @@ class LayerSetting:
     def c_type( self ):
         if self.type == "ENUM":
             return f"{self.key}_t"
+        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
+            return "std::string"
         return self.type.lower()
 
     def c_name( self ):
@@ -52,6 +54,8 @@ class LayerSetting:
             return "true" if self.default else "false"
         if self.type == "ENUM":
             return f"{self.c_type()}::{self.default}"
+        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
+            return f"\"{self.default}\""
         return str( self.default )
 
     def c_assign_from_string( self, string ):
@@ -59,14 +63,21 @@ class LayerSetting:
             return f"bool_t::TryParse({string}.c_str(), {self.c_name()})"
         if self.type == "ENUM":
             return f"{self.c_type()}::TryParse({string}.c_str(), {self.c_name()})"
-        if self.type == "STRING":
+        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
             return f"{self.c_name()} = {string}"
         return f"{self.c_name()} = static_cast<{self.c_type()}>(std::stoi({string}))"
 
 class LayerInfo:
     def __init__( self, j: dict ):
         self.name = j["name"]
-        self.settings = [LayerSetting( self, setting ) for setting in j["features"]["settings"]]
+        self.settings = self.__list_settings( j["features"] )
+
+    def __list_settings( self, j: dict ):
+        settings = []
+        for setting in j.get( "settings", [] ):
+            settings.append( LayerSetting( self, setting ) )
+            settings.extend( self.__list_settings( setting ) )
+        return settings
 
 def get_layer_info( path: str ):
     with open( path ) as file:

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 #include <map>
 #include <mutex>
 #include <memory>
+#include <stdexcept>
 
 namespace Profiler
 {
@@ -46,6 +47,12 @@ namespace Profiler
         if( strcmp( pName, #NAME ) == 0 )                                               \
         {                                                                               \
             return reinterpret_cast<PFN_vkVoidFunction>(NAME);                          \
+        }
+
+    #define GETPROCADDR_EXT_ALIAS( NAME, FUNC )                                         \
+        if( strcmp( pName, NAME ) == 0 )                                                \
+        {                                                                               \
+            return reinterpret_cast<PFN_vkVoidFunction>(FUNC);                          \
         }
 
     /***********************************************************************************\
@@ -86,7 +93,8 @@ namespace Profiler
             auto it = m_Dispatch.find( handle );
             if( it == m_Dispatch.end() )
             {
-                // TODO error
+                // Dispatch table not created for this object.
+                throw std::out_of_range( "Dispatch table not found" );
             }
 
             return *(it->second);
@@ -111,7 +119,10 @@ namespace Profiler
             auto it = m_Dispatch.emplace( handle, pTable );
             if( !it.second )
             {
-                // TODO error, should have created new value
+                // Vulkan spec, 3.3 Object Model
+                //  Each object of a dispatchable type must have a unique handle value during its lifetime.
+                // Call to Create() should always insert a new value into the map.
+                throw std::runtime_error( "Dispatch table already exists" );
             }
 
             return *pTable;

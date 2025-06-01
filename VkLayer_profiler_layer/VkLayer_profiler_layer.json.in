@@ -19,6 +19,10 @@
                     "vkSetDebugUtilsObjectNameEXT",
                     "vkSetDebugUtilsObjectTagEXT"
                 ]
+            },
+            {
+                "name": "VK_EXT_layer_settings",
+                "spec_version": "2"
             }
         ],
         "device_extensions": [
@@ -49,17 +53,57 @@
                     "vkDebugMarkerSetObjectNameEXT",
                     "vkDebugMarkerSetObjectTagEXT"
                 ]
+            },
+            {
+                "name": "VK_EXT_tooling_info",
+                "spec_version": "1",
+                "entrypoints": [
+                    "vkGetPhysicalDeviceToolPropertiesEXT"
+                ]
             }
         ],
         "features": {
             "settings": [
                 {
-                    "key": "enable_overlay",
-                    "label": "Enable overlay",
-                    "description": "Show an interactive overlay window with data on top of the profiled application.",
-                    "env": "VKPROF_enable_overlay",
-                    "type": "BOOL",
-                    "default": true
+                    "key": "output",
+                    "label": "Output",
+                    "description": "Output mode of the profiler.",
+                    "env": "VKPROF_output",
+                    "type": "ENUM",
+                    "default": "overlay",
+                    "flags": [
+                        {
+                            "key": "none",
+                            "label": "None",
+                            "description": "Do not write the data anywhere."
+                        },
+                        {
+                            "key": "overlay",
+                            "label": "Overlay",
+                            "description": "Show an interactive overlay window with data on top of the profiled application."
+                        },
+                        {
+                            "key": "trace",
+                            "label": "Trace file",
+                            "description": "Write profiling data to a trace file. The file will be created in the directory of the profiled application."
+                        }
+                    ],
+                    "settings": [
+                        {
+                            "key": "output_trace_file",
+                            "label": "Output trace file",
+                            "description": "Path to the output file.",
+                            "env": "VKPROF_output_trace_file",
+                            "type": "SAVE_FILE",
+                            "default": "",
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    { "key": "output", "value": "trace" }
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "key": "enable_performance_query_ext",
@@ -86,6 +130,14 @@
                     "default": false
                 },
                 {
+                    "key": "capture_indirect_arguments",
+                    "label": "Capture indirect arguments",
+                    "description": "Capture indirect argument buffers to show sub-commands contents.",
+                    "env": "VKPROF_capture_indirect_arguments",
+                    "type": "BOOL",
+                    "default": false
+                },
+                {
                     "key": "set_stable_power_state",
                     "label": "Set stable power state",
                     "description": "Use DirectX12 API to set stable power state for GPU time measurements.",
@@ -93,6 +145,42 @@
                     "platforms": [ "WINDOWS" ],
                     "type": "BOOL",
                     "default": true
+                },
+                {
+                    "key": "enable_threading",
+                    "label": "Enable threading",
+                    "description": "Create a background thread to collect and process the data.",
+                    "env": "VKPROF_enable_threading",
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
+                    "key": "frame_count",
+                    "label": "Frame count",
+                    "description": "Number of frames to collect and display in the overlay. Set 0 to collect all frames.",
+                    "env": "VKPROF_frame_count",
+                    "type": "INT",
+                    "default": 1
+                },
+                {
+                    "key": "frame_delimiter",
+                    "label": "Frame delimiter",
+                    "description": "API function to use for delimiting collected frames.",
+                    "env": "VKPROF_frame_delimiter",
+                    "type": "ENUM",
+                    "default": "present",
+                    "flags": [
+                        {
+                            "key": "present",
+                            "label": "Present",
+                            "description": "Delimit frames on each present. Recommended option for applications presenting rendered frames to the screen."
+                        },
+                        {
+                            "key": "submit",
+                            "label": "Submit",
+                            "description": "Delimit frames on each submission. Recommended for applications rendering offscreen or compute-only workloads."
+                        }
+                    ]
                 },
                 {
                     "key": "sampling_mode",
@@ -125,24 +213,20 @@
                     ]
                 },
                 {
-                    "key": "sync_mode",
-                    "label": "Synchronization mode",
-                    "description": "Frequency of data collection.",
-                    "env": "VKPROF_sync_mode",
-                    "type": "ENUM",
-                    "default": "present",
-                    "flags": [
-                        {
-                            "key": "present",
-                            "label": "On Present",
-                            "description": "Synchronize and collect data on each present (lower overhead)."
-                        },
-                        {
-                            "key": "submit",
-                            "label": "On Submit",
-                            "description": "Synchronize and collect data on each submit (higher overhead)."
-                        }
-                    ]
+                    "key": "ref_pipelines",
+                    "label": "Reference pipelines",
+                    "description": "Path to the file with reference durations of top pipelines to load automatically.",
+                    "env": "VKPROF_ref_pipelines",
+                    "type": "LOAD_FILE",
+                    "default": ""
+                },
+                {
+                    "key": "ref_metrics",
+                    "label": "Reference metrics",
+                    "description": "Path to the file with reference performance metrics to load automatically.",
+                    "env": "VKPROF_ref_metrics",
+                    "type": "LOAD_FILE",
+                    "default": ""
                 }
             ]
         }

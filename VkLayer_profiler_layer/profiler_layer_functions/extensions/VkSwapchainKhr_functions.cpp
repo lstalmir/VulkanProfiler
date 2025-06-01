@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "VkSwapchainKhr_functions.h"
+#include "profiler_layer_functions/Helpers.h"
 
 namespace Profiler
 {
@@ -42,7 +43,7 @@ namespace Profiler
 
         // TODO: Move to separate layer
         const bool createProfilerOverlay =
-            dd.Profiler.m_Config.m_EnableOverlay;
+            (dd.Profiler.m_Config.m_Output == Profiler::output_t::overlay);
 
         if( createProfilerOverlay )
         {
@@ -70,46 +71,55 @@ namespace Profiler
                 device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
 
             dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
+
+            // Resize the buffers to fit all frames in flight so that the data is not dropped when the next present is late.
+            dd.Profiler.SetMinDataBufferSize( swapchainImageCount + 1 );
         }
 
-        if( (result == VK_SUCCESS) && (createProfilerOverlay) )
+        if( createProfilerOverlay )
         {
-            if( !dd.Overlay.IsAvailable() )
+            if( dd.pOutput )
             {
-                // Select graphics queue for the overlay draw commands
-                VkQueue graphicsQueue = nullptr;
+                // Destroy the previous output before creating an overlay
+                dd.pOutput->Destroy();
+            }
 
-                for( auto& it : dd.Device.Queues )
+            if( result == VK_SUCCESS && !dd.OverlayBackend.IsInitialized() )
+            {
+                // Initialize overlay backend
+                result = dd.OverlayBackend.Initialize( dd.Device );
+            }
+
+            if( result == VK_SUCCESS )
+            {
+                // Set the target swapchain for the overlay
+                result = dd.OverlayBackend.SetSwapchain( *pSwapchain, *pCreateInfo );
+            }
+
+            if( result == VK_SUCCESS && !dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() ) )
+            {
+                // Destructor doesn't call Destroy, so explicit call is required to avoid resource leaks
+                if( dd.pOutput )
                 {
-                    if( it.second.Flags & VK_QUEUE_GRAPHICS_BIT )
-                    {
-                        graphicsQueue = it.second.Handle;
-                        break;
-                    }
+                    dd.pOutput->Destroy();
+                    dd.pOutput.reset();
                 }
 
-                if( !graphicsQueue )
+                // Initialize overlay for the first time
+                result = CreateUniqueObject<ProfilerOverlayOutput>(
+                    &dd.pOutput,
+                    dd.ProfilerFrontend,
+                    dd.OverlayBackend );
+            }
+
+            if( result == VK_SUCCESS )
+            {
+                // Initialize the overlay output
+                bool success = dd.pOutput->Initialize();
+                if( !success )
                 {
-                    // Could not find suitable queue
                     result = VK_ERROR_INITIALIZATION_FAILED;
                 }
-
-                if( result == VK_SUCCESS )
-                {
-                    // Initialize overlay for the first time
-                    result = dd.Overlay.Initialize(
-                        dd.Device,
-                        dd.Device.Queues.at( graphicsQueue ),
-                        dd.Device.Swapchains.at( *pSwapchain ),
-                        pCreateInfo );
-                }
-            }
-            else
-            {
-                // Reinitialize overlay for the new swapchain
-                result = dd.Overlay.ResetSwapchain(
-                    dd.Device.Swapchains.at( *pSwapchain ),
-                    pCreateInfo );
             }
         }
 
@@ -134,9 +144,16 @@ namespace Profiler
         // After recreating swapchain using CreateSwapchainKHR parent swapchain of the overlay has changed.
         // The old swapchain is then destroyed and will invalidate the overlay if we don't check which
         // swapchain is actually being destreoyed.
-        if( (dd.Overlay.IsAvailable()) && (dd.Overlay.GetSwapchain() == swapchain) )
+        if( dd.OverlayBackend.GetSwapchain() == swapchain )
         {
-            dd.Overlay.Destroy();
+            // Destroy the overlay output associated with the backend.
+            if( dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() ) )
+            {
+                dd.pOutput->Destroy();
+                dd.pOutput.reset();
+            }
+
+            dd.OverlayBackend.Destroy();
         }
 
         dd.Device.Swapchains.erase( swapchain );
@@ -159,24 +176,42 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( queue );
 
-        // Create mutable copy of present info
-        VkPresentInfoKHR presentInfo = *pPresentInfo;
-        // Get present queue wrapper
-        VkQueue_Object& presentQueue = dd.Device.Queues.at( queue );
-
+        // End profiling of the previous frame
         dd.Profiler.FinishFrame();
 
-        if( (dd.Overlay.IsAvailable()) &&
-            (dd.Overlay.GetSwapchain() == presentInfo.pSwapchains[ 0 ]) )
+        // Overlay rendering may be executed on a different queue than the one used for presenting.
+        // Synchronization of rendering is required, so override the pointer to the present info.
+        const bool overridePresentInfo =
+            ( dd.OverlayBackend.IsInitialized() ) &&
+            ( dd.OverlayBackend.GetSwapchain() == pPresentInfo->pSwapchains[0] );
+
+        if( overridePresentInfo )
         {
-            // Display overlay
-            dd.Overlay.Present( dd.Profiler.GetData(), presentQueue, &presentInfo );
+            dd.OverlayBackend.SetFramePresentInfo( *pPresentInfo );
+        }
+
+        if( dd.pOutput )
+        {
+            // Consume the collected data from the profiler.
+            // Treat QueuePresentKHR as a submit to collect at least one frame of data before the presentation.
+            if( dd.Profiler.m_Config.m_FrameDelimiter >= VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
+            {
+                dd.pOutput->Update();
+            }
+
+            // Present the data
+            dd.pOutput->Present();
+        }
+
+        if( overridePresentInfo )
+        {
+            pPresentInfo = &dd.OverlayBackend.GetFramePresentInfo();
         }
 
         dd.Device.TIP.Reset();
 
         // Present the image
-        std::shared_lock lock( presentQueue.Mutex );
-        return dd.Device.Callbacks.QueuePresentKHR( queue, &presentInfo );
+        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
+        return dd.Device.Callbacks.QueuePresentKHR( queue, pPresentInfo );
     }
 }

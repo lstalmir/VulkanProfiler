@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -84,8 +84,12 @@ namespace Profiler
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eBuildAccelerationStructuresIndirectKHR = 0x000F0001,
         eCopyAccelerationStructureKHR = 0x00100000,
-        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
-        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00110000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00120000,
+        eBuildMicromapsEXT = 0x00130000,
+        eCopyMicromapEXT = 0x00140000,
+        eCopyMemoryToMicromapEXT = 0x00150000,
+        eCopyMicromapToMemoryEXT = 0x00160000,
     };
 
     /***********************************************************************************\
@@ -118,8 +122,12 @@ namespace Profiler
         eRayTracingKHR = 0x000E0000,
         eBuildAccelerationStructuresKHR = 0x000F0000,
         eCopyAccelerationStructureKHR = 0x00100000,
-        eCopyAccelerationStructureToMemoryKHR = 0x00200000,
-        eCopyMemoryToAccelerationStructureKHR = 0x00300000,
+        eCopyAccelerationStructureToMemoryKHR = 0x00110000,
+        eCopyMemoryToAccelerationStructureKHR = 0x00120000,
+        eBuildMicromapsEXT = 0x00130000,
+        eCopyMicromapEXT = 0x00140000,
+        eCopyMemoryToMicromapEXT = 0x00150000,
+        eCopyMicromapToMemoryEXT = 0x00160000,
     };
 
     /***********************************************************************************\
@@ -183,8 +191,9 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerDrawcallDebugLabelPayload
     {
-        char* m_pName;
+        const char* m_pName;
         float m_Color[ 4 ];
+        bool m_OwnsDynamicAllocations;
     };
 
     struct DeviceProfilerDrawcallDrawPayload
@@ -210,6 +219,7 @@ namespace Profiler
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallDrawIndexedIndirectPayload
@@ -225,6 +235,8 @@ namespace Profiler
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
+        size_t m_IndirectCountOffset;
     };
 
     struct DeviceProfilerDrawcallDrawIndexedIndirectCountPayload
@@ -245,6 +257,7 @@ namespace Profiler
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
@@ -255,6 +268,8 @@ namespace Profiler
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
+        size_t m_IndirectArgsOffset;
+        size_t m_IndirectCountOffset;
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksNvPayload
@@ -284,6 +299,7 @@ namespace Profiler
     {
         VkBuffer m_Buffer;
         VkDeviceSize m_Offset;
+        size_t m_IndirectArgsOffset;
     };
 
     struct DeviceProfilerDrawcallCopyBufferPayload
@@ -374,125 +390,20 @@ namespace Profiler
     struct DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase
     {
         uint32_t m_InfoCount;
-        VkAccelerationStructureBuildGeometryInfoKHR* m_pInfos;
-
-
-        DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase() = default;
-        DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase( uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos )
-            : m_InfoCount( infoCount )
-            , m_pInfos( CopyAccelerationStructureBuildGeometryInfos( infoCount, pInfos ) )
-        {
-        }
-
-        static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBuildGeometryInfos(
-            uint32_t infoCount,
-            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos )
-        {
-            // Create copy of build infos
-            VkAccelerationStructureBuildGeometryInfoKHR* pDuplicatedInfos = CopyElements( infoCount, pInfos );
-
-            // Create copy of geometry infos of each build info
-            for( uint32_t i = 0; i < infoCount; ++i )
-            {
-                VkAccelerationStructureBuildGeometryInfoKHR& buildInfo = pDuplicatedInfos[ i ];
-                const uint32_t geometryCount = buildInfo.geometryCount;
-
-                if( buildInfo.pGeometries != nullptr )
-                {
-                    buildInfo.pGeometries = CopyElements( geometryCount, buildInfo.pGeometries );
-                }
-
-                else if( buildInfo.ppGeometries != nullptr )
-                {
-                    VkAccelerationStructureGeometryKHR* pGeometries =
-                        reinterpret_cast<VkAccelerationStructureGeometryKHR*>(malloc(geometryCount * sizeof(VkAccelerationStructureGeometryKHR)));
-
-                    if( pGeometries != nullptr )
-                    {
-                        for( uint32_t j = 0; j < geometryCount; ++j )
-                        {
-                            pGeometries[ j ] = *buildInfo.ppGeometries[ j ];
-                        }
-                    }
-
-                    buildInfo.pGeometries = pGeometries;
-                }
-
-                buildInfo.ppGeometries = nullptr;
-            }
-
-            return pDuplicatedInfos;
-        }
+        bool m_OwnsDynamicAllocations;
+        const VkAccelerationStructureBuildGeometryInfoKHR* m_pInfos;
     };
 
     struct DeviceProfilerDrawcallBuildAccelerationStructuresPayload
         : DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase
     {
-        VkAccelerationStructureBuildRangeInfoKHR** m_ppRanges;
-
-
-        DeviceProfilerDrawcallBuildAccelerationStructuresPayload() = default;
-        DeviceProfilerDrawcallBuildAccelerationStructuresPayload( uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkAccelerationStructureBuildRangeInfoKHR* const* ppRanges )
-            : DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase( infoCount, pInfos )
-            , m_ppRanges( CopyAccelerationStructureBuildRangeInfos( infoCount, pInfos, ppRanges ) )
-        {
-        }
-
-        static VkAccelerationStructureBuildRangeInfoKHR** CopyAccelerationStructureBuildRangeInfos(
-            uint32_t infoCount,
-            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
-            const VkAccelerationStructureBuildRangeInfoKHR* const* ppRanges )
-        {
-            // Allocate an array of range pointers
-            VkAccelerationStructureBuildRangeInfoKHR** ppDuplicatedRanges =
-                reinterpret_cast<VkAccelerationStructureBuildRangeInfoKHR**>( malloc( infoCount * sizeof( VkAccelerationStructureBuildRangeInfoKHR* ) ) );
-
-            if( ppDuplicatedRanges != nullptr )
-            {
-                for( uint32_t i = 0; i < infoCount; ++i )
-                {
-                    // Copy ranges for geometries of the current build info
-                    ppDuplicatedRanges[ i ] = CopyElements( pInfos[ i ].geometryCount, ppRanges[ i ] );
-                }
-            }
-
-            return ppDuplicatedRanges;
-        }
+        const VkAccelerationStructureBuildRangeInfoKHR* const* m_ppRanges;
     };
 
     struct DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload
         : DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase
     {
-        uint32_t** m_ppMaxPrimitiveCounts;
-
-
-        DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload() = default;
-        DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload( uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const uint32_t* const* ppMaxPrimitiveCounts )
-            : DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase( infoCount, pInfos )
-            , m_ppMaxPrimitiveCounts( CopyMaxPrimitiveCounts(infoCount, pInfos, ppMaxPrimitiveCounts ) )
-        {
-        }
-
-        static uint32_t** CopyMaxPrimitiveCounts(
-            uint32_t infoCount,
-            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
-            const uint32_t* const* ppMaxPrimitiveCounts )
-        {
-            // Allocate an array of range pointers
-            uint32_t** ppDuplicatedPrimitiveCounts =
-                reinterpret_cast<uint32_t**>( malloc( infoCount * sizeof( uint32_t* ) ) );
-
-            if( ppDuplicatedPrimitiveCounts != nullptr )
-            {
-                for( uint32_t i = 0; i < infoCount; ++i )
-                {
-                    // Copy max primitive counts for geometries of the current build info
-                    ppDuplicatedPrimitiveCounts[ i ] = CopyElements( pInfos[ i ].geometryCount, ppMaxPrimitiveCounts[ i ] );
-                }
-            }
-
-            return ppDuplicatedPrimitiveCounts;
-        }
+        const uint32_t* const* m_ppMaxPrimitiveCounts;
     };
 
     struct DeviceProfilerDrawcallCopyAccelerationStructurePayload
@@ -514,6 +425,34 @@ namespace Profiler
         VkDeviceOrHostAddressConstKHR m_Src;
         VkAccelerationStructureKHR m_Dst;
         VkCopyAccelerationStructureModeKHR m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallBuildMicromapsPayload
+    {
+        uint32_t m_InfoCount;
+        bool m_OwnsDynamicAllocations;
+        const VkMicromapBuildInfoEXT* m_pInfos;
+    };
+
+    struct DeviceProfilerDrawcallCopyMicromapPayload
+    {
+        VkMicromapEXT m_Src;
+        VkMicromapEXT m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyMemoryToMicromapPayload
+    {
+        VkDeviceOrHostAddressConstKHR m_Src;
+        VkMicromapEXT m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
+    };
+
+    struct DeviceProfilerDrawcallCopyMicromapToMemoryPayload
+    {
+        VkMicromapEXT m_Src;
+        VkDeviceOrHostAddressKHR m_Dst;
+        VkCopyMicromapModeEXT m_Mode;
     };
 
 #define PROFILER_DECL_DRAWCALL_PAYLOAD( type, name )                   \
@@ -565,6 +504,10 @@ namespace Profiler
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload, m_CopyAccelerationStructureToMemory );
         PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload, m_CopyMemoryToAccelerationStructure );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildMicromapsPayload, m_BuildMicromaps );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapPayload, m_CopyMicromap );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToMicromapPayload, m_CopyMemoryToMicromap );
+        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapToMemoryPayload, m_CopyMicromapToMemory );
     };
 
     /***********************************************************************************\
@@ -605,37 +548,50 @@ namespace Profiler
             if( dc.GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
                 // Create copy of already stored string
-                m_Payload.m_DebugLabel.m_pName = ProfilerStringFunctions::DuplicateString( dc.m_Payload.m_DebugLabel.m_pName );
+                m_Payload.m_DebugLabel.m_pName = ProfilerStringFunctions::DuplicateString(
+                    dc.m_Payload.m_DebugLabel.m_pName );
+
+                m_Payload.m_DebugLabel.m_OwnsDynamicAllocations = true;
             }
 
             if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
             {
                 // Create copy of build infos
-                m_Payload.m_BuildAccelerationStructures.m_pInfos =
-                    DeviceProfilerDrawcallBuildAccelerationStructuresPayload::CopyAccelerationStructureBuildGeometryInfos(
-                        dc.m_Payload.m_BuildAccelerationStructures.m_InfoCount,
-                        dc.m_Payload.m_BuildAccelerationStructures.m_pInfos );
+                m_Payload.m_BuildAccelerationStructures.m_pInfos = CopyAccelerationStructureBuildGeometryInfos(
+                    dc.m_Payload.m_BuildAccelerationStructures.m_InfoCount,
+                    dc.m_Payload.m_BuildAccelerationStructures.m_pInfos );
 
-                m_Payload.m_BuildAccelerationStructures.m_ppRanges =
-                    DeviceProfilerDrawcallBuildAccelerationStructuresPayload::CopyAccelerationStructureBuildRangeInfos(
-                        dc.m_Payload.m_BuildAccelerationStructures.m_InfoCount,
-                        dc.m_Payload.m_BuildAccelerationStructures.m_pInfos,
-                        dc.m_Payload.m_BuildAccelerationStructures.m_ppRanges );
+                m_Payload.m_BuildAccelerationStructures.m_ppRanges = CopyAccelerationStructureBuildRangeInfos(
+                    dc.m_Payload.m_BuildAccelerationStructures.m_InfoCount,
+                    dc.m_Payload.m_BuildAccelerationStructures.m_pInfos,
+                    dc.m_Payload.m_BuildAccelerationStructures.m_ppRanges );
+
+                m_Payload.m_BuildAccelerationStructures.m_OwnsDynamicAllocations = true;
             }
 
             if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
             {
                 // Create copy of build infos
-                m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos =
-                    DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload::CopyAccelerationStructureBuildGeometryInfos(
-                        dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount,
-                        dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos );
+                m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos = CopyAccelerationStructureBuildGeometryInfos(
+                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount,
+                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos );
 
-                m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts =
-                    DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload::CopyMaxPrimitiveCounts(
-                        dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount,
-                        dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos,
-                        dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
+                m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts = CopyMaxPrimitiveCounts(
+                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount,
+                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos,
+                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
+
+                m_Payload.m_BuildAccelerationStructuresIndirect.m_OwnsDynamicAllocations = true;
+            }
+
+            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
+            {
+                // Create copy of build infos
+                m_Payload.m_BuildMicromaps.m_pInfos = CopyMicromapBuildInfos(
+                    dc.m_Payload.m_BuildMicromaps.m_InfoCount,
+                    dc.m_Payload.m_BuildMicromaps.m_pInfos );
+
+                m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations = true;
             }
         }
 
@@ -652,32 +608,62 @@ namespace Profiler
         {
             if( GetPipelineType() == DeviceProfilerPipelineType::eDebug )
             {
-                free( m_Payload.m_DebugLabel.m_pName );
+                if( m_Payload.m_DebugLabel.m_OwnsDynamicAllocations )
+                {
+                    FreeConst( m_Payload.m_DebugLabel.m_pName );
+                }
             }
 
             if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
             {
-                for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructures.m_InfoCount; ++i )
+                if( m_Payload.m_BuildAccelerationStructures.m_OwnsDynamicAllocations )
                 {
-                    free( const_cast<VkAccelerationStructureGeometryKHR*>( m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ].pGeometries ) );
-                    free( m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ] );
-                }
+                    for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructures.m_InfoCount; ++i )
+                    {
+                        FreeConst( m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ].pGeometries );
+                        FreeConst( m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ] );
+                    }
 
-                free( m_Payload.m_BuildAccelerationStructures.m_pInfos );
-                free( m_Payload.m_BuildAccelerationStructures.m_ppRanges );
+                    FreeConst( m_Payload.m_BuildAccelerationStructures.m_pInfos );
+                    FreeConst( m_Payload.m_BuildAccelerationStructures.m_ppRanges );
+                }
             }
 
             if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
             {
-                for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount; ++i )
+                if( m_Payload.m_BuildAccelerationStructuresIndirect.m_OwnsDynamicAllocations )
                 {
-                    free( const_cast<VkAccelerationStructureGeometryKHR*>( m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos[ i ].pGeometries ) );
-                    free( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ] );
-                }
+                    for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount; ++i )
+                    {
+                        FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos[ i ].pGeometries );
+                        FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ] );
+                    }
 
-                free( m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos );
-                free( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
+                    FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos );
+                    FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
+                }
             }
+
+            if( m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
+            {
+                if( m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations )
+                {
+                    for (uint32_t i = 0; i < m_Payload.m_BuildMicromaps.m_InfoCount; ++i)
+                    {
+                        FreeConst( m_Payload.m_BuildMicromaps.m_pInfos[ i ].pUsageCounts );
+                    }
+
+                    FreeConst( m_Payload.m_BuildMicromaps.m_pInfos );
+                }
+            }
+        }
+
+        template<typename T>
+        void FreeConst( T pObject )
+        {
+            using cv_value_type = typename std::remove_pointer<T>::type;
+            using value_type = typename std::remove_cv<cv_value_type>::type;
+            free( const_cast<value_type*>( pObject ) );
         }
 
         // Swap data of 2 drawcalls
@@ -687,6 +673,22 @@ namespace Profiler
             std::swap( m_Payload, dc.m_Payload );
             std::swap( m_BeginTimestamp, dc.m_BeginTimestamp );
             std::swap( m_EndTimestamp, dc.m_EndTimestamp );
+        }
+
+        // Check if drawcall can have indirect payload
+        inline bool HasIndirectPayload() const
+        {
+            switch( m_Type )
+            {
+            case DeviceProfilerDrawcallType::eDrawIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
+            case DeviceProfilerDrawcallType::eDrawIndirectCount:
+            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
+            case DeviceProfilerDrawcallType::eDispatchIndirect:
+                return true;
+            default:
+                return false;
+            }
         }
 
         // Assignment operators
@@ -701,6 +703,25 @@ namespace Profiler
             DeviceProfilerDrawcall( std::move( dc ) ).Swap( *this );
             return *this;
         }
+
+        // Copy helpers
+        static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBuildGeometryInfos(
+            uint32_t infoCount,
+            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos );
+
+        static VkAccelerationStructureBuildRangeInfoKHR** CopyAccelerationStructureBuildRangeInfos(
+            uint32_t infoCount,
+            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
+            const VkAccelerationStructureBuildRangeInfoKHR* const* ppRanges );
+
+        static uint32_t** CopyMaxPrimitiveCounts(
+            uint32_t infoCount,
+            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
+            const uint32_t* const* ppMaxPrimitiveCounts );
+
+        static VkMicromapBuildInfoEXT* CopyMicromapBuildInfos(
+            uint32_t infoCount,
+            const VkMicromapBuildInfoEXT* pInfos );
     };
 
     /***********************************************************************************\
@@ -946,9 +967,11 @@ namespace Profiler
         ProfilerShaderTuple                                 m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
 
+        bool                                                m_Internal = false;
+
         bool                                                m_UsesRayQuery = false;
         bool                                                m_UsesRayTracing = false;
-
+        bool                                                m_UsesMeshShading = false;
         bool                                                m_UsesShaderObjects = false;
 
         std::shared_ptr<CreateInfo>                         m_pCreateInfo = nullptr;
@@ -958,6 +981,7 @@ namespace Profiler
             // Prefetch shader capabilities.
             m_UsesRayQuery = m_ShaderTuple.UsesRayQuery();
             m_UsesRayTracing = m_ShaderTuple.UsesRayTracing();
+            m_UsesMeshShading = m_ShaderTuple.UsesMeshShading();
 
             // Calculate pipeline hash.
             m_ShaderTuple.UpdateHash();
@@ -1023,6 +1047,10 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerSubpassData
     {
+        // Mark subpasses that are not part of any render pass as implicit.
+        // Required to handle commands scoped outside of render pass.
+        static constexpr uint32_t                           ImplicitSubpassIndex = UINT32_MAX;
+
         uint32_t                                            m_Index = {};
         VkSubpassContents                                   m_Contents = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
@@ -1154,6 +1182,8 @@ namespace Profiler
 
         uint64_t                                            m_ProfilerCpuOverheadNs = {};
 
+        std::vector<uint8_t>                                m_IndirectPayload = {};
+
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
@@ -1228,6 +1258,58 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerDeviceMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerDeviceMemoryData
+    {
+        VkDeviceSize m_Size = {};
+        uint32_t m_TypeIndex = {};
+        uint32_t m_HeapIndex = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerBufferMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerBufferMemoryData
+    {
+        VkDeviceSize m_BufferSize = {};
+        VkBufferUsageFlags m_BufferUsage = {};
+        VkMemoryRequirements m_MemoryRequirements = {};
+        VkDeviceMemory m_Memory = {};
+        VkDeviceSize m_MemoryOffset = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerImageMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerImageMemoryData
+    {
+        VkExtent3D m_ImageExtent = {};
+        VkFormat m_ImageFormat = {};
+        VkImageType m_ImageType = {};
+        VkImageUsageFlags m_ImageUsage = {};
+        VkImageTiling m_ImageTiling = {};
+        VkMemoryRequirements m_MemoryRequirements = {};
+        VkDeviceMemory m_Memory = {};
+        VkDeviceSize m_MemoryOffset = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerMemoryData
 
     Description:
@@ -1240,6 +1322,10 @@ namespace Profiler
 
         std::vector<struct DeviceProfilerMemoryHeapData> m_Heaps = {};
         std::vector<struct DeviceProfilerMemoryTypeData> m_Types = {};
+
+        std::unordered_map<VkDeviceMemory, struct DeviceProfilerDeviceMemoryData> m_Allocations = {};
+        std::unordered_map<VkBuffer, struct DeviceProfilerBufferMemoryData> m_Buffers = {};
+        std::unordered_map<VkImage, struct DeviceProfilerImageMemoryData> m_Images = {};
     };
 
     /***********************************************************************************\
@@ -1292,6 +1378,8 @@ namespace Profiler
         uint64_t                                            m_Ticks = {};
         uint64_t                                            m_BeginTimestamp = {};
         uint64_t                                            m_EndTimestamp = {};
+
+        VkProfilerFrameDelimiterEXT                         m_FrameDelimiter = {};
 
         DeviceProfilerMemoryData                            m_Memory = {};
         DeviceProfilerCPUData                               m_CPU = {};

@@ -1099,4 +1099,202 @@ namespace Profiler
 
         profiledCommandBuffer.PostCommand( updateDrawcall );
     }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdBlitImage2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdBlitImage2(
+        VkCommandBuffer commandBuffer,
+        const VkBlitImageInfo2* pBlitImageInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Setup drawcall descriptor
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eBlitImage;
+        drawcall.m_Payload.m_BlitImage.m_SrcImage = pBlitImageInfo->srcImage;
+        drawcall.m_Payload.m_BlitImage.m_DstImage = pBlitImageInfo->dstImage;
+
+        profiledCommandBuffer.PreCommand( drawcall );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdBlitImage2(
+            commandBuffer,
+            pBlitImageInfo );
+
+        profiledCommandBuffer.PostCommand( drawcall );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyBuffer2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyBuffer2(
+        VkCommandBuffer commandBuffer,
+        const VkCopyBufferInfo2* pCopyBufferInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Setup drawcall descriptor
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyBuffer;
+        drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer = pCopyBufferInfo->srcBuffer;
+        drawcall.m_Payload.m_CopyBuffer.m_DstBuffer = pCopyBufferInfo->dstBuffer;
+
+        profiledCommandBuffer.PreCommand( drawcall );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdCopyBuffer2(
+            commandBuffer,
+            pCopyBufferInfo );
+
+        profiledCommandBuffer.PostCommand( drawcall );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyBufferToImage2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyBufferToImage2(
+        VkCommandBuffer commandBuffer,
+        const VkCopyBufferToImageInfo2* pCopyBufferToImageInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Setup drawcall descriptor
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyBufferToImage;
+        drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer = pCopyBufferToImageInfo->srcBuffer;
+        drawcall.m_Payload.m_CopyBufferToImage.m_DstImage = pCopyBufferToImageInfo->dstImage;
+
+        profiledCommandBuffer.PreCommand( drawcall );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdCopyBufferToImage2(
+            commandBuffer,
+            pCopyBufferToImageInfo );
+
+        profiledCommandBuffer.PostCommand( drawcall );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyImage2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyImage2(
+        VkCommandBuffer commandBuffer,
+        const VkCopyImageInfo2* pCopyImageInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Setup drawcall descriptor
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyImage;
+        drawcall.m_Payload.m_CopyImage.m_SrcImage = pCopyImageInfo->srcImage;
+        drawcall.m_Payload.m_CopyImage.m_DstImage = pCopyImageInfo->dstImage;
+
+        profiledCommandBuffer.PreCommand( drawcall );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdCopyImage2(
+            commandBuffer,
+            pCopyImageInfo );
+
+        profiledCommandBuffer.PostCommand( drawcall );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdCopyImageToBuffer2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdCopyImageToBuffer2(
+        VkCommandBuffer commandBuffer,
+        const VkCopyImageToBufferInfo2* pCopyImageToBufferInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Setup drawcall descriptor
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eCopyImageToBuffer;
+        drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage = pCopyImageToBufferInfo->srcImage;
+        drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer = pCopyImageToBufferInfo->dstBuffer;
+
+        profiledCommandBuffer.PreCommand( drawcall );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdCopyImageToBuffer2(
+            commandBuffer,
+            pCopyImageToBufferInfo );
+
+        profiledCommandBuffer.PostCommand( drawcall );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CmdResolveImage2
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkCommandBuffer_Functions::CmdResolveImage2(
+        VkCommandBuffer commandBuffer,
+        const VkResolveImageInfo2* pResolveImageInfo )
+    {
+        auto& dd = DeviceDispatch.Get( commandBuffer );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+
+        // Setup drawcall descriptor
+        DeviceProfilerDrawcall drawcall;
+        drawcall.m_Type = DeviceProfilerDrawcallType::eResolveImage;
+        drawcall.m_Payload.m_ResolveImage.m_SrcImage = pResolveImageInfo->srcImage;
+        drawcall.m_Payload.m_ResolveImage.m_DstImage = pResolveImageInfo->dstImage;
+
+        profiledCommandBuffer.PreCommand( drawcall );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.CmdResolveImage2(
+            commandBuffer,
+            pResolveImageInfo );
+
+        profiledCommandBuffer.PostCommand( drawcall );
+    }
 }

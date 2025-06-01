@@ -101,7 +101,7 @@ namespace Profiler
         // Setup debug label drawcall
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eInsertDebugLabel;
-        drawcall.m_Payload.m_DebugLabel.m_pName = ProfilerStringFunctions::DuplicateString( pMarkerInfo->pMarkerName );
+        drawcall.m_Payload.m_DebugLabel.m_pName = pMarkerInfo->pMarkerName;
         drawcall.m_Payload.m_DebugLabel.m_Color[ 0 ] = pMarkerInfo->color[ 0 ];
         drawcall.m_Payload.m_DebugLabel.m_Color[ 1 ] = pMarkerInfo->color[ 1 ];
         drawcall.m_Payload.m_DebugLabel.m_Color[ 2 ] = pMarkerInfo->color[ 2 ];
@@ -136,7 +136,7 @@ namespace Profiler
         // Setup debug label drawcall
         DeviceProfilerDrawcall drawcall;
         drawcall.m_Type = DeviceProfilerDrawcallType::eBeginDebugLabel;
-        drawcall.m_Payload.m_DebugLabel.m_pName = ProfilerStringFunctions::DuplicateString( pMarkerInfo->pMarkerName );
+        drawcall.m_Payload.m_DebugLabel.m_pName = pMarkerInfo->pMarkerName;
         drawcall.m_Payload.m_DebugLabel.m_Color[ 0 ] = pMarkerInfo->color[ 0 ];
         drawcall.m_Payload.m_DebugLabel.m_Color[ 1 ] = pMarkerInfo->color[ 1 ];
         drawcall.m_Payload.m_DebugLabel.m_Color[ 2 ] = pMarkerInfo->color[ 2 ];

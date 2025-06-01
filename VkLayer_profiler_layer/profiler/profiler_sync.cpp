@@ -168,6 +168,10 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         assert( m_pDevice );
+
+        // Synchronize host access to the queue.
+        std::scoped_lock lock( m_pDevice->Queues.at( queue ).Mutex );
+
         m_pDevice->Callbacks.QueueWaitIdle( queue );
     }
 

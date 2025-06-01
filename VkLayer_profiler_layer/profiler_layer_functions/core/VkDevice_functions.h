@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,8 @@
 #include "VkCommandBuffer_functions.h"
 #include "VkQueue_functions.h"
 #include "VkAccelerationStructureKhr_functions.h"
+#include "VkBindMemory2Khr_functions.h"
+#include "VkCopyCommands2Khr_functions.h"
 #include "VkCreateRenderPass2Khr_functions.h"
 #include "VkDebugMarkerExt_functions.h"
 #include "VkDebugUtilsExt_functions.h"
@@ -31,6 +33,7 @@
 #include "VkDynamicRenderingKhr_functions.h"
 #include "VkMeshShaderExt_functions.h"
 #include "VkMeshShaderNv_functions.h"
+#include "VkOpacityMicromapExt_functions.h"
 #include "VkPipelineExecutablePropertiesKhr_functions.h"
 #include "VkRayTracingMaintenance1Khr_functions.h"
 #include "VkRayTracingPipelineKhr_functions.h"
@@ -53,6 +56,8 @@ namespace Profiler
         : VkCommandBuffer_Functions
         , VkQueue_Functions
         , VkAccelerationStructureKhr_Functions
+        , VkBindMemory2Khr_Functions
+        , VkCopyCommands2Khr_Functions
         , VkCreateRenderPass2Khr_Functions
         , VkDebugMarkerExt_Functions
         , VkDebugUtilsExt_Functions
@@ -62,6 +67,7 @@ namespace Profiler
         , VkDynamicRenderingKhr_Functions
         , VkMeshShaderExt_Functions
         , VkMeshShaderNv_Functions
+        , VkOpacityMicromapExt_Functions
         , VkPipelineExecutablePropertiesKhr_Functions
         , VkRayTracingMaintenance1Khr_Functions
         , VkRayTracingPipelineKhr_Functions
@@ -174,5 +180,57 @@ namespace Profiler
             VkDevice device,
             VkDeviceMemory memory,
             const VkAllocationCallbacks* pAllocator );
+
+        // vkCreateBuffer
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateBuffer(
+            VkDevice device,
+            const VkBufferCreateInfo* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkBuffer* pBuffer );
+
+        // vkDestroyBuffer
+        static VKAPI_ATTR void VKAPI_CALL DestroyBuffer(
+            VkDevice device,
+            VkBuffer buffer,
+            const VkAllocationCallbacks* pAllocator );
+
+        // vkBindBufferMemory
+        static VKAPI_ATTR VkResult VKAPI_CALL BindBufferMemory(
+            VkDevice device,
+            VkBuffer buffer,
+            VkDeviceMemory memory,
+            VkDeviceSize memoryOffset );
+
+        // vkBindBufferMemory2
+        static VKAPI_ATTR VkResult VKAPI_CALL BindBufferMemory2(
+            VkDevice device,
+            uint32_t bindInfoCount,
+            const VkBindBufferMemoryInfo* pBindInfos );
+
+        // vkCreateImage
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateImage(
+            VkDevice device,
+            const VkImageCreateInfo* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkImage* pImage );
+
+        // vkDestroyImage
+        static VKAPI_ATTR void VKAPI_CALL DestroyImage(
+            VkDevice device,
+            VkImage image,
+            const VkAllocationCallbacks* pAllocator );
+
+        // vkBindImageMemory
+        static VKAPI_ATTR VkResult VKAPI_CALL BindImageMemory(
+            VkDevice device,
+            VkImage image,
+            VkDeviceMemory memory,
+            VkDeviceSize memoryOffset );
+
+        // vkBindImageMemory2
+        static VKAPI_ATTR VkResult VKAPI_CALL BindImageMemory2(
+            VkDevice device,
+            uint32_t bindInfoCount,
+            const VkBindImageMemoryInfo* pBindInfos );
     };
 }

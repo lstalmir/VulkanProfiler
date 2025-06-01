@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 #include "VkInstance_functions.h"
 #include "profiler_layer_functions/Helpers.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_trace/profiler_trace.h"
 
 namespace Profiler
 {
@@ -91,20 +92,34 @@ namespace Profiler
             }
         }
 
-        // Check if profiler create info was provided
-        const VkProfilerCreateInfoEXT* pProfilerCreateInfo = nullptr;
+        // Initialize the profiler object
+        VkResult result = dd.Profiler.Initialize( &dd.Device, pCreateInfo );
 
-        for( const auto& it : PNextIterator( pCreateInfo->pNext ) )
+        // Initialize the profiler frontend object
+        if( result == VK_SUCCESS )
         {
-            if( it.sType == VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT )
-            {
-                pProfilerCreateInfo = reinterpret_cast<const VkProfilerCreateInfoEXT*>(&it);
-                break;
-            }
+            dd.ProfilerFrontend.Initialize( dd.Device, dd.Profiler );
         }
 
-        // Initialize the profiler object
-        VkResult result = dd.Profiler.Initialize( &dd.Device, pProfilerCreateInfo );
+        // Initialize the file output
+        if( result == VK_SUCCESS )
+        {
+            if( dd.Profiler.m_Config.m_Output == output_t::trace )
+            {
+                result = CreateUniqueObject<ProfilerTraceOutput>(
+                    &dd.pOutput,
+                    dd.ProfilerFrontend );
+
+                if( result == VK_SUCCESS )
+                {
+                    bool success = dd.pOutput->Initialize();
+                    if( !success )
+                    {
+                        result = VK_ERROR_INITIALIZATION_FAILED;
+                    }
+                }
+            }
+        }
 
         if( result != VK_SUCCESS )
         {
@@ -130,8 +145,18 @@ namespace Profiler
 
         // Destroy the profiler instance
         dd.Profiler.Destroy();
-        // Destroy the overlay
-        dd.Overlay.Destroy();
+
+        if( dd.pOutput )
+        {
+            // Consume the last frame data
+            dd.pOutput->Update();
+
+            // Close the output
+            dd.pOutput->Destroy();
+            dd.pOutput.reset();
+        }
+
+        dd.OverlayBackend.Destroy();
 
         DeviceDispatch.Erase( device );
     }

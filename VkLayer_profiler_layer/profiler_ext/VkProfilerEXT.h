@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@
 
 #ifndef VK_EXT_profiler
 #define VK_EXT_profiler 1
-#define VK_EXT_PROFILER_SPEC_VERSION 3
+#define VK_EXT_PROFILER_SPEC_VERSION 4
 #define VK_EXT_PROFILER_EXTENSION_NAME "VK_EXT_profiler"
 
 #define VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT ((VkStructureType)1000999000)
@@ -37,6 +37,8 @@ enum VkProfilerCreateFlagBitsEXT
     VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT = 2,
     VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT = 4,
     VK_PROFILER_CREATE_NO_STABLE_POWER_STATE = 8,
+    VK_PROFILER_CREATE_NO_STABLE_POWER_STATE_EXT = VK_PROFILER_CREATE_NO_STABLE_POWER_STATE,
+    VK_PROFILER_CREATE_NO_THREADING_EXT = 16,
     VK_PROFILER_CREATE_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
@@ -91,11 +93,11 @@ enum VkProfilerCommandTypeEXT
     VK_PROFILER_COMMAND_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
-enum VkProfilerSyncModeEXT
+enum VkProfilerFrameDelimiterEXT
 {
-    VK_PROFILER_SYNC_MODE_PRESENT_EXT,
-    VK_PROFILER_SYNC_MODE_SUBMIT_EXT,
-    VK_PROFILER_SYNC_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
+    VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT,
+    VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT,
+    VK_PROFILER_FRAME_DELIMITER_MAX_ENUM_EXT = 0x7FFFFFFF
 };
 
 enum VkProfilerPerformanceCounterUnitEXT
@@ -131,7 +133,7 @@ typedef struct VkProfilerCreateInfoEXT
     const void* pNext;
     VkProfilerCreateFlagsEXT flags;
     VkProfilerModeEXT samplingMode;
-    VkProfilerSyncModeEXT syncMode;
+    VkProfilerFrameDelimiterEXT frameDelimiter;
 } VkProfilerCreateInfoEXT;
 
 typedef struct VkProfilerCommandPropertiesEXT
@@ -236,34 +238,34 @@ typedef struct VkProfilerPerformanceMetricsSetPropertiesEXT
     uint32_t metricsCount;
 } VkProfilerPerformanceMetricsSetPropertiesEXT;
 
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerModeEXT )(VkDevice, VkProfilerModeEXT);
-typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerModeEXT )(VkDevice, VkProfilerModeEXT*);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT);
-typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerSyncModeEXT )(VkDevice, VkProfilerSyncModeEXT*);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
-typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkFreeProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkFlushProfilerEXT )(VkDevice);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceMetricsSetsEXT )(VkDevice, uint32_t*, VkProfilerPerformanceMetricsSetPropertiesEXT*);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkEnumerateProfilerPerformanceCounterPropertiesEXT )(VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
-typedef VKAPI_ATTR VkResult( VKAPI_CALL* PFN_vkSetProfilerPerformanceMetricsSetEXT )(VkDevice, uint32_t);
-typedef VKAPI_ATTR void( VKAPI_CALL* PFN_vkGetProfilerActivePerformanceMetricsSetIndexEXT )(VkDevice, uint32_t*);
+typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT);
+typedef void( VKAPI_PTR* PFN_vkGetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT*);
+typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerFrameDelimiterEXT )(VkDevice, VkProfilerFrameDelimiterEXT);
+typedef void( VKAPI_PTR* PFN_vkGetProfilerFrameDelimiterEXT )(VkDevice, VkProfilerFrameDelimiterEXT*);
+typedef VkResult( VKAPI_PTR* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
+typedef void( VKAPI_PTR* PFN_vkFreeProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
+typedef VkResult( VKAPI_PTR* PFN_vkFlushProfilerEXT )(VkDevice);
+typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsSetsEXT )(VkDevice, uint32_t*, VkProfilerPerformanceMetricsSetPropertiesEXT*);
+typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceCounterPropertiesEXT )(VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
+typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerPerformanceMetricsSetEXT )(VkDevice, uint32_t);
+typedef void( VKAPI_PTR* PFN_vkGetProfilerActivePerformanceMetricsSetIndexEXT )(VkDevice, uint32_t*);
 
 #ifndef VK_NO_PROTOTYPES
-VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerModeEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSamplingModeEXT(
     VkDevice device,
     VkProfilerModeEXT mode );
 
-VKAPI_ATTR void VKAPI_CALL vkGetProfilerModeEXT(
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerSamplingModeEXT(
     VkDevice device,
     VkProfilerModeEXT* pMode );
 
-VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerSyncModeEXT(
+VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerFrameDelimiterEXT(
     VkDevice device,
-    VkProfilerSyncModeEXT syncMode );
+    VkProfilerFrameDelimiterEXT frameDelimiter );
 
-VKAPI_ATTR void VKAPI_CALL vkGetProfilerSyncModeEXT(
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerFrameDelimiterEXT(
     VkDevice device,
-    VkProfilerSyncModeEXT* pSyncMode );
+    VkProfilerFrameDelimiterEXT* pFrameDelimiter );
 
 VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerFrameDataEXT(
     VkDevice device,

@@ -18,13 +18,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8...3.31)
 
 set_property (GLOBAL PROPERTY USE_FOLDERS ON)
+
+# Compiler options.
+include (CMake/compiler.cmake NO_POLICY_SCOPE)
 
 project (VulkanProfiler CXX)
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Vulkan platform support.
+include (CMake/platform.cmake NO_POLICY_SCOPE)
 
 # Options
 option (BUILD_TESTS "Build tests." ON)
@@ -32,15 +38,12 @@ option (BUILD_SPIRV_DOCS "Build SPIR-V documentation into the disassembly view."
 set    (SPIRV_DOCS_URL "https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html"
             CACHE STRING "URL of the SPIR-V documentation page.")
 
-# Platform-specific configuration and dependencies.
-include (CMake/platform.cmake)
-
 # Build third-party dependencies.
 add_subdirectory (External EXCLUDE_FROM_ALL)
 
 find_package (Python3 REQUIRED)
 string (CONFIGURE [[
-    execute_process (COMMAND ${Python3_EXECUTABLE}
+    execute_process (COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_LIST_DIR}/VkLayer_profiler_layer/scripts/gen_licenses.py"
         --license "Vulkan(R) Profiling Layer" "${CMAKE_CURRENT_LIST_DIR}/LICENSE.md"
         --externaldir "${CMAKE_CURRENT_LIST_DIR}/External"
