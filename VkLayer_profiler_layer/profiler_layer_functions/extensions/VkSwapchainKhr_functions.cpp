@@ -176,6 +176,9 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( queue );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         // End profiling of the previous frame
         dd.Profiler.FinishFrame();
 
@@ -211,7 +214,6 @@ namespace Profiler
         dd.Device.TIP.Reset();
 
         // Present the image
-        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         return dd.Device.Callbacks.QueuePresentKHR( queue, pPresentInfo );
     }
 }

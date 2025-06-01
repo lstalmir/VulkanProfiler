@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,14 +39,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
         // Submit the command buffers
-        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
-        lock.unlock();
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
 
@@ -79,14 +80,15 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
         // Submit the command buffers
-        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
-        lock.unlock();
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
 
@@ -117,9 +119,12 @@ namespace Profiler
         VkFence fence )
     {
         auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
         // Bind sparse memory
-        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         return dd.Device.Callbacks.QueueBindSparse( queue, bindInfoCount, pBindInfo, fence );
     }
 
@@ -135,9 +140,12 @@ namespace Profiler
         VkQueue queue )
     {
         auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
         // Wait for the queue to become idle
-        std::shared_lock lock( dd.Device.Queues.at( queue ).Mutex );
         return dd.Device.Callbacks.QueueWaitIdle( queue );
     }
 }

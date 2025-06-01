@@ -1035,10 +1035,6 @@ namespace Profiler
 
         if( result == VK_SUCCESS )
         {
-            // Shared lock because application should have already synchronized the access,
-            // but a Present may cause the overlay commands to be submitted from another thread.
-            std::shared_lock lk( m_pProfiler->m_pDevice->Queues.at( submitBatch.m_Handle ).Mutex );
-
             // Submit the fence, and optionally the command buffer, for execution.
             result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
                 submitBatch.m_Handle,

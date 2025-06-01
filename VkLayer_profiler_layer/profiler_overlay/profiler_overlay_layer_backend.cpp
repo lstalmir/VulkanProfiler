@@ -771,7 +771,7 @@ namespace Profiler
 
             // Host access to the queue must be synchronized.
             // A lock is required because Present may be executed on a different queue (e.g., not supporting graphics operations).
-            std::scoped_lock lk( m_pGraphicsQueue->Mutex );
+            VkQueue_Object_InternalScope queueScope( *m_pGraphicsQueue );
 
             result = m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
         }

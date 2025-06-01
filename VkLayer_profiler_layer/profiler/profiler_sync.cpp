@@ -169,8 +169,8 @@ namespace Profiler
 
         assert( m_pDevice );
 
-        // Synchronize host access to the queue.
-        std::scoped_lock lock( m_pDevice->Queues.at( queue ).Mutex );
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_InternalScope queueScope( m_pDevice->Queues.at( queue ) );
 
         m_pDevice->Callbacks.QueueWaitIdle( queue );
     }
