@@ -152,6 +152,9 @@ namespace Profiler
         GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
         GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
         GETPROCADDR( CmdEndDebugUtilsLabelEXT );
+        GETPROCADDR( QueueBeginDebugUtilsLabelEXT );
+        GETPROCADDR( QueueEndDebugUtilsLabelEXT );
+        GETPROCADDR( QueueInsertDebugUtilsLabelEXT );
 
         // VK_KHR_deferred_host_operations functions
         GETPROCADDR( CreateDeferredOperationKHR );

@@ -17,7 +17,10 @@
                     "vkCmdEndDebugUtilsLabelEXT",
                     "vkCmdInsertDebugUtilsLabelEXT",
                     "vkSetDebugUtilsObjectNameEXT",
-                    "vkSetDebugUtilsObjectTagEXT"
+                    "vkSetDebugUtilsObjectTagEXT",
+                    "vkQueueBeginDebugUtilsLabelEXT",
+                    "vkQueueEndDebugUtilsLabelEXT",
+                    "vkQueueInsertDebugUtilsLabelEXT"
                 ]
             },
             {
