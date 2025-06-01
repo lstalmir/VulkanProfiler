@@ -176,6 +176,9 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( queue );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         // End profiling of the previous frame
         dd.Profiler.FinishFrame();
 

@@ -114,6 +114,8 @@ namespace Profiler
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueueSubmit2 );
+        GETPROCADDR( QueueBindSparse );
+        GETPROCADDR( QueueWaitIdle );
 
         // VK_KHR_bind_memory2 functions
         GETPROCADDR( BindBufferMemory2KHR );
@@ -150,6 +152,9 @@ namespace Profiler
         GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
         GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
         GETPROCADDR( CmdEndDebugUtilsLabelEXT );
+        GETPROCADDR( QueueBeginDebugUtilsLabelEXT );
+        GETPROCADDR( QueueEndDebugUtilsLabelEXT );
+        GETPROCADDR( QueueInsertDebugUtilsLabelEXT );
 
         // VK_KHR_deferred_host_operations functions
         GETPROCADDR( CreateDeferredOperationKHR );

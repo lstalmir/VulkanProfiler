@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -180,5 +180,76 @@ namespace Profiler
         }
 
         profiledCommandBuffer.PostCommand( drawcall );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueBeginDebugUtilsLabelEXT
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDebugUtilsExt_Functions::QueueBeginDebugUtilsLabelEXT(
+        VkQueue queue,
+        const VkDebugUtilsLabelEXT* pLabelInfo )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
+        // Invoke next layer (if available)
+        if( dd.Device.Callbacks.QueueBeginDebugUtilsLabelEXT )
+        {
+            dd.Device.Callbacks.QueueBeginDebugUtilsLabelEXT( queue, pLabelInfo );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueEndDebugUtilsLabelEXT
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDebugUtilsExt_Functions::QueueEndDebugUtilsLabelEXT(
+        VkQueue queue )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
+        // Invoke next layer (if available)
+        if( dd.Device.Callbacks.QueueEndDebugUtilsLabelEXT )
+        {
+            dd.Device.Callbacks.QueueEndDebugUtilsLabelEXT( queue );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueInsertDebugUtilsLabelEXT
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDebugUtilsExt_Functions::QueueInsertDebugUtilsLabelEXT(
+        VkQueue queue,
+        const VkDebugUtilsLabelEXT* pLabelInfo )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
+        // Invoke next layer (if available)
+        if( dd.Device.Callbacks.QueueInsertDebugUtilsLabelEXT )
+        {
+            dd.Device.Callbacks.QueueInsertDebugUtilsLabelEXT( queue, pLabelInfo );
+        }
     }
 }

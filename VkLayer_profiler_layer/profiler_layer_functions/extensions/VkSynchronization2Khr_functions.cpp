@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Lukasz Stalmirski
+// Copyright (c) 2023-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,9 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );

@@ -78,17 +78,17 @@ namespace Profiler
 
             for( uint32_t queueIndex = 0; queueIndex < queueCreateInfo.queueCount; ++queueIndex )
             {
-                VkQueue_Object queueObject;
-
                 // Get queue handle
+                VkQueue queueHandle = VK_NULL_HANDLE;
                 dd.Device.Callbacks.GetDeviceQueue(
-                    device, queueCreateInfo.queueFamilyIndex, queueIndex, &queueObject.Handle );
+                    device, queueCreateInfo.queueFamilyIndex, queueIndex, &queueHandle );
 
-                queueObject.Flags = queueProperties.queueFlags;
-                queueObject.Family = queueCreateInfo.queueFamilyIndex;
-                queueObject.Index = queueIndex;
-
-                dd.Device.Queues.emplace( queueObject.Handle, queueObject );
+                dd.Device.Queues.try_emplace(
+                    queueHandle,
+                    queueHandle,
+                    queueProperties.queueFlags,
+                    queueCreateInfo.queueFamilyIndex,
+                    queueIndex );
             }
         }
 

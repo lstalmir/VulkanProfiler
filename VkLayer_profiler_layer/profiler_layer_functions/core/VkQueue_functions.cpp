@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,9 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
@@ -77,6 +80,9 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
@@ -96,5 +102,50 @@ namespace Profiler
         }
 
         return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueBindSparse
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueBindSparse(
+        VkQueue queue,
+        uint32_t bindInfoCount,
+        const VkBindSparseInfo* pBindInfo,
+        VkFence fence )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
+        // Bind sparse memory
+        return dd.Device.Callbacks.QueueBindSparse( queue, bindInfoCount, pBindInfo, fence );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueWaitIdle
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueWaitIdle(
+        VkQueue queue )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
+        // Wait for the queue to become idle
+        return dd.Device.Callbacks.QueueWaitIdle( queue );
     }
 }
