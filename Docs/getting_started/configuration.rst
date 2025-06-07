@@ -41,31 +41,61 @@ The layer can also be enabled by setting environment variables before launching 
 
 New loaders provide a variable that allows to use a glob expression instead of the full name of the layer, so the command can be simplified a bit.
 
-.. code::
+.. tabs::
+    .. code-tab:: batch Windows
 
-    VK_LOADER_LAYERS_ENABLE = *profiler_unified
+        set VK_LOADER_LAYERS_ENABLE=*profiler_unified
+
+    .. code-tab:: bash Linux
+
+        export VK_LOADER_LAYERS_ENABLE="*profiler_unified"
 
 The old way of enabling the layers requires providing the full name of the layer.
 
-.. code::
+.. tabs::
+    .. code-tab:: batch Windows
 
-    VK_INSTANCE_LAYERS = VK_LAYER_profiler_unified
+        set VK_INSTANCE_LAYERS=VK_LAYER_profiler_unified
 
-The variable is still supported, but it has been deprecated and will be removed in the future.
+    .. code-tab:: bash Linux
+
+        export VK_INSTANCE_LAYERS="VK_LAYER_profiler_unified"
+
+.. deprecated:: 1.3.234
+    The variable is still supported by the newer Vulkan loaders, but it has been deprecated and will be removed in the future. Prefer using ``VK_LOADER_LAYERS_ENABLE`` instead.
 
 Once enabled, the layer can be configured using the environment variables as well. In such case, all options have to be prefixed with ``VKPROF_``, for example:
 
+.. tabs::
+    .. code-tab:: batch Windows
+
+        set VKPROF_sampling_mode=pipeline
+        set VKPROF_frame_delimiter=present
+        set VKPROF_frame_count=3
+
+    .. code-tab:: bash Linux
+
+        export VKPROF_sampling_mode="pipeline"
+        export VKPROF_frame_delimiter="present"
+        export VKPROF_frame_count=3
+
+Configuration file
+------------------
+
+.. admonition:: Warning
+
+    This method does not enable the layer, so one of the approaches described above has to be taken before using the file.
+
+The profiling layer also supports a standarized vk_layer_settings.txt file.
+
+The file has to be placed in the profiled application's directory. It can be used to configure other layers as well, and has higher priority than options set by the Vulkan Configurator, so application specific settings can be applied this way.
+
+.. rst-class:: code-header
+
+    vk_layer_settings.txt
+
 .. code::
 
-    VKPROF_sampling_mode = pipeline
-    VKPROF_frame_delimiter = present
-    VKPROF_frame_count = 3
-
-Configuration files
--------------------
-
-Another way to set the layer options is to use configuration files.
-
-This method does not enable the layer, so one of the approaches described above has to be taken before using the files.
-
-The layer supports both the standarized vk_layer_settings.txt file, and a custom VkLayer_profiler_layer.ini, which is deprecated.
+    profiler_unified.sampling_mode = pipeline
+    profiler_unified.frame_delimiter = present
+    profiler_unified.frame_count = 3
