@@ -8,7 +8,7 @@ This documentation describes the features and possibilities the layer provides a
 The latest version of the layer can be found on the `GitHub repository <https://github.com/lstalmir/VulkanProfiler>`_.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Table of contents
 
    introduction

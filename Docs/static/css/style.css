@@ -1,9 +1,9 @@
 
 @import 'theme.css';
 
-.code-header {
+.rst-content .code-block-caption {
     font-size: 0.9em;
-    margin-bottom: 5px;
+    padding: 5px 0;
 }
 
 .wy-nav-content {
@@ -50,4 +50,8 @@ button.code-tab[aria-selected=true] {
 
 div[role="tablist"] {
     border-bottom: 1px solid #e1e4e5;
+}
+
+[class^="toctree"] .pre {
+    font-size: 1.25em;
 }

@@ -90,11 +90,8 @@ The profiling layer also supports a standarized vk_layer_settings.txt file.
 
 The file has to be placed in the profiled application's directory. It can be used to configure other layers as well, and has higher priority than options set by the Vulkan Configurator, so application specific settings can be applied this way.
 
-.. rst-class:: code-header
-
-    vk_layer_settings.txt
-
-.. code::
+.. code-block::
+    :caption: vk_layer_settings.txt
 
     profiler_unified.sampling_mode = pipeline
     profiler_unified.frame_delimiter = present
