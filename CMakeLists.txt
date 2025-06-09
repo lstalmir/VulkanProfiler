@@ -41,17 +41,5 @@ set    (SPIRV_DOCS_URL "https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV
 # Build third-party dependencies.
 add_subdirectory (External EXCLUDE_FROM_ALL)
 
-find_package (Python3 REQUIRED)
-string (CONFIGURE [[
-    execute_process (COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_LIST_DIR}/VkLayer_profiler_layer/scripts/gen_licenses.py"
-        --license "Vulkan(R) Profiling Layer" "${CMAKE_CURRENT_LIST_DIR}/LICENSE.md"
-        --externaldir "${CMAKE_CURRENT_LIST_DIR}/External"
-        --output "${CMAKE_BINARY_DIR}/LICENSES")
-    ]] PROFILER_GENERATE_LICENSES_CODE)
-
-install (CODE ${PROFILER_GENERATE_LICENSES_CODE})
-install (FILES "${CMAKE_BINARY_DIR}/LICENSES" DESTINATION .)
-
 # Include sub-projects
 add_subdirectory (VkLayer_profiler_layer)

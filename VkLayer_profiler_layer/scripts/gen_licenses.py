@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Lukasz Stalmirski
+# Copyright (c) 2024-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,9 +22,20 @@ import sys
 import os
 import pathlib
 import argparse
+import subprocess
 
 # List of file names (without extension) to scan for licenses.
 LICENSE_FILES = [ "COPYING", "LICENSE" ]
+
+class library_info:
+    def __init__( self, name: str, license_path: str ):
+        self.name = name
+        self.license_path = license_path
+        self.git_url = None
+
+def execute_process( cmd, cwd ):
+    result = subprocess.check_output( cmd, cwd=cwd, stderr=subprocess.DEVNULL )
+    return result.decode( "utf-8" ).strip()
 
 def find_licenses( directory ):
     licenses = {}
@@ -39,17 +50,31 @@ def find_licenses( directory ):
             filename = pathlib.Path( path ).stem
             if not filename in LICENSE_FILES:
                 continue
-            licenses[ lib ] = path
+            info = library_info( lib, path )
+            if os.path.exists( os.path.join( libdir, ".git" ) ):
+                try:
+                    remote = execute_process( ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], cwd=libdir )
+                    remote_sep = remote.index('/')
+                    remote = remote[:remote_sep]
+                except Exception as e:
+                    remote = "origin"
+                info.git_url = execute_process( ["git", "remote", "get-url", remote], cwd=libdir )
+            licenses[ lib ] = info
             break
         if lib not in licenses.keys():
             raise Exception( f"License not found for {lib}" )
-    return licenses
+    return licenses.values()
 
-def append_license_file( out, name, path ):
-    out.write( f"[{name}]\n" )
-    with open( path ) as license_file:
-        out.write( license_file.read() )
+def append_license_file( out, info: library_info ):
+    out.write( f"| **{info.name}**\n" )
+    if info.git_url:
+        out.write( f"| {info.git_url}\n" )
     out.write( "\n" )
+    out.write( ".. code-block:: text\n\n" )
+    with open( info.license_path ) as license_file:
+        for line in license_file:
+            out.write( "  " + line.strip() + "\n" )
+    out.write( "\n\n" )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -60,10 +85,11 @@ if __name__ == "__main__":
 
     with open( args.output, mode="w" ) as out:
         for lib, path in args.license_paths:
-            append_license_file( out, lib, path )
+            info = library_info( lib, path )
+            append_license_file( out, info )
         for directory in args.external_dirs:
             licenses = find_licenses( directory )
-            for lib, path in licenses.items():
-                append_license_file( out, lib, path )
+            for info in licenses:
+                append_license_file( out, info )
 
     print( f"-- Licenses written to {args.output}" )

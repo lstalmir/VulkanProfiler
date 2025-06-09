@@ -135,6 +135,18 @@ if (BUILD_SPIRV_DOCS)
     list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h")
 endif ()
 
+# Generate licenses file
+set (PROFILER_LICENSES_FILE "${CMAKE_BINARY_DIR}/LICENSES.rst")
+add_custom_command (
+    OUTPUT "${PROFILER_LICENSES_FILE}"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
+        --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
+        --externaldir "${CMAKE_SOURCE_DIR}/External"
+        --output "${PROFILER_LICENSES_FILE}"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
+list (APPEND PROFILER_CODEGEN_FILES ${PROFILER_LICENSES_FILE})
+
 add_custom_target (profiler_codegen
     DEPENDS ${PROFILER_CODEGEN_FILES})
 
@@ -329,6 +341,8 @@ target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+
+install (FILES "${PROFILER_LICENSES_FILE}" DESTINATION .)
 
 # Copy JSON to the path where DLL/SO is installed
 if (WIN32)

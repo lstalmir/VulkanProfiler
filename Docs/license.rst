@@ -6,11 +6,4 @@
 Licenses
 ========
 
-.. include:: ../LICENSE.md
-
-Third-party software
---------------------
-
-The tool also uses third-party libraries under the following licenses:
-
-.. include:: ../cmake_build/LICENSES
+.. include:: ../cmake_build/LICENSES.rst
