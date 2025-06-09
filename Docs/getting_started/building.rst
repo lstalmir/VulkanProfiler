@@ -50,20 +50,20 @@ Building with CMake
 
 The layer uses CMake build management tool, so building it is straightforward.
 
-1. Clone the repository.
+1.  Clone the repository.
 
     .. code::
 
         git clone --recursive https://github.com/lstalmir/VulkanProfiler
         cd VulkanProfiler
 
-2. Install Python packages.
+2.  Install Python packages.
 
     .. code::
 
         python3 -m pip install -r VkLayer_profiler_layer/scripts/requirements.txt
 
-3. Generate the project files / makefiles in the build directory.
+3.  Generate the project files / makefiles in the build directory.
 
     .. code::
 
@@ -71,7 +71,7 @@ The layer uses CMake build management tool, so building it is straightforward.
         cd cmake_build
         cmake .. -DCMAKE_BUILD_TYPE=Release
 
-4. Build the layer.
+4.  Build the layer.
 
     .. code::
 
@@ -95,3 +95,20 @@ Once generated, the project can be built by running make:
 .. code::
 
     make all
+
+Building documentation
+----------------------
+
+The documentation is written in reStructuredText and uses Sphinx to generate HTML.
+
+The packages required for building are listed in Docs/requirements.txt:
+
+.. literalinclude:: /requirements.txt
+    :caption: Docs/requirements.txt
+    :lines: 21-
+
+With the packages installed, sphinx-build tool can be used:
+
+.. code::
+
+    sphinx-build -M html ./Docs ./docs_build
