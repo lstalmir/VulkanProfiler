@@ -67,7 +67,7 @@ namespace Profiler
         DeviceProfiler();
 
         static void SetupDeviceCreateInfo( VkPhysicalDevice_Object&, const ProfilerLayerSettings&, std::unordered_set<std::string>&, PNextChain& );
-        static void SetupInstanceCreateInfo( std::unordered_set<std::string>& );
+        static void SetupInstanceCreateInfo( const VkInstanceCreateInfo&, PFN_vkGetInstanceProcAddr, std::unordered_set<std::string>& );
 
         static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 

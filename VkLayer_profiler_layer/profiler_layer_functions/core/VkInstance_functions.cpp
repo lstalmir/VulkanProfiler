@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -129,14 +129,33 @@ namespace Profiler
         // Move chain on for next layer
         pLayerCreateInfo->u.pLayerInfo = pLayerCreateInfo->u.pLayerInfo->pNext;
 
+        // Enable instance extensions required by the profiler
+        std::unordered_set<std::string> instanceExtensions(
+            pCreateInfo->ppEnabledExtensionNames,
+            pCreateInfo->ppEnabledExtensionNames + pCreateInfo->enabledExtensionCount );
+
+        DeviceProfiler::SetupInstanceCreateInfo( *pCreateInfo, pfnGetInstanceProcAddr, instanceExtensions );
+
+        std::vector<const char*> pInstanceExtensionNames;
+        pInstanceExtensionNames.reserve( instanceExtensions.size() );
+
+        for( const std::string& extensionName : instanceExtensions )
+        {
+            pInstanceExtensionNames.push_back( extensionName.c_str() );
+        }
+
+        VkInstanceCreateInfo instanceCreateInfo = *pCreateInfo;
+        instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>( pInstanceExtensionNames.size() );
+        instanceCreateInfo.ppEnabledExtensionNames = pInstanceExtensionNames.data();
+
         // Invoke vkCreateInstance of next layer
-        VkResult result = pfnCreateInstance( pCreateInfo, pAllocator, pInstance );
+        VkResult result = pfnCreateInstance( &instanceCreateInfo, pAllocator, pInstance );
 
         // Register callbacks to the next layer
         if( result == VK_SUCCESS )
         {
             result = CreateInstanceBase(
-                pCreateInfo,
+                &instanceCreateInfo,
                 pfnGetInstanceProcAddr,
                 pfnSetInstanceLoaderData,
                 pAllocator,
