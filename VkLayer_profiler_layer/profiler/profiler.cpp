@@ -221,16 +221,11 @@ namespace Profiler
             {
                 if( availableExtensionNames.count( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME ) )
                 {
-                    if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 ) &&
-                        ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) )
+                    if( ( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 ) &&
+                            ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ) ||
+                        ( physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) ) )
                     {
                         deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
-                        enableShaderModuleIdentifier = true;
-                    }
-                    else if( availableExtensionNames.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
-                    {
-                        deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
-                        deviceExtensions.insert( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
                         enableShaderModuleIdentifier = true;
                     }
                 }
@@ -294,10 +289,45 @@ namespace Profiler
         Get list of optional instance extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    void DeviceProfiler::SetupInstanceCreateInfo( std::unordered_set<std::string>& instanceExtensions )
+    void DeviceProfiler::SetupInstanceCreateInfo(
+        const VkInstanceCreateInfo& createInfo,
+        PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr,
+        std::unordered_set<std::string>& instanceExtensions )
     {
-        instanceExtensions.insert( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
-        instanceExtensions.insert( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+        std::unordered_set<std::string> availableInstanceExtensions;
+
+        // Try to enumerate available extensions.
+        if( pfnGetInstanceProcAddr != nullptr )
+        {
+            PFN_vkEnumerateInstanceExtensionProperties pfnEnumerateInstanceExtensionProperties =
+                (PFN_vkEnumerateInstanceExtensionProperties)pfnGetInstanceProcAddr( nullptr, "vkEnumerateInstanceExtensionProperties" );
+
+            if( pfnEnumerateInstanceExtensionProperties != nullptr )
+            {
+                uint32_t extensionCount = 0;
+                pfnEnumerateInstanceExtensionProperties( nullptr, &extensionCount, nullptr );
+
+                std::vector<VkExtensionProperties> extensions( extensionCount );
+                pfnEnumerateInstanceExtensionProperties( nullptr, &extensionCount, extensions.data() );
+
+                for( const VkExtensionProperties& extension : extensions )
+                {
+                    availableInstanceExtensions.insert( extension.extensionName );
+                }
+            }
+        }
+
+        // Enable extensions required by some of the features to work correctly.
+        if( ( createInfo.pApplicationInfo == nullptr ) ||
+            ( createInfo.pApplicationInfo->apiVersion == 0 ||
+                createInfo.pApplicationInfo->apiVersion == VK_API_VERSION_1_0 ) )
+        {
+            if( availableInstanceExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+            {
+                // Required by Vk_EXT_shader_module_identifier
+                instanceExtensions.insert( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+            }
+        }
     }
 
     /***********************************************************************************\
