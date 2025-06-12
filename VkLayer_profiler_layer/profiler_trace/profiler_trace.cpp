@@ -344,6 +344,20 @@ namespace Profiler
             GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
             m_CommandQueue ) );
 
+        // Performance counters
+        if( !data.m_PerformanceQueryResults.empty() )
+        {
+            const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& performanceCounterProperties =
+                m_Frontend.GetPerformanceCounterProperties( data.m_PerformanceQueryMetricsSetIndex );
+
+            m_pEvents.push_back( new TraceCounterEvent(
+                GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
+                m_CommandQueue,
+                performanceCounterProperties.size(),
+                performanceCounterProperties.data(),
+                data.m_PerformanceQueryResults.data() ) );
+        }
+
         for( const auto& renderPassData : data.m_RenderPasses )
         {
             if( renderPassData.m_BeginTimestamp.m_Value != UINT64_MAX )
@@ -351,6 +365,20 @@ namespace Profiler
                 // Serialize the render pass
                 Serialize( renderPassData );
             }
+        }
+
+        // Clear performance counters before the next command buffer
+        if( !data.m_PerformanceQueryResults.empty() )
+        {
+            const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& performanceCounterProperties =
+                m_Frontend.GetPerformanceCounterProperties( data.m_PerformanceQueryMetricsSetIndex );
+
+            m_pEvents.push_back( new TraceCounterEvent(
+                GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
+                m_CommandQueue,
+                performanceCounterProperties.size(),
+                performanceCounterProperties.data(),
+                nullptr ) );
         }
 
         // End
