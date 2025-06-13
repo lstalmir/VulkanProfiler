@@ -13,7 +13,7 @@ author = 'Łukasz Stalmirski'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ['sphinx_tabs.tabs']
+extensions = ['sphinx.ext.autosectionlabel', 'sphinx_tabs.tabs']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # -- Options for HTML output -------------------------------------------------

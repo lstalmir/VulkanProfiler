@@ -14,3 +14,4 @@ The latest version of the layer can be found on the `GitHub repository <https://
    introduction
    license
    getting_started/index
+   user_interface
