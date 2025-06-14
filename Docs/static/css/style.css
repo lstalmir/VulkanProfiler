@@ -29,9 +29,18 @@ p {
     font-size: 1.1em;
 }
 
-.rst-content .toctree-wrapper ul li > ul {
-    margin-top: 2px;
-    margin-bottom: 2px;
+#table-of-contents ul {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+}
+
+#table-of-contents dt,
+#table-of-contents dd {
+    margin-bottom: 2px !important;
+}
+
+#table-of-contents dd {
+    margin-left: 5px !important;
 }
 
 div.deprecated {
