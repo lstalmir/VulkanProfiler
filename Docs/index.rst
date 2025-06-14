@@ -9,9 +9,11 @@ The latest version of the layer can be found on the `GitHub repository <https://
 
 .. toctree::
    :maxdepth: 2
+   :titlesonly:
    :caption: Table of contents
 
    introduction
    license
    getting_started/index
+   options
    user_interface

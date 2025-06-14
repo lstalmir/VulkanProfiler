@@ -10,4 +10,3 @@ This section describes building, installation and configuration of the profiling
    building
    installation
    configuration
-   options

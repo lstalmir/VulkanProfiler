@@ -3,7 +3,7 @@ Configuration
 
 The layer can be configured to handle more specific use cases.
 
-For list of all available configuration options, see :doc:`options` section.
+For list of all available configuration options, see :doc:`/options` section.
 
 Vulkan Configurator
 -------------------
