@@ -43,12 +43,12 @@ Frame browser
 
 The frame data is displayed in a form of a tree in the following hierarchy:
 
-#. **vkQueueSubmit** - The API call that submitted the command buffers in batches of VkSubmitInfos.
-#. **VkSubmitInfo** - A structure that contains a list of the submitted command buffers.
-#. **Command buffers** - VkCommandBuffer objects that are recorded lists of commands.    
-#. **Render passes** - VkRenderPass objects, dynamic rendering passes, compute or transfer operations passes.
-#. **Pipelines** - VkPipeline objects defining state used for the subsequent commands.
-#. **Drawcalls** - Commands that are executed on the GPU, e.g., vkCmdDraw, vkCmdDispatch.
+#. **vkQueueSubmit**: The API call that submitted the command buffers in batches of VkSubmitInfos.
+#. **VkSubmitInfo**: A structure that contains a list of the submitted command buffers.
+#. **Command buffers**: VkCommandBuffer objects that are recorded lists of commands.    
+#. **Render passes**: VkRenderPass objects, dynamic rendering passes, compute or transfer operations passes.
+#. **Pipelines**: VkPipeline objects defining state used for the subsequent commands.
+#. **Drawcalls**: Commands that are executed on the GPU, e.g., vkCmdDraw, vkCmdDispatch.
 
 On the right side of each tree node there is a measured time of the entire node.
 The node's background also indicates its contribution to the total frame time.
@@ -151,4 +151,12 @@ By default the table is filtered to show only the commands that were used in the
 Settings
 --------
 
-pass
+Settings tab allows to configure the overlay's appearance.
+
+Currently, the following options are available:
+
+#. **Interface scale**: Sets the UI scaling factor for high-DPI displays.
+#. **Collected frame count**: Sets the number of collected and displayed frames.
+#. **Time unit**: Sets the time unit (milliseconds, microseconds or nanoseconds).
+#. **Show debug labels**: Shows debug labels inserted by the application in the :ref:`Frame browser`.
+#. **Show shader capabilities**: Shows shader capabilities in form of badges in the :ref:`Frame browser` and :ref:`Top pipelines`.
