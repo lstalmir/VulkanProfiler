@@ -109,6 +109,17 @@ size_t GetStructureSize( const VkPipelineDynamicStateCreateInfo* pStructure )
 }
 
 template<>
+size_t GetStructureSize( const VkRayTracingPipelineInterfaceCreateInfoKHR* pStructure )
+{
+    if( pStructure != nullptr )
+    {
+        return sizeof( VkRayTracingPipelineInterfaceCreateInfoKHR ) +
+               GetPNextChainSize( pStructure->pNext );
+    }
+    return 0;
+}
+
+template<>
 size_t GetStructureSize( const VkGraphicsPipelineCreateInfo* pStructure )
 {
     if( pStructure != nullptr )
@@ -124,6 +135,19 @@ size_t GetStructureSize( const VkGraphicsPipelineCreateInfo* pStructure )
             GetStructureSize( pStructure->pDepthStencilState ) +
             GetStructureSize( pStructure->pColorBlendState ) +
             GetStructureSize( pStructure->pDynamicState );
+    }
+    return 0;
+}
+
+template<>
+size_t GetStructureSize( const VkRayTracingPipelineCreateInfoKHR* pStructure )
+{
+    if( pStructure != nullptr )
+    {
+        return sizeof( VkRayTracingPipelineCreateInfoKHR ) +
+               GetPNextChainSize( pStructure->pNext ) +
+               GetStructureSize( pStructure->pLibraryInterface ) +
+               GetStructureSize( pStructure->pDynamicState );
     }
     return 0;
 }
@@ -257,6 +281,22 @@ VkPipelineDynamicStateCreateInfo* CopyStructure( const VkPipelineDynamicStateCre
 }
 
 template<>
+VkRayTracingPipelineInterfaceCreateInfoKHR* CopyStructure( const VkRayTracingPipelineInterfaceCreateInfoKHR* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        VkRayTracingPipelineInterfaceCreateInfoKHR* pDst = reinterpret_cast<VkRayTracingPipelineInterfaceCreateInfoKHR*>( *ppNext );
+        *ppNext += sizeof( VkRayTracingPipelineInterfaceCreateInfoKHR );
+        pDst->sType = pSrc->sType;
+        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->maxPipelineRayPayloadSize = pSrc->maxPipelineRayPayloadSize;
+        pDst->maxPipelineRayHitAttributeSize = pSrc->maxPipelineRayHitAttributeSize;
+        return pDst;
+    }
+    return nullptr;
+}
+
+template<>
 VkGraphicsPipelineCreateInfo* CopyStructure( const VkGraphicsPipelineCreateInfo* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
@@ -287,27 +327,64 @@ VkGraphicsPipelineCreateInfo* CopyStructure( const VkGraphicsPipelineCreateInfo*
     return nullptr;
 }
 
+template<>
+VkRayTracingPipelineCreateInfoKHR* CopyStructure( const VkRayTracingPipelineCreateInfoKHR* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        VkRayTracingPipelineCreateInfoKHR* pDst = reinterpret_cast<VkRayTracingPipelineCreateInfoKHR*>( *ppNext );
+        *ppNext += sizeof( VkRayTracingPipelineCreateInfoKHR );
+        pDst->sType = pSrc->sType;
+        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->flags = pSrc->flags;
+        pDst->stageCount = 0;
+        pDst->pStages = nullptr;
+        pDst->groupCount = 0;
+        pDst->pGroups = nullptr;
+        pDst->maxPipelineRayRecursionDepth = pSrc->maxPipelineRayRecursionDepth;
+        pDst->pLibraryInfo = nullptr;
+        pDst->pLibraryInterface = CopyStructure( pSrc->pLibraryInterface, ppNext );
+        pDst->pDynamicState = CopyStructure( pSrc->pDynamicState, ppNext );
+        pDst->layout = pSrc->layout;
+        pDst->basePipelineHandle = pSrc->basePipelineHandle;
+        pDst->basePipelineIndex = pSrc->basePipelineIndex;
+        return pDst;
+    }
+    return nullptr;
+}
+
+template<typename CreateInfoT>
+std::shared_ptr<Profiler::DeviceProfilerPipeline::CreateInfo> CopyPipelineCreateInfoImpl( const CreateInfoT* pCreateInfo )
+{
+    size_t createInfoSize = GetStructureSize( pCreateInfo );
+    if( createInfoSize == 0 )
+    {
+        return nullptr;
+    }
+
+    auto* ci = static_cast<Profiler::DeviceProfilerPipeline::CreateInfo*>( malloc( createInfoSize ) );
+    if( ci == nullptr )
+    {
+        return nullptr;
+    }
+
+    // Get pointer to the first byte after the new create info for additional data.
+    auto* pNext = reinterpret_cast<std::byte*>( ci );
+    CopyStructure( pCreateInfo, &pNext );
+
+    return std::shared_ptr<Profiler::DeviceProfilerPipeline::CreateInfo>( ci, free );
+}
+
 namespace Profiler
 {
     std::shared_ptr<DeviceProfilerPipeline::CreateInfo> DeviceProfilerPipeline::CopyPipelineCreateInfo( const VkGraphicsPipelineCreateInfo* pCreateInfo )
     {
-        size_t createInfoSize = GetStructureSize( pCreateInfo );
-        if( createInfoSize == 0 )
-        {
-            return nullptr;
-        }
+        return CopyPipelineCreateInfoImpl( pCreateInfo );
+    }
 
-        CreateInfo* ci = static_cast<CreateInfo*>(malloc( createInfoSize ));
-        if( ci == nullptr )
-        {
-            return nullptr;
-        }
-
-        // Get pointer to the first byte after the new create info for additional data.
-        std::byte* pNext = reinterpret_cast<std::byte*>(ci);
-        CopyStructure( pCreateInfo, &pNext );
-
-        return std::shared_ptr<CreateInfo>( ci, free );
+    std::shared_ptr<DeviceProfilerPipeline::CreateInfo> DeviceProfilerPipeline::CopyPipelineCreateInfo( const VkRayTracingPipelineCreateInfoKHR* pCreateInfo )
+    {
+        return CopyPipelineCreateInfoImpl( pCreateInfo );
     }
 
     VkAccelerationStructureBuildGeometryInfoKHR* DeviceProfilerDrawcall::CopyAccelerationStructureBuildGeometryInfos(

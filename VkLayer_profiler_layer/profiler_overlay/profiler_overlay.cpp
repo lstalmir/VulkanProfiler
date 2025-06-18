@@ -2421,6 +2421,10 @@ namespace Profiler
         case DeviceProfilerPipelineType::eGraphics:
             DrawInspectorGraphicsPipelineState();
             break;
+
+        case DeviceProfilerPipelineType::eRayTracingKHR:
+            DrawInspectorRayTracingPipelineState();
+            break;
         }
     }
 
@@ -2853,6 +2857,71 @@ namespace Profiler
         ImGui::EndDisabled();
 
         ImGui::PopStyleColor();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorRayTracingPipelineState
+
+    Description:
+        Draws the inspected ray tracing pipeline state.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawInspectorRayTracingPipelineState()
+    {
+        assert( m_InspectorPipeline.m_Type == DeviceProfilerPipelineType::eRayTracingKHR );
+        assert( m_InspectorPipeline.m_pCreateInfo != nullptr );
+        const VkRayTracingPipelineCreateInfoKHR& rtci = m_InspectorPipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR;
+
+        const ImGuiTableFlags tableFlags =
+            // ImGuiTableFlags_BordersInnerH |
+            ImGuiTableFlags_PadOuterX |
+            ImGuiTableFlags_SizingStretchSame;
+
+        const float contentPaddingTop = 2.0f;
+        const float contentPaddingLeft = 5.0f;
+        const float contentPaddingRight = 10.0f;
+        const float contentPaddingBottom = 10.0f;
+
+        const float dynamicColumnWidth = ImGui::CalcTextSize( "Dynamic" ).x + 5;
+
+        auto SetupDefaultPipelineStateColumns = [&]() {
+            ImGui::TableSetupColumn( "Name", 0, 1.5f );
+            ImGui::TableSetupColumn( "Dynamic", ImGuiTableColumnFlags_WidthFixed, dynamicColumnWidth );
+        };
+
+        ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
+        // VkRayTracingPipelineCreateInfoKHR
+        ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+        if( ImGui::BeginTable( "##RTPipeline", 3, tableFlags ) )
+        {
+            SetupDefaultPipelineStateColumns();
+            DrawPipelineStateValue( "Max ray recursion depth", "%u", rtci.maxPipelineRayRecursionDepth );
+            DrawPipelineStateValue( "Pipeline stack size", "%llu", m_InspectorPipeline.m_RayTracingPipelineStackSize, rtci.pDynamicState, VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR );
+            ImGui::EndTable();
+        }
+        ImGuiX::EndPadding( contentPaddingBottom );
+
+        // VkRayTracingPipelineInterfaceCreateInfoKHR
+        ImGui::BeginDisabled( rtci.pLibraryInterface == nullptr );
+        if( ImGui::CollapsingHeader( "Pipeline interface" ) &&
+            ( rtci.pLibraryInterface != nullptr ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##RTPipelineInterface", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkRayTracingPipelineInterfaceCreateInfoKHR& state = *rtci.pLibraryInterface;
+                DrawPipelineStateValue( "Max ray payload size", "%u", state.maxPipelineRayPayloadSize );
+                DrawPipelineStateValue( "Max ray hit attribute size", "%u", state.maxPipelineRayHitAttributeSize );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
     }
 
     /***********************************************************************************\

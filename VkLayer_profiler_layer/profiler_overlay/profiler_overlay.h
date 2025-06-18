@@ -331,6 +331,7 @@ namespace Profiler
         void DrawInspectorShaderStage();
         void DrawInspectorPipelineState();
         void DrawInspectorGraphicsPipelineState();
+        void DrawInspectorRayTracingPipelineState();
         void SetInspectorTabIndex( size_t );
         void ShaderRepresentationSaved( bool, const std::string& );
 
