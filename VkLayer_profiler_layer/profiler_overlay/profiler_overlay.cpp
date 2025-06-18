@@ -2922,6 +2922,8 @@ namespace Profiler
             ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
+
+        ImGui::PopStyleColor();
     }
 
     /***********************************************************************************\
