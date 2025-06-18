@@ -34,7 +34,6 @@ class library_info:
         self.git_url = None
 
 def execute_process( cmd, cwd ):
-    print( f"execute_process: {' '.join( cmd )}" )
     result = subprocess.check_output( cmd, cwd=cwd, stderr=subprocess.DEVNULL )
     return result.decode( "utf-8" ).strip()
 
