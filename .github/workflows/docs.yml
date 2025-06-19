@@ -27,6 +27,7 @@ on:
       - docs
     paths:
       - 'docs/**'
+      - '.github/workflows/docs.yml'
     tags:
       - release-*
 
