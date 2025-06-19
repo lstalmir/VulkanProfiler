@@ -58,10 +58,9 @@ jobs:
       run: |
           cmake -B ${{github.workspace}}/docs_build
           cmake --build ${{github.workspace}}/docs_build --config Release --target profiler_codegen
-          copy ${{github.workspace}}/docs_build/LICENSES.rst ${{github.workspace}}/Docs/_licenses_generated.rst
 
     - name: Build documentation
-      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/html
+      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/html --vkprof_licenses="${{github.workspace}}/docs_build/LICENSES.rst"
 
     # Push documentation to docs-build branch
     #- name: Publish documentation

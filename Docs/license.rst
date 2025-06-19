@@ -6,4 +6,4 @@
 Licenses
 ========
 
-.. include:: _licenses_generated.rst
+.. vkprof_include_licenses::
