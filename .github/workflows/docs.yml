@@ -43,6 +43,9 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
+    - name: Add build workspace
+      run: git workspace add -f docs_build docs-build
+
     - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
@@ -56,17 +59,16 @@ jobs:
     # Build the documentation
     - name: Build profiler_codegen
       run: |
-          cmake -B ${{github.workspace}}/docs_build -DSKIP_PLATFORMS_CHECK=ON
-          cmake --build ${{github.workspace}}/docs_build --target profiler_codegen
+          cmake -B ${{github.workspace}}/build -DSKIP_PLATFORMS_CHECK=ON
+          cmake --build ${{github.workspace}}/build --target profiler_codegen
 
     - name: Build documentation
-      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/html -D vkprof_licenses="${{github.workspace}}/docs_build/LICENSES.rst"
+      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/docs_build/html -D vkprof_licenses="${{github.workspace}}/build/LICENSES.rst"
 
     # Push documentation to docs-build branch
-    #- name: Publish documentation
-    #  run: |
-    #    git fetch origin
-    #    git checkout origin/docs-build
-    #    git add html
-    #    git commit -m "Update documentation for ${{github.sha}}"
-    #    git push
+    - name: Publish documentation
+      run: |
+        cd ${{github.workspace}}/docs_build
+        git add html
+        git commit -m "Update documentation for ${{github.sha}}"
+        #git push
