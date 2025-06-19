@@ -63,7 +63,7 @@ jobs:
           cmake --build ${{github.workspace}}/build --target profiler_codegen
 
     - name: Build documentation
-      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/docs_build/html -D vkprof_licenses="${{github.workspace}}/build/LICENSES.rst"
+      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/docs_build/html -D vkprof_licenses="${{github.workspace}}/build/LICENSES.rst" -E -a
 
     # Push documentation to docs-build branch
     - name: Publish documentation
@@ -73,4 +73,4 @@ jobs:
         git config user.email "<>"
         git add html
         git commit -m "Update documentation for ${{github.sha}}"
-        #git push
+        git push
