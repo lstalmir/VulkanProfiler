@@ -1066,6 +1066,103 @@ namespace Profiler
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultPipelineName( profilerPipeline, deferred );
 
+            profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
+
+            // Calculate default pipeline stack size.
+            VkDeviceSize rayGenStackMax = 0;
+            VkDeviceSize closestHitStackMax = 0;
+            VkDeviceSize missStackMax = 0;
+            VkDeviceSize intersectionStackMax = 0;
+            VkDeviceSize anyHitStackMax = 0;
+            VkDeviceSize callableStackMax = 0;
+
+            for( uint32_t groupIndex = 0; groupIndex < createInfo.groupCount; ++groupIndex )
+            {
+                const VkRayTracingShaderGroupCreateInfoKHR& group = createInfo.pGroups[groupIndex];
+                switch( group.type )
+                {
+                case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+                {
+                    // Ray generation, miss and callable shaders.
+                    VkDeviceSize stackSize = m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                        m_pDevice->Handle,
+                        profilerPipeline.m_Handle,
+                        groupIndex,
+                        VK_SHADER_GROUP_SHADER_GENERAL_KHR );
+
+                    switch( createInfo.pStages[group.generalShader].stage )
+                    {
+                    case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+                        rayGenStackMax = std::max( rayGenStackMax, stackSize );
+                        break;
+
+                    case VK_SHADER_STAGE_MISS_BIT_KHR:
+                        missStackMax = std::max( missStackMax, stackSize );
+                        break;
+
+                    case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+                        callableStackMax = std::max( callableStackMax, stackSize );
+                        break;
+
+                    default:
+                        assert( !"Unsupported general shader group." );
+                        break;
+                    }
+                    break;
+                }
+
+                case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+                case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+                {
+                    // Closest-hit, any-hit and intersection shaders.
+                    if( group.closestHitShader != VK_SHADER_UNUSED_KHR )
+                    {
+                        closestHitStackMax = std::max( closestHitStackMax,
+                            m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                                m_pDevice->Handle,
+                                profilerPipeline.m_Handle,
+                                groupIndex,
+                                VK_SHADER_GROUP_SHADER_CLOSEST_HIT_KHR ) );
+                    }
+                    if( group.anyHitShader != VK_SHADER_UNUSED_KHR )
+                    {
+                        anyHitStackMax = std::max( anyHitStackMax,
+                            m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                                m_pDevice->Handle,
+                                profilerPipeline.m_Handle,
+                                groupIndex,
+                                VK_SHADER_GROUP_SHADER_ANY_HIT_KHR ) );
+                    }
+                    if( group.intersectionShader != VK_SHADER_UNUSED_KHR )
+                    {
+                        intersectionStackMax = std::max( intersectionStackMax,
+                            m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                                m_pDevice->Handle,
+                                profilerPipeline.m_Handle,
+                                groupIndex,
+                                VK_SHADER_GROUP_SHADER_INTERSECTION_KHR ) );
+                    }
+                    break;
+                }
+
+                default:
+                {
+                    assert( !"Unsupported shader group type." );
+                    break;
+                }
+                }
+            }
+
+            // Calculate the default pipeline stack size according to the Vulkan spec.
+            const uint32_t maxRayRecursionDepth = std::min( 1U, createInfo.maxPipelineRayRecursionDepth );
+            const VkDeviceSize closestHitAndMissStackMax = std::max( closestHitStackMax, missStackMax );
+
+            profilerPipeline.m_RayTracingPipelineStackSize =
+                rayGenStackMax +
+                ( maxRayRecursionDepth ) * std::max( closestHitAndMissStackMax, intersectionStackMax + anyHitStackMax ) +
+                ( maxRayRecursionDepth - 1 ) * closestHitAndMissStackMax +
+                2 * callableStackMax;
+
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
     }
