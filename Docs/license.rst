@@ -6,4 +6,4 @@
 Licenses
 ========
 
-.. include:: ../cmake_build/LICENSES.rst
+.. vkprof_include_licenses::

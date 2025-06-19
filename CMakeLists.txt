@@ -29,14 +29,15 @@ project (VulkanProfiler CXX)
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Vulkan platform support.
-include (CMake/platform.cmake NO_POLICY_SCOPE)
-
 # Options
 option (BUILD_TESTS "Build tests." ON)
 option (BUILD_SPIRV_DOCS "Build SPIR-V documentation into the disassembly view." ON)
 set    (SPIRV_DOCS_URL "https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html"
             CACHE STRING "URL of the SPIR-V documentation page.")
+option (SKIP_PLATFORMS_CHECK "Skip checking for Vulkan platform support." OFF)
+
+# Vulkan platform support.
+include (CMake/platform.cmake NO_POLICY_SCOPE)
 
 # Build third-party dependencies.
 add_subdirectory (External EXCLUDE_FROM_ALL)
