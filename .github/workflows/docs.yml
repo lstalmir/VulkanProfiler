@@ -69,6 +69,8 @@ jobs:
     - name: Publish documentation
       run: |
         cd ${{github.workspace}}/docs_build
+        git config user.name "GitHub Actions"
+        git config user.email "<>"
         git add html
         git commit -m "Update documentation for ${{github.sha}}"
         #git push
