@@ -6,4 +6,4 @@
 Licenses
 ========
 
-.. include:: ../cmake_build/LICENSES.rst
+.. include:: _licenses_generated.rst

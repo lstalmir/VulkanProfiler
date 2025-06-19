@@ -47,17 +47,21 @@ jobs:
       with:
         python-version: '3.12'
         cache: 'pip'
+
     - name: Install dependencies
       run: |
           python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
           python3 -m pip install -r ${{github.workspace}}/Docs/requirements.txt
-
-    - run: cmake -B ${{github.workspace}}/cmake_build
-    - run: cmake --build ${{github.workspace}}/cmake_build --config Release --target profiler_codegen
-
+          
     # Build the documentation
+    - name: Build profiler_codegen
+      run: |
+          cmake -B ${{github.workspace}}/docs_build
+          cmake --build ${{github.workspace}}/docs_build --config Release --target profiler_codegen
+          copy ${{github.workspace}}/docs_build/LICENSES.rst ${{github.workspace}}/Docs/_licenses_generated.rst
+
     - name: Build documentation
-      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}
+      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/html
 
     # Push documentation to docs-build branch
     #- name: Publish documentation
