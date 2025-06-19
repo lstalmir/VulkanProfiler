@@ -34,7 +34,7 @@ on:
 jobs:
   build-docs:
     name: Build Documentation
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
     # Download the repository and set up Python
@@ -52,15 +52,15 @@ jobs:
       run: |
           python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
           python3 -m pip install -r ${{github.workspace}}/Docs/requirements.txt
-          
+
     # Build the documentation
     - name: Build profiler_codegen
       run: |
           cmake -B ${{github.workspace}}/docs_build
-          cmake --build ${{github.workspace}}/docs_build --config Release --target profiler_codegen
+          cmake --build ${{github.workspace}}/docs_build --target profiler_codegen
 
     - name: Build documentation
-      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/html --vkprof_licenses="${{github.workspace}}/docs_build/LICENSES.rst"
+      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/html -D vkprof_licenses="${{github.workspace}}/docs_build/LICENSES.rst"
 
     # Push documentation to docs-build branch
     #- name: Publish documentation
