@@ -71,9 +71,11 @@ jobs:
     # Push documentation to docs-build branch
     - name: Publish documentation
       run: |
-        cd ${{github.workspace}}/docs_build
-        git config user.name "GitHub Actions"
-        git config user.email "<>"
-        git add docs
-        git commit -m "Update documentation for ${{github.sha}}"
-        git push
+        if ! git diff-index --quiet HEAD; then
+            cd ${{github.workspace}}/docs_build
+            git config user.name "GitHub Actions"
+            git config user.email "<>"
+            git add docs
+            git commit -m "Update documentation for ${{github.sha}}"
+            git push
+        fi
