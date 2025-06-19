@@ -48,7 +48,9 @@ jobs:
         python-version: '3.12'
         cache: 'pip'
     - name: Install dependencies
-      run: python3 -m pip install -r ${{github.workspace}}/Docs/requirements.txt
+      run: |
+          python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
+          python3 -m pip install -r ${{github.workspace}}/Docs/requirements.txt
 
     - run: cmake -B ${{github.workspace}}/cmake_build
     - run: cmake --build ${{github.workspace}}/cmake_build --config Release --target profiler_codegen
