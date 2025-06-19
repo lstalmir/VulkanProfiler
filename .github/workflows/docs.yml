@@ -62,8 +62,11 @@ jobs:
           cmake -B ${{github.workspace}}/build -DSKIP_PLATFORMS_CHECK=ON
           cmake --build ${{github.workspace}}/build --target profiler_codegen
 
+    - name: Clean previous versions
+      run: rm -r ${{github.workspace}}/docs_build/docs
+
     - name: Build documentation
-      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/docs_build -D vkprof_licenses="${{github.workspace}}/build/LICENSES.rst" -E -a
+      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/docs_build/docs -D vkprof_licenses="${{github.workspace}}/build/LICENSES.rst" -E -a
 
     # Push documentation to docs-build branch
     - name: Publish documentation
@@ -71,6 +74,6 @@ jobs:
         cd ${{github.workspace}}/docs_build
         git config user.name "GitHub Actions"
         git config user.email "<>"
-        git add -A
+        git add docs
         git commit -m "Update documentation for ${{github.sha}}"
         git push
