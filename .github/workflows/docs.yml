@@ -43,9 +43,6 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
-    - name: Add build workspace
-      run: git workspace add -f docs_build docs-build
-
     - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
@@ -57,6 +54,9 @@ jobs:
           python3 -m pip install -r ${{github.workspace}}/Docs/requirements.txt
 
     # Build the documentation
+    - name: Add build worktree
+      run: git worktree add -f docs_build docs-build
+
     - name: Build profiler_codegen
       run: |
           cmake -B ${{github.workspace}}/build -DSKIP_PLATFORMS_CHECK=ON
