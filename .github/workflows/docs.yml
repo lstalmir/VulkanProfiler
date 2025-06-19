@@ -24,6 +24,7 @@ on:
   push:
     branches:
       - master
+      - docs
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'

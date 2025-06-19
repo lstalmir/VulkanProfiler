@@ -22,7 +22,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # -- Options for versioning --------------------------------------------------
 smv_tag_whitelist = r'^release-.*$'
-smv_branch_whitelist = r'^master$'
+smv_branch_whitelist = r'^master|docs$'
 smv_remote_whitelist = 'origin'
 smv_outputdir_format = '{ref.name}'
 smv_prefer_remote_refs = False
