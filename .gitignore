@@ -31,7 +31,6 @@ build/
 cmake_build/
 cov_build/
 docs_build/
-html/
 
 # User-defined files
 _*
