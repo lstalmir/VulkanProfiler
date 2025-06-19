@@ -56,7 +56,7 @@ jobs:
     # Build the documentation
     - name: Build profiler_codegen
       run: |
-          cmake -B ${{github.workspace}}/docs_build
+          cmake -B ${{github.workspace}}/docs_build -DSKIP_PLATFORMS_CHECK=ON
           cmake --build ${{github.workspace}}/docs_build --target profiler_codegen
 
     - name: Build documentation
