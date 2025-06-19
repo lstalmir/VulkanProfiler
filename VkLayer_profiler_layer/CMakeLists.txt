@@ -145,6 +145,7 @@ add_custom_command (
         --externaldir "${CMAKE_SOURCE_DIR}/External"
         --output "${PROFILER_LICENSES_FILE}"
     VERBATIM
+    DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
 list (APPEND PROFILER_CODEGEN_FILES ${PROFILER_LICENSES_FILE})
 
