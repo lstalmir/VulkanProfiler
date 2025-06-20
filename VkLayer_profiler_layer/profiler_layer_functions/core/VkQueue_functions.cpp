@@ -125,7 +125,27 @@ namespace Profiler
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
         // Bind sparse memory
-        return dd.Device.Callbacks.QueueBindSparse( queue, bindInfoCount, pBindInfo, fence );
+        VkResult result = dd.Device.Callbacks.QueueBindSparse(queue, bindInfoCount, pBindInfo, fence);
+
+        if( result == VK_SUCCESS )
+        {
+            for( uint32_t i = 0; i < bindInfoCount; ++i )
+            {
+                const VkBindSparseInfo& bindInfo = pBindInfo[i];
+
+                // Register buffer memory bindings
+                for( uint32_t j = 0; j < bindInfo.bufferBindCount; ++j )
+                {
+                    const VkSparseBufferMemoryBindInfo& bufferBind = bindInfo.pBufferBinds[j];
+                    dd.Profiler.BindBufferMemory(
+                        bufferBind.buffer,
+                        bufferBind.bindCount,
+                        bufferBind.pBinds );
+                }
+            }
+        }
+
+        return result;
     }
 
     /***********************************************************************************\
