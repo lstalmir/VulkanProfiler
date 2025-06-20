@@ -181,7 +181,8 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -351,7 +352,8 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -523,7 +525,8 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -545,7 +548,8 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -47,6 +47,12 @@ namespace Profiler
         if( strcmp( pName, #NAME ) == 0 )                                               \
         {                                                                               \
             return reinterpret_cast<PFN_vkVoidFunction>(NAME);                          \
+        }
+
+    #define GETPROCADDR_EXT_ALIAS( NAME, FUNC )                                         \
+        if( strcmp( pName, NAME ) == 0 )                                                \
+        {                                                                               \
+            return reinterpret_cast<PFN_vkVoidFunction>(FUNC);                          \
         }
 
     /***********************************************************************************\

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Lukasz Stalmirski
+# Copyright (c) 2024-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -70,7 +70,14 @@ class LayerSetting:
 class LayerInfo:
     def __init__( self, j: dict ):
         self.name = j["name"]
-        self.settings = [LayerSetting( self, setting ) for setting in j["features"]["settings"]]
+        self.settings = self.__list_settings( j["features"] )
+
+    def __list_settings( self, j: dict ):
+        settings = []
+        for setting in j.get( "settings", [] ):
+            settings.append( LayerSetting( self, setting ) )
+            settings.extend( self.__list_settings( setting ) )
+        return settings
 
 def get_layer_info( path: str ):
     with open( path ) as file:

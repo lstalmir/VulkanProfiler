@@ -67,7 +67,7 @@ namespace Profiler
         DeviceProfiler();
 
         static void SetupDeviceCreateInfo( VkPhysicalDevice_Object&, const ProfilerLayerSettings&, std::unordered_set<std::string>&, PNextChain& );
-        static void SetupInstanceCreateInfo( std::unordered_set<std::string>& );
+        static void SetupInstanceCreateInfo( const VkInstanceCreateInfo&, PFN_vkGetInstanceProcAddr, std::unordered_set<std::string>& );
 
         static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
@@ -76,9 +76,10 @@ namespace Profiler
         void Destroy();
 
         // Public interface
-        VkResult SetMode( VkProfilerModeEXT );
-        VkResult SetSyncMode( VkProfilerSyncModeEXT );
+        VkResult SetSamplingMode( VkProfilerModeEXT );
+        VkResult SetFrameDelimiter( VkProfilerFrameDelimiterEXT );
         VkResult SetDataBufferSize( uint32_t );
+        VkResult SetMinDataBufferSize( uint32_t );
         std::shared_ptr<DeviceProfilerFrameData> GetData();
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
@@ -153,6 +154,7 @@ namespace Profiler
 
         uint32_t                m_NextFrameIndex;
         uint32_t                m_DataBufferSize;
+        uint32_t                m_MinDataBufferSize;
         uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;
@@ -205,6 +207,7 @@ namespace Profiler
         void CreateSubmitBatchInfoImpl( VkQueue, uint32_t, const SubmitInfoT*, DeviceProfilerSubmitBatch* );
 
         void BeginNextFrame();
+        void ResolveFrameData( TipRangeId& tip );
     };
 
     /***********************************************************************************\

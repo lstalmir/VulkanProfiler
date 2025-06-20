@@ -1,0 +1,89 @@
+
+@import 'theme.css';
+
+.rst-content .code-block-caption {
+    font-size: 0.9em;
+    padding: 5px 0;
+}
+
+.wy-nav-content {
+    max-width: 1000px;
+}
+
+dt.sig {
+    width: 100%;
+}
+
+p {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.rst-content h2 {
+    margin: 30px 0 18px 0;
+    font-size: 1.4em;
+}
+
+.rst-content h3 {
+    margin: 30px 0 18px 0;
+    font-size: 1.1em;
+}
+
+#table-of-contents ul {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+}
+
+#table-of-contents dt,
+#table-of-contents dd {
+    margin-bottom: 2px !important;
+}
+
+#table-of-contents dd {
+    margin-left: 5px !important;
+}
+
+div.deprecated {
+    color: #707070;
+}
+
+div.code-tab {
+    background: #f8f8f8;
+    border: 1px solid #e1e4e5;
+    border-top: 0;
+    border-radius: 0;
+}
+div.code-tab div[class^="highlight"] {
+    border: 0;
+    margin-bottom: 0;
+}
+div.code-tab div[class^="highlight"] pre {
+    padding: 6px;
+}
+
+button.code-tab {
+    color: #555;
+    padding: 5px 10px;
+    border-radius: 0;
+}
+button.code-tab[aria-selected=true] {
+    background: #f8f8f8;
+    border: 1px solid #e1e4e5;
+    border-bottom: 1px solid #f8f8f8;
+}
+
+div[role="tablist"] {
+    border-bottom: 1px solid #e1e4e5;
+}
+
+[class^="toctree"] .pre {
+    font-size: 1.25em;
+}
+
+a.external {
+    background-image: url("../img/external-link.png");
+    background-position: center right;
+    background-repeat: no-repeat;
+    background-size: 0.75em;
+    padding-right: 1em;
+}

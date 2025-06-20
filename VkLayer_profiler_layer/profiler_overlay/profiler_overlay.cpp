@@ -248,8 +248,10 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerOverlayOutput::ProfilerOverlayOutput()
-        : m_InspectorShaderView( m_Resources )
+    ProfilerOverlayOutput::ProfilerOverlayOutput( DeviceProfilerFrontend& frontend, OverlayBackend& backend )
+        : DeviceProfilerOutput( frontend )
+        , m_Backend( backend )
+        , m_InspectorShaderView( m_Resources )
         , m_pLastMainWindowPos( m_Settings.AddFloat2( "LastMainWindowPos", Float2() ) )
         , m_pLastMainWindowSize( m_Settings.AddFloat2( "LastMainWindowSize", Float2() ) )
         , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true }
@@ -286,15 +288,11 @@ namespace Profiler
         Initializes profiler overlay.
 
     \***********************************************************************************/
-    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend )
+    bool ProfilerOverlayOutput::Initialize()
     {
         bool success = true;
 
-        // Setup objects
-        m_pFrontend = &frontend;
-        m_pBackend = &backend;
-
-        const VkPhysicalDeviceProperties& deviceProperties = m_pFrontend->GetPhysicalDeviceProperties();
+        const VkPhysicalDeviceProperties& deviceProperties = m_Frontend.GetPhysicalDeviceProperties();
 
         // Set main window title
         m_Title = fmt::format( "{0} - {1}###VkProfiler",
@@ -317,7 +315,7 @@ namespace Profiler
             m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
-            io.DisplaySize = m_pBackend->GetRenderArea();
+            io.DisplaySize = m_Backend.GetRenderArea();
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
@@ -335,25 +333,25 @@ namespace Profiler
             }
 
             // Initialize ImGui backends
-            success = m_pBackend->PrepareImGuiBackend();
+            success = m_Backend.PrepareImGuiBackend();
         }
 
         if( success )
         {
             // Initialize backend-dependent config
-            float dpiScale = m_pBackend->GetDPIScale();
+            float dpiScale = m_Backend.GetDPIScale();
             ImGuiIO& io = ImGui::GetIO();
             io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
 
             // Initialize resources
-            success = m_Resources.InitializeImages( m_pBackend );
+            success = m_Resources.InitializeImages( &m_Backend );
         }
 
         // Get vendor metrics sets
         if( success )
         {
             const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
-                m_pFrontend->GetPerformanceMetricsSets();
+                m_Frontend.GetPerformanceMetricsSets();
 
             const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
             m_VendorMetricsSets.reserve( vendorMetricsSetCount );
@@ -365,12 +363,12 @@ namespace Profiler
                 memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
 
                 // Get metrics belonging to this set.
-                metricsSet.m_Metrics = m_pFrontend->GetPerformanceCounterProperties( i );
+                metricsSet.m_Metrics = m_Frontend.GetPerformanceCounterProperties( i );
 
                 m_VendorMetricsSetVisibility.push_back( true );
             }
 
-            m_ActiveMetricsSetIndex = m_pFrontend->GetPerformanceMetricsSetIndex();
+            m_ActiveMetricsSetIndex = m_Frontend.GetPerformanceMetricsSetIndex();
 
             if( m_ActiveMetricsSetIndex < m_VendorMetricsSets.size() )
             {
@@ -382,7 +380,7 @@ namespace Profiler
         // Initialize the disassembler in the shader view
         if( success )
         {
-            m_InspectorShaderView.Initialize( *m_pFrontend );
+            m_InspectorShaderView.Initialize( m_Frontend );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
                 this,
@@ -393,15 +391,46 @@ namespace Profiler
         // Initialize serializer
         if( success )
         {
-            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( *m_pFrontend ) );
+            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( m_Frontend ) );
             success = (m_pStringSerializer != nullptr);
         }
 
         // Initialize settings
         if( success )
         {
-            m_SamplingMode = m_pFrontend->GetProfilerSamplingMode();
-            m_SyncMode = m_pFrontend->GetProfilerSyncMode();
+            m_SamplingMode = m_Frontend.GetProfilerSamplingMode();
+            m_FrameDelimiter = m_Frontend.GetProfilerFrameDelimiter();
+
+            switch( m_FrameDelimiter )
+            {
+            case VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT:
+                m_pFrameStr = Lang::Frame;
+                m_pFramesStr = Lang::Frames;
+                break;
+
+            case VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT:
+                m_pFrameStr = Lang::Submit;
+                m_pFramesStr = Lang::Submits;
+                break;
+            }
+        }
+
+        // Initialize the overlay according to the configuration
+        if( success )
+        {
+            const DeviceProfilerConfig& config = m_Frontend.GetProfilerConfig();
+            
+            if( !config.m_RefMetrics.empty() )
+            {
+                LoadPerformanceCountersFromFile( config.m_RefMetrics );
+            }
+
+            if( !config.m_RefPipelines.empty() )
+            {
+                LoadTopPipelinesFromFile( config.m_RefPipelines );
+            }
+
+            SetMaxFrameCount( std::max( config.m_FrameCount, 0 ) );
         }
 
         // Don't leave object in partly-initialized state if something went wrong
@@ -433,7 +462,7 @@ namespace Profiler
             m_Resources.Destroy();
 
             // Destroy ImGui backends.
-            m_pBackend->DestroyImGuiBackend();
+            m_Backend.DestroyImGuiBackend();
 
             ImGui::DestroyContext();
         }
@@ -453,9 +482,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::ResetMembers()
     {
-        m_pFrontend = nullptr;
-        m_pBackend = nullptr;
-
         m_pImGuiContext = nullptr;
 
         m_Title.clear();
@@ -479,6 +505,9 @@ namespace Profiler
         m_SelectedFrameIndex = 0;
         m_MaxFrameCount = 1;
 
+        m_pFrameStr = Lang::Frame;
+        m_pFramesStr = Lang::Frames;
+
         m_pData = nullptr;
         m_Pause = false;
         m_Fullscreen = false;
@@ -494,7 +523,7 @@ namespace Profiler
 
         m_TimeUnit = TimeUnit::eMilliseconds;
         m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
-        m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
+        m_FrameDelimiter = VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT;
 
         m_SelectedFrameBrowserNodeIndex = { 0, 0, 0xFFFF };
         m_ScrollToSelectedFrameBrowserNode = false;
@@ -513,7 +542,7 @@ namespace Profiler
         m_MemoryBufferUsageFilter = g_KnownBufferUsageFlags;
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
-        m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
+        m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
         m_ReferencePerformanceCounters.clear();
         m_pPerformanceCounterExporter = nullptr;
 
@@ -555,9 +584,9 @@ namespace Profiler
         Check if profiler overlay is ready for presenting.
 
     \***********************************************************************************/
-    bool ProfilerOverlayOutput::IsAvailable() const
+    bool ProfilerOverlayOutput::IsAvailable()
     {
-        return (m_pFrontend != nullptr) && (m_pBackend != nullptr);
+        return (m_pImGuiContext != nullptr);
     }
 
     /***********************************************************************************\
@@ -572,40 +601,31 @@ namespace Profiler
     void ProfilerOverlayOutput::SetMaxFrameCount( uint32_t maxFrameCount )
     {
         m_MaxFrameCount = maxFrameCount;
+
+        // Update buffers in the frontend to avoid dropping data.
+        m_Frontend.SetDataBufferSize( maxFrameCount + 1 );
     }
 
     /***********************************************************************************\
 
     Function:
-        Present
+        Update
 
     Description:
-        Draw profiler overlay before presenting the image to screen.
+        Consume available data from the frontend.
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::Update()
     {
-        std::scoped_lock lk( s_ImGuiMutex );
-        ImGui::SetCurrentContext( m_pImGuiContext );
-
-        // Must be set before calling NewFrame to avoid clipping on window resize.
-        ImGuiIO& io = ImGui::GetIO();
-        io.DisplaySize = m_pBackend->GetRenderArea();
-
-        if( !m_pBackend->NewFrame() )
-        {
-            return;
-        }
-
-        ImGui::NewFrame();
+        std::scoped_lock lk( m_DataMutex );
 
         // Update data
         if( !m_Pause || m_pFrames.empty() )
         {
-            auto pData = m_pFrontend->GetData();
+            auto pData = m_Frontend.GetData();
             if( pData )
             {
-                m_pFrames.push_back( pData );
+                m_pFrames.push_back( std::move( pData ) );
             }
         }
 
@@ -621,6 +641,35 @@ namespace Profiler
         m_pData = GetNthElement( m_pFrames, m_pFrames.size() - m_SelectedFrameIndex - 1 );
 
         m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Present
+
+    Description:
+        Draw profiler overlay before presenting the image to screen.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::Present()
+    {
+        std::scoped_lock lk( s_ImGuiMutex );
+        ImGui::SetCurrentContext( m_pImGuiContext );
+
+        // Must be set before calling NewFrame to avoid clipping on window resize.
+        ImGuiIO& io = ImGui::GetIO();
+        io.DisplaySize = m_Backend.GetRenderArea();
+
+        if( !m_Backend.NewFrame() )
+        {
+            return;
+        }
+
+        ImGui::NewFrame();
+
+        // Prevent data modification during presentation.
+        std::shared_lock dataLock( m_DataMutex );
 
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
@@ -724,14 +773,14 @@ namespace Profiler
         }
         if( ImGui::IsItemHovered() )
         {
-            ImGui::SetTooltip( "Save trace of the current frame to file" );
+            ImGui::SetTooltip( "Save trace of the current %s to file", m_pFrameStr );
         }
 
         // Keep results
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
-        const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
+        const VkApplicationInfo& applicationInfo = m_Frontend.GetApplicationInfo();
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
             VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
             VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
@@ -873,6 +922,9 @@ namespace Profiler
         UpdateNotificationWindow();
         UpdateApplicationInfoWindow();
 
+        // Data not used from now on
+        dataLock.unlock();
+
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
         {
@@ -892,7 +944,7 @@ namespace Profiler
         ImGui::PopFont();
         ImGui::Render();
 
-        m_pBackend->RenderDrawData( ImGui::GetDrawData() );
+        m_Backend.RenderDrawData( ImGui::GetDrawData() );
     }
 
     /***********************************************************************************\
@@ -950,7 +1002,7 @@ namespace Profiler
             ImGuiID dockFrames;
             ImGui::DockBuilderSplitNode( dockLeft, ImGuiDir_Up, 0.2f, &dockFrames, &dockLeft );
 
-            ImGui::DockBuilderDockWindow( Lang::Frames, dockFrames );
+            ImGui::DockBuilderDockWindow( m_pFramesStr, dockFrames );
             ImGui::DockBuilderDockWindow( Lang::QueueUtilization, dockQueueUtilization );
             ImGui::DockBuilderDockWindow( Lang::TopPipelines, dockTopPipelines );
             ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockLeft );
@@ -979,7 +1031,7 @@ namespace Profiler
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
             ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
-            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
+            ImGuiX::TextAlignRight( "%s %u", m_pFrameStr, m_pData->m_CPU.m_FrameIndex );
             ImGui::PopStyleColor();
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
             ImGuiX::TextAlignRight( "%.1f %s", m_pData->m_CPU.m_FramesPerSec, Lang::FPS );
@@ -988,7 +1040,7 @@ namespace Profiler
         // Histogram
         {
             static const char* groupOptions[] = {
-                Lang::Frames,
+                m_pFramesStr,
                 Lang::RenderPasses,
                 Lang::Pipelines,
                 Lang::Drawcalls };
@@ -999,7 +1051,7 @@ namespace Profiler
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, nullptr, ImGuiComboFlags_NoPreview ) )
                 {
-                    ImGuiX::TSelectable( Lang::Frames, m_HistogramGroupMode, HistogramGroupMode::eFrame );
+                    ImGuiX::TSelectable( m_pFramesStr, m_HistogramGroupMode, HistogramGroupMode::eFrame );
 
                     ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
                     ImGuiX::TSelectable( Lang::RenderPasses, m_HistogramGroupMode, HistogramGroupMode::eRenderPass );
@@ -1071,7 +1123,7 @@ namespace Profiler
         PerformanceTabDockSpace();
 
         // Frames list
-        if( ImGui::Begin( Lang::Frames, nullptr, ImGuiWindowFlags_NoMove ) )
+        if( ImGui::Begin( m_pFramesStr, nullptr, ImGuiWindowFlags_NoMove ) )
         {
             uint32_t frameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
 
@@ -1079,7 +1131,7 @@ namespace Profiler
             {
                 std::string frameName = fmt::format(
                     "{} #{} ({:.2f} {})###Selectable_frame_{}",
-                    Lang::Frame,
+                    m_pFrameStr,
                     pFrame->m_CPU.m_FrameIndex,
                     GetDuration( 0, pFrame->m_Ticks ),
                     m_pTimestampDisplayUnitStr,
@@ -1147,7 +1199,7 @@ namespace Profiler
             FrameBrowserTreeNodeIndex index;
             index.SetFrameIndex( m_SelectedFrameIndex );
 
-            ImGui::Text( "%s #%u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
+            ImGui::Text( "%s #%u", m_pFrameStr, m_pData->m_CPU.m_FrameIndex );
             PrintDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
 
             index.emplace_back( 0 );
@@ -1222,7 +1274,7 @@ namespace Profiler
         ImGui::End();
 
         m_ScrollToSelectedFrameBrowserNode = false;
-        m_pData = pCurrentFrameData;
+        m_pData = std::move( pCurrentFrameData );
     }
 
     /***********************************************************************************\
@@ -1249,7 +1301,7 @@ namespace Profiler
         const float frameDuration = GetDuration( pFirstFrame->m_BeginTimestamp, pLastFrame->m_EndTimestamp );
 
         std::vector<QueueGraphColumn> queueGraphColumns;
-        for( const auto& [_, queue] : m_pFrontend->GetDeviceQueues() )
+        for( const auto& [_, queue] : m_Frontend.GetDeviceQueues() )
         {
             // Enumerate columns for command queue activity graph.
             queueGraphColumns.clear();
@@ -1492,7 +1544,7 @@ namespace Profiler
             m_ReferenceTopPipelines.clear();
 
             const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
-            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
+            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", m_pFrameStr, frameIndex );
 
             for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
             {
@@ -1888,10 +1940,10 @@ namespace Profiler
             ImGui::PushItemWidth( -1 );
             if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
             {
-                if( ImGuiX::TSelectable( Lang::Frame, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+                if( ImGuiX::TSelectable( m_pFrameStr, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
                 {
                     // Selection changed.
-                    m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
+                    m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
                 }
 
                 // Enumerate command buffers.
@@ -1925,7 +1977,7 @@ namespace Profiler
                         if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
                         {
                             // Notify the profiler.
-                            if( m_pFrontend->SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+                            if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
                             {
                                 // Refresh the performance metric properties.
                                 m_ActiveMetricsSetIndex = metricsSetIndex;
@@ -2127,7 +2179,7 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
-            m_pFrontend->GetPhysicalDeviceMemoryProperties();
+            m_Frontend.GetPhysicalDeviceMemoryProperties();
 
         if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
         {
@@ -3171,7 +3223,7 @@ namespace Profiler
         int maxFrameCount = static_cast<int>( m_MaxFrameCount );
         if( ImGui::InputInt( Lang::CollectedFrameCount, &maxFrameCount ) )
         {
-            m_MaxFrameCount = std::max<uint32_t>( 0, maxFrameCount );
+            SetMaxFrameCount( std::max<uint32_t>( 0, maxFrameCount ) );
         }
 
         // Select sampling mode (constant in runtime for now)
@@ -3192,23 +3244,20 @@ namespace Profiler
         }
         ImGui::EndDisabled();
 
-        // Select synchronization mode
+        // Select frame delimiter (constant in runtime)
+        ImGui::BeginDisabled();
         {
-            static const char* syncGroupOptions[] = {
+            static const char* frameDelimiterOptions[] = {
                 Lang::Present,
                 Lang::Submit };
 
-            int syncModeSelectedOption = static_cast<int>(m_SyncMode);
-            if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
+            int frameDelimiterSelectedOption = static_cast<int>(m_FrameDelimiter);
+            if( ImGui::Combo( Lang::FrameDelimiter, &frameDelimiterSelectedOption, frameDelimiterOptions, 2 ) )
             {
-                VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
-                VkResult result = m_pFrontend->SetProfilerSyncMode( syncMode );
-                if( result == VK_SUCCESS )
-                {
-                    m_SyncMode = syncMode;
-                }
+                assert( false );
             }
         }
+        ImGui::EndDisabled();
 
         // Select time display unit.
         {
@@ -3428,7 +3477,7 @@ namespace Profiler
         index.SetFrameIndex( static_cast<uint32_t>( m_pFrames.size() - 1 ) );
 
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
-        const auto& queues = m_pFrontend->GetDeviceQueues();
+        const auto& queues = m_Frontend.GetDeviceQueues();
         const size_t queueCount = queues.size();
 
         QueueTimestampPair* pLastTimestampsPerQueue = nullptr;
@@ -3562,8 +3611,7 @@ namespace Profiler
             free( pLastTimestampsPerQueue );
         }
 
-        index.pop_back();
-        assert( index.empty() );
+        assert( index.size() == 2 );
     }
 
     /***********************************************************************************\
@@ -3832,7 +3880,7 @@ namespace Profiler
             const DeviceProfilerFrameData& frameData =
                 *reinterpret_cast<const DeviceProfilerFrameData*>( data.userData );
 
-            regionName = fmt::format( "{} #{}", Lang::Frame, frameData.m_CPU.m_FrameIndex );
+            regionName = fmt::format( "{} #{}", m_pFrameStr, frameData.m_CPU.m_FrameIndex );
             regionDuration = GetDuration( frameData.m_BeginTimestamp, frameData.m_EndTimestamp );
             break;
         }
@@ -4394,7 +4442,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
-        DeviceProfilerTraceSerializer serializer( m_pStringSerializer.get(), m_TimestampPeriod);
+        DeviceProfilerTraceSerializer serializer( m_Frontend );
         DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
 
         m_SerializationSucceeded = result.m_Succeeded;
@@ -4424,7 +4472,7 @@ namespace Profiler
 
         if( (now - m_SerializationFinishTimestamp) < 4s )
         {
-            const ImVec2 outputSize = m_pBackend->GetRenderArea();
+            const ImVec2 outputSize = m_Backend.GetRenderArea();
             const ImVec2 windowPos = {
                 static_cast<float>(outputSize.x - m_SerializationOutputWindowSize.width),
                 static_cast<float>(outputSize.y - m_SerializationOutputWindowSize.height) };
@@ -4498,7 +4546,7 @@ namespace Profiler
             const float headerColumnWidth = 150.f * interfaceScale;
             const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
 
-            const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
+            const VkApplicationInfo& applicationInfo = m_Frontend.GetApplicationInfo();
 
             ImGui::PushStyleColor( ImGuiCol_Button, { 0, 0, 0, 0 } );
 

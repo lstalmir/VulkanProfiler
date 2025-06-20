@@ -1,0 +1,81 @@
+# Copyright (c) 2025 Lukasz Stalmirski
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+name: Docs
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'Docs/**'
+      - '.gitmodules'
+      - '.github/workflows/docs.yml'
+    tags:
+      - release-*
+
+jobs:
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+    # Download the repository and set up Python
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+          python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
+          python3 -m pip install -r ${{github.workspace}}/Docs/requirements.txt
+
+    # Build the documentation
+    - name: Add build worktree
+      run: git worktree add -f docs_build docs-build
+
+    - name: Build profiler_codegen
+      run: |
+          cmake -B ${{github.workspace}}/build -DSKIP_PLATFORMS_CHECK=ON
+          cmake --build ${{github.workspace}}/build --target profiler_codegen
+
+    - name: Clean previous versions
+      run: rm -r ${{github.workspace}}/docs_build/docs
+
+    - name: Build documentation
+      run: sphinx-multiversion ${{github.workspace}}/Docs ${{github.workspace}}/docs_build/docs -D vkprof_licenses="${{github.workspace}}/build/LICENSES.rst" -E -a
+
+    # Push documentation to docs-build branch
+    - name: Publish documentation
+      run: |
+        cd ${{github.workspace}}/docs_build
+        if ! git diff-index --quiet HEAD; then
+            git config user.name "GitHub Actions"
+            git config user.email "<>"
+            git add docs
+            git commit -m "Update documentation for ${{github.sha}}"
+            git push
+        fi

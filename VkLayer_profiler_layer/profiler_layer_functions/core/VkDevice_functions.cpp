@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -114,6 +114,8 @@ namespace Profiler
         // VkQueue core functions
         GETPROCADDR( QueueSubmit );
         GETPROCADDR( QueueSubmit2 );
+        GETPROCADDR( QueueBindSparse );
+        GETPROCADDR( QueueWaitIdle );
 
         // VK_KHR_bind_memory2 functions
         GETPROCADDR( BindBufferMemory2KHR );
@@ -150,6 +152,9 @@ namespace Profiler
         GETPROCADDR( CmdInsertDebugUtilsLabelEXT );
         GETPROCADDR( CmdBeginDebugUtilsLabelEXT );
         GETPROCADDR( CmdEndDebugUtilsLabelEXT );
+        GETPROCADDR( QueueBeginDebugUtilsLabelEXT );
+        GETPROCADDR( QueueEndDebugUtilsLabelEXT );
+        GETPROCADDR( QueueInsertDebugUtilsLabelEXT );
 
         // VK_KHR_deferred_host_operations functions
         GETPROCADDR( CreateDeferredOperationKHR );
@@ -210,10 +215,10 @@ namespace Profiler
         GETPROCADDR( CmdPipelineBarrier2KHR );
 
         // VK_EXT_profiler functions
-        GETPROCADDR_EXT( vkSetProfilerModeEXT );
-        GETPROCADDR_EXT( vkGetProfilerModeEXT );
-        GETPROCADDR_EXT( vkSetProfilerSyncModeEXT );
-        GETPROCADDR_EXT( vkGetProfilerSyncModeEXT );
+        GETPROCADDR_EXT( vkSetProfilerSamplingModeEXT );
+        GETPROCADDR_EXT( vkGetProfilerSamplingModeEXT );
+        GETPROCADDR_EXT( vkSetProfilerFrameDelimiterEXT );
+        GETPROCADDR_EXT( vkGetProfilerFrameDelimiterEXT );
         GETPROCADDR_EXT( vkGetProfilerFrameDataEXT );
         GETPROCADDR_EXT( vkFreeProfilerFrameDataEXT );
         GETPROCADDR_EXT( vkFlushProfilerEXT );
@@ -221,6 +226,11 @@ namespace Profiler
         GETPROCADDR_EXT( vkEnumerateProfilerPerformanceCounterPropertiesEXT );
         GETPROCADDR_EXT( vkSetProfilerPerformanceMetricsSetEXT );
         GETPROCADDR_EXT( vkGetProfilerActivePerformanceMetricsSetIndexEXT );
+        // VK_EXT_profiler functions aliases for backwards compatibility
+        GETPROCADDR_EXT_ALIAS( "vkSetProfilerModeEXT", vkSetProfilerSamplingModeEXT );
+        GETPROCADDR_EXT_ALIAS( "vkGetProfilerModeEXT", vkGetProfilerSamplingModeEXT );
+        GETPROCADDR_EXT_ALIAS( "vkSetProfilerSyncModeEXT", vkSetProfilerFrameDelimiterEXT );
+        GETPROCADDR_EXT_ALIAS( "vkGetProfilerSyncModeEXT", vkGetProfilerFrameDelimiterEXT );
 
         // VK_EXT_profiler_object functions
         GETPROCADDR_EXT( vkGetProfilerEXT );

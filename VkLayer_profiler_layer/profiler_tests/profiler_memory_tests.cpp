@@ -69,7 +69,8 @@ namespace Profiler
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -125,7 +126,8 @@ namespace Profiler
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -170,7 +172,8 @@ namespace Profiler
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -232,7 +235,8 @@ namespace Profiler
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
@@ -294,7 +298,8 @@ namespace Profiler
         { // Collect and post-process data
             Prof->FinishFrame();
 
-            const auto data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 

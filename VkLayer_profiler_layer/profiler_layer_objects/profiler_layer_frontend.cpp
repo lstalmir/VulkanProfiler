@@ -229,29 +229,57 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetProfilerSyncMode
+        GetHostTimestampFrequency
 
     Description:
-        Returns the data synchronization mode currently used by the profiler.
+        Returns the timestamp query frequency in the selected time domain.
 
     \***********************************************************************************/
-    VkProfilerSyncModeEXT DeviceProfilerLayerFrontend::GetProfilerSyncMode()
+    uint64_t DeviceProfilerLayerFrontend::GetHostTimestampFrequency( VkTimeDomainEXT timeDomain )
     {
-        return static_cast<VkProfilerSyncModeEXT>( m_pProfiler->m_Config.m_SyncMode.value );
+        return OSGetTimestampFrequency( timeDomain );
     }
 
     /***********************************************************************************\
 
     Function:
-        SetProfilerSyncMode
+        GetProfilerConfig
 
     Description:
-        Sets the data synchronization mode used by the profiler.
+        Returns the configuration of the profiler.
 
     \***********************************************************************************/
-    VkResult DeviceProfilerLayerFrontend::SetProfilerSyncMode( VkProfilerSyncModeEXT mode )
+    const DeviceProfilerConfig& DeviceProfilerLayerFrontend::GetProfilerConfig()
     {
-        return m_pProfiler->SetSyncMode( mode );
+        return m_pProfiler->m_Config;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetProfilerFrameDelimiter
+
+    Description:
+        Returns the frame delimiter currently used by the profiler.
+
+    \***********************************************************************************/
+    VkProfilerFrameDelimiterEXT DeviceProfilerLayerFrontend::GetProfilerFrameDelimiter()
+    {
+        return static_cast<VkProfilerFrameDelimiterEXT>( m_pProfiler->m_Config.m_FrameDelimiter.value );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetProfilerFrameDelimiter
+
+    Description:
+        Sets the frame delimiter used by the profiler.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerLayerFrontend::SetProfilerFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter )
+    {
+        return m_pProfiler->SetFrameDelimiter( frameDelimiter );
     }
 
     /***********************************************************************************\
@@ -279,7 +307,7 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerLayerFrontend::SetProfilerSamplingMode( VkProfilerModeEXT mode )
     {
-        return m_pProfiler->SetMode( mode );
+        return m_pProfiler->SetSamplingMode( mode );
     }
 
     /***********************************************************************************\
