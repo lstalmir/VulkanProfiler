@@ -153,6 +153,7 @@ namespace Profiler
         , m_DataAggregator()
         , m_NextFrameIndex( 0 )
         , m_DataBufferSize( 1 )
+        , m_MinDataBufferSize( 1 )
         , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
@@ -220,16 +221,11 @@ namespace Profiler
             {
                 if( availableExtensionNames.count( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME ) )
                 {
-                    if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 ) &&
-                        ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) )
+                    if( ( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 ) &&
+                            ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ) ||
+                        ( physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) ) )
                     {
                         deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
-                        enableShaderModuleIdentifier = true;
-                    }
-                    else if( availableExtensionNames.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
-                    {
-                        deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
-                        deviceExtensions.insert( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
                         enableShaderModuleIdentifier = true;
                     }
                 }
@@ -272,6 +268,16 @@ namespace Profiler
                 devicePNextChain.Append( pipelineExecutablePropertiesFeatures );
             }
         }
+
+        // Enable calibrated timestamps extension to synchronize CPU and GPU events in traces.
+        if( availableExtensionNames.count( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
+        else if( availableExtensionNames.count( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
     }
 
     /***********************************************************************************\
@@ -283,10 +289,45 @@ namespace Profiler
         Get list of optional instance extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    void DeviceProfiler::SetupInstanceCreateInfo( std::unordered_set<std::string>& instanceExtensions )
+    void DeviceProfiler::SetupInstanceCreateInfo(
+        const VkInstanceCreateInfo& createInfo,
+        PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr,
+        std::unordered_set<std::string>& instanceExtensions )
     {
-        instanceExtensions.insert( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
-        instanceExtensions.insert( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+        std::unordered_set<std::string> availableInstanceExtensions;
+
+        // Try to enumerate available extensions.
+        if( pfnGetInstanceProcAddr != nullptr )
+        {
+            PFN_vkEnumerateInstanceExtensionProperties pfnEnumerateInstanceExtensionProperties =
+                (PFN_vkEnumerateInstanceExtensionProperties)pfnGetInstanceProcAddr( nullptr, "vkEnumerateInstanceExtensionProperties" );
+
+            if( pfnEnumerateInstanceExtensionProperties != nullptr )
+            {
+                uint32_t extensionCount = 0;
+                pfnEnumerateInstanceExtensionProperties( nullptr, &extensionCount, nullptr );
+
+                std::vector<VkExtensionProperties> extensions( extensionCount );
+                pfnEnumerateInstanceExtensionProperties( nullptr, &extensionCount, extensions.data() );
+
+                for( const VkExtensionProperties& extension : extensions )
+                {
+                    availableInstanceExtensions.insert( extension.extensionName );
+                }
+            }
+        }
+
+        // Enable extensions required by some of the features to work correctly.
+        if( ( createInfo.pApplicationInfo == nullptr ) ||
+            ( createInfo.pApplicationInfo->apiVersion == 0 ||
+                createInfo.pApplicationInfo->apiVersion == VK_API_VERSION_1_0 ) )
+        {
+            if( availableInstanceExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+            {
+                // Required by Vk_EXT_shader_module_identifier
+                instanceExtensions.insert( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -589,6 +630,19 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Destroy()
     {
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        // Begin a fake frame at the end to allow finalization of the last submitted frame.
+        BeginNextFrame();
+
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        {
+            m_DataAggregator.Aggregate();
+        }
+
+        ResolveFrameData( tip );
+
+        // Reset members and destroy resources.
         m_DeferredOperationCallbacks.clear();
 
         m_pCommandBuffers.clear();
@@ -618,10 +672,16 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        SetSamplingMode
+
+    Description:
+        Set granularity of timestamp queries in the command buffers.
+        Does not affect command buffers that were already recorded.
+
     \***********************************************************************************/
-    VkResult DeviceProfiler::SetMode( VkProfilerModeEXT mode )
+    VkResult DeviceProfiler::SetSamplingMode( VkProfilerModeEXT mode )
     {
-        // TODO: Invalidate all command buffers
         m_Config.m_SamplingMode = mode;
 
         return VK_SUCCESS;
@@ -630,24 +690,24 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SetSyncMode
+        SetFrameDelimiter
 
     Description:
-        Set synchronization mode used to wait for data from the GPU.
-        VK_PROFILER_SYNC_MODE_PRESENT_EXT - Wait on vkQueuePresentKHR
-        VK_PROFILER_SYNC_MODE_SUBMIT_EXT - Wait on vkQueueSumit
+        Set which API call delimits frames reported by the profiler.
+        VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT - vkQueuePresentKHR
+        VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT - vkQueueSumit, vkQueueSubmit2(KHR)
 
     \***********************************************************************************/
-    VkResult DeviceProfiler::SetSyncMode( VkProfilerSyncModeEXT syncMode )
+    VkResult DeviceProfiler::SetFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter )
     {
-        // Check if synchronization mode is supported by current implementation
-        if( syncMode != VK_PROFILER_SYNC_MODE_PRESENT_EXT &&
-            syncMode != VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
+        // Check if frame delimiter is supported by current implementation
+        if( frameDelimiter != VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT &&
+            frameDelimiter != VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
         {
             return VK_ERROR_VALIDATION_FAILED_EXT;
         }
 
-        m_Config.m_SyncMode = syncMode;
+        m_Config.m_FrameDelimiter = frameDelimiter;
 
         return VK_SUCCESS;
     }
@@ -665,8 +725,34 @@ namespace Profiler
     {
         std::scoped_lock lk( m_PresentMutex );
 
+        size = std::max( size, m_MinDataBufferSize );
+
         m_DataAggregator.SetDataBufferSize( size );
         m_DataBufferSize = size;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetMinDataBufferSize
+
+    Description:
+        Set the minimum number of buffered frames.
+
+    \***********************************************************************************/
+    VkResult DeviceProfiler::SetMinDataBufferSize( uint32_t size )
+    {
+        std::scoped_lock lk( m_PresentMutex );
+
+        if( size > m_DataBufferSize )
+        {
+            m_DataAggregator.SetDataBufferSize( size );
+            m_DataBufferSize = size;
+        }
+
+        m_MinDataBufferSize = size;
 
         return VK_SUCCESS;
     }
@@ -1261,20 +1347,24 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
         if( m_MetricsApiINTEL.IsAvailable() )
         {
             ReleasePerformanceConfigurationINTEL();
         }
 
-        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
-        {
-            m_DataAggregator.Aggregate();
-        }
-
         // Append the submit batch for aggregation
         m_DataAggregator.AppendSubmit( submitBatch );
+
+        if( m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        {
+            // Begin the next frame
+            BeginNextFrame();
+        }
+
+        // Get data captured during the last frame
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\
@@ -1382,36 +1472,14 @@ namespace Profiler
         // Update FPS counter
         m_CpuFpsCounter.Update();
 
-        BeginNextFrame();
-
-        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        if( m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
         {
-            // Collect data from the submitted command buffers
-            m_DataAggregator.Aggregate();
+            // Begin the next frame
+            BeginNextFrame();
         }
 
         // Get data captured during the last frame
-        std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedData =
-            m_DataAggregator.GetAggregatedData();
-
-        // Check if new data is available
-        if( !pResolvedData.empty() )
-        {
-            m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
-
-            // Return TIP data
-            m_pDevice->TIP.EndFunction( tip );
-            m_pData.back()->m_TIP = m_pDevice->TIP.GetData();
-
-            // Free frames above the buffer size
-            if( m_DataBufferSize )
-            {
-                while( m_pData.size() > m_DataBufferSize )
-                {
-                    m_pData.pop_front();
-                }
-            }
-        }
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\
@@ -1433,9 +1501,48 @@ namespace Profiler
         frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
         frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
         frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
+        frame.m_FrameDelimiter = static_cast<VkProfilerFrameDelimiterEXT>( m_Config.m_FrameDelimiter.value );
         frame.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
 
         m_DataAggregator.AppendFrame( frame );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveFrameData
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::ResolveFrameData( TipRangeId& tip )
+    {
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        {
+            // Collect data from the submitted command buffers
+            m_DataAggregator.Aggregate();
+        }
+
+        m_pDevice->TIP.EndFunction( tip );
+
+        // Check if new data is available
+        auto pResolvedData = m_DataAggregator.GetAggregatedData();
+        if( !pResolvedData.empty() )
+        {
+            m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
+
+            // Return TIP data
+            m_pData.back()->m_TIP = m_pDevice->TIP.GetData();
+
+            // Free frames above the buffer size
+            if( m_DataBufferSize )
+            {
+                while( m_pData.size() > m_DataBufferSize )
+                {
+                    m_pData.pop_front();
+                }
+            }
+        }
     }
 
     /***********************************************************************************\

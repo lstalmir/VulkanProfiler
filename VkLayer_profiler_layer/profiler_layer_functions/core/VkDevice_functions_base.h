@@ -50,7 +50,7 @@ namespace Profiler
             DeviceProfiler Profiler;
             DeviceProfilerLayerFrontend ProfilerFrontend;
             OverlayLayerBackend OverlayBackend;
-            ProfilerOverlayOutput Overlay;
+            std::unique_ptr<DeviceProfilerOutput> pOutput;
         };
 
         static DispatchableMap<Dispatch> DeviceDispatch;

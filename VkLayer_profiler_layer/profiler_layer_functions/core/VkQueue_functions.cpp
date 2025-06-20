@@ -39,6 +39,9 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
@@ -47,6 +50,16 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+
+        // Consume the collected data
+        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        {
+            if( dd.pOutput )
+            {
+                dd.pOutput->Update();
+            }
+        }
+
         return result;
     }
 
@@ -67,6 +80,9 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         DeviceProfilerSubmitBatch submitBatch;
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
@@ -75,6 +91,16 @@ namespace Profiler
         VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
 
         dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+
+        // Consume the collected data
+        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        {
+            if( dd.pOutput )
+            {
+                dd.pOutput->Update();
+            }
+        }
+
         return result;
     }
 
@@ -89,33 +115,57 @@ namespace Profiler
     VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueBindSparse(
         VkQueue queue,
         uint32_t bindInfoCount,
-        const VkBindSparseInfo* pBindInfos,
+        const VkBindSparseInfo* pBindInfo,
         VkFence fence )
     {
         auto& dd = DeviceDispatch.Get( queue );
         TipGuard tip( dd.Device.TIP, __func__ );
 
-        // Bind the memory
-        VkResult result = dd.Device.Callbacks.QueueBindSparse( queue, bindInfoCount, pBindInfos, fence );
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        if( result == VK_SUCCESS )
+        // Bind the memory
+        VkResult result = dd.Device.Callbacks.QueueBindSparse(queue, bindInfoCount, pBindInfo, fence);
+
+        if (result == VK_SUCCESS)
         {
-            for( uint32_t i = 0; i < bindInfoCount; ++i )
+            for (uint32_t i = 0; i < bindInfoCount; ++i)
             {
-                const VkBindSparseInfo& bindInfo = pBindInfos[i];
+                const VkBindSparseInfo& bindInfo = pBindInfo[i];
 
                 // Register buffer memory bindings
-                for( uint32_t j = 0; j < bindInfo.bufferBindCount; ++j )
+                for (uint32_t j = 0; j < bindInfo.bufferBindCount; ++j)
                 {
                     const VkSparseBufferMemoryBindInfo& bufferBind = bindInfo.pBufferBinds[j];
                     dd.Profiler.BindBufferMemory(
                         bufferBind.buffer,
                         bufferBind.bindCount,
-                        bufferBind.pBinds );
+                        bufferBind.pBinds);
                 }
             }
         }
 
         return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        QueueWaitIdle
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkQueue_Functions::QueueWaitIdle(
+        VkQueue queue )
+    {
+        auto& dd = DeviceDispatch.Get( queue );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
+        // Wait for the queue to become idle
+        return dd.Device.Callbacks.QueueWaitIdle( queue );
     }
 }

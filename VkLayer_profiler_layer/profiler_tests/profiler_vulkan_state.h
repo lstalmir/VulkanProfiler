@@ -110,7 +110,7 @@ namespace Profiler
         };
 
     public:
-        inline VulkanState( CreateInfo createInfo = CreateInfo() )
+        inline VulkanState( const CreateInfo& createInfo = CreateInfo() )
             : ApplicationInfo()
             , Instance( VK_NULL_HANDLE )
             , PhysicalDevice( VK_NULL_HANDLE )

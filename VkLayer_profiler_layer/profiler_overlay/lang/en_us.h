@@ -64,6 +64,7 @@ namespace Profiler
         inline static constexpr char CPUTime[] = "CPU Time";
         inline static constexpr char FPS[] = "fps";
         inline static constexpr char Frames[] = "Frames###Frames";
+        inline static constexpr char Submits[] = "Submissions###Frames";
         inline static constexpr char RenderPasses[] = "Render passes";
         inline static constexpr char Pipelines[] = "Pipelines";
         inline static constexpr char Drawcalls[] = "Drawcalls";
@@ -163,7 +164,7 @@ namespace Profiler
         inline static constexpr char Present[] = "Present";
         inline static constexpr char Submit[] = "Submit";
         inline static constexpr char SamplingMode[] = "Sampling mode";
-        inline static constexpr char SyncMode[] = "Sync mode";
+        inline static constexpr char FrameDelimiter[] = "Frame delimiter";
         inline static constexpr char InterfaceScale[] = "Interface scale";
         inline static constexpr char CollectedFrameCount[] = "Collected frame count";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";

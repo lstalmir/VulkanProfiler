@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_config.h"
 #include "profiler_data.h"
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -61,8 +62,12 @@ namespace Profiler
         virtual VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) = 0;
         virtual uint32_t GetPerformanceMetricsSetIndex() = 0;
 
-        virtual VkProfilerSyncModeEXT GetProfilerSyncMode() = 0;
-        virtual VkResult SetProfilerSyncMode( VkProfilerSyncModeEXT mode ) = 0;
+        virtual uint64_t GetHostTimestampFrequency( VkTimeDomainEXT timeDomain ) = 0;
+
+        virtual const DeviceProfilerConfig& GetProfilerConfig() = 0;
+
+        virtual VkProfilerFrameDelimiterEXT GetProfilerFrameDelimiter() = 0;
+        virtual VkResult SetProfilerFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter ) = 0;
 
         virtual VkProfilerModeEXT GetProfilerSamplingMode() = 0;
         virtual VkResult SetProfilerSamplingMode( VkProfilerModeEXT mode ) = 0;
@@ -72,5 +77,37 @@ namespace Profiler
 
         virtual std::shared_ptr<DeviceProfilerFrameData> GetData() = 0;
         virtual void SetDataBufferSize( uint32_t maxFrames ) = 0;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerOutput
+
+    Description:
+        An output interface for presenting profiling data.
+        This can be a GUI overlay, a file output, etc.
+
+    \***********************************************************************************/
+    class DeviceProfilerOutput
+    {
+    public:
+        explicit DeviceProfilerOutput( DeviceProfilerFrontend& frontend )
+            : m_Frontend( frontend )
+        {
+        }
+
+        virtual ~DeviceProfilerOutput() = default;
+
+        virtual bool IsAvailable() = 0;
+
+        virtual bool Initialize() = 0;
+        virtual void Destroy() = 0;
+
+        virtual void Update() = 0;
+        virtual void Present() = 0;
+
+    protected:
+        DeviceProfilerFrontend& m_Frontend;
     };
 }

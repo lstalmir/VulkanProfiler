@@ -168,6 +168,10 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         assert( m_pDevice );
+
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_InternalScope queueScope( m_pDevice->Queues.at( queue ) );
+
         m_pDevice->Callbacks.QueueWaitIdle( queue );
     }
 
