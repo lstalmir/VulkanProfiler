@@ -204,17 +204,14 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
-            if( !it->second.m_MemoryBindings.empty() )
-            {
-                // Only one binding at a time is allowed using this API.
-                it->second.m_MemoryBindings.clear();
-            }
-
-            DeviceProfilerBufferMemoryBindingData& binding = it->second.m_MemoryBindings.emplace_back();
+            DeviceProfilerBufferMemoryBindingData binding;
             binding.m_Memory = memory;
             binding.m_MemoryOffset = offset;
             binding.m_BufferOffset = 0;
             binding.m_Size = it->second.m_BufferSize;
+
+            // Only one binding at a time is allowed using this API.
+            it->second.m_MemoryBindings = binding;
         }
     }
 
@@ -235,9 +232,19 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
+            if( !std::holds_alternative<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings ) )
+            {
+                // Create a vector to hold multiple bindings.
+                it->second.m_MemoryBindings = std::vector<DeviceProfilerBufferMemoryBindingData>();
+            }
+
+            std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
+                std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings );
+            bindings.reserve( bindings.size() + bindCount );
+
             for( uint32_t i = 0; i < bindCount; ++i )
             {
-                DeviceProfilerBufferMemoryBindingData& binding = it->second.m_MemoryBindings.emplace_back();
+                DeviceProfilerBufferMemoryBindingData& binding = bindings.emplace_back();
                 binding.m_Memory = pBinds[i].memory;
                 binding.m_MemoryOffset = pBinds[i].memoryOffset;
                 binding.m_BufferOffset = pBinds[i].resourceOffset;
