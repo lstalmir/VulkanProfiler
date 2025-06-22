@@ -874,6 +874,30 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetShaderGroupTypeName
+
+    Description:
+        Returns string representation of VkRayTracingShaderGroupTypeKHR.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShaderGroupTypeName( VkRayTracingShaderGroupTypeKHR groupType ) const
+    {
+        switch( groupType )
+        {
+        case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+            return "General";
+        case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+            return "Triangles";
+        case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+            return "Procedural";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>( groupType ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetFormatName
 
     Description:

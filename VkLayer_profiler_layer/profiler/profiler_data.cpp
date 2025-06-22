@@ -146,6 +146,7 @@ size_t GetStructureSize( const VkRayTracingPipelineCreateInfoKHR* pStructure )
     {
         return sizeof( VkRayTracingPipelineCreateInfoKHR ) +
                GetPNextChainSize( pStructure->pNext ) +
+               GetStructureSize( pStructure->pGroups ) * pStructure->groupCount +
                GetStructureSize( pStructure->pLibraryInterface ) +
                GetStructureSize( pStructure->pDynamicState );
     }
@@ -339,8 +340,8 @@ VkRayTracingPipelineCreateInfoKHR* CopyStructure( const VkRayTracingPipelineCrea
         pDst->flags = pSrc->flags;
         pDst->stageCount = 0;
         pDst->pStages = nullptr;
-        pDst->groupCount = 0;
-        pDst->pGroups = nullptr;
+        pDst->groupCount = pSrc->groupCount;
+        pDst->pGroups = CopyStructureArray( pSrc->pGroups, pSrc->groupCount, ppNext );
         pDst->maxPipelineRayRecursionDepth = pSrc->maxPipelineRayRecursionDepth;
         pDst->pLibraryInfo = nullptr;
         pDst->pLibraryInterface = CopyStructure( pSrc->pLibraryInterface, ppNext );

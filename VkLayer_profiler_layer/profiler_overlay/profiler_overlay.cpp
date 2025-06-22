@@ -2924,41 +2924,67 @@ namespace Profiler
         ImGui::EndDisabled();
 
         // Shader groups
-        if( ImGui::BeginTable( "##RTShaderGroups", 4, tableFlags ) )
+        if( ImGui::CollapsingHeader( "Pipeline shader groups", ImGuiTreeNodeFlags_DefaultOpen ) )
         {
-            ImGui::TableSetupColumn( "General" );
-            ImGui::TableSetupColumn( "Closest-Hit" );
-            ImGui::TableSetupColumn( "Any-Hit" );
-            ImGui::TableSetupColumn( "Intersection" );
-            ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
-
-            auto ShaderGroupColumn = [&]( uint32_t shader ) {
-                if( ImGui::TableNextColumn() )
-                {
-                    if( shader != VK_SHADER_UNUSED_KHR )
-                    {
-                        ImGui::TextUnformatted( m_pStringSerializer->GetName( rtci.pStages[shader].module ).c_str() );
-                    }
-                    else
-                    {
-                        ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
-                        ImGui::TextUnformatted( "Unused" );
-                        ImGui::PopStyleColor();
-                    }
-                }
-            };
-
-            for( uint32_t i = 0; i < rtci.groupCount; ++i )
+            if( ImGui::BeginTable( "##RTShaderGroups", 6, tableFlags ) )
             {
-                const VkRayTracingShaderGroupCreateInfoKHR& group = rtci.pGroups[i];
-                ImGui::TableNextRow();
-                ShaderGroupColumn( group.generalShader );
-                ShaderGroupColumn( group.closestHitShader );
-                ShaderGroupColumn( group.anyHitShader );
-                ShaderGroupColumn( group.intersectionShader );
-            }
+                ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed );
+                ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+                ImGui::TableSetupColumn( "General" );
+                ImGui::TableSetupColumn( "Closest-Hit" );
+                ImGui::TableSetupColumn( "Any-Hit" );
+                ImGui::TableSetupColumn( "Intersection" );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
-            ImGui::EndTable();
+                auto ShaderGroupColumn = [&]( uint32_t shader ) {
+                    if( ImGui::TableNextColumn() )
+                    {
+                        if( shader != VK_SHADER_UNUSED_KHR )
+                        {
+                            const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( shader );
+                            if( pShader )
+                            {
+                                ImGui::TextUnformatted( m_pStringSerializer->GetShortShaderName( *pShader ).c_str() );
+                            }
+                            else
+                            {
+                                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 128, 128, 255 ) );
+                                ImGui::TextUnformatted( "Invalid" );
+                                ImGui::PopStyleColor();
+                            }
+                        }
+                        else
+                        {
+                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                            ImGui::TextUnformatted( "Unused" );
+                            ImGui::PopStyleColor();
+                        }
+                    }
+                };
+
+                for( uint32_t i = 0; i < rtci.groupCount; ++i )
+                {
+                    const VkRayTracingShaderGroupCreateInfoKHR& group = rtci.pGroups[i];
+                    ImGui::TableNextRow();
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", i );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetShaderGroupTypeName( group.type ).c_str() );
+                    }
+
+                    ShaderGroupColumn( group.generalShader );
+                    ShaderGroupColumn( group.closestHitShader );
+                    ShaderGroupColumn( group.anyHitShader );
+                    ShaderGroupColumn( group.intersectionShader );
+                }
+
+                ImGui::EndTable();
+            }
         }
 
         ImGui::PopStyleColor();

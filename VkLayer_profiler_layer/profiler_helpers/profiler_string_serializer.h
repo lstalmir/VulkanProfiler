@@ -65,6 +65,7 @@ namespace Profiler
         std::string GetShortShaderName( const struct ProfilerShader& ) const;
         std::string GetShaderStageName( VkShaderStageFlagBits ) const;
         std::string GetShortShaderStageName( VkShaderStageFlagBits ) const;
+        std::string GetShaderGroupTypeName( VkRayTracingShaderGroupTypeKHR ) const;
 
         std::string GetFormatName( VkFormat ) const;
         std::string GetIndexTypeName( VkIndexType ) const;
