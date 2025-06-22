@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include <nlohmann/json.hpp>
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
@@ -84,7 +85,8 @@ namespace Profiler
         // Target command queue for the current batch
         VkQueue      m_CommandQueue;
 
-        std::vector<struct TraceEvent*> m_pEvents;
+        // Serialized events
+        nlohmann::json m_Events;
 
         // Debug labels can cross command buffer and frame boundaries
         // Tracking depth of the stack to detect labels which begin in one frame and end in the next

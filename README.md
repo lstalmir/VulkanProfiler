@@ -3,6 +3,9 @@ This tool is a basic real-time GPU profiling layer for applications using [Vulka
 
 If you have any questions, suggestions or problems, please [create an issue](https://github.com/lstalmir/VulkanProfiler/issues/new).
 
+## Documentation
+Full documentation of the layer is available at [lstalmir.github.io/VulkanProfiler](https://lstalmir.github.io/VulkanProfiler).
+
 ## Compiling
 The layer is available for Windows and Linux. On both platforms CMake is used as the main build management tool.
 

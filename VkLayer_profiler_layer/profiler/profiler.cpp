@@ -1710,6 +1710,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindBufferMemory( VkBuffer buffer, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
+    {
+        m_MemoryTracker.BindBufferMemory( buffer, bindCount, pBinds );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateImage
 
     Description:
