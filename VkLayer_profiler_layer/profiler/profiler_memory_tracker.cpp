@@ -162,9 +162,8 @@ namespace Profiler
 
         DeviceProfilerBufferMemoryData data = {};
         data.m_BufferSize = pCreateInfo->size;
+        data.m_BufferFlags = pCreateInfo->flags;
         data.m_BufferUsage = pCreateInfo->usage;
-        data.m_Memory = VK_NULL_HANDLE;
-        data.m_MemoryOffset = 0;
 
         m_pDevice->Callbacks.GetBufferMemoryRequirements(
             m_pDevice->Handle,
@@ -205,8 +204,52 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
-            it->second.m_Memory = memory;
-            it->second.m_MemoryOffset = offset;
+            DeviceProfilerBufferMemoryBindingData binding;
+            binding.m_Memory = memory;
+            binding.m_MemoryOffset = offset;
+            binding.m_BufferOffset = 0;
+            binding.m_Size = it->second.m_BufferSize;
+
+            // Only one binding at a time is allowed using this API.
+            it->second.m_MemoryBindings = binding;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindBufferMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::BindBufferMemory( VkBuffer buffer, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Buffers );
+
+        auto it = m_Buffers.unsafe_find( buffer );
+        if( it != m_Buffers.end() )
+        {
+            if( !std::holds_alternative<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings ) )
+            {
+                // Create a vector to hold multiple bindings.
+                it->second.m_MemoryBindings = std::vector<DeviceProfilerBufferMemoryBindingData>();
+            }
+
+            std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
+                std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings );
+            bindings.reserve( bindings.size() + bindCount );
+
+            for( uint32_t i = 0; i < bindCount; ++i )
+            {
+                DeviceProfilerBufferMemoryBindingData& binding = bindings.emplace_back();
+                binding.m_Memory = pBinds[i].memory;
+                binding.m_MemoryOffset = pBinds[i].memoryOffset;
+                binding.m_BufferOffset = pBinds[i].resourceOffset;
+                binding.m_Size = pBinds[i].size;
+            }
         }
     }
 

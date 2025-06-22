@@ -1273,6 +1273,22 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerBufferMemoryBindingData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerBufferMemoryBindingData
+    {
+        VkDeviceMemory m_Memory = {};
+        VkDeviceSize m_MemoryOffset = {};
+        VkDeviceSize m_BufferOffset = {};
+        VkDeviceSize m_Size = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerBufferMemoryData
 
     Description:
@@ -1280,11 +1296,58 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerBufferMemoryData
     {
+        typedef std::variant<DeviceProfilerBufferMemoryBindingData, std::vector<DeviceProfilerBufferMemoryBindingData>>
+            MemoryBindings;
+
         VkDeviceSize m_BufferSize = {};
+        VkBufferCreateFlags m_BufferFlags = {};
         VkBufferUsageFlags m_BufferUsage = {};
         VkMemoryRequirements m_MemoryRequirements = {};
-        VkDeviceMemory m_Memory = {};
-        VkDeviceSize m_MemoryOffset = {};
+        MemoryBindings m_MemoryBindings = {};
+
+        // Interface for querying number of memory bindings.
+        // By default buffers are bound to single memory block, unless sparse binding is enabled.
+        inline size_t GetMemoryBindingCount() const
+        {
+            if( m_BufferFlags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT )
+            {
+                auto* pMemoryBindingsVector = std::get_if<std::vector<DeviceProfilerBufferMemoryBindingData>>( &m_MemoryBindings );
+                if( pMemoryBindingsVector )
+                {
+                    return pMemoryBindingsVector->size();
+                }
+            }
+
+            auto* pMemoryBinding = std::get_if<DeviceProfilerBufferMemoryBindingData>( &m_MemoryBindings );
+            if( pMemoryBinding )
+            {
+                return 1;
+            }
+
+            return 0;
+        }
+
+        // Interface for getting pointer to the bound memory blocks.
+        // By default buffers are bound to single memory block, unless sparse binding is enabled.
+        inline const DeviceProfilerBufferMemoryBindingData* GetMemoryBindings() const
+        {
+            if( m_BufferFlags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT )
+            {
+                auto* pMemoryBindingsVector = std::get_if<std::vector<DeviceProfilerBufferMemoryBindingData>>( &m_MemoryBindings );
+                if( pMemoryBindingsVector )
+                {
+                    return pMemoryBindingsVector->data();
+                }
+            }
+
+            auto* pMemoryBinding = std::get_if<DeviceProfilerBufferMemoryBindingData>( &m_MemoryBindings );
+            if( pMemoryBinding )
+            {
+                return pMemoryBinding;
+            }
+
+            return nullptr;
+        }
     };
 
     /***********************************************************************************\

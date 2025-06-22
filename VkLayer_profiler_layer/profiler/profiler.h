@@ -128,6 +128,7 @@ namespace Profiler
         void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
         void DestroyBuffer( VkBuffer );
         void BindBufferMemory( VkBuffer, VkDeviceMemory, VkDeviceSize );
+        void BindBufferMemory( VkBuffer, uint32_t, const VkSparseMemoryBind* );
 
         void CreateImage( VkImage, const VkImageCreateInfo* );
         void DestroyImage( VkImage );

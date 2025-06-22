@@ -2364,8 +2364,12 @@ namespace Profiler
                             ImGui::TableNextColumn();
                             ImGuiX::BeginPadding( 5.f * interfaceScale, 0, 0 );
 
-                            for( const auto& binding : data.m_MemoryBindings )
+                            const DeviceProfilerBufferMemoryBindingData* pBindings = data.GetMemoryBindings();
+                            const size_t bindingCount = data.GetMemoryBindingCount();
+
+                            for( size_t i = 0; i < bindingCount; ++i )
                             {
+                                const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
                                 ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
 
                                 ImGui::SameLine( 0.f, 15.f * interfaceScale );
@@ -2400,7 +2404,7 @@ namespace Profiler
                                 }
                             }
 
-                            if( data.m_MemoryBindings.empty() )
+                            if( !bindingCount )
                             {
                                 ImGui::TextUnformatted( "Buffer not bound" );
                             }
