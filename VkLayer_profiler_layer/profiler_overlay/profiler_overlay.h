@@ -215,8 +215,9 @@ namespace Profiler
         size_t m_InspectorTabIndex;
 
         // Memory inspector state.
-        char               m_MemoryBufferNameFilter[128];
-        VkBufferUsageFlags m_MemoryBufferUsageFilter;
+        char               m_ResourceBrowserNameFilter[128];
+        VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
+        VkBuffer           m_ResourceInspectorBuffer;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
