@@ -790,6 +790,7 @@ namespace Profiler
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
         m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_2" );
+        m_MemoryTabDockSpaceId = ImGui::GetID( "##m_MemoryTabDockSpaceId" );
 
         ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
         ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
@@ -885,6 +886,10 @@ namespace Profiler
         if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryWindowState ) )
         {
             UpdateMemoryTab();
+        }
+        else
+        {
+            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
         }
         EndDockingWindow();
 
@@ -2176,88 +2181,117 @@ namespace Profiler
         Updates "Memory" tab.
 
     \***********************************************************************************/
+    void ProfilerOverlayOutput::MemoryTabDockSpace( int flags )
+    {
+        bool requiresInitialization = ( ImGui::DockBuilderGetNode( m_MemoryTabDockSpaceId ) == nullptr );
+        ImGui::DockSpace( m_MemoryTabDockSpaceId, ImVec2( 0, 0 ), flags );
+
+        if( requiresInitialization )
+        {
+            ImGui::DockBuilderRemoveNode( m_MemoryTabDockSpaceId );
+            ImGui::DockBuilderAddNode( m_MemoryTabDockSpaceId, ImGuiDockNodeFlags_None );
+            ImGui::DockBuilderSetNodeSize( m_MemoryTabDockSpaceId, ImGui::GetMainViewport()->Size );
+
+            ImGuiID dockMain = m_MemoryTabDockSpaceId;
+            ImGuiID dockLeft;
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Left, 0.3f, &dockLeft, &dockMain );
+
+            ImGui::DockBuilderDockWindow( Lang::ResourceBrowser, dockLeft );
+            ImGui::DockBuilderDockWindow( Lang::ResourceInspector, dockMain );
+            ImGui::DockBuilderFinish( m_MemoryTabDockSpaceId );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateMemoryTab
+
+    Description:
+        Updates "Memory" tab.
+
+    \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_Frontend.GetPhysicalDeviceMemoryProperties();
 
-        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
+        for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
         {
-            for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
+            ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+
+            ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
+
+            float usage = 0.f;
+            char usageStr[ 64 ] = {};
+
+            if( memoryProperties.memoryHeaps[ i ].size != 0 )
             {
-                ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+                usage = (float)m_pData->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
 
-                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
-
-                float usage = 0.f;
-                char usageStr[ 64 ] = {};
-
-                if( memoryProperties.memoryHeaps[ i ].size != 0 )
-                {
-                    usage = (float)m_pData->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
-
-                    snprintf( usageStr, sizeof( usageStr ),
-                        "%.2f/%.2f MB (%.1f%%)",
-                        m_pData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576.f,
-                        memoryProperties.memoryHeaps[ i ].size / 1048576.f,
-                        usage * 100.f );
-                }
-
-                ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
-
-                if( ImGui::IsItemHovered() && (memoryProperties.memoryHeaps[ i ].flags != 0) )
-                {
-                    ImGui::BeginTooltip();
-
-                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
-                    {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
-                    }
-
-                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
-                    {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
-                    }
-
-                    ImGui::EndTooltip();
-                }
-
-                std::vector<float> memoryTypeUsages( memoryProperties.memoryTypeCount );
-                std::vector<std::string> memoryTypeDescriptors( memoryProperties.memoryTypeCount );
-
-                for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
-                {
-                    if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
-                    {
-                        memoryTypeUsages[ typeIndex ] = static_cast<float>( m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationSize );
-
-                        // Prepare descriptor for memory type
-                        std::stringstream sstr;
-                        sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n"
-                             << m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" );
-
-                        memoryTypeDescriptors[ typeIndex ] = sstr.str();
-                    }
-                }
-
-                // Get descriptor pointers
-                std::vector<const char*> memoryTypeDescriptorPointers( memoryProperties.memoryTypeCount );
-
-                for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
-                {
-                    memoryTypeDescriptorPointers[ typeIndex ] = memoryTypeDescriptors[ typeIndex ].c_str();
-                }
-
-                ImGuiX::PlotBreakdownEx(
-                    "HEAP_BREAKDOWN",
-                    memoryTypeUsages.data(),
-                    memoryProperties.memoryTypeCount, 0,
-                    memoryTypeDescriptorPointers.data() );
+                snprintf( usageStr, sizeof( usageStr ),
+                    "%.2f/%.2f MB (%.1f%%)",
+                    m_pData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576.f,
+                    memoryProperties.memoryHeaps[ i ].size / 1048576.f,
+                    usage * 100.f );
             }
+
+            ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
+
+            if( ImGui::IsItemHovered() && (memoryProperties.memoryHeaps[ i ].flags != 0) )
+            {
+                ImGui::BeginTooltip();
+
+                if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                {
+                    ImGui::TextUnformatted( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
+                }
+
+                if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
+                {
+                    ImGui::TextUnformatted( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
+                }
+
+                ImGui::EndTooltip();
+            }
+
+            std::vector<float> memoryTypeUsages( memoryProperties.memoryTypeCount );
+            std::vector<std::string> memoryTypeDescriptors( memoryProperties.memoryTypeCount );
+
+            for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
+            {
+                if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
+                {
+                    memoryTypeUsages[ typeIndex ] = static_cast<float>( m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationSize );
+
+                    // Prepare descriptor for memory type
+                    std::stringstream sstr;
+                    sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
+                            << m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n"
+                            << m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" );
+
+                    memoryTypeDescriptors[ typeIndex ] = sstr.str();
+                }
+            }
+
+            // Get descriptor pointers
+            std::vector<const char*> memoryTypeDescriptorPointers( memoryProperties.memoryTypeCount );
+
+            for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
+            {
+                memoryTypeDescriptorPointers[ typeIndex ] = memoryTypeDescriptors[ typeIndex ].c_str();
+            }
+
+            ImGuiX::PlotBreakdownEx(
+                "HEAP_BREAKDOWN",
+                memoryTypeUsages.data(),
+                memoryProperties.memoryTypeCount, 0,
+                memoryTypeDescriptorPointers.data() );
         }
 
-        if( ImGui::CollapsingHeader( Lang::Buffers ) )
+        MemoryTabDockSpace();
+
+        if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
         {
             float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
@@ -2304,9 +2338,12 @@ namespace Profiler
             // Buffers table.
             if( ImGui::BeginTable( "MemoryBuffersTable", 3, ImGuiTableFlags_PadOuterX | ImGuiTableFlags_NoClip ) )
             {
+                const float maxSizeWidth = ImGui::CalcTextSize( "  0000.0 GB" ).x * interfaceScale;
+                const float maxUsageWidth = ImGui::CalcTextSize( "  00000000" ).x * interfaceScale;
+
                 ImGui::TableSetupColumn( "Buffer", ImGuiTableColumnFlags_WidthStretch );
-                ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableSetupColumn( "Usage", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed, maxSizeWidth );
+                ImGui::TableSetupColumn( "Usage", ImGuiTableColumnFlags_WidthFixed, maxUsageWidth );
                 ImGui::TableHeadersRow();
 
                 size_t bufferIndex = 0;
@@ -2420,6 +2457,13 @@ namespace Profiler
                 ImGui::EndTable();
             }
         }
+        ImGui::End();
+
+        if( ImGui::Begin( Lang::ResourceInspector, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+
+        }
+        ImGui::End();
     }
 
     /***********************************************************************************\

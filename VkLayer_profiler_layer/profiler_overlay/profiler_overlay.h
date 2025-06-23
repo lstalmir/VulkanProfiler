@@ -263,8 +263,12 @@ namespace Profiler
         int m_QueueUtilizationTabDockSpaceId;
         int m_TopPipelinesTabDockSpaceId;
         int m_FrameBrowserDockSpaceId;
+        int m_MemoryTabDockSpaceId;
+        int m_ResourceBrowserDockSpaceId;
+        int m_ResourceInspectorDockSpaceId;
 
         void PerformanceTabDockSpace( int flags = 0 );
+        void MemoryTabDockSpace( int flags = 0 );
 
         struct WindowState
         {

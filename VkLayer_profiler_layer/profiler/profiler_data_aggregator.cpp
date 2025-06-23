@@ -173,8 +173,10 @@ namespace Profiler
         }
 
         // Use default time domain until the actual data is ready.
-        m_pResolvedFrames.push_back( std::make_shared<DeviceProfilerFrameData>() );
-        m_pResolvedFrames.back()->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+        auto pInitFrame = std::make_shared<DeviceProfilerFrameData>();
+        pInitFrame->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+        pInitFrame->m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();
+        m_pResolvedFrames.push_back( pInitFrame );
 
         // Try to start data collection thread.
         if( m_pProfiler->m_Config.m_EnableThreading )
