@@ -2421,6 +2421,10 @@ namespace Profiler
         case DeviceProfilerPipelineType::eGraphics:
             DrawInspectorGraphicsPipelineState();
             break;
+
+        case DeviceProfilerPipelineType::eRayTracingKHR:
+            DrawInspectorRayTracingPipelineState();
+            break;
         }
     }
 
@@ -2851,6 +2855,183 @@ namespace Profiler
             ImGuiX::EndPadding( contentPaddingBottom );
         }
         ImGui::EndDisabled();
+
+        ImGui::PopStyleColor();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawInspectorRayTracingPipelineState
+
+    Description:
+        Draws the inspected ray tracing pipeline state.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawInspectorRayTracingPipelineState()
+    {
+        assert( m_InspectorPipeline.m_Type == DeviceProfilerPipelineType::eRayTracingKHR );
+        assert( m_InspectorPipeline.m_pCreateInfo != nullptr );
+        const VkRayTracingPipelineCreateInfoKHR& rtci = m_InspectorPipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR;
+
+        const ImGuiTableFlags tableFlags =
+            // ImGuiTableFlags_BordersInnerH |
+            ImGuiTableFlags_PadOuterX |
+            ImGuiTableFlags_SizingStretchSame;
+
+        const float contentPaddingTop = 2.0f;
+        const float contentPaddingLeft = 5.0f;
+        const float contentPaddingRight = 10.0f;
+        const float contentPaddingBottom = 10.0f;
+
+        const float dynamicColumnWidth = ImGui::CalcTextSize( "Dynamic" ).x + 5;
+
+        auto SetupDefaultPipelineStateColumns = [&]() {
+            ImGui::TableSetupColumn( "Name", 0, 1.5f );
+            ImGui::TableSetupColumn( "Dynamic", ImGuiTableColumnFlags_WidthFixed, dynamicColumnWidth );
+        };
+
+        ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
+        // VkRayTracingPipelineCreateInfoKHR
+        ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+        if( ImGui::BeginTable( "##RTPipeline", 3, tableFlags ) )
+        {
+            SetupDefaultPipelineStateColumns();
+            DrawPipelineStateValue( "Max ray recursion depth", "%u", rtci.maxPipelineRayRecursionDepth );
+            DrawPipelineStateValue( "Pipeline stack size", "%llu", m_InspectorPipeline.m_RayTracingPipelineStackSize, rtci.pDynamicState, VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR );
+            ImGui::EndTable();
+        }
+        ImGuiX::EndPadding( contentPaddingBottom );
+
+        // VkRayTracingPipelineInterfaceCreateInfoKHR
+        ImGui::BeginDisabled( rtci.pLibraryInterface == nullptr );
+        if( ImGui::CollapsingHeader( "Pipeline interface" ) &&
+            ( rtci.pLibraryInterface != nullptr ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##RTPipelineInterface", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkRayTracingPipelineInterfaceCreateInfoKHR& state = *rtci.pLibraryInterface;
+                DrawPipelineStateValue( "Max ray payload size", "%u", state.maxPipelineRayPayloadSize );
+                DrawPipelineStateValue( "Max ray hit attribute size", "%u", state.maxPipelineRayHitAttributeSize );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // Shader groups
+        if( ImGui::CollapsingHeader( "Pipeline shader groups", ImGuiTreeNodeFlags_DefaultOpen ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##RTShaderGroups", 6, tableFlags ) )
+            {
+                ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed );
+                ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+                ImGui::TableSetupColumn( "General" );
+                ImGui::TableSetupColumn( "Closest-Hit" );
+                ImGui::TableSetupColumn( "Any-Hit" );
+                ImGui::TableSetupColumn( "Intersection" );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
+
+                auto ShaderGroupColumn = [&]( uint32_t shader ) {
+                    if( ImGui::TableNextColumn() )
+                    {
+                        if( shader != VK_SHADER_UNUSED_KHR )
+                        {
+                            const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( shader );
+                            if( pShader )
+                            {
+                                std::string shaderName;
+
+                                // Prefer shader module file name if available.
+                                if( pShader->m_pShaderModule && pShader->m_pShaderModule->m_pFileName )
+                                {
+                                    shaderName = fmt::format(
+                                        "{} ({})",
+                                        pShader->m_pShaderModule->m_pFileName,
+                                        pShader->m_EntryPoint );
+                                }
+                                else
+                                {
+                                    shaderName = fmt::format(
+                                        "{:08X} ({})",
+                                        pShader->m_Hash,
+                                        pShader->m_EntryPoint );
+                                }
+
+                                if( ImGui::TextLink( shaderName.c_str() ) )
+                                {
+                                    // Switch to the shader inspector tab.
+                                    const size_t shaderIndex = ( pShader - m_InspectorPipeline.m_ShaderTuple.m_Shaders.data() );
+                                    SetInspectorTabIndex( shaderIndex + 1 );
+                                }
+
+                                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                                {
+                                    ImGui::SetTooltip( "%s", m_pStringSerializer->GetShaderName( *pShader ).c_str() );
+                                }
+                            }
+                            else
+                            {
+                                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 128, 128, 255 ) );
+                                ImGui::Text( "Invalid (%u)", shader );
+                                ImGui::PopStyleColor();
+                            }
+                        }
+                        else
+                        {
+                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                            ImGui::TextUnformatted( "Unused" );
+                            ImGui::PopStyleColor();
+                        }
+                    }
+                };
+
+                for( uint32_t i = 0; i < rtci.groupCount; ++i )
+                {
+                    const VkRayTracingShaderGroupCreateInfoKHR& group = rtci.pGroups[i];
+                    ImGui::TableNextRow();
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", i );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        std::string groupTypeName;
+
+                        if( group.type == VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR )
+                        {
+                            const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( group.generalShader );
+                            if( pShader )
+                            {
+                                groupTypeName = m_pStringSerializer->GetGeneralShaderGroupTypeName( pShader->m_Stage );
+                            }
+                        }
+
+                        if( groupTypeName.empty() )
+                        {
+                            groupTypeName = m_pStringSerializer->GetShaderGroupTypeName( group.type );
+                        }
+
+                        ImGui::TextUnformatted( groupTypeName.c_str() );
+                    }
+
+                    ShaderGroupColumn( group.generalShader );
+                    ShaderGroupColumn( group.closestHitShader );
+                    ShaderGroupColumn( group.anyHitShader );
+                    ShaderGroupColumn( group.intersectionShader );
+                }
+
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
 
         ImGui::PopStyleColor();
     }

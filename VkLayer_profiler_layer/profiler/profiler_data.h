@@ -974,6 +974,8 @@ namespace Profiler
         bool                                                m_UsesMeshShading = false;
         bool                                                m_UsesShaderObjects = false;
 
+        VkDeviceSize                                        m_RayTracingPipelineStackSize = {};
+
         std::shared_ptr<CreateInfo>                         m_pCreateInfo = nullptr;
 
         inline void Finalize()
@@ -988,6 +990,7 @@ namespace Profiler
         }
 
         static std::shared_ptr<CreateInfo> CopyPipelineCreateInfo( const VkGraphicsPipelineCreateInfo* pCreateInfo );
+        static std::shared_ptr<CreateInfo> CopyPipelineCreateInfo( const VkRayTracingPipelineCreateInfoKHR* pCreateInfo );
     };
 
     /***********************************************************************************\

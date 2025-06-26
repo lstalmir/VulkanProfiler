@@ -474,9 +474,13 @@ namespace Profiler
                 {
                     m_Capabilities.insert( static_cast<SpvCapability>( *( pCurrentWord + 1 ) ) );
                 }
-                else if( opcode == SpvOpString )
+                else if( opcode == SpvOpString && opcodeLength > 2 )
                 {
-                    pStringMap.emplace( *( pCurrentWord + 1 ), reinterpret_cast<const char*>( pCurrentWord + 2 ) );
+                    const char* pString = reinterpret_cast<const char*>( pCurrentWord + 2 );
+                    if( strlen( pString ) > 0 )
+                    {
+                        pStringMap.emplace( *( pCurrentWord + 1 ), reinterpret_cast<const char*>( pCurrentWord + 2 ) );
+                    }
                 }
                 else if( opcode == SpvOpSource && opcodeLength > 3 && sourceStringID == UINT32_MAX )
                 {
