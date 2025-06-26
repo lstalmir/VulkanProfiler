@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ namespace Profiler
         uint32_t m_Hash = 0;
         uint32_t m_IdentifierSize = 0;
         uint8_t m_Identifier[VK_MAX_SHADER_MODULE_IDENTIFIER_SIZE_EXT] = {};
+        const char* m_pFileName = nullptr;
         std::vector<uint32_t> m_Bytecode = {};
         std::set<SpvCapability> m_Capabilities = {};
 

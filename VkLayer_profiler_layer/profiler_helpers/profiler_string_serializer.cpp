@@ -756,6 +756,15 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetShaderName( const ProfilerShader& shader ) const
     {
+        if( shader.m_pShaderModule && shader.m_pShaderModule->m_pFileName )
+        {
+            return fmt::format( "{} {:08X} ({} > {})",
+                GetShaderStageName( shader.m_Stage ),
+                shader.m_Hash,
+                shader.m_pShaderModule->m_pFileName,
+                shader.m_EntryPoint );
+        }
+
         return fmt::format( "{} {:08X} ({})",
             GetShaderStageName( shader.m_Stage ),
             shader.m_Hash,
