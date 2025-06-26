@@ -491,8 +491,10 @@ namespace Profiler
                 auto it = pStringMap.find( sourceStringID );
                 if( it != pStringMap.end() )
                 {
+                    // The filename must be stored as part of the saved bytecode
                     assert( it->second != nullptr );
-                    assert( it->second >= m_Bytecode.data() && it->second < m_Bytecode.data() + m_Bytecode.size() );
+                    assert( it->second >= reinterpret_cast<const char*>( m_Bytecode.data() ) &&
+                            it->second < reinterpret_cast<const char*>( m_Bytecode.data() + m_Bytecode.size() ) );
 
                     // Use the last path component for the file name
                     const char* pFileName = strrchr( it->second, '/' );
