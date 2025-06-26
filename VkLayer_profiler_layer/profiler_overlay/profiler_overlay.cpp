@@ -2945,7 +2945,25 @@ namespace Profiler
                             const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( shader );
                             if( pShader )
                             {
-                                if( ImGui::TextLink( m_pStringSerializer->GetShortShaderName( *pShader ).c_str() ) )
+                                std::string shaderName;
+
+                                // Prefer shader module file name if available.
+                                if( pShader->m_pShaderModule && pShader->m_pShaderModule->m_pFileName )
+                                {
+                                    shaderName = fmt::format(
+                                        "{} ({})",
+                                        pShader->m_pShaderModule->m_pFileName,
+                                        pShader->m_EntryPoint );
+                                }
+                                else
+                                {
+                                    shaderName = fmt::format(
+                                        "{:08X} ({})",
+                                        pShader->m_Hash,
+                                        pShader->m_EntryPoint );
+                                }
+
+                                if( ImGui::TextLink( shaderName.c_str() ) )
                                 {
                                     // Switch to the shader inspector tab.
                                     const size_t shaderIndex = ( pShader - m_InspectorPipeline.m_ShaderTuple.m_Shaders.data() );
@@ -2960,7 +2978,7 @@ namespace Profiler
                             else
                             {
                                 ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 128, 128, 255 ) );
-                                ImGui::TextUnformatted( "Invalid" );
+                                ImGui::Text( "Invalid (%u)", shader );
                                 ImGui::PopStyleColor();
                             }
                         }
@@ -2985,7 +3003,23 @@ namespace Profiler
 
                     if( ImGui::TableNextColumn() )
                     {
-                        ImGui::TextUnformatted( m_pStringSerializer->GetShaderGroupTypeName( group.type ).c_str() );
+                        std::string groupTypeName;
+
+                        if( group.type == VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR )
+                        {
+                            const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( group.generalShader );
+                            if( pShader )
+                            {
+                                groupTypeName = m_pStringSerializer->GetGeneralShaderGroupTypeName( pShader->m_Stage );
+                            }
+                        }
+
+                        if( groupTypeName.empty() )
+                        {
+                            groupTypeName = m_pStringSerializer->GetShaderGroupTypeName( group.type );
+                        }
+
+                        ImGui::TextUnformatted( groupTypeName.c_str() );
                     }
 
                     ShaderGroupColumn( group.generalShader );

@@ -907,6 +907,30 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetGeneralShaderGroupTypeName
+
+    Description:
+        Returns string representation of VkShaderStageFlagBits for a general shader group.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetGeneralShaderGroupTypeName( VkShaderStageFlagBits stage ) const
+    {
+        switch( stage )
+        {
+        case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+            return "Raygen";
+        case VK_SHADER_STAGE_MISS_BIT_KHR:
+            return "Miss";
+        case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+            return "Callable";
+        default:
+            return std::string();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetFormatName
 
     Description:
