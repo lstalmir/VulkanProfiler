@@ -2926,6 +2926,7 @@ namespace Profiler
         // Shader groups
         if( ImGui::CollapsingHeader( "Pipeline shader groups", ImGuiTreeNodeFlags_DefaultOpen ) )
         {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
             if( ImGui::BeginTable( "##RTShaderGroups", 6, tableFlags ) )
             {
                 ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed );
@@ -2944,7 +2945,17 @@ namespace Profiler
                             const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( shader );
                             if( pShader )
                             {
-                                ImGui::TextUnformatted( m_pStringSerializer->GetShortShaderName( *pShader ).c_str() );
+                                if( ImGui::TextLink( m_pStringSerializer->GetShortShaderName( *pShader ).c_str() ) )
+                                {
+                                    // Switch to the shader inspector tab.
+                                    const size_t shaderIndex = ( pShader - m_InspectorPipeline.m_ShaderTuple.m_Shaders.data() );
+                                    SetInspectorTabIndex( shaderIndex + 1 );
+                                }
+
+                                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                                {
+                                    ImGui::SetTooltip( "%s", m_pStringSerializer->GetShaderName( *pShader ).c_str() );
+                                }
                             }
                             else
                             {
@@ -2985,6 +2996,7 @@ namespace Profiler
 
                 ImGui::EndTable();
             }
+            ImGuiX::EndPadding( contentPaddingBottom );
         }
 
         ImGui::PopStyleColor();
