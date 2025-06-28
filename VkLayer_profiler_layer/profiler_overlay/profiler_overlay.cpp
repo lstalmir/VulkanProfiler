@@ -647,11 +647,11 @@ namespace Profiler
         }
 
         // Preserve index flags when clamping the index to the valid range.
+        const uint32_t frameIndexMax = static_cast<uint32_t>( pFramesList->size() - 1 );
         const uint32_t frameIndexFlags = m_SelectedFrameIndex & FrameIndexFlagsMask;
-        const uint32_t frameIndex = m_SelectedFrameIndex & FrameIndexMask;
-        const size_t frameIndexMax = pFramesList->size() - 1;
+        const uint32_t frameIndex = std::min( m_SelectedFrameIndex & FrameIndexMask, frameIndexMax );
 
-        m_SelectedFrameIndex = std::min<uint32_t>( frameIndex, frameIndexMax ) | frameIndexFlags;
+        m_SelectedFrameIndex = frameIndex | frameIndexFlags;
         m_pData = GetNthElement( *pFramesList, frameIndexMax - frameIndex );
 
         m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
