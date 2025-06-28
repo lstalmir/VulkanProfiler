@@ -1393,6 +1393,8 @@ namespace Profiler
             }
             else
             {
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, { 0.8f, 0.2f, 0.2f, 1.0f } );
+
                 // Add a button to remove the frame snapshot.
                 if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetBookmarkFilledIconImage(), buttonSize ) )
                 {
@@ -1417,6 +1419,8 @@ namespace Profiler
                 {
                     ImGui::SetTooltip( "Delete data snapshot" );
                 }
+
+                ImGui::PopStyleColor();
             }
 
             ImGui::PopStyleColor();
