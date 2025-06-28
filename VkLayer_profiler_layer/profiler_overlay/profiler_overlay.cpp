@@ -2302,20 +2302,11 @@ namespace Profiler
             float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
             // Fiters.
-            ImGui::TextUnformatted( "Name:" );
-            ImGui::SameLine();
             ImGui::SetNextItemWidth( 150.f * interfaceScale );
-            ImGui::InputText( "##NameFilter", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
+            ImGui::InputTextWithHint( "##NameFilter", "Name", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
 
-            ImGui::SameLine( 0, 5.f * interfaceScale );
-            ImGui::TextUnformatted( "Usage:" );
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth( 90.f * interfaceScale );
-
-            char bufferUsageFilterPreview[9] = "00000000";
-            snprintf( bufferUsageFilterPreview, sizeof( bufferUsageFilterPreview ), "%08X", m_ResourceBrowserBufferUsageFilter );
-
-            if( ImGui::BeginCombo( "##BufferUsageFilter", bufferUsageFilterPreview ) )
+            ImGui::SameLine( 0, 10.f * interfaceScale );
+            if( ImGui::BeginCombo( "Buffers##BufferUsageFilter", nullptr, ImGuiComboFlags_NoPreview ) )
             {
                 bool allChecked = ( m_ResourceBrowserBufferUsageFilter == g_KnownBufferUsageFlags );
                 if( ImGui::Checkbox( "<All>", &allChecked ) )
