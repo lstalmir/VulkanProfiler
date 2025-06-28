@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -50,6 +50,8 @@ namespace Profiler
         ImFont* GetCodeFont() const;
 
         void* GetCopyIconImage() const;
+        void* GetBookmarkEmptyIconImage() const;
+        void* GetBookmarkFilledIconImage() const;
 
     private:
         OverlayBackend* m_pBackend = nullptr;
@@ -59,6 +61,8 @@ namespace Profiler
         ImFont* m_pCodeFont = nullptr;
 
         void* m_pCopyIconImage = nullptr;
+        void* m_pBookmarkEmptyIconImage = nullptr;
+        void* m_pBookmarkFilledIconImage = nullptr;
 
         void* CreateImage( const uint8_t* pAsset, int assetSize );
     };

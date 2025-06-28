@@ -1048,8 +1048,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceTab()
     {
-        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
-
         // Header
         {
             const uint64_t cpuTimestampFreq = OSGetTimestampFrequency( m_pData->m_SyncTimestamps.m_HostTimeDomain );
@@ -1072,6 +1070,8 @@ namespace Profiler
                 Lang::RenderPasses,
                 Lang::Pipelines,
                 Lang::Drawcalls };
+
+            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
             // Select group mode
             {
@@ -1148,81 +1148,16 @@ namespace Profiler
 
         PerformanceTabDockSpace();
 
-        // Frames list
+        // Frames lists
         if( ImGui::Begin( m_pFramesStr, nullptr, ImGuiWindowFlags_NoMove ) )
         {
-            uint32_t frameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
-
-            for( const auto& pFrame : m_pFrames )
-            {
-                std::string frameName = fmt::format(
-                    "{} #{} ({:.2f} {})###Selectable_frame_{}",
-                    m_pFrameStr,
-                    pFrame->m_CPU.m_FrameIndex,
-                    GetDuration( 0, pFrame->m_Ticks ),
-                    m_pTimestampDisplayUnitStr,
-                    frameIndex );
-
-                bool selected = ( frameIndex == m_SelectedFrameIndex );
-                if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth | ImGuiSelectableFlags_AllowOverlap ) )
-                {
-                    m_SelectedFrameIndex = frameIndex;
-                }
-
-                const float buttonWidth = 12.f * interfaceScale;
-                const ImVec2 buttonSize = { buttonWidth, buttonWidth };
-
-                ImGui::SameLine( ImGui::GetContentRegionAvail().x - buttonSize.x );
-                ImGui::PushStyleColor( ImGuiCol_Button, { 0.0f, 0.0f, 0.0f, 0.0f } );
-                ImGui::BeginDisabled( std::find( m_pSnapshots.begin(), m_pSnapshots.end(), pFrame ) != m_pSnapshots.end() );
-
-                if( ImGui::ImageButton( "SaveFrameButton", m_Resources.GetCopyIconImage(), buttonSize ) )
-                {
-                    auto it = m_pSnapshots.rbegin();
-                    while( it != m_pSnapshots.rend() )
-                    {
-                        if( ( *it )->m_CPU.m_FrameIndex < pFrame->m_CPU.m_FrameIndex )
-                        {
-                            break;
-                        }
-                        it++;
-                    }
-
-                    auto inserted = m_pSnapshots.insert( it.base(), pFrame );
-                    size_t insertedIndex = std::distance( m_pSnapshots.begin(), inserted );
-                    m_SelectedFrameIndex = static_cast<uint32_t>( m_pSnapshots.size() - insertedIndex - 1 ) | SnapshotFrameIndexFlag;
-                }
-
-                ImGui::EndDisabled();
-                ImGui::PopStyleColor();
-
-                frameIndex--;
-            }
+            PrintFramesList( m_pFrames );
         }
         ImGui::End();
 
         if( ImGui::Begin( Lang::Snapshots, nullptr, ImGuiWindowFlags_NoMove ) )
         {
-            uint32_t frameIndex = static_cast<uint32_t>( m_pSnapshots.size() - 1 ) | SnapshotFrameIndexFlag;
-
-            for( const auto& pFrame : m_pSnapshots )
-            {
-                std::string frameName = fmt::format(
-                    "{} #{} ({:.2f} {})###Selectable_frame_{}",
-                    m_pFrameStr,
-                    pFrame->m_CPU.m_FrameIndex,
-                    GetDuration( 0, pFrame->m_Ticks ),
-                    m_pTimestampDisplayUnitStr,
-                    frameIndex );
-
-                bool selected = ( frameIndex == m_SelectedFrameIndex );
-                if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth | ImGuiSelectableFlags_AllowOverlap ) )
-                {
-                    m_SelectedFrameIndex = frameIndex;
-                }
-
-                frameIndex--;
-            }
+            PrintFramesList( m_pSnapshots, SnapshotFrameIndexFlag );
         }
         ImGui::End();
 
@@ -1357,6 +1292,101 @@ namespace Profiler
 
         m_ScrollToSelectedFrameBrowserNode = false;
         m_pData = std::move( pCurrentFrameData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateQueueUtilizationTab
+
+    Description:
+        Updates "Queue utilization" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintFramesList(const std::list<std::shared_ptr<DeviceProfilerFrameData>>& pFramesList, uint32_t frameIndexFlags)
+    {
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        uint32_t frameIndex = static_cast<uint32_t>( pFramesList.size() - 1 ) | frameIndexFlags;
+
+        for( auto frameIt = pFramesList.begin(); frameIt != pFramesList.end(); )
+        {
+            // If the container was modified during the iteration, the iterator must not be incremented.
+            bool incrementIteratorAtEnd = true;
+
+            std::shared_ptr<DeviceProfilerFrameData> pFrame = *frameIt;
+            std::string frameName = fmt::format(
+                "{} #{} ({:.2f} {})###Selectable_frame_{}",
+                m_pFrameStr,
+                pFrame->m_CPU.m_FrameIndex,
+                GetDuration( 0, pFrame->m_Ticks ),
+                m_pTimestampDisplayUnitStr,
+                frameIndex );
+
+            bool selected = ( frameIndex == m_SelectedFrameIndex );
+            if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth | ImGuiSelectableFlags_AllowOverlap ) )
+            {
+                m_SelectedFrameIndex = frameIndex;
+            }
+
+            const float buttonWidth = 12.f * interfaceScale;
+            const ImVec2 buttonSize = { buttonWidth, buttonWidth };
+
+            ImGui::SameLine( ImGui::GetContentRegionAvail().x - buttonSize.x );
+            ImGui::PushStyleColor( ImGuiCol_Button, { 0.0f, 0.0f, 0.0f, 0.0f } );
+
+            std::string snapshotButtonId = fmt::format( "##SnapshotButton_{}", frameIndex );
+
+            auto snapshotIt = std::find( m_pSnapshots.begin(), m_pSnapshots.end(), pFrame );
+            if( snapshotIt == m_pSnapshots.end() )
+            {
+                // Add a button to save the frame snapshot.
+                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetBookmarkEmptyIconImage(), buttonSize ) )
+                {
+                    auto snapshotItRev = m_pSnapshots.rbegin();
+                    while( snapshotItRev != m_pSnapshots.rend() )
+                    {
+                        if( ( *snapshotItRev )->m_CPU.m_FrameIndex < pFrame->m_CPU.m_FrameIndex )
+                        {
+                            break;
+                        }
+                        snapshotItRev++;
+                    }
+
+                    m_pSnapshots.insert( snapshotItRev.base(), pFrame );
+                }
+            }
+            else
+            {
+                // Add a button to remove the frame snapshot.
+                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetBookmarkFilledIconImage(), buttonSize ) )
+                {
+                    snapshotIt = m_pSnapshots.erase( snapshotIt );
+
+                    if( &pFramesList == &m_pSnapshots )
+                    {
+                        // The frame was removed from ths current list and erase returned the next iterator.
+                        // Skip incrementation in this iteration.
+                        frameIt = snapshotIt;
+                        incrementIteratorAtEnd = false;
+                    }
+
+                    if( ( m_SelectedFrameIndex & SnapshotFrameIndexFlag ) && m_pSnapshots.empty() )
+                    {
+                        // Select current frame if last snapshot was removed and was currently viewed.
+                        m_SelectedFrameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
+                    }
+                }
+            }
+
+            ImGui::PopStyleColor();
+
+            // Move to the next frame if the current one was not removed.
+            if( incrementIteratorAtEnd )
+            {
+                frameIt++;
+                frameIndex--;
+            }
+        }
     }
 
     /***********************************************************************************\
