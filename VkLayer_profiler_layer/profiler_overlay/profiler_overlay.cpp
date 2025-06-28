@@ -509,6 +509,8 @@ namespace Profiler
         m_pFrameStr = Lang::Frame;
         m_pFramesStr = Lang::Frames;
 
+        m_HasNewSnapshots = false;
+
         m_pData = nullptr;
         m_Pause = false;
         m_Fullscreen = false;
@@ -1148,17 +1150,45 @@ namespace Profiler
 
         PerformanceTabDockSpace();
 
-        // Frames lists
+        // Frames list
         if( ImGui::Begin( m_pFramesStr, nullptr, ImGuiWindowFlags_NoMove ) )
         {
             PrintFramesList( m_pFrames );
         }
+
         ImGui::End();
 
-        if( ImGui::Begin( Lang::Snapshots, nullptr, ImGuiWindowFlags_NoMove ) )
+        // Snapshots list
+        int snapshotsWindowFlags = ImGuiWindowFlags_NoMove;
+        if( m_HasNewSnapshots )
         {
-            PrintFramesList( m_pSnapshots, SnapshotFrameIndexFlag );
+            // Show a dot hinting that the new snapshots are availble in this tab.
+            snapshotsWindowFlags |= ImGuiWindowFlags_UnsavedDocument;
         }
+
+        bool snapshotsWindowOpen = ImGui::Begin( Lang::Snapshots, nullptr, snapshotsWindowFlags );
+
+        if( m_HasNewSnapshots )
+        {
+            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            {
+                ImGui::SetTooltip( "New snapshots have been captured" );
+            }
+        }
+
+        if( snapshotsWindowOpen )
+        {
+            // Stop showing a hint about the new snapshots.
+            m_HasNewSnapshots = false;
+
+            PrintFramesList( m_pSnapshots, SnapshotFrameIndexFlag );
+
+            if( m_pSnapshots.empty() )
+            {
+                ImGui::TextUnformatted( "No data snapshots captured" );
+            }
+        }
+
         ImGui::End();
 
         // m_pData may be temporarily replaced by another frame to correctly scroll to its node.
@@ -1353,6 +1383,12 @@ namespace Profiler
                     }
 
                     m_pSnapshots.insert( snapshotItRev.base(), pFrame );
+                    m_HasNewSnapshots = true;
+                }
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Save data snapshot" );
                 }
             }
             else
@@ -1375,6 +1411,11 @@ namespace Profiler
                         // Select current frame if last snapshot was removed and was currently viewed.
                         m_SelectedFrameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
                     }
+                }
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Delete data snapshot" );
                 }
             }
 
