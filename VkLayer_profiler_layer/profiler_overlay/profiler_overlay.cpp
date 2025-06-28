@@ -60,6 +60,34 @@ namespace Profiler
     // Define static members
     std::mutex s_ImGuiMutex;
 
+    // Constants
+    static constexpr VkBufferUsageFlags g_KnownBufferUsageFlags =
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+        VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT |
+        VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT |
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+        VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT |
+        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+        VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+        VK_BUFFER_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+        VK_BUFFER_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+        VK_BUFFER_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+        VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_MICROMAP_BUILD_INPUT_READ_ONLY_BIT_EXT |
+        VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT |
+        VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT;
+
     struct ProfilerOverlayOutput::PerformanceGraphColumn : ImGuiX::HistogramColumnData
     {
         HistogramGroupMode groupMode;
@@ -510,6 +538,10 @@ namespace Profiler
         m_InspectorTabs.clear();
         m_InspectorTabIndex = 0;
 
+        memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
+        m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
+        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
+
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
         m_ReferencePerformanceCounters.clear();
@@ -759,6 +791,7 @@ namespace Profiler
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
         m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_2" );
+        m_MemoryTabDockSpaceId = ImGui::GetID( "##m_MemoryTabDockSpaceId" );
 
         ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
         ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
@@ -854,6 +887,10 @@ namespace Profiler
         if( BeginDockingWindow( Lang::Memory, m_MainDockSpaceId, m_MemoryWindowState ) )
         {
             UpdateMemoryTab();
+        }
+        else
+        {
+            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
         }
         EndDockingWindow();
 
@@ -2145,12 +2182,42 @@ namespace Profiler
         Updates "Memory" tab.
 
     \***********************************************************************************/
+    void ProfilerOverlayOutput::MemoryTabDockSpace( int flags )
+    {
+        bool requiresInitialization = ( ImGui::DockBuilderGetNode( m_MemoryTabDockSpaceId ) == nullptr );
+        ImGui::DockSpace( m_MemoryTabDockSpaceId, ImVec2( 0, 0 ), flags );
+
+        if( requiresInitialization )
+        {
+            ImGui::DockBuilderRemoveNode( m_MemoryTabDockSpaceId );
+            ImGui::DockBuilderAddNode( m_MemoryTabDockSpaceId, ImGuiDockNodeFlags_None );
+            ImGui::DockBuilderSetNodeSize( m_MemoryTabDockSpaceId, ImGui::GetMainViewport()->Size );
+
+            ImGuiID dockMain = m_MemoryTabDockSpaceId;
+            ImGuiID dockLeft;
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Left, 0.35f, &dockLeft, &dockMain );
+
+            ImGui::DockBuilderDockWindow( Lang::ResourceBrowser, dockLeft );
+            ImGui::DockBuilderDockWindow( Lang::ResourceInspector, dockMain );
+            ImGui::DockBuilderFinish( m_MemoryTabDockSpaceId );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateMemoryTab
+
+    Description:
+        Updates "Memory" tab.
+
+    \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_Frontend.GetPhysicalDeviceMemoryProperties();
 
-        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
+        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage, ImGuiTreeNodeFlags_DefaultOpen ) )
         {
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
@@ -2159,31 +2226,33 @@ namespace Profiler
                 ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
 
                 float usage = 0.f;
-                char usageStr[ 64 ] = {};
+                char usageStr[64] = {};
 
-                if( memoryProperties.memoryHeaps[ i ].size != 0 )
+                if( memoryProperties.memoryHeaps[i].size != 0 )
                 {
                     usage = (float)m_pData->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
 
                     snprintf( usageStr, sizeof( usageStr ),
                         "%.2f/%.2f MB (%.1f%%)",
                         m_pData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576.f,
-                        memoryProperties.memoryHeaps[ i ].size / 1048576.f,
+                        memoryProperties.memoryHeaps[i].size / 1048576.f,
                         usage * 100.f );
                 }
 
+                ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
                 ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
+                ImGui::PopStyleColor();
 
-                if( ImGui::IsItemHovered() && (memoryProperties.memoryHeaps[ i ].flags != 0) )
+                if( ImGui::IsItemHovered() && ( memoryProperties.memoryHeaps[i].flags != 0 ) )
                 {
                     ImGui::BeginTooltip();
 
-                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                    if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
                     {
                         ImGui::TextUnformatted( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
                     }
 
-                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
+                    if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
                     {
                         ImGui::TextUnformatted( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
                     }
@@ -2196,57 +2265,17 @@ namespace Profiler
 
                 for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
                 {
-                    if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
+                    if( memoryProperties.memoryTypes[typeIndex].heapIndex == i )
                     {
-                        memoryTypeUsages[ typeIndex ] = static_cast<float>( m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationSize );
+                        memoryTypeUsages[typeIndex] = static_cast<float>( m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize );
 
                         // Prepare descriptor for memory type
                         std::stringstream sstr;
-
                         sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
+                             << m_pData->m_Memory.m_Types[typeIndex].m_AllocationCount << " " << Lang::Allocations << "\n"
+                             << m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" );
 
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_HOST_CACHED_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_PROTECTED_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_PROTECTED_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT\n";
-                        }
-
-                        memoryTypeDescriptors[ typeIndex ] = sstr.str();
+                        memoryTypeDescriptors[typeIndex] = sstr.str();
                     }
                 }
 
@@ -2255,7 +2284,7 @@ namespace Profiler
 
                 for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
                 {
-                    memoryTypeDescriptorPointers[ typeIndex ] = memoryTypeDescriptors[ typeIndex ].c_str();
+                    memoryTypeDescriptorPointers[typeIndex] = memoryTypeDescriptors[typeIndex].c_str();
                 }
 
                 ImGuiX::PlotBreakdownEx(
@@ -2264,6 +2293,173 @@ namespace Profiler
                     memoryProperties.memoryTypeCount, 0,
                     memoryTypeDescriptorPointers.data() );
             }
+
+            ImGui::Dummy( ImVec2( 1, 5 ) );
+        }
+
+        if( ImGui::CollapsingHeader( "Resources", ImGuiTreeNodeFlags_DefaultOpen ) )
+        {
+            float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+            // Fiters.
+            ImGui::SetNextItemWidth( 150.f * interfaceScale );
+            ImGui::InputTextWithHint( "##NameFilter", "Name", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
+
+            ImGui::SameLine( 0, 10.f * interfaceScale );
+            if( ImGui::BeginCombo( "Buffers##BufferUsageFilter", nullptr, ImGuiComboFlags_NoPreview ) )
+            {
+                bool allChecked = ( m_ResourceBrowserBufferUsageFilter == g_KnownBufferUsageFlags );
+                if( ImGui::Checkbox( "<All>", &allChecked ) )
+                {
+                    m_ResourceBrowserBufferUsageFilter = allChecked ? g_KnownBufferUsageFlags : 0;
+                }
+
+                for( uint32_t i = 0; i < sizeof( VkBufferUsageFlags ) * 8; ++i )
+                {
+                    const VkBufferUsageFlags usageFlag = static_cast<VkBufferUsageFlags>( 1U << i );
+
+                    if( g_KnownBufferUsageFlags & usageFlag )
+                    {
+                        const std::string label = m_pStringSerializer->GetBufferUsageFlagNames( usageFlag );
+                        bool checked = ( m_ResourceBrowserBufferUsageFilter & usageFlag ) != 0;
+                        if( ImGui::Checkbox( label.c_str(), &checked ) )
+                        {
+                            m_ResourceBrowserBufferUsageFilter ^= usageFlag;
+                        }
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            ImGui::Separator();
+
+            MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
+
+            if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
+            {
+                // Resources list.
+                size_t bufferIndex = 0;
+
+                for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
+                {
+                    if( ( data.m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
+                    {
+                        continue;
+                    }
+
+                    auto bufferName = m_pStringSerializer->GetName( buffer );
+                    if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
+                    {
+                        continue;
+                    }
+
+                    bufferName += "###buffer_" + m_pStringSerializer->GetPointer( buffer );
+
+                    bool selected = ( m_ResourceInspectorBuffer == buffer );
+                    if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+                    {
+                        m_ResourceInspectorBuffer = buffer;
+                    }
+                }
+            }
+            ImGui::End();
+
+            if( ImGui::Begin( Lang::ResourceInspector, nullptr, ImGuiWindowFlags_NoMove ) )
+            {
+                if( m_ResourceInspectorBuffer != VK_NULL_HANDLE )
+                {
+                    const auto& data = m_pData->m_Memory.m_Buffers.at( m_ResourceInspectorBuffer );
+
+                    ImFont* pBoldFont = m_Resources.GetBoldFont();
+                    ImGui::PushFont( pBoldFont );
+                    ImGui::TextUnformatted( "Buffer:" );
+                    ImGui::PopFont();
+                    ImGui::SameLine( 100.f );
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str() );
+
+                    ImGui::PushFont( pBoldFont );
+                    ImGui::TextUnformatted( "Size:" );
+                    ImGui::PopFont();
+                    ImGui::SameLine( 100.f );
+                    ImGui::Text( "%s (%llu bytes)",
+                        m_pStringSerializer->GetByteSize( data.m_BufferSize ),
+                        data.m_BufferSize );
+
+                    ImGui::PushFont( pBoldFont );
+                    ImGui::TextUnformatted( "Usage:" );
+                    ImGui::PopFont();
+                    ImGui::SameLine( 100.f );
+                    ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( data.m_BufferUsage, "\n" ).c_str() );
+
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+
+                    if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
+                    {
+                        ImGui::TableSetupColumn( "Memory" );
+                        ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+                        ImGuiX::TableHeadersRow( pBoldFont );
+
+                        const DeviceProfilerBufferMemoryBindingData* pBindings = data.GetMemoryBindings();
+                        const size_t bindingCount = data.GetMemoryBindingCount();
+
+                        for( size_t i = 0; i < bindingCount; ++i )
+                        {
+                            const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
+
+                            ImGui::TableNextRow();
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%llu   ", binding.m_MemoryOffset );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%llu   ", binding.m_Size );
+                            }
+
+                            auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
+                            if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                            {
+                                const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                                const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                                if( ImGui::TableNextColumn() )
+                                {
+                                    ImGui::Text( "%u", memoryData.m_TypeIndex );
+                                }
+
+                                if( ImGui::TableNextColumn() )
+                                {
+                                    ImGui::Text( "%u", memoryData.m_HeapIndex );
+                                }
+
+                                if( ImGui::TableNextColumn() )
+                                {
+                                    ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                                }
+                            }
+                        }
+
+                        ImGui::EndTable();
+                    }
+                }
+            }
+            ImGui::End();
+        }
+        else
+        {
+            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
         }
     }
 

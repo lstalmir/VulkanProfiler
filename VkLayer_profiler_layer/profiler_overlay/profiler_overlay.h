@@ -214,6 +214,11 @@ namespace Profiler
         std::vector<InspectorTab> m_InspectorTabs;
         size_t m_InspectorTabIndex;
 
+        // Memory inspector state.
+        char               m_ResourceBrowserNameFilter[128];
+        VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
+        VkBuffer           m_ResourceInspectorBuffer;
+
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
@@ -259,8 +264,12 @@ namespace Profiler
         int m_QueueUtilizationTabDockSpaceId;
         int m_TopPipelinesTabDockSpaceId;
         int m_FrameBrowserDockSpaceId;
+        int m_MemoryTabDockSpaceId;
+        int m_ResourceBrowserDockSpaceId;
+        int m_ResourceInspectorDockSpaceId;
 
         void PerformanceTabDockSpace( int flags = 0 );
+        void MemoryTabDockSpace( int flags = 0 );
 
         struct WindowState
         {

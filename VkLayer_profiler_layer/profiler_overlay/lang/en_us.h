@@ -114,10 +114,14 @@ namespace Profiler
         inline static constexpr char PerformanceCountersNotAvailableForCommandBuffer[] = "Performance metrics are not available for the selected command buffer.";
 
         // Memory tab
+        inline static constexpr char ResourceBrowser[] = "Resource browser###Resource browser";
+        inline static constexpr char ResourceInspector[] = "Resource inspector###Resource inspector";
         inline static constexpr char MemoryHeapUsage[] = "Memory heap usage";
         inline static constexpr char MemoryHeap[] = "Heap";
         inline static constexpr char Allocations[] = "Allocations";
         inline static constexpr char MemoryTypeIndex[] = "Memory type index";
+        inline static constexpr char Buffers[] = "Buffers";
+        inline static constexpr char Images[] = "Images";
 
         // Statistics tab
         inline static constexpr char ShowEmptyStatistics[] = "Show empty statistics...";

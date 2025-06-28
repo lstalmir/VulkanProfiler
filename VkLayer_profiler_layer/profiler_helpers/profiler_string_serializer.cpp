@@ -31,14 +31,30 @@ namespace Profiler
     struct FlagsStringBuilder
     {
         std::stringstream m_Stream;
-        bool m_Empty = true;
+        bool              m_Empty = true;
+        const char*       m_pSeparator = DeviceProfilerStringSerializer::DefaultFlagsSeparator;
 
-        void AddFlag(std::string&& flag)
+        void AddFlag( const std::string_view& flag )
         {
-            if (!m_Empty)
-                m_Stream << " | ";
+            if( !m_Empty )
+                m_Stream << m_pSeparator;
             m_Stream << flag;
             m_Empty = false;
+        }
+
+        void AddUnknownFlags( uint64_t flags, uint32_t startIndex )
+        {
+            for( uint32_t i = startIndex; i < sizeof( uint64_t ) * 8; ++i )
+            {
+                uint64_t unkownFlag = ( 1ULL << i );
+                if( flags & unkownFlag )
+                {
+                    if( !m_Empty )
+                        m_Stream << m_pSeparator;
+                    m_Stream << "Unknown flag (" << unkownFlag << ")";
+                    m_Empty = false;
+                }
+            }
         }
 
         std::string BuildString()
@@ -686,6 +702,39 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetByteSize
+
+    Description:
+        Returns short representation of a byte size.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetByteSize( VkDeviceSize size ) const
+    {
+        typedef uint8_t Kilobyte[1024];
+        typedef Kilobyte Megabyte[1024];
+        typedef Megabyte Gigabyte[1024];
+
+        if( size < sizeof( Kilobyte ) )
+        {
+            return fmt::format( "{} B", size );
+        }
+
+        if( size < sizeof( Megabyte ) )
+        {
+            return fmt::format( "{:.1f} kB", size / static_cast<float>( sizeof( Kilobyte ) ) );
+        }
+
+        if( size < sizeof( Gigabyte ) )
+        {
+            return fmt::format( "{:.1f} MB", size / static_cast<float>( sizeof( Megabyte ) ) );
+        }
+
+        return fmt::format( "{:.1f} GB", size / static_cast<float>( sizeof( Gigabyte ) ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetQueueFlagNames
 
     Description:
@@ -735,12 +784,7 @@ namespace Profiler
         if( flags & VK_QUEUE_OPTICAL_FLOW_BIT_NV )
             builder.AddFlag( "Optical flow" );
 
-        for( uint32_t i = 8; i < 8 * sizeof( flags ); ++i )
-        {
-            uint32_t unkownFlag = 1U << i;
-            if( flags & unkownFlag )
-                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
-        }
+        builder.AddUnknownFlags( flags, 8 );
 
         return builder.BuildString();
     }
@@ -1871,6 +1915,116 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetMemoryPropertyFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetMemoryPropertyFlagNames(
+        VkMemoryPropertyFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+            builder.AddFlag( "Device local" );
+        if( flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
+            builder.AddFlag( "Host visible" );
+        if( flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
+            builder.AddFlag( "Host coherent" );
+        if( flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT )
+            builder.AddFlag( "Host cached" );
+        if( flags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT )
+            builder.AddFlag( "Lazily allocated" );
+        if( flags & VK_MEMORY_PROPERTY_PROTECTED_BIT )
+            builder.AddFlag( "Protected" );
+        if( flags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD )
+            builder.AddFlag( "Device coherent" );
+        if( flags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD )
+            builder.AddFlag( "Device uncached" );
+        if( flags & VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV )
+            builder.AddFlag( "RDMA capable" );
+
+        builder.AddUnknownFlags( flags, 9 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBufferUsageFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBufferUsageFlagNames(
+        VkBufferUsageFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT )
+            builder.AddFlag( "Transfer source" );
+        if( flags & VK_BUFFER_USAGE_TRANSFER_DST_BIT )
+            builder.AddFlag( "Transfer destination" );
+        if( flags & VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT )
+            builder.AddFlag( "Uniform texel buffer" );
+        if( flags & VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT )
+            builder.AddFlag( "Storage texel buffer" );
+        if( flags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT )
+            builder.AddFlag( "Uniform buffer" );
+        if( flags & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT )
+            builder.AddFlag( "Storage buffer" );
+        if( flags & VK_BUFFER_USAGE_INDEX_BUFFER_BIT )
+            builder.AddFlag( "Index buffer" );
+        if( flags & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+            builder.AddFlag( "Vertex buffer" );
+        if( flags & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT )
+            builder.AddFlag( "Indirect buffer" );
+        if( flags & VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT )
+            builder.AddFlag( "Conditional rendering" );
+        if( flags & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR )
+            builder.AddFlag( "Shader binding table" );
+        if( flags & VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT )
+            builder.AddFlag( "Transform feedback buffer" );
+        if( flags & VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT )
+            builder.AddFlag( "Transform feedback counter buffer" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_DECODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video decode source" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_DECODE_DST_BIT_KHR )
+            builder.AddFlag( "Video decode destination" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_ENCODE_DST_BIT_KHR )
+            builder.AddFlag( "Video encode destination" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_ENCODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video encode source" );
+        if( flags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT )
+            builder.AddFlag( "Shader device address" );
+        if( flags & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR )
+            builder.AddFlag( "Acceleration structure build input read-only" );
+        if( flags & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR )
+            builder.AddFlag( "Acceleration structure storage" );
+        if( flags & VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Sampler descriptor buffer" );
+        if( flags & VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Resource descriptor buffer" );
+        if( flags & VK_BUFFER_USAGE_MICROMAP_BUILD_INPUT_READ_ONLY_BIT_EXT )
+            builder.AddFlag( "Micromap build input read-only" );
+        if( flags & VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT )
+            builder.AddFlag( "Micromap storage" );
+        if( flags & VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Push descriptors descriptor buffer" );
+
+        builder.AddUnknownFlags( flags, 27 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetCopyAccelerationStructureModeName
 
     Description:
@@ -1942,12 +2096,7 @@ namespace Profiler
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_MOTION_BIT_NV )
             builder.AddFlag( "Motion (32)" );
 
-        for( uint32_t i = 6; i < 8 * sizeof( flags ); ++i )
-        {
-            uint32_t unkownFlag = 1U << i;
-            if( flags & unkownFlag )
-                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
-        }
+        builder.AddUnknownFlags( flags, 6 );
 
         return builder.BuildString();
     }
@@ -2105,12 +2254,7 @@ namespace Profiler
         if( flags & VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR )
             builder.AddFlag( "No duplicate any-hit invocation (2)" );
 
-        for( uint32_t i = 2; i < 8 * sizeof( flags ); ++i )
-        {
-            uint32_t unkownFlag = 1U << i;
-            if( flags & unkownFlag )
-                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
-        }
+        builder.AddUnknownFlags( flags, 2 );
 
         return builder.BuildString();
     }
