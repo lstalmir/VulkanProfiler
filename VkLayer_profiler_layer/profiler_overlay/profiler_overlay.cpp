@@ -502,6 +502,7 @@ namespace Profiler
         m_HistogramShowIdle = false;
 
         m_pFrames.clear();
+        m_pSnapshots.clear();
         m_SelectedFrameIndex = 0;
         m_MaxFrameCount = 1;
 
@@ -638,8 +639,19 @@ namespace Profiler
             }
         }
 
-        m_SelectedFrameIndex = std::min<uint32_t>( m_SelectedFrameIndex, m_pFrames.size() - 1 );
-        m_pData = GetNthElement( m_pFrames, m_pFrames.size() - m_SelectedFrameIndex - 1 );
+        // There is a separate list for saved frames.
+        auto* pFramesList = &m_pFrames;
+        if( m_SelectedFrameIndex & SnapshotFrameIndexFlag )
+        {
+            pFramesList = &m_pSnapshots;
+        }
+
+        // Preserve index flags when clamping the index to the valid range.
+        const uint32_t frameIndexFlags = m_SelectedFrameIndex & FrameIndexFlagsMask;
+        const size_t frameIndexMax = pFramesList->size() - 1;
+
+        m_SelectedFrameIndex = std::min<uint32_t>( m_SelectedFrameIndex, frameIndexMax ) | frameIndexFlags;
+        m_pData = GetNthElement( *pFramesList, frameIndexMax - ( m_SelectedFrameIndex & FrameIndexMask ) );
 
         m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
     }
@@ -790,7 +802,7 @@ namespace Profiler
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
-        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_2" );
+        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_6" );
         m_MemoryTabDockSpaceId = ImGui::GetID( "##m_MemoryTabDockSpaceId" );
 
         ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
@@ -1008,7 +1020,14 @@ namespace Profiler
             ImGuiID dockFrames;
             ImGui::DockBuilderSplitNode( dockLeft, ImGuiDir_Up, 0.2f, &dockFrames, &dockLeft );
 
+            ImGuiDockNode* pDockLeft = ImGui::DockBuilderGetNode( dockLeft );
+            pDockLeft->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;
+
+            ImGuiDockNode* pDockFrames = ImGui::DockBuilderGetNode( dockFrames );
+            pDockFrames->LocalFlags |= ImGuiDockNodeFlags_NoWindowMenuButton;
+
             ImGui::DockBuilderDockWindow( m_pFramesStr, dockFrames );
+            ImGui::DockBuilderDockWindow( Lang::Snapshots, dockFrames );
             ImGui::DockBuilderDockWindow( Lang::QueueUtilization, dockQueueUtilization );
             ImGui::DockBuilderDockWindow( Lang::TopPipelines, dockTopPipelines );
             ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockLeft );
@@ -1028,6 +1047,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceTab()
     {
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
         // Header
         {
             const uint64_t cpuTimestampFreq = OSGetTimestampFrequency( m_pData->m_SyncTimestamps.m_HostTimeDomain );
@@ -1050,8 +1071,6 @@ namespace Profiler
                 Lang::RenderPasses,
                 Lang::Pipelines,
                 Lang::Drawcalls };
-
-            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
             // Select group mode
             {
@@ -1144,7 +1163,59 @@ namespace Profiler
                     frameIndex );
 
                 bool selected = ( frameIndex == m_SelectedFrameIndex );
-                if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+                if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth | ImGuiSelectableFlags_AllowOverlap ) )
+                {
+                    m_SelectedFrameIndex = frameIndex;
+                }
+
+                const float buttonWidth = 12.f * interfaceScale;
+                const ImVec2 buttonSize = { buttonWidth, buttonWidth };
+
+                ImGui::SameLine( ImGui::GetContentRegionAvail().x - buttonSize.x );
+                ImGui::PushStyleColor( ImGuiCol_Button, { 0.0f, 0.0f, 0.0f, 0.0f } );
+                ImGui::BeginDisabled( std::find( m_pSnapshots.begin(), m_pSnapshots.end(), pFrame ) != m_pSnapshots.end() );
+
+                if( ImGui::ImageButton( "SaveFrameButton", m_Resources.GetCopyIconImage(), buttonSize ) )
+                {
+                    auto it = m_pSnapshots.rbegin();
+                    while( it != m_pSnapshots.rend() )
+                    {
+                        if( ( *it )->m_CPU.m_FrameIndex < pFrame->m_CPU.m_FrameIndex )
+                        {
+                            break;
+                        }
+                        it++;
+                    }
+
+                    auto inserted = m_pSnapshots.insert( it.base(), pFrame );
+                    size_t insertedIndex = std::distance( m_pSnapshots.begin(), inserted );
+                    m_SelectedFrameIndex = static_cast<uint32_t>( m_pSnapshots.size() - insertedIndex - 1 ) | SnapshotFrameIndexFlag;
+                }
+
+                ImGui::EndDisabled();
+                ImGui::PopStyleColor();
+
+                frameIndex--;
+            }
+        }
+        ImGui::End();
+
+        if( ImGui::Begin( Lang::Snapshots, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            uint32_t frameIndex = static_cast<uint32_t>( m_pSnapshots.size() - 1 ) | SnapshotFrameIndexFlag;
+
+            for( const auto& pFrame : m_pSnapshots )
+            {
+                std::string frameName = fmt::format(
+                    "{} #{} ({:.2f} {})###Selectable_frame_{}",
+                    m_pFrameStr,
+                    pFrame->m_CPU.m_FrameIndex,
+                    GetDuration( 0, pFrame->m_Ticks ),
+                    m_pTimestampDisplayUnitStr,
+                    frameIndex );
+
+                bool selected = ( frameIndex == m_SelectedFrameIndex );
+                if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth | ImGuiSelectableFlags_AllowOverlap ) )
                 {
                     m_SelectedFrameIndex = frameIndex;
                 }
@@ -1152,7 +1223,6 @@ namespace Profiler
                 frameIndex--;
             }
         }
-
         ImGui::End();
 
         // m_pData may be temporarily replaced by another frame to correctly scroll to its node.
@@ -1165,11 +1235,16 @@ namespace Profiler
             ImGui::SetNextItemOpen( true );
 
             // Update frame index when scrolling to a node from a different frame
-            m_SelectedFrameIndex = std::clamp<uint32_t>(
-                m_SelectedFrameBrowserNodeIndex.GetFrameIndex(), 0, m_pFrames.size() - 1 );
+            m_SelectedFrameIndex = m_SelectedFrameBrowserNodeIndex.GetFrameIndex();
+            uint32_t frameIndex = ( m_SelectedFrameIndex & FrameIndexMask );
+
+            std::list<std::shared_ptr<DeviceProfilerFrameData>>& framesList =
+                ( m_SelectedFrameIndex & SnapshotFrameIndexFlag )
+                    ? m_pSnapshots
+                    : m_pFrames;
 
             // Temporarily replace pointer to the current frame data
-            m_pData = GetNthElement( m_pFrames, m_SelectedFrameIndex );
+            m_pData = GetNthElement( framesList, frameIndex );
         }
 
         // Frame browser
@@ -3699,9 +3774,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& columns ) const
     {
-        FrameBrowserTreeNodeIndex index;
-        index.SetFrameIndex( static_cast<uint32_t>( m_pFrames.size() - 1 ) );
-
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
         const auto& queues = m_Frontend.GetDeviceQueues();
         const size_t queueCount = queues.size();
@@ -3740,12 +3812,24 @@ namespace Profiler
             }
         }
 
-        for( std::shared_ptr<DeviceProfilerFrameData> pFrame : m_pFrames )
+        bool showActiveFrame = m_ShowActiveFrame;
+        auto* pFramesList = &m_pFrames;
+
+        if( m_SelectedFrameIndex & SnapshotFrameIndexFlag )
+        {
+            showActiveFrame = true;
+            pFramesList = &m_pSnapshots;
+        }
+
+        FrameBrowserTreeNodeIndex index;
+        index.SetFrameIndex( static_cast<uint32_t>( pFramesList->size() - 1 ) | ( m_SelectedFrameIndex & FrameIndexFlagsMask ) );
+
+        for( const std::shared_ptr<DeviceProfilerFrameData>& pFrame : *pFramesList )
         {
             const uint32_t frameIndex = index.GetFrameIndex();
 
             // Skip other frames if requested
-            if( m_ShowActiveFrame )
+            if( showActiveFrame )
             {
                 if( frameIndex != m_SelectedFrameIndex )
                 {

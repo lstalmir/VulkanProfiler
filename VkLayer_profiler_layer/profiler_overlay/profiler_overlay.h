@@ -145,8 +145,14 @@ namespace Profiler
             size_t GetTreeNodeIndexSize() const;
         };
 
+        // Used to distinguish indexes between m_pFrames and m_pSavedFrames.
+        inline static const uint32_t SnapshotFrameIndexFlag = 0x80000000;
+        inline static const uint32_t FrameIndexFlagsMask = 0x80000000;
+        inline static const uint32_t FrameIndexMask = ~FrameIndexFlagsMask;
+
         std::shared_mutex m_DataMutex;
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pFrames;
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pSnapshots;
          // 0 - current frame, 1 - previous frame, etc.
         uint32_t m_SelectedFrameIndex;
         uint32_t m_MaxFrameCount;
