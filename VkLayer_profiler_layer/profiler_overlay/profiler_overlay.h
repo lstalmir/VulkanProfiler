@@ -145,13 +145,24 @@ namespace Profiler
             size_t GetTreeNodeIndexSize() const;
         };
 
+        // Used to distinguish indexes between m_pFrames and m_pSnapshots.
+        inline static const uint32_t SnapshotFrameIndexFlag = 0x80000000;
+        inline static const uint32_t FrameIndexFlagsMask = 0x80000000;
+        inline static const uint32_t FrameIndexMask = ~FrameIndexFlagsMask;
+        static uint32_t MakeFrameIndex( size_t, uint32_t );
+
+        typedef std::list<std::shared_ptr<DeviceProfilerFrameData>>
+            FrameDataList;
+
         std::shared_mutex m_DataMutex;
-        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pFrames;
+        FrameDataList m_pFrames;
+        FrameDataList m_pSnapshots;
          // 0 - current frame, 1 - previous frame, etc.
         uint32_t m_SelectedFrameIndex;
         uint32_t m_MaxFrameCount;
         const char* m_pFramesStr;
         const char* m_pFrameStr;
+        bool m_HasNewSnapshots;
 
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;
@@ -161,6 +172,9 @@ namespace Profiler
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
         bool m_ShowActiveFrame;
+
+        bool GetShowActiveFrame() const;
+        const FrameDataList& GetActiveFramesList() const;
 
         bool m_SetLastMainWindowPos;
         Float2* m_pLastMainWindowPos;
@@ -345,6 +359,7 @@ namespace Profiler
         void ShaderRepresentationSaved( bool, const std::string& );
 
         // Frame browser helpers
+        void PrintFramesList( const FrameDataList&, uint32_t = 0 );
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
         void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool, const FrameBrowserContext& );

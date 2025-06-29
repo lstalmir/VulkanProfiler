@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -268,6 +268,8 @@ namespace Profiler
 
         // Create image objects
         m_pCopyIconImage = CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
+        m_pBookmarkEmptyIconImage = CreateImage( OverlayAssets::BookmarkEmptyImg, sizeof( OverlayAssets::BookmarkEmptyImg ) );
+        m_pBookmarkFilledIconImage = CreateImage( OverlayAssets::BookmarkFilledImg, sizeof( OverlayAssets::BookmarkFilledImg ) );
 
         return true;
     }
@@ -310,6 +312,18 @@ namespace Profiler
             {
                 m_pBackend->DestroyImage( m_pCopyIconImage );
                 m_pCopyIconImage = nullptr;
+            }
+
+            if( m_pBookmarkEmptyIconImage )
+            {
+                m_pBackend->DestroyImage( m_pBookmarkEmptyIconImage );
+                m_pBookmarkEmptyIconImage = nullptr;
+            }
+
+            if( m_pBookmarkFilledIconImage )
+            {
+                m_pBackend->DestroyImage( m_pBookmarkFilledIconImage );
+                m_pBookmarkFilledIconImage = nullptr;
             }
         }
 
@@ -370,6 +384,34 @@ namespace Profiler
     void* OverlayResources::GetCopyIconImage() const
     {
         return m_pCopyIconImage;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBookmarkEmptyIconImage
+
+    Description:
+        Returns the empty bookmark icon image descriptor set.
+
+    \***********************************************************************************/
+    void* OverlayResources::GetBookmarkEmptyIconImage() const
+    {
+        return m_pBookmarkEmptyIconImage;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBookmarkFilledIconImage
+
+    Description:
+        Returns the filled bookmark icon image descriptor set.
+
+    \***********************************************************************************/
+    void* OverlayResources::GetBookmarkFilledIconImage() const
+    {
+        return m_pBookmarkFilledIconImage;
     }
 
     /***********************************************************************************\
