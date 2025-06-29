@@ -653,7 +653,7 @@ namespace Profiler
 
         // Preserve index flags when clamping the index to the valid range.
         const size_t frameIndexMax = framesList.size() - 1;
-        const size_t frameIndex = std::min<uint32_t>( m_SelectedFrameIndex & FrameIndexMask, frameIndexMax );
+        const size_t frameIndex = std::min<size_t>( m_SelectedFrameIndex & FrameIndexMask, frameIndexMax );
         const uint32_t frameIndexFlags = m_SelectedFrameIndex & FrameIndexFlagsMask;
 
         m_SelectedFrameIndex = MakeFrameIndex( frameIndex, frameIndexFlags );
@@ -1208,7 +1208,9 @@ namespace Profiler
             uint32_t frameIndex = ( m_SelectedFrameIndex & FrameIndexMask );
 
             // Temporarily replace pointer to the current frame data
-            m_pData = GetNthElement( GetActiveFramesList(), frameIndex );
+            const FrameDataList& framesList = GetActiveFramesList();
+            const size_t frameIndexMax = framesList.size() - 1;
+            m_pData = GetNthElement( framesList, frameIndexMax - frameIndex );
         }
 
         // Frame browser
