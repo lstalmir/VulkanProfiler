@@ -23,6 +23,7 @@
 #include "profiler/profiler_data_aggregator.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler/profiler_stat_comparators.h"
+#include "profiler_helpers/profiler_memory_comparator.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include "profiler_overlay_backend.h"
 #include "profiler_overlay_settings.h"
@@ -229,9 +230,12 @@ namespace Profiler
         size_t m_InspectorTabIndex;
 
         // Memory inspector state.
-        char               m_ResourceBrowserNameFilter[128];
-        VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
-        VkBuffer           m_ResourceInspectorBuffer;
+        DeviceProfilerMemoryComparator m_MemoryComparator;
+        char                           m_ResourceBrowserNameFilter[128];
+        VkBufferUsageFlags             m_ResourceBrowserBufferUsageFilter;
+        bool                           m_ResourceBrowserShowDifferences;
+        VkBuffer                       m_ResourceInspectorBuffer;
+        DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
