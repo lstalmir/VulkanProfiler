@@ -2616,7 +2616,8 @@ namespace Profiler
                     else
                     {
                         // Buffer data not found.
-                        ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame. It may have been freed or hasn't been created yet.",
+                        ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                                     "It may have been freed or hasn't been created yet.",
                             m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str(),
                             VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( m_ResourceInspectorBuffer ) );
                     }
