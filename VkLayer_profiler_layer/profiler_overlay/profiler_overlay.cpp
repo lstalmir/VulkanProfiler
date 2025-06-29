@@ -808,7 +808,7 @@ namespace Profiler
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
-        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_6" );
+        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_3" );
         m_MemoryTabDockSpaceId = ImGui::GetID( "##m_MemoryTabDockSpaceId" );
 
         ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
@@ -2613,7 +2613,7 @@ namespace Profiler
                     else
                     {
                         // Buffer data not found.
-                        ImGui::Text( "'%s' at 0x%016llx has been freed and does not exist in the current frame.",
+                        ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame. It may have been freed or hasn't been created yet.",
                             m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str(),
                             VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( m_ResourceInspectorBuffer ) );
                     }
