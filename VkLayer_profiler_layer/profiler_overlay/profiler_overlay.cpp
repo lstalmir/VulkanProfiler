@@ -1154,6 +1154,8 @@ namespace Profiler
         PerformanceTabDockSpace();
 
         // Frames list
+        ImGui::SetNextItemOpen( true, ImGuiCond_Once );
+
         if( ImGui::Begin( m_pFramesStr, nullptr, ImGuiWindowFlags_NoMove ) )
         {
             PrintFramesList( m_pFrames );
@@ -1411,7 +1413,7 @@ namespace Profiler
                     if( ( m_SelectedFrameIndex & SnapshotFrameIndexFlag ) && m_pSnapshots.empty() )
                     {
                         // Select current frame if last snapshot was removed and was currently viewed.
-                        m_SelectedFrameIndex = static_cast<uint32_t>( m_pFrames.size() - 1 );
+                        m_SelectedFrameIndex = 0;
                     }
                 }
 
@@ -1704,6 +1706,7 @@ namespace Profiler
 
             const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
             m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", m_pFrameStr, frameIndex );
+            m_ReferenceTopPipelinesFullDescription.clear();
 
             for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
             {
