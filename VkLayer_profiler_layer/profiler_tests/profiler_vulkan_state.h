@@ -81,10 +81,11 @@ namespace Profiler
         // First, it reads available features from VkPhysicalDevice into the structure. Then Configure is called and
         // this object can adjust the feature bits, or return false if the requested feature is not present.
         // Next, the same pointer is passed to the vkCreateDevice in the pNext chain.
-        virtual void* GetCreateInfo() = 0;
+        virtual void* GetCreateInfo() { return nullptr; }
 
         // Called after the VkPhysicalDevice features have been queried to check if required bits are supported.
-        virtual bool Configure() { return true; }
+        virtual bool CheckSupport( const VkPhysicalDeviceFeatures2* pFeatures ) const { return true; }
+        virtual void Configure( VkPhysicalDeviceFeatures2* pFeatures ) {}
     };
 
     class VulkanState
@@ -99,6 +100,7 @@ namespace Profiler
         VkDevice                    Device;
         uint32_t                    QueueFamilyIndex;
         VkQueue                     Queue;
+        std::vector<VkQueue>        Queues;
         VkCommandPool               CommandPool;
         VkDescriptorPool            DescriptorPool;
 
@@ -184,18 +186,25 @@ namespace Profiler
 
             // Create logical device
             {
+                // Create a queue of each family for testing.
+                std::vector<VkDeviceQueueCreateInfo> deviceQueueCreateInfos( PhysicalDeviceQueueProperties.size() );
+
                 const float deviceQueueDefaultPriority = 1.f;
 
-                VkDeviceQueueCreateInfo deviceQueueCreateInfo = {};
-                deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-                deviceQueueCreateInfo.queueFamilyIndex = QueueFamilyIndex;
-                deviceQueueCreateInfo.queueCount = 1;
-                deviceQueueCreateInfo.pQueuePriorities = &deviceQueueDefaultPriority;
+                const uint32_t deviceQueueCount = static_cast<uint32_t>( deviceQueueCreateInfos.size() );
+                for( uint32_t queueFamilyIndex = 0; queueFamilyIndex < deviceQueueCount; ++queueFamilyIndex )
+                {
+                    VkDeviceQueueCreateInfo& deviceQueueCreateInfo = deviceQueueCreateInfos[queueFamilyIndex];
+                    deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+                    deviceQueueCreateInfo.queueFamilyIndex = queueFamilyIndex;
+                    deviceQueueCreateInfo.queueCount = 1;
+                    deviceQueueCreateInfo.pQueuePriorities = &deviceQueueDefaultPriority;
+                }
 
                 VkDeviceCreateInfo deviceCreateInfo = {};
                 deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-                deviceCreateInfo.queueCreateInfoCount = 1;
-                deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
+                deviceCreateInfo.queueCreateInfoCount = deviceQueueCount;
+                deviceCreateInfo.pQueueCreateInfos = deviceQueueCreateInfos.data();
 
                 uint32_t availableExtensionCount = 0;
                 vkEnumerateDeviceExtensionProperties( PhysicalDevice, nullptr, &availableExtensionCount, nullptr );
@@ -211,6 +220,24 @@ namespace Profiler
                 deviceCreateInfo.pNext = &features;
 
                 VkBaseOutStructure** ppNext = (VkBaseOutStructure**)&features.pNext;
+                auto AppendNext = [&]( void* pNextStructure ) {
+                    if( pNextStructure )
+                    {
+                        *ppNext = (VkBaseOutStructure*)pNextStructure;
+                        ppNext = &( *ppNext )->pNext;
+                    }
+                };
+
+                // Vulkan 1.1 core features support.
+                VkPhysicalDeviceVulkan11Features vulkan11Features = {};
+                vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+                AppendNext( ApiCheck( VK_API_VERSION_1_1 ) ? &vulkan11Features : nullptr );
+
+                // Vulkan 1.2 core features support.
+                VkPhysicalDeviceVulkan12Features vulkan12Features = {};
+                vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+                AppendNext( ApiCheck( VK_API_VERSION_1_2 ) ? &vulkan12Features : nullptr );
+
                 for( VulkanFeature* pFeature : createInfo.DeviceFeatures )
                 {
                     if( !pFeature->ExtensionName.empty() )
@@ -226,25 +253,45 @@ namespace Profiler
                         }
                     }
 
-                    *ppNext = (VkBaseOutStructure*)pFeature->GetCreateInfo();
-                    ppNext = &( *ppNext )->pNext;
+                    AppendNext( pFeature->GetCreateInfo() );
                 }
 
                 vkGetPhysicalDeviceFeatures2( PhysicalDevice, &features );
 
                 for( VulkanFeature* pFeature : createInfo.DeviceFeatures )
                 {
-                    pFeature->Enabled = pFeature->Configure();
+                    pFeature->Enabled = pFeature->CheckSupport( &features );
                     if( !pFeature->Enabled && pFeature->Required )
                     {
                         throw VulkanError( VK_ERROR_FEATURE_NOT_PRESENT, pFeature->Name );
                     }
                 }
 
+                // Clear the core features to enable only the required bits.
+                memset( &features.features, 0, sizeof( features.features ) );
+                ClearStructure( vulkan11Features );
+                ClearStructure( vulkan12Features );
+
+                for( VulkanFeature* pFeature : createInfo.DeviceFeatures )
+                {
+                    if( pFeature->Enabled )
+                    {
+                        pFeature->Configure( &features );
+                    }
+                }
+
                 VERIFY_RESULT( this, vkCreateDevice( PhysicalDevice, &deviceCreateInfo, nullptr, &Device ) );
 
+                // Get queue handles
+                Queues.resize( deviceQueueCount );
+
+                for( uint32_t queueFamilyIndex = 0; queueFamilyIndex < deviceQueueCount; ++queueFamilyIndex )
+                {
+                    vkGetDeviceQueue( Device, queueFamilyIndex, 0, &Queues[queueFamilyIndex] );
+                }
+
                 // Get graphics queue handle
-                vkGetDeviceQueue( Device, QueueFamilyIndex, 0, &Queue );
+                Queue = Queues[QueueFamilyIndex];
             }
 
             // Create descriptor pool
@@ -306,6 +353,7 @@ namespace Profiler
             Device = VK_NULL_HANDLE;
             QueueFamilyIndex = -1;
             Queue = VK_NULL_HANDLE;
+            Queues.clear();
             CommandPool = VK_NULL_HANDLE;
             DescriptorPool = VK_NULL_HANDLE;
 
@@ -314,7 +362,28 @@ namespace Profiler
             Instance = VK_NULL_HANDLE;
             PhysicalDevice = VK_NULL_HANDLE;
             PhysicalDeviceProperties = {};
+            PhysicalDeviceMemoryProperties = {};
+            PhysicalDeviceQueueProperties.clear();
             ApplicationInfo = {};
+        }
+
+        inline bool ApiCheck( uint32_t apiVersion ) const
+        {
+            return ( ApplicationInfo.apiVersion >= apiVersion ) &&
+                   ( PhysicalDeviceProperties.apiVersion >= apiVersion );
+        }
+
+        inline VkQueue GetQueue( VkQueueFlags flags = VK_QUEUE_GRAPHICS_BIT ) const
+        {
+            const uint32_t queueCount = static_cast<uint32_t>( Queues.size() );
+            for( uint32_t i = 0; i < queueCount; ++i )
+            {
+                if( ( PhysicalDeviceQueueProperties[i].queueFlags & flags ) == flags )
+                {
+                    return Queues[i];
+                }
+            }
+            return VK_NULL_HANDLE;
         }
 
     private:
@@ -349,6 +418,16 @@ namespace Profiler
             }
 
             return extensions;
+        }
+
+        template<typename T>
+        static void ClearStructure( T& structure )
+        {
+            auto sType = structure.sType;
+            auto* pNext = structure.pNext;
+            memset( &structure, 0, sizeof( T ) );
+            structure.sType = sType;
+            structure.pNext = pNext;
         }
     };
 }
