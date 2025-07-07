@@ -275,14 +275,17 @@ namespace Profiler
                             // Buffer partially-unbound in the middle.
                             DeviceProfilerBufferMemoryBindingData newBinding = *binding;
                             newBinding.m_Size = startUnbindOffset - startBindingOffset;
-                            binding->m_Size -= newBinding.m_Size;
                             binding->m_BufferOffset = endUnbindOffset;
+                            binding->m_MemoryOffset += newBinding.m_Size + pBinds[i].size;
+                            binding->m_Size -= newBinding.m_Size + pBinds[i].size;
                             binding = bindings.insert( binding, newBinding );
+                            binding++;
                         }
                         else if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset > startBindingOffset ) )
                         {
                             // Buffer partially-unbound at the start.
                             binding->m_BufferOffset = endUnbindOffset;
+                            binding->m_MemoryOffset += endUnbindOffset - startBindingOffset;
                             binding->m_Size -= endUnbindOffset - startBindingOffset;
                             binding++;
                         }
@@ -290,6 +293,11 @@ namespace Profiler
                         {
                             // Buffer partially-unbound at the end.
                             binding->m_Size -= endBindingOffset - startUnbindOffset;
+                            binding++;
+                        }
+                        else
+                        {
+                            // Binding not affected.
                             binding++;
                         }
                     }
