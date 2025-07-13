@@ -103,6 +103,18 @@ namespace ImGuiX
     /*************************************************************************\
 
     Function:
+        BeginSlimCombo
+
+    Description:
+        Compact combo box.
+
+    \*************************************************************************/
+    bool BeginSlimCombo( const char* label, const char* preview_value, ImGuiComboFlags flags = 0 );
+    void EndSlimCombo();
+
+    /*************************************************************************\
+
+    Function:
         Selectable
 
     Description:

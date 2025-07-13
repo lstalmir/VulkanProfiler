@@ -150,6 +150,8 @@ namespace Profiler
         inline static const uint32_t SnapshotFrameIndexFlag = 0x80000000;
         inline static const uint32_t FrameIndexFlagsMask = 0x80000000;
         inline static const uint32_t FrameIndexMask = ~FrameIndexFlagsMask;
+        inline static const uint32_t InvalidFrameIndex = UINT32_MAX;
+        inline static const uint32_t CurrentFrameIndex = UINT32_MAX - 1;
         static uint32_t MakeFrameIndex( size_t, uint32_t );
 
         typedef std::list<std::shared_ptr<DeviceProfilerFrameData>>
@@ -176,6 +178,9 @@ namespace Profiler
 
         bool GetShowActiveFrame() const;
         const FrameDataList& GetActiveFramesList() const;
+        std::shared_ptr<DeviceProfilerFrameData> GetFrameData( uint32_t frameIndex ) const;
+        std::string GetFrameName( const char* pContextName, uint32_t frameIndex, bool indent = false ) const;
+        std::string GetFrameName( const std::shared_ptr<DeviceProfilerFrameData>& pFrameData, const char* pContextName, uint32_t frameIndex, bool indent = false ) const;
 
         bool m_SetLastMainWindowPos;
         Float2* m_pLastMainWindowPos;
@@ -231,10 +236,12 @@ namespace Profiler
 
         // Memory inspector state.
         DeviceProfilerMemoryComparator m_MemoryComparator;
-        char                           m_ResourceBrowserNameFilter[128];
-        VkBufferUsageFlags             m_ResourceBrowserBufferUsageFilter;
-        bool                           m_ResourceBrowserShowDifferences;
-        VkBuffer                       m_ResourceInspectorBuffer;
+        uint32_t m_MemoryCompareRefFrameIndex;
+        uint32_t m_MemoryCompareSelFrameIndex;
+        char m_ResourceBrowserNameFilter[128];
+        VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
+        bool m_ResourceBrowserShowDifferences;
+        VkBuffer m_ResourceInspectorBuffer;
         DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
 
         // Performance metrics filter.

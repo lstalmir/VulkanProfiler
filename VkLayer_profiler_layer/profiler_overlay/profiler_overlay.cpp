@@ -246,6 +246,14 @@ namespace Profiler
         return size() - 2;
     }
 
+    template<typename Format, typename... Args>
+    const char* f( Format&& format, Args&&... args )
+    {
+        thread_local std::string buffer;
+        buffer = fmt::format( std::forward<Format>( format ), std::forward<Args>( args )... );
+        return buffer.c_str();
+    }
+
     /***********************************************************************************\
 
     Function:
@@ -549,6 +557,8 @@ namespace Profiler
         m_InspectorTabIndex = 0;
 
         m_MemoryComparator.Reset();
+        m_MemoryCompareRefFrameIndex = InvalidFrameIndex;
+        m_MemoryCompareSelFrameIndex = CurrentFrameIndex;
         memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
         m_ResourceBrowserShowDifferences = false;
@@ -2382,55 +2392,114 @@ namespace Profiler
         float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
         // Memory comparator options.
-        std::shared_ptr<DeviceProfilerFrameData> pReferenceData = m_MemoryComparator.GetReferenceData();
-        std::string referenceSnapshotName = "None";
-
-        if( pReferenceData )
+        enum MemoryComparatorComboBoxFlags
         {
-            referenceSnapshotName = fmt::format( "{} #{}",
-                m_pFrameStr,
-                pReferenceData->m_CPU.m_FrameIndex );
-        }
+            MemoryComparatorComboBoxFlag_Default = 0,
+            MemoryComparatorComboBoxFlag_AllowNone = 1 << 0,
+        };
 
-        ImGui::BeginDisabled( m_pSnapshots.empty() );
-        ImGui::SetNextItemWidth( 100.f * interfaceScale );
-        if( ImGui::BeginCombo( "Reference snapshot", referenceSnapshotName.c_str() ) )
-        {
-            uint32_t frameIndex = MakeFrameIndex( m_pSnapshots.size() - 1, SnapshotFrameIndexFlag );
+        constexpr const char pComboBoxItemContext[] = "MemCmBoxIt";
 
-            // Empty entry to disable comparison.
-            if( ImGuiX::Selectable( "None", pReferenceData == nullptr ) )
+        auto MemoryComparatorFrameDataComboBoxItems = [&]( const char* pLabel, const FrameDataList& frameDataList, uint32_t frameIndexFlags, uint32_t& currentFrameIndex ) {
+            bool changed = false;
+
+            if( !frameDataList.empty() )
             {
-                // Clear the reference data.
-                m_MemoryComparator.SetReferenceData( nullptr );
+                uint32_t frameIndex = MakeFrameIndex( frameDataList.size() - 1, frameIndexFlags );
+
+                // Print items header.
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::TextUnformatted( pLabel, ImGui::FindRenderedTextEnd( pLabel ) );
+                ImGui::PopFont();
+
+                // List all available snapshots for comparison.
+                for( const auto& pFrame : frameDataList )
+                {
+                    std::string frameName = GetFrameName( pFrame, pComboBoxItemContext, frameIndex, true );
+
+                    if( ImGuiX::Selectable( frameName.c_str(), currentFrameIndex == frameIndex ) )
+                    {
+                        currentFrameIndex = frameIndex;
+                        changed = true;
+                    }
+
+                    frameIndex--;
+                }
             }
 
-            // List all available frames for comparison.
-            for( const auto& pFrame : m_pSnapshots )
-            {
-                std::string frameName = fmt::format( "{} #{}##MemoryComparisonFrame_{}",
-                    m_pFrameStr,
-                    pFrame->m_CPU.m_FrameIndex,
-                    frameIndex );
+            return changed;
+        };
 
-                if( ImGuiX::Selectable( frameName.c_str(), pReferenceData == pFrame ) )
+        auto MemoryComparatorFrameDataComboBox = [&]( const char* pName, uint32_t& frameIndex, int flags = MemoryComparatorComboBoxFlag_Default ) {
+            bool changed = false;
+
+            std::shared_ptr<DeviceProfilerFrameData> pCurrentData = GetFrameData( frameIndex );
+            std::string currentDataName = "None";
+
+            if( frameIndex == CurrentFrameIndex )
+            {
+                currentDataName = "Current frame";
+            }
+            else if( pCurrentData )
+            {
+                currentDataName = GetFrameName( pCurrentData, pComboBoxItemContext, frameIndex );
+            }
+
+            if( ImGuiX::BeginSlimCombo( pName, currentDataName.c_str() ) )
+            {
+                if( flags & MemoryComparatorComboBoxFlag_AllowNone )
                 {
-                    // Set the selected frame as reference.
-                    m_MemoryComparator.SetReferenceData( pFrame );
+                    // Empty entry to disable comparison.
+                    if( ImGuiX::Selectable( "None", pCurrentData == nullptr ) )
+                    {
+                        // Clear the reference data.
+                        frameIndex = InvalidFrameIndex;
+                        changed = true;
+                    }
                 }
 
-                frameIndex--;
+                // Current frame.
+                if( ImGuiX::Selectable( "Current frame", frameIndex == CurrentFrameIndex ) )
+                {
+                    frameIndex = CurrentFrameIndex;
+                    changed = true;
+                }
+
+                // Frame snapshots.
+                if( MemoryComparatorFrameDataComboBoxItems( Lang::Snapshots, m_pSnapshots, SnapshotFrameIndexFlag, frameIndex ) )
+                {
+                    changed = true;
+                }
+
+                // Current frames.
+                if( MemoryComparatorFrameDataComboBoxItems( m_pFramesStr, m_pFrames, 0, frameIndex ) )
+                {
+                    changed = true;
+                }
+
+                ImGuiX::EndSlimCombo();
             }
 
-            ImGui::EndCombo();
-        }
-        ImGui::EndDisabled();
+            return changed;
+        };
 
-        ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
-        ImGuiX::TextAlignRight( "%s %u", m_pFrameStr, m_pData->m_CPU.m_FrameIndex );
-        ImGui::PopStyleColor();
+        if( MemoryComparatorFrameDataComboBox( "Selected##MemCmBoxSel", m_MemoryCompareSelFrameIndex ) )
+        {
+            m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
+        }
+
+        ImGui::SameLine( 200.f * interfaceScale );
+
+        if( MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone ) )
+        {
+            m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
+        }
 
         ImGui::Dummy( ImVec2( 1, 10 ) );
+
+        // Set selected frame data.
+        std::shared_ptr<DeviceProfilerFrameData> pRestoreData =
+            std::exchange( m_pData, GetFrameData( m_MemoryCompareSelFrameIndex ) );
 
         // Mark new and freed allocations.
         const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
@@ -2550,7 +2619,7 @@ namespace Profiler
             }
 
             ImGui::SameLine( 0, 10.f * interfaceScale );
-            ImGui::BeginDisabled( pReferenceData == nullptr );
+            ImGui::BeginDisabled( !m_MemoryComparator.HasValidInput() );
             ImGui::Checkbox( "Show differences", &m_ResourceBrowserShowDifferences );
             ImGui::EndDisabled();
 
@@ -2563,7 +2632,7 @@ namespace Profiler
                 // Resources list.
                 size_t bufferIndex = 0;
 
-                if( !m_ResourceBrowserShowDifferences || ( pReferenceData == nullptr ) )
+                if( !m_ResourceBrowserShowDifferences || ( m_MemoryComparator.GetReferenceData() == nullptr ) )
                 {
                     for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
                     {
@@ -2770,6 +2839,9 @@ namespace Profiler
         {
             MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
         }
+
+        // Restore the current frame data.
+        m_pData = std::move( pRestoreData );
     }
 
     /***********************************************************************************\
@@ -5999,6 +6071,90 @@ namespace Profiler
                    ? m_pSnapshots
                    : m_pFrames;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameData
+
+    Description:
+        Get the frame data by index.
+
+    \***********************************************************************************/
+    std::shared_ptr<DeviceProfilerFrameData> ProfilerOverlayOutput::GetFrameData( uint32_t frameIndex ) const
+    {
+        const uint32_t index = ( frameIndex & FrameIndexMask );
+        const uint32_t flags = ( frameIndex & FrameIndexFlagsMask );
+
+        if( frameIndex == InvalidFrameIndex )
+        {
+            return nullptr;
+        }
+
+        if( frameIndex == CurrentFrameIndex )
+        {
+            return m_pData;
+        }
+
+        if( flags & SnapshotFrameIndexFlag )
+        {
+            if( index < m_pSnapshots.size() )
+            {
+                return GetNthElement( m_pSnapshots, m_pSnapshots.size() - index - 1 );
+            }
+        }
+        else
+        {
+            if( index < m_pFrames.size() )
+            {
+                return GetNthElement( m_pFrames, m_pFrames.size() - index - 1 );
+            }
+        }
+
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameName
+
+    Description:
+        Get the unique name of the frame including context name and frame index for
+        identification within ImGui.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetFrameName( const char* pContextName, uint32_t frameIndex, bool indent ) const
+    {
+        std::shared_ptr<DeviceProfilerFrameData> pFrameData = GetFrameData( frameIndex );
+
+        if( pFrameData )
+        {
+            return GetFrameName( pFrameData, pContextName, frameIndex, indent );
+        }
+
+        return std::string();
+    };
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameName
+
+    Description:
+        Get the unique name of the frame including context name and frame index for
+        identification within ImGui.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetFrameName( const std::shared_ptr<DeviceProfilerFrameData>& pFrameData, const char* pContextName, uint32_t frameIndex, bool indent ) const
+    {
+        return fmt::format( "{}{} #{}###{}{}",
+            indent ? "   " : "",
+            m_pFrameStr,
+            pFrameData->m_CPU.m_FrameIndex,
+            pContextName,
+            frameIndex );
+    };
 
     /***********************************************************************************\
 
