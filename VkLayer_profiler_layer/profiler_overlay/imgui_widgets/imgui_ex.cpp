@@ -228,7 +228,6 @@ namespace ImGuiX
         bb.Max.y += label_size.y + style.FramePadding.y * 2.0f;
 
         ImRect total_bb( bb.Min, bb.Max );
-        total_bb.Max.x += label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f;
         ImGui::ItemSize( total_bb, style.FramePadding.y );
         if( !ImGui::ItemAdd( total_bb, id, &bb ) )
             return false;

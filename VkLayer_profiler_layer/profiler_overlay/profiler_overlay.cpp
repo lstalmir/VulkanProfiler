@@ -2399,6 +2399,7 @@ namespace Profiler
         };
 
         constexpr const char pComboBoxItemContext[] = "MemCmBoxIt";
+        constexpr float comboBoxWidth = 160.f;
 
         auto MemoryComparatorFrameDataComboBoxItems = [&]( const char* pLabel, const FrameDataList& frameDataList, uint32_t frameIndexFlags, uint32_t& currentFrameIndex ) {
             bool changed = false;
@@ -2488,14 +2489,17 @@ namespace Profiler
             m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
         }
 
-        ImGui::SameLine( 200.f * interfaceScale );
+        ImGui::SameLine( 0, 20.f * interfaceScale );
 
         if( MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone ) )
         {
             m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
         }
 
-        ImGui::Dummy( ImVec2( 1, 10 ) );
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::BeginDisabled( !m_MemoryComparator.HasValidInput() );
+        ImGui::Checkbox( "Show differences", &m_ResourceBrowserShowDifferences );
+        ImGui::EndDisabled();
 
         // Set selected frame data.
         std::shared_ptr<DeviceProfilerFrameData> pRestoreData =
@@ -2505,13 +2509,22 @@ namespace Profiler
         const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
 
         // Memory usage overview.
-        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage, ImGuiTreeNodeFlags_DefaultOpen ) )
+        if( ImGui::BeginTable( "##MemoryHeapsTable", memoryProperties.memoryHeapCount, ImGuiTableFlags_BordersInnerV ) )
         {
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
-                ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+                ImGui::TableSetupColumn( f( "{} {}", Lang::MemoryHeap, i ), ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthStretch );
+            }
 
-                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
+            ImGui::TableNextRow();
+
+            for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
+            {
+                ImGui::TableNextColumn();
+
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+                ImGui::PopFont();
 
                 float usage = 0.f;
                 char usageStr[64] = {};
@@ -2582,11 +2595,17 @@ namespace Profiler
                     memoryTypeDescriptorPointers.data() );
             }
 
-            ImGui::Dummy( ImVec2( 1, 5 ) );
+            ImGui::EndTable();
         }
 
-        if( ImGui::CollapsingHeader( "Resources", ImGuiTreeNodeFlags_DefaultOpen ) )
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        //if( ImGui::CollapsingHeader( "Resources", ImGuiTreeNodeFlags_DefaultOpen ) )
         {
+            ImGui::PushFont( m_Resources.GetBoldFont() );
+            ImGui::TextUnformatted( "Resources" );
+            ImGui::PopFont();
+
             // Fiters.
             ImGui::SetNextItemWidth( 150.f * interfaceScale );
             ImGui::InputTextWithHint( "##NameFilter", "Name", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
@@ -2617,11 +2636,6 @@ namespace Profiler
 
                 ImGui::EndCombo();
             }
-
-            ImGui::SameLine( 0, 10.f * interfaceScale );
-            ImGui::BeginDisabled( !m_MemoryComparator.HasValidInput() );
-            ImGui::Checkbox( "Show differences", &m_ResourceBrowserShowDifferences );
-            ImGui::EndDisabled();
 
             ImGui::Separator();
 
@@ -2835,10 +2849,10 @@ namespace Profiler
             }
             ImGui::End();
         }
-        else
-        {
-            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
-        }
+        //else
+        //{
+        //    MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
+        //}
 
         // Restore the current frame data.
         m_pData = std::move( pRestoreData );
