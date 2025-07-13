@@ -77,8 +77,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerMemoryComparator::SetReferenceData( const std::shared_ptr<DeviceProfilerFrameData>& pData )
     {
-        m_pReferenceData = pData;
-        m_Dirty = true;
+        if( m_pReferenceData != pData )
+        {
+            m_pReferenceData = pData;
+            m_Dirty = true;
+        }
     }
 
     /***********************************************************************************\
@@ -92,8 +95,25 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerMemoryComparator::SetComparisonData( const std::shared_ptr<DeviceProfilerFrameData>& pData )
     {
-        m_pComparisonData = pData;
-        m_Dirty = true;
+        if( m_pComparisonData != pData )
+        {
+            m_pComparisonData = pData;
+            m_Dirty = true;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HasValidInput
+
+    Description:
+        Checks if the comparator has valid input data for comparison.
+
+    \***********************************************************************************/
+    bool DeviceProfilerMemoryComparator::HasValidInput() const
+    {
+        return m_pReferenceData && m_pComparisonData && ( m_pReferenceData != m_pComparisonData );
     }
 
     /***********************************************************************************\
@@ -163,7 +183,7 @@ namespace Profiler
         m_Results.m_AllocatedBuffers.clear();
         m_Results.m_FreedBuffers.clear();
 
-        if( !m_pReferenceData || !m_pComparisonData )
+        if( !HasValidInput() )
         {
             // No data to compare.
             return;

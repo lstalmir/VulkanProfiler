@@ -60,6 +60,8 @@ namespace Profiler
         void SetReferenceData( const std::shared_ptr<DeviceProfilerFrameData>& pData );
         void SetComparisonData( const std::shared_ptr<DeviceProfilerFrameData>& pData );
 
+        bool HasValidInput() const;
+
         std::shared_ptr<DeviceProfilerFrameData> GetReferenceData() const;
         std::shared_ptr<DeviceProfilerFrameData> GetComparisonData() const;
         const DeviceProfilerMemoryComparisonResults& GetResults();
