@@ -113,7 +113,10 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerMemoryComparator::HasValidInput() const
     {
-        return m_pReferenceData && m_pComparisonData && ( m_pReferenceData != m_pComparisonData );
+        return m_pReferenceData &&
+               m_pComparisonData &&
+               ( m_pReferenceData != m_pComparisonData ) &&
+               ( m_pReferenceData->m_Memory.m_Heaps.size() == m_pComparisonData->m_Memory.m_Heaps.size() );
     }
 
     /***********************************************************************************\
@@ -180,6 +183,8 @@ namespace Profiler
         // Avoid redundant calls.
         assert( m_Dirty );
 
+        m_Results.m_MemoryHeapDifferences.clear();
+
         m_Results.m_AllocatedBuffers.clear();
         m_Results.m_FreedBuffers.clear();
 
@@ -187,6 +192,18 @@ namespace Profiler
         {
             // No data to compare.
             return;
+        }
+
+        // Calculate differences in memory heaps.
+        const size_t memoryHeapCount = m_pReferenceData->m_Memory.m_Heaps.size();
+        for( size_t i = 0; i < memoryHeapCount; ++i )
+        {
+            const auto& refHeap = m_pReferenceData->m_Memory.m_Heaps[i];
+            const auto& cmpHeap = m_pComparisonData->m_Memory.m_Heaps[i];
+
+            auto& diff = m_Results.m_MemoryHeapDifferences.emplace_back();
+            diff.m_SizeDifference = cmpHeap.m_AllocationSize - refHeap.m_AllocationSize;
+            diff.m_CountDifference = cmpHeap.m_AllocationCount - refHeap.m_AllocationCount;
         }
 
         // Find differences between the reference and comparison data.

@@ -246,14 +246,6 @@ namespace Profiler
         return size() - 2;
     }
 
-    template<typename Format, typename... Args>
-    const char* f( Format&& format, Args&&... args )
-    {
-        thread_local std::string buffer;
-        buffer = fmt::format( std::forward<Format>( format ), std::forward<Args>( args )... );
-        return buffer.c_str();
-    }
-
     /***********************************************************************************\
 
     Function:
@@ -1353,6 +1345,11 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintFramesList(const FrameDataList& framesList, uint32_t frameIndexFlags)
     {
+        if( framesList.empty() )
+        {
+            return;
+        }
+
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
         uint32_t frameIndex = MakeFrameIndex( framesList.size() - 1, frameIndexFlags );
 
@@ -2496,79 +2493,160 @@ namespace Profiler
             m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
         }
 
+        const bool hasComparisonData = m_MemoryComparator.HasValidInput();
+
         ImGui::SameLine( 0, 20.f * interfaceScale );
-        ImGui::BeginDisabled( !m_MemoryComparator.HasValidInput() );
+        ImGui::BeginDisabled( !hasComparisonData );
         ImGui::Checkbox( "Show differences", &m_ResourceBrowserShowDifferences );
         ImGui::EndDisabled();
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
 
         // Set selected frame data.
         std::shared_ptr<DeviceProfilerFrameData> pRestoreData =
             std::exchange( m_pData, GetFrameData( m_MemoryCompareSelFrameIndex ) );
 
-        // Mark new and freed allocations.
+        // Compare memory usage in the selected frames and get the results.
         const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
+
+        std::vector<float> values;
+        std::vector<ImU32> colors;
+        std::vector<std::string> tooltips;
+        std::vector<const char*> pTooltips;
 
         // Memory usage overview.
         if( ImGui::BeginTable( "##MemoryHeapsTable", memoryProperties.memoryHeapCount, ImGuiTableFlags_BordersInnerV ) )
         {
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
-                ImGui::TableSetupColumn( f( "{} {}", Lang::MemoryHeap, i ), ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthStretch );
+                ImGui::TableSetupColumn( nullptr, ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthStretch );
             }
 
             ImGui::TableNextRow();
 
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
+                const int64_t allocationSize = m_pData->m_Memory.m_Heaps[i].m_AllocationSize;
+                const int64_t allocationCount = m_pData->m_Memory.m_Heaps[i].m_AllocationCount;
+                const int64_t memoryHeapSize = memoryProperties.memoryHeaps[i].size;
+
+                int64_t allocationSizeDifference = 0;
+                int64_t allocationCountDifference = 0;
+
+                if( hasComparisonData )
+                {
+                    allocationSizeDifference = memoryComparisonResults.m_MemoryHeapDifferences[i].m_SizeDifference;
+                    allocationCountDifference = memoryComparisonResults.m_MemoryHeapDifferences[i].m_CountDifference;
+                }
+
                 ImGui::TableNextColumn();
 
                 ImGui::PushFont( m_Resources.GetBoldFont() );
                 ImGui::Text( "%s %u", Lang::MemoryHeap, i );
                 ImGui::PopFont();
 
-                float usage = 0.f;
-                char usageStr[64] = {};
-
-                if( memoryProperties.memoryHeaps[i].size != 0 )
+                if( allocationCountDifference )
                 {
-                    usage = (float)m_pData->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
-
-                    snprintf( usageStr, sizeof( usageStr ),
-                        "%.2f/%.2f MB (%.1f%%)",
-                        m_pData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576.f,
-                        memoryProperties.memoryHeaps[i].size / 1048576.f,
-                        usage * 100.f );
+                    ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
+                        "(%+lld) %lld %s",
+                        allocationCountDifference,
+                        allocationCount,
+                        Lang::Allocations );
+                }
+                else
+                {
+                    ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
+                        "%lld %s",
+                        allocationCount,
+                        Lang::Allocations );
                 }
 
+                float usage = 0.f;
+                float unused = 100.f;
+                float difference = 0.f;
+                char usageStr[128] = {};
+
+                if( memoryHeapSize != 0 )
+                {
+                    usage = 100.f * allocationSize / memoryHeapSize;
+
+                    if( allocationSizeDifference )
+                    {
+                        snprintf( usageStr, sizeof( usageStr ),
+                            "(%+.2f) %.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            allocationSizeDifference / 1048576.f,
+                            allocationSize / 1048576.f,
+                            memoryHeapSize / 1048576.f,
+                            usage,
+                            i );
+                    }
+                    else
+                    {
+                        snprintf( usageStr, sizeof( usageStr ),
+                            "%.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            allocationSize / 1048576.f,
+                            memoryHeapSize / 1048576.f,
+                            usage,
+                            i );
+                    }
+                }
+
+                values.clear();
+                colors.clear();
+                tooltips.clear();
+                pTooltips.clear();
+
+                if( allocationSizeDifference )
+                {
+                    if( memoryHeapSize != 0 )
+                    {
+                        difference = 100.f * allocationSizeDifference / memoryHeapSize;
+                    }
+
+                    usage -= std::abs( difference );
+                }
+
+                values.push_back( usage );
+                colors.push_back( ImGui::GetColorU32( ImGuiCol_PlotHistogram ) );
+                unused -= usage;
+
+                if( allocationSizeDifference )
+                {
+                    values.push_back( std::abs( difference ) );
+                    colors.push_back( difference > 0 ? IM_COL32( 0, 255, 0, 255 ) : IM_COL32( 255, 0, 0, 255 ) );
+                    unused -= std::abs( difference );
+                }
+
+                values.push_back( unused );
+                colors.push_back( 0 );
+
                 ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
-                ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
+                ImGuiX::PlotBreakdownEx( usageStr, values.data(), values.size(), 0, nullptr, colors.data() );
                 ImGui::PopStyleColor();
 
                 if( ImGui::IsItemHovered() && ( memoryProperties.memoryHeaps[i].flags != 0 ) )
                 {
-                    ImGui::BeginTooltip();
-
                     if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
                     {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
+                        ImGui::SetTooltip( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
                     }
 
                     if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
                     {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
+                        ImGui::SetTooltip( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
                     }
-
-                    ImGui::EndTooltip();
                 }
 
-                std::vector<float> memoryTypeUsages( memoryProperties.memoryTypeCount );
-                std::vector<std::string> memoryTypeDescriptors( memoryProperties.memoryTypeCount );
+                values.clear();
+                colors.clear();
+                tooltips.clear();
+                pTooltips.clear();
 
                 for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
                 {
                     if( memoryProperties.memoryTypes[typeIndex].heapIndex == i )
                     {
-                        memoryTypeUsages[typeIndex] = static_cast<float>( m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize );
+                        values.push_back( static_cast<float>( m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize ) );
 
                         // Prepare descriptor for memory type
                         std::stringstream sstr;
@@ -2576,23 +2654,15 @@ namespace Profiler
                              << m_pData->m_Memory.m_Types[typeIndex].m_AllocationCount << " " << Lang::Allocations << "\n"
                              << m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" );
 
-                        memoryTypeDescriptors[typeIndex] = sstr.str();
+                        tooltips.push_back( sstr.str() );
+                        pTooltips.push_back( tooltips.back().c_str() );
                     }
                 }
 
-                // Get descriptor pointers
-                std::vector<const char*> memoryTypeDescriptorPointers( memoryProperties.memoryTypeCount );
+                ImGuiX::PlotBreakdownEx( "##MemoryTypesBreakdown", values.data(), values.size(), 0, pTooltips.data(), nullptr, ImVec2( 0, 5.f * interfaceScale ) );
 
-                for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
-                {
-                    memoryTypeDescriptorPointers[typeIndex] = memoryTypeDescriptors[typeIndex].c_str();
-                }
-
-                ImGuiX::PlotBreakdownEx(
-                    "HEAP_BREAKDOWN",
-                    memoryTypeUsages.data(),
-                    memoryProperties.memoryTypeCount, 0,
-                    memoryTypeDescriptorPointers.data() );
+                // Force text baseline to 0 to align the next cell correctly.
+                ImGui::ItemSize( ImVec2(), 0.0f );
             }
 
             ImGui::EndTable();

@@ -36,6 +36,14 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerMemoryComparisonResults
     {
+        struct Difference
+        {
+            int64_t m_SizeDifference;
+            int64_t m_CountDifference;
+        };
+
+        std::vector<Difference> m_MemoryHeapDifferences;
+
         std::unordered_map<VkBuffer, const DeviceProfilerBufferMemoryData*> m_AllocatedBuffers;
         std::unordered_map<VkBuffer, const DeviceProfilerBufferMemoryData*> m_FreedBuffers;
     };
