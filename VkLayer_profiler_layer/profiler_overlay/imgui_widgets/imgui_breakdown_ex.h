@@ -34,9 +34,9 @@ namespace ImGuiX
     Input:
         label          Title of the histogram
         values         Widths of the bars
-        values_count   Number of elements in values_x and values_y arrays
+        values_count   Number of elements in values array
         values_offset  First element offset
-        tooltips       Tooltip text to display over each breakdown element
+        hovered_index  Index of the hovered value on output
         colors         Colors of the bars, if nullptr then random colors are used
         graph_size     Size of the histogram
 
@@ -46,7 +46,7 @@ namespace ImGuiX
         const float* values,
         int values_count,
         int values_offset = 0,
-        const char** tooltips = nullptr,
+        int* hovered_index = nullptr,
         const ImU32* colors = nullptr,
         ImVec2 graph_size = ImVec2( 0, 0 ) );
 }

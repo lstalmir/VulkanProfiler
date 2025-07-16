@@ -41,11 +41,12 @@ namespace ImGuiX
         const float* values,
         int values_count,
         int values_offset,
-        const char** tooltips,
+        int* hovered_index,
         const ImU32* colors,
         ImVec2 graph_size )
     {
-        std::mt19937 random( 0 );
+        static std::mt19937 random;
+        random.seed( 0 );
 
         // Implementation is based on ImGui::PlotEx function (which is called by PlotHistogram).
 
@@ -76,13 +77,14 @@ namespace ImGuiX
         const bool hovered =
             ItemHoverable( total_bb, id, 0 ) &&
             total_bb.Contains( g.IO.MousePos );
+        if( hovered_index )
+            *hovered_index = -1;
 
         // Determine horizontal scale from values
         float x_size = 0.f;
         for( int i = 0; i < values_count; i++ )
             x_size += values[ i ];
 
-        int idx_hovered = -1;
         if( values_count > 0 )
         {
             int res_w = ImMin( (int)graph_size.x, values_count );
@@ -117,15 +119,9 @@ namespace ImGuiX
                 const ImVec2 posMax = ImMax( pos0, pos1 );
                 const ImRect rect( posMin, posMax );
 
-                if( tooltips &&
-                    hovered &&
-                    tooltipDrawn == false &&
-                    rect.Contains( g.IO.MousePos ) )
+                if( hovered_index && hovered && rect.Contains( g.IO.MousePos ) )
                 {
-                    // Draw tooltip
-                    SetTooltip( "%s", tooltips[ v1_idx ] );
-                    // Don't check other blocks
-                    tooltipDrawn = true;
+                    *hovered_index = v1_idx;
                 }
 
                 ImU32 color;

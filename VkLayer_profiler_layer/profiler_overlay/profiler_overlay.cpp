@@ -88,6 +88,22 @@ namespace Profiler
         VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT |
         VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT;
 
+    static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
+        IM_COL32( 110, 177, 165, 255 ),
+        IM_COL32( 219, 219, 146, 255 ),
+        IM_COL32( 157, 153, 183, 255 ),
+        IM_COL32( 216, 97, 84, 255 ),
+        IM_COL32( 97, 145, 177, 255 ),
+        IM_COL32( 217, 147, 68, 255 ),
+        IM_COL32( 146, 188, 75, 255 ),
+        IM_COL32( 217, 171, 194, 255 ),
+        IM_COL32( 183, 183, 183, 255 ),
+        IM_COL32( 154, 97, 156, 255 ),
+        IM_COL32( 170, 200, 164, 255 ),
+        IM_COL32( 219, 202, 81, 255 ),
+        IM_COL32( 194, 163, 116, 255 )
+    };
+
     struct ProfilerOverlayOutput::PerformanceGraphColumn : ImGuiX::HistogramColumnData
     {
         HistogramGroupMode groupMode;
@@ -2509,10 +2525,11 @@ namespace Profiler
         // Compare memory usage in the selected frames and get the results.
         const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
 
-        std::vector<float> values;
-        std::vector<ImU32> colors;
-        std::vector<std::string> tooltips;
-        std::vector<const char*> pTooltips;
+        constexpr uint32_t maxValueCount = std::max( VK_MAX_MEMORY_HEAPS, VK_MAX_MEMORY_TYPES );
+        uint32_t valueCount = 0;
+        float values[maxValueCount];
+        ImU32 colors[maxValueCount];
+        uint32_t indexes[maxValueCount];
 
         // Memory usage overview.
         if( ImGui::BeginTable( "##MemoryHeapsTable", memoryProperties.memoryHeapCount, ImGuiTableFlags_BordersInnerV ) )
@@ -2561,6 +2578,7 @@ namespace Profiler
                         Lang::Allocations );
                 }
 
+                // Plot heap utilization progress bar.
                 float usage = 0.f;
                 float unused = 100.f;
                 float difference = 0.f;
@@ -2591,10 +2609,7 @@ namespace Profiler
                     }
                 }
 
-                values.clear();
-                colors.clear();
-                tooltips.clear();
-                pTooltips.clear();
+                valueCount = 0;
 
                 if( allocationSizeDifference )
                 {
@@ -2606,22 +2621,31 @@ namespace Profiler
                     usage -= std::abs( difference );
                 }
 
-                values.push_back( usage );
-                colors.push_back( ImGui::GetColorU32( ImGuiCol_PlotHistogram ) );
-                unused -= usage;
-
-                if( allocationSizeDifference )
+                if( usage > 0 )
                 {
-                    values.push_back( std::abs( difference ) );
-                    colors.push_back( difference > 0 ? IM_COL32( 0, 255, 0, 255 ) : IM_COL32( 255, 0, 0, 255 ) );
+                    values[valueCount] = usage;
+                    colors[valueCount] = ImGui::GetColorU32( ImGuiCol_PlotHistogram );
+                    valueCount++;
+                    unused -= usage;
+                }
+
+                if( difference > 0 )
+                {
+                    values[valueCount] = std::abs( difference );
+                    colors[valueCount] = difference > 0 ? IM_COL32( 0, 255, 0, 255 ) : IM_COL32( 255, 0, 0, 255 );
+                    valueCount++;
                     unused -= std::abs( difference );
                 }
 
-                values.push_back( unused );
-                colors.push_back( 0 );
+                if( unused > 0 )
+                {
+                    values[valueCount] = unused;
+                    colors[valueCount] = 0;
+                    valueCount++;
+                }
 
                 ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
-                ImGuiX::PlotBreakdownEx( usageStr, values.data(), values.size(), 0, nullptr, colors.data() );
+                ImGuiX::PlotBreakdownEx( usageStr, values, valueCount, 0, nullptr, colors );
                 ImGui::PopStyleColor();
 
                 if( ImGui::IsItemHovered() && ( memoryProperties.memoryHeaps[i].flags != 0 ) )
@@ -2637,29 +2661,55 @@ namespace Profiler
                     }
                 }
 
-                values.clear();
-                colors.clear();
-                tooltips.clear();
-                pTooltips.clear();
+                // Plot memory types breakdown for the current heap.
+                valueCount = 0;
 
                 for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
                 {
                     if( memoryProperties.memoryTypes[typeIndex].heapIndex == i )
                     {
-                        values.push_back( static_cast<float>( m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize ) );
+                        const uint64_t typeAllocationSize = m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize;
 
-                        // Prepare descriptor for memory type
-                        std::stringstream sstr;
-                        sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << m_pData->m_Memory.m_Types[typeIndex].m_AllocationCount << " " << Lang::Allocations << "\n"
-                             << m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" );
-
-                        tooltips.push_back( sstr.str() );
-                        pTooltips.push_back( tooltips.back().c_str() );
+                        if( typeAllocationSize )
+                        {
+                            values[valueCount] = typeAllocationSize;
+                            colors[valueCount] = g_MemoryTypesBreakdownColorMap[typeIndex % std::size( g_MemoryTypesBreakdownColorMap )];
+                            indexes[valueCount] = typeIndex;
+                            valueCount++;
+                        }
                     }
                 }
 
-                ImGuiX::PlotBreakdownEx( "##MemoryTypesBreakdown", values.data(), values.size(), 0, pTooltips.data(), nullptr, ImVec2( 0, 5.f * interfaceScale ) );
+                int hoveredIndex = -1;
+                ImGuiX::PlotBreakdownEx( "##MemoryTypesBreakdown", values, valueCount, 0, &hoveredIndex, colors, ImVec2( 0, 5.f * interfaceScale ) );
+
+                if( hoveredIndex != -1 )
+                {
+                    if( ImGui::BeginTooltip() )
+                    {
+                        const uint32_t typeIndex = indexes[hoveredIndex];
+
+                        const uint64_t typeAllocationCount = m_pData->m_Memory.m_Types[typeIndex].m_AllocationCount;
+                        const uint64_t typeAllocationSize = m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize;
+                        const float typeAllocationUsage = allocationSize ? ( 100.f * typeAllocationSize / allocationSize ) : 0.f;
+
+                        ImGui::PushFont( m_Resources.GetBoldFont() );
+                        ImGui::Text( "%s %u", Lang::MemoryTypeIndex, typeIndex );
+                        ImGui::PopFont();
+
+                        ImGui::TextUnformatted( m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" ).c_str() );
+                        ImGui::Separator();
+
+                        ImGui::Text( "%llu %s", typeAllocationCount, Lang::Allocations );
+                        ImGui::SameLine( 0, 30.f * interfaceScale );
+                        ImGui::Text( "%.2f / %.2f MB (%.1f%%)",
+                            typeAllocationSize / 1048576.f,
+                            allocationSize / 1048576.f,
+                            typeAllocationUsage );
+
+                        ImGui::EndTooltip();
+                    }
+                }
 
                 // Force text baseline to 0 to align the next cell correctly.
                 ImGui::ItemSize( ImVec2(), 0.0f );
@@ -2710,6 +2760,9 @@ namespace Profiler
             ImGui::Separator();
 
             MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
+
+            // Resource browser and inspector are always docked, never draw background for them.
+            ImGui::PushStyleColor( ImGuiCol_WindowBg, 0 );
 
             if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
             {
@@ -2918,11 +2971,9 @@ namespace Profiler
                 }
             }
             ImGui::End();
+
+            ImGui::PopStyleColor();
         }
-        //else
-        //{
-        //    MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
-        //}
 
         // Restore the current frame data.
         m_pData = std::move( pRestoreData );
