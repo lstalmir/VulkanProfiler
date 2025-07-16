@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,10 +41,12 @@ namespace ImGuiX
         const float* values,
         int values_count,
         int values_offset,
-        const char** tooltip_text,
+        int* hovered_index,
+        const ImU32* colors,
         ImVec2 graph_size )
     {
-        std::mt19937 random( 0 );
+        static std::mt19937 random;
+        random.seed( 0 );
 
         // Implementation is based on ImGui::PlotEx function (which is called by PlotHistogram).
 
@@ -58,7 +60,8 @@ namespace ImGuiX
 
         PushItemWidth( -1 );
 
-        const ImVec2 label_size = CalcTextSize( label, NULL, true );
+        const char* label_end = FindRenderedTextEnd( label );
+        const ImVec2 label_size = CalcTextSize( label, label_end, true );
         if( graph_size.x == 0.0f )
             graph_size.x = CalcItemWidth();
         if( graph_size.y == 0.0f )
@@ -72,15 +75,16 @@ namespace ImGuiX
             return;
 
         const bool hovered =
-            ItemHoverable( frame_bb, id, 0 ) &&
-            inner_bb.Contains( g.IO.MousePos );
+            ItemHoverable( total_bb, id, 0 ) &&
+            total_bb.Contains( g.IO.MousePos );
+        if( hovered_index )
+            *hovered_index = -1;
 
         // Determine horizontal scale from values
         float x_size = 0.f;
         for( int i = 0; i < values_count; i++ )
             x_size += values[ i ];
 
-        int idx_hovered = -1;
         if( values_count > 0 )
         {
             int res_w = ImMin( (int)graph_size.x, values_count );
@@ -106,42 +110,40 @@ namespace ImGuiX
                 const ImVec2 tp1 = ImVec2( t1, 0.0f );
 
                 // NB: Draw calls are merged together by the DrawList system. Still, we should render our batch are lower level to save a bit of CPU.
-                ImVec2 pos0 = ImLerp( inner_bb.Min, inner_bb.Max, tp0 );
-                ImVec2 pos1 = ImLerp( inner_bb.Min, inner_bb.Max, ImVec2( tp1.x, 0 ) );
+                ImVec2 pos0 = ImLerp( total_bb.Min, total_bb.Max, tp0 );
+                ImVec2 pos1 = ImLerp( total_bb.Min, total_bb.Max, ImVec2( tp1.x, 0 ) );
                 if( pos1.x >= pos0.x + 2.0f )
                     pos1.x -= 1.0f;
 
                 const ImVec2 posMin = ImMin( pos0, pos1 );
                 const ImVec2 posMax = ImMax( pos0, pos1 );
+                const ImRect rect( posMin, posMax );
 
-                if( tooltip_text &&
-                    hovered &&
-                    tooltipDrawn == false &&
-                    ImRect( posMin, posMax ).Contains( g.IO.MousePos ) )
+                if( hovered_index && hovered && rect.Contains( g.IO.MousePos ) )
                 {
-                    // Draw tooltip
-                    SetTooltip( "%s", tooltip_text[ v1_idx ] );
-                    // Don't check other blocks
-                    tooltipDrawn = true;
+                    *hovered_index = v1_idx;
                 }
-                    
-                window->DrawList->AddRectFilled( pos0, pos1, col_base + random() );
 
-                {
-                    char overlayText[ 64 ] = "0.00 MB";
-                    if( x_size )
-                    {
-                        snprintf( overlayText, sizeof( overlayText ), "%.2f MB (%.1f%%)",
-                            values[ (v1_idx + values_offset) % values_count ] / 1048576.f,
-                            values[ (v1_idx + values_offset) % values_count ] * 100.f / x_size );
-                    }
+                ImU32 color;
+                if( colors )
+                    color = colors[v1_idx];
+                else
+                    color = col_base + random();
 
-                    RenderTextClipped( posMin, posMax, overlayText, overlayText + 64, nullptr );
-                }
+                window->DrawList->AddRectFilled( rect.Min, rect.Max, color );
 
                 t0 = t1;
                 tp0.x = tp1.x;
             }
+        }
+
+        if( label )
+        {
+            ImRect label_bb( frame_bb );
+            label_bb.Expand( -g.Style.FramePadding );
+            label_bb.Min.x = frame_bb.Max.x - label_size.x - g.Style.FramePadding.x;
+
+            RenderTextClipped( label_bb.Min, label_bb.Max, label, label_end, &label_size );
         }
     }
 }

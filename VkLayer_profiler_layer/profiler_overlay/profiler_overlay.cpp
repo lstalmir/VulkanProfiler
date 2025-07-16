@@ -88,6 +88,22 @@ namespace Profiler
         VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT |
         VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT;
 
+    static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
+        IM_COL32( 110, 177, 165, 255 ),
+        IM_COL32( 219, 219, 146, 255 ),
+        IM_COL32( 157, 153, 183, 255 ),
+        IM_COL32( 216, 97, 84, 255 ),
+        IM_COL32( 97, 145, 177, 255 ),
+        IM_COL32( 217, 147, 68, 255 ),
+        IM_COL32( 146, 188, 75, 255 ),
+        IM_COL32( 217, 171, 194, 255 ),
+        IM_COL32( 183, 183, 183, 255 ),
+        IM_COL32( 154, 97, 156, 255 ),
+        IM_COL32( 170, 200, 164, 255 ),
+        IM_COL32( 219, 202, 81, 255 ),
+        IM_COL32( 194, 163, 116, 255 )
+    };
+
     struct ProfilerOverlayOutput::PerformanceGraphColumn : ImGuiX::HistogramColumnData
     {
         HistogramGroupMode groupMode;
@@ -548,9 +564,14 @@ namespace Profiler
         m_InspectorTabs.clear();
         m_InspectorTabIndex = 0;
 
+        m_MemoryComparator.Reset();
+        m_MemoryCompareRefFrameIndex = InvalidFrameIndex;
+        m_MemoryCompareSelFrameIndex = CurrentFrameIndex;
         memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
+        m_ResourceBrowserShowDifferences = false;
         m_ResourceInspectorBuffer = VK_NULL_HANDLE;
+        m_ResourceInspectorBufferData = {};
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -660,6 +681,9 @@ namespace Profiler
         m_pData = GetNthElement( framesList, frameIndexMax - frameIndex );
 
         m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
+
+        // Set the current data for memory trace comparator.
+        m_MemoryComparator.SetComparisonData( m_pData );
     }
 
     /***********************************************************************************\
@@ -1337,6 +1361,11 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::PrintFramesList(const FrameDataList& framesList, uint32_t frameIndexFlags)
     {
+        if( framesList.empty() )
+        {
+            return;
+        }
+
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
         uint32_t frameIndex = MakeFrameIndex( framesList.size() - 1, frameIndexFlags );
 
@@ -2373,89 +2402,329 @@ namespace Profiler
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_Frontend.GetPhysicalDeviceMemoryProperties();
 
-        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage, ImGuiTreeNodeFlags_DefaultOpen ) )
+        float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+        // Memory comparator options.
+        enum MemoryComparatorComboBoxFlags
+        {
+            MemoryComparatorComboBoxFlag_Default = 0,
+            MemoryComparatorComboBoxFlag_AllowNone = 1 << 0,
+        };
+
+        constexpr const char pComboBoxItemContext[] = "MemCmBoxIt";
+        constexpr float comboBoxWidth = 160.f;
+
+        auto MemoryComparatorFrameDataComboBoxItems = [&]( const char* pLabel, const FrameDataList& frameDataList, uint32_t frameIndexFlags, uint32_t& currentFrameIndex ) {
+            bool changed = false;
+
+            if( !frameDataList.empty() )
+            {
+                uint32_t frameIndex = MakeFrameIndex( frameDataList.size() - 1, frameIndexFlags );
+
+                // Print items header.
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::TextUnformatted( pLabel, ImGui::FindRenderedTextEnd( pLabel ) );
+                ImGui::PopFont();
+
+                // List all available snapshots for comparison.
+                for( const auto& pFrame : frameDataList )
+                {
+                    std::string frameName = GetFrameName( pFrame, pComboBoxItemContext, frameIndex, true );
+
+                    if( ImGuiX::Selectable( frameName.c_str(), currentFrameIndex == frameIndex ) )
+                    {
+                        currentFrameIndex = frameIndex;
+                        changed = true;
+                    }
+
+                    frameIndex--;
+                }
+            }
+
+            return changed;
+        };
+
+        auto MemoryComparatorFrameDataComboBox = [&]( const char* pName, uint32_t& frameIndex, int flags = MemoryComparatorComboBoxFlag_Default ) {
+            bool changed = false;
+
+            std::shared_ptr<DeviceProfilerFrameData> pCurrentData = GetFrameData( frameIndex );
+            std::string currentDataName = "None";
+
+            if( frameIndex == CurrentFrameIndex )
+            {
+                currentDataName = "Current frame";
+            }
+            else if( pCurrentData )
+            {
+                currentDataName = GetFrameName( pCurrentData, pComboBoxItemContext, frameIndex );
+            }
+
+            if( ImGuiX::BeginSlimCombo( pName, currentDataName.c_str() ) )
+            {
+                if( flags & MemoryComparatorComboBoxFlag_AllowNone )
+                {
+                    // Empty entry to disable comparison.
+                    if( ImGuiX::Selectable( "None", pCurrentData == nullptr ) )
+                    {
+                        // Clear the reference data.
+                        frameIndex = InvalidFrameIndex;
+                        changed = true;
+                    }
+                }
+
+                // Current frame.
+                if( ImGuiX::Selectable( "Current frame", frameIndex == CurrentFrameIndex ) )
+                {
+                    frameIndex = CurrentFrameIndex;
+                    changed = true;
+                }
+
+                // Frame snapshots.
+                if( MemoryComparatorFrameDataComboBoxItems( Lang::Snapshots, m_pSnapshots, SnapshotFrameIndexFlag, frameIndex ) )
+                {
+                    changed = true;
+                }
+
+                // Current frames.
+                if( MemoryComparatorFrameDataComboBoxItems( m_pFramesStr, m_pFrames, 0, frameIndex ) )
+                {
+                    changed = true;
+                }
+
+                ImGuiX::EndSlimCombo();
+            }
+
+            return changed;
+        };
+
+        if( MemoryComparatorFrameDataComboBox( "Selected##MemCmBoxSel", m_MemoryCompareSelFrameIndex ) )
+        {
+            m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
+        }
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+
+        if( MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone ) )
+        {
+            m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
+        }
+
+        const bool hasComparisonData = m_MemoryComparator.HasValidInput();
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::BeginDisabled( !hasComparisonData );
+        ImGui::Checkbox( "Show differences", &m_ResourceBrowserShowDifferences );
+        ImGui::EndDisabled();
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        // Set selected frame data.
+        std::shared_ptr<DeviceProfilerFrameData> pRestoreData =
+            std::exchange( m_pData, GetFrameData( m_MemoryCompareSelFrameIndex ) );
+
+        // Compare memory usage in the selected frames and get the results.
+        const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
+
+        constexpr uint32_t maxValueCount = std::max( VK_MAX_MEMORY_HEAPS, VK_MAX_MEMORY_TYPES );
+        uint32_t valueCount = 0;
+        float values[maxValueCount];
+        ImU32 colors[maxValueCount];
+        uint32_t indexes[maxValueCount];
+
+        // Memory usage overview.
+        if( ImGui::BeginTable( "##MemoryHeapsTable", memoryProperties.memoryHeapCount, ImGuiTableFlags_BordersInnerV ) )
         {
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
-                ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+                ImGui::TableSetupColumn( nullptr, ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthStretch );
+            }
 
-                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[i].m_AllocationCount, Lang::Allocations );
+            ImGui::TableNextRow();
 
-                float usage = 0.f;
-                char usageStr[64] = {};
+            for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
+            {
+                const int64_t allocationSize = m_pData->m_Memory.m_Heaps[i].m_AllocationSize;
+                const int64_t allocationCount = m_pData->m_Memory.m_Heaps[i].m_AllocationCount;
+                const int64_t memoryHeapSize = memoryProperties.memoryHeaps[i].size;
 
-                if( memoryProperties.memoryHeaps[i].size != 0 )
+                int64_t allocationSizeDifference = 0;
+                int64_t allocationCountDifference = 0;
+
+                if( hasComparisonData )
                 {
-                    usage = (float)m_pData->m_Memory.m_Heaps[i].m_AllocationSize / memoryProperties.memoryHeaps[i].size;
+                    allocationSizeDifference = memoryComparisonResults.m_MemoryHeapDifferences[i].m_SizeDifference;
+                    allocationCountDifference = memoryComparisonResults.m_MemoryHeapDifferences[i].m_CountDifference;
+                }
 
-                    snprintf( usageStr, sizeof( usageStr ),
-                        "%.2f/%.2f MB (%.1f%%)",
-                        m_pData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576.f,
-                        memoryProperties.memoryHeaps[i].size / 1048576.f,
-                        usage * 100.f );
+                ImGui::TableNextColumn();
+
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+                ImGui::PopFont();
+
+                if( allocationCountDifference )
+                {
+                    ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
+                        "(%+lld) %lld %s",
+                        allocationCountDifference,
+                        allocationCount,
+                        Lang::Allocations );
+                }
+                else
+                {
+                    ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
+                        "%lld %s",
+                        allocationCount,
+                        Lang::Allocations );
+                }
+
+                // Plot heap utilization progress bar.
+                float usage = 0.f;
+                float unused = 100.f;
+                float difference = 0.f;
+                char usageStr[128] = {};
+
+                if( memoryHeapSize != 0 )
+                {
+                    usage = 100.f * allocationSize / memoryHeapSize;
+
+                    if( allocationSizeDifference )
+                    {
+                        snprintf( usageStr, sizeof( usageStr ),
+                            "(%+.2f) %.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            allocationSizeDifference / 1048576.f,
+                            allocationSize / 1048576.f,
+                            memoryHeapSize / 1048576.f,
+                            usage,
+                            i );
+                    }
+                    else
+                    {
+                        snprintf( usageStr, sizeof( usageStr ),
+                            "%.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            allocationSize / 1048576.f,
+                            memoryHeapSize / 1048576.f,
+                            usage,
+                            i );
+                    }
+                }
+
+                valueCount = 0;
+
+                if( allocationSizeDifference )
+                {
+                    if( memoryHeapSize != 0 )
+                    {
+                        difference = 100.f * allocationSizeDifference / memoryHeapSize;
+                    }
+
+                    usage -= std::abs( difference );
+                }
+
+                if( usage > 0 )
+                {
+                    values[valueCount] = usage;
+                    colors[valueCount] = ImGui::GetColorU32( ImGuiCol_PlotHistogram );
+                    valueCount++;
+                    unused -= usage;
+                }
+
+                if( difference > 0 )
+                {
+                    values[valueCount] = std::abs( difference );
+                    colors[valueCount] = difference > 0 ? IM_COL32( 0, 255, 0, 255 ) : IM_COL32( 255, 0, 0, 255 );
+                    valueCount++;
+                    unused -= std::abs( difference );
+                }
+
+                if( unused > 0 )
+                {
+                    values[valueCount] = unused;
+                    colors[valueCount] = 0;
+                    valueCount++;
                 }
 
                 ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
-                ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
+                ImGuiX::PlotBreakdownEx( usageStr, values, valueCount, 0, nullptr, colors );
                 ImGui::PopStyleColor();
 
                 if( ImGui::IsItemHovered() && ( memoryProperties.memoryHeaps[i].flags != 0 ) )
                 {
-                    ImGui::BeginTooltip();
-
                     if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
                     {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
+                        ImGui::SetTooltip( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
                     }
 
                     if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
                     {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
+                        ImGui::SetTooltip( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
                     }
-
-                    ImGui::EndTooltip();
                 }
 
-                std::vector<float> memoryTypeUsages( memoryProperties.memoryTypeCount );
-                std::vector<std::string> memoryTypeDescriptors( memoryProperties.memoryTypeCount );
+                // Plot memory types breakdown for the current heap.
+                valueCount = 0;
 
                 for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
                 {
                     if( memoryProperties.memoryTypes[typeIndex].heapIndex == i )
                     {
-                        memoryTypeUsages[typeIndex] = static_cast<float>( m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize );
+                        const uint64_t typeAllocationSize = m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize;
 
-                        // Prepare descriptor for memory type
-                        std::stringstream sstr;
-                        sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << m_pData->m_Memory.m_Types[typeIndex].m_AllocationCount << " " << Lang::Allocations << "\n"
-                             << m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" );
-
-                        memoryTypeDescriptors[typeIndex] = sstr.str();
+                        if( typeAllocationSize )
+                        {
+                            values[valueCount] = typeAllocationSize;
+                            colors[valueCount] = g_MemoryTypesBreakdownColorMap[typeIndex % std::size( g_MemoryTypesBreakdownColorMap )];
+                            indexes[valueCount] = typeIndex;
+                            valueCount++;
+                        }
                     }
                 }
 
-                // Get descriptor pointers
-                std::vector<const char*> memoryTypeDescriptorPointers( memoryProperties.memoryTypeCount );
+                int hoveredIndex = -1;
+                ImGuiX::PlotBreakdownEx( "##MemoryTypesBreakdown", values, valueCount, 0, &hoveredIndex, colors, ImVec2( 0, 5.f * interfaceScale ) );
 
-                for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
+                if( hoveredIndex != -1 )
                 {
-                    memoryTypeDescriptorPointers[typeIndex] = memoryTypeDescriptors[typeIndex].c_str();
+                    if( ImGui::BeginTooltip() )
+                    {
+                        const uint32_t typeIndex = indexes[hoveredIndex];
+
+                        const uint64_t typeAllocationCount = m_pData->m_Memory.m_Types[typeIndex].m_AllocationCount;
+                        const uint64_t typeAllocationSize = m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize;
+                        const float typeAllocationUsage = allocationSize ? ( 100.f * typeAllocationSize / allocationSize ) : 0.f;
+
+                        ImGui::PushFont( m_Resources.GetBoldFont() );
+                        ImGui::Text( "%s %u", Lang::MemoryTypeIndex, typeIndex );
+                        ImGui::PopFont();
+
+                        ImGui::TextUnformatted( m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" ).c_str() );
+                        ImGui::Separator();
+
+                        ImGui::Text( "%llu %s", typeAllocationCount, Lang::Allocations );
+                        ImGui::SameLine( 0, 30.f * interfaceScale );
+                        ImGui::Text( "%.2f / %.2f MB (%.1f%%)",
+                            typeAllocationSize / 1048576.f,
+                            allocationSize / 1048576.f,
+                            typeAllocationUsage );
+
+                        ImGui::EndTooltip();
+                    }
                 }
 
-                ImGuiX::PlotBreakdownEx(
-                    "HEAP_BREAKDOWN",
-                    memoryTypeUsages.data(),
-                    memoryProperties.memoryTypeCount, 0,
-                    memoryTypeDescriptorPointers.data() );
+                // Force text baseline to 0 to align the next cell correctly.
+                ImGui::ItemSize( ImVec2(), 0.0f );
             }
 
-            ImGui::Dummy( ImVec2( 1, 5 ) );
+            ImGui::EndTable();
         }
 
-        if( ImGui::CollapsingHeader( "Resources", ImGuiTreeNodeFlags_DefaultOpen ) )
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        //if( ImGui::CollapsingHeader( "Resources", ImGuiTreeNodeFlags_DefaultOpen ) )
         {
-            float interfaceScale = ImGui::GetIO().FontGlobalScale;
+            ImGui::PushFont( m_Resources.GetBoldFont() );
+            ImGui::TextUnformatted( "Resources" );
+            ImGui::PopFont();
 
             // Fiters.
             ImGui::SetNextItemWidth( 150.f * interfaceScale );
@@ -2492,14 +2761,90 @@ namespace Profiler
 
             MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
 
+            // Resource browser and inspector are always docked, never draw background for them.
+            ImGui::PushStyleColor( ImGuiCol_WindowBg, 0 );
+
             if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
             {
                 // Resources list.
                 size_t bufferIndex = 0;
 
-                for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
+                if( !m_ResourceBrowserShowDifferences || ( m_MemoryComparator.GetReferenceData() == nullptr ) )
                 {
-                    if( ( data.m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
+                    for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
+                    {
+                        if( ( data.m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
+                        {
+                            continue;
+                        }
+
+                        const char* pBufferNameFormat = "{}###buffer_{}";
+
+                        auto bufferName = m_pStringSerializer->GetName( buffer );
+                        if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
+                        {
+                            continue;
+                        }
+
+                        int pushedStyleColors = 0;
+                        if( memoryComparisonResults.m_AllocatedBuffers.count( buffer ) )
+                        {
+                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
+                            pushedStyleColors++;
+                            pBufferNameFormat = "+ {}###buffer_{}";
+                        }
+
+                        bufferName = fmt::format( pBufferNameFormat,
+                            bufferName,
+                            m_pStringSerializer->GetPointer( buffer ) );
+
+                        bool selected = ( m_ResourceInspectorBuffer == buffer );
+                        if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+                        {
+                            m_ResourceInspectorBuffer = buffer;
+                            m_ResourceInspectorBufferData = data;
+                        }
+
+                        ImGui::PopStyleColor( pushedStyleColors );
+                    }
+                }
+                else
+                {
+                    // List new buffers only.
+                    for( const auto& [buffer, pData] : memoryComparisonResults.m_AllocatedBuffers )
+                    {
+                        if( ( pData->m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
+                        {
+                            continue;
+                        }
+
+                        auto bufferName = m_pStringSerializer->GetName( buffer );
+                        if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
+                        {
+                            continue;
+                        }
+
+                        bufferName = fmt::format( "+ {}###buffer_{}",
+                            bufferName,
+                            m_pStringSerializer->GetPointer( buffer ) );
+
+                        ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
+
+                        bool selected = ( m_ResourceInspectorBuffer == buffer );
+                        if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+                        {
+                            m_ResourceInspectorBuffer = buffer;
+                            m_ResourceInspectorBufferData = *pData;
+                        }
+
+                        ImGui::PopStyleColor();
+                    }
+                }
+
+                // List freed buffers.
+                for( const auto& [buffer, pData] : memoryComparisonResults.m_FreedBuffers )
+                {
+                    if( ( pData->m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
                     {
                         continue;
                     }
@@ -2510,13 +2855,20 @@ namespace Profiler
                         continue;
                     }
 
-                    bufferName += "###buffer_" + m_pStringSerializer->GetPointer( buffer );
+                    bufferName = fmt::format( "- {}###buffer_{}",
+                        bufferName,
+                        m_pStringSerializer->GetPointer( buffer ) );
+
+                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
 
                     bool selected = ( m_ResourceInspectorBuffer == buffer );
                     if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
                     {
                         m_ResourceInspectorBuffer = buffer;
+                        m_ResourceInspectorBufferData = *pData;
                     }
+
+                    ImGui::PopStyleColor();
                 }
             }
             ImGui::End();
@@ -2525,95 +2877,7 @@ namespace Profiler
             {
                 if( m_ResourceInspectorBuffer != VK_NULL_HANDLE )
                 {
-                    auto it = m_pData->m_Memory.m_Buffers.find( m_ResourceInspectorBuffer );
-                    if( it != m_pData->m_Memory.m_Buffers.end() )
-                    {
-                        const DeviceProfilerBufferMemoryData& data = it->second;
-
-                        ImFont* pBoldFont = m_Resources.GetBoldFont();
-                        ImGui::PushFont( pBoldFont );
-                        ImGui::TextUnformatted( "Buffer:" );
-                        ImGui::PopFont();
-                        ImGui::SameLine( 100.f );
-                        ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str() );
-
-                        ImGui::PushFont( pBoldFont );
-                        ImGui::TextUnformatted( "Size:" );
-                        ImGui::PopFont();
-                        ImGui::SameLine( 100.f );
-                        ImGui::Text( "%s (%llu bytes)",
-                            m_pStringSerializer->GetByteSize( data.m_BufferSize ),
-                            data.m_BufferSize );
-
-                        ImGui::PushFont( pBoldFont );
-                        ImGui::TextUnformatted( "Usage:" );
-                        ImGui::PopFont();
-                        ImGui::SameLine( 100.f );
-                        ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( data.m_BufferUsage, "\n" ).c_str() );
-
-                        ImGui::Dummy( ImVec2( 1, 5 ) );
-
-                        if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
-                        {
-                            ImGui::TableSetupColumn( "Memory" );
-                            ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
-                            ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
-                            ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
-                            ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
-                            ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
-                            ImGuiX::TableHeadersRow( pBoldFont );
-
-                            const DeviceProfilerBufferMemoryBindingData* pBindings = data.GetMemoryBindings();
-                            const size_t bindingCount = data.GetMemoryBindingCount();
-
-                            for( size_t i = 0; i < bindingCount; ++i )
-                            {
-                                const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
-
-                                ImGui::TableNextRow();
-
-                                if( ImGui::TableNextColumn() )
-                                {
-                                    ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
-                                }
-
-                                if( ImGui::TableNextColumn() )
-                                {
-                                    ImGui::Text( "%llu   ", binding.m_MemoryOffset );
-                                }
-
-                                if( ImGui::TableNextColumn() )
-                                {
-                                    ImGui::Text( "%llu   ", binding.m_Size );
-                                }
-
-                                auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
-                                if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
-                                {
-                                    const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
-                                    const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
-
-                                    if( ImGui::TableNextColumn() )
-                                    {
-                                        ImGui::Text( "%u", memoryData.m_TypeIndex );
-                                    }
-
-                                    if( ImGui::TableNextColumn() )
-                                    {
-                                        ImGui::Text( "%u", memoryData.m_HeapIndex );
-                                    }
-
-                                    if( ImGui::TableNextColumn() )
-                                    {
-                                        ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
-                                    }
-                                }
-                            }
-
-                            ImGui::EndTable();
-                        }
-                    }
-                    else
+                    if( !m_pData->m_Memory.m_Buffers.count( m_ResourceInspectorBuffer ) )
                     {
                         // Buffer data not found.
                         ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
@@ -2621,14 +2885,98 @@ namespace Profiler
                             m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str(),
                             VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( m_ResourceInspectorBuffer ) );
                     }
+
+                    ImFont* pBoldFont = m_Resources.GetBoldFont();
+                    ImGui::PushFont( pBoldFont );
+                    ImGui::TextUnformatted( "Buffer:" );
+                    ImGui::PopFont();
+                    ImGui::SameLine( 100.f );
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str() );
+
+                    ImGui::PushFont( pBoldFont );
+                    ImGui::TextUnformatted( "Size:" );
+                    ImGui::PopFont();
+                    ImGui::SameLine( 100.f );
+                    ImGui::Text( "%s (%llu bytes)",
+                        m_pStringSerializer->GetByteSize( m_ResourceInspectorBufferData.m_BufferSize ),
+                        m_ResourceInspectorBufferData.m_BufferSize );
+
+                    ImGui::PushFont( pBoldFont );
+                    ImGui::TextUnformatted( "Usage:" );
+                    ImGui::PopFont();
+                    ImGui::SameLine( 100.f );
+                    ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( m_ResourceInspectorBufferData.m_BufferUsage, "\n" ).c_str() );
+
+                    ImGui::Dummy( ImVec2( 1, 5 ) );
+
+                    if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
+                    {
+                        ImGui::TableSetupColumn( "Memory" );
+                        ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+                        ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+                        ImGuiX::TableHeadersRow( pBoldFont );
+
+                        const DeviceProfilerBufferMemoryBindingData* pBindings = m_ResourceInspectorBufferData.GetMemoryBindings();
+                        const size_t bindingCount = m_ResourceInspectorBufferData.GetMemoryBindingCount();
+
+                        for( size_t i = 0; i < bindingCount; ++i )
+                        {
+                            const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
+
+                            ImGui::TableNextRow();
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%llu   ", binding.m_MemoryOffset );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%llu   ", binding.m_Size );
+                            }
+
+                            auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
+                            if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                            {
+                                const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                                const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                                if( ImGui::TableNextColumn() )
+                                {
+                                    ImGui::Text( "%u", memoryData.m_TypeIndex );
+                                }
+
+                                if( ImGui::TableNextColumn() )
+                                {
+                                    ImGui::Text( "%u", memoryData.m_HeapIndex );
+                                }
+
+                                if( ImGui::TableNextColumn() )
+                                {
+                                    ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                                }
+                            }
+                        }
+
+                        ImGui::EndTable();
+                    }
                 }
             }
             ImGui::End();
+
+            ImGui::PopStyleColor();
         }
-        else
-        {
-            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
-        }
+
+        // Restore the current frame data.
+        m_pData = std::move( pRestoreData );
     }
 
     /***********************************************************************************\
@@ -5858,6 +6206,90 @@ namespace Profiler
                    ? m_pSnapshots
                    : m_pFrames;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameData
+
+    Description:
+        Get the frame data by index.
+
+    \***********************************************************************************/
+    std::shared_ptr<DeviceProfilerFrameData> ProfilerOverlayOutput::GetFrameData( uint32_t frameIndex ) const
+    {
+        const uint32_t index = ( frameIndex & FrameIndexMask );
+        const uint32_t flags = ( frameIndex & FrameIndexFlagsMask );
+
+        if( frameIndex == InvalidFrameIndex )
+        {
+            return nullptr;
+        }
+
+        if( frameIndex == CurrentFrameIndex )
+        {
+            return m_pData;
+        }
+
+        if( flags & SnapshotFrameIndexFlag )
+        {
+            if( index < m_pSnapshots.size() )
+            {
+                return GetNthElement( m_pSnapshots, m_pSnapshots.size() - index - 1 );
+            }
+        }
+        else
+        {
+            if( index < m_pFrames.size() )
+            {
+                return GetNthElement( m_pFrames, m_pFrames.size() - index - 1 );
+            }
+        }
+
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameName
+
+    Description:
+        Get the unique name of the frame including context name and frame index for
+        identification within ImGui.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetFrameName( const char* pContextName, uint32_t frameIndex, bool indent ) const
+    {
+        std::shared_ptr<DeviceProfilerFrameData> pFrameData = GetFrameData( frameIndex );
+
+        if( pFrameData )
+        {
+            return GetFrameName( pFrameData, pContextName, frameIndex, indent );
+        }
+
+        return std::string();
+    };
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameName
+
+    Description:
+        Get the unique name of the frame including context name and frame index for
+        identification within ImGui.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetFrameName( const std::shared_ptr<DeviceProfilerFrameData>& pFrameData, const char* pContextName, uint32_t frameIndex, bool indent ) const
+    {
+        return fmt::format( "{}{} #{}###{}{}",
+            indent ? "   " : "",
+            m_pFrameStr,
+            pFrameData->m_CPU.m_FrameIndex,
+            pContextName,
+            frameIndex );
+    };
 
     /***********************************************************************************\
 

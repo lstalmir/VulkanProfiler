@@ -23,6 +23,7 @@
 #include "profiler/profiler_data_aggregator.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler/profiler_stat_comparators.h"
+#include "profiler_helpers/profiler_memory_comparator.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include "profiler_overlay_backend.h"
 #include "profiler_overlay_settings.h"
@@ -149,6 +150,8 @@ namespace Profiler
         inline static const uint32_t SnapshotFrameIndexFlag = 0x80000000;
         inline static const uint32_t FrameIndexFlagsMask = 0x80000000;
         inline static const uint32_t FrameIndexMask = ~FrameIndexFlagsMask;
+        inline static const uint32_t InvalidFrameIndex = UINT32_MAX;
+        inline static const uint32_t CurrentFrameIndex = UINT32_MAX - 1;
         static uint32_t MakeFrameIndex( size_t, uint32_t );
 
         typedef std::list<std::shared_ptr<DeviceProfilerFrameData>>
@@ -175,6 +178,9 @@ namespace Profiler
 
         bool GetShowActiveFrame() const;
         const FrameDataList& GetActiveFramesList() const;
+        std::shared_ptr<DeviceProfilerFrameData> GetFrameData( uint32_t frameIndex ) const;
+        std::string GetFrameName( const char* pContextName, uint32_t frameIndex, bool indent = false ) const;
+        std::string GetFrameName( const std::shared_ptr<DeviceProfilerFrameData>& pFrameData, const char* pContextName, uint32_t frameIndex, bool indent = false ) const;
 
         bool m_SetLastMainWindowPos;
         Float2* m_pLastMainWindowPos;
@@ -229,9 +235,14 @@ namespace Profiler
         size_t m_InspectorTabIndex;
 
         // Memory inspector state.
-        char               m_ResourceBrowserNameFilter[128];
+        DeviceProfilerMemoryComparator m_MemoryComparator;
+        uint32_t m_MemoryCompareRefFrameIndex;
+        uint32_t m_MemoryCompareSelFrameIndex;
+        char m_ResourceBrowserNameFilter[128];
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
-        VkBuffer           m_ResourceInspectorBuffer;
+        bool m_ResourceBrowserShowDifferences;
+        VkBuffer m_ResourceInspectorBuffer;
+        DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
