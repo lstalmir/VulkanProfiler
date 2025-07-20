@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler_data.h"
+#include "profiler_layer_objects/VkObject.h"
 #include "utils/lockable_unordered_map.h"
 #include <vulkan/vulkan.h>
 
@@ -44,17 +45,17 @@ namespace Profiler
         VkResult Initialize( VkDevice_Object* pDevice );
         void Destroy();
 
-        void RegisterAllocation( VkDeviceMemory memory, const VkMemoryAllocateInfo* pAllocateInfo );
-        void UnregisterAllocation( VkDeviceMemory memory );
+        void RegisterAllocation( VkObjectHandle<VkDeviceMemory> memory, const VkMemoryAllocateInfo* pAllocateInfo );
+        void UnregisterAllocation( VkObjectHandle<VkDeviceMemory> memory );
 
-        void RegisterBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo );
-        void UnregisterBuffer( VkBuffer buffer );
-        void BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset );
-        void BindBufferMemory( VkBuffer buffer, uint32_t bindCount, const VkSparseMemoryBind* pBinds );
+        void RegisterBuffer( VkObjectHandle<VkBuffer> buffer, const VkBufferCreateInfo* pCreateInfo );
+        void UnregisterBuffer( VkObjectHandle<VkBuffer> buffer );
+        void BindBufferMemory( VkObjectHandle<VkBuffer> buffer, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset );
+        void BindSparseBufferMemory( VkObjectHandle<VkBuffer> buffer, VkDeviceSize bufferOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
 
-        void RegisterImage( VkImage image, const VkImageCreateInfo* pCreateInfo );
-        void UnregisterImage( VkImage image );
-        void BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset );
+        void RegisterImage( VkObjectHandle<VkImage> image, const VkImageCreateInfo* pCreateInfo );
+        void UnregisterImage( VkObjectHandle<VkImage> image );
+        void BindImageMemory( VkObjectHandle<VkImage> image, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset );
 
         DeviceProfilerMemoryData GetMemoryData() const;
 
@@ -67,9 +68,9 @@ namespace Profiler
         std::vector<DeviceProfilerMemoryHeapData> m_Heaps;
         std::vector<DeviceProfilerMemoryTypeData> m_Types;
 
-        ConcurrentMap<VkDeviceMemory, DeviceProfilerDeviceMemoryData> m_Allocations;
-        ConcurrentMap<VkBuffer, DeviceProfilerBufferMemoryData> m_Buffers;
-        ConcurrentMap<VkImage, DeviceProfilerImageMemoryData> m_Images;
+        ConcurrentMap<VkObjectHandle<VkDeviceMemory>, DeviceProfilerDeviceMemoryData> m_Allocations;
+        ConcurrentMap<VkObjectHandle<VkBuffer>, DeviceProfilerBufferMemoryData> m_Buffers;
+        ConcurrentMap<VkObjectHandle<VkImage>, DeviceProfilerImageMemoryData> m_Images;
 
         void ResetMemoryData();
     };

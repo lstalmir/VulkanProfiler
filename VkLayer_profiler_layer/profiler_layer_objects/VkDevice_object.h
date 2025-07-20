@@ -33,11 +33,6 @@
 
 namespace Profiler
 {
-    struct VkDevice_debug_Object
-    {
-        ConcurrentMap<VkObject, std::string> ObjectNames;
-    };
-
     struct VkDevice_Object
     {
         VkDevice Handle;
@@ -51,8 +46,6 @@ namespace Profiler
         // Dispatch tables
         VkLayerDeviceDispatchTable Callbacks;
         PFN_vkSetDeviceLoaderData SetDeviceLoaderData;
-
-        VkDevice_debug_Object Debug;
 
         std::unordered_map<VkQueue, VkQueue_Object> Queues;
 

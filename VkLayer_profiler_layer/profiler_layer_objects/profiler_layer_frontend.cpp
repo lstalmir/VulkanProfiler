@@ -321,12 +321,10 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerLayerFrontend::GetObjectName( const VkObject& object )
     {
-        std::shared_lock lk( m_pDevice->Debug.ObjectNames );
-
-        auto it = m_pDevice->Debug.ObjectNames.unsafe_find( object );
-        if( it != m_pDevice->Debug.ObjectNames.end() )
+        const char* pName = m_pProfiler->GetObjectName( object );
+        if( pName )
         {
-            return it->second;
+            return pName;
         }
 
         return std::string();
@@ -338,12 +336,12 @@ namespace Profiler
         SetObjectName
 
     Description:
-        Returns the name of the object set by the profiled application.
+        Sets the name of the object.
 
     \***********************************************************************************/
     void DeviceProfilerLayerFrontend::SetObjectName( const VkObject& object, const std::string& name )
     {
-        m_pDevice->Debug.ObjectNames.insert( object, name );
+        m_pProfiler->SetObjectName( object, name.c_str() );
     }
 
     /***********************************************************************************\

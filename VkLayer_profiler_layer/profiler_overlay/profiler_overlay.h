@@ -241,7 +241,7 @@ namespace Profiler
         char m_ResourceBrowserNameFilter[128];
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
         bool m_ResourceBrowserShowDifferences;
-        VkBuffer m_ResourceInspectorBuffer;
+        VkObjectHandle<VkBuffer> m_ResourceInspectorBuffer;
         DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
 
         // Performance metrics filter.

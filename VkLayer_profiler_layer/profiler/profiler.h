@@ -88,6 +88,11 @@ namespace Profiler
         DeviceProfilerRenderPass& GetRenderPass( VkRenderPass renderPass );
         ProfilerShader& GetShader( VkShaderEXT shader );
 
+        VkObject GetObjectHandle( VkObject ) const;
+
+        template<typename ObjectT>
+        VkObjectHandle<ObjectT> GetObjectHandle( ObjectT ) const;
+
         bool ShouldCapturePipelineExecutableProperties() const;
 
         void CreateCommandPool( VkCommandPool, const VkCommandPoolCreateInfo* );
@@ -125,6 +130,12 @@ namespace Profiler
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );
 
+        void CreateAccelerationStructure( VkAccelerationStructureKHR, const VkAccelerationStructureCreateInfoKHR* );
+        void DestroyAccelerationStructure( VkAccelerationStructureKHR );
+
+        void CreateMicromap( VkMicromapEXT, const VkMicromapCreateInfoEXT* );
+        void DestroyMicromap( VkMicromapEXT );
+
         void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
         void DestroyBuffer( VkBuffer );
         void BindBufferMemory( VkBuffer, VkDeviceMemory, VkDeviceSize );
@@ -134,6 +145,7 @@ namespace Profiler
         void DestroyImage( VkImage );
         void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
 
+        const char* GetObjectName( VkObject ) const;
         void SetObjectName( VkObject, const char* );
         void SetDefaultObjectName( VkObject );
         void SetDefaultObjectName( VkPipeline );
@@ -169,6 +181,9 @@ namespace Profiler
         ConcurrentMap<VkShaderModule, std::shared_ptr<ProfilerShaderModule>> m_pShaderModules;
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
         ConcurrentMap<VkShaderEXT, ProfilerShader> m_Shaders;
+
+        ConcurrentMap<VkObject, uint32_t> m_ObjectCreateTimes;
+        ConcurrentMap<VkObject, std::string> m_ObjectNames;
 
         ConcurrentMap<VkDeferredOperationKHR, DeferredOperationCallback> m_DeferredOperationCallbacks;
 
@@ -209,7 +224,28 @@ namespace Profiler
 
         void BeginNextFrame();
         void ResolveFrameData( TipRangeId& tip );
+
+        template<typename ObjectT>
+        VkObjectHandle<ObjectT> RegisterObject( ObjectT );
+
+        template<typename ObjectT>
+        void UnregisterObject( ObjectT );
     };
+
+    /***********************************************************************************\
+
+    Function:
+        GetObjectHandle
+
+    Description:
+        Returns the handle of the object, including its creation time.
+
+    \***********************************************************************************/
+    template<typename ObjectT>
+    inline VkObjectHandle<ObjectT> DeviceProfiler::GetObjectHandle( ObjectT object ) const
+    {
+        return GetObjectHandle( VkObject( object ) ).GetHandle<ObjectT>();
+    }
 
     /***********************************************************************************\
 

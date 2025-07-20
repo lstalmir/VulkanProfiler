@@ -2778,7 +2778,7 @@ namespace Profiler
                             continue;
                         }
 
-                        const char* pBufferNameFormat = "{}###buffer_{}";
+                        const char* pBufferNameFormat = "{}###{}";
 
                         auto bufferName = m_pStringSerializer->GetName( buffer );
                         if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
@@ -2791,12 +2791,12 @@ namespace Profiler
                         {
                             ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
                             pushedStyleColors++;
-                            pBufferNameFormat = "+ {}###buffer_{}";
+                            pBufferNameFormat = "+ {}###{}";
                         }
 
                         bufferName = fmt::format( pBufferNameFormat,
                             bufferName,
-                            m_pStringSerializer->GetPointer( buffer ) );
+                            m_pStringSerializer->GetObjectID( buffer ) );
 
                         bool selected = ( m_ResourceInspectorBuffer == buffer );
                         if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
@@ -2824,9 +2824,9 @@ namespace Profiler
                             continue;
                         }
 
-                        bufferName = fmt::format( "+ {}###buffer_{}",
+                        bufferName = fmt::format( "+ {}###{}",
                             bufferName,
-                            m_pStringSerializer->GetPointer( buffer ) );
+                            m_pStringSerializer->GetObjectID( buffer ) );
 
                         ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
 
@@ -2855,9 +2855,9 @@ namespace Profiler
                         continue;
                     }
 
-                    bufferName = fmt::format( "- {}###buffer_{}",
+                    bufferName = fmt::format( "- {}###{}",
                         bufferName,
-                        m_pStringSerializer->GetPointer( buffer ) );
+                        m_pStringSerializer->GetObjectID( buffer ) );
 
                     ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
 
