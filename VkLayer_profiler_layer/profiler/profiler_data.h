@@ -213,7 +213,7 @@ namespace Profiler
         }
 
         template<typename T>
-        inline static void FreeConst( T pObject )
+        inline void FreeConst( T pObject )
         {
             using cv_value_type = typename std::remove_pointer<T>::type;
             using value_type = typename std::remove_cv<cv_value_type>::type;
@@ -239,7 +239,7 @@ namespace Profiler
         {
             if( m_OwnsDynamicAllocations )
             {
-                FreeConst( m_pName );
+                this->FreeConst( m_pName );
             }
         }
     };

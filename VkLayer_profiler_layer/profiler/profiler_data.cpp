@@ -575,7 +575,7 @@ namespace Profiler
     {
         if( m_OwnsDynamicAllocations )
         {
-            FreeConst( m_pInfos );
+            this->FreeConst( m_pInfos );
         }
     }
 
@@ -595,7 +595,7 @@ namespace Profiler
 
         if( m_OwnsDynamicAllocations )
         {
-            FreeConst( m_ppRanges );
+            this->FreeConst( m_ppRanges );
         }
     }
 
@@ -615,7 +615,7 @@ namespace Profiler
 
         if( m_OwnsDynamicAllocations )
         {
-            FreeConst( m_ppMaxPrimitiveCounts );
+            this->FreeConst( m_ppMaxPrimitiveCounts );
         }
     }
 
@@ -630,7 +630,7 @@ namespace Profiler
     {
         if( m_OwnsDynamicAllocations )
         {
-            FreeConst( m_pInfos );
+            this->FreeConst( m_pInfos );
         }
     }
 }
