@@ -192,24 +192,79 @@ namespace Profiler
     Drawcall-specific playloads
 
     \***********************************************************************************/
+    template<DeviceProfilerDrawcallType Type, bool HasIndirectPayload = false>
     struct DeviceProfilerDrawcallBasePayload
     {
+        static constexpr bool m_scHasIndirectPayload = HasIndirectPayload;
+        static constexpr auto m_scDrawcallType = Type;
+
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& )
         {
         }
+
+        template<typename PayloadT>
+        inline void CopyDynamicAllocations( const PayloadT& )
+        {
+        }
+
+        inline void FreeDynamicAllocations()
+        {
+        }
+
+        template<typename T>
+        inline static void FreeConst( T pObject )
+        {
+            using cv_value_type = typename std::remove_pointer<T>::type;
+            using value_type = typename std::remove_cv<cv_value_type>::type;
+            free( const_cast<value_type*>( pObject ) );
+        }
     };
 
-    struct DeviceProfilerDrawcallDebugLabelPayload
-        : DeviceProfilerDrawcallBasePayload
+    template<DeviceProfilerDrawcallType Type>
+    struct DeviceProfilerDrawcallDebugLabelBasePayload
+        : DeviceProfilerDrawcallBasePayload<Type>
     {
         const char* m_pName;
         float m_Color[ 4 ];
         bool m_OwnsDynamicAllocations;
+
+        inline void CopyDynamicAllocations( const DeviceProfilerDrawcallDebugLabelBasePayload& other )
+        {
+            m_pName = ProfilerStringFunctions::DuplicateString( other.m_pName );
+            m_OwnsDynamicAllocations = true;
+        }
+
+        inline void FreeDynamicAllocations()
+        {
+            if( m_OwnsDynamicAllocations )
+            {
+                FreeConst( m_pName );
+            }
+        }
+    };
+
+    struct DeviceProfilerDrawcallInsertDebugLabelPayload
+        : DeviceProfilerDrawcallDebugLabelBasePayload<
+              DeviceProfilerDrawcallType::eInsertDebugLabel>
+    {
+    };
+
+    struct DeviceProfilerDrawcallBeginDebugLabelPayload
+        : DeviceProfilerDrawcallDebugLabelBasePayload<
+              DeviceProfilerDrawcallType::eBeginDebugLabel>
+    {
+    };
+
+    struct DeviceProfilerDrawcallEndDebugLabelPayload
+        : DeviceProfilerDrawcallDebugLabelBasePayload<
+              DeviceProfilerDrawcallType::eEndDebugLabel>
+    {
     };
 
     struct DeviceProfilerDrawcallDrawPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDraw>
     {
         uint32_t m_VertexCount;
         uint32_t m_InstanceCount;
@@ -218,7 +273,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallDrawIndexedPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDrawIndexed>
     {
         uint32_t m_IndexCount;
         uint32_t m_InstanceCount;
@@ -227,8 +283,9 @@ namespace Profiler
         uint32_t m_FirstInstance;
     };
 
-    struct DeviceProfilerDrawcallDrawIndirectPayload
-        : DeviceProfilerDrawcallBasePayload
+    template<DeviceProfilerDrawcallType Type>
+    struct DeviceProfilerDrawcallDrawIndirectBasePayload
+        : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
         VkObjectHandle<VkBuffer> m_Buffer;
         VkDeviceSize m_Offset;
@@ -243,13 +300,21 @@ namespace Profiler
         }
     };
 
-    struct DeviceProfilerDrawcallDrawIndexedIndirectPayload
-        : DeviceProfilerDrawcallDrawIndirectPayload
+    struct DeviceProfilerDrawcallDrawIndirectPayload
+        : DeviceProfilerDrawcallDrawIndirectBasePayload<
+              DeviceProfilerDrawcallType::eDrawIndirect>
     {
     };
 
-    struct DeviceProfilerDrawcallDrawIndirectCountPayload
-        : DeviceProfilerDrawcallBasePayload
+    struct DeviceProfilerDrawcallDrawIndexedIndirectPayload
+        : DeviceProfilerDrawcallDrawIndirectBasePayload<
+              DeviceProfilerDrawcallType::eDrawIndexedIndirect>
+    {
+    };
+
+    template<DeviceProfilerDrawcallType Type>
+    struct DeviceProfilerDrawcallDrawIndirectCountBasePayload
+        : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
         VkObjectHandle<VkBuffer> m_Buffer;
         VkDeviceSize m_Offset;
@@ -268,21 +333,30 @@ namespace Profiler
         }
     };
 
+    struct DeviceProfilerDrawcallDrawIndirectCountPayload
+        : DeviceProfilerDrawcallDrawIndirectCountBasePayload<
+              DeviceProfilerDrawcallType::eDrawIndirectCount>
+    {
+    };
+
     struct DeviceProfilerDrawcallDrawIndexedIndirectCountPayload
-        : DeviceProfilerDrawcallDrawIndirectCountPayload
+        : DeviceProfilerDrawcallDrawIndirectCountBasePayload<
+              DeviceProfilerDrawcallType::eDrawIndexedIndirectCount>
     {
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDrawMeshTasks>
     {
         uint32_t m_GroupCountX;
         uint32_t m_GroupCountY;
         uint32_t m_GroupCountZ;
     };
 
-    struct DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
-        : DeviceProfilerDrawcallBasePayload
+    template<DeviceProfilerDrawcallType Type>
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectBasePayload
+        : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
         VkObjectHandle<VkBuffer> m_Buffer;
         VkDeviceSize m_Offset;
@@ -297,8 +371,15 @@ namespace Profiler
         }
     };
 
-    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
-        : DeviceProfilerDrawcallBasePayload
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectBasePayload<
+              DeviceProfilerDrawcallType::eDrawMeshTasksIndirect>
+    {
+    };
+
+    template<DeviceProfilerDrawcallType Type>
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountBasePayload
+        : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
         VkObjectHandle<VkBuffer> m_Buffer;
         VkDeviceSize m_Offset;
@@ -317,25 +398,35 @@ namespace Profiler
         }
     };
 
+    struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectCountBasePayload<
+              DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount>
+    {
+    };
+
     struct DeviceProfilerDrawcallDrawMeshTasksNvPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDrawMeshTasksNV>
     {
         uint32_t m_TaskCount;
         uint32_t m_FirstTask;
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload
-        : DeviceProfilerDrawcallDrawMeshTasksIndirectPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectBasePayload<
+              DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV>
     {
     };
 
     struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload
-        : DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload
+        : DeviceProfilerDrawcallDrawMeshTasksIndirectCountBasePayload<
+              DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV>
     {
     };
 
     struct DeviceProfilerDrawcallDispatchPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDispatch>
     {
         uint32_t m_GroupCountX;
         uint32_t m_GroupCountY;
@@ -343,7 +434,9 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallDispatchIndirectPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDispatchIndirect,
+              true /*HasIndirectPayload*/>
     {
         VkObjectHandle<VkBuffer> m_Buffer;
         VkDeviceSize m_Offset;
@@ -357,7 +450,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyBufferPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyBuffer>
     {
         VkObjectHandle<VkBuffer> m_SrcBuffer;
         VkObjectHandle<VkBuffer> m_DstBuffer;
@@ -371,7 +465,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyBufferToImagePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyBufferToImage>
     {
         VkObjectHandle<VkBuffer> m_SrcBuffer;
         VkObjectHandle<VkImage> m_DstImage;
@@ -385,7 +480,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyImagePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyImage>
     {
         VkObjectHandle<VkImage> m_SrcImage;
         VkObjectHandle<VkImage> m_DstImage;
@@ -399,7 +495,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyImageToBufferPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyImageToBuffer>
     {
         VkObjectHandle<VkImage> m_SrcImage;
         VkObjectHandle<VkBuffer> m_DstBuffer;
@@ -413,13 +510,15 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallClearAttachmentsPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eClearAttachments>
     {
         uint32_t m_Count;
     };
 
     struct DeviceProfilerDrawcallClearColorImagePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eClearColorImage>
     {
         VkObjectHandle<VkImage> m_Image;
         VkClearColorValue m_Value;
@@ -432,7 +531,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallClearDepthStencilImagePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eClearDepthStencilImage>
     {
         VkObjectHandle<VkImage> m_Image;
         VkClearDepthStencilValue m_Value;
@@ -445,7 +545,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallResolveImagePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eResolveImage>
     {
         VkObjectHandle<VkImage> m_SrcImage;
         VkObjectHandle<VkImage> m_DstImage;
@@ -459,7 +560,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallBlitImagePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eBlitImage>
     {
         VkObjectHandle<VkImage> m_SrcImage;
         VkObjectHandle<VkImage> m_DstImage;
@@ -473,7 +575,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallFillBufferPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+            DeviceProfilerDrawcallType::eFillBuffer>
     {
         VkObjectHandle<VkBuffer> m_Buffer;
         VkDeviceSize m_Offset;
@@ -488,7 +591,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallUpdateBufferPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eUpdateBuffer>
     {
         VkObjectHandle<VkBuffer> m_Buffer;
         VkDeviceSize m_Offset;
@@ -502,7 +606,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallTraceRaysPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eTraceRaysKHR>
     {
         uint32_t m_Width;
         uint32_t m_Height;
@@ -510,39 +615,56 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallTraceRaysIndirectPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+            DeviceProfilerDrawcallType::eTraceRaysIndirectKHR,
+            true /*HasIndirectPayload*/>
     {
         VkDeviceAddress m_IndirectAddress;
     };
 
     struct DeviceProfilerDrawcallTraceRaysIndirect2Payload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR,
+              true /*HasIndirectPayload*/>
     {
         VkDeviceAddress m_IndirectAddress;
     };
 
-    struct DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase
-        : DeviceProfilerDrawcallBasePayload
+    template<DeviceProfilerDrawcallType Type>
+    struct DeviceProfilerDrawcallBuildAccelerationStructuresBasePayload
+        : DeviceProfilerDrawcallBasePayload<Type>
     {
         uint32_t m_InfoCount;
         bool m_OwnsDynamicAllocations;
         const VkAccelerationStructureBuildGeometryInfoKHR* m_pInfos;
+
+        void CopyDynamicAllocations( const DeviceProfilerDrawcallBuildAccelerationStructuresBasePayload& other );
+        void FreeDynamicAllocations();
     };
 
     struct DeviceProfilerDrawcallBuildAccelerationStructuresPayload
-        : DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase
+        : DeviceProfilerDrawcallBuildAccelerationStructuresBasePayload<
+              DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR>
     {
         const VkAccelerationStructureBuildRangeInfoKHR* const* m_ppRanges;
+
+        void CopyDynamicAllocations( const DeviceProfilerDrawcallBuildAccelerationStructuresPayload& other );
+        void FreeDynamicAllocations();
     };
 
     struct DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload
-        : DeviceProfilerDrawcallBuildAccelerationStructuresPayloadBase
+        : DeviceProfilerDrawcallBuildAccelerationStructuresBasePayload<
+              DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR>
     {
         const uint32_t* const* m_ppMaxPrimitiveCounts;
+
+        void CopyDynamicAllocations( const DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload& other );
+        void FreeDynamicAllocations();
     };
 
     struct DeviceProfilerDrawcallCopyAccelerationStructurePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR>
     {
         VkObjectHandle<VkAccelerationStructureKHR> m_Src;
         VkObjectHandle<VkAccelerationStructureKHR> m_Dst;
@@ -557,7 +679,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR>
     {
         VkObjectHandle<VkAccelerationStructureKHR> m_Src;
         VkDeviceOrHostAddressKHR m_Dst;
@@ -571,7 +694,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+            DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR>
     {
         VkDeviceOrHostAddressConstKHR m_Src;
         VkObjectHandle<VkAccelerationStructureKHR> m_Dst;
@@ -585,15 +709,20 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallBuildMicromapsPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eBuildMicromapsEXT>
     {
         uint32_t m_InfoCount;
         bool m_OwnsDynamicAllocations;
         const VkMicromapBuildInfoEXT* m_pInfos;
+
+        void CopyDynamicAllocations( const DeviceProfilerDrawcallBuildMicromapsPayload& other );
+        void FreeDynamicAllocations();
     };
 
     struct DeviceProfilerDrawcallCopyMicromapPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyMicromapEXT>
     {
         VkObjectHandle<VkMicromapEXT> m_Src;
         VkObjectHandle<VkMicromapEXT> m_Dst;
@@ -608,7 +737,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyMemoryToMicromapPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyMemoryToMicromapEXT>
     {
         VkDeviceOrHostAddressConstKHR m_Src;
         VkObjectHandle<VkMicromapEXT> m_Dst;
@@ -622,7 +752,8 @@ namespace Profiler
     };
 
     struct DeviceProfilerDrawcallCopyMicromapToMemoryPayload
-        : DeviceProfilerDrawcallBasePayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eCopyMicromapToMemoryEXT>
     {
         VkObjectHandle<VkMicromapEXT> m_Src;
         VkDeviceOrHostAddressKHR m_Dst;
@@ -635,9 +766,49 @@ namespace Profiler
         }
     };
 
-#define PROFILER_DECL_DRAWCALL_PAYLOAD( type, name )                   \
-    type name;                                                         \
-    inline void operator=( const type& value ) { this->name = value; }
+// clang-format off
+#define PROFILER_MAP_DRAWCALL_PAYLOAD( f, ... ) \
+    f( DeviceProfilerDrawcallInsertDebugLabelPayload, m_InsertDebugLabel, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallBeginDebugLabelPayload, m_BeginDebugLabel, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallEndDebugLabelPayload, m_EndDebugLabel, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawPayload, m_Draw, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawIndexedPayload, m_DrawIndexed, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawIndirectPayload, m_DrawIndirect, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawIndexedIndirectPayload, m_DrawIndexedIndirect, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawIndirectCountPayload, m_DrawIndirectCount, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawIndexedIndirectCountPayload, m_DrawIndexedIndirectCount, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMeshTasksPayload, m_DrawMeshTasks, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMeshTasksIndirectPayload, m_DrawMeshTasksIndirect, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload, m_DrawMeshTasksIndirectCount, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMeshTasksNvPayload, m_DrawMeshTasksNV, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload, m_DrawMeshTasksIndirectNV, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload, m_DrawMeshTasksIndirectCountNV, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDispatchPayload, m_Dispatch, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDispatchIndirectPayload, m_DispatchIndirect, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyBufferPayload, m_CopyBuffer, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyBufferToImagePayload, m_CopyBufferToImage, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyImagePayload, m_CopyImage, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyImageToBufferPayload, m_CopyImageToBuffer, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallClearAttachmentsPayload, m_ClearAttachments, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallClearColorImagePayload, m_ClearColorImage, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallClearDepthStencilImagePayload, m_ClearDepthStencilImage, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallResolveImagePayload, m_ResolveImage, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallBlitImagePayload, m_BlitImage, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallFillBufferPayload, m_FillBuffer, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallUpdateBufferPayload, m_UpdateBuffer, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallTraceRaysPayload, m_TraceRays, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallTraceRaysIndirectPayload, m_TraceRaysIndirect, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallTraceRaysIndirect2Payload, m_TraceRaysIndirect2, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallBuildAccelerationStructuresPayload, m_BuildAccelerationStructures, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload, m_BuildAccelerationStructuresIndirect, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload, m_CopyAccelerationStructureToMemory, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload, m_CopyMemoryToAccelerationStructure, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallBuildMicromapsPayload, m_BuildMicromaps, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyMicromapPayload, m_CopyMicromap, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyMemoryToMicromapPayload, m_CopyMemoryToMicromap, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallCopyMicromapToMemoryPayload, m_CopyMicromapToMemory, __VA_ARGS__ )
+    // clang-format on
 
     /***********************************************************************************\
 
@@ -650,44 +821,17 @@ namespace Profiler
     \***********************************************************************************/
     union DeviceProfilerDrawcallPayload
     {
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDebugLabelPayload, m_DebugLabel );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawPayload, m_Draw );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndexedPayload, m_DrawIndexed );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndirectPayload, m_DrawIndirect );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndexedIndirectPayload, m_DrawIndexedIndirect );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndirectCountPayload, m_DrawIndirectCount );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawIndexedIndirectCountPayload, m_DrawIndexedIndirectCount );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksPayload, m_DrawMeshTasks );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectPayload, m_DrawMeshTasksIndirect );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountPayload, m_DrawMeshTasksIndirectCount );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksNvPayload, m_DrawMeshTasksNV );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload, m_DrawMeshTasksIndirectNV );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload, m_DrawMeshTasksIndirectCountNV );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchPayload, m_Dispatch );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallDispatchIndirectPayload, m_DispatchIndirect );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyBufferPayload, m_CopyBuffer );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyBufferToImagePayload, m_CopyBufferToImage );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyImagePayload, m_CopyImage );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyImageToBufferPayload, m_CopyImageToBuffer );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallClearAttachmentsPayload, m_ClearAttachments );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallClearColorImagePayload, m_ClearColorImage );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallClearDepthStencilImagePayload, m_ClearDepthStencilImage );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallResolveImagePayload, m_ResolveImage );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBlitImagePayload, m_BlitImage );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallFillBufferPayload, m_FillBuffer );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallUpdateBufferPayload, m_UpdateBuffer );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysPayload, m_TraceRays );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysIndirectPayload, m_TraceRaysIndirect );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallTraceRaysIndirect2Payload, m_TraceRaysIndirect2 );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildAccelerationStructuresPayload, m_BuildAccelerationStructures );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildAccelerationStructuresIndirectPayload, m_BuildAccelerationStructuresIndirect );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructurePayload, m_CopyAccelerationStructure );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyAccelerationStructureToMemoryPayload, m_CopyAccelerationStructureToMemory );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToAccelerationStructurePayload, m_CopyMemoryToAccelerationStructure );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallBuildMicromapsPayload, m_BuildMicromaps );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapPayload, m_CopyMicromap );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMemoryToMicromapPayload, m_CopyMemoryToMicromap );
-        PROFILER_DECL_DRAWCALL_PAYLOAD( DeviceProfilerDrawcallCopyMicromapToMemoryPayload, m_CopyMicromapToMemory );
+#define PROFILER_DECL_DRAWCALL_PAYLOAD( type, name, ... ) \
+    type name;                                            \
+    inline void operator=( const type& value ) { this->name = value; }
+
+        PROFILER_DECL_DRAWCALL_PAYLOAD(
+            DeviceProfilerDrawcallDebugLabelBasePayload<DeviceProfilerDrawcallType::eUnknown>,
+            m_DebugLabel )
+
+        PROFILER_MAP_DRAWCALL_PAYLOAD( PROFILER_DECL_DRAWCALL_PAYLOAD )
+
+#undef PROFILER_DECL_DRAWCALL_PAYLOAD
     };
 
     /***********************************************************************************\
@@ -725,54 +869,15 @@ namespace Profiler
             , m_BeginTimestamp( dc.m_BeginTimestamp )
             , m_EndTimestamp( dc.m_EndTimestamp )
         {
-            if( dc.GetPipelineType() == DeviceProfilerPipelineType::eDebug )
-            {
-                // Create copy of already stored string
-                m_Payload.m_DebugLabel.m_pName = ProfilerStringFunctions::DuplicateString(
-                    dc.m_Payload.m_DebugLabel.m_pName );
+        #define PROFILER_COPY_DYNAMIC_ALLOCATIONS( type, name, ... ) \
+            case type::m_scDrawcallType: m_Payload.name.CopyDynamicAllocations( dc.m_Payload.name ); break;
 
-                m_Payload.m_DebugLabel.m_OwnsDynamicAllocations = true;
+            switch( m_Type )
+            {
+                PROFILER_MAP_DRAWCALL_PAYLOAD( PROFILER_COPY_DYNAMIC_ALLOCATIONS )
             }
 
-            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
-            {
-                // Create copy of build infos
-                m_Payload.m_BuildAccelerationStructures.m_pInfos = CopyAccelerationStructureBuildGeometryInfos(
-                    dc.m_Payload.m_BuildAccelerationStructures.m_InfoCount,
-                    dc.m_Payload.m_BuildAccelerationStructures.m_pInfos );
-
-                m_Payload.m_BuildAccelerationStructures.m_ppRanges = CopyAccelerationStructureBuildRangeInfos(
-                    dc.m_Payload.m_BuildAccelerationStructures.m_InfoCount,
-                    dc.m_Payload.m_BuildAccelerationStructures.m_pInfos,
-                    dc.m_Payload.m_BuildAccelerationStructures.m_ppRanges );
-
-                m_Payload.m_BuildAccelerationStructures.m_OwnsDynamicAllocations = true;
-            }
-
-            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
-            {
-                // Create copy of build infos
-                m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos = CopyAccelerationStructureBuildGeometryInfos(
-                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount,
-                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos );
-
-                m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts = CopyMaxPrimitiveCounts(
-                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount,
-                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos,
-                    dc.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
-
-                m_Payload.m_BuildAccelerationStructuresIndirect.m_OwnsDynamicAllocations = true;
-            }
-
-            if( dc.m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
-            {
-                // Create copy of build infos
-                m_Payload.m_BuildMicromaps.m_pInfos = CopyMicromapBuildInfos(
-                    dc.m_Payload.m_BuildMicromaps.m_InfoCount,
-                    dc.m_Payload.m_BuildMicromaps.m_pInfos );
-
-                m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations = true;
-            }
+        #undef PROFILER_COPY_DYNAMIC_ALLOCATIONS
         }
 
         inline DeviceProfilerDrawcall( DeviceProfilerDrawcall&& dc )
@@ -786,64 +891,15 @@ namespace Profiler
         // Destroy drawcall - in case of debug labels free its name
         inline ~DeviceProfilerDrawcall()
         {
-            if( GetPipelineType() == DeviceProfilerPipelineType::eDebug )
+        #define PROFILER_FREE_DYNAMIC_ALLOCATIONS( type, name, ... ) \
+            case type::m_scDrawcallType: m_Payload.name.FreeDynamicAllocations(); break;
+
+            switch( m_Type )
             {
-                if( m_Payload.m_DebugLabel.m_OwnsDynamicAllocations )
-                {
-                    FreeConst( m_Payload.m_DebugLabel.m_pName );
-                }
+                PROFILER_MAP_DRAWCALL_PAYLOAD( PROFILER_FREE_DYNAMIC_ALLOCATIONS )
             }
 
-            if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
-            {
-                if( m_Payload.m_BuildAccelerationStructures.m_OwnsDynamicAllocations )
-                {
-                    for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructures.m_InfoCount; ++i )
-                    {
-                        FreeConst( m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ].pGeometries );
-                        FreeConst( m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ] );
-                    }
-
-                    FreeConst( m_Payload.m_BuildAccelerationStructures.m_pInfos );
-                    FreeConst( m_Payload.m_BuildAccelerationStructures.m_ppRanges );
-                }
-            }
-
-            if( m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
-            {
-                if( m_Payload.m_BuildAccelerationStructuresIndirect.m_OwnsDynamicAllocations )
-                {
-                    for( uint32_t i = 0; i < m_Payload.m_BuildAccelerationStructuresIndirect.m_InfoCount; ++i )
-                    {
-                        FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos[ i ].pGeometries );
-                        FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ] );
-                    }
-
-                    FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_pInfos );
-                    FreeConst( m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts );
-                }
-            }
-
-            if( m_Type == DeviceProfilerDrawcallType::eBuildMicromapsEXT )
-            {
-                if( m_Payload.m_BuildMicromaps.m_OwnsDynamicAllocations )
-                {
-                    for (uint32_t i = 0; i < m_Payload.m_BuildMicromaps.m_InfoCount; ++i)
-                    {
-                        FreeConst( m_Payload.m_BuildMicromaps.m_pInfos[ i ].pUsageCounts );
-                    }
-
-                    FreeConst( m_Payload.m_BuildMicromaps.m_pInfos );
-                }
-            }
-        }
-
-        template<typename T>
-        void FreeConst( T pObject )
-        {
-            using cv_value_type = typename std::remove_pointer<T>::type;
-            using value_type = typename std::remove_cv<cv_value_type>::type;
-            free( const_cast<value_type*>( pObject ) );
+        #undef PROFILER_FREE_DYNAMIC_ALLOCATIONS
         }
 
         // Swap data of 2 drawcalls
@@ -858,142 +914,33 @@ namespace Profiler
         // Check if drawcall can have indirect payload
         inline bool HasIndirectPayload() const
         {
+        #define PROFILER_CHECK_INDIRECT_PAYLOAD( type, name, ... ) \
+            case type::m_scDrawcallType: return type::m_scHasIndirectPayload;
+
             switch( m_Type )
             {
-            case DeviceProfilerDrawcallType::eDrawIndirect:
-            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            case DeviceProfilerDrawcallType::eDispatchIndirect:
-                return true;
+                PROFILER_MAP_DRAWCALL_PAYLOAD( PROFILER_CHECK_INDIRECT_PAYLOAD )
+
             default:
                 return false;
             }
+
+        #undef PROFILER_CHECK_INDIRECT_PAYLOAD
         }
 
         // Resolve object handles in the payload
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
+        #define PROFILER_RESOLVE_OBJECT_HANDLES( type, name, ... ) \
+            case type::m_scDrawcallType: return m_Payload.name.ResolveObjectHandles( profiler );
+
             switch( m_Type )
             {
-            case DeviceProfilerDrawcallType::eInsertDebugLabel:
-            case DeviceProfilerDrawcallType::eBeginDebugLabel:
-            case DeviceProfilerDrawcallType::eEndDebugLabel:
-                m_Payload.m_DebugLabel.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDraw:
-                m_Payload.m_Draw.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawIndexed:
-                m_Payload.m_DrawIndexed.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawIndirect:
-                m_Payload.m_DrawIndirect.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-                m_Payload.m_DrawIndexedIndirect.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawIndirectCount:
-                m_Payload.m_DrawIndirectCount.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-                m_Payload.m_DrawIndexedIndirectCount.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawMeshTasks:
-                m_Payload.m_DrawMeshTasks.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-                m_Payload.m_DrawMeshTasksIndirect.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-                m_Payload.m_DrawMeshTasksIndirectCount.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
-                m_Payload.m_DrawMeshTasksNV.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-                m_Payload.m_DrawMeshTasksIndirectNV.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-                m_Payload.m_DrawMeshTasksIndirectCountNV.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDispatch:
-                m_Payload.m_Dispatch.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eDispatchIndirect:
-                m_Payload.m_DispatchIndirect.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyBuffer:
-                m_Payload.m_CopyBuffer.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyBufferToImage:
-                m_Payload.m_CopyBufferToImage.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyImage:
-                m_Payload.m_CopyImage.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-                m_Payload.m_CopyImageToBuffer.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eClearAttachments:
-                m_Payload.m_ClearAttachments.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eClearColorImage:
-                m_Payload.m_ClearColorImage.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-                m_Payload.m_ClearDepthStencilImage.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eResolveImage:
-                m_Payload.m_ResolveImage.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eBlitImage:
-                m_Payload.m_BlitImage.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eFillBuffer:
-                m_Payload.m_FillBuffer.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eUpdateBuffer:
-                m_Payload.m_UpdateBuffer.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eTraceRaysKHR:
-                m_Payload.m_TraceRays.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-                m_Payload.m_TraceRaysIndirect.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
-                m_Payload.m_TraceRaysIndirect2.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
-                m_Payload.m_BuildAccelerationStructures.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
-                m_Payload.m_BuildAccelerationStructuresIndirect.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR:
-                m_Payload.m_CopyAccelerationStructure.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR:
-                m_Payload.m_CopyAccelerationStructureToMemory.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR:
-                m_Payload.m_CopyMemoryToAccelerationStructure.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eBuildMicromapsEXT:
-                m_Payload.m_BuildMicromaps.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyMicromapEXT:
-                m_Payload.m_CopyMicromap.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyMemoryToMicromapEXT:
-                m_Payload.m_CopyMicromapToMemory.ResolveObjectHandles( profiler );
-                break;
-            case DeviceProfilerDrawcallType::eCopyMicromapToMemoryEXT:
-                m_Payload.m_CopyMicromapToMemory.ResolveObjectHandles( profiler );
-                break;
+                PROFILER_MAP_DRAWCALL_PAYLOAD( PROFILER_RESOLVE_OBJECT_HANDLES )
             }
+
+        #undef PROFILER_RESOLVE_OBJECT_HANDLES
         }
 
         // Assignment operators
@@ -1008,25 +955,6 @@ namespace Profiler
             DeviceProfilerDrawcall( std::move( dc ) ).Swap( *this );
             return *this;
         }
-
-        // Copy helpers
-        static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBuildGeometryInfos(
-            uint32_t infoCount,
-            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos );
-
-        static VkAccelerationStructureBuildRangeInfoKHR** CopyAccelerationStructureBuildRangeInfos(
-            uint32_t infoCount,
-            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
-            const VkAccelerationStructureBuildRangeInfoKHR* const* ppRanges );
-
-        static uint32_t** CopyMaxPrimitiveCounts(
-            uint32_t infoCount,
-            const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
-            const uint32_t* const* ppMaxPrimitiveCounts );
-
-        static VkMicromapBuildInfoEXT* CopyMicromapBuildInfos(
-            uint32_t infoCount,
-            const VkMicromapBuildInfoEXT* pInfos );
     };
 
     /***********************************************************************************\
