@@ -374,7 +374,9 @@ namespace Profiler
     VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice, const VkDeviceCreateInfo* pCreateInfo )
     {
         m_pDevice = pDevice;
-        m_NextFrameIndex = 0;
+
+        // Frame #0 is allocated by the aggregator.
+        m_NextFrameIndex = 1;
 
         // Check if profiler create info was provided.
         const PNextChain pNextChain( pCreateInfo->pNext );
