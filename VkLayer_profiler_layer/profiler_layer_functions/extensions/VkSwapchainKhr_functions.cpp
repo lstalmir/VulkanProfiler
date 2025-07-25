@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -78,12 +78,6 @@ namespace Profiler
 
         if( createProfilerOverlay )
         {
-            if( dd.pOutput )
-            {
-                // Destroy the previous output before creating an overlay
-                dd.pOutput->Destroy();
-            }
-
             if( result == VK_SUCCESS && !dd.OverlayBackend.IsInitialized() )
             {
                 // Initialize overlay backend
@@ -110,15 +104,14 @@ namespace Profiler
                     &dd.pOutput,
                     dd.ProfilerFrontend,
                     dd.OverlayBackend );
-            }
 
-            if( result == VK_SUCCESS )
-            {
-                // Initialize the overlay output
-                bool success = dd.pOutput->Initialize();
-                if( !success )
+                if( result == VK_SUCCESS )
                 {
-                    result = VK_ERROR_INITIALIZATION_FAILED;
+                    bool success = dd.pOutput->Initialize();
+                    if( !success )
+                    {
+                        result = VK_ERROR_INITIALIZATION_FAILED;
+                    }
                 }
             }
         }
