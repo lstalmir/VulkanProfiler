@@ -25,6 +25,19 @@ namespace Profiler
 {
     struct VkOpacityMicromapExt_Functions : VkDevice_Functions_Base
     {
+        // vkCreateMicromapEXT
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateMicromapEXT(
+            VkDevice device,
+            const VkMicromapCreateInfoEXT* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkMicromapEXT* pMicromap );
+
+        // vkDestroyMicromapEXT
+        static VKAPI_ATTR void VKAPI_CALL DestroyMicromapEXT(
+            VkDevice device,
+            VkMicromapEXT micromap,
+            const VkAllocationCallbacks* pAllocator );
+
         // vkCmdBuildMicromapsEXT
         static VKAPI_ATTR void VKAPI_CALL CmdBuildMicromapsEXT(
             VkCommandBuffer commandBuffer,

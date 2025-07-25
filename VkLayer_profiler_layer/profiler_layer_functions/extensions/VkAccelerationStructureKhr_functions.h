@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,19 @@ namespace Profiler
 {
     struct VkAccelerationStructureKhr_Functions : VkDevice_Functions_Base
     {
+        // vkCreateAccelerationStructureKHR
+        static VKAPI_ATTR VkResult VKAPI_CALL CreateAccelerationStructureKHR(
+            VkDevice device,
+            const VkAccelerationStructureCreateInfoKHR* pCreateInfo,
+            const VkAllocationCallbacks* pAllocator,
+            VkAccelerationStructureKHR* pAccelerationStructure );
+
+        // vkDestroyAccelerationStructureKHR
+        static VKAPI_ATTR void VKAPI_CALL DestroyAccelerationStructureKHR(
+            VkDevice device,
+            VkAccelerationStructureKHR accelerationStructure,
+            const VkAllocationCallbacks* pAllocator );
+
         // vkCmdBuildAccelerationStructuresKHR
         static VKAPI_ATTR void VKAPI_CALL CmdBuildAccelerationStructuresKHR(
             VkCommandBuffer commandBuffer,

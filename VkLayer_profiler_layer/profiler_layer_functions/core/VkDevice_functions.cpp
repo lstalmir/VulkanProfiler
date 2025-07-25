@@ -180,6 +180,8 @@ namespace Profiler
         GETPROCADDR( CmdDrawMeshTasksIndirectCountNV );
 
         // VK_EXT_opacity_micromap functions
+        GETPROCADDR( CreateMicromapEXT );
+        GETPROCADDR( DestroyMicromapEXT );
         GETPROCADDR( CmdBuildMicromapsEXT );
         GETPROCADDR( CmdCopyMicromapEXT );
         GETPROCADDR( CmdCopyMemoryToMicromapEXT );
@@ -194,6 +196,8 @@ namespace Profiler
         GETPROCADDR( CmdTraceRaysIndirectKHR );
 
         // VK_KHR_acceleration_structure functions
+        GETPROCADDR( CreateAccelerationStructureKHR );
+        GETPROCADDR( DestroyAccelerationStructureKHR );
         GETPROCADDR( CmdBuildAccelerationStructuresKHR );
         GETPROCADDR( CmdBuildAccelerationStructuresIndirectKHR );
         GETPROCADDR( CmdCopyAccelerationStructureKHR );

@@ -25,6 +25,65 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CreateMicromapEXT
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkOpacityMicromapExt_Functions::CreateMicromapEXT(
+        VkDevice device,
+        const VkMicromapCreateInfoEXT* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkMicromapEXT* pMicromap )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Invoke next layer's implementation
+        VkResult result = dd.Device.Callbacks.CreateMicromapEXT(
+            device,
+            pCreateInfo,
+            pAllocator,
+            pMicromap );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register the micromap
+            dd.Profiler.CreateMicromap( *pMicromap, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyMicromapEXT
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkOpacityMicromapExt_Functions::DestroyMicromapEXT(
+        VkDevice device,
+        VkMicromapEXT micromap,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Unregister the micromap
+        dd.Profiler.DestroyMicromap( micromap );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.DestroyMicromapEXT(
+            device,
+            micromap,
+            pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CmdBuildMicromapsEXT
 
     Description:

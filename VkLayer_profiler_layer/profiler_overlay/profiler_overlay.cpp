@@ -2611,10 +2611,7 @@ namespace Profiler
                         difference = 100.f * allocationSizeDifference / memoryHeapSize;
                     }
 
-                    if( difference > 0 )
-                    {
-                        usage -= std::abs( difference );
-                    }
+                    usage -= std::max( 0.f, difference );
                 }
 
                 if( usage > 0 )
