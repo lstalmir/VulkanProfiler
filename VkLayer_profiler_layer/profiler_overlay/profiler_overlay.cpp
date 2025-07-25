@@ -681,9 +681,6 @@ namespace Profiler
         m_pData = GetNthElement( framesList, frameIndexMax - frameIndex );
 
         m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
-
-        // Set the current data for memory trace comparator.
-        m_MemoryComparator.SetComparisonData( m_pData );
     }
 
     /***********************************************************************************\
@@ -2497,17 +2494,13 @@ namespace Profiler
             return changed;
         };
 
-        if( MemoryComparatorFrameDataComboBox( "Selected##MemCmBoxSel", m_MemoryCompareSelFrameIndex ) )
-        {
-            m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
-        }
+        MemoryComparatorFrameDataComboBox( "Selected##MemCmBoxSel", m_MemoryCompareSelFrameIndex );
+        m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
 
         ImGui::SameLine( 0, 20.f * interfaceScale );
 
-        if( MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone ) )
-        {
-            m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
-        }
+        MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone );
+        m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
 
         const bool hasComparisonData = m_MemoryComparator.HasValidInput();
 
@@ -2618,7 +2611,10 @@ namespace Profiler
                         difference = 100.f * allocationSizeDifference / memoryHeapSize;
                     }
 
-                    usage -= std::abs( difference );
+                    if( difference > 0 )
+                    {
+                        usage -= std::abs( difference );
+                    }
                 }
 
                 if( usage > 0 )
@@ -2629,10 +2625,10 @@ namespace Profiler
                     unused -= usage;
                 }
 
-                if( difference > 0 )
+                if( difference != 0 )
                 {
                     values[valueCount] = std::abs( difference );
-                    colors[valueCount] = difference > 0 ? IM_COL32( 0, 255, 0, 255 ) : IM_COL32( 255, 0, 0, 255 );
+                    colors[valueCount] = difference > 0 ? IM_COL32( 0x5C, 0xCA, 0x35, 0xFF ) : IM_COL32( 0xCA, 0x35, 0x5C, 0xFF );
                     valueCount++;
                     unused -= std::abs( difference );
                 }
