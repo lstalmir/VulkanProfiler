@@ -44,8 +44,8 @@ namespace Profiler
 
         std::vector<Difference> m_MemoryHeapDifferences;
 
-        std::unordered_map<VkBuffer, const DeviceProfilerBufferMemoryData*> m_AllocatedBuffers;
-        std::unordered_map<VkBuffer, const DeviceProfilerBufferMemoryData*> m_FreedBuffers;
+        std::unordered_map<VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData*> m_AllocatedBuffers;
+        std::unordered_map<VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData*> m_FreedBuffers;
     };
 
     /***********************************************************************************\

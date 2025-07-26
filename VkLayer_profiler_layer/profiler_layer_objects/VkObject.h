@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include <farmhash.h>
 #include <vulkan/vulkan.h>
 #include <utility>
 
@@ -176,6 +177,64 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        VkObjectHandle
+
+    Description:
+        Common wrapper for all Vulkan handles with additional metadata.
+
+    \***********************************************************************************/
+    template<typename VkObjectT>
+    struct VkObjectHandle
+    {
+        VkObjectT m_Handle;
+        uint32_t m_CreateTime;
+
+        inline constexpr VkObjectHandle()
+            : m_Handle( 0 )
+            , m_CreateTime( 0 )
+        {
+        }
+
+        inline constexpr VkObjectHandle( VkObjectT object, uint64_t timestamp = 0 )
+            : m_Handle( object )
+            , m_CreateTime( static_cast<uint32_t>( timestamp ) )
+        {
+        }
+
+        inline constexpr bool operator==( const VkObjectT& rh ) const
+        {
+            return ( m_Handle == rh );
+        }
+
+        inline constexpr bool operator!=( const VkObjectT& rh ) const
+        {
+            return !( *this == rh );
+        }
+
+        inline constexpr bool operator==( const VkObjectHandle& rh ) const
+        {
+            return ( m_Handle == rh.m_Handle ) && ( m_CreateTime == rh.m_CreateTime );
+        }
+
+        inline constexpr bool operator!=( const VkObjectHandle& rh ) const
+        {
+            return !( *this == rh );
+        }
+
+        inline constexpr operator VkObjectT() const
+        {
+            return m_Handle;
+        }
+
+        inline constexpr uint64_t GetHandleAsUint64() const
+        {
+            return VkObject_Traits<VkObjectT>::GetObjectHandleAsUint64( m_Handle );
+        }
+    };
+
+    /***********************************************************************************\
+
+    Class:
         VkObject
 
     Description:
@@ -185,21 +244,29 @@ namespace Profiler
     struct VkObject
     {
         uint64_t m_Handle;
+        uint32_t m_CreateTime;
         VkObjectType m_Type;
-        const char* m_pTypeName;
 
         inline VkObject()
             : m_Handle( 0 )
+            , m_CreateTime( 0 )
             , m_Type( VK_OBJECT_TYPE_UNKNOWN )
-            , m_pTypeName( "Unknown object type" )
+        {
+        }
+
+        template<typename VkObjectT>
+        inline VkObject( const VkObjectHandle<VkObjectT>& object )
+            : m_Handle( VkObject_Traits<VkObjectT>::GetObjectHandleAsUint64( object.m_Handle ) )
+            , m_CreateTime( object.m_CreateTime )
+            , m_Type( VkObject_Traits<VkObjectT>::ObjectType )
         {
         }
 
         template<typename VkObjectT>
         inline VkObject( VkObjectT object )
             : m_Handle( VkObject_Traits<VkObjectT>::GetObjectHandleAsUint64( object ) )
+            , m_CreateTime( 0 )
             , m_Type( VkObject_Traits<VkObjectT>::ObjectType )
-            , m_pTypeName( VkObject_Traits<VkObjectT>::ObjectTypeName )
         {
         }
 
@@ -211,28 +278,50 @@ namespace Profiler
 
         inline VkObject( uint64_t object, const VkObject_Runtime_Traits& traits )
             : m_Handle( object )
+            , m_CreateTime( 0 )
             , m_Type( traits.ObjectType )
-            , m_pTypeName( traits.ObjectTypeName )
         {
+        }
+
+        template<typename VkObjectT>
+        inline constexpr VkObjectHandle<VkObjectT> GetHandle() const
+        {
+            assert( m_Type == VkObject_Traits<VkObjectT>::ObjectType && "VkObject::GetHandle() called with incorrect Vulkan object type." );
+            return VkObjectHandle<VkObjectT>(
+                VkObject_Traits<VkObjectT>::GetObjectHandleAsVulkanHandle( m_Handle ), m_CreateTime );
         }
 
         inline bool operator==( const VkObject& rh ) const
         {
-            return (m_Handle == rh.m_Handle) && (m_Type == rh.m_Type);
+            return (m_Handle == rh.m_Handle) && (m_CreateTime == rh.m_CreateTime) && (m_Type == rh.m_Type);
+        }
+
+        inline bool operator!=( const VkObject& rh ) const
+        {
+            return !( *this == rh );
         }
     };
 }
+
+template<typename VkObjectT>
+struct std::hash<Profiler::VkObjectHandle<VkObjectT>>
+{
+    inline size_t operator()( const Profiler::VkObjectHandle<VkObjectT>& obj ) const
+    {
+        const Profiler::VkObject object( obj );
+        return Farmhash::Hash(
+            reinterpret_cast<const char*>( &object ),
+            sizeof( object ) );
+    }
+};
 
 template<>
 struct std::hash<Profiler::VkObject>
 {
     inline size_t operator()( const Profiler::VkObject& obj ) const
     {
-        // Combine handle value and object type using boost way
-        return static_cast<size_t>(obj.m_Handle ^ (
-            (static_cast<uint64_t>(obj.m_Type)) +
-            (0x9e3779b97f4a7c16) +
-            (obj.m_Handle << 6) +
-            (obj.m_Handle >> 2)));
+        return Farmhash::Hash(
+            reinterpret_cast<const char*>( &obj ),
+            sizeof( obj ) );
     }
 };

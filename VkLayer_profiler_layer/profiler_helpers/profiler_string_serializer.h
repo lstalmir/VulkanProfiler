@@ -51,6 +51,7 @@ namespace Profiler
         std::string GetName( const struct DeviceProfilerCommandBufferData& ) const;
 
         std::string GetName( const struct VkObject& object ) const;
+        std::string GetObjectID( const struct VkObject& object ) const;
 
         std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
 

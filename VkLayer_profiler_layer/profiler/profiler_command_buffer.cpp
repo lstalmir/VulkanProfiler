@@ -59,7 +59,7 @@ namespace Profiler
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
     {
-        m_Data.m_Handle = commandBuffer;
+        m_Data.m_Handle = m_Profiler.GetObjectHandle( commandBuffer );
         m_Data.m_Level = level;
 
         // Profile the command buffer only if it will be submitted to the queue supporting graphics or compute commands
@@ -302,7 +302,7 @@ namespace Profiler
             // Setup pointers for the new render pass.
             m_pCurrentRenderPass = &m_Profiler.GetRenderPass( pBeginInfo->renderPass );
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
-            m_pCurrentRenderPassData->m_Handle = pBeginInfo->renderPass;
+            m_pCurrentRenderPassData->m_Handle = m_pCurrentRenderPass->m_Handle;
             m_pCurrentRenderPassData->m_Type = m_pCurrentRenderPass->m_Type;
 
             // Clears issued when render pass begins
@@ -776,6 +776,7 @@ namespace Profiler
 
             // Append drawcall to the current pipeline
             m_pCurrentDrawcallData = &m_pCurrentPipelineData->m_Drawcalls.emplace_back( drawcall );
+            m_pCurrentDrawcallData->ResolveObjectHandles( m_Profiler );
 
             if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
@@ -927,7 +928,7 @@ namespace Profiler
             for( uint32_t i = 0; i < count; ++i )
             {
                 currentSubpass.m_Data.push_back( DeviceProfilerCommandBufferData{
-                    pCommandBuffers[ i ],
+                    m_Profiler.GetObjectHandle( pCommandBuffers[ i ] ),
                     VK_COMMAND_BUFFER_LEVEL_SECONDARY
                     } );
 

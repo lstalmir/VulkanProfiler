@@ -470,7 +470,26 @@ namespace Profiler
             return objectName;
         }
 
-        return fmt::format( "{} {:#018x}", object.m_pTypeName, object.m_Handle );
+        return fmt::format( "{} {:#018x}",
+            VkObject_Runtime_Traits::FromObjectType( object.m_Type ).ObjectTypeName,
+            object.m_Handle );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetObjectID
+
+    Description:
+        Returns unique identifier for the Vulkan API object.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetObjectID( const VkObject& object ) const
+    {
+        return fmt::format( "{}:{}:{}",
+            static_cast<uint32_t>( object.m_Type ),
+            object.m_Handle,
+            object.m_CreateTime );
     }
 
     /***********************************************************************************\

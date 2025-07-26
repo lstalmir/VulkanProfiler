@@ -91,7 +91,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterAllocation( VkDeviceMemory memory, const VkMemoryAllocateInfo* pAllocateInfo )
+    void DeviceProfilerMemoryTracker::RegisterAllocation( VkObjectHandle<VkDeviceMemory> memory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -125,7 +125,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterAllocation( VkDeviceMemory memory )
+    void DeviceProfilerMemoryTracker::UnregisterAllocation( VkObjectHandle<VkDeviceMemory> memory )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -156,7 +156,7 @@ namespace Profiler
         Register new buffer resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterBuffer( VkObjectHandle<VkBuffer> buffer, const VkBufferCreateInfo* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -181,7 +181,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterBuffer( VkBuffer buffer )
+    void DeviceProfilerMemoryTracker::UnregisterBuffer( VkObjectHandle<VkBuffer> buffer )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_Buffers.remove( buffer );
@@ -195,7 +195,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset )
+    void DeviceProfilerMemoryTracker::BindBufferMemory( VkObjectHandle<VkBuffer> buffer, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -218,12 +218,12 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        BindBufferMemory
+        BindSparseBufferMemory
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindBufferMemory( VkBuffer buffer, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
+    void DeviceProfilerMemoryTracker::BindSparseBufferMemory( VkObjectHandle<VkBuffer> buffer, VkDeviceSize bufferOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -240,66 +240,62 @@ namespace Profiler
 
             std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
                 std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings );
-            bindings.reserve( bindings.size() + bindCount );
 
-            for( uint32_t i = 0; i < bindCount; ++i )
+            if( memory.m_Handle != VK_NULL_HANDLE )
             {
-                if( pBinds[i].memory )
-                {
-                    // New memory binding of the buffer region.
-                    DeviceProfilerBufferMemoryBindingData& binding = bindings.emplace_back();
-                    binding.m_Memory = pBinds[i].memory;
-                    binding.m_MemoryOffset = pBinds[i].memoryOffset;
-                    binding.m_BufferOffset = pBinds[i].resourceOffset;
-                    binding.m_Size = pBinds[i].size;
-                }
-                else
-                {
-                    // If memory is null, the resource region is unbound.
-                    // Remove all bindings that entirely cover the range and update the partially-unbound regions.
-                    const VkDeviceSize startUnbindOffset = pBinds[i].resourceOffset;
-                    const VkDeviceSize endUnbindOffset = pBinds[i].resourceOffset + pBinds[i].size;
+                // New memory binding of the buffer region.
+                DeviceProfilerBufferMemoryBindingData& binding = bindings.emplace_back();
+                binding.m_Memory = memory;
+                binding.m_MemoryOffset = memoryOffset;
+                binding.m_BufferOffset = bufferOffset;
+                binding.m_Size = size;
+            }
+            else
+            {
+                // If memory is null, the resource region is unbound.
+                // Remove all bindings that entirely cover the range and update the partially-unbound regions.
+                const VkDeviceSize startUnbindOffset = bufferOffset;
+                const VkDeviceSize endUnbindOffset = bufferOffset + size;
 
-                    for( auto binding = bindings.begin(); binding != bindings.end(); )
+                for( auto binding = bindings.begin(); binding != bindings.end(); )
+                {
+                    const VkDeviceSize startBindingOffset = binding->m_BufferOffset;
+                    const VkDeviceSize endBindingOffset = binding->m_BufferOffset + binding->m_Size;
+
+                    if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
                     {
-                        const VkDeviceSize startBindingOffset = binding->m_BufferOffset;
-                        const VkDeviceSize endBindingOffset = binding->m_BufferOffset + binding->m_Size;
-
-                        if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
-                        {
-                            // Binding entirely covered by the unbound range, remove it.
-                            binding = bindings.erase( binding );
-                        }
-                        else if( ( startUnbindOffset > startBindingOffset ) && ( endUnbindOffset < endBindingOffset ) )
-                        {
-                            // Buffer partially-unbound in the middle.
-                            DeviceProfilerBufferMemoryBindingData newBinding = *binding;
-                            newBinding.m_Size = startUnbindOffset - startBindingOffset;
-                            binding->m_BufferOffset = endUnbindOffset;
-                            binding->m_MemoryOffset += newBinding.m_Size + pBinds[i].size;
-                            binding->m_Size -= newBinding.m_Size + pBinds[i].size;
-                            binding = bindings.insert( binding, newBinding );
-                            binding++;
-                        }
-                        else if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset > startBindingOffset ) )
-                        {
-                            // Buffer partially-unbound at the start.
-                            binding->m_BufferOffset = endUnbindOffset;
-                            binding->m_MemoryOffset += endUnbindOffset - startBindingOffset;
-                            binding->m_Size -= endUnbindOffset - startBindingOffset;
-                            binding++;
-                        }
-                        else if( ( startUnbindOffset < endBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
-                        {
-                            // Buffer partially-unbound at the end.
-                            binding->m_Size -= endBindingOffset - startUnbindOffset;
-                            binding++;
-                        }
-                        else
-                        {
-                            // Binding not affected.
-                            binding++;
-                        }
+                        // Binding entirely covered by the unbound range, remove it.
+                        binding = bindings.erase( binding );
+                    }
+                    else if( ( startUnbindOffset > startBindingOffset ) && ( endUnbindOffset < endBindingOffset ) )
+                    {
+                        // Buffer partially-unbound in the middle.
+                        DeviceProfilerBufferMemoryBindingData newBinding = *binding;
+                        newBinding.m_Size = startUnbindOffset - startBindingOffset;
+                        binding->m_BufferOffset = endUnbindOffset;
+                        binding->m_MemoryOffset += newBinding.m_Size + size;
+                        binding->m_Size -= newBinding.m_Size + size;
+                        binding = bindings.insert( binding, newBinding );
+                        binding++;
+                    }
+                    else if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset > startBindingOffset ) )
+                    {
+                        // Buffer partially-unbound at the start.
+                        binding->m_BufferOffset = endUnbindOffset;
+                        binding->m_MemoryOffset += endUnbindOffset - startBindingOffset;
+                        binding->m_Size -= endUnbindOffset - startBindingOffset;
+                        binding++;
+                    }
+                    else if( ( startUnbindOffset < endBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
+                    {
+                        // Buffer partially-unbound at the end.
+                        binding->m_Size -= endBindingOffset - startUnbindOffset;
+                        binding++;
+                    }
+                    else
+                    {
+                        // Binding not affected.
+                        binding++;
                     }
                 }
             }
@@ -315,7 +311,7 @@ namespace Profiler
         Register new buffer resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterImage( VkImage image, const VkImageCreateInfo* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterImage( VkObjectHandle<VkImage> image, const VkImageCreateInfo* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -344,7 +340,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterImage( VkImage image )
+    void DeviceProfilerMemoryTracker::UnregisterImage( VkObjectHandle<VkImage> image )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_Images.remove( image );
@@ -358,7 +354,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
+    void DeviceProfilerMemoryTracker::BindImageMemory( VkObjectHandle<VkImage> image, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 

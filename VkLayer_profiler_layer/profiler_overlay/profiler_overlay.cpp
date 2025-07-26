@@ -681,9 +681,6 @@ namespace Profiler
         m_pData = GetNthElement( framesList, frameIndexMax - frameIndex );
 
         m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
-
-        // Set the current data for memory trace comparator.
-        m_MemoryComparator.SetComparisonData( m_pData );
     }
 
     /***********************************************************************************\
@@ -2497,17 +2494,13 @@ namespace Profiler
             return changed;
         };
 
-        if( MemoryComparatorFrameDataComboBox( "Selected##MemCmBoxSel", m_MemoryCompareSelFrameIndex ) )
-        {
-            m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
-        }
+        MemoryComparatorFrameDataComboBox( "Selected##MemCmBoxSel", m_MemoryCompareSelFrameIndex );
+        m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
 
         ImGui::SameLine( 0, 20.f * interfaceScale );
 
-        if( MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone ) )
-        {
-            m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
-        }
+        MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone );
+        m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
 
         const bool hasComparisonData = m_MemoryComparator.HasValidInput();
 
@@ -2618,7 +2611,7 @@ namespace Profiler
                         difference = 100.f * allocationSizeDifference / memoryHeapSize;
                     }
 
-                    usage -= std::abs( difference );
+                    usage -= std::max( 0.f, difference );
                 }
 
                 if( usage > 0 )
@@ -2629,10 +2622,10 @@ namespace Profiler
                     unused -= usage;
                 }
 
-                if( difference > 0 )
+                if( difference != 0 )
                 {
                     values[valueCount] = std::abs( difference );
-                    colors[valueCount] = difference > 0 ? IM_COL32( 0, 255, 0, 255 ) : IM_COL32( 255, 0, 0, 255 );
+                    colors[valueCount] = difference > 0 ? IM_COL32( 0x5C, 0xCA, 0x35, 0xFF ) : IM_COL32( 0xCA, 0x35, 0x5C, 0xFF );
                     valueCount++;
                     unused -= std::abs( difference );
                 }
@@ -2778,7 +2771,7 @@ namespace Profiler
                             continue;
                         }
 
-                        const char* pBufferNameFormat = "{}###buffer_{}";
+                        const char* pBufferNameFormat = "{}###{}";
 
                         auto bufferName = m_pStringSerializer->GetName( buffer );
                         if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
@@ -2791,12 +2784,12 @@ namespace Profiler
                         {
                             ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
                             pushedStyleColors++;
-                            pBufferNameFormat = "+ {}###buffer_{}";
+                            pBufferNameFormat = "+ {}###{}";
                         }
 
                         bufferName = fmt::format( pBufferNameFormat,
                             bufferName,
-                            m_pStringSerializer->GetPointer( buffer ) );
+                            m_pStringSerializer->GetObjectID( buffer ) );
 
                         bool selected = ( m_ResourceInspectorBuffer == buffer );
                         if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
@@ -2824,9 +2817,9 @@ namespace Profiler
                             continue;
                         }
 
-                        bufferName = fmt::format( "+ {}###buffer_{}",
+                        bufferName = fmt::format( "+ {}###{}",
                             bufferName,
-                            m_pStringSerializer->GetPointer( buffer ) );
+                            m_pStringSerializer->GetObjectID( buffer ) );
 
                         ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
 
@@ -2855,9 +2848,9 @@ namespace Profiler
                         continue;
                     }
 
-                    bufferName = fmt::format( "- {}###buffer_{}",
+                    bufferName = fmt::format( "- {}###{}",
                         bufferName,
-                        m_pStringSerializer->GetPointer( buffer ) );
+                        m_pStringSerializer->GetObjectID( buffer ) );
 
                     ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
 
