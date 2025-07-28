@@ -549,6 +549,8 @@ namespace Profiler
         }
         { // Validate data
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            ASSERT_NE( nullptr, pData );
+
             const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
