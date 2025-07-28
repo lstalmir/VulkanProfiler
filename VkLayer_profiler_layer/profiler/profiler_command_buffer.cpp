@@ -141,7 +141,7 @@ namespace Profiler
         for( VkCommandBuffer commandBuffer : m_SecondaryCommandBuffers )
         {
             // Use direct access - m_CommandBuffers map is already locked
-            m_Profiler.m_pCommandBuffers.at( commandBuffer )->Submit();
+            m_Profiler.m_pCommandBuffers.unsafe_at( commandBuffer )->Submit();
         }
     }
 

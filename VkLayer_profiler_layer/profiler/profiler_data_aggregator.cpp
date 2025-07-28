@@ -331,12 +331,14 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
+        std::unique_lock uniqueLock( m_Mutex, std::defer_lock );
+
         // The synchronization may be required if a command buffer is being freed.
         // In such case, the profiler has to wait for the timestamp data.
         if( pWaitForCommandBuffer )
         {
             // Acquire a shared lock so other thread doesn't free the fences while this thread waits.
-            std::shared_lock lk( m_Mutex );
+            std::shared_lock sharedLock( m_Mutex );
             std::vector<VkFence> waitFences;
 
             // Wait for all pending submits that reference the command buffer.
@@ -362,24 +364,19 @@ namespace Profiler
                     VK_TRUE,
                     UINT64_MAX );
             }
-        }
 
-        // Synchronize with other threads
-        if( pWaitForCommandBuffer )
-        {
-            // Force synchronization because the command buffer is about to be destroyed
-            m_Mutex.lock();
+            // Force synchronization because the command buffer is about to be destroyed.
+            sharedLock.unlock();
+            uniqueLock.lock();
         }
         else
         {
-            if( !m_Mutex.try_lock() )
+            // Don't aggregate if another thread already processes the data.
+            if( !uniqueLock.try_lock() )
             {
-                // Don't aggregate if another thread already processes the data
                 return;
             }
         }
-
-        std::unique_lock lk( m_Mutex, std::adopt_lock );
 
         // Check if any submit has completed
         for( Frame& frame : m_NextFrames )

@@ -636,12 +636,6 @@ namespace Profiler
 
         // Begin a fake frame at the end to allow finalization of the last submitted frame.
         BeginNextFrame();
-
-        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
-        {
-            m_DataAggregator.Aggregate();
-        }
-
         ResolveFrameData( tip );
 
         // Reset members and destroy resources.
