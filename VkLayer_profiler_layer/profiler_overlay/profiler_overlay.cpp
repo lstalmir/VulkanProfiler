@@ -26,6 +26,7 @@
 #include "profiler_helpers/profiler_csv_helpers.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkQueue_object.h"
+#include "utils/scoped_value.h"
 
 #include <string>
 #include <sstream>
@@ -59,6 +60,8 @@ namespace Profiler
 {
     // Define static members
     std::mutex s_ImGuiMutex;
+    // Prevents recursive locks of the ImGui mutex in the same thread.
+    thread_local bool s_ImGuiMutexLockedInThisThread = false;
 
     // Constants
     static constexpr VkBufferUsageFlags g_KnownBufferUsageFlags =
@@ -329,6 +332,8 @@ namespace Profiler
         if( success )
         {
             std::scoped_lock lk( s_ImGuiMutex );
+            ScopedValue imGuiLockFlag( s_ImGuiMutexLockedInThisThread, true );
+
             IMGUI_CHECKVERSION();
             m_pImGuiContext = ImGui::CreateContext();
 
@@ -357,17 +362,17 @@ namespace Profiler
 
             // Initialize ImGui backends
             success = m_Backend.PrepareImGuiBackend();
-        }
 
-        if( success )
-        {
-            // Initialize backend-dependent config
-            float dpiScale = m_Backend.GetDPIScale();
-            ImGuiIO& io = ImGui::GetIO();
-            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
+            // The following code requires ImGui context so it must be executed under s_ImGuiMutex lock.
+            if( success )
+            {
+                // Initialize backend-dependent config
+                float dpiScale = m_Backend.GetDPIScale();
+                io.FontGlobalScale = ( dpiScale > 1e-3f ) ? dpiScale : 1.0f;
 
-            // Initialize resources
-            success = m_Resources.InitializeImages( &m_Backend );
+                // Initialize resources
+                success = m_Resources.InitializeImages( &m_Backend );
+            }
         }
 
         // Get vendor metrics sets
@@ -479,6 +484,8 @@ namespace Profiler
         if( m_pImGuiContext )
         {
             std::scoped_lock imGuiLock( s_ImGuiMutex );
+            ScopedValue imGuiLockFlag( s_ImGuiMutexLockedInThisThread, true );
+
             ImGui::SetCurrentContext( m_pImGuiContext );
 
             // Destroy resources created for the ImGui overlay.
@@ -695,6 +702,8 @@ namespace Profiler
     void ProfilerOverlayOutput::Present()
     {
         std::scoped_lock lk( s_ImGuiMutex );
+        ScopedValue imGuiLockFlag( s_ImGuiMutexLockedInThisThread, true );
+
         ImGui::SetCurrentContext( m_pImGuiContext );
 
         // Must be set before calling NewFrame to avoid clipping on window resize.

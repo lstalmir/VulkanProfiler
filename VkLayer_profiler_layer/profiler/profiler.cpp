@@ -811,8 +811,7 @@ namespace Profiler
     {
         if( object.m_CreateTime == 0 )
         {
-            bool found = m_ObjectCreateTimes.find( object, &object.m_CreateTime );
-            assert( found );
+            m_ObjectCreateTimes.find( object, &object.m_CreateTime );
         }
 
         return object;
