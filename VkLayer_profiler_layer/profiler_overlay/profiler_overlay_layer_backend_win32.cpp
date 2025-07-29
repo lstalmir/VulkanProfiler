@@ -46,6 +46,7 @@ namespace Profiler
     static OverlayLayerWin32PlatformBackendHooksMap g_Win32ThreadHooks;
 
     extern std::mutex s_ImGuiMutex;
+    extern thread_local bool s_ImGuiMutexLockedInThisThread;
 
     static RECT GetVirtualScreenRect()
     {
@@ -311,13 +312,22 @@ namespace Profiler
             if( msg.hwnd )
             {
                 // Synchronize access to contexts map.
-                std::scoped_lock lk( Profiler::s_ImGuiMutex );
+                std::unique_lock lk( Profiler::s_ImGuiMutex, std::defer_lock );
+
+                // It's possible for the hook to be called during ImGui rendering (e.g., when an assertion fails).
+                // In such case, the lock is already held and another one would cause deadlock.
+                if( !Profiler::s_ImGuiMutexLockedInThisThread )
+                {
+                    lk.lock();
+                }
 
                 auto it = g_pWin32Contexts.find( msg.hwnd );
                 if( it != g_pWin32Contexts.end() )
                 {
                     // Switch to the context associated with the target window
                     g_pWin32CurrentContext = it->second;
+
+                    ImGuiContext* pPreviousContext = ImGui::GetCurrentContext();
                     ImGui::SetCurrentContext( g_pWin32CurrentContext->m_pImGuiContext );
 
                     ImGuiIO& io = ImGui::GetIO();
@@ -444,6 +454,9 @@ namespace Profiler
                     }
 
                     g_pWin32CurrentContext = nullptr;
+
+                    // Restore previous ImGui context.
+                    ImGui::SetCurrentContext( pPreviousContext );
                 }
             }
         }
