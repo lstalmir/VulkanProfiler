@@ -241,63 +241,139 @@ namespace Profiler
             std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
                 std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings );
 
+            // Undbind first to avoid searching for overlapping ranges.
+            UnbindBufferMemoryRange( bindings, bufferOffset, size );
+
             if( memory.m_Handle != VK_NULL_HANDLE )
             {
+                // Extend existing binding adjacent to the bound region.
+                auto binding = bindings.begin();
+                while( binding != bindings.end() )
+                {
+                    if( ( binding->m_Memory == memory ) &&
+                        ( binding->m_BufferOffset + binding->m_Size == bufferOffset ) &&
+                        ( binding->m_MemoryOffset + binding->m_Size == memoryOffset ) )
+                    {
+                        // Extend existing binding at the end.
+                        binding->m_Size += size;
+
+                        // Check if the binding can be merged with the next one.
+                        auto nextBinding = std::next( binding );
+                        if( ( nextBinding != bindings.end() ) &&
+                            ( nextBinding->m_Memory == memory ) &&
+                            ( nextBinding->m_BufferOffset == bufferOffset + size ) &&
+                            ( nextBinding->m_MemoryOffset == memoryOffset + size ) )
+                        {
+                            // Merge with the next binding.
+                            binding->m_Size += nextBinding->m_Size;
+                            binding = std::prev( bindings.erase( nextBinding ) );
+                        }
+
+                        break;
+                    }
+
+                    if( ( binding->m_Memory == memory ) &&
+                        ( binding->m_BufferOffset == bufferOffset + size ) &&
+                        ( binding->m_MemoryOffset == memoryOffset + size ) )
+                    {
+                        // Extend existing binding at the start.
+                        binding->m_BufferOffset = bufferOffset;
+                        binding->m_MemoryOffset = memoryOffset;
+                        binding->m_Size += size;
+
+                        // Check if the binding can be merged with the previous one.
+                        if( binding != bindings.begin() )
+                        {
+                            auto prevBinding = std::prev( binding );
+                            if( ( prevBinding->m_Memory == memory ) &&
+                                ( prevBinding->m_BufferOffset + prevBinding->m_Size == bufferOffset ) &&
+                                ( prevBinding->m_MemoryOffset + prevBinding->m_Size == memoryOffset ) )
+                            {
+                                // Merge with the previous binding.
+                                prevBinding->m_Size += binding->m_Size;
+                                binding = std::prev( bindings.erase( binding ) );
+                            }
+                        }
+
+                        break;
+                    }
+
+                    binding++;
+                }
+
                 // New memory binding of the buffer region.
-                DeviceProfilerBufferMemoryBindingData& binding = bindings.emplace_back();
-                binding.m_Memory = memory;
-                binding.m_MemoryOffset = memoryOffset;
-                binding.m_BufferOffset = bufferOffset;
-                binding.m_Size = size;
+                if( binding == bindings.end() )
+                {
+                    // Keep the array sorted by buffer offset.
+                    auto insertLocation = bindings.begin();
+                    while( ( insertLocation != bindings.end() ) && ( insertLocation->m_BufferOffset < bufferOffset ) )
+                    {
+                        insertLocation++;
+                    }
+
+                    binding = bindings.insert( insertLocation, DeviceProfilerBufferMemoryBindingData() );
+                    binding->m_Memory = memory;
+                    binding->m_MemoryOffset = memoryOffset;
+                    binding->m_BufferOffset = bufferOffset;
+                    binding->m_Size = size;
+                }
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UnbindBufferMemoryRange
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::UnbindBufferMemoryRange( std::vector<DeviceProfilerBufferMemoryBindingData>& bindings, VkDeviceSize offset, VkDeviceSize size )
+    {
+        const VkDeviceSize startUnbindOffset = offset;
+        const VkDeviceSize endUnbindOffset = offset + size;
+
+        auto binding = bindings.begin();
+        while( binding != bindings.end() )
+        {
+            const VkDeviceSize startBindingOffset = binding->m_BufferOffset;
+            const VkDeviceSize endBindingOffset = binding->m_BufferOffset + binding->m_Size;
+
+            if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
+            {
+                // Binding entirely covered by the unbound range, remove it.
+                binding = bindings.erase( binding );
+            }
+            else if( ( startUnbindOffset > startBindingOffset ) && ( endUnbindOffset < endBindingOffset ) )
+            {
+                // Buffer partially-unbound in the middle.
+                DeviceProfilerBufferMemoryBindingData newBinding = *binding;
+                newBinding.m_Size = startUnbindOffset - startBindingOffset;
+                binding->m_BufferOffset = endUnbindOffset;
+                binding->m_MemoryOffset += newBinding.m_Size + size;
+                binding->m_Size -= newBinding.m_Size + size;
+                binding = bindings.insert( binding, newBinding );
+                binding++;
+            }
+            else if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset > startBindingOffset ) )
+            {
+                // Buffer partially-unbound at the start.
+                binding->m_BufferOffset = endUnbindOffset;
+                binding->m_MemoryOffset += endUnbindOffset - startBindingOffset;
+                binding->m_Size -= endUnbindOffset - startBindingOffset;
+                binding++;
+            }
+            else if( ( startUnbindOffset < endBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
+            {
+                // Buffer partially-unbound at the end.
+                binding->m_Size -= endBindingOffset - startUnbindOffset;
+                binding++;
             }
             else
             {
-                // If memory is null, the resource region is unbound.
-                // Remove all bindings that entirely cover the range and update the partially-unbound regions.
-                const VkDeviceSize startUnbindOffset = bufferOffset;
-                const VkDeviceSize endUnbindOffset = bufferOffset + size;
-
-                for( auto binding = bindings.begin(); binding != bindings.end(); )
-                {
-                    const VkDeviceSize startBindingOffset = binding->m_BufferOffset;
-                    const VkDeviceSize endBindingOffset = binding->m_BufferOffset + binding->m_Size;
-
-                    if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
-                    {
-                        // Binding entirely covered by the unbound range, remove it.
-                        binding = bindings.erase( binding );
-                    }
-                    else if( ( startUnbindOffset > startBindingOffset ) && ( endUnbindOffset < endBindingOffset ) )
-                    {
-                        // Buffer partially-unbound in the middle.
-                        DeviceProfilerBufferMemoryBindingData newBinding = *binding;
-                        newBinding.m_Size = startUnbindOffset - startBindingOffset;
-                        binding->m_BufferOffset = endUnbindOffset;
-                        binding->m_MemoryOffset += newBinding.m_Size + size;
-                        binding->m_Size -= newBinding.m_Size + size;
-                        binding = bindings.insert( binding, newBinding );
-                        binding++;
-                    }
-                    else if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset > startBindingOffset ) )
-                    {
-                        // Buffer partially-unbound at the start.
-                        binding->m_BufferOffset = endUnbindOffset;
-                        binding->m_MemoryOffset += endUnbindOffset - startBindingOffset;
-                        binding->m_Size -= endUnbindOffset - startBindingOffset;
-                        binding++;
-                    }
-                    else if( ( startUnbindOffset < endBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
-                    {
-                        // Buffer partially-unbound at the end.
-                        binding->m_Size -= endBindingOffset - startUnbindOffset;
-                        binding++;
-                    }
-                    else
-                    {
-                        // Binding not affected.
-                        binding++;
-                    }
-                }
+                // Binding not affected.
+                binding++;
             }
         }
     }
