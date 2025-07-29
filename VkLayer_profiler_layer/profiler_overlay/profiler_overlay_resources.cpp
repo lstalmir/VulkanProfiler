@@ -219,32 +219,29 @@ namespace Profiler
         std::filesystem::path codeFontPath = fontFinder.GetFirstSupportedFont( g_scCodeFonts, std::size( g_scCodeFonts ) );
 
         // Include all glyphs in the font to support non-latin letters
-        const ImWchar fontGlyphRange[] = { 0x20, 0xFFFF, 0 };
+        const ImWchar pAllGlyphsRanges[] = { 0x0020, 0xFFFF, 0 };
+        const ImWchar* pDefaultGlyphsRanges = fonts->GetGlyphRangesDefault();
 
         if( !defaultFontPath.empty() )
         {
             m_pDefaultFont = fonts->AddFontFromFileTTF(
-                defaultFontPath.string().c_str(), 16.0f, nullptr, fontGlyphRange );
+                defaultFontPath.string().c_str(), 16.0f, nullptr, pAllGlyphsRanges );
         }
 
         if( !boldFontPath.empty() )
         {
             m_pBoldFont = fonts->AddFontFromFileTTF(
-                boldFontPath.string().c_str(), 16.0f, nullptr, fontGlyphRange );
+                boldFontPath.string().c_str(), 16.0f, nullptr, pAllGlyphsRanges );
         }
 
         if( !codeFontPath.empty() )
         {
             m_pCodeFont = fonts->AddFontFromFileTTF(
-                codeFontPath.string().c_str(), 12.0f, nullptr, fontGlyphRange );
+                codeFontPath.string().c_str(), 12.0f, nullptr, pDefaultGlyphsRanges );
         }
 
         // Build atlas
-        unsigned char* tex_pixels = NULL;
-        int tex_w, tex_h;
-        fonts->GetTexDataAsRGBA32( &tex_pixels, &tex_w, &tex_h );
-
-        return true;
+        return fonts->Build();
     }
 
     /***********************************************************************************\
