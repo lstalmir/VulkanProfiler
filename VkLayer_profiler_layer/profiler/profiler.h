@@ -191,8 +191,6 @@ namespace Profiler
 
         VkFence                 m_SubmitFence;
 
-        VkPerformanceConfigurationINTEL m_PerformanceConfigurationINTEL;
-
         ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
 
         DeviceProfilerSynchronization m_Synchronization;
@@ -206,10 +204,6 @@ namespace Profiler
 
         void*                   m_pStablePowerStateHandle;
 
-
-        VkResult InitializeINTEL();
-        void AcquirePerformanceConfigurationINTEL( VkQueue );
-        void ReleasePerformanceConfigurationINTEL();
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 

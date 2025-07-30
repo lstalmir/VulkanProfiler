@@ -161,7 +161,6 @@ namespace Profiler
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_SubmitFence( VK_NULL_HANDLE )
-        , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
         , m_PipelineExecutablePropertiesEnabled( false )
         , m_ShaderModuleIdentifierEnabled( false )
         , m_pStablePowerStateHandle( nullptr )
@@ -411,7 +410,7 @@ namespace Profiler
         // Enable vendor-specific extensions
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
-            InitializeINTEL();
+            m_MetricsApiINTEL.Initialize( m_pDevice );
         }
 
         // Capture pipeline statistics and internal representations for debugging
@@ -499,131 +498,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        InitializeINTEL
-
-    Description:
-        Initializes INTEL-specific profiler resources.
-
-    \***********************************************************************************/
-    VkResult DeviceProfiler::InitializeINTEL()
-    {
-        // Load MDAPI
-        VkResult result = m_MetricsApiINTEL.Initialize( m_pDevice );
-
-        if( result != VK_SUCCESS ||
-            m_MetricsApiINTEL.IsAvailable() == false )
-        {
-            return result;
-        }
-
-        // Import extension functions
-        if( m_pDevice->Callbacks.InitializePerformanceApiINTEL == nullptr )
-        {
-            auto gpa = m_pDevice->Callbacks.GetDeviceProcAddr;
-
-            #define GPA( PROC ) (PFN_vk##PROC)gpa( m_pDevice->Handle, "vk" #PROC ); \
-            assert( m_pDevice->Callbacks.PROC )
-
-            m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL = GPA( AcquirePerformanceConfigurationINTEL );
-            m_pDevice->Callbacks.CmdSetPerformanceMarkerINTEL = GPA( CmdSetPerformanceMarkerINTEL );
-            m_pDevice->Callbacks.CmdSetPerformanceOverrideINTEL = GPA( CmdSetPerformanceOverrideINTEL );
-            m_pDevice->Callbacks.CmdSetPerformanceStreamMarkerINTEL = GPA( CmdSetPerformanceStreamMarkerINTEL );
-            m_pDevice->Callbacks.GetPerformanceParameterINTEL = GPA( GetPerformanceParameterINTEL );
-            m_pDevice->Callbacks.InitializePerformanceApiINTEL = GPA( InitializePerformanceApiINTEL );
-            m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL = GPA( QueueSetPerformanceConfigurationINTEL );
-            m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL = GPA( ReleasePerformanceConfigurationINTEL );
-            m_pDevice->Callbacks.UninitializePerformanceApiINTEL = GPA( UninitializePerformanceApiINTEL );
-        }
-
-        // Initialize performance API
-        {
-            VkInitializePerformanceApiInfoINTEL initInfo = {};
-            initInfo.sType = VK_STRUCTURE_TYPE_INITIALIZE_PERFORMANCE_API_INFO_INTEL;
-
-            result = m_pDevice->Callbacks.InitializePerformanceApiINTEL(
-                m_pDevice->Handle, &initInfo );
-
-            if( result != VK_SUCCESS )
-            {
-                m_MetricsApiINTEL.Destroy();
-                return result;
-            }
-        }
-
-        return VK_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        AcquirePerformanceConfigurationINTEL
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::AcquirePerformanceConfigurationINTEL( VkQueue queue )
-    {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        assert( m_MetricsApiINTEL.IsAvailable() );
-        assert( m_PerformanceConfigurationINTEL == VK_NULL_HANDLE );
-
-        VkResult result;
-
-        // Acquire performance configuration
-        {
-            VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
-            acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
-            acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
-
-            assert( m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL );
-            result = m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
-                m_pDevice->Handle,
-                &acquireInfo,
-                &m_PerformanceConfigurationINTEL );
-        }
-
-        // Set performance configuration for the queue
-        if( result == VK_SUCCESS )
-        {
-            assert( m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL );
-            result = m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
-                queue, m_PerformanceConfigurationINTEL );
-        }
-
-        assert( result == VK_SUCCESS );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        ReleasePerformanceConfigurationINTEL
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::ReleasePerformanceConfigurationINTEL()
-    {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        assert( m_MetricsApiINTEL.IsAvailable() );
-
-        if( m_PerformanceConfigurationINTEL )
-        {
-            assert( m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL );
-            VkResult result = m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
-                m_pDevice->Handle, m_PerformanceConfigurationINTEL );
-
-            // Reset object handle for the next submit
-            m_PerformanceConfigurationINTEL = VK_NULL_HANDLE;
-
-            assert( result == VK_SUCCESS );
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
         Destroy
 
     Description:
@@ -650,6 +524,8 @@ namespace Profiler
         m_MemoryManager.Destroy();
 
         m_DataAggregator.Destroy();
+
+        m_MetricsApiINTEL.Destroy();
 
         if( m_SubmitFence != VK_NULL_HANDLE )
         {
@@ -1444,12 +1320,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        if( m_MetricsApiINTEL.IsAvailable() )
-        {
-            AcquirePerformanceConfigurationINTEL( submitBatch.m_Handle );
-        }
     }
 
     /***********************************************************************************\
@@ -1463,11 +1333,6 @@ namespace Profiler
     void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
-
-        if( m_MetricsApiINTEL.IsAvailable() )
-        {
-            ReleasePerformanceConfigurationINTEL();
-        }
 
         // Append the submit batch for aggregation
         m_DataAggregator.AppendSubmit( submitBatch );

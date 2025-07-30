@@ -88,8 +88,10 @@ namespace Profiler
         #ifdef WIN32
         HMODULE m_hMDDll;
         // Since there is no official support for Windows, we have to open the library manually
-        static std::filesystem::path FindMetricsDiscoveryLibrary( struct VkDevice_Object* pDevice );
+        std::filesystem::path FindMetricsDiscoveryLibrary();
         #endif
+
+        struct VkDevice_Object*               m_pVulkanDevice;
 
         MetricsDiscovery::IMetricsDevice_1_1* m_pDevice;
         MetricsDiscovery::TMetricsDeviceParams_1_0* m_pDeviceParams;
@@ -103,12 +105,16 @@ namespace Profiler
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
         uint32_t                              m_ActiveMetricsSetIndex;
 
+        bool                                  m_PerformanceApiInitialized;
+        VkPerformanceConfigurationINTEL       m_PerformanceApiConfiguration;
 
-        bool LoadMetricsDiscoveryLibrary( struct VkDevice_Object* pDevice );
+        bool LoadMetricsDiscoveryLibrary();
         void UnloadMetricsDiscoveryLibrary();
 
         bool OpenMetricsDevice();
         void CloseMetricsDevice();
+
+        void ResetMembers();
 
         static VkProfilerPerformanceCounterUnitEXT TranslateUnit( const char* pUnit, double& factor );
     };
