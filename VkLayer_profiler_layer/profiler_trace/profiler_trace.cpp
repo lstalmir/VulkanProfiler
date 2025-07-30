@@ -853,11 +853,16 @@ namespace Profiler
         auto pData = m_Frontend.GetData();
         while( pData )
         {
+            // Rough check to avoid locking mutex if not needed.
             if( m_SerializedFrameCount <= m_MaxFrameCount )
             {
                 std::scoped_lock lock( m_TraceSerializerMutex );
-                m_pTraceSerializer->Serialize( *pData );
-                m_SerializedFrameCount++;
+
+                if( m_SerializedFrameCount <= m_MaxFrameCount )
+                {
+                    m_pTraceSerializer->Serialize( *pData );
+                    m_SerializedFrameCount++;
+                }
             }
 
             pData = m_Frontend.GetData();

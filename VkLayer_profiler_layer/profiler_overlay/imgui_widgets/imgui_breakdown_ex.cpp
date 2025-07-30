@@ -56,7 +56,7 @@ namespace ImGuiX
             return;
 
         const ImGuiStyle& style = g.Style;
-        const ImGuiID id = window->GetID( label );
+        const ImGuiID id = window->GetID( label ? label : "" );
 
         PushItemWidth( -1 );
 

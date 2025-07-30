@@ -612,6 +612,9 @@ namespace Profiler
         m_QueueUtilizationTabDockSpaceId = 0;
         m_TopPipelinesTabDockSpaceId = 0;
         m_FrameBrowserDockSpaceId = 0;
+        m_MemoryTabDockSpaceId = 0;
+        m_ResourceBrowserDockSpaceId = 0;
+        m_ResourceInspectorDockSpaceId = 0;
     }
 
     /***********************************************************************************\
@@ -3842,7 +3845,7 @@ namespace Profiler
                     {
                         ImGuiX::TextAlignRight(
                             ImGuiX::TableGetColumnWidth(),
-                            "%u",
+                            "%llu",
                             stats.m_Count );
                     }
 

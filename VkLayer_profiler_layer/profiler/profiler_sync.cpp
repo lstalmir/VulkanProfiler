@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,8 +39,6 @@ namespace Profiler
         , m_pfnGetCalibratedTimestampsEXT( nullptr )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
         , m_DeviceTimeDomain( VK_TIME_DOMAIN_DEVICE_EXT )
-        , m_HostCalibratedTimestamp( 0 )
-        , m_DeviceCalibratedTimestamp( 0 )
     {
     }
 
@@ -133,8 +131,6 @@ namespace Profiler
         m_pfnGetCalibratedTimestampsEXT = nullptr;
         m_HostTimeDomain = OSGetDefaultTimeDomain();
         m_DeviceTimeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
-        m_HostCalibratedTimestamp = 0;
-        m_DeviceCalibratedTimestamp = 0;
     }
 
     /***********************************************************************************\
@@ -195,17 +191,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SendSynchronizationTimestamps
+        GetSynchronizationTimestamps
 
     Description:
         Calibrate timestamps.
 
     \***********************************************************************************/
-    void DeviceProfilerSynchronization::SendSynchronizationTimestamps()
+    DeviceProfilerSynchronizationTimestamps DeviceProfilerSynchronization::GetSynchronizationTimestamps() const
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         assert( m_pDevice );
+
+        DeviceProfilerSynchronizationTimestamps output = {};
 
         VkResult result = VK_ERROR_EXTENSION_NOT_PRESENT;
         if( m_pfnGetCalibratedTimestampsEXT != nullptr )
@@ -238,35 +236,13 @@ namespace Profiler
 
             if( result == VK_SUCCESS )
             {
-                m_HostCalibratedTimestamp = timestamps[ eHostTimestamp ];
-                m_DeviceCalibratedTimestamp = timestamps[ eDeviceTimestamp ];
+                output.m_HostTimeDomain = m_HostTimeDomain;
+                output.m_HostCalibratedTimestamp = timestamps[eHostTimestamp];
+                output.m_DeviceCalibratedTimestamp = timestamps[ eDeviceTimestamp ];
             }
         }
 
-        // Calibration failed, timestamps not available.
-        if( result != VK_SUCCESS )
-        {
-            m_HostCalibratedTimestamp = 0;
-            m_DeviceCalibratedTimestamp = 0;
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetSynchronizationTimestamps
-
-    Description:
-        Retrieve timestamps submitted in SendSynchronizationTimestamps.
-
-    \***********************************************************************************/
-    DeviceProfilerSynchronizationTimestamps DeviceProfilerSynchronization::GetSynchronizationTimestamps() const
-    {
-        DeviceProfilerSynchronizationTimestamps syncTimestamps;
-        syncTimestamps.m_HostTimeDomain = m_HostTimeDomain;
-        syncTimestamps.m_HostCalibratedTimestamp = m_HostCalibratedTimestamp;
-        syncTimestamps.m_DeviceCalibratedTimestamp = m_DeviceCalibratedTimestamp;
-        return syncTimestamps;
+        return output;
     }
 
     /***********************************************************************************\
