@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,6 @@ namespace Profiler
         void WaitForQueue( VkQueue queue );
         void WaitForFence( VkFence fence, uint64_t timeout = std::numeric_limits<uint64_t>::max() );
 
-        void SendSynchronizationTimestamps();
         DeviceProfilerSynchronizationTimestamps GetSynchronizationTimestamps() const;
 
         VkTimeDomainEXT GetHostTimeDomain() const;
@@ -60,8 +59,5 @@ namespace Profiler
 
         VkTimeDomainEXT m_HostTimeDomain;
         VkTimeDomainEXT m_DeviceTimeDomain;
-
-        uint64_t        m_HostCalibratedTimestamp;
-        uint64_t        m_DeviceCalibratedTimestamp;
     };
 }

@@ -158,8 +158,7 @@ namespace Profiler
 
         DeviceProfilerConfig    m_Config;
 
-        mutable std::mutex      m_SubmitMutex;
-        mutable std::mutex      m_PresentMutex;
+        mutable std::mutex      m_DataMutex;
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pData;
 
         DeviceProfilerMemoryManager m_MemoryManager;

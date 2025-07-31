@@ -146,8 +146,7 @@ namespace Profiler
     DeviceProfiler::DeviceProfiler()
         : m_pDevice( nullptr )
         , m_Config()
-        , m_PresentMutex()
-        , m_SubmitMutex()
+        , m_DataMutex()
         , m_pData()
         , m_MemoryManager()
         , m_DataAggregator()
@@ -595,7 +594,7 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfiler::SetDataBufferSize( uint32_t size )
     {
-        std::scoped_lock lk( m_PresentMutex );
+        std::scoped_lock lk( m_DataMutex );
 
         size = std::max( size, m_MinDataBufferSize );
 
@@ -616,7 +615,7 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfiler::SetMinDataBufferSize( uint32_t size )
     {
-        std::scoped_lock lk( m_PresentMutex );
+        std::scoped_lock lk( m_DataMutex );
 
         if( size > m_DataBufferSize )
         {
@@ -634,7 +633,7 @@ namespace Profiler
     \***********************************************************************************/
     std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData()
     {
-        std::scoped_lock lk( m_PresentMutex );
+        std::scoped_lock lk( m_DataMutex );
         std::shared_ptr<DeviceProfilerFrameData> pData = nullptr;
 
         if( !m_pData.empty() )
@@ -740,7 +739,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
+        std::scoped_lock lk( m_pCommandBuffers );
 
         for( auto it = m_pCommandBuffers.begin(); it != m_pCommandBuffers.end(); )
         {
@@ -765,7 +764,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
+        std::scoped_lock lk( m_pCommandBuffers );
 
         DeviceProfilerCommandPool& profilerCommandPool = GetCommandPool( commandPool );
 
@@ -794,7 +793,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
+        std::scoped_lock lk( m_pCommandBuffers );
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -1447,8 +1446,6 @@ namespace Profiler
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
-        std::scoped_lock lk( m_PresentMutex );
-
         // Update FPS counter
         m_CpuFpsCounter.Update();
 
@@ -1472,9 +1469,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BeginNextFrame()
     {
-        // Recalibrate the timestamps for the next frame.
-        m_Synchronization.SendSynchronizationTimestamps();
-
         // Prepare aggregator for the next frame.
         DeviceProfilerFrame frame = {};
         frame.m_FrameIndex = m_NextFrameIndex++;
@@ -1509,6 +1503,8 @@ namespace Profiler
         auto pResolvedData = m_DataAggregator.GetAggregatedData();
         if( !pResolvedData.empty() )
         {
+            std::scoped_lock lk( m_DataMutex );
+
             m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
 
             // Return TIP data
@@ -2116,8 +2112,6 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         // Assume m_CommandBuffers map is already locked
-        assert( !m_pCommandBuffers.try_lock() );
-
         auto it = m_pCommandBuffers.unsafe_find( commandBuffer );
 
         // Collect command buffer data now, command buffer won't be available later
@@ -2138,12 +2132,10 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        // Assume m_CommandBuffers map is already locked
-        assert( !m_pCommandBuffers.try_lock() );
-
         // Collect command buffer data now, command buffer won't be available later
         m_DataAggregator.Aggregate( it->second.get() );
 
+        // Assume m_CommandBuffers map is already locked
         return m_pCommandBuffers.unsafe_remove( it );
     }
 
