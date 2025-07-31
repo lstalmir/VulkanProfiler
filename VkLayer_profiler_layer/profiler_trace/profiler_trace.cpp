@@ -961,10 +961,11 @@ namespace Profiler
             }
 
             std::scoped_lock lock( m_TraceSerializerMutex );
-            m_pTraceSerializer->SaveEventsToFile( fileName );
-
-            // Don't flush again.
-            m_Flushed = true;
+            if( !m_Flushed )
+            {
+                m_pTraceSerializer->SaveEventsToFile( fileName );
+                m_Flushed = true;
+            }
         }
     }
 }

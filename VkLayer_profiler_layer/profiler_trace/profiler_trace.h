@@ -23,6 +23,7 @@
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <nlohmann/json.hpp>
 #include <vulkan/vulkan.h>
+#include <atomic>
 #include <vector>
 #include <string>
 #include <mutex>
@@ -154,8 +155,8 @@ namespace Profiler
         std::string m_OutputFileName;
 
         uint32_t m_MaxFrameCount;
-        uint32_t m_SerializedFrameCount;
-        bool m_Flushed;
+        std::atomic_uint32_t m_SerializedFrameCount;
+        std::atomic_bool m_Flushed;
 
         void ResetMembers();
 
