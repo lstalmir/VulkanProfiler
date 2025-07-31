@@ -91,6 +91,31 @@ namespace Profiler
         VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT |
         VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT;
 
+    static constexpr VkImageUsageFlags g_KnownImageUsageFlags =
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_HOST_TRANSFER_BIT |
+        VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+        VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT |
+        VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR |
+        VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT |
+        VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI |
+        VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM |
+        VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR;
+
     static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
         IM_COL32( 110, 177, 165, 255 ),
         IM_COL32( 219, 219, 146, 255 ),
@@ -576,9 +601,12 @@ namespace Profiler
         m_MemoryCompareSelFrameIndex = CurrentFrameIndex;
         memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
+        m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
         m_ResourceBrowserShowDifferences = false;
         m_ResourceInspectorBuffer = VK_NULL_HANDLE;
         m_ResourceInspectorBufferData = {};
+        m_ResourceInspectorImage = VK_NULL_HANDLE;
+        m_ResourceInspectorImageData = {};
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -2762,6 +2790,33 @@ namespace Profiler
                 ImGui::EndCombo();
             }
 
+            ImGui::SameLine( 0, 10.f * interfaceScale );
+            if( ImGui::BeginCombo( "Images###ImagesUsageFilter", nullptr, ImGuiComboFlags_NoPreview ) )
+            {
+                bool allChecked = ( m_ResourceBrowserImageUsageFilter == g_KnownImageUsageFlags );
+                if( ImGui::Checkbox( "<All>", &allChecked ) )
+                {
+                    m_ResourceBrowserImageUsageFilter = allChecked ? g_KnownImageUsageFlags : 0;
+                }
+
+                for( uint32_t i = 0; i < sizeof( VkImageUsageFlags ) * 8; ++i )
+                {
+                    const VkImageUsageFlags usageFlag = static_cast<VkImageUsageFlags>( 1U << i );
+
+                    if( g_KnownImageUsageFlags & usageFlag )
+                    {
+                        const std::string label = m_pStringSerializer->GetImageUsageFlagNames( usageFlag );
+                        bool checked = ( m_ResourceBrowserImageUsageFilter & usageFlag ) != 0;
+                        if( ImGui::Checkbox( label.c_str(), &checked ) )
+                        {
+                            m_ResourceBrowserImageUsageFilter ^= usageFlag;
+                        }
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
             ImGui::Separator();
 
             MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
@@ -2772,108 +2827,72 @@ namespace Profiler
             if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
             {
                 // Resources list.
-                size_t bufferIndex = 0;
-
-                if( !m_ResourceBrowserShowDifferences || ( m_MemoryComparator.GetReferenceData() == nullptr ) )
+                if( ImGui::BeginTable( "##ResourceBrowserTable", 3 ) )
                 {
-                    for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
+                    ImGui::TableSetupColumn( "Diff", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderLabel, 10.f * interfaceScale );
+                    ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed, 50.f * interfaceScale );
+                    ImGui::TableSetupColumn( "Name", ImGuiTableColumnFlags_WidthStretch );
+
+                    if( !m_ResourceBrowserShowDifferences || ( m_MemoryComparator.GetReferenceData() == nullptr ) )
                     {
-                        if( ( data.m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
+                        for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
                         {
-                            continue;
+                            DrawResourceBrowserBufferTableRow(
+                                buffer,
+                                data,
+                                memoryComparisonResults.m_AllocatedBuffers.count( buffer )
+                                    ? ResourceCompareResult::eAdded
+                                    : ResourceCompareResult::eUnchanged );
                         }
 
-                        const char* pBufferNameFormat = "{}###{}";
-
-                        auto bufferName = m_pStringSerializer->GetName( buffer );
-                        if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
+                        for( const auto& [image, data] : m_pData->m_Memory.m_Images )
                         {
-                            continue;
+                            DrawResourceBrowserImageTableRow(
+                                image,
+                                data,
+                                memoryComparisonResults.m_AllocatedImages.count( image )
+                                    ? ResourceCompareResult::eAdded
+                                    : ResourceCompareResult::eUnchanged );
                         }
-
-                        int pushedStyleColors = 0;
-                        if( memoryComparisonResults.m_AllocatedBuffers.count( buffer ) )
-                        {
-                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
-                            pushedStyleColors++;
-                            pBufferNameFormat = "+ {}###{}";
-                        }
-
-                        bufferName = fmt::format( pBufferNameFormat,
-                            bufferName,
-                            m_pStringSerializer->GetObjectID( buffer ) );
-
-                        bool selected = ( m_ResourceInspectorBuffer == buffer );
-                        if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
-                        {
-                            m_ResourceInspectorBuffer = buffer;
-                            m_ResourceInspectorBufferData = data;
-                        }
-
-                        ImGui::PopStyleColor( pushedStyleColors );
                     }
-                }
-                else
-                {
-                    // List new buffers only.
-                    for( const auto& [buffer, pData] : memoryComparisonResults.m_AllocatedBuffers )
+                    else
                     {
-                        if( ( pData->m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
+                        // List new resources only.
+                        for( const auto& [buffer, pData] : memoryComparisonResults.m_AllocatedBuffers )
                         {
-                            continue;
+                            DrawResourceBrowserBufferTableRow(
+                                buffer,
+                                *pData,
+                                ResourceCompareResult::eAdded );
                         }
 
-                        auto bufferName = m_pStringSerializer->GetName( buffer );
-                        if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
+                        for( const auto& [image, pData] : memoryComparisonResults.m_AllocatedImages )
                         {
-                            continue;
+                            DrawResourceBrowserImageTableRow(
+                                image,
+                                *pData,
+                                ResourceCompareResult::eAdded );
                         }
-
-                        bufferName = fmt::format( "+ {}###{}",
-                            bufferName,
-                            m_pStringSerializer->GetObjectID( buffer ) );
-
-                        ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
-
-                        bool selected = ( m_ResourceInspectorBuffer == buffer );
-                        if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
-                        {
-                            m_ResourceInspectorBuffer = buffer;
-                            m_ResourceInspectorBufferData = *pData;
-                        }
-
-                        ImGui::PopStyleColor();
-                    }
-                }
-
-                // List freed buffers.
-                for( const auto& [buffer, pData] : memoryComparisonResults.m_FreedBuffers )
-                {
-                    if( ( pData->m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
-                    {
-                        continue;
                     }
 
-                    auto bufferName = m_pStringSerializer->GetName( buffer );
-                    if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
+                    // List freed resources.
+                    for( const auto& [buffer, pData] : memoryComparisonResults.m_FreedBuffers )
                     {
-                        continue;
+                        DrawResourceBrowserBufferTableRow(
+                            buffer,
+                            *pData,
+                            ResourceCompareResult::eRemoved );
                     }
 
-                    bufferName = fmt::format( "- {}###{}",
-                        bufferName,
-                        m_pStringSerializer->GetObjectID( buffer ) );
-
-                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
-
-                    bool selected = ( m_ResourceInspectorBuffer == buffer );
-                    if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+                    for( const auto& [image, pData] : memoryComparisonResults.m_FreedImages )
                     {
-                        m_ResourceInspectorBuffer = buffer;
-                        m_ResourceInspectorBufferData = *pData;
+                        DrawResourceBrowserImageTableRow(
+                            image,
+                            *pData,
+                            ResourceCompareResult::eRemoved );
                     }
 
-                    ImGui::PopStyleColor();
+                    ImGui::EndTable();
                 }
             }
             ImGui::End();
@@ -2974,6 +2993,11 @@ namespace Profiler
                         ImGui::EndTable();
                     }
                 }
+
+                if( m_ResourceInspectorImage != VK_NULL_HANDLE )
+                {
+                    ImGui::TextUnformatted( "Image" );
+                }
             }
             ImGui::End();
 
@@ -2982,6 +3006,133 @@ namespace Profiler
 
         // Restore the current frame data.
         m_pData = std::move( pRestoreData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceBrowserTableRow
+
+    Description:
+        Draws a row in the resource browser table for a generic resource object.
+
+    \***********************************************************************************/
+    bool ProfilerOverlayOutput::DrawResourceBrowserTableRow(
+        VkObject object,
+        VkFlags usageFlags,
+        VkFlags usageFlagsFilter,
+        ResourceCompareResult compareResult,
+        bool selected )
+    {
+        if( ( usageFlags & usageFlagsFilter ) == 0 )
+        {
+            return false;
+        }
+
+        std::string objectName = m_pStringSerializer->GetName( object );
+        if( objectName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
+        {
+            return false;
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+
+        int pushedStyleColors = 0;
+        switch( compareResult )
+        {
+        case ResourceCompareResult::eAdded:
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
+            ImGui::TextUnformatted( "+" );
+            pushedStyleColors++;
+            break;
+
+        case ResourceCompareResult::eRemoved:
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
+            ImGui::TextUnformatted( "-" );
+            pushedStyleColors++;
+            break;
+
+        case ResourceCompareResult::eUnchanged:
+            break;
+        }
+
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted( VkObject_Runtime_Traits::FromObjectType( object.m_Type ).ObjectTypeName );
+
+        ImGui::TableNextColumn();
+        objectName = fmt::format( "{}###{}",
+            objectName,
+            m_pStringSerializer->GetObjectID( object ) );
+
+        bool selectionChanged = false;
+        if( ImGui::Selectable( objectName.c_str(), &selected, ImGuiSelectableFlags_SpanAllColumns ) )
+        {
+            selectionChanged = true;
+        }
+
+        ImGui::PopStyleColor( pushedStyleColors );
+        return selectionChanged;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceBrowserBufferTableRow
+
+    Description:
+        Draws a row in the resource browser table for a buffer resource.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceBrowserBufferTableRow(
+        VkObjectHandle<VkBuffer> buffer,
+        const DeviceProfilerBufferMemoryData& bufferData,
+        ResourceCompareResult compareResult )
+    {
+        bool selected = ( m_ResourceInspectorBuffer == buffer );
+
+        if( DrawResourceBrowserTableRow(
+                buffer,
+                bufferData.m_BufferUsage,
+                m_ResourceBrowserBufferUsageFilter,
+                compareResult,
+                selected ) )
+        {
+            m_ResourceInspectorBuffer = buffer;
+            m_ResourceInspectorBufferData = bufferData;
+            m_ResourceInspectorImage = VK_NULL_HANDLE;
+            m_ResourceInspectorImageData = {};
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceBrowserImageTableRow
+
+    Description:
+        Draws a row in the resource browser table for an image resource.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceBrowserImageTableRow(
+        VkObjectHandle<VkImage> image,
+        const DeviceProfilerImageMemoryData& imageData,
+        ResourceCompareResult compareResult )
+    {
+        bool selected = ( m_ResourceInspectorImage == image );
+
+        if( DrawResourceBrowserTableRow(
+                image,
+                imageData.m_ImageUsage,
+                m_ResourceBrowserImageUsageFilter,
+                compareResult,
+                selected ) )
+        {
+            m_ResourceInspectorBuffer = VK_NULL_HANDLE;
+            m_ResourceInspectorBufferData = {};
+            m_ResourceInspectorImage = image;
+            m_ResourceInspectorImageData = imageData;
+        }
     }
 
     /***********************************************************************************\
