@@ -73,5 +73,7 @@ namespace Profiler
         ConcurrentMap<VkObjectHandle<VkImage>, DeviceProfilerImageMemoryData> m_Images;
 
         void ResetMemoryData();
+
+        void UnbindBufferMemoryRange( std::vector<DeviceProfilerBufferMemoryBindingData>& bindings, VkDeviceSize offset, VkDeviceSize size );
     };
 }
