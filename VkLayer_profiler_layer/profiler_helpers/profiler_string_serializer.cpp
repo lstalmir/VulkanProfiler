@@ -2111,6 +2111,52 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetImageTypeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageTypeName(
+        VkImageType type ) const
+    {
+        switch( type )
+        {
+        case VK_IMAGE_TYPE_1D:
+            return "Image 1D";
+        case VK_IMAGE_TYPE_2D:
+            return "Image 2D";
+        case VK_IMAGE_TYPE_3D:
+            return "Image 3D";
+        }
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageTilingName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageTilingName(
+        VkImageTiling tiling ) const
+    {
+        switch( tiling )
+        {
+        case VK_IMAGE_TILING_OPTIMAL:
+            return "Optimal";
+        case VK_IMAGE_TILING_LINEAR:
+            return "Linear";
+        case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
+            return "DRM format modifier";
+        }
+        return fmt::format( "Unknown tiling ({})", static_cast<uint32_t>( tiling ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetCopyAccelerationStructureModeName
 
     Description:

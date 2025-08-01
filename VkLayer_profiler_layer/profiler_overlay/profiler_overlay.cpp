@@ -3093,7 +3093,56 @@ namespace Profiler
 
             if( m_ResourceInspectorImage != VK_NULL_HANDLE )
             {
-                ImGui::TextUnformatted( "Image" );
+                if( !m_pData->m_Memory.m_Images.count( m_ResourceInspectorImage ) )
+                {
+                    // Buffer data not found.
+                    ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                                 "It may have been freed or hasn't been created yet.",
+                        m_pStringSerializer->GetName( m_ResourceInspectorImage ).c_str(),
+                        VkObject_Traits<VkImage>::GetObjectHandleAsUint64( m_ResourceInspectorImage ) );
+                }
+
+                ImFont* pBoldFont = m_Resources.GetBoldFont();
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Image:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorImage ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Type:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetImageTypeName( m_ResourceInspectorImageData.m_ImageType ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Size:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::Text( "%u x %u x %u",
+                    m_ResourceInspectorImageData.m_ImageExtent.width,
+                    m_ResourceInspectorImageData.m_ImageExtent.height,
+                    m_ResourceInspectorImageData.m_ImageExtent.depth );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Format:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetFormatName( m_ResourceInspectorImageData.m_ImageFormat ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Tiling:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetImageTilingName( m_ResourceInspectorImageData.m_ImageTiling ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Usage:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( m_ResourceInspectorImageData.m_ImageUsage, "\n" ).c_str() );
+
+                ImGui::Dummy( ImVec2( 1, 5 ) );
             }
         }
         ImGui::End();
