@@ -247,17 +247,6 @@ namespace Profiler
         VkObjectHandle<VkImage> m_ResourceInspectorImage;
         DeviceProfilerImageMemoryData m_ResourceInspectorImageData;
 
-        enum class ResourceCompareResult
-        {
-            eUnchanged,
-            eAdded,
-            eRemoved
-        };
-
-        bool DrawResourceBrowserTableRow( VkObject, VkFlags, VkFlags, ResourceCompareResult, bool );
-        void DrawResourceBrowserBufferTableRow( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData&, ResourceCompareResult );
-        void DrawResourceBrowserImageTableRow( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData&, ResourceCompareResult );
-
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
