@@ -78,7 +78,7 @@ namespace Profiler
         return rect;
     }
 
-    static void GetRawMousePosition( const RAWMOUSE& mouse, POINT& p )
+    static void GetRawMousePosition( HWND hwnd, const RAWMOUSE& mouse, POINT& p )
     {
         if( mouse.usFlags & MOUSE_MOVE_ABSOLUTE )
         {
@@ -94,6 +94,8 @@ namespace Profiler
 
             p.x = static_cast<int>( normalizedX * screenWidth ) + screenRect.left;
             p.y = static_cast<int>( normalizedY * screenHeight ) + screenRect.top;
+
+            ScreenToClient( hwnd, &p );
         }
         else
         {
@@ -169,9 +171,9 @@ namespace Profiler
         : m_AppWindow( hWnd )
         , m_AppWindowThreadId( 0 )
         , m_pImGuiContext( nullptr )
-        , m_RawMouseX( 0 )
-        , m_RawMouseY( 0 )
-        , m_RawMouseButtons( 0 )
+        , m_MouseScreenPosX( 0 )
+        , m_MouseScreenPosY( 0 )
+        , m_MouseButtons( 0 )
     {
         // Access to map controlled with s_ImGuiMutex.
         g_pWin32Contexts.emplace( m_AppWindow, this );
@@ -377,18 +379,15 @@ namespace Profiler
                             const RAWMOUSE& mouse = rawInputDesc.data.mouse;
 
                             // Reconstruct mouse position.
-                            POINT p = { g_pWin32CurrentContext->m_RawMouseX, g_pWin32CurrentContext->m_RawMouseY };
-                            GetRawMousePosition( mouse, p );
-
-                            // Convert to coordinates relative to the client area.
-                            ScreenToClient( msg.hwnd, &p );
-                            p.x = std::clamp<int>( p.x, 0, static_cast<int>( io.DisplaySize.x ) );
-                            p.y = std::clamp<int>( p.y, 0, static_cast<int>( io.DisplaySize.y ) );
+                            POINT p = { g_pWin32CurrentContext->m_MouseScreenPosX, g_pWin32CurrentContext->m_MouseScreenPosY };
+                            GetRawMousePosition( msg.hwnd, mouse, p );
+                            p.x = std::clamp<int>( p.x, 0, io.DisplaySize.x );
+                            p.y = std::clamp<int>( p.y, 0, io.DisplaySize.y );
 
                             LPARAM mousepos = MakeMousePositionLParam( p );
 
                             // Get active key modifiers
-                            WPARAM keymods = g_pWin32CurrentContext->m_RawMouseButtons;
+                            WPARAM keymods = g_pWin32CurrentContext->m_MouseButtons;
                             if( GetAsyncKeyState( VK_CONTROL ) ) keymods |= MK_CONTROL;
                             if( GetAsyncKeyState( VK_SHIFT ) ) keymods |= MK_SHIFT;
 
@@ -430,11 +429,6 @@ namespace Profiler
 
                             // Generate mouse move message.
                             translatedMsgs.push({ msg.hwnd, WM_MOUSEMOVE, 0, mousepos, msg.time, msg.pt });
-
-                            // Save mouse state.
-                            g_pWin32CurrentContext->m_RawMouseX = p.x;
-                            g_pWin32CurrentContext->m_RawMouseY = p.y;
-                            g_pWin32CurrentContext->m_RawMouseButtons = keymods & ~(MK_CONTROL | MK_SHIFT);
                         }
                     }
 
@@ -443,8 +437,35 @@ namespace Profiler
                     {
                         const MSG& translatedMsg = translatedMsgs.front();
 
-                        // Pass the message to ImGui backend.
-                        ImGui_ImplWin32_WndProcHandler( translatedMsg.hwnd, translatedMsg.message, translatedMsg.wParam, translatedMsg.lParam );
+                        // If the application uses both raw and software input, mouse messages may be sent twice.
+                        // Filter out that messages without passing them to ImGui.
+                        bool callImGuiMessageHandler = true;
+
+                        if( translatedMsg.message >= WM_MOUSEFIRST && translatedMsg.message <= WM_MOUSELAST )
+                        {
+                            // Filter double messages when using both raw and software inputs.
+                            int mouseButtons = g_pWin32CurrentContext->m_MouseButtons;
+                            if( ( ( translatedMsg.message == WM_LBUTTONDOWN ) && ( mouseButtons & MK_LBUTTON ) ) ||
+                                ( ( translatedMsg.message == WM_LBUTTONUP ) && !( mouseButtons & MK_LBUTTON ) ) ||
+                                ( ( translatedMsg.message == WM_RBUTTONDOWN ) && ( mouseButtons & MK_RBUTTON ) ) ||
+                                ( ( translatedMsg.message == WM_RBUTTONUP ) && !( mouseButtons & MK_RBUTTON ) ) ||
+                                ( ( translatedMsg.message == WM_MBUTTONDOWN ) && ( mouseButtons & MK_MBUTTON ) ) ||
+                                ( ( translatedMsg.message == WM_MBUTTONUP ) && !( mouseButtons & MK_MBUTTON ) ) )
+                            {
+                                callImGuiMessageHandler = false;
+                            }
+
+                            // Save mouse state for further input processing.
+                            g_pWin32CurrentContext->m_MouseScreenPosX = GET_X_LPARAM( translatedMsg.lParam );
+                            g_pWin32CurrentContext->m_MouseScreenPosY = GET_Y_LPARAM( translatedMsg.lParam );
+                            g_pWin32CurrentContext->m_MouseButtons = translatedMsg.wParam;
+                        }
+
+                        if( callImGuiMessageHandler )
+                        {
+                            // Pass the message to ImGui backend.
+                            ImGui_ImplWin32_WndProcHandler( translatedMsg.hwnd, translatedMsg.message, translatedMsg.wParam, translatedMsg.lParam );
+                        }
 
                         // Don't pass captured keyboard and mouse events to the application.
                         filterMessage |= (io.WantCaptureMouse && translatedMsg.message >= WM_MOUSEFIRST && translatedMsg.message <= WM_MOUSELAST) ||
