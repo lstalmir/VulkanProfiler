@@ -51,8 +51,8 @@ namespace Profiler
         HWND m_AppWindow;
         DWORD m_AppWindowThreadId;
         ImGuiContext* m_pImGuiContext;
-        int m_RawMouseX;
-        int m_RawMouseY;
+        int m_MouseScreenPosX;
+        int m_MouseScreenPosY;
         int m_RawMouseButtons;
 
         static LRESULT CALLBACK GetMessageHook( int, WPARAM, LPARAM );
