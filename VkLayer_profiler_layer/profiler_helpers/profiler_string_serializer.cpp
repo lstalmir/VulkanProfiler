@@ -2044,6 +2044,119 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetImageUsageFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageUsageFlagNames(
+        VkImageUsageFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT )
+            builder.AddFlag( "Transfer source" );
+        if( flags & VK_IMAGE_USAGE_TRANSFER_DST_BIT )
+            builder.AddFlag( "Transfer destination" );
+        if( flags & VK_IMAGE_USAGE_SAMPLED_BIT )
+            builder.AddFlag( "Sampled image" );
+        if( flags & VK_IMAGE_USAGE_STORAGE_BIT )
+            builder.AddFlag( "Storage image" );
+        if( flags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
+            builder.AddFlag( "Color attachment" );
+        if( flags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
+            builder.AddFlag( "Depth-stencil attachment" );
+        if( flags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT )
+            builder.AddFlag( "Transient attachment" );
+        if( flags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT )
+            builder.AddFlag( "Input attachment" );
+        if( flags & VK_IMAGE_USAGE_HOST_TRANSFER_BIT )
+            builder.AddFlag( "Host transfer" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR )
+            builder.AddFlag( "Video decode destination" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video decode source" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR )
+            builder.AddFlag( "Video decoded picture buffer" );
+        if( flags & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT )
+            builder.AddFlag( "Fragment density map" );
+        if( flags & VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR )
+            builder.AddFlag( "Fragment shading rate attachment" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR )
+            builder.AddFlag( "Video encode destination" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video encode source" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR )
+            builder.AddFlag( "Video encode decoded picture buffer" );
+        if( flags & VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT )
+            builder.AddFlag( "Attachment feedback loop" );
+        if( flags & VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI )
+            builder.AddFlag( "Invocation mask" );
+        if( flags & VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM )
+            builder.AddFlag( "Sample weight image" );
+        if( flags & VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM )
+            builder.AddFlag( "Sample block match image" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR )
+            builder.AddFlag( "Video encode quantization delta map" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR )
+            builder.AddFlag( "Video encode emphasis map" );
+
+        builder.AddUnknownFlags( flags, 27 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageTypeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageTypeName(
+        VkImageType type ) const
+    {
+        switch( type )
+        {
+        case VK_IMAGE_TYPE_1D:
+            return "Image 1D";
+        case VK_IMAGE_TYPE_2D:
+            return "Image 2D";
+        case VK_IMAGE_TYPE_3D:
+            return "Image 3D";
+        }
+        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageTilingName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageTilingName(
+        VkImageTiling tiling ) const
+    {
+        switch( tiling )
+        {
+        case VK_IMAGE_TILING_OPTIMAL:
+            return "Optimal";
+        case VK_IMAGE_TILING_LINEAR:
+            return "Linear";
+        case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
+            return "DRM format modifier";
+        }
+        return fmt::format( "Unknown tiling ({})", static_cast<uint32_t>( tiling ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetCopyAccelerationStructureModeName
 
     Description:

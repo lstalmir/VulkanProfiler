@@ -240,9 +240,12 @@ namespace Profiler
         uint32_t m_MemoryCompareSelFrameIndex;
         char m_ResourceBrowserNameFilter[128];
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
+        VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
         bool m_ResourceBrowserShowDifferences;
         VkObjectHandle<VkBuffer> m_ResourceInspectorBuffer;
         DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
+        VkObjectHandle<VkImage> m_ResourceInspectorImage;
+        DeviceProfilerImageMemoryData m_ResourceInspectorImageData;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.

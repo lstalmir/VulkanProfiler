@@ -91,6 +91,31 @@ namespace Profiler
         VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT |
         VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT;
 
+    static constexpr VkImageUsageFlags g_KnownImageUsageFlags =
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_HOST_TRANSFER_BIT |
+        VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+        VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT |
+        VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR |
+        VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT |
+        VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI |
+        VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM |
+        VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR;
+
     static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
         IM_COL32( 110, 177, 165, 255 ),
         IM_COL32( 219, 219, 146, 255 ),
@@ -576,9 +601,12 @@ namespace Profiler
         m_MemoryCompareSelFrameIndex = CurrentFrameIndex;
         memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
+        m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
         m_ResourceBrowserShowDifferences = false;
         m_ResourceInspectorBuffer = VK_NULL_HANDLE;
         m_ResourceInspectorBufferData = {};
+        m_ResourceInspectorImage = VK_NULL_HANDLE;
+        m_ResourceInspectorImageData = {};
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -2423,7 +2451,12 @@ namespace Profiler
         constexpr const char pComboBoxItemContext[] = "MemCmBoxIt";
         constexpr float comboBoxWidth = 160.f;
 
-        auto MemoryComparatorFrameDataComboBoxItems = [&]( const char* pLabel, const FrameDataList& frameDataList, uint32_t frameIndexFlags, uint32_t& currentFrameIndex ) {
+        auto MemoryComparatorFrameDataComboBoxItems =
+            [&]( const char* pLabel,
+                const FrameDataList& frameDataList,
+                uint32_t frameIndexFlags,
+                uint32_t& currentFrameIndex )
+        {
             bool changed = false;
 
             if( !frameDataList.empty() )
@@ -2453,7 +2486,11 @@ namespace Profiler
             return changed;
         };
 
-        auto MemoryComparatorFrameDataComboBox = [&]( const char* pName, uint32_t& frameIndex, int flags = MemoryComparatorComboBoxFlag_Default ) {
+        auto MemoryComparatorFrameDataComboBox =
+            [&]( const char* pName,
+                uint32_t& frameIndex,
+                int flags = MemoryComparatorComboBoxFlag_Default )
+        {
             bool changed = false;
 
             std::shared_ptr<DeviceProfilerFrameData> pCurrentData = GetFrameData( frameIndex );
@@ -2530,15 +2567,15 @@ namespace Profiler
         // Compare memory usage in the selected frames and get the results.
         const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
 
-        constexpr uint32_t maxValueCount = std::max( VK_MAX_MEMORY_HEAPS, VK_MAX_MEMORY_TYPES );
-        uint32_t valueCount = 0;
-        float values[maxValueCount];
-        ImU32 colors[maxValueCount];
-        uint32_t indexes[maxValueCount];
-
         // Memory usage overview.
         if( ImGui::BeginTable( "##MemoryHeapsTable", memoryProperties.memoryHeapCount, ImGuiTableFlags_BordersInnerV ) )
         {
+            constexpr uint32_t maxValueCount = std::max( VK_MAX_MEMORY_HEAPS, VK_MAX_MEMORY_TYPES );
+            uint32_t valueCount = 0;
+            float values[maxValueCount];
+            ImU32 colors[maxValueCount];
+            uint32_t indexes[maxValueCount];
+
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
                 ImGui::TableSetupColumn( nullptr, ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthStretch );
@@ -2725,260 +2762,392 @@ namespace Profiler
 
         ImGui::Dummy( ImVec2( 1, 5 ) );
 
-        //if( ImGui::CollapsingHeader( "Resources", ImGuiTreeNodeFlags_DefaultOpen ) )
+        ImGui::PushFont( m_Resources.GetBoldFont() );
+        ImGui::TextUnformatted( "Resources" );
+        ImGui::PopFont();
+
+        // Fiters.
+        auto ResourceUsageFlagsFilterComboBox =
+            [&]( const char* pLabel,
+                VkFlags& resourceUsageFilter,
+                VkFlags knownUsageFlags,
+                std::string ( DeviceProfilerStringSerializer::*pfnGetUsageFlagNames )( VkFlags, const char* ) const )
         {
-            ImGui::PushFont( m_Resources.GetBoldFont() );
-            ImGui::TextUnformatted( "Resources" );
-            ImGui::PopFont();
-
-            // Fiters.
-            ImGui::SetNextItemWidth( 150.f * interfaceScale );
-            ImGui::InputTextWithHint( "##NameFilter", "Name", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
-
-            ImGui::SameLine( 0, 10.f * interfaceScale );
-            if( ImGui::BeginCombo( "Buffers##BufferUsageFilter", nullptr, ImGuiComboFlags_NoPreview ) )
+            if( ImGui::BeginCombo( pLabel, nullptr, ImGuiComboFlags_NoPreview ) )
             {
-                bool allChecked = ( m_ResourceBrowserBufferUsageFilter == g_KnownBufferUsageFlags );
+                bool allChecked = ( resourceUsageFilter == knownUsageFlags );
                 if( ImGui::Checkbox( "<All>", &allChecked ) )
                 {
-                    m_ResourceBrowserBufferUsageFilter = allChecked ? g_KnownBufferUsageFlags : 0;
+                    resourceUsageFilter = allChecked ? knownUsageFlags : 0;
                 }
 
-                for( uint32_t i = 0; i < sizeof( VkBufferUsageFlags ) * 8; ++i )
+                for( uint32_t i = 0; i < sizeof( VkFlags ) * 8; ++i )
                 {
-                    const VkBufferUsageFlags usageFlag = static_cast<VkBufferUsageFlags>( 1U << i );
+                    const VkFlags usageFlag = static_cast<VkFlags>( 1U << i );
 
-                    if( g_KnownBufferUsageFlags & usageFlag )
+                    if( knownUsageFlags & usageFlag )
                     {
-                        const std::string label = m_pStringSerializer->GetBufferUsageFlagNames( usageFlag );
-                        bool checked = ( m_ResourceBrowserBufferUsageFilter & usageFlag ) != 0;
+                        const std::string label = ( ( m_pStringSerializer.get() )->*pfnGetUsageFlagNames )( usageFlag, "" );
+
+                        bool checked = ( resourceUsageFilter & usageFlag ) != 0;
                         if( ImGui::Checkbox( label.c_str(), &checked ) )
                         {
-                            m_ResourceBrowserBufferUsageFilter ^= usageFlag;
+                            resourceUsageFilter ^= usageFlag;
                         }
                     }
                 }
 
                 ImGui::EndCombo();
             }
+        };
 
-            ImGui::Separator();
+        ImGui::SetNextItemWidth( 150.f * interfaceScale );
+        ImGui::InputTextWithHint( "##NameFilter", "Name", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
 
-            MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Buffers###BufferUsageFilter",
+            m_ResourceBrowserBufferUsageFilter,
+            g_KnownBufferUsageFlags,
+            &DeviceProfilerStringSerializer::GetBufferUsageFlagNames );
 
-            // Resource browser and inspector are always docked, never draw background for them.
-            ImGui::PushStyleColor( ImGuiCol_WindowBg, 0 );
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Images###ImagesUsageFilter",
+            m_ResourceBrowserImageUsageFilter,
+            g_KnownImageUsageFlags,
+            &DeviceProfilerStringSerializer::GetImageUsageFlagNames );
 
-            if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
+        ImGui::Separator();
+
+        MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
+
+        // Resource browser and inspector are always docked, never draw background for them.
+        ImGui::PushStyleColor( ImGuiCol_WindowBg, 0 );
+
+        if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            // Resources list.
+            if( ImGui::BeginTable( "##ResourceBrowserTable", 3 ) )
             {
-                // Resources list.
-                size_t bufferIndex = 0;
+                ImGui::TableSetupColumn( "Diff", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderLabel, 10.f * interfaceScale );
+                ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed, 50.f * interfaceScale );
+                ImGui::TableSetupColumn( "Name", ImGuiTableColumnFlags_WidthStretch );
 
-                if( !m_ResourceBrowserShowDifferences || ( m_MemoryComparator.GetReferenceData() == nullptr ) )
+                enum class ResourceCompareResult
                 {
-                    for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
+                    eUnchanged,
+                    eAdded,
+                    eRemoved
+                };
+
+                // Common code for drawing a table row for any resource type.
+                auto DrawResourceBrowserTableRow =
+                    [&]( VkObject object,
+                        VkFlags usageFlags,
+                        VkFlags usageFlagsFilter,
+                        ResourceCompareResult compareResult,
+                        bool selected ) -> bool
+                {
+                    if( ( usageFlags & usageFlagsFilter ) == 0 )
                     {
-                        if( ( data.m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
-                        {
-                            continue;
-                        }
-
-                        const char* pBufferNameFormat = "{}###{}";
-
-                        auto bufferName = m_pStringSerializer->GetName( buffer );
-                        if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
-                        {
-                            continue;
-                        }
-
-                        int pushedStyleColors = 0;
-                        if( memoryComparisonResults.m_AllocatedBuffers.count( buffer ) )
-                        {
-                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
-                            pushedStyleColors++;
-                            pBufferNameFormat = "+ {}###{}";
-                        }
-
-                        bufferName = fmt::format( pBufferNameFormat,
-                            bufferName,
-                            m_pStringSerializer->GetObjectID( buffer ) );
-
-                        bool selected = ( m_ResourceInspectorBuffer == buffer );
-                        if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
-                        {
-                            m_ResourceInspectorBuffer = buffer;
-                            m_ResourceInspectorBufferData = data;
-                        }
-
-                        ImGui::PopStyleColor( pushedStyleColors );
+                        return false;
                     }
-                }
-                else
-                {
-                    // List new buffers only.
-                    for( const auto& [buffer, pData] : memoryComparisonResults.m_AllocatedBuffers )
+
+                    if( m_ResourceBrowserShowDifferences &&
+                        ( compareResult == ResourceCompareResult::eUnchanged ) )
                     {
-                        if( ( pData->m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
-                        {
-                            continue;
-                        }
+                        return false;
+                    }
 
-                        auto bufferName = m_pStringSerializer->GetName( buffer );
-                        if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
-                        {
-                            continue;
-                        }
+                    std::string objectName = m_pStringSerializer->GetName( object );
+                    if( *m_ResourceBrowserNameFilter &&
+                        ( objectName.find( m_ResourceBrowserNameFilter ) == std::string::npos ) )
+                    {
+                        return false;
+                    }
 
-                        bufferName = fmt::format( "+ {}###{}",
-                            bufferName,
-                            m_pStringSerializer->GetObjectID( buffer ) );
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
+                    int pushedStyleColors = 0;
+                    switch( compareResult )
+                    {
+                    case ResourceCompareResult::eAdded:
                         ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
+                        ImGui::TextUnformatted( "+" );
+                        pushedStyleColors++;
+                        break;
 
-                        bool selected = ( m_ResourceInspectorBuffer == buffer );
-                        if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
-                        {
-                            m_ResourceInspectorBuffer = buffer;
-                            m_ResourceInspectorBufferData = *pData;
-                        }
+                    case ResourceCompareResult::eRemoved:
+                        ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
+                        ImGui::TextUnformatted( "-" );
+                        pushedStyleColors++;
+                        break;
 
-                        ImGui::PopStyleColor();
+                    case ResourceCompareResult::eUnchanged:
+                        break;
                     }
-                }
 
-                // List freed buffers.
-                for( const auto& [buffer, pData] : memoryComparisonResults.m_FreedBuffers )
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(
+                        VkObject_Runtime_Traits::FromObjectType( object.m_Type ).ObjectTypeName + 2 /*skip Vk prefix*/ );
+
+                    ImGui::TableNextColumn();
+                    objectName = fmt::format( "{}###{}",
+                        objectName,
+                        m_pStringSerializer->GetObjectID( object ) );
+
+                    bool selectionChanged = false;
+                    if( ImGui::Selectable( objectName.c_str(), &selected, ImGuiSelectableFlags_SpanAllColumns ) )
+                    {
+                        selectionChanged = true;
+                    }
+
+                    ImGui::PopStyleColor( pushedStyleColors );
+                    return selectionChanged;
+                };
+
+                // Buffer resource row.
+                auto DrawResourceBrowserBufferTableRow =
+                    [&]( VkObjectHandle<VkBuffer> buffer,
+                        const DeviceProfilerBufferMemoryData& bufferData,
+                        ResourceCompareResult compareResult )
                 {
-                    if( ( pData->m_BufferUsage & m_ResourceBrowserBufferUsageFilter ) == 0 )
-                    {
-                        continue;
-                    }
-
-                    auto bufferName = m_pStringSerializer->GetName( buffer );
-                    if( bufferName.find( m_ResourceBrowserNameFilter ) == std::string::npos )
-                    {
-                        continue;
-                    }
-
-                    bufferName = fmt::format( "- {}###{}",
-                        bufferName,
-                        m_pStringSerializer->GetObjectID( buffer ) );
-
-                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
-
                     bool selected = ( m_ResourceInspectorBuffer == buffer );
-                    if( ImGui::Selectable( bufferName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth ) )
+
+                    if( DrawResourceBrowserTableRow(
+                            buffer,
+                            bufferData.m_BufferUsage,
+                            m_ResourceBrowserBufferUsageFilter,
+                            compareResult,
+                            selected ) )
                     {
                         m_ResourceInspectorBuffer = buffer;
-                        m_ResourceInspectorBufferData = *pData;
+                        m_ResourceInspectorBufferData = bufferData;
+                        m_ResourceInspectorImage = VK_NULL_HANDLE;
+                        m_ResourceInspectorImageData = {};
                     }
+                };
 
-                    ImGui::PopStyleColor();
-                }
-            }
-            ImGui::End();
-
-            if( ImGui::Begin( Lang::ResourceInspector, nullptr, ImGuiWindowFlags_NoMove ) )
-            {
-                if( m_ResourceInspectorBuffer != VK_NULL_HANDLE )
+                // Image resource row.
+                auto DrawResourceBrowserImageTableRow =
+                    [&]( VkObjectHandle<VkImage> image,
+                        const DeviceProfilerImageMemoryData& imageData,
+                        ResourceCompareResult compareResult )
                 {
-                    if( !m_pData->m_Memory.m_Buffers.count( m_ResourceInspectorBuffer ) )
+                    bool selected = ( m_ResourceInspectorImage == image );
+
+                    if( DrawResourceBrowserTableRow(
+                            image,
+                            imageData.m_ImageUsage,
+                            m_ResourceBrowserImageUsageFilter,
+                            compareResult,
+                            selected ) )
                     {
-                        // Buffer data not found.
-                        ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
-                                     "It may have been freed or hasn't been created yet.",
-                            m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str(),
-                            VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( m_ResourceInspectorBuffer ) );
+                        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
+                        m_ResourceInspectorBufferData = {};
+                        m_ResourceInspectorImage = image;
+                        m_ResourceInspectorImageData = imageData;
                     }
+                };
 
-                    ImFont* pBoldFont = m_Resources.GetBoldFont();
-                    ImGui::PushFont( pBoldFont );
-                    ImGui::TextUnformatted( "Buffer:" );
-                    ImGui::PopFont();
-                    ImGui::SameLine( 100.f );
-                    ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str() );
+                // List all resources.
+                for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
+                {
+                    DrawResourceBrowserBufferTableRow(
+                        buffer,
+                        data,
+                        memoryComparisonResults.m_AllocatedBuffers.count( buffer )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
 
-                    ImGui::PushFont( pBoldFont );
-                    ImGui::TextUnformatted( "Size:" );
-                    ImGui::PopFont();
-                    ImGui::SameLine( 100.f );
-                    ImGui::Text( "%s (%llu bytes)",
-                        m_pStringSerializer->GetByteSize( m_ResourceInspectorBufferData.m_BufferSize ),
-                        m_ResourceInspectorBufferData.m_BufferSize );
+                for( const auto& [buffer, pData] : memoryComparisonResults.m_FreedBuffers )
+                {
+                    DrawResourceBrowserBufferTableRow(
+                        buffer,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
 
-                    ImGui::PushFont( pBoldFont );
-                    ImGui::TextUnformatted( "Usage:" );
-                    ImGui::PopFont();
-                    ImGui::SameLine( 100.f );
-                    ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( m_ResourceInspectorBufferData.m_BufferUsage, "\n" ).c_str() );
+                for( const auto& [image, data] : m_pData->m_Memory.m_Images )
+                {
+                    DrawResourceBrowserImageTableRow(
+                        image,
+                        data,
+                        memoryComparisonResults.m_AllocatedImages.count( image )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
 
-                    ImGui::Dummy( ImVec2( 1, 5 ) );
+                for( const auto& [image, pData] : memoryComparisonResults.m_FreedImages )
+                {
+                    DrawResourceBrowserImageTableRow(
+                        image,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
 
-                    if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
+                ImGui::EndTable();
+            }
+        }
+        ImGui::End();
+
+        if( ImGui::Begin( Lang::ResourceInspector, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            if( m_ResourceInspectorBuffer != VK_NULL_HANDLE )
+            {
+                if( !m_pData->m_Memory.m_Buffers.count( m_ResourceInspectorBuffer ) )
+                {
+                    // Buffer data not found.
+                    ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                                    "It may have been freed or hasn't been created yet.",
+                        m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str(),
+                        VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( m_ResourceInspectorBuffer ) );
+                }
+
+                ImFont* pBoldFont = m_Resources.GetBoldFont();
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Buffer:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Size:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::Text( "%s (%llu bytes)",
+                    m_pStringSerializer->GetByteSize( m_ResourceInspectorBufferData.m_BufferSize ),
+                    m_ResourceInspectorBufferData.m_BufferSize );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Usage:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( m_ResourceInspectorBufferData.m_BufferUsage, "\n" ).c_str() );
+
+                ImGui::Dummy( ImVec2( 1, 5 ) );
+
+                if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
+                {
+                    ImGui::TableSetupColumn( "Memory" );
+                    ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+                    ImGuiX::TableHeadersRow( pBoldFont );
+
+                    const DeviceProfilerBufferMemoryBindingData* pBindings = m_ResourceInspectorBufferData.GetMemoryBindings();
+                    const size_t bindingCount = m_ResourceInspectorBufferData.GetMemoryBindingCount();
+
+                    for( size_t i = 0; i < bindingCount; ++i )
                     {
-                        ImGui::TableSetupColumn( "Memory" );
-                        ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
-                        ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
-                        ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
-                        ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
-                        ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
-                        ImGuiX::TableHeadersRow( pBoldFont );
+                        const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
 
-                        const DeviceProfilerBufferMemoryBindingData* pBindings = m_ResourceInspectorBufferData.GetMemoryBindings();
-                        const size_t bindingCount = m_ResourceInspectorBufferData.GetMemoryBindingCount();
+                        ImGui::TableNextRow();
 
-                        for( size_t i = 0; i < bindingCount; ++i )
+                        if( ImGui::TableNextColumn() )
                         {
-                            const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
-
-                            ImGui::TableNextRow();
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%llu   ", binding.m_MemoryOffset );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%llu   ", binding.m_Size );
-                            }
-
-                            auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
-                            if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
-                            {
-                                const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
-                                const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
-
-                                if( ImGui::TableNextColumn() )
-                                {
-                                    ImGui::Text( "%u", memoryData.m_TypeIndex );
-                                }
-
-                                if( ImGui::TableNextColumn() )
-                                {
-                                    ImGui::Text( "%u", memoryData.m_HeapIndex );
-                                }
-
-                                if( ImGui::TableNextColumn() )
-                                {
-                                    ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
-                                }
-                            }
+                            ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
                         }
 
-                        ImGui::EndTable();
+                        if( ImGui::TableNextColumn() )
+                        {
+                            ImGui::Text( "%llu   ", binding.m_MemoryOffset );
+                        }
+
+                        if( ImGui::TableNextColumn() )
+                        {
+                            ImGui::Text( "%llu   ", binding.m_Size );
+                        }
+
+                        auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
+                        if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                        {
+                            const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                            const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%u", memoryData.m_TypeIndex );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%u", memoryData.m_HeapIndex );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                            }
+                        }
                     }
+
+                    ImGui::EndTable();
                 }
             }
-            ImGui::End();
 
-            ImGui::PopStyleColor();
+            if( m_ResourceInspectorImage != VK_NULL_HANDLE )
+            {
+                if( !m_pData->m_Memory.m_Images.count( m_ResourceInspectorImage ) )
+                {
+                    // Buffer data not found.
+                    ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                                 "It may have been freed or hasn't been created yet.",
+                        m_pStringSerializer->GetName( m_ResourceInspectorImage ).c_str(),
+                        VkObject_Traits<VkImage>::GetObjectHandleAsUint64( m_ResourceInspectorImage ) );
+                }
+
+                ImFont* pBoldFont = m_Resources.GetBoldFont();
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Image:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorImage ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Type:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetImageTypeName( m_ResourceInspectorImageData.m_ImageType ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Size:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::Text( "%u x %u x %u",
+                    m_ResourceInspectorImageData.m_ImageExtent.width,
+                    m_ResourceInspectorImageData.m_ImageExtent.height,
+                    m_ResourceInspectorImageData.m_ImageExtent.depth );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Format:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetFormatName( m_ResourceInspectorImageData.m_ImageFormat ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Tiling:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::TextUnformatted( m_pStringSerializer->GetImageTilingName( m_ResourceInspectorImageData.m_ImageTiling ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Usage:" );
+                ImGui::PopFont();
+                ImGui::SameLine( 100.f );
+                ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( m_ResourceInspectorImageData.m_ImageUsage, "\n" ).c_str() );
+
+                ImGui::Dummy( ImVec2( 1, 5 ) );
+            }
         }
+        ImGui::End();
+
+        ImGui::PopStyleColor();
 
         // Restore the current frame data.
         m_pData = std::move( pRestoreData );

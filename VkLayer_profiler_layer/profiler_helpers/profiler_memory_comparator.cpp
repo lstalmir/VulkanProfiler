@@ -188,6 +188,9 @@ namespace Profiler
         m_Results.m_AllocatedBuffers.clear();
         m_Results.m_FreedBuffers.clear();
 
+        m_Results.m_AllocatedImages.clear();
+        m_Results.m_FreedImages.clear();
+
         if( !HasValidInput() )
         {
             // No data to compare.
@@ -222,6 +225,24 @@ namespace Profiler
             {
                 // Buffer was allocated in the comparison data.
                 m_Results.m_AllocatedBuffers.emplace( buffer, &data );
+            }
+        }
+
+        for( const auto& [image, data] : m_pReferenceData->m_Memory.m_Images )
+        {
+            if( !m_pComparisonData->m_Memory.m_Images.count( image ) )
+            {
+                // Image was freed in the comparison data.
+                m_Results.m_FreedImages.emplace( image, &data );
+            }
+        }
+
+        for( const auto& [image, data] : m_pComparisonData->m_Memory.m_Images )
+        {
+            if( !m_pReferenceData->m_Memory.m_Images.count( image ) )
+            {
+                // Image was allocated in the comparison data.
+                m_Results.m_AllocatedImages.emplace( image, &data );
             }
         }
     }
