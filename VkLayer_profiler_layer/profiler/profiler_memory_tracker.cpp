@@ -319,10 +319,11 @@ namespace Profiler
         data.m_ImageExtent = pCreateInfo->extent;
         data.m_ImageFormat = pCreateInfo->format;
         data.m_ImageType = pCreateInfo->imageType;
+        data.m_ImageFlags = pCreateInfo->flags;
         data.m_ImageUsage = pCreateInfo->usage;
         data.m_ImageTiling = pCreateInfo->tiling;
-        data.m_Memory = VK_NULL_HANDLE;
-        data.m_MemoryOffset = 0;
+        data.m_ImageMipLevels = pCreateInfo->mipLevels;
+        data.m_ImageArrayLayers = pCreateInfo->arrayLayers;
 
         m_pDevice->Callbacks.GetImageMemoryRequirements(
             m_pDevice->Handle,
@@ -363,8 +364,18 @@ namespace Profiler
         auto it = m_Images.unsafe_find( image );
         if( it != m_Images.end() )
         {
-            it->second.m_Memory = memory;
-            it->second.m_MemoryOffset = offset;
+            DeviceProfilerImageMemoryBindingData binding;
+            binding.m_Memory = memory;
+            binding.m_MemoryOffset = offset;
+            binding.m_Size = it->second.m_MemoryRequirements.size;
+            binding.m_ImageSubresource.aspectMask = GetFormatAllAspectFlags( it->second.m_ImageFormat );
+            binding.m_ImageSubresource.mipLevel = VK_REMAINING_MIP_LEVELS;
+            binding.m_ImageSubresource.arrayLayer = VK_REMAINING_ARRAY_LAYERS;
+            binding.m_ImageOffset = {};
+            binding.m_ImageExtent = it->second.m_ImageExtent;
+
+            // Only one binding at a time is allowed using this API.
+            it->second.m_MemoryBindings = binding;
         }
     }
 

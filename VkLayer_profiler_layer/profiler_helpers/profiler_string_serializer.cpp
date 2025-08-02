@@ -2117,18 +2117,38 @@ namespace Profiler
 
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetImageTypeName(
-        VkImageType type ) const
+        VkImageType type,
+        VkImageCreateFlags flags,
+        uint32_t arrayLayers ) const
     {
+        std::string typeName;
         switch( type )
         {
         case VK_IMAGE_TYPE_1D:
-            return "Image 1D";
+            typeName = "Image 1D";
+            break;
         case VK_IMAGE_TYPE_2D:
-            return "Image 2D";
+            typeName = "Image 2D";
+            break;
         case VK_IMAGE_TYPE_3D:
-            return "Image 3D";
+            typeName = "Image 3D";
+            break;
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>( type ) );
         }
-        return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+
+        if( flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT )
+        {
+            typeName += " Cube";
+            arrayLayers /= 6;
+        }
+
+        if( arrayLayers > 1 )
+        {
+            typeName += " Array";
+        }
+
+        return typeName;
     }
 
     /***********************************************************************************\

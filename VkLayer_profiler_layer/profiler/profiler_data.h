@@ -1594,16 +1594,83 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
+    struct DeviceProfilerImageMemoryBindingData
+    {
+        VkObjectHandle<VkDeviceMemory> m_Memory = {};
+        VkDeviceSize m_MemoryOffset = {};
+        VkDeviceSize m_Size = {};
+        VkImageSubresource m_ImageSubresource = {};
+        VkOffset3D m_ImageOffset = {};
+        VkExtent3D m_ImageExtent = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerImageMemoryData
+
+    Description:
+
+    \***********************************************************************************/
     struct DeviceProfilerImageMemoryData
     {
+        typedef std::variant<DeviceProfilerImageMemoryBindingData, std::vector<DeviceProfilerImageMemoryBindingData>>
+            MemoryBindings;
+
         VkExtent3D m_ImageExtent = {};
         VkFormat m_ImageFormat = {};
         VkImageType m_ImageType = {};
+        VkImageCreateFlags m_ImageFlags = {};
         VkImageUsageFlags m_ImageUsage = {};
         VkImageTiling m_ImageTiling = {};
+        uint32_t m_ImageMipLevels = {};
+        uint32_t m_ImageArrayLayers = {};
         VkMemoryRequirements m_MemoryRequirements = {};
-        VkDeviceMemory m_Memory = {};
-        VkDeviceSize m_MemoryOffset = {};
+        MemoryBindings m_MemoryBindings = {};
+
+        // Interface for querying number of memory bindings.
+        // By default images are bound to single memory block, unless sparse binding is enabled.
+        inline size_t GetMemoryBindingCount() const
+        {
+            if( m_ImageFlags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT )
+            {
+                auto* pMemoryBindingsVector = std::get_if<std::vector<DeviceProfilerImageMemoryBindingData>>( &m_MemoryBindings );
+                if( pMemoryBindingsVector )
+                {
+                    return pMemoryBindingsVector->size();
+                }
+            }
+
+            auto* pMemoryBinding = std::get_if<DeviceProfilerImageMemoryBindingData>( &m_MemoryBindings );
+            if( pMemoryBinding )
+            {
+                return 1;
+            }
+
+            return 0;
+        }
+
+        // Interface for getting pointer to the bound memory blocks.
+        // By default images are bound to single memory block, unless sparse binding is enabled.
+        inline const DeviceProfilerImageMemoryBindingData* GetMemoryBindings() const
+        {
+            if( m_ImageFlags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT )
+            {
+                auto* pMemoryBindingsVector = std::get_if<std::vector<DeviceProfilerImageMemoryBindingData>>( &m_MemoryBindings );
+                if( pMemoryBindingsVector )
+                {
+                    return pMemoryBindingsVector->data();
+                }
+            }
+
+            auto* pMemoryBinding = std::get_if<DeviceProfilerImageMemoryBindingData>( &m_MemoryBindings );
+            if( pMemoryBinding )
+            {
+                return pMemoryBinding;
+            }
+
+            return nullptr;
+        }
     };
 
     /***********************************************************************************\

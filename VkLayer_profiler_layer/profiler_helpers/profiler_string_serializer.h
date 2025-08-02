@@ -90,7 +90,7 @@ namespace Profiler
         std::string GetBufferUsageFlagNames( VkBufferUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetImageUsageFlagNames( VkImageUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
 
-        std::string GetImageTypeName( VkImageType ) const;
+        std::string GetImageTypeName( VkImageType, VkImageCreateFlags = 0, uint32_t = 1 ) const;
         std::string GetImageTilingName( VkImageTiling ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;

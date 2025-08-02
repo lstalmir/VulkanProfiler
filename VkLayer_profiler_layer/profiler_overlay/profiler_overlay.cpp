@@ -3007,17 +3007,19 @@ namespace Profiler
                         VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( m_ResourceInspectorBuffer ) );
                 }
 
+                float columnValueOffset1 = 70.f * interfaceScale;
+
                 ImFont* pBoldFont = m_Resources.GetBoldFont();
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Buffer:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset1 );
                 ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str() );
 
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Size:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset1 );
                 ImGui::Text( "%s (%llu bytes)",
                     m_pStringSerializer->GetByteSize( m_ResourceInspectorBufferData.m_BufferSize ),
                     m_ResourceInspectorBufferData.m_BufferSize );
@@ -3025,7 +3027,7 @@ namespace Profiler
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Usage:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset1 );
                 ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( m_ResourceInspectorBufferData.m_BufferUsage, "\n" ).c_str() );
 
                 ImGui::Dummy( ImVec2( 1, 5 ) );
@@ -3102,44 +3104,66 @@ namespace Profiler
                         VkObject_Traits<VkImage>::GetObjectHandleAsUint64( m_ResourceInspectorImage ) );
                 }
 
+                float columnWidth = ImGui::GetContentRegionAvail().x * 0.55f;
+                float columnValueOffset1 = 70.f * interfaceScale;
+                float columnValueOffset2 = 60.f * interfaceScale + columnWidth;
+
                 ImFont* pBoldFont = m_Resources.GetBoldFont();
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Image:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset1 );
                 ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorImage ).c_str() );
 
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Type:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
-                ImGui::TextUnformatted( m_pStringSerializer->GetImageTypeName( m_ResourceInspectorImageData.m_ImageType ).c_str() );
+                ImGui::SameLine( columnValueOffset1 );
+                ImGui::TextUnformatted( m_pStringSerializer->GetImageTypeName(
+                    m_ResourceInspectorImageData.m_ImageType,
+                    m_ResourceInspectorImageData.m_ImageFlags,
+                    m_ResourceInspectorImageData.m_ImageArrayLayers ).c_str() );
+
+                ImGui::SameLine( columnWidth );
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Mips:" );
+                ImGui::PopFont();
+                ImGui::SameLine( columnValueOffset2 );
+                ImGui::Text( "%u", m_ResourceInspectorImageData.m_ImageMipLevels );
 
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Size:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset1 );
                 ImGui::Text( "%u x %u x %u",
                     m_ResourceInspectorImageData.m_ImageExtent.width,
                     m_ResourceInspectorImageData.m_ImageExtent.height,
                     m_ResourceInspectorImageData.m_ImageExtent.depth );
 
+                ImGui::SameLine( columnWidth );
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Layers:" );
+                ImGui::PopFont();
+                ImGui::SameLine( columnValueOffset2 );
+                ImGui::Text( "%u", m_ResourceInspectorImageData.m_ImageArrayLayers );
+
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Format:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset1 );
                 ImGui::TextUnformatted( m_pStringSerializer->GetFormatName( m_ResourceInspectorImageData.m_ImageFormat ).c_str() );
 
+                ImGui::SameLine( columnWidth );
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Tiling:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset2 );
                 ImGui::TextUnformatted( m_pStringSerializer->GetImageTilingName( m_ResourceInspectorImageData.m_ImageTiling ).c_str() );
 
                 ImGui::PushFont( pBoldFont );
                 ImGui::TextUnformatted( "Usage:" );
                 ImGui::PopFont();
-                ImGui::SameLine( 100.f );
+                ImGui::SameLine( columnValueOffset1 );
                 ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( m_ResourceInspectorImageData.m_ImageUsage, "\n" ).c_str() );
 
                 ImGui::Dummy( ImVec2( 1, 5 ) );
