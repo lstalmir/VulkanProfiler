@@ -1475,6 +1475,7 @@ namespace Profiler
     {
         uint64_t m_AllocationSize = {};
         uint64_t m_AllocationCount = {};
+        uint64_t m_BudgetSize = {};
     };
 
     /***********************************************************************************\

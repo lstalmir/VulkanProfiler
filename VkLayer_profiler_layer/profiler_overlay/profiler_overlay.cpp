@@ -2587,6 +2587,7 @@ namespace Profiler
             {
                 const int64_t allocationSize = m_pData->m_Memory.m_Heaps[i].m_AllocationSize;
                 const int64_t allocationCount = m_pData->m_Memory.m_Heaps[i].m_AllocationCount;
+                const int64_t budgetSize = m_pData->m_Memory.m_Heaps[i].m_BudgetSize;
                 const int64_t memoryHeapSize = memoryProperties.memoryHeaps[i].size;
 
                 int64_t allocationSizeDifference = 0;
@@ -2622,9 +2623,16 @@ namespace Profiler
 
                 // Plot heap utilization progress bar.
                 float usage = 0.f;
+                float other = 0.f;
                 float unused = 100.f;
                 float difference = 0.f;
                 char usageStr[128] = {};
+
+                if( budgetSize < memoryHeapSize )
+                {
+                    other = 100.f * ( memoryHeapSize - budgetSize ) / memoryHeapSize;
+                    unused -= other;
+                }
 
                 if( memoryHeapSize != 0 )
                 {
@@ -2683,6 +2691,13 @@ namespace Profiler
                 {
                     values[valueCount] = unused;
                     colors[valueCount] = 0;
+                    valueCount++;
+                }
+
+                if( other > 0 )
+                {
+                    values[valueCount] = other;
+                    colors[valueCount] = IM_COL32( 0x80, 0x80, 0x80, 0x60 );
                     valueCount++;
                 }
 

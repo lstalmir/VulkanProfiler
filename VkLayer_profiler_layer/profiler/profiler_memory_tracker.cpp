@@ -34,6 +34,8 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerMemoryTracker::DeviceProfilerMemoryTracker()
         : m_pDevice( nullptr )
+        , m_pfnGetPhysicalDeviceMemoryProperties2( nullptr )
+        , m_MemoryBudgetEnabled( false )
         , m_AggregatedDataMutex()
         , m_TotalAllocationSize( 0 )
         , m_TotalAllocationCount( 0 )
@@ -57,6 +59,24 @@ namespace Profiler
     {
         m_pDevice = pDevice;
 
+        // Resolve function pointers.
+        if( m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2 )
+        {
+            m_pfnGetPhysicalDeviceMemoryProperties2 = m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2;
+        }
+        else if( m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR &&
+                 m_pDevice->pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+        {
+            m_pfnGetPhysicalDeviceMemoryProperties2 = m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR;
+        }
+
+        // Enable available extensions.
+        if( m_pfnGetPhysicalDeviceMemoryProperties2 )
+        {
+            m_MemoryBudgetEnabled = m_pDevice->EnabledExtensions.count( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME );
+        }
+
+        // Preallocate memory data structures.
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pDevice->pPhysicalDevice->MemoryProperties;
         m_Heaps.resize( memoryProperties.memoryHeapCount );
@@ -401,6 +421,38 @@ namespace Profiler
         data.m_TotalAllocationCount = m_TotalAllocationCount;
         data.m_Heaps = m_Heaps;
         data.m_Types = m_Types;
+        lk.unlock();
+
+        // Get available memory budget.
+        VkPhysicalDeviceMemoryBudgetPropertiesEXT memoryBudget = {};
+        memoryBudget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+
+        if( m_MemoryBudgetEnabled )
+        {
+            // Query current memory budget using VK_EXT_memory_budget extension.
+            VkPhysicalDeviceMemoryProperties2 memoryProperties = {};
+            memoryProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+            memoryProperties.pNext = &memoryBudget;
+
+            m_pfnGetPhysicalDeviceMemoryProperties2( m_pDevice->pPhysicalDevice->Handle, &memoryProperties );
+        }
+        else
+        {
+            // Memory budget extension not available, use total heap sizes.
+            const uint32_t memoryHeapCount = m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeapCount;
+            const VkMemoryHeap* pMemoryHeaps = m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeaps;
+
+            for( uint32_t i = 0; i < memoryHeapCount; i++ )
+            {
+                memoryBudget.heapBudget[i] = pMemoryHeaps[i].size;
+            }
+        }
+
+        const size_t heapCount = m_Heaps.size();
+        for( size_t i = 0; i < heapCount; ++i )
+        {
+            data.m_Heaps[i].m_BudgetSize = memoryBudget.heapBudget[i];
+        }
 
         return data;
     }
