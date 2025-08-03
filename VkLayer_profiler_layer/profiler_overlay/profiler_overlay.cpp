@@ -2697,7 +2697,7 @@ namespace Profiler
                 if( other > 0 )
                 {
                     values[valueCount] = other;
-                    colors[valueCount] = IM_COL32( 0x80, 0x80, 0x80, 0x60 );
+                    colors[valueCount] = IM_COL32( 0x80, 0x80, 0x80, 0x50 );
                     valueCount++;
                 }
 
@@ -2705,16 +2705,31 @@ namespace Profiler
                 ImGuiX::PlotBreakdownEx( usageStr, values, valueCount, 0, nullptr, colors );
                 ImGui::PopStyleColor();
 
-                if( ImGui::IsItemHovered() && ( memoryProperties.memoryHeaps[i].flags != 0 ) )
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
                 {
-                    if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                    if( ImGui::BeginTooltip() )
                     {
-                        ImGui::SetTooltip( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
-                    }
+                        ImGui::PushFont( m_Resources.GetBoldFont() );
+                        ImGui::TextUnformatted(
+                            ( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                                ? "Device memory heap\t"
+                                : "Host memory heap\t" );
+                        ImGui::PopFont();
+                        ImGuiX::TextAlignRight( "%.02f MB", memoryHeapSize / 1048576.f );
 
-                    if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
-                    {
-                        ImGui::SetTooltip( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
+                        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
+
+                        ImGui::TextUnformatted( "Budget:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", budgetSize / 1048576.f );
+
+                        ImGui::TextUnformatted( "Allocated:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", allocationSize / 1048576.f );
+
+                        ImGui::TextUnformatted( "Free:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", ( budgetSize - allocationSize ) / 1048576.f );
+
+                        ImGui::PopStyleVar();
+                        ImGui::EndTooltip();
                     }
                 }
 
