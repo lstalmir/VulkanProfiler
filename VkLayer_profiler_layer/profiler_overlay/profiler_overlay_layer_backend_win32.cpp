@@ -104,6 +104,31 @@ namespace Profiler
         }
     }
 
+    static constexpr int GetMouseButtons( WPARAM wparam )
+    {
+        constexpr WPARAM mouseButtonsMask =
+            MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2;
+
+        return static_cast<int>( wparam & mouseButtonsMask );
+    }
+
+    static WPARAM GetRawMouseButtons( WPARAM buttons, const RAWMOUSE& mouse )
+    {
+        // Update state of modifier keys.
+        if( GetAsyncKeyState( VK_SHIFT ) ) buttons |= MK_SHIFT;
+        if( GetAsyncKeyState( VK_CONTROL ) ) buttons |= MK_CONTROL;
+
+        // Update state of mouse buttons.
+        if( mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN ) buttons |= MK_LBUTTON;
+        if( mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP ) buttons &= ~MK_LBUTTON;
+        if( mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN ) buttons |= MK_RBUTTON;
+        if( mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP ) buttons &= ~MK_RBUTTON;
+        if( mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN ) buttons |= MK_MBUTTON;
+        if( mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP ) buttons &= ~MK_MBUTTON;
+
+        return buttons;
+    }
+
     static constexpr LPARAM MakeMousePositionLParam( POINT p )
     {
         return (p.x & 0xffff) | ((p.y & 0xffff) << 16);
@@ -384,41 +409,32 @@ namespace Profiler
                             p.x = std::clamp<int>( p.x, 0, io.DisplaySize.x );
                             p.y = std::clamp<int>( p.y, 0, io.DisplaySize.y );
 
+                            // Encode message parameters.
                             LPARAM mousepos = MakeMousePositionLParam( p );
+                            WPARAM keymods = GetRawMouseButtons( g_pWin32CurrentContext->m_MouseButtons, mouse );
 
-                            // Get active key modifiers
-                            WPARAM keymods = g_pWin32CurrentContext->m_MouseButtons;
-                            if( GetAsyncKeyState( VK_CONTROL ) ) keymods |= MK_CONTROL;
-                            if( GetAsyncKeyState( VK_SHIFT ) ) keymods |= MK_SHIFT;
-
-                            if( mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN )
+                            if( mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN )
                             {
-                                keymods |= MK_LBUTTON;
                                 translatedMsgs.push({ msg.hwnd, WM_LBUTTONDOWN, keymods, mousepos, msg.time, msg.pt });
                             }
-                            if( mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP )
+                            if( mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP )
                             {
-                                keymods &= ~MK_LBUTTON;
                                 translatedMsgs.push({ msg.hwnd, WM_LBUTTONUP, keymods, mousepos, msg.time, msg.pt });
                             }
-                            if( mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN )
+                            if( mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN )
                             {
-                                keymods |= MK_RBUTTON;
                                 translatedMsgs.push({ msg.hwnd, WM_RBUTTONDOWN, keymods, mousepos, msg.time, msg.pt });
                             }
-                            if( mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP )
+                            if( mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP )
                             {
-                                keymods &= ~MK_RBUTTON;
                                 translatedMsgs.push({ msg.hwnd, WM_RBUTTONUP, keymods, mousepos, msg.time, msg.pt });
                             }
-                            if( mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN )
+                            if( mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN )
                             {
-                                keymods |= MK_MBUTTON;
                                 translatedMsgs.push({ msg.hwnd, WM_MBUTTONDOWN, keymods, mousepos, msg.time, msg.pt });
                             }
-                            if( mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP )
+                            if( mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP )
                             {
-                                keymods &= ~MK_MBUTTON;
                                 translatedMsgs.push({ msg.hwnd, WM_MBUTTONUP, keymods, mousepos, msg.time, msg.pt });
                             }
                             if( mouse.usButtonFlags & RI_MOUSE_WHEEL )
@@ -428,7 +444,7 @@ namespace Profiler
                             }
 
                             // Generate mouse move message.
-                            translatedMsgs.push({ msg.hwnd, WM_MOUSEMOVE, 0, mousepos, msg.time, msg.pt });
+                            translatedMsgs.push({ msg.hwnd, WM_MOUSEMOVE, keymods, mousepos, msg.time, msg.pt });
                         }
                     }
 
@@ -458,7 +474,7 @@ namespace Profiler
                             // Save mouse state for further input processing.
                             g_pWin32CurrentContext->m_MouseScreenPosX = GET_X_LPARAM( translatedMsg.lParam );
                             g_pWin32CurrentContext->m_MouseScreenPosY = GET_Y_LPARAM( translatedMsg.lParam );
-                            g_pWin32CurrentContext->m_MouseButtons = translatedMsg.wParam;
+                            g_pWin32CurrentContext->m_MouseButtons = GetMouseButtons( translatedMsg.wParam );
                         }
 
                         if( callImGuiMessageHandler )
