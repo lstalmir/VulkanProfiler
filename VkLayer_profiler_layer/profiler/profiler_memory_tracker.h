@@ -62,6 +62,10 @@ namespace Profiler
     private:
         VkDevice_Object* m_pDevice;
 
+        PFN_vkGetPhysicalDeviceMemoryProperties2 m_pfnGetPhysicalDeviceMemoryProperties2;
+
+        bool m_MemoryBudgetEnabled;
+
         std::shared_mutex mutable m_AggregatedDataMutex;
         uint64_t m_TotalAllocationSize;
         uint64_t m_TotalAllocationCount;

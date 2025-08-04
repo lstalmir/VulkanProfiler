@@ -276,6 +276,17 @@ namespace Profiler
         {
             deviceExtensions.insert( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
         }
+
+        // Enable memory budget extension to track memory usage.
+        if( availableExtensionNames.count( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME ) )
+        {
+            if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 &&
+                    physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ||
+                physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+            {
+                deviceExtensions.insert( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME );
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -322,7 +333,7 @@ namespace Profiler
         {
             if( availableInstanceExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
             {
-                // Required by Vk_EXT_shader_module_identifier
+                // Required by Vk_EXT_shader_module_identifier and VK_EXT_memory_budget.
                 instanceExtensions.insert( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
             }
         }

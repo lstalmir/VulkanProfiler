@@ -2587,6 +2587,7 @@ namespace Profiler
             {
                 const int64_t allocationSize = m_pData->m_Memory.m_Heaps[i].m_AllocationSize;
                 const int64_t allocationCount = m_pData->m_Memory.m_Heaps[i].m_AllocationCount;
+                const int64_t budgetSize = m_pData->m_Memory.m_Heaps[i].m_BudgetSize;
                 const int64_t memoryHeapSize = memoryProperties.memoryHeaps[i].size;
 
                 int64_t allocationSizeDifference = 0;
@@ -2622,9 +2623,16 @@ namespace Profiler
 
                 // Plot heap utilization progress bar.
                 float usage = 0.f;
+                float other = 0.f;
                 float unused = 100.f;
                 float difference = 0.f;
                 char usageStr[128] = {};
+
+                if( budgetSize < memoryHeapSize )
+                {
+                    other = 100.f * ( memoryHeapSize - budgetSize ) / memoryHeapSize;
+                    unused -= other;
+                }
 
                 if( memoryHeapSize != 0 )
                 {
@@ -2686,20 +2694,42 @@ namespace Profiler
                     valueCount++;
                 }
 
+                if( other > 0 )
+                {
+                    values[valueCount] = other;
+                    colors[valueCount] = IM_COL32( 0x80, 0x80, 0x80, 0x50 );
+                    valueCount++;
+                }
+
                 ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
                 ImGuiX::PlotBreakdownEx( usageStr, values, valueCount, 0, nullptr, colors );
                 ImGui::PopStyleColor();
 
-                if( ImGui::IsItemHovered() && ( memoryProperties.memoryHeaps[i].flags != 0 ) )
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
                 {
-                    if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                    if( ImGui::BeginTooltip() )
                     {
-                        ImGui::SetTooltip( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
-                    }
+                        ImGui::PushFont( m_Resources.GetBoldFont() );
+                        ImGui::TextUnformatted(
+                            ( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                                ? "Device memory heap\t"
+                                : "Host memory heap\t" );
+                        ImGui::PopFont();
+                        ImGuiX::TextAlignRight( "%.02f MB", memoryHeapSize / 1048576.f );
 
-                    if( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
-                    {
-                        ImGui::SetTooltip( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
+                        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
+
+                        ImGui::TextUnformatted( "Budget:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", budgetSize / 1048576.f );
+
+                        ImGui::TextUnformatted( "Allocated:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", allocationSize / 1048576.f );
+
+                        ImGui::TextUnformatted( "Free:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", ( budgetSize - allocationSize ) / 1048576.f );
+
+                        ImGui::PopStyleVar();
+                        ImGui::EndTooltip();
                     }
                 }
 
