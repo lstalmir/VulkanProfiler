@@ -53,6 +53,8 @@ namespace Profiler
     enum class DeviceProfilerDrawcallType : uint32_t
     {
         eUnknown = 0x00000000,
+        eBeginConditionalRendering = 0x00000001,
+        eEndConditionalRendering = 0x00000002,
         eInsertDebugLabel = 0xFFFF0001,
         eBeginDebugLabel = 0xFFFF0002,
         eEndDebugLabel = 0xFFFF0003,
@@ -149,6 +151,7 @@ namespace Profiler
         eRayTracing,
         eCopy
     };
+
     /***********************************************************************************\
 
     Structure:
@@ -219,6 +222,29 @@ namespace Profiler
             using value_type = typename std::remove_cv<cv_value_type>::type;
             free( const_cast<value_type*>( pObject ) );
         }
+    };
+
+    struct DeviceProfilerDrawcallBeginConditionalRenderingPayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eBeginConditionalRendering,
+              true /*HasIndirectPayload*/>
+    {
+        VkObjectHandle<VkBuffer> m_Buffer;
+        VkDeviceSize m_Offset;
+        VkConditionalRenderingFlagsEXT m_Flags;
+        size_t m_CapturedValueOffset;
+
+        template<typename ProfilerT>
+        inline void ResolveObjectHandles( const ProfilerT& profiler )
+        {
+            m_Buffer = profiler.template GetObjectHandle<VkMicromapEXT>( m_Buffer.m_Handle );
+        }
+    };
+
+    struct DeviceProfilerDrawcallEndConditionalRenderingPayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eEndConditionalRendering>
+    {
     };
 
     template<DeviceProfilerDrawcallType Type>
@@ -768,6 +794,8 @@ namespace Profiler
 
 // clang-format off
 #define PROFILER_MAP_DRAWCALL_PAYLOAD( f, ... ) \
+    f( DeviceProfilerDrawcallBeginConditionalRenderingPayload, m_BeginConditionalRendering, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallEndConditionalRenderingPayload, m_EndConditionalRendering, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallInsertDebugLabelPayload, m_InsertDebugLabel, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallBeginDebugLabelPayload, m_BeginDebugLabel, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallEndDebugLabelPayload, m_EndDebugLabel, __VA_ARGS__ ) \

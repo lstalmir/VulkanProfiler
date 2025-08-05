@@ -73,6 +73,9 @@ namespace Profiler
 
         void NextSubpass( VkSubpassContents );
 
+        void BeginConditionalRendering( const VkConditionalRenderingBeginInfoEXT* );
+        void EndConditionalRendering();
+
         void BindPipeline( const DeviceProfilerPipeline& );
         void BindShaders( uint32_t, const VkShaderStageFlagBits*, const VkShaderEXT* );
 

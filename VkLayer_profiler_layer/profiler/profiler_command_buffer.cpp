@@ -1626,6 +1626,24 @@ namespace Profiler
     {
         switch( drawcall.m_Type )
         {
+        case DeviceProfilerDrawcallType::eBeginConditionalRendering: {
+            DeviceProfilerDrawcallBeginConditionalRenderingPayload& payload = drawcall.m_Payload.m_BeginConditionalRendering;
+            const size_t indirectPayloadSize = sizeof( uint32_t );
+
+            IndirectArgumentBuffer& buffer = AcquireIndirectArgumentBuffer( indirectPayloadSize );
+            payload.m_CapturedValueOffset = buffer.m_Offset;
+            buffer.m_Offset += indirectPayloadSize;
+
+            IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
+            copy.m_SrcBuffer = payload.m_Buffer;
+            copy.m_DstBuffer = buffer.m_Buffer;
+            copy.m_Region.srcOffset = payload.m_Offset;
+            copy.m_Region.dstOffset = payload.m_CapturedValueOffset;
+            copy.m_Region.size = indirectPayloadSize;
+
+            break;
+        }
+
         case DeviceProfilerDrawcallType::eDrawIndirect:
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect: {
             DeviceProfilerDrawcallDrawIndirectPayload& payload = drawcall.m_Payload.m_DrawIndirect;
