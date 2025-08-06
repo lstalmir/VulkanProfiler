@@ -471,6 +471,29 @@ namespace Profiler
 
             lk.unlock();
 
+            // Remove bindings that are entirely overlapped by the new binding.
+            for( auto it = bindings.begin(); it != bindings.end(); )
+            {
+                if( ( it->m_Type == DeviceProfilerImageMemoryBindingType::eBlock ) &&
+                    ( it->m_Block.m_ImageSubresource.aspectMask == subresource.aspectMask ) &&
+                    ( it->m_Block.m_ImageSubresource.arrayLayer == subresource.arrayLayer ) &&
+                    ( it->m_Block.m_ImageSubresource.mipLevel == subresource.mipLevel ) &&
+                    ( it->m_Block.m_ImageOffset.x >= offset.x ) &&
+                    ( it->m_Block.m_ImageOffset.y >= offset.y ) &&
+                    ( it->m_Block.m_ImageOffset.z >= offset.z ) &&
+                    ( it->m_Block.m_ImageOffset.x + it->m_Block.m_ImageExtent.width ) <= ( offset.x + extent.width ) &&
+                    ( it->m_Block.m_ImageOffset.y + it->m_Block.m_ImageExtent.height ) <= ( offset.y + extent.height ) &&
+                    ( it->m_Block.m_ImageOffset.z + it->m_Block.m_ImageExtent.depth ) <= ( offset.z + extent.depth ) )
+                {
+                    // Binding entirely covered by the new one, remove it.
+                    it = bindings.erase( it );
+                }
+                else
+                {
+                    it = std::next( it );
+                }
+            }
+
             if( memory.m_Handle != VK_NULL_HANDLE )
             {
                 // New memory binding of the buffer region.
@@ -481,10 +504,6 @@ namespace Profiler
                 binding.m_Block.m_ImageSubresource = subresource;
                 binding.m_Block.m_ImageOffset = offset;
                 binding.m_Block.m_ImageExtent = extent;
-            }
-            else
-            {
-                // Memory unbinds not supported yet.
             }
         }
     }
