@@ -261,6 +261,8 @@ namespace Profiler
             std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
                 std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings );
 
+            lk.unlock();
+
             if( memory.m_Handle != VK_NULL_HANDLE )
             {
                 // New memory binding of the buffer region.
@@ -385,17 +387,105 @@ namespace Profiler
         if( it != m_Images.end() )
         {
             DeviceProfilerImageMemoryBindingData binding;
-            binding.m_Memory = memory;
-            binding.m_MemoryOffset = offset;
-            binding.m_Size = it->second.m_MemoryRequirements.size;
-            binding.m_ImageSubresource.aspectMask = GetFormatAllAspectFlags( it->second.m_ImageFormat );
-            binding.m_ImageSubresource.mipLevel = VK_REMAINING_MIP_LEVELS;
-            binding.m_ImageSubresource.arrayLayer = VK_REMAINING_ARRAY_LAYERS;
-            binding.m_ImageOffset = {};
-            binding.m_ImageExtent = it->second.m_ImageExtent;
+            binding.m_Type = DeviceProfilerImageMemoryBindingType::eOpaque;
+            binding.m_Opaque.m_Memory = memory;
+            binding.m_Opaque.m_MemoryOffset = offset;
+            binding.m_Opaque.m_ImageOffset = 0;
+            binding.m_Opaque.m_Size = it->second.m_MemoryRequirements.size;
 
             // Only one binding at a time is allowed using this API.
             it->second.m_MemoryBindings = binding;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindSparseImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkObjectHandle<VkImage> image, VkDeviceSize imageOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Images );
+
+        auto it = m_Images.unsafe_find( image );
+        if( it != m_Images.end() )
+        {
+            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings ) )
+            {
+                // Create a vector to hold multiple bindings.
+                it->second.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
+            }
+
+            std::vector<DeviceProfilerImageMemoryBindingData>& bindings =
+                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings );
+
+            lk.unlock();
+
+            if( memory.m_Handle != VK_NULL_HANDLE )
+            {
+                // New memory binding of the buffer region.
+                DeviceProfilerImageMemoryBindingData& binding = bindings.emplace_back();
+                binding.m_Type = DeviceProfilerImageMemoryBindingType::eOpaque;
+                binding.m_Opaque.m_Memory = memory;
+                binding.m_Opaque.m_MemoryOffset = memoryOffset;
+                binding.m_Opaque.m_ImageOffset = imageOffset;
+                binding.m_Opaque.m_Size = size;
+            }
+            else
+            {
+                // Memory unbinds not supported yet.
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindSparseImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkObjectHandle<VkImage> image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Images );
+
+        auto it = m_Images.unsafe_find( image );
+        if( it != m_Images.end() )
+        {
+            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings ) )
+            {
+                // Create a vector to hold multiple bindings.
+                it->second.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
+            }
+
+            std::vector<DeviceProfilerImageMemoryBindingData>& bindings =
+                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings );
+
+            lk.unlock();
+
+            if( memory.m_Handle != VK_NULL_HANDLE )
+            {
+                // New memory binding of the buffer region.
+                DeviceProfilerImageMemoryBindingData& binding = bindings.emplace_back();
+                binding.m_Type = DeviceProfilerImageMemoryBindingType::eBlock;
+                binding.m_Block.m_Memory = memory;
+                binding.m_Block.m_MemoryOffset = memoryOffset;
+                binding.m_Block.m_ImageSubresource = subresource;
+                binding.m_Block.m_ImageOffset = offset;
+                binding.m_Block.m_ImageExtent = extent;
+            }
+            else
+            {
+                // Memory unbinds not supported yet.
+            }
         }
     }
 

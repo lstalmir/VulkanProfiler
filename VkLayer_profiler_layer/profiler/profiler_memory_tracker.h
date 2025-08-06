@@ -56,6 +56,8 @@ namespace Profiler
         void RegisterImage( VkObjectHandle<VkImage> image, const VkImageCreateInfo* pCreateInfo );
         void UnregisterImage( VkObjectHandle<VkImage> image );
         void BindImageMemory( VkObjectHandle<VkImage> image, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset );
+        void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkDeviceSize imageOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
+        void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags );
 
         DeviceProfilerMemoryData GetMemoryData() const;
 
