@@ -78,6 +78,8 @@ namespace Profiler
         ConcurrentMap<VkObjectHandle<VkBuffer>, DeviceProfilerBufferMemoryData> m_Buffers;
         ConcurrentMap<VkObjectHandle<VkImage>, DeviceProfilerImageMemoryData> m_Images;
 
+        std::shared_mutex mutable m_MemoryBindingMutex;
+
         void ResetMemoryData();
     };
 }

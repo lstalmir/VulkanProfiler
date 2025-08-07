@@ -224,14 +224,21 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
+            DeviceProfilerBufferMemoryData& bufferData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same buffer from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
             DeviceProfilerBufferMemoryBindingData binding;
             binding.m_Memory = memory;
             binding.m_MemoryOffset = offset;
             binding.m_BufferOffset = 0;
-            binding.m_Size = it->second.m_BufferSize;
+            binding.m_Size = bufferData.m_BufferSize;
 
             // Only one binding at a time is allowed using this API.
-            it->second.m_MemoryBindings = binding;
+            bufferData.m_MemoryBindings = binding;
         }
     }
 
@@ -252,16 +259,21 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
-            if( !std::holds_alternative<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings ) )
+            DeviceProfilerBufferMemoryData& bufferData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same buffer from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            if( !std::holds_alternative<std::vector<DeviceProfilerBufferMemoryBindingData>>( bufferData.m_MemoryBindings ) )
             {
                 // Create a vector to hold multiple bindings.
-                it->second.m_MemoryBindings = std::vector<DeviceProfilerBufferMemoryBindingData>();
+                bufferData.m_MemoryBindings = std::vector<DeviceProfilerBufferMemoryBindingData>();
             }
 
             std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
-                std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( it->second.m_MemoryBindings );
-
-            lk.unlock();
+                std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( bufferData.m_MemoryBindings );
 
             if( memory.m_Handle != VK_NULL_HANDLE )
             {
@@ -386,15 +398,22 @@ namespace Profiler
         auto it = m_Images.unsafe_find( image );
         if( it != m_Images.end() )
         {
+            DeviceProfilerImageMemoryData& imageData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same image from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
             DeviceProfilerImageMemoryBindingData binding;
             binding.m_Type = DeviceProfilerImageMemoryBindingType::eOpaque;
             binding.m_Opaque.m_Memory = memory;
             binding.m_Opaque.m_MemoryOffset = offset;
             binding.m_Opaque.m_ImageOffset = 0;
-            binding.m_Opaque.m_Size = it->second.m_MemoryRequirements.size;
+            binding.m_Opaque.m_Size = imageData.m_MemoryRequirements.size;
 
             // Only one binding at a time is allowed using this API.
-            it->second.m_MemoryBindings = binding;
+            imageData.m_MemoryBindings = binding;
         }
     }
 
@@ -415,16 +434,21 @@ namespace Profiler
         auto it = m_Images.unsafe_find( image );
         if( it != m_Images.end() )
         {
-            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings ) )
+            DeviceProfilerImageMemoryData& imageData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same image from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings ) )
             {
                 // Create a vector to hold multiple bindings.
-                it->second.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
+                imageData.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
             }
 
             std::vector<DeviceProfilerImageMemoryBindingData>& bindings =
-                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings );
-
-            lk.unlock();
+                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings );
 
             if( memory.m_Handle != VK_NULL_HANDLE )
             {
@@ -460,16 +484,21 @@ namespace Profiler
         auto it = m_Images.unsafe_find( image );
         if( it != m_Images.end() )
         {
-            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings ) )
+            DeviceProfilerImageMemoryData& imageData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same image from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings ) )
             {
                 // Create a vector to hold multiple bindings.
-                it->second.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
+                imageData.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
             }
 
             std::vector<DeviceProfilerImageMemoryBindingData>& bindings =
-                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( it->second.m_MemoryBindings );
-
-            lk.unlock();
+                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings );
 
             // Remove bindings that are entirely overlapped by the new binding.
             for( auto it = bindings.begin(); it != bindings.end(); )
@@ -521,16 +550,19 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerMemoryData data;
+
+        std::unique_lock bindingLock( m_MemoryBindingMutex );
         data.m_Allocations = m_Allocations.to_unordered_map();
         data.m_Buffers = m_Buffers.to_unordered_map();
         data.m_Images = m_Images.to_unordered_map();
+        bindingLock.unlock();
 
-        std::shared_lock lk( m_AggregatedDataMutex );
+        std::unique_lock dataLock( m_AggregatedDataMutex );
         data.m_TotalAllocationSize = m_TotalAllocationSize;
         data.m_TotalAllocationCount = m_TotalAllocationCount;
         data.m_Heaps = m_Heaps;
         data.m_Types = m_Types;
-        lk.unlock();
+        dataLock.unlock();
 
         // Get available memory budget.
         VkPhysicalDeviceMemoryBudgetPropertiesEXT memoryBudget = {};
