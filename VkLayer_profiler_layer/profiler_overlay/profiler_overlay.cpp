@@ -3202,6 +3202,104 @@ namespace Profiler
 
                 ImGui::Dummy( ImVec2( 1, 5 ) );
 
+                ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
+                if( ImGui::CollapsingHeader( "Memory layout" ) &&
+                    ( m_ResourceInspectorImageData.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT ) )
+                {
+                    static float blockSize = 16.f;
+                    static int selectedMipLevel = 0;
+                    static int selectedLayer = 0;
+
+                    ImGui::PushItemWidth( 100.f );
+                    if( ImGui::InputFloat( "Grid size", &blockSize, 1.f, 10.f, "%.0f" ) )
+                    {
+                        blockSize = std::max( 4.f, blockSize );
+                    }
+
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth( 100.f );
+                    if( ImGui::InputInt( "Mip level", &selectedMipLevel, 0, 0, ImGuiInputTextFlags_CharsDecimal ) )
+                    {
+                        selectedMipLevel = std::clamp(
+                            selectedMipLevel,
+                            0, static_cast<int>( m_ResourceInspectorImageData.m_ImageMipLevels - 1 ) );
+                    }
+
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth( 100.f );
+                    if( ImGui::InputInt( "Layer", &selectedLayer, 0, 0, ImGuiInputTextFlags_CharsDecimal ) )
+                    {
+                        selectedLayer = std::clamp(
+                            selectedLayer,
+                            0, static_cast<int>( m_ResourceInspectorImageData.m_ImageArrayLayers - 1 ) );
+                    }
+
+                    const DeviceProfilerImageMemoryBindingData* pBindings = m_ResourceInspectorImageData.GetMemoryBindings();
+                    const size_t bindingCount = m_ResourceInspectorImageData.GetMemoryBindingCount();
+
+                    const VkSparseImageMemoryRequirements& sparseMemoryRequirements = m_ResourceInspectorImageData.m_SparseMemoryRequirements.front();
+
+                    VkExtent3D imageMipExtent = m_ResourceInspectorImageData.m_ImageExtent;
+                    imageMipExtent.width = std::max( 1U, imageMipExtent.width >> selectedMipLevel );
+                    imageMipExtent.height = std::max( 1U, imageMipExtent.height >> selectedMipLevel );
+
+                    uint32_t blockCountX = ( imageMipExtent.width + sparseMemoryRequirements.formatProperties.imageGranularity.width - 1 ) / sparseMemoryRequirements.formatProperties.imageGranularity.width;
+                    uint32_t blockCountY = ( imageMipExtent.height + sparseMemoryRequirements.formatProperties.imageGranularity.height - 1 ) / sparseMemoryRequirements.formatProperties.imageGranularity.height;
+                    //uint32_t blockCountZ = ( imageMipExtent.depth + sparseMemoryRequirements.formatProperties.imageGranularity.depth - 1 ) / sparseMemoryRequirements.formatProperties.imageGranularity.depth;
+
+                    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+                    for( uint32_t y = 0; y < blockCountY; ++y )
+                    {
+                        for( uint32_t x = 0; x < blockCountX; ++x )
+                        {
+                            ImVec2 lt = ImGui::GetCursorScreenPos();
+                            lt.x += x * blockSize;
+                            lt.y += y * blockSize;
+                            ImVec2 rb = ImVec2( lt.x + blockSize, lt.y + blockSize );
+                            dl->AddRect( lt, rb, IM_COL32( 255, 255, 255, 32 ) );
+                        }
+                    }
+
+                    for( size_t i = 0; i < bindingCount; ++i )
+                    {
+                        const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                        if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock )
+                        {
+                            if( ( binding.m_Block.m_ImageSubresource.mipLevel == selectedMipLevel ) &&
+                                ( binding.m_Block.m_ImageSubresource.arrayLayer == selectedLayer ) )
+                            {
+                                ImVec2 lt = ImGui::GetCursorScreenPos();
+                                lt.x += ( binding.m_Block.m_ImageOffset.x / sparseMemoryRequirements.formatProperties.imageGranularity.width ) * blockSize + 1;
+                                lt.y += ( binding.m_Block.m_ImageOffset.y / sparseMemoryRequirements.formatProperties.imageGranularity.height ) * blockSize + 1;
+                                ImVec2 rb = lt;
+                                rb.x += ( binding.m_Block.m_ImageExtent.width / sparseMemoryRequirements.formatProperties.imageGranularity.width ) * blockSize - 2;
+                                rb.y += ( binding.m_Block.m_ImageExtent.height / sparseMemoryRequirements.formatProperties.imageGranularity.height ) * blockSize - 2;
+
+                                ImRect bb( lt, rb );
+                                dl->AddRectFilled( bb.Min, bb.Max, m_GraphicsPipelineColumnColor );
+
+                                ImVec2 cp = ImGui::GetCursorScreenPos();
+                                if( bb.Contains( cp ) )
+                                {
+                                    if( ImGui::BeginTooltip() )
+                                    {
+                                        ImGui::Text( "Memory: %s", m_pStringSerializer->GetName( binding.m_Block.m_Memory ).c_str() );
+                                        ImGui::Text( "Memory offset: %llu", binding.m_Block.m_MemoryOffset );
+                                        ImGui::EndTooltip();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ImGui::Dummy( ImVec2( 0, blockCountY * blockSize + 10.f ) );
+                }
+
                 if( ImGui::CollapsingHeader( "Memory bindings" ) &&
                     ImGui::BeginTable( "##ImageBindingsTable", 8 ) )
                 {
@@ -3313,6 +3411,8 @@ namespace Profiler
 
                     ImGui::EndTable();
                 }
+
+                ImGui::PopStyleColor();
             }
         }
         ImGui::End();
