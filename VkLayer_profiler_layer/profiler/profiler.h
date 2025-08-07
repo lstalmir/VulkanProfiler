@@ -144,6 +144,8 @@ namespace Profiler
         void CreateImage( VkImage, const VkImageCreateInfo* );
         void DestroyImage( VkImage );
         void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
+        void BindImageMemory( VkImage, uint32_t, const VkSparseMemoryBind* );
+        void BindImageMemory( VkImage, uint32_t, const VkSparseImageMemoryBind* );
 
         const char* GetObjectName( VkObject ) const;
         void SetObjectName( VkObject, const char* );

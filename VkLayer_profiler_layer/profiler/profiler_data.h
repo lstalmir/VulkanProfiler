@@ -1590,19 +1590,58 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
-        DeviceProfilerImageMemoryData
+        DeviceProfilerImageMemoryBindingData
 
     Description:
 
     \***********************************************************************************/
+    enum class DeviceProfilerImageMemoryBindingType : uint32_t
+    {
+        eOpaque = 0,
+        eBlock = 1
+    };
+
+    struct DeviceProfilerImageOpaqueMemoryBindingData
+    {
+        VkObjectHandle<VkDeviceMemory> m_Memory;
+        VkDeviceSize m_MemoryOffset;
+        VkDeviceSize m_ImageOffset;
+        VkDeviceSize m_Size;
+    };
+
+    struct DeviceProfilerImageBlockMemoryBindingData
+    {
+        VkObjectHandle<VkDeviceMemory> m_Memory;
+        VkDeviceSize m_MemoryOffset;
+        VkImageSubresource m_ImageSubresource;
+        VkOffset3D m_ImageOffset;
+        VkExtent3D m_ImageExtent;
+    };
+
     struct DeviceProfilerImageMemoryBindingData
     {
-        VkObjectHandle<VkDeviceMemory> m_Memory = {};
-        VkDeviceSize m_MemoryOffset = {};
-        VkDeviceSize m_Size = {};
-        VkImageSubresource m_ImageSubresource = {};
-        VkOffset3D m_ImageOffset = {};
-        VkExtent3D m_ImageExtent = {};
+        DeviceProfilerImageMemoryBindingType m_Type;
+        union
+        {
+            DeviceProfilerImageBlockMemoryBindingData m_Block;
+            DeviceProfilerImageOpaqueMemoryBindingData m_Opaque;
+        };
+
+        DeviceProfilerImageMemoryBindingData()
+        {
+        }
+
+        DeviceProfilerImageMemoryBindingData(const DeviceProfilerImageOpaqueMemoryBindingData& data)
+            : m_Type( DeviceProfilerImageMemoryBindingType::eOpaque )
+            , m_Opaque( data )
+        {
+        }
+
+        DeviceProfilerImageMemoryBindingData( const DeviceProfilerImageBlockMemoryBindingData& data )
+            : m_Type( DeviceProfilerImageMemoryBindingType::eBlock )
+            , m_Block( data )
+        {
+        }
     };
 
     /***********************************************************************************\
@@ -1627,7 +1666,8 @@ namespace Profiler
         uint32_t m_ImageMipLevels = {};
         uint32_t m_ImageArrayLayers = {};
         VkMemoryRequirements m_MemoryRequirements = {};
-        MemoryBindings m_MemoryBindings = {};
+        std::vector<VkSparseImageMemoryRequirements> m_SparseMemoryRequirements = {};
+        MemoryBindings m_MemoryBindings;
 
         // Interface for querying number of memory bindings.
         // By default images are bound to single memory block, unless sparse binding is enabled.

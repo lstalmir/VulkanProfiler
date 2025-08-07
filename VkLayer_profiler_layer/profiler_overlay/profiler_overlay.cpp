@@ -2877,7 +2877,7 @@ namespace Profiler
                         VkFlags usageFlags,
                         VkFlags usageFlagsFilter,
                         ResourceCompareResult compareResult,
-                        bool selected ) -> bool
+                        bool* pSelected ) -> bool
                 {
                     if( ( usageFlags & usageFlagsFilter ) == 0 )
                     {
@@ -2929,7 +2929,7 @@ namespace Profiler
                         m_pStringSerializer->GetObjectID( object ) );
 
                     bool selectionChanged = false;
-                    if( ImGui::Selectable( objectName.c_str(), &selected, ImGuiSelectableFlags_SpanAllColumns ) )
+                    if( ImGui::Selectable( objectName.c_str(), pSelected, ImGuiSelectableFlags_SpanAllColumns ) )
                     {
                         selectionChanged = true;
                     }
@@ -2946,12 +2946,14 @@ namespace Profiler
                 {
                     bool selected = ( m_ResourceInspectorBuffer == buffer );
 
-                    if( DrawResourceBrowserTableRow(
-                            buffer,
-                            bufferData.m_BufferUsage,
-                            m_ResourceBrowserBufferUsageFilter,
-                            compareResult,
-                            selected ) )
+                    DrawResourceBrowserTableRow(
+                        buffer,
+                        bufferData.m_BufferUsage,
+                        m_ResourceBrowserBufferUsageFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
                     {
                         m_ResourceInspectorBuffer = buffer;
                         m_ResourceInspectorBufferData = bufferData;
@@ -2968,12 +2970,14 @@ namespace Profiler
                 {
                     bool selected = ( m_ResourceInspectorImage == image );
 
-                    if( DrawResourceBrowserTableRow(
-                            image,
-                            imageData.m_ImageUsage,
-                            m_ResourceBrowserImageUsageFilter,
-                            compareResult,
-                            selected ) )
+                    DrawResourceBrowserTableRow(
+                        image,
+                        imageData.m_ImageUsage,
+                        m_ResourceBrowserImageUsageFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
                     {
                         m_ResourceInspectorBuffer = VK_NULL_HANDLE;
                         m_ResourceInspectorBufferData = {};
@@ -3197,6 +3201,218 @@ namespace Profiler
                 ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( m_ResourceInspectorImageData.m_ImageUsage, "\n" ).c_str() );
 
                 ImGui::Dummy( ImVec2( 1, 5 ) );
+
+                ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
+                if( ImGui::CollapsingHeader( "Memory layout" ) &&
+                    ( m_ResourceInspectorImageData.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT ) )
+                {
+                    static float blockSize = 16.f;
+                    static int selectedMipLevel = 0;
+                    static int selectedLayer = 0;
+
+                    ImGui::PushItemWidth( 100.f );
+                    if( ImGui::InputFloat( "Grid size", &blockSize, 1.f, 10.f, "%.0f" ) )
+                    {
+                        blockSize = std::max( 4.f, blockSize );
+                    }
+
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth( 100.f );
+                    if( ImGui::InputInt( "Mip level", &selectedMipLevel, 0, 0, ImGuiInputTextFlags_CharsDecimal ) )
+                    {
+                        selectedMipLevel = std::clamp(
+                            selectedMipLevel,
+                            0, static_cast<int>( m_ResourceInspectorImageData.m_ImageMipLevels - 1 ) );
+                    }
+
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth( 100.f );
+                    if( ImGui::InputInt( "Layer", &selectedLayer, 0, 0, ImGuiInputTextFlags_CharsDecimal ) )
+                    {
+                        selectedLayer = std::clamp(
+                            selectedLayer,
+                            0, static_cast<int>( m_ResourceInspectorImageData.m_ImageArrayLayers - 1 ) );
+                    }
+
+                    const DeviceProfilerImageMemoryBindingData* pBindings = m_ResourceInspectorImageData.GetMemoryBindings();
+                    const size_t bindingCount = m_ResourceInspectorImageData.GetMemoryBindingCount();
+
+                    const VkSparseImageMemoryRequirements& sparseMemoryRequirements = m_ResourceInspectorImageData.m_SparseMemoryRequirements.front();
+
+                    VkExtent3D imageMipExtent = m_ResourceInspectorImageData.m_ImageExtent;
+                    imageMipExtent.width = std::max( 1U, imageMipExtent.width >> selectedMipLevel );
+                    imageMipExtent.height = std::max( 1U, imageMipExtent.height >> selectedMipLevel );
+
+                    uint32_t blockCountX = ( imageMipExtent.width + sparseMemoryRequirements.formatProperties.imageGranularity.width - 1 ) / sparseMemoryRequirements.formatProperties.imageGranularity.width;
+                    uint32_t blockCountY = ( imageMipExtent.height + sparseMemoryRequirements.formatProperties.imageGranularity.height - 1 ) / sparseMemoryRequirements.formatProperties.imageGranularity.height;
+                    //uint32_t blockCountZ = ( imageMipExtent.depth + sparseMemoryRequirements.formatProperties.imageGranularity.depth - 1 ) / sparseMemoryRequirements.formatProperties.imageGranularity.depth;
+
+                    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+                    for( uint32_t y = 0; y < blockCountY; ++y )
+                    {
+                        for( uint32_t x = 0; x < blockCountX; ++x )
+                        {
+                            ImVec2 lt = ImGui::GetCursorScreenPos();
+                            lt.x += x * blockSize;
+                            lt.y += y * blockSize;
+                            ImVec2 rb = ImVec2( lt.x + blockSize, lt.y + blockSize );
+                            dl->AddRect( lt, rb, IM_COL32( 255, 255, 255, 32 ) );
+                        }
+                    }
+
+                    for( size_t i = 0; i < bindingCount; ++i )
+                    {
+                        const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                        if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock )
+                        {
+                            if( ( binding.m_Block.m_ImageSubresource.mipLevel == selectedMipLevel ) &&
+                                ( binding.m_Block.m_ImageSubresource.arrayLayer == selectedLayer ) )
+                            {
+                                ImVec2 lt = ImGui::GetCursorScreenPos();
+                                lt.x += ( binding.m_Block.m_ImageOffset.x / sparseMemoryRequirements.formatProperties.imageGranularity.width ) * blockSize + 1;
+                                lt.y += ( binding.m_Block.m_ImageOffset.y / sparseMemoryRequirements.formatProperties.imageGranularity.height ) * blockSize + 1;
+                                ImVec2 rb = lt;
+                                rb.x += ( binding.m_Block.m_ImageExtent.width / sparseMemoryRequirements.formatProperties.imageGranularity.width ) * blockSize - 2;
+                                rb.y += ( binding.m_Block.m_ImageExtent.height / sparseMemoryRequirements.formatProperties.imageGranularity.height ) * blockSize - 2;
+
+                                ImRect bb( lt, rb );
+                                dl->AddRectFilled( bb.Min, bb.Max, m_GraphicsPipelineColumnColor );
+
+                                ImVec2 cp = ImGui::GetCursorScreenPos();
+                                if( bb.Contains( cp ) )
+                                {
+                                    if( ImGui::BeginTooltip() )
+                                    {
+                                        ImGui::Text( "Memory: %s", m_pStringSerializer->GetName( binding.m_Block.m_Memory ).c_str() );
+                                        ImGui::Text( "Memory offset: %llu", binding.m_Block.m_MemoryOffset );
+                                        ImGui::EndTooltip();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ImGui::Dummy( ImVec2( 0, blockCountY * blockSize + 10.f ) );
+                }
+
+                if( ImGui::CollapsingHeader( "Memory bindings" ) &&
+                    ImGui::BeginTable( "##ImageBindingsTable", 8 ) )
+                {
+                    ImGui::TableSetupColumn( "Memory" );
+                    ImGui::TableSetupColumn( "Layer", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Mip", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+                    ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+                    ImGuiX::TableHeadersRow( pBoldFont );
+
+                    const DeviceProfilerImageMemoryBindingData* pBindings = m_ResourceInspectorImageData.GetMemoryBindings();
+                    const size_t bindingCount = m_ResourceInspectorImageData.GetMemoryBindingCount();
+
+                    for( size_t i = 0; i < bindingCount; ++i )
+                    {
+                        const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                        VkObjectHandle<VkDeviceMemory> memory;
+
+                        ImGui::TableNextRow();
+
+                        if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
+                        {
+                            memory = binding.m_Opaque.m_Memory;
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
+                            }
+
+                            ImGui::TableNextColumn();
+                            ImGui::TableNextColumn();
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%llu   ", binding.m_Opaque.m_ImageOffset );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%llu   ", binding.m_Opaque.m_Size );
+                            }
+                        }
+                        else
+                        {
+                            assert( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock );
+
+                            memory = binding.m_Block.m_Memory;
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%u",
+                                    binding.m_Block.m_ImageSubresource.arrayLayer );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%u",
+                                    binding.m_Block.m_ImageSubresource.mipLevel );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "<%u, %u, %u>  ",
+                                    binding.m_Block.m_ImageOffset.x,
+                                    binding.m_Block.m_ImageOffset.y,
+                                    binding.m_Block.m_ImageOffset.z );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "<%u, %u, %u>  ",
+                                    binding.m_Block.m_ImageExtent.width,
+                                    binding.m_Block.m_ImageExtent.height,
+                                    binding.m_Block.m_ImageExtent.depth );
+                            }
+                        }
+
+                        auto allocationIt = m_pData->m_Memory.m_Allocations.find( memory );
+                        if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                        {
+                            const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                            const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%u", memoryData.m_TypeIndex );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%u", memoryData.m_HeapIndex );
+                            }
+
+                            if( ImGui::TableNextColumn() )
+                            {
+                                ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                            }
+                        }
+                    }
+
+                    ImGui::EndTable();
+                }
+
+                ImGui::PopStyleColor();
             }
         }
         ImGui::End();
