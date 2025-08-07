@@ -1666,6 +1666,7 @@ namespace Profiler
         uint32_t m_ImageMipLevels = {};
         uint32_t m_ImageArrayLayers = {};
         VkMemoryRequirements m_MemoryRequirements = {};
+        std::vector<VkSparseImageMemoryRequirements> m_SparseMemoryRequirements = {};
         MemoryBindings m_MemoryBindings;
 
         // Interface for querying number of memory bindings.

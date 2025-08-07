@@ -364,6 +364,23 @@ namespace Profiler
             image,
             &data.m_MemoryRequirements );
 
+        if( data.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT )
+        {
+            uint32_t sparseMemoryRequirementCount = 0;
+            m_pDevice->Callbacks.GetImageSparseMemoryRequirements(
+                m_pDevice->Handle,
+                image,
+                &sparseMemoryRequirementCount,
+                nullptr );
+
+            data.m_SparseMemoryRequirements.resize( sparseMemoryRequirementCount );
+            m_pDevice->Callbacks.GetImageSparseMemoryRequirements(
+                m_pDevice->Handle,
+                image,
+                &sparseMemoryRequirementCount,
+                data.m_SparseMemoryRequirements.data() );
+        }
+
         m_Images.insert( image, data );
     }
 
