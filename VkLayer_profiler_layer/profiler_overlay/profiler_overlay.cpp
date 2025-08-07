@@ -2877,7 +2877,7 @@ namespace Profiler
                         VkFlags usageFlags,
                         VkFlags usageFlagsFilter,
                         ResourceCompareResult compareResult,
-                        bool selected ) -> bool
+                        bool* pSelected ) -> bool
                 {
                     if( ( usageFlags & usageFlagsFilter ) == 0 )
                     {
@@ -2929,7 +2929,7 @@ namespace Profiler
                         m_pStringSerializer->GetObjectID( object ) );
 
                     bool selectionChanged = false;
-                    if( ImGui::Selectable( objectName.c_str(), &selected, ImGuiSelectableFlags_SpanAllColumns ) )
+                    if( ImGui::Selectable( objectName.c_str(), pSelected, ImGuiSelectableFlags_SpanAllColumns ) )
                     {
                         selectionChanged = true;
                     }
@@ -2946,12 +2946,14 @@ namespace Profiler
                 {
                     bool selected = ( m_ResourceInspectorBuffer == buffer );
 
-                    if( DrawResourceBrowserTableRow(
-                            buffer,
-                            bufferData.m_BufferUsage,
-                            m_ResourceBrowserBufferUsageFilter,
-                            compareResult,
-                            selected ) )
+                    DrawResourceBrowserTableRow(
+                        buffer,
+                        bufferData.m_BufferUsage,
+                        m_ResourceBrowserBufferUsageFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
                     {
                         m_ResourceInspectorBuffer = buffer;
                         m_ResourceInspectorBufferData = bufferData;
@@ -2968,12 +2970,14 @@ namespace Profiler
                 {
                     bool selected = ( m_ResourceInspectorImage == image );
 
-                    if( DrawResourceBrowserTableRow(
-                            image,
-                            imageData.m_ImageUsage,
-                            m_ResourceBrowserImageUsageFilter,
-                            compareResult,
-                            selected ) )
+                    DrawResourceBrowserTableRow(
+                        image,
+                        imageData.m_ImageUsage,
+                        m_ResourceBrowserImageUsageFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
                     {
                         m_ResourceInspectorBuffer = VK_NULL_HANDLE;
                         m_ResourceInspectorBufferData = {};
@@ -3198,7 +3202,8 @@ namespace Profiler
 
                 ImGui::Dummy( ImVec2( 1, 5 ) );
 
-                if( ImGui::BeginTable( "##ImageBindingsTable", 8 ) )
+                if( ImGui::CollapsingHeader( "Memory bindings" ) &&
+                    ImGui::BeginTable( "##ImageBindingsTable", 8 ) )
                 {
                     ImGui::TableSetupColumn( "Memory" );
                     ImGui::TableSetupColumn( "Layer", ImGuiTableColumnFlags_WidthFixed );
