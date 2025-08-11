@@ -92,6 +92,7 @@ namespace Profiler
 
         std::string GetImageTypeName( VkImageType, VkImageCreateFlags = 0, uint32_t = 1 ) const;
         std::string GetImageTilingName( VkImageTiling ) const;
+        std::string GetImageAspectFlagNames( VkImageAspectFlags, const char* separator = DefaultFlagsSeparator ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;

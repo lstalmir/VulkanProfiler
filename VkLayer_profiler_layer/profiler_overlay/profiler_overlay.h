@@ -246,6 +246,8 @@ namespace Profiler
         DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
         VkObjectHandle<VkImage> m_ResourceInspectorImage;
         DeviceProfilerImageMemoryData m_ResourceInspectorImageData;
+        VkImageSubresource m_ResourceInspectorImageMapSubresource;
+        float m_ResourceInspectorImageMapBlockSize;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
@@ -362,7 +364,10 @@ namespace Profiler
         void UpdateNotificationWindow();
         void UpdateApplicationInfoWindow();
 
-        // Inspector helpers
+        // Resource inspector helpers
+        void DrawResourceInspectorImageMemoryMap();
+
+        // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
         void SelectInspectorShaderStage( size_t );
         void DrawInspectorShaderStage();
