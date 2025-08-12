@@ -2177,6 +2177,49 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetImageTypeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageAspectFlagNames(
+        VkImageAspectFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_IMAGE_ASPECT_COLOR_BIT )
+            builder.AddFlag( "Color" );
+        if( flags & VK_IMAGE_ASPECT_DEPTH_BIT )
+            builder.AddFlag( "Depth" );
+        if( flags & VK_IMAGE_ASPECT_STENCIL_BIT )
+            builder.AddFlag( "Stencil" );
+        if( flags & VK_IMAGE_ASPECT_METADATA_BIT )
+            builder.AddFlag( "Metadata" );
+        if( flags & VK_IMAGE_ASPECT_PLANE_0_BIT )
+            builder.AddFlag( "Plane 0" );
+        if( flags & VK_IMAGE_ASPECT_PLANE_1_BIT )
+            builder.AddFlag( "Plane 1" );
+        if( flags & VK_IMAGE_ASPECT_PLANE_2_BIT )
+            builder.AddFlag( "Plane 2" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT )
+            builder.AddFlag( "Memory plane 0" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT )
+            builder.AddFlag( "Memory plane 1" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT )
+            builder.AddFlag( "Memory plane 2" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT )
+            builder.AddFlag( "Memory plane 3" );
+
+        builder.AddUnknownFlags( flags, 11 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetCopyAccelerationStructureModeName
 
     Description:

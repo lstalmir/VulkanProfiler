@@ -27,27 +27,6 @@
 
 namespace
 {
-    static inline VkImageAspectFlags GetImageAspectFlagsForFormat( VkFormat format )
-    {
-        // Assume color aspect except for depth-stencil formats
-        switch( format )
-        {
-        case VK_FORMAT_D16_UNORM:
-        case VK_FORMAT_D32_SFLOAT:
-            return VK_IMAGE_ASPECT_DEPTH_BIT;
-
-        case VK_FORMAT_D16_UNORM_S8_UINT:
-        case VK_FORMAT_D24_UNORM_S8_UINT:
-        case VK_FORMAT_D32_SFLOAT_S8_UINT:
-            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-
-        case VK_FORMAT_S8_UINT:
-            return VK_IMAGE_ASPECT_STENCIL_BIT;
-        }
-
-        return VK_IMAGE_ASPECT_COLOR_BIT;
-    }
-
     template<typename RenderPassCreateInfo>
     static inline void CountRenderPassAttachmentClears(
         Profiler::DeviceProfilerRenderPass& renderPass,
@@ -56,7 +35,7 @@ namespace
         for( uint32_t attachmentIndex = 0; attachmentIndex < pCreateInfo->attachmentCount; ++attachmentIndex )
         {
             const auto& attachment = pCreateInfo->pAttachments[ attachmentIndex ];
-            const auto imageFormatAspectFlags = GetImageAspectFlagsForFormat( attachment.format );
+            const auto imageFormatAspectFlags = Profiler::GetFormatAllAspectFlags( attachment.format );
 
             // Color attachment clear
             if( (imageFormatAspectFlags & VK_IMAGE_ASPECT_COLOR_BIT) &&
@@ -1722,6 +1701,55 @@ namespace Profiler
             GetObjectHandle( image ),
             GetObjectHandle( memory ),
             offset );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindImageMemory( VkImage image, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
+    {
+        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
+
+        for( uint32_t i = 0; i < bindCount; ++i )
+        {
+            m_MemoryTracker.BindSparseImageMemory(
+                imageHandle,
+                pBinds[i].resourceOffset,
+                GetObjectHandle( pBinds[i].memory ),
+                pBinds[i].memoryOffset,
+                pBinds[i].size,
+                pBinds[i].flags );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindImageMemory( VkImage image, uint32_t bindCount, const VkSparseImageMemoryBind* pBinds )
+    {
+        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
+
+        for( uint32_t i = 0; i < bindCount; ++i )
+        {
+            m_MemoryTracker.BindSparseImageMemory(
+                imageHandle,
+                pBinds[i].subresource,
+                pBinds[i].offset,
+                pBinds[i].extent,
+                GetObjectHandle( pBinds[i].memory ),
+                pBinds[i].memoryOffset,
+                pBinds[i].flags );
+        }
     }
 
     /***********************************************************************************\

@@ -125,7 +125,7 @@ namespace Profiler
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
         // Bind sparse memory
-        VkResult result = dd.Device.Callbacks.QueueBindSparse(queue, bindInfoCount, pBindInfo, fence);
+        VkResult result = dd.Device.Callbacks.QueueBindSparse( queue, bindInfoCount, pBindInfo, fence );
 
         if( result == VK_SUCCESS )
         {
@@ -141,6 +141,26 @@ namespace Profiler
                         bufferBind.buffer,
                         bufferBind.bindCount,
                         bufferBind.pBinds );
+                }
+
+                // Register image opaque memory bindings
+                for( uint32_t j = 0; j < bindInfo.imageOpaqueBindCount; ++j )
+                {
+                    const VkSparseImageOpaqueMemoryBindInfo& imageBind = bindInfo.pImageOpaqueBinds[j];
+                    dd.Profiler.BindImageMemory(
+                        imageBind.image,
+                        imageBind.bindCount,
+                        imageBind.pBinds );
+                }
+
+                // Register image block memory bindings
+                for( uint32_t j = 0; j < bindInfo.imageBindCount; ++j )
+                {
+                    const VkSparseImageMemoryBindInfo& imageBind = bindInfo.pImageBinds[j];
+                    dd.Profiler.BindImageMemory(
+                        imageBind.image,
+                        imageBind.bindCount,
+                        imageBind.pBinds );
                 }
             }
         }
