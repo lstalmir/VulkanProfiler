@@ -109,8 +109,24 @@ Memory
 
 Memory tab gives an overview of memory allocations made by the profiled application.
 
+.. image:: /static/img/memory-tab.png
+    :width: 90%
+    :align: center
+
 The allocations are grouped into memory heaps that are reported by the driver.
 Below each heap there is a breakdown of allocations per memory type (memory types specify, for example, memory caching properties or host visibility of the allocations).
+
+The data can be automatically compared between frames or snapshots using the options at the top of the memory tab. When a reference frame is selected, the new and freed resources will be marked with + and - symbols. The differences in heap memory usage will also be marked in the breakdowns.
+
+The memory tab also lists all resources created by the application, which allows to investigate the allocations at a finer granularity. When a resource is selected, Resource Inspector will list its create information, such as size or usage. Below the overview there is a table listing all memory bindings associated with the resource.
+
+.. rubric:: Sparse residency map
+
+Partially resident images can also be viewed in a Sparse Residency Map that presents the current residency of the image in 2D grid. The viewed subresource can be selected with the options at the top of the tool. Each binding can be hovered to display more details, such as offset, extent and device memory being bound.
+
+.. image:: /static/img/sparse-residency-map.png
+    :width: 50%
+    :align: center
 
 Inspector
 ---------

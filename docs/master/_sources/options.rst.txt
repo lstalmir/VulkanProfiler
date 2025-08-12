@@ -25,6 +25,12 @@ This section describes in detail all available configuration options exposed by 
 
     When :confval:`output` is set to **trace_file**, this option allows to override the default file name and location of the output trace file.
 
+.. confval:: enable_memory_profiling
+    :type: bool
+    :default: true
+
+    Enables tracking of allocations and resources created by the application. The data can be used to investigate potential memory-related issues, like resource placement on a heap or frequent reallocations. It can be disabled to reduce CPU overhead.
+
 .. confval:: enable_performance_query_ext
     :type: bool
     :default: true

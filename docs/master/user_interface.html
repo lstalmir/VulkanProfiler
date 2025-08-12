@@ -174,8 +174,16 @@ The set can be changed to any of the available ones listed in the combo box at t
 <section id="memory">
 <h2>Memory<a class="headerlink" href="#memory" title="Link to this heading"></a></h2>
 <p>Memory tab gives an overview of memory allocations made by the profiled application.</p>
+<a class="reference internal image-reference" href="_images/memory-tab.png"><img alt="_images/memory-tab.png" class="align-center" src="_images/memory-tab.png" style="width: 90%;" />
+</a>
 <p>The allocations are grouped into memory heaps that are reported by the driver.
 Below each heap there is a breakdown of allocations per memory type (memory types specify, for example, memory caching properties or host visibility of the allocations).</p>
+<p>The data can be automatically compared between frames or snapshots using the options at the top of the memory tab. When a reference frame is selected, the new and freed resources will be marked with + and - symbols. The differences in heap memory usage will also be marked in the breakdowns.</p>
+<p>The memory tab also lists all resources created by the application, which allows to investigate the allocations at a finer granularity. When a resource is selected, Resource Inspector will list its create information, such as size or usage. Below the overview there is a table listing all memory bindings associated with the resource.</p>
+<p class="rubric">Sparse residency map</p>
+<p>Partially resident images can also be viewed in a Sparse Residency Map that presents the current residency of the image in 2D grid. The viewed subresource can be selected with the options at the top of the tool. Each binding can be hovered to display more details, such as offset, extent and device memory being bound.</p>
+<a class="reference internal image-reference" href="_images/sparse-residency-map.png"><img alt="_images/sparse-residency-map.png" class="align-center" src="_images/sparse-residency-map.png" style="width: 50%;" />
+</a>
 </section>
 <section id="inspector">
 <h2>Inspector<a class="headerlink" href="#inspector" title="Link to this heading"></a></h2>

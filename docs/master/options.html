@@ -48,6 +48,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Options</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#confval-output"><code class="docutils literal notranslate"><span class="pre">output</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-output_trace_file"><code class="docutils literal notranslate"><span class="pre">output_trace_file</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-enable_memory_profiling"><code class="docutils literal notranslate"><span class="pre">enable_memory_profiling</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_performance_query_ext"><code class="docutils literal notranslate"><span class="pre">enable_performance_query_ext</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_pipeline_executable_properties_ext"><code class="docutils literal notranslate"><span class="pre">enable_pipeline_executable_properties_ext</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_render_pass_begin_end_profiling"><code class="docutils literal notranslate"><span class="pre">enable_render_pass_begin_end_profiling</span></code></a></li>
@@ -120,6 +121,18 @@
 <dd class="field-even">empty</dd>
 </dl>
 <p>When <a class="reference internal" href="#confval-output"><code class="xref std std-confval docutils literal notranslate"><span class="pre">output</span></code></a> is set to <strong>trace_file</strong>, this option allows to override the default file name and location of the output trace file.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-enable_memory_profiling">
+<span class="sig-name descname"><span class="pre">enable_memory_profiling</span></span><a class="headerlink" href="#confval-enable_memory_profiling" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">true</dd>
+</dl>
+<p>Enables tracking of allocations and resources created by the application. The data can be used to investigate potential memory-related issues, like resource placement on a heap or frequent reallocations. It can be disabled to reduce CPU overhead.</p>
 </dd></dl>
 
 <dl class="std confval">
