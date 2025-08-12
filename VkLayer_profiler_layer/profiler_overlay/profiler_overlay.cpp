@@ -3436,7 +3436,6 @@ namespace Profiler
         }
 
         ImGui::PopStyleVar();
-        ImGui::Dummy( ImVec2( 0, 5.f * interfaceScale ) );
 
         const DeviceProfilerImageMemoryBindingData* pBindings = m_ResourceInspectorImageData.GetMemoryBindings();
         const size_t bindingCount = m_ResourceInspectorImageData.GetMemoryBindingCount();
@@ -3464,137 +3463,150 @@ namespace Profiler
         uint32_t allocatedBlockCount = 0;
         uint32_t totalBlockCount = blockCountX * blockCountY;
 
-        ImVec2 mousePos = ImGui::GetMousePos();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-
         const float blockSize = m_ResourceInspectorImageMapBlockSize * interfaceScale;
         const float blockMargin = 1.f * interfaceScale;
+        const ImVec2 blockMapSize( blockCountX * blockSize, blockCountY * blockSize );
 
-        for( uint32_t y = 0; y < blockCountY; ++y )
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, ImGui::GetStyleColorVec4( ImGuiCol_ScrollbarBg ) );
+        ImGui::PushStyleColor( ImGuiCol_ScrollbarBg, 0 );
+
+        if( ImGui::BeginChild( "##ImageMemoryMap",
+                ImVec2( 0, blockMapSize.y + 25.f * interfaceScale ),
+                ImGuiChildFlags_Border,
+                ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
         {
-            for( uint32_t x = 0; x < blockCountX; ++x )
-            {
-                ImVec2 lt = ImGui::GetCursorScreenPos();
-                lt.x += x * blockSize;
-                lt.y += y * blockSize;
-                ImVec2 rb = ImVec2( lt.x + blockSize, lt.y + blockSize );
-                dl->AddRect( lt, rb, IM_COL32( 128, 128, 128, 64 ) );
-            }
-        }
+            ImVec2 mousePos = ImGui::GetMousePos();
+            ImDrawList* dl = ImGui::GetWindowDrawList();
 
-        if( m_ResourceInspectorImageMapSubresource.mipLevel < pSparseMemoryRequirements->imageMipTailFirstLod )
-        {
-            for( size_t i = 0; i < bindingCount; ++i )
+            for( uint32_t y = 0; y < blockCountY; ++y )
             {
-                const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
-
-                if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock )
+                for( uint32_t x = 0; x < blockCountX; ++x )
                 {
-                    if( ( binding.m_Block.m_ImageSubresource.aspectMask == m_ResourceInspectorImageMapSubresource.aspectMask ) &&
-                        ( binding.m_Block.m_ImageSubresource.mipLevel == m_ResourceInspectorImageMapSubresource.mipLevel ) &&
-                        ( ( m_ResourceInspectorImageData.m_ImageType == VK_IMAGE_TYPE_3D )
-                                ? ( ( binding.m_Block.m_ImageOffset.z <= m_ResourceInspectorImageMapSubresource.arrayLayer ) &&
-                                      ( binding.m_Block.m_ImageOffset.z + binding.m_Block.m_ImageExtent.depth >= m_ResourceInspectorImageMapSubresource.arrayLayer ) )
-                                : ( binding.m_Block.m_ImageSubresource.arrayLayer == m_ResourceInspectorImageMapSubresource.arrayLayer ) ) )
+                    ImVec2 lt = ImGui::GetCursorScreenPos();
+                    lt.x += x * blockSize;
+                    lt.y += y * blockSize;
+                    ImVec2 rb = ImVec2( lt.x + blockSize, lt.y + blockSize );
+                    dl->AddRect( lt, rb, IM_COL32( 128, 128, 128, 64 ) );
+                }
+            }
+
+            if( m_ResourceInspectorImageMapSubresource.mipLevel < pSparseMemoryRequirements->imageMipTailFirstLod )
+            {
+                for( size_t i = 0; i < bindingCount; ++i )
+                {
+                    const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                    if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock )
                     {
-                        ImVec2 lt = ImGui::GetCursorScreenPos();
-                        lt.x += ( (float)binding.m_Block.m_ImageOffset.x / formatProperties.imageGranularity.width ) * blockSize;
-                        lt.y += ( (float)binding.m_Block.m_ImageOffset.y / formatProperties.imageGranularity.height ) * blockSize;
-                        ImVec2 rb = lt;
-                        rb.x += ( (float)binding.m_Block.m_ImageExtent.width / formatProperties.imageGranularity.width ) * blockSize;
-                        rb.y += ( (float)binding.m_Block.m_ImageExtent.height / formatProperties.imageGranularity.height ) * blockSize;
-                        ImRect bb( lt, rb );
-                        dl->AddRect( lt, rb, ImGuiX::Darker( m_GraphicsPipelineColumnColor ) );
-
-                        ImU32 color = m_GraphicsPipelineColumnColor;
-                        bool hovered = bb.Contains( mousePos );
-                        if( hovered )
-                            color = ImGuiX::Darker( color, 1.5f );
-
-                        bb.Expand( ImVec2( -1, -1 ) );
-                        dl->AddRectFilled( bb.Min, bb.Max, color );
-
-                        if( hovered )
+                        if( ( binding.m_Block.m_ImageSubresource.aspectMask == m_ResourceInspectorImageMapSubresource.aspectMask ) &&
+                            ( binding.m_Block.m_ImageSubresource.mipLevel == m_ResourceInspectorImageMapSubresource.mipLevel ) &&
+                            ( ( m_ResourceInspectorImageData.m_ImageType == VK_IMAGE_TYPE_3D )
+                                    ? ( ( binding.m_Block.m_ImageOffset.z <= m_ResourceInspectorImageMapSubresource.arrayLayer ) &&
+                                          ( binding.m_Block.m_ImageOffset.z + binding.m_Block.m_ImageExtent.depth >= m_ResourceInspectorImageMapSubresource.arrayLayer ) )
+                                    : ( binding.m_Block.m_ImageSubresource.arrayLayer == m_ResourceInspectorImageMapSubresource.arrayLayer ) ) )
                         {
-                            if( ImGui::BeginTooltip() )
+                            ImVec2 lt = ImGui::GetCursorScreenPos();
+                            lt.x += ( (float)binding.m_Block.m_ImageOffset.x / formatProperties.imageGranularity.width ) * blockSize;
+                            lt.y += ( (float)binding.m_Block.m_ImageOffset.y / formatProperties.imageGranularity.height ) * blockSize;
+                            ImVec2 rb = lt;
+                            rb.x += ( (float)binding.m_Block.m_ImageExtent.width / formatProperties.imageGranularity.width ) * blockSize;
+                            rb.y += ( (float)binding.m_Block.m_ImageExtent.height / formatProperties.imageGranularity.height ) * blockSize;
+                            ImRect bb( lt, rb );
+                            dl->AddRect( lt, rb, ImGuiX::Darker( m_GraphicsPipelineColumnColor ) );
+
+                            ImU32 color = m_GraphicsPipelineColumnColor;
+                            bool hovered = bb.Contains( mousePos );
+                            if( hovered )
+                                color = ImGuiX::Darker( color, 1.5f );
+
+                            bb.Expand( ImVec2( -1, -1 ) );
+                            dl->AddRectFilled( bb.Min, bb.Max, color );
+
+                            if( hovered )
                             {
-                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Block.m_Memory ).c_str() );
-                                ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
+                                if( ImGui::BeginTooltip() )
+                                {
+                                    ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Block.m_Memory ).c_str() );
+                                    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
 
-                                ImGui::TextUnformatted( "Memory offset:" );
-                                ImGuiX::TextAlignRight( "%llu", binding.m_Block.m_MemoryOffset );
+                                    ImGui::TextUnformatted( "Memory offset:" );
+                                    ImGuiX::TextAlignRight( "%llu", binding.m_Block.m_MemoryOffset );
 
-                                ImGui::TextUnformatted( "Image offset:" );
-                                ImGuiX::TextAlignRight( "<%u, %u, %u>",
-                                    binding.m_Block.m_ImageOffset.x,
-                                    binding.m_Block.m_ImageOffset.y,
-                                    binding.m_Block.m_ImageOffset.z );
+                                    ImGui::TextUnformatted( "Image offset:" );
+                                    ImGuiX::TextAlignRight( "<%u, %u, %u>",
+                                        binding.m_Block.m_ImageOffset.x,
+                                        binding.m_Block.m_ImageOffset.y,
+                                        binding.m_Block.m_ImageOffset.z );
 
-                                ImGui::TextUnformatted( "Image extent:" );
-                                ImGuiX::TextAlignRight( "<%u, %u, %u>",
-                                    binding.m_Block.m_ImageExtent.width,
-                                    binding.m_Block.m_ImageExtent.height,
-                                    binding.m_Block.m_ImageExtent.depth );
+                                    ImGui::TextUnformatted( "Image extent:" );
+                                    ImGuiX::TextAlignRight( "<%u, %u, %u>",
+                                        binding.m_Block.m_ImageExtent.width,
+                                        binding.m_Block.m_ImageExtent.height,
+                                        binding.m_Block.m_ImageExtent.depth );
 
-                                ImGui::PopStyleVar();
-                                ImGui::EndTooltip();
+                                    ImGui::PopStyleVar();
+                                    ImGui::EndTooltip();
+                                }
                             }
-                        }
 
-                        allocatedBlockCount++;
+                            allocatedBlockCount++;
+                        }
                     }
                 }
             }
-        }
-        else
-        {
-            for( size_t i = 0; i < bindingCount; ++i )
+            else
             {
-                const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
-
-                if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
+                for( size_t i = 0; i < bindingCount; ++i )
                 {
-                    if( ( ( formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT ) &&
-                            ( binding.m_Opaque.m_ImageOffset == pSparseMemoryRequirements->imageMipTailOffset ) ) ||
-                        ( binding.m_Opaque.m_ImageOffset == ( pSparseMemoryRequirements->imageMipTailOffset + pSparseMemoryRequirements->imageMipTailStride * m_ResourceInspectorImageMapSubresource.arrayLayer ) ) )
+                    const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                    if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
                     {
-                        ImVec2 lt = ImGui::GetCursorScreenPos();
-                        ImVec2 rb = lt;
-                        rb.x += formatProperties.imageGranularity.width * blockSize - 2;
-                        rb.y += formatProperties.imageGranularity.height * blockSize - 2;
-
-                        ImRect bb( lt, rb );
-                        dl->AddRectFilled( bb.Min, bb.Max, m_GraphicsPipelineColumnColor );
-
-                        ImVec2 cp = ImGui::GetMousePos();
-                        if( bb.Contains( cp ) )
+                        if( ( ( formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT ) &&
+                                ( binding.m_Opaque.m_ImageOffset == pSparseMemoryRequirements->imageMipTailOffset ) ) ||
+                            ( binding.m_Opaque.m_ImageOffset == ( pSparseMemoryRequirements->imageMipTailOffset + pSparseMemoryRequirements->imageMipTailStride * m_ResourceInspectorImageMapSubresource.arrayLayer ) ) )
                         {
-                            if( ImGui::BeginTooltip() )
+                            ImVec2 lt = ImGui::GetCursorScreenPos();
+                            ImVec2 rb = lt;
+                            rb.x += formatProperties.imageGranularity.width * blockSize - 2;
+                            rb.y += formatProperties.imageGranularity.height * blockSize - 2;
+
+                            ImRect bb( lt, rb );
+                            dl->AddRectFilled( bb.Min, bb.Max, m_GraphicsPipelineColumnColor );
+
+                            ImVec2 cp = ImGui::GetMousePos();
+                            if( bb.Contains( cp ) )
                             {
-                                ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Opaque.m_Memory ).c_str() );
-                                ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
+                                if( ImGui::BeginTooltip() )
+                                {
+                                    ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Opaque.m_Memory ).c_str() );
+                                    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
 
-                                ImGui::TextUnformatted( "Memory offset:" );
-                                ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_MemoryOffset );
+                                    ImGui::TextUnformatted( "Memory offset:" );
+                                    ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_MemoryOffset );
 
-                                ImGui::TextUnformatted( "Image offset:" );
-                                ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_ImageOffset );
+                                    ImGui::TextUnformatted( "Image offset:" );
+                                    ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_ImageOffset );
 
-                                ImGui::TextUnformatted( "Size:" );
-                                ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_Size );
+                                    ImGui::TextUnformatted( "Size:" );
+                                    ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_Size );
 
-                                ImGui::PopStyleVar();
-                                ImGui::EndTooltip();
+                                    ImGui::PopStyleVar();
+                                    ImGui::EndTooltip();
+                                }
                             }
-                        }
 
-                        allocatedBlockCount = totalBlockCount;
+                            allocatedBlockCount = totalBlockCount;
+                        }
                     }
                 }
             }
+
+            ImGui::Dummy( blockMapSize );
         }
 
-        ImGui::Dummy( ImVec2( 0, blockCountY * blockSize + 10.f * interfaceScale ) );
+        ImGui::EndChild();
+        ImGui::PopStyleColor( 2 );
 
         ImGui::Text( "Mip: %u - %u x %u x %u",
             m_ResourceInspectorImageMapSubresource.mipLevel,
@@ -3609,7 +3621,7 @@ namespace Profiler
             allocatedBlockCount * m_ResourceInspectorImageData.m_MemoryRequirements.alignment / 1024.f,
             totalBlockCount * m_ResourceInspectorImageData.m_MemoryRequirements.alignment / 1024.f );
 
-        ImGui::Dummy( ImVec2( 0, 10.f * interfaceScale ) );
+        ImGui::Dummy( ImVec2( 0, 5.f * interfaceScale ) );
     }
 
     /***********************************************************************************\
