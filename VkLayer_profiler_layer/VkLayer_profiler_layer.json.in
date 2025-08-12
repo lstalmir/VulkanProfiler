@@ -109,6 +109,14 @@
                     ]
                 },
                 {
+                    "key": "enable_memory_profiling",
+                    "label": "Enable memory profiling",
+                    "description": "Track allocations and resources created by the application.",
+                    "env": "VKPROF_enable_memory_profiling",
+                    "type": "BOOL",
+                    "default": true
+                },
+                {
                     "key": "enable_performance_query_ext",
                     "label": "Enable performance query extensions",
                     "description": "Enable vendor-specific extensions for collection of additional performance data.",

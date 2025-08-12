@@ -2438,6 +2438,14 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
+        if( !m_Frontend.GetProfilerConfig().m_EnableMemoryProfiling )
+        {
+            ImGui::TextUnformatted( "Memory profiling disabled." );
+
+            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
+            return;
+        }
+
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_Frontend.GetPhysicalDeviceMemoryProperties();
 

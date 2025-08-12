@@ -1521,6 +1521,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.RegisterAllocation( RegisterObject( allocatedMemory ), pAllocateInfo );
     }
 
@@ -1534,6 +1539,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeMemory( VkDeviceMemory allocatedMemory )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.UnregisterAllocation( GetObjectHandle( allocatedMemory ) );
 
         UnregisterObject( allocatedMemory );
@@ -1549,6 +1559,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateAccelerationStructure( VkAccelerationStructureKHR accelerationStructure, const VkAccelerationStructureCreateInfoKHR* )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         RegisterObject( accelerationStructure );
     }
 
@@ -1562,6 +1577,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyAccelerationStructure( VkAccelerationStructureKHR accelerationStructure )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         UnregisterObject( accelerationStructure );
     }
 
@@ -1575,6 +1595,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateMicromap( VkMicromapEXT micromap, const VkMicromapCreateInfoEXT* )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         RegisterObject( micromap );
     }
 
@@ -1588,6 +1613,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyMicromap( VkMicromapEXT micromap )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         UnregisterObject( micromap );
     }
 
@@ -1601,6 +1631,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.RegisterBuffer( RegisterObject( buffer ), pCreateInfo );
     }
 
@@ -1614,6 +1649,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyBuffer( VkBuffer buffer )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.UnregisterBuffer( GetObjectHandle( buffer ) );
 
         UnregisterObject( buffer );
@@ -1629,6 +1669,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.BindBufferMemory(
             GetObjectHandle( buffer ),
             GetObjectHandle( memory ),
@@ -1645,6 +1690,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BindBufferMemory( VkBuffer buffer, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         const VkObjectHandle<VkBuffer> bufferHandle = GetObjectHandle( buffer );
 
         for( uint32_t i = 0; i < bindCount; ++i )
@@ -1669,6 +1719,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateImage( VkImage image, const VkImageCreateInfo* pCreateInfo )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.RegisterImage( RegisterObject( image ), pCreateInfo );
     }
 
@@ -1682,6 +1737,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyImage( VkImage image )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.UnregisterImage( GetObjectHandle( image ) );
 
         UnregisterObject( image );
@@ -1697,6 +1757,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         m_MemoryTracker.BindImageMemory(
             GetObjectHandle( image ),
             GetObjectHandle( memory ),
@@ -1713,6 +1778,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BindImageMemory( VkImage image, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
 
         for( uint32_t i = 0; i < bindCount; ++i )
@@ -1737,6 +1807,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BindImageMemory( VkImage image, uint32_t bindCount, const VkSparseImageMemoryBind* pBinds )
     {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
         const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
 
         for( uint32_t i = 0; i < bindCount; ++i )
