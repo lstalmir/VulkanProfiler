@@ -255,17 +255,6 @@ namespace Profiler
         return IM_COL32( 255, 128, 128, 255 );
     }
 
-    template<typename... Args>
-    static const char* va( const char* format, Args&&... args )
-    {
-        static thread_local std::string buffer;
-        buffer = fmt::format(
-            format,
-            std::forward<Args>( args )... );
-
-        return buffer.c_str();
-    }
-
     uint32_t ProfilerOverlayOutput::MakeFrameIndex( size_t frameDataIndex, uint32_t frameIndexFlags )
     {
         assert( ( frameDataIndex & FrameIndexMask ) == frameDataIndex );
