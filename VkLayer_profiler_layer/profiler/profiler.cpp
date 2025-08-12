@@ -1557,14 +1557,17 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::CreateAccelerationStructure( VkAccelerationStructureKHR accelerationStructure, const VkAccelerationStructureCreateInfoKHR* )
+    void DeviceProfiler::CreateAccelerationStructure( VkAccelerationStructureKHR accelerationStructure, const VkAccelerationStructureCreateInfoKHR* pCreateInfo )
     {
         if( !m_Config.m_EnableMemoryProfiling )
         {
             return;
         }
 
-        RegisterObject( accelerationStructure );
+        m_MemoryTracker.RegisterAccelerationStructure(
+            RegisterObject( accelerationStructure ),
+            GetObjectHandle( pCreateInfo->buffer ),
+            pCreateInfo );
     }
 
     /***********************************************************************************\
@@ -1581,6 +1584,8 @@ namespace Profiler
         {
             return;
         }
+
+        m_MemoryTracker.UnregisterAccelerationStructure( GetObjectHandle( accelerationStructure ) );
 
         UnregisterObject( accelerationStructure );
     }

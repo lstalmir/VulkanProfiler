@@ -59,6 +59,9 @@ namespace Profiler
         void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkDeviceSize imageOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
         void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags );
 
+        void RegisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure, VkObjectHandle<VkBuffer> buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo );
+        void UnregisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure );
+
         DeviceProfilerMemoryData GetMemoryData() const;
 
     private:
@@ -77,6 +80,7 @@ namespace Profiler
         ConcurrentMap<VkObjectHandle<VkDeviceMemory>, DeviceProfilerDeviceMemoryData> m_Allocations;
         ConcurrentMap<VkObjectHandle<VkBuffer>, DeviceProfilerBufferMemoryData> m_Buffers;
         ConcurrentMap<VkObjectHandle<VkImage>, DeviceProfilerImageMemoryData> m_Images;
+        ConcurrentMap<VkObjectHandle<VkAccelerationStructureKHR>, DeviceProfilerAccelerationStructureMemoryData> m_AccelerationStructures;
 
         std::shared_mutex mutable m_MemoryBindingMutex;
 

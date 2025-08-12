@@ -609,6 +609,8 @@ namespace Profiler
         m_ResourceInspectorImageData = {};
         m_ResourceInspectorImageMapSubresource = {};
         m_ResourceInspectorImageMapBlockSize = 16.f;
+        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
+        m_ResourceInspectorAccelerationStructureData = {};
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -2969,6 +2971,8 @@ namespace Profiler
                         m_ResourceInspectorBufferData = bufferData;
                         m_ResourceInspectorImage = VK_NULL_HANDLE;
                         m_ResourceInspectorImageData = {};
+                        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
+                        m_ResourceInspectorAccelerationStructureData = {};
                     }
                 };
 
@@ -2993,10 +2997,56 @@ namespace Profiler
                         m_ResourceInspectorBufferData = {};
                         m_ResourceInspectorImage = image;
                         m_ResourceInspectorImageData = imageData;
+                        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
+                        m_ResourceInspectorAccelerationStructureData = {};
+                    }
+                };
+
+                // Acceleration structure resource row.
+                auto DrawResourceBrowserAccelerationStructureTableRow =
+                    [&]( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure,
+                        const DeviceProfilerAccelerationStructureMemoryData& accelerationStructureData,
+                        ResourceCompareResult compareResult )
+                {
+                    bool selected = ( m_ResourceInspectorAccelerationStructure == accelerationStructure );
+
+                    DrawResourceBrowserTableRow(
+                        accelerationStructure,
+                        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+                        m_ResourceBrowserBufferUsageFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
+                    {
+                        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
+                        m_ResourceInspectorBufferData = {};
+                        m_ResourceInspectorImage = VK_NULL_HANDLE;
+                        m_ResourceInspectorImageData = {};
+                        m_ResourceInspectorAccelerationStructure = accelerationStructure;
+                        m_ResourceInspectorAccelerationStructureData = accelerationStructureData;
                     }
                 };
 
                 // List all resources.
+                for( const auto& [accelerationStructure, data] : m_pData->m_Memory.m_AccelerationStructures )
+                {
+                    DrawResourceBrowserAccelerationStructureTableRow(
+                        accelerationStructure,
+                        data,
+                        memoryComparisonResults.m_AllocatedAccelerationStructures.count( accelerationStructure )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
+
+                for( const auto& [accelerationStructure, pData] : memoryComparisonResults.m_FreedAccelerationStructures )
+                {
+                    DrawResourceBrowserAccelerationStructureTableRow(
+                        accelerationStructure,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
+
                 for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
                 {
                     DrawResourceBrowserBufferTableRow(
@@ -3331,6 +3381,49 @@ namespace Profiler
 
                     ImGui::EndTable();
                 }
+            }
+
+            if( m_ResourceInspectorAccelerationStructure != VK_NULL_HANDLE )
+            {
+                if( !m_pData->m_Memory.m_AccelerationStructures.count( m_ResourceInspectorAccelerationStructure ) )
+                {
+                    // Buffer data not found.
+                    ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                                 "It may have been freed or hasn't been created yet.",
+                        m_pStringSerializer->GetName( m_ResourceInspectorAccelerationStructure ).c_str(),
+                        VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( m_ResourceInspectorAccelerationStructure ) );
+                }
+
+                float columnValueOffset1 = 70.f * interfaceScale;
+
+                ImFont* pBoldFont = m_Resources.GetBoldFont();
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Type:" );
+                ImGui::PopFont();
+                ImGui::SameLine( columnValueOffset1 );
+                ImGui::TextUnformatted( m_pStringSerializer->GetAccelerationStructureTypeName( m_ResourceInspectorAccelerationStructureData.m_Type ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Buffer:" );
+                ImGui::PopFont();
+                ImGui::SameLine( columnValueOffset1 );
+                ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorAccelerationStructureData.m_Buffer ).c_str() );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Size:" );
+                ImGui::PopFont();
+                ImGui::SameLine( columnValueOffset1 );
+                ImGui::Text( "%s (%llu bytes)",
+                    m_pStringSerializer->GetByteSize( m_ResourceInspectorAccelerationStructureData.m_Size ),
+                    m_ResourceInspectorAccelerationStructureData.m_Size );
+
+                ImGui::PushFont( pBoldFont );
+                ImGui::TextUnformatted( "Offset:" );
+                ImGui::PopFont();
+                ImGui::SameLine( columnValueOffset1 );
+                ImGui::Text( "%llu", m_ResourceInspectorAccelerationStructureData.m_Offset );
+
+                ImGui::Dummy( ImVec2( 1, 5 ) );
             }
         }
         ImGui::End();

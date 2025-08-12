@@ -49,6 +49,9 @@ namespace Profiler
 
         std::unordered_map<VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData*> m_AllocatedImages;
         std::unordered_map<VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData*> m_FreedImages;
+
+        std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData*> m_AllocatedAccelerationStructures;
+        std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData*> m_FreedAccelerationStructures;
     };
 
     /***********************************************************************************\
