@@ -52,6 +52,8 @@ namespace Profiler
 
         std::string GetName( const struct VkObject& object ) const;
         std::string GetObjectID( const struct VkObject& object ) const;
+        std::string GetObjectTypeName( const VkObjectType objectType ) const;
+        std::string GetShortObjectTypeName( const VkObjectType objectType ) const;
 
         std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
 
@@ -96,6 +98,7 @@ namespace Profiler
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
+        std::string GetAccelerationStructureTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
         std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
 

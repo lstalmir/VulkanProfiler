@@ -116,6 +116,11 @@ namespace Profiler
         VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR |
         VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR;
 
+    static constexpr VkFlags g_KnownAccelerationStructureTypes =
+        1 << VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR |
+        1 << VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR |
+        1 << VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR;
+
     static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
         IM_COL32( 110, 177, 165, 255 ),
         IM_COL32( 219, 219, 146, 255 ),
@@ -602,6 +607,7 @@ namespace Profiler
         memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
         m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
+        m_ResourceBrowserAccelerationStructureTypeFilter = g_KnownAccelerationStructureTypes;
         m_ResourceBrowserShowDifferences = false;
         m_ResourceInspectorBuffer = VK_NULL_HANDLE;
         m_ResourceInspectorBufferData = {};
@@ -611,6 +617,7 @@ namespace Profiler
         m_ResourceInspectorImageMapBlockSize = 16.f;
         m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
         m_ResourceInspectorAccelerationStructureData = {};
+        m_ResourceInspectorAccelerationStructureBufferData = {};
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -2860,6 +2867,13 @@ namespace Profiler
             g_KnownImageUsageFlags,
             &DeviceProfilerStringSerializer::GetImageUsageFlagNames );
 
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Acceleration structures###AccelerationStructureFilter",
+            m_ResourceBrowserAccelerationStructureTypeFilter,
+            g_KnownAccelerationStructureTypes,
+            &DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames );
+
         ImGui::Separator();
 
         MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
@@ -2933,7 +2947,13 @@ namespace Profiler
 
                     ImGui::TableNextColumn();
                     ImGui::TextUnformatted(
-                        VkObject_Runtime_Traits::FromObjectType( object.m_Type ).ObjectTypeName + 2 /*skip Vk prefix*/ );
+                        m_pStringSerializer->GetShortObjectTypeName( object.m_Type ).c_str() );
+
+                    if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                    {
+                        ImGui::SetTooltip( "%s",
+                            m_pStringSerializer->GetObjectTypeName( object.m_Type ).c_str() );
+                    }
 
                     ImGui::TableNextColumn();
                     objectName = fmt::format( "{}###{}",
@@ -2974,6 +2994,10 @@ namespace Profiler
                         m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
                         m_ResourceInspectorAccelerationStructureData = {};
                     }
+                    else if( m_ResourceInspectorAccelerationStructureData.m_Buffer == buffer )
+                    {
+                        m_ResourceInspectorAccelerationStructureBufferData = bufferData;
+                    }
                 };
 
                 // Image resource row.
@@ -3010,10 +3034,13 @@ namespace Profiler
                 {
                     bool selected = ( m_ResourceInspectorAccelerationStructure == accelerationStructure );
 
+                    // Acceleration structure types are a simple enum, convert to bitmask for filtering.
+                    VkFlags accelerationStructureTypeBit = ( 1U << accelerationStructureData.m_Type );
+
                     DrawResourceBrowserTableRow(
                         accelerationStructure,
-                        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
-                        m_ResourceBrowserBufferUsageFilter,
+                        accelerationStructureTypeBit,
+                        m_ResourceBrowserAccelerationStructureTypeFilter,
                         compareResult,
                         &selected );
 
@@ -3029,24 +3056,6 @@ namespace Profiler
                 };
 
                 // List all resources.
-                for( const auto& [accelerationStructure, data] : m_pData->m_Memory.m_AccelerationStructures )
-                {
-                    DrawResourceBrowserAccelerationStructureTableRow(
-                        accelerationStructure,
-                        data,
-                        memoryComparisonResults.m_AllocatedAccelerationStructures.count( accelerationStructure )
-                            ? ResourceCompareResult::eAdded
-                            : ResourceCompareResult::eUnchanged );
-                }
-
-                for( const auto& [accelerationStructure, pData] : memoryComparisonResults.m_FreedAccelerationStructures )
-                {
-                    DrawResourceBrowserAccelerationStructureTableRow(
-                        accelerationStructure,
-                        *pData,
-                        ResourceCompareResult::eRemoved );
-                }
-
                 for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
                 {
                     DrawResourceBrowserBufferTableRow(
@@ -3083,6 +3092,24 @@ namespace Profiler
                         ResourceCompareResult::eRemoved );
                 }
 
+                for( const auto& [accelerationStructure, data] : m_pData->m_Memory.m_AccelerationStructures )
+                {
+                    DrawResourceBrowserAccelerationStructureTableRow(
+                        accelerationStructure,
+                        data,
+                        memoryComparisonResults.m_AllocatedAccelerationStructures.count( accelerationStructure )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
+
+                for( const auto& [accelerationStructure, pData] : memoryComparisonResults.m_FreedAccelerationStructures )
+                {
+                    DrawResourceBrowserAccelerationStructureTableRow(
+                        accelerationStructure,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
+
                 ImGui::EndTable();
             }
         }
@@ -3092,338 +3119,24 @@ namespace Profiler
         {
             if( m_ResourceInspectorBuffer != VK_NULL_HANDLE )
             {
-                if( !m_pData->m_Memory.m_Buffers.count( m_ResourceInspectorBuffer ) )
-                {
-                    // Buffer data not found.
-                    ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
-                                    "It may have been freed or hasn't been created yet.",
-                        m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str(),
-                        VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( m_ResourceInspectorBuffer ) );
-                }
-
-                float columnValueOffset1 = 70.f * interfaceScale;
-
-                ImFont* pBoldFont = m_Resources.GetBoldFont();
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Buffer:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorBuffer ).c_str() );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Size:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::Text( "%s (%llu bytes)",
-                    m_pStringSerializer->GetByteSize( m_ResourceInspectorBufferData.m_BufferSize ),
-                    m_ResourceInspectorBufferData.m_BufferSize );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Usage:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( m_ResourceInspectorBufferData.m_BufferUsage, "\n" ).c_str() );
-
-                ImGui::Dummy( ImVec2( 1, 5 ) );
-
-                if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
-                {
-                    ImGui::TableSetupColumn( "Memory" );
-                    ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
-                    ImGuiX::TableHeadersRow( pBoldFont );
-
-                    const DeviceProfilerBufferMemoryBindingData* pBindings = m_ResourceInspectorBufferData.GetMemoryBindings();
-                    const size_t bindingCount = m_ResourceInspectorBufferData.GetMemoryBindingCount();
-
-                    for( size_t i = 0; i < bindingCount; ++i )
-                    {
-                        const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
-
-                        ImGui::TableNextRow();
-
-                        if( ImGui::TableNextColumn() )
-                        {
-                            ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
-                        }
-
-                        if( ImGui::TableNextColumn() )
-                        {
-                            ImGui::Text( "%llu   ", binding.m_MemoryOffset );
-                        }
-
-                        if( ImGui::TableNextColumn() )
-                        {
-                            ImGui::Text( "%llu   ", binding.m_Size );
-                        }
-
-                        auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
-                        if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
-                        {
-                            const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
-                            const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%u", memoryData.m_TypeIndex );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%u", memoryData.m_HeapIndex );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
-                            }
-                        }
-                    }
-
-                    ImGui::EndTable();
-                }
+                DrawResourceInspectorBufferInfo(
+                    m_ResourceInspectorBuffer,
+                    m_ResourceInspectorBufferData );
             }
 
             if( m_ResourceInspectorImage != VK_NULL_HANDLE )
             {
-                if( !m_pData->m_Memory.m_Images.count( m_ResourceInspectorImage ) )
-                {
-                    // Buffer data not found.
-                    ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
-                                 "It may have been freed or hasn't been created yet.",
-                        m_pStringSerializer->GetName( m_ResourceInspectorImage ).c_str(),
-                        VkObject_Traits<VkImage>::GetObjectHandleAsUint64( m_ResourceInspectorImage ) );
-                }
-
-                float columnWidth = ImGui::GetContentRegionAvail().x * 0.55f;
-                float columnValueOffset1 = 70.f * interfaceScale;
-                float columnValueOffset2 = 60.f * interfaceScale + columnWidth;
-
-                ImFont* pBoldFont = m_Resources.GetBoldFont();
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Image:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorImage ).c_str() );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Type:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::TextUnformatted( m_pStringSerializer->GetImageTypeName(
-                    m_ResourceInspectorImageData.m_ImageType,
-                    m_ResourceInspectorImageData.m_ImageFlags,
-                    m_ResourceInspectorImageData.m_ImageArrayLayers ).c_str() );
-
-                ImGui::SameLine( columnWidth );
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Mips:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset2 );
-                ImGui::Text( "%u", m_ResourceInspectorImageData.m_ImageMipLevels );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Size:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::Text( "%u x %u x %u",
-                    m_ResourceInspectorImageData.m_ImageExtent.width,
-                    m_ResourceInspectorImageData.m_ImageExtent.height,
-                    m_ResourceInspectorImageData.m_ImageExtent.depth );
-
-                ImGui::SameLine( columnWidth );
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Layers:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset2 );
-                ImGui::Text( "%u", m_ResourceInspectorImageData.m_ImageArrayLayers );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Format:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::TextUnformatted( m_pStringSerializer->GetFormatName( m_ResourceInspectorImageData.m_ImageFormat ).c_str() );
-
-                ImGui::SameLine( columnWidth );
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Tiling:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset2 );
-                ImGui::TextUnformatted( m_pStringSerializer->GetImageTilingName( m_ResourceInspectorImageData.m_ImageTiling ).c_str() );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Usage:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( m_ResourceInspectorImageData.m_ImageUsage, "\n" ).c_str() );
-
-                ImGui::Dummy( ImVec2( 1, 5 ) );
-
-                if( m_ResourceInspectorImageData.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT )
-                {
-                    if( ImGui::CollapsingHeader( "Sparse residency map" ) )
-                    {
-                        DrawResourceInspectorImageMemoryMap();
-                    }
-                }
-
-                if( ImGui::CollapsingHeader( "Memory bindings" ) &&
-                    ImGui::BeginTable( "##ImageBindingsTable", 8 ) )
-                {
-                    ImGui::TableSetupColumn( "Memory" );
-                    ImGui::TableSetupColumn( "Layer", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Mip", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
-                    ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
-                    ImGuiX::TableHeadersRow( pBoldFont );
-
-                    const DeviceProfilerImageMemoryBindingData* pBindings = m_ResourceInspectorImageData.GetMemoryBindings();
-                    const size_t bindingCount = m_ResourceInspectorImageData.GetMemoryBindingCount();
-
-                    for( size_t i = 0; i < bindingCount; ++i )
-                    {
-                        const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
-
-                        VkObjectHandle<VkDeviceMemory> memory;
-
-                        ImGui::TableNextRow();
-
-                        if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
-                        {
-                            memory = binding.m_Opaque.m_Memory;
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
-                            }
-
-                            ImGui::TableNextColumn();
-                            ImGui::TableNextColumn();
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%llu   ", binding.m_Opaque.m_ImageOffset );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%llu   ", binding.m_Opaque.m_Size );
-                            }
-                        }
-                        else
-                        {
-                            assert( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock );
-
-                            memory = binding.m_Block.m_Memory;
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%u",
-                                    binding.m_Block.m_ImageSubresource.arrayLayer );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%u",
-                                    binding.m_Block.m_ImageSubresource.mipLevel );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "<%u, %u, %u>  ",
-                                    binding.m_Block.m_ImageOffset.x,
-                                    binding.m_Block.m_ImageOffset.y,
-                                    binding.m_Block.m_ImageOffset.z );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "<%u, %u, %u>  ",
-                                    binding.m_Block.m_ImageExtent.width,
-                                    binding.m_Block.m_ImageExtent.height,
-                                    binding.m_Block.m_ImageExtent.depth );
-                            }
-                        }
-
-                        auto allocationIt = m_pData->m_Memory.m_Allocations.find( memory );
-                        if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
-                        {
-                            const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
-                            const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%u", memoryData.m_TypeIndex );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%u", memoryData.m_HeapIndex );
-                            }
-
-                            if( ImGui::TableNextColumn() )
-                            {
-                                ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
-                            }
-                        }
-                    }
-
-                    ImGui::EndTable();
-                }
+                DrawResourceInspectorImageInfo(
+                    m_ResourceInspectorImage,
+                    m_ResourceInspectorImageData );
             }
 
             if( m_ResourceInspectorAccelerationStructure != VK_NULL_HANDLE )
             {
-                if( !m_pData->m_Memory.m_AccelerationStructures.count( m_ResourceInspectorAccelerationStructure ) )
-                {
-                    // Buffer data not found.
-                    ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
-                                 "It may have been freed or hasn't been created yet.",
-                        m_pStringSerializer->GetName( m_ResourceInspectorAccelerationStructure ).c_str(),
-                        VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( m_ResourceInspectorAccelerationStructure ) );
-                }
-
-                float columnValueOffset1 = 70.f * interfaceScale;
-
-                ImFont* pBoldFont = m_Resources.GetBoldFont();
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Type:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::TextUnformatted( m_pStringSerializer->GetAccelerationStructureTypeName( m_ResourceInspectorAccelerationStructureData.m_Type ).c_str() );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Buffer:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::TextUnformatted( m_pStringSerializer->GetName( m_ResourceInspectorAccelerationStructureData.m_Buffer ).c_str() );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Size:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::Text( "%s (%llu bytes)",
-                    m_pStringSerializer->GetByteSize( m_ResourceInspectorAccelerationStructureData.m_Size ),
-                    m_ResourceInspectorAccelerationStructureData.m_Size );
-
-                ImGui::PushFont( pBoldFont );
-                ImGui::TextUnformatted( "Offset:" );
-                ImGui::PopFont();
-                ImGui::SameLine( columnValueOffset1 );
-                ImGui::Text( "%llu", m_ResourceInspectorAccelerationStructureData.m_Offset );
-
-                ImGui::Dummy( ImVec2( 1, 5 ) );
+                DrawResourceInspectorAccelerationStructureInfo(
+                    m_ResourceInspectorAccelerationStructure,
+                    m_ResourceInspectorAccelerationStructureData,
+                    m_ResourceInspectorAccelerationStructureBufferData );
             }
         }
         ImGui::End();
@@ -3432,6 +3145,375 @@ namespace Profiler
 
         // Restore the current frame data.
         m_pData = std::move( pRestoreData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorAccelerationStructureInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorAccelerationStructureInfo(
+        VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure,
+        const DeviceProfilerAccelerationStructureMemoryData& accelerationStructureData,
+        const DeviceProfilerBufferMemoryData& bufferData )
+    {
+        if( !m_pData->m_Memory.m_AccelerationStructures.count( accelerationStructure ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( accelerationStructure ).c_str(),
+                VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructure ) );
+        }
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnValueOffset1 = 70.f * interfaceScale;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Struct:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( accelerationStructure ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Type:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetAccelerationStructureTypeName( accelerationStructureData.m_Type ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s (%llu bytes)", m_pStringSerializer->GetByteSize( accelerationStructureData.m_Size ), accelerationStructureData.m_Size );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Offset:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%llu", accelerationStructureData.m_Offset );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGui::Separator();
+
+        DrawResourceInspectorBufferInfo( accelerationStructureData.m_Buffer, bufferData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorBufferInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorBufferInfo(
+        VkObjectHandle<VkBuffer> buffer,
+        const DeviceProfilerBufferMemoryData& bufferData )
+    {
+        if( !m_pData->m_Memory.m_Buffers.count( buffer ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( buffer ).c_str(),
+                VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( buffer ) );
+        }
+
+        const VkPhysicalDeviceMemoryProperties& memoryProperties =
+            m_Frontend.GetPhysicalDeviceMemoryProperties();
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnValueOffset1 = 70.f * interfaceScale;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Buffer:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( buffer ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s (%llu bytes)", m_pStringSerializer->GetByteSize( bufferData.m_BufferSize ), bufferData.m_BufferSize );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Usage:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( bufferData.m_BufferUsage, "\n" ).c_str() );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
+        {
+            ImGui::TableSetupColumn( "Memory" );
+            ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+            ImGuiX::TableHeadersRow( pBoldFont );
+
+            const DeviceProfilerBufferMemoryBindingData* pBindings = bufferData.GetMemoryBindings();
+            const size_t bindingCount = bufferData.GetMemoryBindingCount();
+
+            for( size_t i = 0; i < bindingCount; ++i )
+            {
+                const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
+
+                ImGui::TableNextRow();
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::Text( "%llu   ", binding.m_MemoryOffset );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::Text( "%llu   ", binding.m_Size );
+                }
+
+                auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
+                if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                {
+                    const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                    const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_TypeIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_HeapIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                    }
+                }
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorImageMemoryMap
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorImageInfo(
+        VkObjectHandle<VkImage> image,
+        const DeviceProfilerImageMemoryData& imageData )
+    {
+        if( !m_pData->m_Memory.m_Images.count( image ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( image ).c_str(),
+                VkObject_Traits<VkImage>::GetObjectHandleAsUint64( image ) );
+        }
+
+        const VkPhysicalDeviceMemoryProperties& memoryProperties =
+            m_Frontend.GetPhysicalDeviceMemoryProperties();
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnWidth = ImGui::GetContentRegionAvail().x * 0.55f;
+        const float columnValueOffset1 = 70.f * interfaceScale;
+        const float columnValueOffset2 = 60.f * interfaceScale + columnWidth;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Image:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( image ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Type:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetImageTypeName( imageData.m_ImageType, imageData.m_ImageFlags, imageData.m_ImageArrayLayers ).c_str() );
+
+        ImGui::SameLine( columnWidth );
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Mips:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset2 );
+        ImGui::Text( "%u", imageData.m_ImageMipLevels );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%u x %u x %u", imageData.m_ImageExtent.width, imageData.m_ImageExtent.height, imageData.m_ImageExtent.depth );
+
+        ImGui::SameLine( columnWidth );
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Layers:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset2 );
+        ImGui::Text( "%u", imageData.m_ImageArrayLayers );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Format:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetFormatName( imageData.m_ImageFormat ).c_str() );
+
+        ImGui::SameLine( columnWidth );
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Tiling:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset2 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetImageTilingName( imageData.m_ImageTiling ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Usage:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( imageData.m_ImageUsage, "\n" ).c_str() );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        if( imageData.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT )
+        {
+            if( ImGui::CollapsingHeader( "Sparse residency map" ) )
+            {
+                DrawResourceInspectorImageMemoryMap();
+            }
+        }
+
+        if( ImGui::CollapsingHeader( "Memory bindings" ) &&
+            ImGui::BeginTable( "##ImageBindingsTable", 8 ) )
+        {
+            ImGui::TableSetupColumn( "Memory" );
+            ImGui::TableSetupColumn( "Layer", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Mip", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+            ImGuiX::TableHeadersRow( pBoldFont );
+
+            const DeviceProfilerImageMemoryBindingData* pBindings = imageData.GetMemoryBindings();
+            const size_t bindingCount = imageData.GetMemoryBindingCount();
+
+            for( size_t i = 0; i < bindingCount; ++i )
+            {
+                const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                VkObjectHandle<VkDeviceMemory> memory;
+
+                ImGui::TableNextRow();
+
+                if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
+                {
+                    memory = binding.m_Opaque.m_Memory;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::TableNextColumn();
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%llu   ", binding.m_Opaque.m_ImageOffset );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%llu   ", binding.m_Opaque.m_Size );
+                    }
+                }
+                else
+                {
+                    assert( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock );
+
+                    memory = binding.m_Block.m_Memory;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u",
+                            binding.m_Block.m_ImageSubresource.arrayLayer );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u",
+                            binding.m_Block.m_ImageSubresource.mipLevel );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "<%u, %u, %u>  ",
+                            binding.m_Block.m_ImageOffset.x,
+                            binding.m_Block.m_ImageOffset.y,
+                            binding.m_Block.m_ImageOffset.z );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "<%u, %u, %u>  ",
+                            binding.m_Block.m_ImageExtent.width,
+                            binding.m_Block.m_ImageExtent.height,
+                            binding.m_Block.m_ImageExtent.depth );
+                    }
+                }
+
+                auto allocationIt = m_pData->m_Memory.m_Allocations.find( memory );
+                if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                {
+                    const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                    const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_TypeIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_HeapIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                    }
+                }
+            }
+
+            ImGui::EndTable();
+        }
     }
 
     /***********************************************************************************\
