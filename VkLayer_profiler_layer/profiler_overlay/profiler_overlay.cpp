@@ -2586,6 +2586,23 @@ namespace Profiler
         // Compare memory usage in the selected frames and get the results.
         const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
 
+        auto GetBufferMemoryData = [&]( VkObjectHandle<VkBuffer> buffer )
+        {
+            auto currentBufferData = m_pData->m_Memory.m_Buffers.find( buffer );
+            if( currentBufferData != m_pData->m_Memory.m_Buffers.end() )
+            {
+                return currentBufferData->second;
+            }
+
+            auto freedBufferData = memoryComparisonResults.m_FreedBuffers.find( buffer );
+            if( freedBufferData != memoryComparisonResults.m_FreedBuffers.end() )
+            {
+                return *freedBufferData->second;
+            }
+
+            return DeviceProfilerBufferMemoryData();
+        };
+
         // Memory usage overview.
         if( ImGui::BeginTable( "##MemoryHeapsTable", memoryProperties.memoryHeapCount, ImGuiTableFlags_BordersInnerV ) )
         {
@@ -2987,16 +3004,9 @@ namespace Profiler
 
                     if( selected )
                     {
+                        ResetResourceInspector();
                         m_ResourceInspectorBuffer = buffer;
                         m_ResourceInspectorBufferData = bufferData;
-                        m_ResourceInspectorImage = VK_NULL_HANDLE;
-                        m_ResourceInspectorImageData = {};
-                        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
-                        m_ResourceInspectorAccelerationStructureData = {};
-                    }
-                    else if( m_ResourceInspectorAccelerationStructureData.m_Buffer == buffer )
-                    {
-                        m_ResourceInspectorAccelerationStructureBufferData = bufferData;
                     }
                 };
 
@@ -3017,12 +3027,9 @@ namespace Profiler
 
                     if( selected )
                     {
-                        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
-                        m_ResourceInspectorBufferData = {};
+                        ResetResourceInspector();
                         m_ResourceInspectorImage = image;
                         m_ResourceInspectorImageData = imageData;
-                        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
-                        m_ResourceInspectorAccelerationStructureData = {};
                     }
                 };
 
@@ -3046,12 +3053,10 @@ namespace Profiler
 
                     if( selected )
                     {
-                        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
-                        m_ResourceInspectorBufferData = {};
-                        m_ResourceInspectorImage = VK_NULL_HANDLE;
-                        m_ResourceInspectorImageData = {};
+                        ResetResourceInspector();
                         m_ResourceInspectorAccelerationStructure = accelerationStructure;
                         m_ResourceInspectorAccelerationStructureData = accelerationStructureData;
+                        m_ResourceInspectorAccelerationStructureBufferData = GetBufferMemoryData( accelerationStructureData.m_Buffer );
                     }
                 };
 
@@ -3145,6 +3150,27 @@ namespace Profiler
 
         // Restore the current frame data.
         m_pData = std::move( pRestoreData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetResourceInspector
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::ResetResourceInspector()
+    {
+        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
+        m_ResourceInspectorBufferData = {};
+
+        m_ResourceInspectorImage = VK_NULL_HANDLE;
+        m_ResourceInspectorImageData = {};
+
+        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
+        m_ResourceInspectorAccelerationStructureData = {};
+        m_ResourceInspectorAccelerationStructureBufferData = {};
     }
 
     /***********************************************************************************\
