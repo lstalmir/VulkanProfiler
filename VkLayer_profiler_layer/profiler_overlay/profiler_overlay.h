@@ -238,16 +238,24 @@ namespace Profiler
         DeviceProfilerMemoryComparator m_MemoryComparator;
         uint32_t m_MemoryCompareRefFrameIndex;
         uint32_t m_MemoryCompareSelFrameIndex;
+
         char m_ResourceBrowserNameFilter[128];
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
         VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
+        VkFlags m_ResourceBrowserAccelerationStructureTypeFilter;
         bool m_ResourceBrowserShowDifferences;
+
         VkObjectHandle<VkBuffer> m_ResourceInspectorBuffer;
         DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
+
         VkObjectHandle<VkImage> m_ResourceInspectorImage;
         DeviceProfilerImageMemoryData m_ResourceInspectorImageData;
         VkImageSubresource m_ResourceInspectorImageMapSubresource;
         float m_ResourceInspectorImageMapBlockSize;
+
+        VkObjectHandle<VkAccelerationStructureKHR> m_ResourceInspectorAccelerationStructure;
+        DeviceProfilerAccelerationStructureMemoryData m_ResourceInspectorAccelerationStructureData;
+        DeviceProfilerBufferMemoryData m_ResourceInspectorAccelerationStructureBufferData;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
@@ -365,6 +373,10 @@ namespace Profiler
         void UpdateApplicationInfoWindow();
 
         // Resource inspector helpers
+        void ResetResourceInspector();
+        void DrawResourceInspectorAccelerationStructureInfo( VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorBufferInfo( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorImageInfo( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData& );
         void DrawResourceInspectorImageMemoryMap();
 
         // Pipeline inspector helpers

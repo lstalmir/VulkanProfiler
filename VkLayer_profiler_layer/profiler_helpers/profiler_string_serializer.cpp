@@ -495,6 +495,80 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetObjectTypeName
+
+    Description:
+        Returns pretty Vulkan object type name.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetObjectTypeName( VkObjectType objectType ) const
+    {
+        switch( objectType )
+        {
+        default:
+        {
+            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            if( traits.ObjectType == objectType )
+            {
+                std::string typeName = traits.ObjectTypeName + 2; // Skip "Vk" prefix.
+
+                // Insert spaces before uppercase letters to make it more readable.
+                for( auto it = typeName.begin() + 1; it != typeName.end(); ++it )
+                {
+                    if( isupper( *it ) )
+                    {
+                        it = typeName.insert( it, ' ' ) + 1;
+                    }
+                }
+
+                return typeName;
+            }
+
+            return fmt::format( "Unknown Object Type ({})", static_cast<uint32_t>( objectType ) );
+        }
+
+        case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:
+            return "Ray-Tracing Acceleration Structure";
+
+        case VK_OBJECT_TYPE_MICROMAP_EXT:
+            return "Opacity Micromap";
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShortObjectTypeName
+
+    Description:
+        Returns short Vulkan object type name.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShortObjectTypeName( VkObjectType objectType ) const
+    {
+        switch( objectType )
+        {
+        default:
+        {
+            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            if( traits.ObjectType == objectType )
+            {
+                return traits.ObjectTypeName + 2; // Skip "Vk" prefix.
+            }
+            return "Unknown";
+        }
+
+        case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:
+            return "RTAS";
+
+        case VK_OBJECT_TYPE_MICROMAP_EXT:
+            return "OMM";
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetCommandName
 
     Description:
@@ -2263,6 +2337,33 @@ namespace Profiler
             return "Generic";
         }
         return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetAccelerationStructureTypeFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames(
+        VkFlags typeFlags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR ) )
+            builder.AddFlag( "Top-level" );
+        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR ) )
+            builder.AddFlag( "Bottom-level" );
+        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR ) )
+            builder.AddFlag( "Generic" );
+
+        builder.AddUnknownFlags( typeFlags, 3 );
+
+        return builder.BuildString();
     }
 
     /***********************************************************************************\

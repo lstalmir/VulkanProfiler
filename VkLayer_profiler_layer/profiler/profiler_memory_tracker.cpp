@@ -557,6 +557,43 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        RegisterAccelerationStructure
+
+    Description:
+        Register new acceleration structure resource to track its memory usage.
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::RegisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure, VkObjectHandle<VkBuffer> buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        DeviceProfilerAccelerationStructureMemoryData data = {};
+        data.m_Type = pCreateInfo->type;
+        data.m_Flags = pCreateInfo->createFlags;
+        data.m_Buffer = buffer;
+        data.m_Offset = pCreateInfo->offset;
+        data.m_Size = pCreateInfo->size;
+
+        m_AccelerationStructures.insert( accelerationStructure, data );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UnregisterAccelerationStructure
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::UnregisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+        m_AccelerationStructures.remove( accelerationStructure );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetMemoryData
 
     Description:
@@ -572,6 +609,7 @@ namespace Profiler
         data.m_Allocations = m_Allocations.to_unordered_map();
         data.m_Buffers = m_Buffers.to_unordered_map();
         data.m_Images = m_Images.to_unordered_map();
+        data.m_AccelerationStructures = m_AccelerationStructures.to_unordered_map();
         bindingLock.unlock();
 
         std::unique_lock dataLock( m_AggregatedDataMutex );
@@ -632,5 +670,6 @@ namespace Profiler
         m_Allocations.clear();
         m_Buffers.clear();
         m_Images.clear();
+        m_AccelerationStructures.clear();
     }
 }

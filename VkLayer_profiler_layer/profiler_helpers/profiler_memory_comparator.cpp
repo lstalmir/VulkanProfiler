@@ -64,6 +64,12 @@ namespace Profiler
 
         m_Results.m_AllocatedBuffers.clear();
         m_Results.m_FreedBuffers.clear();
+
+        m_Results.m_AllocatedImages.clear();
+        m_Results.m_FreedImages.clear();
+
+        m_Results.m_AllocatedAccelerationStructures.clear();
+        m_Results.m_FreedAccelerationStructures.clear();
     }
 
     /***********************************************************************************\
@@ -191,6 +197,9 @@ namespace Profiler
         m_Results.m_AllocatedImages.clear();
         m_Results.m_FreedImages.clear();
 
+        m_Results.m_AllocatedAccelerationStructures.clear();
+        m_Results.m_FreedAccelerationStructures.clear();
+
         if( !HasValidInput() )
         {
             // No data to compare.
@@ -243,6 +252,24 @@ namespace Profiler
             {
                 // Image was allocated in the comparison data.
                 m_Results.m_AllocatedImages.emplace( image, &data );
+            }
+        }
+
+        for( const auto& [accelerationStructure, data] : m_pReferenceData->m_Memory.m_AccelerationStructures )
+        {
+            if( !m_pComparisonData->m_Memory.m_AccelerationStructures.count( accelerationStructure ) )
+            {
+                // Acceleration structure was freed in the comparison data.
+                m_Results.m_FreedAccelerationStructures.emplace( accelerationStructure, &data );
+            }
+        }
+
+        for( const auto& [accelerationStructure, data] : m_pComparisonData->m_Memory.m_AccelerationStructures )
+        {
+            if( !m_pReferenceData->m_Memory.m_AccelerationStructures.count( accelerationStructure ) )
+            {
+                // Acceleration structure was allocated in the comparison data.
+                m_Results.m_AllocatedAccelerationStructures.emplace( accelerationStructure, &data );
             }
         }
     }

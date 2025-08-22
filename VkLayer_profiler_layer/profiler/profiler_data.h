@@ -1717,6 +1717,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerAccelerationStructureMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerAccelerationStructureMemoryData
+    {
+        VkAccelerationStructureTypeKHR m_Type = {};
+        VkAccelerationStructureCreateFlagsKHR m_Flags = {};
+        VkObjectHandle<VkBuffer> m_Buffer = {};
+        VkDeviceSize m_Offset = {};
+        VkDeviceSize m_Size = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerMemoryData
 
     Description:
@@ -1733,6 +1750,8 @@ namespace Profiler
         std::unordered_map<VkObjectHandle<VkDeviceMemory>, struct DeviceProfilerDeviceMemoryData> m_Allocations = {};
         std::unordered_map<VkObjectHandle<VkBuffer>, struct DeviceProfilerBufferMemoryData> m_Buffers = {};
         std::unordered_map<VkObjectHandle<VkImage>, struct DeviceProfilerImageMemoryData> m_Images = {};
+        std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, struct DeviceProfilerAccelerationStructureMemoryData>
+            m_AccelerationStructures = {};
     };
 
     /***********************************************************************************\
