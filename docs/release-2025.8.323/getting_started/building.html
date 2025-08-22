@@ -1,0 +1,255 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building &mdash; VulkanProfiler  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/style.css?v=30306ce0" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Installation" href="installation.html" />
+    <link rel="prev" title="Getting started" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            VulkanProfiler
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../license.html">Licenses</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Getting started</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Building</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dependencies">Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#building-with-cmake">Building with CMake</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#building-with-visual-studio">Building with Visual Studio</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#building-with-make">Building with Make</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#building-documentation">Building documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../options.html">Options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_interface.html">User Interface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">VulkanProfiler</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Getting started</a></li>
+      <li class="breadcrumb-item active">Building</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/getting_started/building.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="building">
+<h1>Building<a class="headerlink" href="#building" title="Link to this heading"></a></h1>
+<p>This document describes in detail the layer build process.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<div class="line-block">
+<div class="line">Build step is optional if a prebuilt package has been downloaded from the <a class="reference external" href="https://github.com/lstalmir/VulkanProfiler/releases">Releases page</a>.</div>
+<div class="line">Packages are available for Windows 10 or later, Ubuntu 22.04 and Ubuntu 24.04.</div>
+</div>
+</div>
+<section id="dependencies">
+<h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading"></a></h2>
+<p>The layer depends on the following software for building:</p>
+<aside class="topic">
+<p class="topic-title">Windows</p>
+<ul class="simple">
+<li><p>Git client,</p></li>
+<li><p>Visual Studio 2017 or later,</p></li>
+<li><p>CMake 3.8 or later,</p></li>
+<li><p>Python 3 with pip,</p></li>
+<li><p>Python packages specified in VkLayer_profiler_layer/scripts/requirements.txt.</p></li>
+</ul>
+</aside>
+<aside class="topic">
+<p class="topic-title">Linux</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The list below contains packages available on Ubuntu 22.04. The names may differ on other distributions.</p>
+</div>
+<ul class="simple">
+<li><p>git,</p></li>
+<li><p>g++-8.3 or later,</p></li>
+<li><p>cmake-3.8 or later,</p></li>
+<li><p>extra-cmake-modules,</p></li>
+<li><p>libxkbcommon-dev,</p></li>
+<li><p>libx11-dev, libxext-dev (for Xlib support),</p></li>
+<li><p>libxcb1-dev, libxcb-shape0-dev (for XCB support),</p></li>
+<li><p>python3 and python3-pip,</p></li>
+<li><p>Python packages specified in VkLayer_profiler_layer/scripts/requirements.txt.</p></li>
+</ul>
+</aside>
+<aside class="topic">
+<p class="topic-title">Python packages</p>
+<p>The layer requires following Python packages to build it with full functionality.</p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">VkLayer_profiler_layer/scripts/requirements.txt</span><a class="headerlink" href="#id2" title="Link to this code"></a></div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">beautifulsoup4</span>
+</pre></div>
+</div>
+</div>
+</aside>
+</section>
+<section id="building-with-cmake">
+<span id="id1"></span><h2>Building with CMake<a class="headerlink" href="#building-with-cmake" title="Link to this heading"></a></h2>
+<p>The layer uses CMake build management tool, so building it is straightforward.</p>
+<ol class="arabic">
+<li><p>Clone the repository.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="o">--</span><span class="n">recursive</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">lstalmir</span><span class="o">/</span><span class="n">VulkanProfiler</span>
+<span class="n">cd</span> <span class="n">VulkanProfiler</span>
+</pre></div>
+</div>
+</li>
+<li><p>Install Python packages.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python3</span> <span class="o">-</span><span class="n">m</span> <span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">r</span> <span class="n">VkLayer_profiler_layer</span><span class="o">/</span><span class="n">scripts</span><span class="o">/</span><span class="n">requirements</span><span class="o">.</span><span class="n">txt</span>
+</pre></div>
+</div>
+</li>
+<li><p>Generate the project files / makefiles in the build directory.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mkdir</span> <span class="n">cmake_build</span>
+<span class="n">cd</span> <span class="n">cmake_build</span>
+<span class="n">cmake</span> <span class="o">..</span> <span class="o">-</span><span class="n">DCMAKE_BUILD_TYPE</span><span class="o">=</span><span class="n">Release</span>
+</pre></div>
+</div>
+</li>
+<li><p>Build the layer.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cmake</span> <span class="o">--</span><span class="n">build</span> <span class="o">.</span> <span class="o">--</span><span class="n">config</span> <span class="n">Release</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="building-with-visual-studio">
+<h2>Building with Visual Studio<a class="headerlink" href="#building-with-visual-studio" title="Link to this heading"></a></h2>
+<p>The repository depends on CMake to generate Visual Studio project files. Running steps 1-3 from <a class="reference internal" href="#building-with-cmake"><span class="std std-ref">Building with CMake</span></a> will generate solution file in the build directory for the latest currently installed Visual Studio.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To select other Visual Studio version, use CMake <code class="docutils literal notranslate"><span class="pre">-G</span></code> option and specify the generator, e.g., <code class="docutils literal notranslate"><span class="pre">-G</span> <span class="pre">&quot;Visual</span> <span class="pre">Studio</span> <span class="pre">16</span> <span class="pre">2017&quot;</span></code>.</p>
+</div>
+</section>
+<section id="building-with-make">
+<h2>Building with Make<a class="headerlink" href="#building-with-make" title="Link to this heading"></a></h2>
+<p>Unix makefiles is the default CMake generator on Linux systems. Build directory will contain makefiles after running steps 1-3 from <a class="reference internal" href="#building-with-cmake"><span class="std std-ref">Building with CMake</span></a>.</p>
+<p>Once generated, the project can be built by running make:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span> <span class="nb">all</span>
+</pre></div>
+</div>
+</section>
+<section id="building-documentation">
+<h2>Building documentation<a class="headerlink" href="#building-documentation" title="Link to this heading"></a></h2>
+<p>The documentation is written in reStructuredText and uses Sphinx to generate HTML.</p>
+<p>The packages required for building are listed in Docs/requirements.txt:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">Docs/requirements.txt</span><a class="headerlink" href="#id3" title="Link to this code"></a></div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sphinx</span>
+<span class="n">sphinx</span><span class="o">-</span><span class="n">tabs</span>
+<span class="n">sphinx</span><span class="o">-</span><span class="n">rtd</span><span class="o">-</span><span class="n">theme</span>
+<span class="n">sphinx</span><span class="o">-</span><span class="n">multiversion</span>
+</pre></div>
+</div>
+</div>
+<p>With the packages installed, sphinx-build tool can be used:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sphinx</span><span class="o">-</span><span class="n">build</span> <span class="o">-</span><span class="n">M</span> <span class="n">html</span> <span class="o">./</span><span class="n">Docs</span> <span class="o">./</span><span class="n">docs_build</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Getting started" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Łukasz Stalmirski.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Version</span>
+    release-2025.8.323
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Releases</dt>
+      <dd><a href="../../release-2025.6.296/getting_started/building.html">release-2025.6.296</a></dd>
+      <dd><a href="building.html">release-2025.8.323</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../../master/getting_started/building.html">master</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
