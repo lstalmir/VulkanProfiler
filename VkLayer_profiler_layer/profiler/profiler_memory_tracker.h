@@ -62,6 +62,9 @@ namespace Profiler
         void RegisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure, VkObjectHandle<VkBuffer> buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo );
         void UnregisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure );
 
+        void RegisterMicromap( VkObjectHandle<VkMicromapEXT> micromap, VkObjectHandle<VkBuffer> buffer, const VkMicromapCreateInfoEXT* pCreateInfo );
+        void UnregisterMicromap( VkObjectHandle<VkMicromapEXT> micromap );
+
         DeviceProfilerMemoryData GetMemoryData() const;
 
     private:
@@ -81,6 +84,7 @@ namespace Profiler
         ConcurrentMap<VkObjectHandle<VkBuffer>, DeviceProfilerBufferMemoryData> m_Buffers;
         ConcurrentMap<VkObjectHandle<VkImage>, DeviceProfilerImageMemoryData> m_Images;
         ConcurrentMap<VkObjectHandle<VkAccelerationStructureKHR>, DeviceProfilerAccelerationStructureMemoryData> m_AccelerationStructures;
+        ConcurrentMap<VkObjectHandle<VkMicromapEXT>, DeviceProfilerMicromapMemoryData> m_Micromaps;
 
         std::shared_mutex mutable m_MemoryBindingMutex;
 

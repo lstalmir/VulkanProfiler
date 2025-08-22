@@ -104,6 +104,7 @@ namespace Profiler
 
         std::string GetCopyMicromapModeName( VkCopyMicromapModeEXT mode ) const;
         std::string GetMicromapTypeName( VkMicromapTypeEXT type ) const;
+        std::string GetMicromapTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBuildMicromapModeName( VkBuildMicromapModeEXT mode ) const;
         std::string GetBuildMicromapFlagNames( VkBuildMicromapFlagsEXT flags ) const;
 

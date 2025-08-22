@@ -52,6 +52,9 @@ namespace Profiler
 
         std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData*> m_AllocatedAccelerationStructures;
         std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData*> m_FreedAccelerationStructures;
+
+        std::unordered_map<VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData*> m_AllocatedMicromaps;
+        std::unordered_map<VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData*> m_FreedMicromaps;
     };
 
     /***********************************************************************************\
@@ -90,5 +93,7 @@ namespace Profiler
         // Comparison is deferred until the results are requested to save CPU cycles.
         bool m_Dirty = false;
         void Compare();
+
+        void ClearResults();
     };
 }

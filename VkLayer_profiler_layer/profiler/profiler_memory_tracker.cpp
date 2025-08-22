@@ -44,6 +44,8 @@ namespace Profiler
         , m_Allocations()
         , m_Buffers()
         , m_Images()
+        , m_AccelerationStructures()
+        , m_Micromaps()
     {
     }
 
@@ -594,6 +596,43 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        RegisterMicromap
+
+    Description:
+        Register new opacity micromap resource to track its memory usage.
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::RegisterMicromap( VkObjectHandle<VkMicromapEXT> micromap, VkObjectHandle<VkBuffer> buffer, const VkMicromapCreateInfoEXT* pCreateInfo )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        DeviceProfilerMicromapMemoryData data = {};
+        data.m_Type = pCreateInfo->type;
+        data.m_Flags = pCreateInfo->createFlags;
+        data.m_Buffer = buffer;
+        data.m_Offset = pCreateInfo->offset;
+        data.m_Size = pCreateInfo->size;
+
+        m_Micromaps.insert( micromap, data );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UnregisterMicromap
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::UnregisterMicromap( VkObjectHandle<VkMicromapEXT> micromap )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+        m_Micromaps.remove( micromap );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetMemoryData
 
     Description:
@@ -610,6 +649,7 @@ namespace Profiler
         data.m_Buffers = m_Buffers.to_unordered_map();
         data.m_Images = m_Images.to_unordered_map();
         data.m_AccelerationStructures = m_AccelerationStructures.to_unordered_map();
+        data.m_Micromaps = m_Micromaps.to_unordered_map();
         bindingLock.unlock();
 
         std::unique_lock dataLock( m_AggregatedDataMutex );
@@ -671,5 +711,6 @@ namespace Profiler
         m_Buffers.clear();
         m_Images.clear();
         m_AccelerationStructures.clear();
+        m_Micromaps.clear();
     }
 }

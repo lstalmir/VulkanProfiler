@@ -512,6 +512,12 @@ namespace Profiler
             {
                 std::string typeName = traits.ObjectTypeName + 2; // Skip "Vk" prefix.
 
+                // Strip extension suffix.
+                while( typeName.length() > 1 && isupper( typeName.back() ) )
+                {
+                    typeName.pop_back();
+                }
+
                 // Insert spaces before uppercase letters to make it more readable.
                 for( auto it = typeName.begin() + 1; it != typeName.end(); ++it )
                 {
@@ -529,9 +535,6 @@ namespace Profiler
 
         case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:
             return "Ray-Tracing Acceleration Structure";
-
-        case VK_OBJECT_TYPE_MICROMAP_EXT:
-            return "Opacity Micromap";
         }
     }
 
@@ -553,16 +556,13 @@ namespace Profiler
             auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
             if( traits.ObjectType == objectType )
             {
-                return traits.ObjectTypeName + 2; // Skip "Vk" prefix.
+                return GetObjectTypeName( objectType );
             }
             return "Unknown";
         }
 
         case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:
             return "RTAS";
-
-        case VK_OBJECT_TYPE_MICROMAP_EXT:
-            return "OMM";
         }
     }
 
@@ -2460,6 +2460,29 @@ namespace Profiler
             return "Opacity Micromap";
         }
         return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMicromapTypeFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetMicromapTypeFlagNames(
+        VkFlags typeFlags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( typeFlags & ( 1U << VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT ) )
+            builder.AddFlag( "Opacity Micromap" );
+
+        builder.AddUnknownFlags( typeFlags, 1 );
+
+        return builder.BuildString();
     }
 
     /***********************************************************************************\
