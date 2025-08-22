@@ -1598,14 +1598,17 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::CreateMicromap( VkMicromapEXT micromap, const VkMicromapCreateInfoEXT* )
+    void DeviceProfiler::CreateMicromap( VkMicromapEXT micromap, const VkMicromapCreateInfoEXT* pCreateInfo )
     {
         if( !m_Config.m_EnableMemoryProfiling )
         {
             return;
         }
 
-        RegisterObject( micromap );
+        m_MemoryTracker.RegisterMicromap(
+            RegisterObject( micromap ),
+            GetObjectHandle( pCreateInfo->buffer ),
+            pCreateInfo );
     }
 
     /***********************************************************************************\
@@ -1622,6 +1625,8 @@ namespace Profiler
         {
             return;
         }
+
+        m_MemoryTracker.UnregisterMicromap( GetObjectHandle( micromap ) );
 
         UnregisterObject( micromap );
     }

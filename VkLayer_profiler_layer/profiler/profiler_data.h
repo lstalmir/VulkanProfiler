@@ -1734,6 +1734,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerMicromapMemoryData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerMicromapMemoryData
+    {
+        VkMicromapTypeEXT m_Type = {};
+        VkMicromapCreateFlagsEXT m_Flags = {};
+        VkObjectHandle<VkBuffer> m_Buffer = {};
+        VkDeviceSize m_Offset = {};
+        VkDeviceSize m_Size = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerMemoryData
 
     Description:
@@ -1752,6 +1769,7 @@ namespace Profiler
         std::unordered_map<VkObjectHandle<VkImage>, struct DeviceProfilerImageMemoryData> m_Images = {};
         std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, struct DeviceProfilerAccelerationStructureMemoryData>
             m_AccelerationStructures = {};
+        std::unordered_map<VkObjectHandle<VkMicromapEXT>, struct DeviceProfilerMicromapMemoryData> m_Micromaps = {};
     };
 
     /***********************************************************************************\

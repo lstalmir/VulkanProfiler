@@ -62,14 +62,7 @@ namespace Profiler
         m_pReferenceData = nullptr;
         m_pComparisonData = nullptr;
 
-        m_Results.m_AllocatedBuffers.clear();
-        m_Results.m_FreedBuffers.clear();
-
-        m_Results.m_AllocatedImages.clear();
-        m_Results.m_FreedImages.clear();
-
-        m_Results.m_AllocatedAccelerationStructures.clear();
-        m_Results.m_FreedAccelerationStructures.clear();
+        ClearResults();
     }
 
     /***********************************************************************************\
@@ -189,16 +182,7 @@ namespace Profiler
         // Avoid redundant calls.
         assert( m_Dirty );
 
-        m_Results.m_MemoryHeapDifferences.clear();
-
-        m_Results.m_AllocatedBuffers.clear();
-        m_Results.m_FreedBuffers.clear();
-
-        m_Results.m_AllocatedImages.clear();
-        m_Results.m_FreedImages.clear();
-
-        m_Results.m_AllocatedAccelerationStructures.clear();
-        m_Results.m_FreedAccelerationStructures.clear();
+        ClearResults();
 
         if( !HasValidInput() )
         {
@@ -272,5 +256,49 @@ namespace Profiler
                 m_Results.m_AllocatedAccelerationStructures.emplace( accelerationStructure, &data );
             }
         }
+
+        for( const auto& [micromap, data] : m_pReferenceData->m_Memory.m_Micromaps )
+        {
+            if( !m_pComparisonData->m_Memory.m_Micromaps.count( micromap ) )
+            {
+                // Micromap was freed in the comparison data.
+                m_Results.m_FreedMicromaps.emplace( micromap, &data );
+            }
+        }
+
+        for( const auto& [micromap, data] : m_pComparisonData->m_Memory.m_Micromaps )
+        {
+            if( !m_pReferenceData->m_Memory.m_Micromaps.count( micromap ) )
+            {
+                // Micromap was allocated in the comparison data.
+                m_Results.m_AllocatedMicromaps.emplace( micromap, &data );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ClearResults
+
+    Description:
+        Clears comparison results.
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryComparator::ClearResults()
+    {
+        m_Results.m_MemoryHeapDifferences.clear();
+
+        m_Results.m_AllocatedBuffers.clear();
+        m_Results.m_FreedBuffers.clear();
+
+        m_Results.m_AllocatedImages.clear();
+        m_Results.m_FreedImages.clear();
+
+        m_Results.m_AllocatedAccelerationStructures.clear();
+        m_Results.m_FreedAccelerationStructures.clear();
+
+        m_Results.m_AllocatedMicromaps.clear();
+        m_Results.m_FreedMicromaps.clear();
     }
 }

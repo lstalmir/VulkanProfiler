@@ -243,6 +243,7 @@ namespace Profiler
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
         VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
         VkFlags m_ResourceBrowserAccelerationStructureTypeFilter;
+        VkFlags m_ResourceBrowserMicromapTypeFilter;
         bool m_ResourceBrowserShowDifferences;
 
         VkObjectHandle<VkBuffer> m_ResourceInspectorBuffer;
@@ -256,6 +257,10 @@ namespace Profiler
         VkObjectHandle<VkAccelerationStructureKHR> m_ResourceInspectorAccelerationStructure;
         DeviceProfilerAccelerationStructureMemoryData m_ResourceInspectorAccelerationStructureData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorAccelerationStructureBufferData;
+
+        VkObjectHandle<VkMicromapEXT> m_ResourceInspectorMicromap;
+        DeviceProfilerMicromapMemoryData m_ResourceInspectorMicromapData;
+        DeviceProfilerBufferMemoryData m_ResourceInspectorMicromapBufferData;
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
@@ -375,6 +380,7 @@ namespace Profiler
         // Resource inspector helpers
         void ResetResourceInspector();
         void DrawResourceInspectorAccelerationStructureInfo( VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorMicromapInfo( VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData&, const DeviceProfilerBufferMemoryData& );
         void DrawResourceInspectorBufferInfo( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData& );
         void DrawResourceInspectorImageInfo( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData& );
         void DrawResourceInspectorImageMemoryMap();

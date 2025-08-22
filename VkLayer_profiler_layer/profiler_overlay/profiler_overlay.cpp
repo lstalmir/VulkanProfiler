@@ -121,6 +121,9 @@ namespace Profiler
         1 << VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR |
         1 << VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR;
 
+    static constexpr VkFlags g_KnownMicromapTypes =
+        1 << VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT;
+
     static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
         IM_COL32( 110, 177, 165, 255 ),
         IM_COL32( 219, 219, 146, 255 ),
@@ -608,16 +611,11 @@ namespace Profiler
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
         m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
         m_ResourceBrowserAccelerationStructureTypeFilter = g_KnownAccelerationStructureTypes;
+        m_ResourceBrowserMicromapTypeFilter = g_KnownMicromapTypes;
         m_ResourceBrowserShowDifferences = false;
-        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
-        m_ResourceInspectorBufferData = {};
-        m_ResourceInspectorImage = VK_NULL_HANDLE;
-        m_ResourceInspectorImageData = {};
         m_ResourceInspectorImageMapSubresource = {};
         m_ResourceInspectorImageMapBlockSize = 16.f;
-        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
-        m_ResourceInspectorAccelerationStructureData = {};
-        m_ResourceInspectorAccelerationStructureBufferData = {};
+        ResetResourceInspector();
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -2891,6 +2889,13 @@ namespace Profiler
             g_KnownAccelerationStructureTypes,
             &DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames );
 
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Micromaps###MicromapFilter",
+            m_ResourceBrowserMicromapTypeFilter,
+            g_KnownMicromapTypes,
+            &DeviceProfilerStringSerializer::GetMicromapTypeFlagNames );
+
         ImGui::Separator();
 
         MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
@@ -2904,7 +2909,7 @@ namespace Profiler
             if( ImGui::BeginTable( "##ResourceBrowserTable", 3 ) )
             {
                 ImGui::TableSetupColumn( "Diff", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderLabel, 10.f * interfaceScale );
-                ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed, 50.f * interfaceScale );
+                ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed, 60.f * interfaceScale );
                 ImGui::TableSetupColumn( "Name", ImGuiTableColumnFlags_WidthStretch );
 
                 enum class ResourceCompareResult
@@ -3060,6 +3065,33 @@ namespace Profiler
                     }
                 };
 
+                // Micromap resource row.
+                auto DrawResourceBrowserMicromapTableRow =
+                    [&]( VkObjectHandle<VkMicromapEXT> micromap,
+                        const DeviceProfilerMicromapMemoryData& micromapData,
+                        ResourceCompareResult compareResult )
+                {
+                    bool selected = ( m_ResourceInspectorMicromap == micromap );
+
+                    // Micromap types are a simple enum, convert to bitmask for filtering.
+                    VkFlags micromapTypeBit = ( 1U << micromapData.m_Type );
+
+                    DrawResourceBrowserTableRow(
+                        micromap,
+                        micromapTypeBit,
+                        m_ResourceBrowserMicromapTypeFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
+                    {
+                        ResetResourceInspector();
+                        m_ResourceInspectorMicromap = micromap;
+                        m_ResourceInspectorMicromapData = micromapData;
+                        m_ResourceInspectorMicromapBufferData = GetBufferMemoryData( micromapData.m_Buffer );
+                    }
+                };
+
                 // List all resources.
                 for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
                 {
@@ -3115,6 +3147,24 @@ namespace Profiler
                         ResourceCompareResult::eRemoved );
                 }
 
+                for( const auto& [micromap, data] : m_pData->m_Memory.m_Micromaps )
+                {
+                    DrawResourceBrowserMicromapTableRow(
+                        micromap,
+                        data,
+                        memoryComparisonResults.m_AllocatedMicromaps.count( micromap )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
+
+                for( const auto& [micromap, pData] : memoryComparisonResults.m_FreedMicromaps )
+                {
+                    DrawResourceBrowserMicromapTableRow(
+                        micromap,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
+
                 ImGui::EndTable();
             }
         }
@@ -3142,6 +3192,14 @@ namespace Profiler
                     m_ResourceInspectorAccelerationStructure,
                     m_ResourceInspectorAccelerationStructureData,
                     m_ResourceInspectorAccelerationStructureBufferData );
+            }
+
+            if( m_ResourceInspectorMicromap != VK_NULL_HANDLE )
+            {
+                DrawResourceInspectorMicromapInfo(
+                    m_ResourceInspectorMicromap,
+                    m_ResourceInspectorMicromapData,
+                    m_ResourceInspectorMicromapBufferData );
             }
         }
         ImGui::End();
@@ -3171,6 +3229,10 @@ namespace Profiler
         m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
         m_ResourceInspectorAccelerationStructureData = {};
         m_ResourceInspectorAccelerationStructureBufferData = {};
+
+        m_ResourceInspectorMicromap = VK_NULL_HANDLE;
+        m_ResourceInspectorMicromapData = {};
+        m_ResourceInspectorMicromapBufferData = {};
     }
 
     /***********************************************************************************\
@@ -3196,7 +3258,7 @@ namespace Profiler
         }
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
-        const float columnValueOffset1 = 70.f * interfaceScale;
+        const float columnValueOffset1 = 80.f * interfaceScale;
 
         ImFont* pBoldFont = m_Resources.GetBoldFont();
         ImGui::PushFont( pBoldFont );
@@ -3232,6 +3294,62 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        DrawResourceInspectorMicromapInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorMicromapInfo(
+        VkObjectHandle<VkMicromapEXT> micromap,
+        const DeviceProfilerMicromapMemoryData& micromapData,
+        const DeviceProfilerBufferMemoryData& bufferData )
+    {
+        if( !m_pData->m_Memory.m_Micromaps.count( micromap ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( micromap ).c_str(),
+                VkObject_Traits<VkMicromapEXT>::GetObjectHandleAsUint64( micromap ) );
+        }
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnValueOffset1 = 80.f * interfaceScale;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Micromap:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( micromap ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Type:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetMicromapTypeName( micromapData.m_Type ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s (%llu bytes)", m_pStringSerializer->GetByteSize( micromapData.m_Size ), micromapData.m_Size );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Offset:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%llu", micromapData.m_Offset );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGui::Separator();
+
+        DrawResourceInspectorBufferInfo( micromapData.m_Buffer, bufferData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DrawResourceInspectorBufferInfo
 
     Description:
@@ -3254,7 +3372,7 @@ namespace Profiler
             m_Frontend.GetPhysicalDeviceMemoryProperties();
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
-        const float columnValueOffset1 = 70.f * interfaceScale;
+        const float columnValueOffset1 = 80.f * interfaceScale;
 
         ImFont* pBoldFont = m_Resources.GetBoldFont();
         ImGui::PushFont( pBoldFont );
@@ -3364,7 +3482,7 @@ namespace Profiler
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
         const float columnWidth = ImGui::GetContentRegionAvail().x * 0.55f;
-        const float columnValueOffset1 = 70.f * interfaceScale;
+        const float columnValueOffset1 = 80.f * interfaceScale;
         const float columnValueOffset2 = 60.f * interfaceScale + columnWidth;
 
         ImFont* pBoldFont = m_Resources.GetBoldFont();
