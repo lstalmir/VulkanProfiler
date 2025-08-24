@@ -19,12 +19,12 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_data.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 namespace Profiler
 {
     class ProfilerCommandBuffer;
-    struct DeviceProfilerSynchronizationTimestamps;
 
     /***********************************************************************************\
 
@@ -48,6 +48,8 @@ namespace Profiler
         void WaitForFence( VkFence fence, uint64_t timeout = std::numeric_limits<uint64_t>::max() );
 
         DeviceProfilerSynchronizationTimestamps GetSynchronizationTimestamps() const;
+        DeviceProfilerSynchronizationTimestamps GetCreateTimestamps() const;
+        uint64_t GetCreateTimestamp( VkTimeDomainEXT domain ) const;
 
         VkTimeDomainEXT GetHostTimeDomain() const;
         VkTimeDomainEXT GetDeviceTimeDomain() const;
@@ -59,5 +61,7 @@ namespace Profiler
 
         VkTimeDomainEXT m_HostTimeDomain;
         VkTimeDomainEXT m_DeviceTimeDomain;
+
+        DeviceProfilerSynchronizationTimestamps m_CreateTimestamps;
     };
 }

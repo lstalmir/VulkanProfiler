@@ -20,7 +20,6 @@
 
 #include "profiler_sync.h"
 #include "profiler_counters.h"
-#include "profiler_data.h"
 #include <assert.h>
 
 namespace Profiler
@@ -39,6 +38,7 @@ namespace Profiler
         , m_pfnGetCalibratedTimestampsEXT( nullptr )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
         , m_DeviceTimeDomain( VK_TIME_DOMAIN_DEVICE_EXT )
+        , m_CreateTimestamps()
     {
     }
 
@@ -105,6 +105,12 @@ namespace Profiler
                 }
             }
 
+            // Query initial timestamps.
+            if( result == VK_SUCCESS )
+            {
+                m_CreateTimestamps = GetSynchronizationTimestamps();
+            }
+
             if( result != VK_SUCCESS )
             {
                 // Query of timestamp calibration capabilities failed.
@@ -113,7 +119,7 @@ namespace Profiler
             }
         }
 
-        return VK_SUCCESS;
+        return result;
     }
 
     /***********************************************************************************\
@@ -131,6 +137,7 @@ namespace Profiler
         m_pfnGetCalibratedTimestampsEXT = nullptr;
         m_HostTimeDomain = OSGetDefaultTimeDomain();
         m_DeviceTimeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
+        m_CreateTimestamps = {};
     }
 
     /***********************************************************************************\
@@ -243,6 +250,44 @@ namespace Profiler
         }
 
         return output;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCreateTimestamps
+
+    Description:
+        Get creation timestamps.
+
+    \***********************************************************************************/
+    DeviceProfilerSynchronizationTimestamps DeviceProfilerSynchronization::GetCreateTimestamps() const
+    {
+        return m_CreateTimestamps;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCreateTimestamps
+
+    Description:
+        Get creation timestamps.
+
+    \***********************************************************************************/
+    uint64_t DeviceProfilerSynchronization::GetCreateTimestamp( VkTimeDomainEXT domain ) const
+    {
+        if( domain == VK_TIME_DOMAIN_DEVICE_EXT )
+        {
+            return m_CreateTimestamps.m_DeviceCalibratedTimestamp;
+        }
+
+        if( domain == m_CreateTimestamps.m_HostTimeDomain )
+        {
+            return m_CreateTimestamps.m_HostCalibratedTimestamp;
+        }
+
+        return 0;
     }
 
     /***********************************************************************************\

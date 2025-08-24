@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler/profiler_frontend.h"
 #include "profiler/profiler_data_aggregator.h"
+#include "profiler/profiler_counters.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler/profiler_stat_comparators.h"
 #include "profiler_helpers/profiler_memory_comparator.h"
@@ -40,6 +41,7 @@
 #include "profiler_ext/VkProfilerEXT.h"
 
 struct ImGuiContext;
+struct ImPlotContext;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
 
@@ -84,6 +86,7 @@ namespace Profiler
         OverlayBackend& m_Backend;
 
         ImGuiContext* m_pImGuiContext;
+        ImPlotContext* m_pImPlotContext;
         OverlayResources m_Resources;
 
         std::string m_Title;
@@ -238,6 +241,12 @@ namespace Profiler
         DeviceProfilerMemoryComparator m_MemoryComparator;
         uint32_t m_MemoryCompareRefFrameIndex;
         uint32_t m_MemoryCompareSelFrameIndex;
+
+        float m_MemoryConsumptionHistoryUpdatePeriod;
+        CpuTimestampCounter m_MemoryConsumptionHistoryUpdateCounter;
+        std::vector<float> m_MemoryConsumptionHistoryTimePoints;
+        std::vector<float> m_MemoryConsumptionHistory[VK_MAX_MEMORY_HEAPS];
+        float m_MemoryConsumptionHistoryMax[VK_MAX_MEMORY_HEAPS];
 
         char m_ResourceBrowserNameFilter[128];
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;

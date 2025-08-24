@@ -174,7 +174,9 @@ namespace Profiler
 
         // Use default time domain until the actual data is ready.
         auto pInitFrame = std::make_shared<DeviceProfilerFrameData>();
-        pInitFrame->m_SyncTimestamps.m_HostTimeDomain = OSGetDefaultTimeDomain();
+        pInitFrame->m_SyncTimestamps = m_pProfiler->m_Synchronization.GetSynchronizationTimestamps();
+        pInitFrame->m_CPU.m_BeginTimestamp = m_pProfiler->m_Synchronization.GetCreateTimestamp( pInitFrame->m_SyncTimestamps.m_HostTimeDomain );
+        pInitFrame->m_CPU.m_EndTimestamp = pInitFrame->m_BeginTimestamp;
         pInitFrame->m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();
         m_pResolvedFrames.push_back( pInitFrame );
 

@@ -36,6 +36,7 @@
 
 #include <imgui_internal.h>
 #include <ImGuiFileDialog.h>
+#include <implot.h>
 
 #include <fmt/format.h>
 
@@ -369,6 +370,7 @@ namespace Profiler
 
             IMGUI_CHECKVERSION();
             m_pImGuiContext = ImGui::CreateContext();
+            m_pImPlotContext = ImPlot::CreateContext();
 
             ImGui::SetCurrentContext( m_pImGuiContext );
 
@@ -527,6 +529,7 @@ namespace Profiler
             // Destroy ImGui backends.
             m_Backend.DestroyImGuiBackend();
 
+            ImPlot::DestroyContext( m_pImPlotContext );
             ImGui::DestroyContext();
         }
 
@@ -546,6 +549,7 @@ namespace Profiler
     void ProfilerOverlayOutput::ResetMembers()
     {
         m_pImGuiContext = nullptr;
+        m_pImPlotContext = nullptr;
 
         m_Title.clear();
 
@@ -616,6 +620,18 @@ namespace Profiler
         m_ResourceInspectorImageMapSubresource = {};
         m_ResourceInspectorImageMapBlockSize = 16.f;
         ResetResourceInspector();
+
+        m_MemoryConsumptionHistoryUpdatePeriod = 0.5f;
+        m_MemoryConsumptionHistoryUpdateCounter.Reset();
+        m_MemoryConsumptionHistoryTimePoints.clear();
+
+        for( auto& history : m_MemoryConsumptionHistory )
+        {
+            history.clear();
+            history.shrink_to_fit();
+        }
+
+        memset( m_MemoryConsumptionHistoryMax, 0, sizeof( m_MemoryConsumptionHistoryMax ) );
 
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -716,6 +732,31 @@ namespace Profiler
             }
         }
 
+        if( !m_pFrames.empty() )
+        {
+            m_MemoryConsumptionHistoryUpdateCounter.End();
+
+            float timeSinceLastUpdate = m_MemoryConsumptionHistoryUpdateCounter.GetValue<Milliseconds>().count() / 1000.f;
+            if( timeSinceLastUpdate >= m_MemoryConsumptionHistoryUpdatePeriod )
+            {
+                std::shared_ptr<DeviceProfilerFrameData> pLatestData = m_pFrames.back();
+
+                const size_t memoryHeapCount = pLatestData->m_Memory.m_Heaps.size();
+                for( size_t i = 0; i < memoryHeapCount; ++i )
+                {
+                    m_MemoryConsumptionHistory[i].push_back( pLatestData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576. );
+                    m_MemoryConsumptionHistoryMax[i] = std::max( m_MemoryConsumptionHistoryMax[i], m_MemoryConsumptionHistory[i].back() );
+                }
+
+                uint64_t dataTimestamp = pLatestData->m_CPU.m_EndTimestamp;
+                uint64_t createTimestamp = m_Frontend.GetDeviceCreateTimestamp( pLatestData->m_SyncTimestamps.m_HostTimeDomain );
+                m_MemoryConsumptionHistoryTimePoints.push_back(
+                    static_cast<double>( dataTimestamp - createTimestamp ) / m_Frontend.GetHostTimestampFrequency( pLatestData->m_SyncTimestamps.m_HostTimeDomain ) );
+
+                m_MemoryConsumptionHistoryUpdateCounter.Begin();
+            }
+        }
+
         // There is a separate list for saved frames.
         const FrameDataList& framesList = GetActiveFramesList();
 
@@ -745,6 +786,7 @@ namespace Profiler
         ScopedValue imGuiLockFlag( s_ImGuiMutexLockedInThisThread, true );
 
         ImGui::SetCurrentContext( m_pImGuiContext );
+        ImPlot::SetCurrentContext( m_pImPlotContext );
 
         // Must be set before calling NewFrame to avoid clipping on window resize.
         ImGuiIO& io = ImGui::GetIO();
@@ -2815,6 +2857,34 @@ namespace Profiler
 
                         ImGui::EndTooltip();
                     }
+                }
+
+                // Memory consumption history.
+                if( ImPlot::BeginPlot( fmt::format( "##MemoryHistory{}", i ).c_str(), ImVec2( -1, 100.f * interfaceScale ), ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoMenus ) )
+                {
+                    const ImVec4 color = ImGui::ColorConvertU32ToFloat4( m_GraphicsPipelineColumnColor );
+
+                    if( !m_MemoryConsumptionHistoryTimePoints.empty() )
+                    {
+                        float beginX = std::max( 0.f, m_MemoryConsumptionHistoryTimePoints.back() - 15.f );
+                        ImPlot::SetupAxisLimits( ImAxis_X1, beginX, m_MemoryConsumptionHistoryTimePoints.back(), ImGuiCond_Always );
+                        ImPlot::SetupAxisLimits( ImAxis_Y1, 0.0, m_MemoryConsumptionHistoryMax[i] * 1.2, ImGuiCond_Always );
+                        ImPlot::SetupFinish();
+
+                        ImPlot::SetNextFillStyle( color, 0.5f );
+                        ImPlot::PlotShaded( "Allocated",
+                            m_MemoryConsumptionHistoryTimePoints.data(),
+                            m_MemoryConsumptionHistory[i].data(),
+                            m_MemoryConsumptionHistory[i].size() );
+
+                        ImPlot::SetNextLineStyle( color );
+                        ImPlot::PlotLine( "Allocated",
+                            m_MemoryConsumptionHistoryTimePoints.data(),
+                            m_MemoryConsumptionHistory[i].data(),
+                            m_MemoryConsumptionHistory[i].size() );
+                    }
+
+                    ImPlot::EndPlot();
                 }
 
                 // Force text baseline to 0 to align the next cell correctly.
