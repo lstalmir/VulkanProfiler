@@ -621,6 +621,10 @@ namespace Profiler
         m_ResourceInspectorImageMapBlockSize = 16.f;
         ResetResourceInspector();
 
+        m_MemoryConsumptionHistoryVisible = true;
+        m_MemoryConsumptionHistoryAutoScroll = true;
+        m_MemoryConsumptionHistoryTimeRangeMin = 0.0;
+        m_MemoryConsumptionHistoryTimeRangeMax = 5.0;
         m_MemoryConsumptionHistoryUpdatePeriod = 0.25f;
         m_MemoryConsumptionHistoryUpdateCounter.Reset();
         m_MemoryConsumptionHistoryTimePoints.clear();
@@ -2617,6 +2621,12 @@ namespace Profiler
         ImGui::Checkbox( "Show differences", &m_ResourceBrowserShowDifferences );
         ImGui::EndDisabled();
 
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::Checkbox( "Show graphs", &m_MemoryConsumptionHistoryVisible );
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::Checkbox( "Scroll graphs", &m_MemoryConsumptionHistoryAutoScroll );
+
         ImGui::Dummy( ImVec2( 1, 5 ) );
 
         // Set selected frame data.
@@ -2860,32 +2870,49 @@ namespace Profiler
                 }
 
                 // Memory consumption history.
-                if( ImPlot::BeginPlot( fmt::format( "##MemoryHistory{}", i ).c_str(), ImVec2( -1, 100.f * interfaceScale ), ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoMenus ) )
+                if( m_MemoryConsumptionHistoryVisible )
                 {
-                    const ImVec4 color = ImGui::ColorConvertU32ToFloat4( m_GraphicsPipelineColumnColor );
-
-                    if( !m_MemoryConsumptionHistoryTimePoints.empty() )
+                    if( ImPlot::BeginPlot(
+                            fmt::format( "##MemoryHistory{}", i ).c_str(),
+                            ImVec2( -1, 100.f * interfaceScale ),
+                            ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoMenus ) )
                     {
-                        ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
-                        ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, m_MemoryConsumptionHistoryTimePoints.back(), ImGuiCond_Always );
-                        ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
-                        ImPlot::SetupAxisLimits( ImAxis_Y1, 0.0, m_MemoryConsumptionHistoryMax[i] * 1.2, ImGuiCond_Always );
-                        ImPlot::SetupFinish();
+                        const ImVec4 color = ImGui::ColorConvertU32ToFloat4( m_GraphicsPipelineColumnColor );
 
-                        ImPlot::SetNextFillStyle( color, 0.5f );
-                        ImPlot::PlotShaded( "Allocated",
-                            m_MemoryConsumptionHistoryTimePoints.data(),
-                            m_MemoryConsumptionHistory[i].data(),
-                            m_MemoryConsumptionHistory[i].size() );
+                        if( !m_MemoryConsumptionHistoryTimePoints.empty() )
+                        {
+                            ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
+                            ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
+                            ImPlot::SetupAxisLimitsConstraints( ImAxis_X1, 0.0, m_MemoryConsumptionHistoryTimePoints.back() + 30.0 );
+                            ImPlot::SetupAxisLimitsConstraints( ImAxis_Y1, 0.0, memoryHeapSize * 1.2 );
+                            ImPlot::SetupAxisLinks( ImAxis_X1, &m_MemoryConsumptionHistoryTimeRangeMin, &m_MemoryConsumptionHistoryTimeRangeMax );
 
-                        ImPlot::SetNextLineStyle( color );
-                        ImPlot::PlotLine( "Allocated",
-                            m_MemoryConsumptionHistoryTimePoints.data(),
-                            m_MemoryConsumptionHistory[i].data(),
-                            m_MemoryConsumptionHistory[i].size() );
+                            if( m_MemoryConsumptionHistoryAutoScroll )
+                            {
+                                m_MemoryConsumptionHistoryTimeRangeMin = 0.0;
+                                m_MemoryConsumptionHistoryTimeRangeMax = m_MemoryConsumptionHistoryTimePoints.back();
+
+                                ImPlot::SetupAxisLimits( ImAxis_X1, m_MemoryConsumptionHistoryTimeRangeMin, m_MemoryConsumptionHistoryTimeRangeMax, ImGuiCond_Always );
+                                ImPlot::SetupAxisLimits( ImAxis_Y1, 0.0, m_MemoryConsumptionHistoryMax[i] * 1.2, ImGuiCond_Always );
+                            }
+
+                            ImPlot::SetupFinish();
+
+                            ImPlot::SetNextFillStyle( color, 0.5f );
+                            ImPlot::PlotShaded( "Allocated",
+                                m_MemoryConsumptionHistoryTimePoints.data(),
+                                m_MemoryConsumptionHistory[i].data(),
+                                m_MemoryConsumptionHistory[i].size() );
+
+                            ImPlot::SetNextLineStyle( color );
+                            ImPlot::PlotLine( "Allocated",
+                                m_MemoryConsumptionHistoryTimePoints.data(),
+                                m_MemoryConsumptionHistory[i].data(),
+                                m_MemoryConsumptionHistory[i].size() );
+                        }
+
+                        ImPlot::EndPlot();
                     }
-
-                    ImPlot::EndPlot();
                 }
 
                 // Force text baseline to 0 to align the next cell correctly.

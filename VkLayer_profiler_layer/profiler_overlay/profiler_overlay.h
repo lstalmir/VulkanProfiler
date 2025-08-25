@@ -242,6 +242,10 @@ namespace Profiler
         uint32_t m_MemoryCompareRefFrameIndex;
         uint32_t m_MemoryCompareSelFrameIndex;
 
+        bool m_MemoryConsumptionHistoryVisible;
+        bool m_MemoryConsumptionHistoryAutoScroll;
+        double m_MemoryConsumptionHistoryTimeRangeMin;
+        double m_MemoryConsumptionHistoryTimeRangeMax;
         float m_MemoryConsumptionHistoryUpdatePeriod;
         CpuTimestampCounter m_MemoryConsumptionHistoryUpdateCounter;
         std::vector<float> m_MemoryConsumptionHistoryTimePoints;
