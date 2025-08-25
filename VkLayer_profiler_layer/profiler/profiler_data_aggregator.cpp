@@ -172,11 +172,13 @@ namespace Profiler
             m_CopyCommandPools.try_emplace( queue, *m_pProfiler, commandPool, commandPoolCreateInfo );
         }
 
-        // Use default time domain until the actual data is ready.
+        // Prepare the initial frame with no data.
+        DeviceProfilerSynchronizationTimestamps createTimestamps = m_pProfiler->m_Synchronization.GetCreateTimestamps();
+
         auto pInitFrame = std::make_shared<DeviceProfilerFrameData>();
         pInitFrame->m_SyncTimestamps = m_pProfiler->m_Synchronization.GetSynchronizationTimestamps();
-        pInitFrame->m_CPU.m_BeginTimestamp = m_pProfiler->m_Synchronization.GetCreateTimestamp( pInitFrame->m_SyncTimestamps.m_HostTimeDomain );
-        pInitFrame->m_CPU.m_EndTimestamp = pInitFrame->m_BeginTimestamp;
+        pInitFrame->m_BeginTimestamp = pInitFrame->m_EndTimestamp = createTimestamps.m_DeviceCalibratedTimestamp;
+        pInitFrame->m_CPU.m_BeginTimestamp = pInitFrame->m_CPU.m_EndTimestamp = createTimestamps.m_HostCalibratedTimestamp;
         pInitFrame->m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();
         m_pResolvedFrames.push_back( pInitFrame );
 

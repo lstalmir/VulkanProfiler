@@ -621,7 +621,7 @@ namespace Profiler
         m_ResourceInspectorImageMapBlockSize = 16.f;
         ResetResourceInspector();
 
-        m_MemoryConsumptionHistoryUpdatePeriod = 0.5f;
+        m_MemoryConsumptionHistoryUpdatePeriod = 0.25f;
         m_MemoryConsumptionHistoryUpdateCounter.Reset();
         m_MemoryConsumptionHistoryTimePoints.clear();
 
@@ -2866,8 +2866,9 @@ namespace Profiler
 
                     if( !m_MemoryConsumptionHistoryTimePoints.empty() )
                     {
-                        float beginX = std::max( 0.f, m_MemoryConsumptionHistoryTimePoints.back() - 15.f );
-                        ImPlot::SetupAxisLimits( ImAxis_X1, beginX, m_MemoryConsumptionHistoryTimePoints.back(), ImGuiCond_Always );
+                        ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
+                        ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, m_MemoryConsumptionHistoryTimePoints.back(), ImGuiCond_Always );
+                        ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
                         ImPlot::SetupAxisLimits( ImAxis_Y1, 0.0, m_MemoryConsumptionHistoryMax[i] * 1.2, ImGuiCond_Always );
                         ImPlot::SetupFinish();
 
