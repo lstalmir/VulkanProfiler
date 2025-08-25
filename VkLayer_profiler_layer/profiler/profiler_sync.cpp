@@ -20,6 +20,7 @@
 
 #include "profiler_sync.h"
 #include "profiler_counters.h"
+#include "profiler_data.h"
 #include <assert.h>
 
 namespace Profiler
@@ -37,8 +38,8 @@ namespace Profiler
         : m_pDevice( nullptr )
         , m_pfnGetCalibratedTimestampsEXT( nullptr )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
-        , m_DeviceTimeDomain( VK_TIME_DOMAIN_DEVICE_EXT )
-        , m_CreateTimestamps()
+        , m_CreateHostTimestamp( 0 )
+        , m_CreateDeviceTimestamp( 0 )
     {
     }
 
@@ -108,7 +109,9 @@ namespace Profiler
             // Query initial timestamps.
             if( result == VK_SUCCESS )
             {
-                m_CreateTimestamps = GetSynchronizationTimestamps();
+                auto createTimestamps = GetSynchronizationTimestamps();
+                m_CreateHostTimestamp = createTimestamps.m_HostCalibratedTimestamp;
+                m_CreateDeviceTimestamp = createTimestamps.m_DeviceCalibratedTimestamp;
             }
 
             if( result != VK_SUCCESS )
@@ -136,8 +139,8 @@ namespace Profiler
         m_pDevice = nullptr;
         m_pfnGetCalibratedTimestampsEXT = nullptr;
         m_HostTimeDomain = OSGetDefaultTimeDomain();
-        m_DeviceTimeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
-        m_CreateTimestamps = {};
+        m_CreateHostTimestamp = 0;
+        m_CreateDeviceTimestamp = 0;
     }
 
     /***********************************************************************************\
@@ -227,7 +230,7 @@ namespace Profiler
             timestampInfos[ eHostTimestamp ].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
             timestampInfos[ eHostTimestamp ].timeDomain = m_HostTimeDomain;
             timestampInfos[ eDeviceTimestamp ].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
-            timestampInfos[ eDeviceTimestamp ].timeDomain = m_DeviceTimeDomain;
+            timestampInfos[ eDeviceTimestamp ].timeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
 
             uint64_t timestamps[ eTimestampCount ] = {};
             uint64_t maxDeviations[ eTimestampCount ] = {};
@@ -263,7 +266,11 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerSynchronizationTimestamps DeviceProfilerSynchronization::GetCreateTimestamps() const
     {
-        return m_CreateTimestamps;
+        DeviceProfilerSynchronizationTimestamps output = {};
+        output.m_HostTimeDomain = m_HostTimeDomain;
+        output.m_HostCalibratedTimestamp = m_CreateHostTimestamp;
+        output.m_DeviceCalibratedTimestamp = m_CreateDeviceTimestamp;
+        return output;
     }
 
     /***********************************************************************************\
@@ -279,12 +286,12 @@ namespace Profiler
     {
         if( domain == VK_TIME_DOMAIN_DEVICE_EXT )
         {
-            return m_CreateTimestamps.m_DeviceCalibratedTimestamp;
+            return m_CreateDeviceTimestamp;
         }
 
-        if( domain == m_CreateTimestamps.m_HostTimeDomain )
+        if( domain == m_HostTimeDomain )
         {
-            return m_CreateTimestamps.m_HostCalibratedTimestamp;
+            return m_CreateHostTimestamp;
         }
 
         return 0;
@@ -302,19 +309,5 @@ namespace Profiler
     VkTimeDomainEXT DeviceProfilerSynchronization::GetHostTimeDomain() const
     {
         return m_HostTimeDomain;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetDeviceTimeDomain
-
-    Description:
-        Returns time domain used by GPU timestamps.
-
-    \***********************************************************************************/
-    VkTimeDomainEXT DeviceProfilerSynchronization::GetDeviceTimeDomain() const
-    {
-        return m_DeviceTimeDomain;
     }
 }
