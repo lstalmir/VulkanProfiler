@@ -62,6 +62,7 @@ namespace Profiler
         VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) final;
         uint32_t GetPerformanceMetricsSetIndex() final;
 
+        uint64_t GetDeviceCreateTimestamp( VkTimeDomainEXT timeDomain ) final;
         uint64_t GetHostTimestampFrequency( VkTimeDomainEXT timeDomain ) final;
 
         const DeviceProfilerConfig& GetProfilerConfig() final;

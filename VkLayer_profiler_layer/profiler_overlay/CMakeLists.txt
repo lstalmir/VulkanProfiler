@@ -106,6 +106,7 @@ target_link_libraries (profiler_overlay
     PRIVATE imgui
     PRIVATE imgui-text-editor
     PRIVATE imgui-file-dialog
+    PRIVATE implot
     PRIVATE stb
     PRIVATE profiler
     PRIVATE profiler_helpers)

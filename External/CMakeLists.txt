@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Lukasz Stalmirski
+# Copyright (c) 2023-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -130,6 +130,19 @@ target_include_directories (imgui-file-dialog
     PUBLIC imgui-file-dialog)
 
 target_link_libraries (imgui-file-dialog
+    PUBLIC imgui)
+
+# epezent/implot
+add_library (implot STATIC
+    implot/implot.h
+    implot/implot.cpp
+    implot/implot_internal.h
+    implot/implot_items.cpp)
+
+target_include_directories (implot
+    PUBLIC implot)
+
+target_link_libraries (implot
     PUBLIC imgui)
 
 # nothings/stb
