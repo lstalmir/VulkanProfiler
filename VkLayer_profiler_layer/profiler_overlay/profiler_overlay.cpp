@@ -627,12 +627,11 @@ namespace Profiler
         m_MemoryConsumptionHistoryTimeRangeMax = 5.0;
         m_MemoryConsumptionHistoryUpdatePeriod = 0.25f;
         m_MemoryConsumptionHistoryUpdateCounter.Reset();
-        m_MemoryConsumptionHistoryTimePoints.clear();
+        m_MemoryConsumptionHistoryTimePoints = {};
 
-        for( auto& history : m_MemoryConsumptionHistory )
+        for( auto& heapMemoryConsumptionHistory : m_MemoryConsumptionHistory )
         {
-            history.clear();
-            history.shrink_to_fit();
+            heapMemoryConsumptionHistory = {};
         }
 
         memset( m_MemoryConsumptionHistoryMax, 0, sizeof( m_MemoryConsumptionHistoryMax ) );

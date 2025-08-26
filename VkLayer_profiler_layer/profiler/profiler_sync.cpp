@@ -122,7 +122,8 @@ namespace Profiler
             }
         }
 
-        return result;
+        // Always return success, the extension is optional.
+        return VK_SUCCESS;
     }
 
     /***********************************************************************************\
