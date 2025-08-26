@@ -38,7 +38,8 @@ namespace Profiler
         : m_pDevice( nullptr )
         , m_pfnGetCalibratedTimestampsEXT( nullptr )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
-        , m_DeviceTimeDomain( VK_TIME_DOMAIN_DEVICE_EXT )
+        , m_CreateHostTimestamp( 0 )
+        , m_CreateDeviceTimestamp( 0 )
     {
     }
 
@@ -105,6 +106,14 @@ namespace Profiler
                 }
             }
 
+            // Query initial timestamps.
+            if( result == VK_SUCCESS )
+            {
+                auto createTimestamps = GetSynchronizationTimestamps();
+                m_CreateHostTimestamp = createTimestamps.m_HostCalibratedTimestamp;
+                m_CreateDeviceTimestamp = createTimestamps.m_DeviceCalibratedTimestamp;
+            }
+
             if( result != VK_SUCCESS )
             {
                 // Query of timestamp calibration capabilities failed.
@@ -113,6 +122,7 @@ namespace Profiler
             }
         }
 
+        // Always return success, the extension is optional.
         return VK_SUCCESS;
     }
 
@@ -130,7 +140,8 @@ namespace Profiler
         m_pDevice = nullptr;
         m_pfnGetCalibratedTimestampsEXT = nullptr;
         m_HostTimeDomain = OSGetDefaultTimeDomain();
-        m_DeviceTimeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
+        m_CreateHostTimestamp = 0;
+        m_CreateDeviceTimestamp = 0;
     }
 
     /***********************************************************************************\
@@ -220,7 +231,7 @@ namespace Profiler
             timestampInfos[ eHostTimestamp ].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
             timestampInfos[ eHostTimestamp ].timeDomain = m_HostTimeDomain;
             timestampInfos[ eDeviceTimestamp ].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT;
-            timestampInfos[ eDeviceTimestamp ].timeDomain = m_DeviceTimeDomain;
+            timestampInfos[ eDeviceTimestamp ].timeDomain = VK_TIME_DOMAIN_DEVICE_EXT;
 
             uint64_t timestamps[ eTimestampCount ] = {};
             uint64_t maxDeviations[ eTimestampCount ] = {};
@@ -248,6 +259,48 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetCreateTimestamps
+
+    Description:
+        Get creation timestamps.
+
+    \***********************************************************************************/
+    DeviceProfilerSynchronizationTimestamps DeviceProfilerSynchronization::GetCreateTimestamps() const
+    {
+        DeviceProfilerSynchronizationTimestamps output = {};
+        output.m_HostTimeDomain = m_HostTimeDomain;
+        output.m_HostCalibratedTimestamp = m_CreateHostTimestamp;
+        output.m_DeviceCalibratedTimestamp = m_CreateDeviceTimestamp;
+        return output;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCreateTimestamps
+
+    Description:
+        Get creation timestamps.
+
+    \***********************************************************************************/
+    uint64_t DeviceProfilerSynchronization::GetCreateTimestamp( VkTimeDomainEXT domain ) const
+    {
+        if( domain == VK_TIME_DOMAIN_DEVICE_EXT )
+        {
+            return m_CreateDeviceTimestamp;
+        }
+
+        if( domain == m_HostTimeDomain )
+        {
+            return m_CreateHostTimestamp;
+        }
+
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetHostTimeDomain
 
     Description:
@@ -257,19 +310,5 @@ namespace Profiler
     VkTimeDomainEXT DeviceProfilerSynchronization::GetHostTimeDomain() const
     {
         return m_HostTimeDomain;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetDeviceTimeDomain
-
-    Description:
-        Returns time domain used by GPU timestamps.
-
-    \***********************************************************************************/
-    VkTimeDomainEXT DeviceProfilerSynchronization::GetDeviceTimeDomain() const
-    {
-        return m_DeviceTimeDomain;
     }
 }

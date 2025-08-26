@@ -48,9 +48,9 @@ namespace Profiler
         void WaitForFence( VkFence fence, uint64_t timeout = std::numeric_limits<uint64_t>::max() );
 
         DeviceProfilerSynchronizationTimestamps GetSynchronizationTimestamps() const;
-
+        DeviceProfilerSynchronizationTimestamps GetCreateTimestamps() const;
+        uint64_t GetCreateTimestamp( VkTimeDomainEXT domain ) const;
         VkTimeDomainEXT GetHostTimeDomain() const;
-        VkTimeDomainEXT GetDeviceTimeDomain() const;
 
     private:
         VkDevice_Object* m_pDevice;
@@ -58,6 +58,8 @@ namespace Profiler
         PFN_vkGetCalibratedTimestampsEXT m_pfnGetCalibratedTimestampsEXT;
 
         VkTimeDomainEXT m_HostTimeDomain;
-        VkTimeDomainEXT m_DeviceTimeDomain;
+
+        uint64_t m_CreateHostTimestamp;
+        uint64_t m_CreateDeviceTimestamp;
     };
 }
