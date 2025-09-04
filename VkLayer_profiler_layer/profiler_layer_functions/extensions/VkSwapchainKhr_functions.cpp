@@ -42,8 +42,10 @@ namespace Profiler
         VkSwapchainCreateInfoKHR createInfo = *pCreateInfo;
 
         // TODO: Move to separate layer
+        // Enable the overlay only if the WSI is supported by the layer
         const bool createProfilerOverlay =
-            (dd.Profiler.m_Config.m_Output == Profiler::output_t::overlay);
+            (dd.Profiler.m_Config.m_Output == Profiler::output_t::overlay) &&
+            (dd.Device.pInstance->Surfaces.count( pCreateInfo->surface ));
 
         if( createProfilerOverlay )
         {
@@ -60,7 +62,14 @@ namespace Profiler
         {
             VkSwapchainKhr_Object swapchainObject = {};
             swapchainObject.Handle = *pSwapchain;
-            swapchainObject.pSurface = &dd.Device.pInstance->Surfaces[ pCreateInfo->surface ];
+
+            // Find the surface object, required to intercept input messages by the overlay.
+            // In case of unsupported WSIs pSurface will be nullptr and overlay won't be initialized.
+            auto surfaceIt = dd.Device.pInstance->Surfaces.find( pCreateInfo->surface );
+            if( surfaceIt != dd.Device.pInstance->Surfaces.end() )
+            {
+                swapchainObject.pSurface = &surfaceIt->second;
+            }
 
             uint32_t swapchainImageCount = 0;
             dd.Device.Callbacks.GetSwapchainImagesKHR(
