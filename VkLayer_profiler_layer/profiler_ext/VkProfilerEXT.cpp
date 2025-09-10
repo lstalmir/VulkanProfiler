@@ -431,11 +431,11 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
+    if( dd.Profiler.m_pPerformanceCounters != nullptr )
     {
         // Return metrics supported by Intel Metrics Discovery API.
-        const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& properties =
-            dd.Profiler.m_MetricsApiINTEL.GetMetricsProperties( metricsSetIndex );
+        std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties;
+        dd.Profiler.m_pPerformanceCounters->GetMetricsProperties( metricsSetIndex, properties );
 
         const uint32_t propertyCount = static_cast<uint32_t>( properties.size() );
 
@@ -462,8 +462,6 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
         ( *pProfilerMetricCount ) = 0;
     }
 
-    // TODO: Other metric sources (VK_KHR_performance_query)
-
     return VK_SUCCESS;
 }
 
@@ -484,11 +482,11 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
 
     VkResult result = VK_SUCCESS;
 
-    if( dd.Profiler.m_MetricsApiINTEL.IsAvailable() )
+    if( dd.Profiler.m_pPerformanceCounters != nullptr )
     {
         // Return metrics sets supported by Intel Metrics Discovery API.
-        const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
-            dd.Profiler.m_MetricsApiINTEL.GetMetricsSets();
+        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets;
+        dd.Profiler.m_pPerformanceCounters->GetMetricsSets( metricsSets );
 
         const uint32_t metricsSetCount = static_cast<uint32_t>( metricsSets.size() );
 
@@ -515,8 +513,6 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
         ( *pMetricsSetCount ) = 0;
     }
 
-    // TODO: Other metric sources (VK_KHR_performance_query)
-
     return VK_SUCCESS;
 }
 
@@ -532,7 +528,14 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerPerformanceMetricsSetEXT(
     VkDevice device,
     uint32_t metricsSetIndex )
 {
-    return VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_MetricsApiINTEL.SetActiveMetricsSet( metricsSetIndex );
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    if( dd.Profiler.m_pPerformanceCounters != nullptr )
+    {
+        return dd.Profiler.m_pPerformanceCounters->SetActiveMetricsSet( metricsSetIndex );
+    }
+
+    return VK_ERROR_FEATURE_NOT_PRESENT;
 }
 
 /***************************************************************************************\
@@ -547,5 +550,14 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
     VkDevice device,
     uint32_t* pIndex )
 {
-    (*pIndex) = VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    if( dd.Profiler.m_pPerformanceCounters != nullptr )
+    {
+        ( *pIndex ) = dd.Profiler.m_pPerformanceCounters->GetActiveMetricsSetIndex();
+    }
+    else
+    {
+        ( *pIndex ) = UINT32_MAX;
+    }
 }

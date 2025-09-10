@@ -179,9 +179,14 @@ namespace Profiler
         Returns list of available performance metrics sets.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& DeviceProfilerLayerFrontend::GetPerformanceMetricsSets()
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& sets )
     {
-        return m_pProfiler->m_MetricsApiINTEL.GetMetricsSets();
+        sets.clear();
+
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            m_pProfiler->m_pPerformanceCounters->GetMetricsSets( sets );
+        }
     }
 
     /***********************************************************************************\
@@ -193,9 +198,14 @@ namespace Profiler
         Returns list of performance counter properties for a given metrics set.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( uint32_t setIndex )
+    void DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics )
     {
-        return m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( setIndex );
+        metrics.clear();
+
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            m_pProfiler->m_pPerformanceCounters->GetMetricsProperties( setIndex, metrics );
+        }
     }
 
     /***********************************************************************************\
@@ -209,7 +219,12 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerLayerFrontend::SetPreformanceMetricsSetIndex( uint32_t setIndex )
     {
-        return m_pProfiler->m_MetricsApiINTEL.SetActiveMetricsSet( setIndex );
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            return m_pProfiler->m_pPerformanceCounters->SetActiveMetricsSet( setIndex );
+        }
+
+        return VK_ERROR_FEATURE_NOT_PRESENT;
     }
 
     /***********************************************************************************\
@@ -223,7 +238,12 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t DeviceProfilerLayerFrontend::GetPerformanceMetricsSetIndex()
     {
-        return m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            return m_pProfiler->m_pPerformanceCounters->GetActiveMetricsSetIndex();
+        }
+
+        return UINT32_MAX;
     }
 
     /***********************************************************************************\

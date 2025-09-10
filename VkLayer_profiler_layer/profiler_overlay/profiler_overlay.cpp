@@ -413,8 +413,8 @@ namespace Profiler
         // Get vendor metrics sets
         if( success )
         {
-            const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
-                m_Frontend.GetPerformanceMetricsSets();
+            std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets;
+            m_Frontend.GetPerformanceMetricsSets( metricsSets );
 
             const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
             m_VendorMetricsSets.reserve( vendorMetricsSetCount );
@@ -426,7 +426,7 @@ namespace Profiler
                 memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
 
                 // Get metrics belonging to this set.
-                metricsSet.m_Metrics = m_Frontend.GetPerformanceCounterProperties( i );
+                m_Frontend.GetPerformanceCounterProperties( i, metricsSet.m_Metrics );
 
                 m_VendorMetricsSetVisibility.push_back( true );
             }

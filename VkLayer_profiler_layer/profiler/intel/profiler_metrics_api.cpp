@@ -363,21 +363,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        IsAvailable
-
-    Description:
-
-    \***********************************************************************************/
-    bool ProfilerMetricsApi_INTEL::IsAvailable() const
-    {
-        std::shared_lock lk( m_ActiveMetricSetMutex );
-        return m_pDevice != nullptr &&
-            m_ActiveMetricsSetIndex != UINT32_MAX;
-    }
-
-    /***********************************************************************************\
-
-    Function:
         GetReportSize
 
     Description:
@@ -493,9 +478,9 @@ namespace Profiler
         Get properties of available metrics sets.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& ProfilerMetricsApi_INTEL::GetMetricsSets() const
+    void ProfilerMetricsApi_INTEL::GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& sets ) const
     {
-        return m_MetricsSetsProperties;
+        sets = m_MetricsSetsProperties;
     }
 
     /***********************************************************************************\
@@ -508,17 +493,45 @@ namespace Profiler
         Metrics must appear in the same order as in returned reports.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ProfilerMetricsApi_INTEL::GetMetricsProperties( uint32_t metricsSetIndex ) const
+    void ProfilerMetricsApi_INTEL::GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const
     {
-        static const std::vector<VkProfilerPerformanceCounterPropertiesEXT> emptyProperties;
-
         // Check if the metrics set is available.
-        if( metricsSetIndex >= m_MetricsSets.size() )
+        if( metricsSetIndex < m_MetricsSets.size() )
         {
-            return emptyProperties;
+            metrics = m_MetricsSets[metricsSetIndex].m_MetricsProperties;
         }
+        else
+        {
+            metrics.clear();
+        }
+    }
 
-        return m_MetricsSets[ metricsSetIndex ].m_MetricsProperties;
+    /***********************************************************************************\
+
+    Function:
+        CreateQueryPool
+
+    Description:
+        Creates a query pool for performance queries.
+
+    \***********************************************************************************/
+    VkResult ProfilerMetricsApi_INTEL::CreateQueryPool( uint32_t, uint32_t size, VkQueryPool* pQueryPool )
+    {
+        VkQueryPoolCreateInfoINTEL intelCreateInfo = {};
+        intelCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO_INTEL;
+        intelCreateInfo.performanceCountersSampling = VK_QUERY_POOL_SAMPLING_MODE_MANUAL_INTEL;
+
+        VkQueryPoolCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        createInfo.pNext = &intelCreateInfo;
+        createInfo.queryType = VK_QUERY_TYPE_PERFORMANCE_QUERY_INTEL;
+        createInfo.queryCount = size;
+
+        return m_pVulkanDevice->Callbacks.CreateQueryPool(
+            m_pVulkanDevice->Handle,
+            &createInfo,
+            nullptr,
+            pQueryPool );
     }
 
     /***********************************************************************************\

@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #pragma once
-#include "intel/profiler_metrics_api.h"
+#include "profiler_performance_counters.h"
 
 #include <vulkan/vk_layer.h>
 
@@ -43,7 +43,7 @@ namespace Profiler
     class CommandBufferQueryPool
     {
     public:
-        CommandBufferQueryPool( DeviceProfiler&, VkCommandBufferLevel );
+        CommandBufferQueryPool( DeviceProfiler&, uint32_t, VkCommandBufferLevel );
         ~CommandBufferQueryPool();
 
         CommandBufferQueryPool( const CommandBufferQueryPool& ) = delete;
@@ -71,7 +71,10 @@ namespace Profiler
         DeviceProfiler&                  m_Profiler;
         VkDevice_Object&                 m_Device;
 
-        ProfilerMetricsApi_INTEL&        m_MetricsApiINTEL;
+        VkCommandBufferLevel             m_CommandBufferLevel;
+        uint32_t                         m_QueueFamilyIndex;
+
+        DeviceProfilerPerformanceCounters* m_pPerformanceCounters;
 
         std::vector<VkQueryPool>         m_QueryPools;
         uint32_t                         m_QueryPoolSize;
@@ -79,9 +82,10 @@ namespace Profiler
         uint32_t                         m_CurrentQueryIndex;
         uint64_t                         m_AbsQueryIndex;
 
-        VkQueryPool                      m_PerformanceQueryPoolINTEL;
-        uint32_t                         m_PerformanceQueryMetricsSetIndexINTEL;
+        VkQueryPool                      m_PerformanceQueryPool;
+        uint32_t                         m_PerformanceQueryMetricsSetIndex;
 
         void AllocateQueryPool( VkCommandBuffer commandBuffer );
+        void AllocatePerformanceQueryPool();
     };
 }

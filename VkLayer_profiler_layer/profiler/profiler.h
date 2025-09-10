@@ -190,9 +190,7 @@ namespace Profiler
 
         ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
 
-        VkFence                 m_SubmitFence;
-
-        ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
+        std::unique_ptr<DeviceProfilerPerformanceCounters> m_pPerformanceCounters;
 
         DeviceProfilerSynchronization m_Synchronization;
 

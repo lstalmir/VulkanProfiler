@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_performance_counters.h"
 #include <metrics_discovery_api.h>
 #ifdef WIN32
 #include <filesystem>
@@ -56,29 +57,31 @@ namespace Profiler
 
     \***********************************************************************************/
     class ProfilerMetricsApi_INTEL
+        : public DeviceProfilerPerformanceCounters
     {
     public:
         ProfilerMetricsApi_INTEL();
 
-        VkResult Initialize( struct VkDevice_Object* pDevice );
-        void Destroy();
+        VkResult Initialize( struct VkDevice_Object* pDevice ) final;
+        void Destroy() final;
 
-        bool IsAvailable() const;
+        uint32_t GetReportSize( uint32_t metricsSetIndex ) const final;
+        uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const final;
+        uint32_t GetMetricsSetCount() const final;
+        VkResult SetActiveMetricsSet( uint32_t metricsSetIndex ) final;
+        uint32_t GetActiveMetricsSetIndex() const final;
 
-        uint32_t GetReportSize( uint32_t metricsSetIndex ) const;
-        uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const;
-        uint32_t GetMetricsSetCount() const;
-        VkResult SetActiveMetricsSet( uint32_t metricsSetIndex );
-        uint32_t GetActiveMetricsSetIndex() const;
+        void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets ) const final;
+        void GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
 
-        const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& GetMetricsSets() const;
-        const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& GetMetricsProperties( uint32_t metricsSetIndex ) const;
+        bool SupportsQueryPoolReuse() const final { return true; }
+        VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
         void ParseReport(
-            uint32_t                                            metricsSetIndex,
-            uint32_t                                            reportSize,
-            const uint8_t*                                      pReport,
-            std::vector<VkProfilerPerformanceCounterResultEXT>& results );
+            uint32_t metricsSetIndex,
+            uint32_t reportSize,
+            const uint8_t* pReport,
+            std::vector<VkProfilerPerformanceCounterResultEXT>& results ) final;
 
     private:
         // Require at least version 1.1.

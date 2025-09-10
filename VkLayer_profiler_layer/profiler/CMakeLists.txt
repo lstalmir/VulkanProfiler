@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2019-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ set (headers
     "profiler_helpers.h"
     "profiler_memory_manager.h"
     "profiler_memory_tracker.h"
+    "profiler_performance_counters.h"
     "profiler_query_pool.h"
     "profiler_resources.h"
     "profiler_shader.h"
@@ -52,6 +53,7 @@ set (sources
     "profiler_data_aggregator.cpp"
     "profiler_memory_manager.cpp"
     "profiler_memory_tracker.cpp"
+    "profiler_performance_counters.cpp"
     "profiler_query_pool.cpp"
     "profiler_shader.cpp"
     "profiler_sync.cpp"

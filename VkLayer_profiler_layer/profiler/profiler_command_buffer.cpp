@@ -72,7 +72,10 @@ namespace Profiler
         // Initialize performance query once
         if( m_ProfilingEnabled )
         {
-            m_pQueryPool = new CommandBufferQueryPool( m_Profiler, m_Level );
+            m_pQueryPool = new CommandBufferQueryPool(
+                m_Profiler,
+                m_CommandPool.GetQueueFamilyIndex(),
+                m_Level );
         }
     }
 
@@ -1219,11 +1222,13 @@ namespace Profiler
             // Read vendor-specific data
             if( reader.HasPerformanceQueryResult() )
             {
+                assert( m_Profiler.m_pPerformanceCounters != nullptr );
+
                 const uint32_t performanceQueryMetricsSetIndex = reader.GetPerformanceQueryMetricsSetIndex();
                 const uint32_t performanceQueryResultSize = reader.GetPerformanceQueryResultSize();
                 const uint8_t* pPerformanceQueryResult = reader.ReadPerformanceQueryResult();
 
-                m_Profiler.m_MetricsApiINTEL.ParseReport(
+                m_Profiler.m_pPerformanceCounters->ParseReport(
                     performanceQueryMetricsSetIndex,
                     performanceQueryResultSize,
                     pPerformanceQueryResult,

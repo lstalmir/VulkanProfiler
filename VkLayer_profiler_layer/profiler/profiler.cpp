@@ -138,7 +138,6 @@ namespace Profiler
         , m_MemoryTracker()
         , m_pCommandBuffers()
         , m_pCommandPools()
-        , m_SubmitFence( VK_NULL_HANDLE )
         , m_PipelineExecutablePropertiesEnabled( false )
         , m_ShaderModuleIdentifierEnabled( false )
         , m_pStablePowerStateHandle( nullptr )
@@ -183,6 +182,12 @@ namespace Profiler
             availableExtensionNames.insert( extension.extensionName );
         }
 
+        // Some extensions require either VK_KHR_get_physical_device_properties2 or Vulkan 1.1.
+        const bool hasGetPhysicalDeviceProperties2 =
+            ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 &&
+                physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ||
+            physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+
         // Enable shader module identifier if available.
         if( availableExtensionNames.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
             !devicePNextChain.Contains( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT ) )
@@ -198,9 +203,7 @@ namespace Profiler
             {
                 if( availableExtensionNames.count( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME ) )
                 {
-                    if( ( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 ) &&
-                            ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ) ||
-                        ( physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) ) )
+                    if( hasGetPhysicalDeviceProperties2 )
                     {
                         deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
                         enableShaderModuleIdentifier = true;
@@ -221,12 +224,24 @@ namespace Profiler
             }
         }
 
-        if( config.m_EnablePerformanceQueryExt )
+        // Enable performance query extensions if requested and available.
+        if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::intel )
         {
             if( availableExtensionNames.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
             {
                 // Enable MDAPI data collection on Intel GPUs.
                 deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+            }
+        }
+        else if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::khr )
+        {
+            if( availableExtensionNames.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+            {
+                if( hasGetPhysicalDeviceProperties2 )
+                {
+                    // Enable KHR performance query extension.
+                    deviceExtensions.insert( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME );
+                }
             }
         }
 
@@ -259,9 +274,7 @@ namespace Profiler
         // Enable memory budget extension to track memory usage.
         if( availableExtensionNames.count( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME ) )
         {
-            if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 &&
-                    physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ||
-                physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+            if( hasGetPhysicalDeviceProperties2 )
             {
                 deviceExtensions.insert( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME );
             }
@@ -386,20 +399,30 @@ namespace Profiler
             #endif
         }
 
-        // Create submit fence
-        VkFenceCreateInfo fenceCreateInfo;
-        ClearStructure( &fenceCreateInfo, VK_STRUCTURE_TYPE_FENCE_CREATE_INFO );
-
-        DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateFence(
-            m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence ) );
-
         // Prepare for memory usage tracking
         m_MemoryTracker.Initialize( m_pDevice );
 
-        // Enable vendor-specific extensions
+        // Enable performance counters
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
-            m_MetricsApiINTEL.Initialize( m_pDevice );
+            // Use INTEL performance query extension.
+            m_pPerformanceCounters = std::make_unique<ProfilerMetricsApi_INTEL>();
+        }
+        else if( m_pDevice->EnabledExtensions.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+        {
+            // Use KHR performance query extension.
+            m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersKHR>();
+        }
+
+        if( m_pPerformanceCounters )
+        {
+            // Initialize performance counters.
+            // Clear the pointer if the initialization fails.
+            VkResult result = m_pPerformanceCounters->Initialize( m_pDevice );
+            if( result != VK_SUCCESS )
+            {
+                m_pPerformanceCounters.reset();
+            }
         }
 
         // Capture pipeline statistics and internal representations for debugging
@@ -514,12 +537,10 @@ namespace Profiler
 
         m_DataAggregator.Destroy();
 
-        m_MetricsApiINTEL.Destroy();
-
-        if( m_SubmitFence != VK_NULL_HANDLE )
+        if( m_pPerformanceCounters != nullptr )
         {
-            m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
-            m_SubmitFence = VK_NULL_HANDLE;
+            m_pPerformanceCounters->Destroy();
+            m_pPerformanceCounters.reset();
         }
 
         if( m_pStablePowerStateHandle != nullptr )

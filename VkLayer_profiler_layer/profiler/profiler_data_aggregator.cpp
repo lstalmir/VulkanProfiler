@@ -612,33 +612,20 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        if( m_pProfiler->m_MetricsApiINTEL.IsAvailable() )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
             // Check if vendor metrics set has changed.
-            const uint32_t activeMetricsSetIndex = m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+            const uint32_t activeMetricsSetIndex = pPerformanceCounters->GetActiveMetricsSetIndex();
 
             if( m_VendorMetricsSetIndex != activeMetricsSetIndex )
             {
                 m_VendorMetricsSetIndex = activeMetricsSetIndex;
+                m_VendorMetricProperties.clear();
 
                 if( m_VendorMetricsSetIndex != UINT32_MAX )
                 {
-                    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metricsProperties =
-                        m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( m_VendorMetricsSetIndex );
-
-                    // Preallocate space for the metrics properties.
-                    m_VendorMetricProperties.resize( metricsProperties.size() );
-
-                    // Copy metrics properties to the local vector.
-                    if( !metricsProperties.empty() )
-                    {
-                        memcpy( m_VendorMetricProperties.data(), metricsProperties.data(),
-                            metricsProperties.size() * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
-                    }
-                }
-                else
-                {
-                    m_VendorMetricProperties.clear();
+                    pPerformanceCounters->GetMetricsProperties( m_VendorMetricsSetIndex, m_VendorMetricProperties );
                 }
             }
         }
