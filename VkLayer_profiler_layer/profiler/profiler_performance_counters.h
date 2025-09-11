@@ -53,12 +53,14 @@ namespace Profiler
 
         virtual void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& ) const {}
         virtual void GetMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ) const {}
+        virtual void GetQueueFamilyMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ) const {}
+        virtual void GetAvailableMetrics( uint32_t, const std::vector<uint32_t>&, std::vector<uint32_t>& ) const {}
 
         virtual bool SupportsQueryPoolReuse() const { return false; }
         virtual VkResult CreateQueryPool( uint32_t, uint32_t, VkQueryPool* ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
 
         virtual bool SupportsCustomMetricsSets() const { return false; }
-        virtual VkResult CreateCustomMetricsSet( uint32_t, const char*, const char*, uint32_t, const uint32_t*, uint32_t* ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
+        virtual uint32_t CreateCustomMetricsSet( uint32_t, const std::string&, const std::string&, const std::vector<uint32_t>& ) { return UINT32_MAX; }
         virtual void DestroyCustomMetricsSet( uint32_t ) {}
 
         virtual void ParseReport( uint32_t, uint32_t, const uint8_t*, std::vector<VkProfilerPerformanceCounterResultEXT>& ) {}
@@ -90,11 +92,13 @@ namespace Profiler
 
         void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets ) const final;
         void GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
+        void GetQueueFamilyMetricsProperties( uint32_t queueFamilyIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
+        void GetAvailableMetrics( uint32_t queueFamilyIndex, const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters ) const final;
 
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
         bool SupportsCustomMetricsSets() const final { return true; }
-        VkResult CreateCustomMetricsSet( uint32_t queueFamilyIndex, const char* pName, const char* pDescription, uint32_t counterCount, const uint32_t* pCounters, uint32_t* pMetricsSetIndex ) final;
+        uint32_t CreateCustomMetricsSet( uint32_t queueFamilyIndex, const std::string& name, const std::string& description, const std::vector<uint32_t>& counterIndices ) final;
         void DestroyCustomMetricsSet( uint32_t metricsSetIndex ) final;
 
         void ParseReport(

@@ -2061,6 +2061,96 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
     {
+        // Provide controls to manage custom performance counters sets.
+        if( m_Frontend.SupportsCustomPerformanceMetricsSets() )
+        {
+            int queueFamilyIndex = (int)m_PerformanceQueryEditorQueueFamilyIndex;
+            if( ImGui::InputInt( "Queue family index", &queueFamilyIndex ) )
+            {
+                m_PerformanceQueryEditorQueueFamilyIndex = std::clamp( queueFamilyIndex, 0, 3 );
+                m_Frontend.GetQueueFamilyPerformanceCounterProperties(
+                    m_PerformanceQueryEditorQueueFamilyIndex,
+                    m_PerformanceQueryEditorCounterProperties );
+
+                m_PerformanceQueryEditorCounterSelection.clear();
+                m_PerformanceQueryEditorCounterAvailability.clear();
+
+                const uint32_t counterCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterProperties.size() );
+                for( uint32_t i = 0; i < counterCount; ++i )
+                {
+                    m_PerformanceQueryEditorCounterAvailability.push_back( i );
+                }
+
+                m_Frontend.GetAvailablePerformanceCounters(
+                    m_PerformanceQueryEditorQueueFamilyIndex,
+                    m_PerformanceQueryEditorCounterSelection,
+                    m_PerformanceQueryEditorCounterAvailability );
+            }
+
+            const uint32_t counterCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterProperties.size() );
+            for( uint32_t counterIndex = 0; counterIndex < counterCount; ++counterIndex )
+            {
+                bool available = std::find( m_PerformanceQueryEditorCounterAvailability.begin(),
+                                     m_PerformanceQueryEditorCounterAvailability.end(),
+                                     counterIndex ) != m_PerformanceQueryEditorCounterAvailability.end();
+
+                bool selected = std::find( m_PerformanceQueryEditorCounterSelection.begin(),
+                                    m_PerformanceQueryEditorCounterSelection.end(),
+                                    counterIndex ) != m_PerformanceQueryEditorCounterSelection.end();
+
+                ImGui::BeginDisabled( !available );
+
+                if( ImGui::Checkbox( m_PerformanceQueryEditorCounterProperties[counterIndex].shortName, &selected ) )
+                {
+                    if( selected )
+                    {
+                        m_PerformanceQueryEditorCounterSelection.push_back( counterIndex );
+                    }
+                    else
+                    {
+                        m_PerformanceQueryEditorCounterSelection.erase(
+                            std::remove( m_PerformanceQueryEditorCounterSelection.begin(),
+                                m_PerformanceQueryEditorCounterSelection.end(),
+                                counterIndex ),
+                            m_PerformanceQueryEditorCounterSelection.end() );
+
+                        m_PerformanceQueryEditorCounterAvailability.clear();
+
+                        for( uint32_t i = 0; i < counterCount; ++i )
+                        {
+                            m_PerformanceQueryEditorCounterAvailability.push_back( i );
+                        }
+                    }
+
+                    m_Frontend.GetAvailablePerformanceCounters(
+                        m_PerformanceQueryEditorQueueFamilyIndex,
+                        m_PerformanceQueryEditorCounterSelection,
+                        m_PerformanceQueryEditorCounterAvailability );
+                }
+
+                ImGui::EndDisabled();
+            }
+
+            if( ImGui::Button( "+" ) )
+            {
+                uint32_t setIndex = m_Frontend.CreateCustomPerformanceMetricsSet(
+                    m_PerformanceQueryEditorQueueFamilyIndex,
+                    "Custom set",
+                    "Created by Profiler",
+                    m_PerformanceQueryEditorCounterSelection );
+
+                m_VendorMetricsSets.resize( std::max( m_VendorMetricsSets.size(), (size_t)setIndex + 1 ) );
+                strcpy( m_VendorMetricsSets[setIndex].m_Properties.name, "Custom set" );
+                m_VendorMetricsSets[setIndex].m_Properties.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterSelection.size() );
+                m_Frontend.GetPerformanceCounterProperties( setIndex, m_VendorMetricsSets[setIndex].m_Metrics );
+
+                m_VendorMetricsSetVisibility.resize( std::max( m_VendorMetricsSets.size(), (size_t)setIndex + 1 ), true );
+                m_ActiveMetricsSetIndex = setIndex;
+                m_Frontend.SetPreformanceMetricsSetIndex( m_ActiveMetricsSetIndex );
+                m_ActiveMetricsVisibility.resize( m_VendorMetricsSets[m_ActiveMetricsSetIndex].m_Properties.metricsCount, true );
+            }
+        }
+
         // Vendor-specific
         if( !m_pData->m_VendorMetrics.empty() )
         {

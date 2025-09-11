@@ -480,7 +480,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerMetricsApi_INTEL::GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& sets ) const
     {
-        sets = m_MetricsSetsProperties;
+        sets.assign( m_MetricsSetsProperties.begin(), m_MetricsSetsProperties.end() );
     }
 
     /***********************************************************************************\
@@ -498,7 +498,8 @@ namespace Profiler
         // Check if the metrics set is available.
         if( metricsSetIndex < m_MetricsSets.size() )
         {
-            metrics = m_MetricsSets[metricsSetIndex].m_MetricsProperties;
+            const auto& metricsProperties = m_MetricsSets[metricsSetIndex].m_MetricsProperties;
+            metrics.assign( metricsProperties.begin(), metricsProperties.end() );
         }
         else
         {

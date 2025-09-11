@@ -57,6 +57,11 @@ namespace Profiler
 
         const std::unordered_map<VkQueue, VkQueue_Object>& GetDeviceQueues() final;
 
+        bool SupportsCustomPerformanceMetricsSets() final;
+        uint32_t CreateCustomPerformanceMetricsSet( uint32_t queueFamilyIndex, const std::string& name, const std::string& description, const std::vector<uint32_t>& counters ) final;
+        void DestroyCustomPerformanceMetricsSet( uint32_t setIndex ) final;
+        void GetQueueFamilyPerformanceCounterProperties( uint32_t queueFamilyIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) final;
+        void GetAvailablePerformanceCounters( uint32_t queueFamilyIndex, const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters ) final;
         void GetPerformanceMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& sets ) final;
         void GetPerformanceCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) final;
         VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) final;

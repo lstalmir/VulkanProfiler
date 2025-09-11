@@ -173,6 +173,97 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SupportsCustomPerformanceMetricsSets
+
+    Description:
+        Checks if the profiler supports custom performance metrics sets.
+
+    \***********************************************************************************/
+    bool DeviceProfilerLayerFrontend::SupportsCustomPerformanceMetricsSets()
+    {
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            return m_pProfiler->m_pPerformanceCounters->SupportsCustomMetricsSets();
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateCustomPerformanceMetricsSet
+
+    Description:
+        Creates a custom performance metrics set.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerLayerFrontend::CreateCustomPerformanceMetricsSet( uint32_t queueFamilyIndex, const std::string& name, const std::string& description, const std::vector<uint32_t>& counters )
+    {
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            return m_pProfiler->m_pPerformanceCounters->CreateCustomMetricsSet( queueFamilyIndex, name, description, counters );
+        }
+
+        return UINT32_MAX;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyCustomPerformanceMetricsSet
+
+    Description:
+        Destroys the custom performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::DestroyCustomPerformanceMetricsSet( uint32_t setIndex )
+    {
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            m_pProfiler->m_pPerformanceCounters->DestroyCustomMetricsSet( setIndex );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyCustomPerformanceMetricsSet
+
+    Description:
+        Destroys the custom performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::GetQueueFamilyPerformanceCounterProperties( uint32_t queueFamilyIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics )
+    {
+        metrics.clear();
+
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            m_pProfiler->m_pPerformanceCounters->GetQueueFamilyMetricsProperties( queueFamilyIndex, metrics );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetAvailablePerformanceCounters
+
+    Description:
+        Updates the list of available performance counters for a given queue family.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::GetAvailablePerformanceCounters( uint32_t queueFamilyIndex, const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters )
+    {
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            m_pProfiler->m_pPerformanceCounters->GetAvailableMetrics( queueFamilyIndex, allocatedCounters, availableCounters );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetPerformanceMetricsSets
 
     Description:
