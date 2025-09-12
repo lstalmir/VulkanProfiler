@@ -52,18 +52,22 @@ namespace Profiler
         wl_registry* m_Registry;
         wl_shm* m_Shm;
         wl_compositor* m_Compositor;
-        wl_seat* m_Seat;
         wl_surface* m_AppWindow;
-        wl_surface* m_InputWindow;
-        ImVector<wl_region> m_InputRects;
-
-        xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
-
-        void UpdateMousePos();
 
         // Registry event handlers.
         static void HandleGlobal( void*, wl_registry*, uint32_t, const char*, uint32_t );
         static void HandleGlobalRemove( void*, wl_registry*, uint32_t );
+
+        static const wl_registry_listener m_scRegistryListener;
+
+        // Seat event handlers.
+        static void HandleSeatCapabilities( void*, wl_seat*, uint32_t );
+        static void HandleSeatName( void*, wl_seat*, const char* );
+
+        static const wl_seat_listener m_scSeatListener;
+
+        wl_seat* m_Seat;
+        uint32_t m_SeatCapabilities;
 
         // Pointer event handlers.
         static void HandlePointerEnter( void*, wl_pointer*, uint32_t, wl_surface*, wl_fixed_t, wl_fixed_t );
@@ -75,5 +79,53 @@ namespace Profiler
         static void HandlePointerAxisStop( void*, wl_pointer*, uint32_t, uint32_t );
         static void HandlePointerAxisDiscrete( void*, wl_pointer*, uint32_t, int32_t );
         static void HandlePointerFrame( void*, wl_pointer* );
+
+        static const wl_pointer_listener m_scPointerListener; 
+
+        enum PointerEventFlags
+        {
+            POINTER_EVENT_ENTER = 0x1,
+            POINTER_EVENT_LEAVE = 0x2,
+            POINTER_EVENT_MOTION = 0x4,
+            POINTER_EVENT_BUTTON = 0x8,
+            POINTER_EVENT_AXIS = 0x10,
+            POINTER_EVENT_AXIS_SOURCE = 0x20,
+            POINTER_EVENT_AXIS_STOP = 0x40,
+            POINTER_EVENT_AXIS_DISCRETE = 0x80
+        };
+
+        struct PointerAxis
+        {
+            bool m_Valid;
+            float m_Value;
+            int32_t m_Discrete;
+        };
+
+        struct PointerEvent
+        {
+            uint32_t m_Mask;
+            uint32_t m_Time;
+            uint32_t m_Serial;
+            ImVec2 m_Position;
+            uint32_t m_Button;
+            uint32_t m_State;
+            uint32_t m_AxisSource;
+            PointerAxis m_Axes[2];
+        };
+
+        wl_pointer* m_Pointer;
+        PointerEvent m_PointerEvent;
+
+        // Keyboard event handlers.
+        static void HandleKeyboardEnter( void*, wl_keyboard*, uint32_t, wl_surface*, wl_array* );
+        static void HandleKeyboardLeave( void*, wl_keyboard*, uint32_t, wl_surface* );
+        static void HandleKeyboardKeymap( void*, wl_keyboard*, uint32_t, int32_t, uint32_t );
+        static void HandleKeyboardKey( void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t );
+        static void HandleKeyboardModifiers( void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t );
+        static void HandleKeyboardRepeat( void*, wl_keyboard*, int32_t, int32_t );
+
+        static const wl_keyboard_listener m_scKeyboardListener;
+
+        wl_keyboard* m_Keyboard;
     };
 }
