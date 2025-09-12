@@ -87,7 +87,6 @@ namespace Profiler
         , m_pXkbBackend( nullptr )
         , m_Display( nullptr )
         , m_Registry( nullptr )
-        , m_Shm( nullptr )
         , m_Compositor( nullptr )
         , m_AppWindow( window )
         , m_Seat( nullptr )
@@ -152,7 +151,6 @@ namespace Profiler
         ReleaseIfNull( &m_Keyboard, wl_keyboard_release );
         ReleaseIfNull( &m_Seat, wl_seat_release );
         ReleaseIfNull( &m_Compositor, wl_compositor_destroy );
-        ReleaseIfNull( &m_Shm, wl_shm_release );
         ReleaseIfNull( &m_Registry, wl_registry_destroy );
         ReleaseIfNull( &m_Display, wl_display_disconnect );
 
@@ -256,16 +254,6 @@ namespace Profiler
     {
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
         assert( bd );
-
-        if( strcmp( interface, wl_shm_interface.name ) == 0 )
-        {
-            bd->m_Shm = static_cast<wl_shm*>( wl_registry_bind(
-                registry,
-                name,
-                &wl_shm_interface,
-                version ) );
-            return;
-        }
 
         if( strcmp( interface, wl_compositor_interface.name ) == 0 )
         {

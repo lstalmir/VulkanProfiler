@@ -50,7 +50,6 @@ namespace Profiler
 
         wl_display* m_Display;
         wl_registry* m_Registry;
-        wl_shm* m_Shm;
         wl_compositor* m_Compositor;
         wl_surface* m_AppWindow;
 
