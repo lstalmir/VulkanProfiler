@@ -35,6 +35,10 @@ namespace Profiler
         &OverlayLayerWaylandPlatformBackend::HandleGlobalRemove 
     };
 
+    const xdg_toplevel_listener OverlayLayerWaylandPlatformBackend::m_scXdgToplevelListener = {
+        &OverlayLayerWaylandPlatformBackend::HandleToplevelConfigure
+    };
+
     const wl_seat_listener OverlayLayerWaylandPlatformBackend::m_scSeatListener = {
         &OverlayLayerWaylandPlatformBackend::HandleSeatCapabilities,
         &OverlayLayerWaylandPlatformBackend::HandleSeatName
@@ -82,13 +86,20 @@ namespace Profiler
         s_ImGuiMutex must be locked before creating the window context.
 
     \***********************************************************************************/
-    OverlayLayerWaylandPlatformBackend::OverlayLayerWaylandPlatformBackend( wl_surface* window ) try
+    OverlayLayerWaylandPlatformBackend::OverlayLayerWaylandPlatformBackend( wl_surface* surface ) try
         : m_pImGuiContext( nullptr )
         , m_pXkbBackend( nullptr )
         , m_Display( nullptr )
         , m_Registry( nullptr )
         , m_Compositor( nullptr )
-        , m_AppWindow( window )
+        , m_AppSurface( surface )
+        , m_InputSurface( nullptr )
+        , m_InputSubsurface( nullptr )
+        , m_InputRegion( nullptr )
+        , m_Shell( nullptr )
+        , m_XdgShell( nullptr )
+        , m_XdgSurface( nullptr )
+        , m_XdgToplevel( nullptr )
         , m_Seat( nullptr )
         , m_SeatCapabilities( 0 )
         , m_Pointer( nullptr )
@@ -110,9 +121,40 @@ namespace Profiler
         // Register globals
         wl_registry_add_listener( m_Registry, &m_scRegistryListener, this );
         wl_display_roundtrip( m_Display );
+        if( !m_Compositor || !m_Subcompositor || !m_Seat )
+            throw;
 
         // Another roundtrip needed to initialize input devices
         wl_display_roundtrip( m_Display );
+
+        if( m_XdgShell )
+        {
+            // Get XDG surface of the application's window
+            m_XdgSurface = xdg_wm_base_get_xdg_surface( m_XdgShell, m_AppSurface );
+            m_XdgToplevel = xdg_surface_get_toplevel( m_XdgSurface );
+
+            xdg_toplevel_add_listener( m_XdgToplevel, &m_scXdgToplevelListener, this );
+        }
+
+        // Create a subsurface to capture input events
+        m_InputSurface = wl_compositor_create_surface( m_Compositor );
+        if( !m_InputSurface )
+            throw;
+
+        m_InputRegion = wl_compositor_create_region( m_Compositor );
+        if( !m_InputRegion )
+            throw;
+
+        // Make the input surface a subsurface of the application's surface to capture its input
+        m_InputSubsurface = wl_subcompositor_get_subsurface( m_Subcompositor, m_InputSurface, m_AppSurface );
+        if( !m_InputSubsurface )
+            throw;
+
+        wl_subsurface_set_sync( m_InputSubsurface );
+
+        wl_subsurface_place_above( m_InputSubsurface, m_AppSurface );
+        wl_surface_set_input_region( m_InputSurface, m_InputRegion );
+        wl_surface_commit( m_InputSurface );
 
         // Setup backend info
         ImGuiIO& io = ImGui::GetIO();
@@ -145,11 +187,19 @@ namespace Profiler
     \***********************************************************************************/
     OverlayLayerWaylandPlatformBackend::~OverlayLayerWaylandPlatformBackend()
     {
-        m_AppWindow = nullptr;
+        m_AppSurface = nullptr;
 
+        ReleaseIfNull( &m_XdgToplevel, xdg_toplevel_destroy );
+        ReleaseIfNull( &m_XdgSurface, xdg_surface_destroy );
+        ReleaseIfNull( &m_XdgShell, xdg_wm_base_destroy );
+        ReleaseIfNull( &m_Shell, wl_shell_destroy );
         ReleaseIfNull( &m_Pointer, wl_pointer_release );
         ReleaseIfNull( &m_Keyboard, wl_keyboard_release );
         ReleaseIfNull( &m_Seat, wl_seat_release );
+        ReleaseIfNull( &m_InputRegion, wl_region_destroy );
+        ReleaseIfNull( &m_InputSubsurface, wl_subsurface_destroy );
+        ReleaseIfNull( &m_InputSurface, wl_surface_destroy );
+        ReleaseIfNull( &m_Subcompositor, wl_subcompositor_destroy );
         ReleaseIfNull( &m_Compositor, wl_compositor_destroy );
         ReleaseIfNull( &m_Registry, wl_registry_destroy );
         ReleaseIfNull( &m_Display, wl_display_disconnect );
@@ -192,31 +242,24 @@ namespace Profiler
         ImGuiIO& io = ImGui::GetIO();
         IM_ASSERT( io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame()." );
 
-        wl_display_roundtrip( m_Display );
-
         #if 0
-        // Setup display size (every frame to accommodate for window resizing)
+        // Setup display size (every frame to accommodate for window resizing).
         auto geometry = GetGeometry( m_AppWindow );
-        io.DisplaySize = ImVec2((float)(geometry.width), (float)(geometry.height));
+        io.DisplaySize = ImVec2( (float)(geometry.width), (float)(geometry.height));
 
         const uint32_t inputWindowChanges[2] = {
             static_cast<uint32_t>( geometry.width ),
             static_cast<uint32_t>( geometry.height )
         };
 
-        xcb_configure_window(
-            m_Connection,
-            m_InputWindow,
-            XCB_CONFIG_WINDOW_WIDTH |
-            XCB_CONFIG_WINDOW_HEIGHT,
-            inputWindowChanges );
-
-        // Update OS mouse position
+        // Update OS mouse position.
         UpdateMousePos();
+        #endif
 
-        // Update input capture rects
-        m_InputRects.resize( 0 );
+        // Update input capture rects.
+        wl_region_add( m_InputRegion, 0, 0, 1000, 1000 ); 
 
+        #if 0
         for( ImGuiWindow* pWindow : GImGui->Windows )
         {
             if( pWindow && pWindow->WasActive )
@@ -229,17 +272,13 @@ namespace Profiler
                 m_InputRects.push_back( rect );
             }
         }
-
-        xcb_shape_rectangles(
-            m_Connection,
-            XCB_SHAPE_SO_SET,
-            XCB_SHAPE_SK_INPUT,
-            XCB_CLIP_ORDERING_UNSORTED,
-            m_InputWindow,
-            0, 0,
-            m_InputRects.Size,
-            m_InputRects.Data );
         #endif
+
+        wl_surface_set_input_region( m_InputSurface, m_InputRegion );
+        wl_surface_commit( m_InputSurface );
+
+        // Process pending messages.
+        wl_display_roundtrip( m_Display );
     }
 
     /***********************************************************************************\
@@ -265,6 +304,16 @@ namespace Profiler
             return;
         }
 
+        if( strcmp( interface, wl_subcompositor_interface.name ) == 0 )
+        {
+            bd->m_Subcompositor = static_cast<wl_subcompositor*>( wl_registry_bind(
+                registry,
+                name,
+                &wl_subcompositor_interface,
+                version ) );
+            return;
+        }
+
         if( strcmp( interface, wl_seat_interface.name ) == 0 )
         {
             bd->m_Seat = static_cast<wl_seat*>( wl_registry_bind(
@@ -274,6 +323,26 @@ namespace Profiler
                 version ) );
 
             wl_seat_add_listener( bd->m_Seat, &m_scSeatListener, data );
+            return;
+        }
+
+        if( strcmp( interface, wl_shell_interface.name ) == 0 )
+        {
+            bd->m_Shell = static_cast<wl_shell*>( wl_registry_bind(
+                registry,
+                name,
+                &wl_shell_interface,
+                version ) );
+            return;
+        }
+
+        if( strcmp( interface, xdg_wm_base_interface.name ) == 0 )
+        {
+            bd->m_XdgShell = static_cast<xdg_wm_base*>( wl_registry_bind(
+                registry,
+                name,
+                &xdg_wm_base_interface,
+                version ) );
             return;
         }
     }
@@ -288,6 +357,20 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleGlobalRemove( void* data, wl_registry* registry, uint32_t name )
     {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HandleGlobalRemove
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::HandleToplevelConfigure( void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states )
+    {
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        assert( bd );
     }
 
     /***********************************************************************************\

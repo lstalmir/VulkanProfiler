@@ -23,6 +23,7 @@
 #include "profiler_overlay_layer_backend_xkb.h"
 #include <imgui.h>
 #include <wayland-client.h>
+#include <xdg-shell.h>
 
 namespace Profiler
 {
@@ -39,7 +40,7 @@ namespace Profiler
         : public OverlayLayerPlatformBackend
     {
     public:
-        OverlayLayerWaylandPlatformBackend( wl_surface* window );
+        OverlayLayerWaylandPlatformBackend( wl_surface* surface );
         ~OverlayLayerWaylandPlatformBackend();
 
         void NewFrame() override;
@@ -51,13 +52,28 @@ namespace Profiler
         wl_display* m_Display;
         wl_registry* m_Registry;
         wl_compositor* m_Compositor;
-        wl_surface* m_AppWindow;
+        wl_subcompositor* m_Subcompositor;
+        wl_surface* m_AppSurface;
+        wl_surface* m_InputSurface;
+        wl_subsurface* m_InputSubsurface;
+        wl_region* m_InputRegion;
+
+        wl_shell* m_Shell;
+
+        xdg_wm_base* m_XdgShell;
+        xdg_surface* m_XdgSurface;
+        xdg_toplevel* m_XdgToplevel;
 
         // Registry event handlers.
         static void HandleGlobal( void*, wl_registry*, uint32_t, const char*, uint32_t );
         static void HandleGlobalRemove( void*, wl_registry*, uint32_t );
 
         static const wl_registry_listener m_scRegistryListener;
+
+        // XDG topleve event handlers.
+        static void HandleToplevelConfigure( void*, xdg_toplevel*, int32_t, int32_t, wl_array* );
+
+        static const xdg_toplevel_listener m_scXdgToplevelListener;
 
         // Seat event handlers.
         static void HandleSeatCapabilities( void*, wl_seat*, uint32_t );
