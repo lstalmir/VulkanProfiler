@@ -287,8 +287,9 @@ namespace Profiler
         // TODO: Move to a separate file.
         uint32_t m_PerformanceQueryEditorQueueFamilyIndex;
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_PerformanceQueryEditorCounterProperties;
-        std::vector<uint32_t> m_PerformanceQueryEditorCounterSelection;
-        std::vector<uint32_t> m_PerformanceQueryEditorCounterAvailability;
+        std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
 
         // Performance counter serialization
         struct PerformanceCounterExporter;
