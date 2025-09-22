@@ -286,6 +286,7 @@ namespace Profiler
         // Performance counter sets editor.
         // TODO: Move to a separate file.
         uint32_t m_PerformanceQueryEditorQueueFamilyIndex;
+        bool m_PerformanceQueryEditorShowOnlySelected;
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_PerformanceQueryEditorCounterProperties;
         std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailability;

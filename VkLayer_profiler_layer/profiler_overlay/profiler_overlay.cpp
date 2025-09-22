@@ -438,6 +438,18 @@ namespace Profiler
                 m_ActiveMetricsVisibility.resize(
                     m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Metrics.size(), true );
             }
+
+            // Fetch custom performance counters
+            if( m_Frontend.SupportsCustomPerformanceMetricsSets() )
+            {
+                m_Frontend.GetQueueFamilyPerformanceCounterProperties(
+                    m_PerformanceQueryEditorQueueFamilyIndex,
+                    m_PerformanceQueryEditorCounterProperties );
+
+                const size_t counterCount = m_PerformanceQueryEditorCounterProperties.size();
+                m_PerformanceQueryEditorCounterAvailability.resize( counterCount, false );
+                m_PerformanceQueryEditorCounterAvailabilityKnown.resize( counterCount, false );
+            }
         }
 
         // Initialize the disassembler in the shader view
@@ -640,6 +652,13 @@ namespace Profiler
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
         m_ReferencePerformanceCounters.clear();
         m_pPerformanceCounterExporter = nullptr;
+
+        m_PerformanceQueryEditorQueueFamilyIndex = 0;
+        m_PerformanceQueryEditorShowOnlySelected = false;
+        m_PerformanceQueryEditorCounterProperties.clear();
+        m_PerformanceQueryEditorCounterIndices.clear();
+        m_PerformanceQueryEditorCounterAvailability.clear();
+        m_PerformanceQueryEditorCounterAvailabilityKnown.clear();
 
         m_pTopPipelinesExporter = nullptr;
         m_ReferenceTopPipelines.clear();
@@ -2064,6 +2083,30 @@ namespace Profiler
         // Provide controls to manage custom performance counters sets.
         if( m_Frontend.SupportsCustomPerformanceMetricsSets() )
         {
+            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+            if( ImGui::Button( "Create" ) )
+            {
+                uint32_t setIndex = m_Frontend.CreateCustomPerformanceMetricsSet(
+                    m_PerformanceQueryEditorQueueFamilyIndex,
+                    "Custom set",
+                    "Created by Profiler",
+                    m_PerformanceQueryEditorCounterIndices );
+
+                m_VendorMetricsSets.resize( std::max( m_VendorMetricsSets.size(), (size_t)setIndex + 1 ) );
+                strcpy( m_VendorMetricsSets[setIndex].m_Properties.name, "Custom set" );
+                m_VendorMetricsSets[setIndex].m_Properties.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
+                m_Frontend.GetPerformanceCounterProperties( setIndex, m_VendorMetricsSets[setIndex].m_Metrics );
+
+                m_VendorMetricsSetVisibility.resize( std::max( m_VendorMetricsSets.size(), (size_t)setIndex + 1 ), true );
+                m_ActiveMetricsSetIndex = setIndex;
+                m_Frontend.SetPreformanceMetricsSetIndex( m_ActiveMetricsSetIndex );
+                m_ActiveMetricsVisibility.resize( m_VendorMetricsSets[m_ActiveMetricsSetIndex].m_Properties.metricsCount, true );
+            }
+
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth( 200.f * interfaceScale );
+
             int queueFamilyIndex = (int)m_PerformanceQueryEditorQueueFamilyIndex;
             if( ImGui::InputInt( "Queue family index", &queueFamilyIndex ) )
             {
@@ -2085,6 +2128,11 @@ namespace Profiler
                     false );
             }
 
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth( 200.f * interfaceScale );
+
+            ImGui::Checkbox( "Show only selected", &m_PerformanceQueryEditorShowOnlySelected );
+
             ImGuiListClipper clipper;
             clipper.Begin( static_cast<int>( m_PerformanceQueryEditorCounterProperties.size() ) );
 
@@ -2094,15 +2142,20 @@ namespace Profiler
             {
                 for( uint32_t counterIndex = clipper.DisplayStart; counterIndex < clipper.DisplayEnd; ++counterIndex )
                 {
-                    if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] )
-                    {
-                        unknownCountersAvailability.push_back( counterIndex );
-                    }
-
                     bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
                     bool selected = std::find( m_PerformanceQueryEditorCounterIndices.begin(),
                                         m_PerformanceQueryEditorCounterIndices.end(),
                                         counterIndex ) != m_PerformanceQueryEditorCounterIndices.end();
+
+                    if( m_PerformanceQueryEditorShowOnlySelected && !selected )
+                    {
+                        continue;
+                    }
+
+                    if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] )
+                    {
+                        unknownCountersAvailability.push_back( counterIndex );
+                    }
 
                     ImGui::BeginDisabled( !available );
 
@@ -2149,25 +2202,6 @@ namespace Profiler
                 {
                     m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
                 }
-            }
-
-            if( ImGui::Button( "+" ) )
-            {
-                uint32_t setIndex = m_Frontend.CreateCustomPerformanceMetricsSet(
-                    m_PerformanceQueryEditorQueueFamilyIndex,
-                    "Custom set",
-                    "Created by Profiler",
-                    m_PerformanceQueryEditorCounterIndices );
-
-                m_VendorMetricsSets.resize( std::max( m_VendorMetricsSets.size(), (size_t)setIndex + 1 ) );
-                strcpy( m_VendorMetricsSets[setIndex].m_Properties.name, "Custom set" );
-                m_VendorMetricsSets[setIndex].m_Properties.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
-                m_Frontend.GetPerformanceCounterProperties( setIndex, m_VendorMetricsSets[setIndex].m_Metrics );
-
-                m_VendorMetricsSetVisibility.resize( std::max( m_VendorMetricsSets.size(), (size_t)setIndex + 1 ), true );
-                m_ActiveMetricsSetIndex = setIndex;
-                m_Frontend.SetPreformanceMetricsSetIndex( m_ActiveMetricsSetIndex );
-                m_ActiveMetricsVisibility.resize( m_VendorMetricsSets[m_ActiveMetricsSetIndex].m_Properties.metricsCount, true );
             }
         }
 
