@@ -2110,7 +2110,9 @@ namespace Profiler
             int queueFamilyIndex = (int)m_PerformanceQueryEditorQueueFamilyIndex;
             if( ImGui::InputInt( "Queue family index", &queueFamilyIndex ) )
             {
-                m_PerformanceQueryEditorQueueFamilyIndex = std::clamp( queueFamilyIndex, 0, 3 );
+                const auto& queueFamilies = m_Frontend.GetQueueFamilyProperties();
+
+                m_PerformanceQueryEditorQueueFamilyIndex = std::clamp( queueFamilyIndex, 0, static_cast<int>( queueFamilies.size() ) );
                 m_Frontend.GetQueueFamilyPerformanceCounterProperties(
                     m_PerformanceQueryEditorQueueFamilyIndex,
                     m_PerformanceQueryEditorCounterProperties );
