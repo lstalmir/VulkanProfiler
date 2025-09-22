@@ -291,6 +291,9 @@ namespace Profiler
         std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
+        char m_PerformanceQueryEditorFilter[128];
+        char m_PerformanceQueryEditorSetName[64];
+        char m_PerformanceQueryEditorSetDescription[256];
 
         // Performance counter serialization
         struct PerformanceCounterExporter;

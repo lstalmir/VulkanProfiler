@@ -659,6 +659,9 @@ namespace Profiler
         m_PerformanceQueryEditorCounterIndices.clear();
         m_PerformanceQueryEditorCounterAvailability.clear();
         m_PerformanceQueryEditorCounterAvailabilityKnown.clear();
+        memset( m_PerformanceQueryEditorFilter, 0, sizeof( m_PerformanceQueryEditorFilter ) );
+        memset( m_PerformanceQueryEditorSetName, 0, sizeof( m_PerformanceQueryEditorSetName ) );
+        memset( m_PerformanceQueryEditorSetDescription, 0, sizeof( m_PerformanceQueryEditorSetDescription ) );
 
         m_pTopPipelinesExporter = nullptr;
         m_ReferenceTopPipelines.clear();
@@ -2089,12 +2092,12 @@ namespace Profiler
             {
                 uint32_t setIndex = m_Frontend.CreateCustomPerformanceMetricsSet(
                     m_PerformanceQueryEditorQueueFamilyIndex,
-                    "Custom set",
-                    "Created by Profiler",
+                    m_PerformanceQueryEditorSetName,
+                    m_PerformanceQueryEditorSetDescription,
                     m_PerformanceQueryEditorCounterIndices );
 
                 m_VendorMetricsSets.resize( std::max( m_VendorMetricsSets.size(), (size_t)setIndex + 1 ) );
-                strcpy( m_VendorMetricsSets[setIndex].m_Properties.name, "Custom set" );
+                strcpy( m_VendorMetricsSets[setIndex].m_Properties.name, m_PerformanceQueryEditorSetName );
                 m_VendorMetricsSets[setIndex].m_Properties.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
                 m_Frontend.GetPerformanceCounterProperties( setIndex, m_VendorMetricsSets[setIndex].m_Metrics );
 
@@ -2135,8 +2138,17 @@ namespace Profiler
 
             ImGui::Checkbox( "Show only selected", &m_PerformanceQueryEditorShowOnlySelected );
 
+            ImGui::InputText( "Name", m_PerformanceQueryEditorSetName, sizeof( m_PerformanceQueryEditorSetName ) );
+            ImGui::InputText( "Description", m_PerformanceQueryEditorSetDescription, sizeof( m_PerformanceQueryEditorSetDescription ) );
+
+            int counterCount = static_cast<int>( m_PerformanceQueryEditorCounterProperties.size() );
+            if( m_PerformanceQueryEditorShowOnlySelected )
+            {
+                counterCount = static_cast<int>( m_PerformanceQueryEditorCounterIndices.size() );
+            }
+
             ImGuiListClipper clipper;
-            clipper.Begin( static_cast<int>( m_PerformanceQueryEditorCounterProperties.size() ) );
+            clipper.Begin( counterCount );
 
             std::vector<uint32_t> unknownCountersAvailability;
 
