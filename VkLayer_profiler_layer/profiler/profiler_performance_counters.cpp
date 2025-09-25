@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "profiler_performance_counters.h"
+#include "profiler_hasher.h"
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
@@ -233,6 +234,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        AreMetricsSetsCompatible
+
+    Description:
+        Checks if two counter sets are compatible, i.e. VkQueryPools created for one
+        can be used with the other one.
+
+    \***********************************************************************************/
+    bool DeviceProfilerPerformanceCountersKHR::AreMetricsSetsCompatible( uint32_t firstMetricsSetIndex, uint32_t secondMetricsSetIndex ) const
+    {
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+
+        if( ( firstMetricsSetIndex >= m_MetricsSets.size() ) ||
+            ( secondMetricsSetIndex >= m_MetricsSets.size() ) )
+        {
+            return false;
+        }
+
+        return ( m_MetricsSets[firstMetricsSetIndex].m_CompatibleHash == m_MetricsSets[secondMetricsSetIndex].m_CompatibleHash );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetActiveMetricsSetIndex
 
     Description:
@@ -438,12 +462,49 @@ namespace Profiler
             }
         }
 
+        // Calculate a hash of the counter set to identify compatible sets.
+        HashInput hashInput;
+        hashInput.Add( queueFamilyIndex );
+        hashInput.Add( counterIndices, true /*sort*/ );
+
+        uint32_t compatibleHash = Farmhash::Fingerprint32(
+            hashInput.GetData(),
+            hashInput.GetSize() );
+
+        hashInput.Reset();
+        hashInput.Add( compatibleHash );
+        hashInput.Add( name );
+        hashInput.Add( description );
+
+        uint32_t fullHash = Farmhash::Fingerprint32(
+            hashInput.GetData(),
+            hashInput.GetSize() );
+
+        // Check if an identical counter set already exists.
+        {
+            std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+
+            const size_t setCount = m_MetricsSets.size();
+            for( size_t i = 0; i < setCount; ++i )
+            {
+                if( m_MetricsSets[i].m_FullHash == fullHash )
+                {
+                    ProfilerPlatformFunctions::WriteDebug( "Reused metrics set #%u", static_cast<uint32_t>( i ) );
+
+                    // An identical counter set already exists, return its index.
+                    return static_cast<uint32_t>( i );
+                }
+            }
+        }
+
         // Create and register the counter set.
         MetricsSet metricsSet = {};
         metricsSet.m_Name = name;
         metricsSet.m_Description = description;
         metricsSet.m_Counters = counterIndices;
         metricsSet.m_QueueFamilyIndex = queueFamilyIndex;
+        metricsSet.m_CompatibleHash = compatibleHash;
+        metricsSet.m_FullHash = fullHash;
 
         return RegisterMetricsSet( std::move( metricsSet ) );
     }

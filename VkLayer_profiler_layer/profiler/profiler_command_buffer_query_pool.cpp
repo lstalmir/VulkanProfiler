@@ -362,7 +362,9 @@ namespace Profiler
             // If the current metrics set has changed, it's possible to reuse the query pool
             // only if the provider supports it.
             const uint32_t activeMetricsSetIndex = m_pPerformanceCounters->GetActiveMetricsSetIndex();
-            if( activeMetricsSetIndex != m_PerformanceQueryMetricsSetIndex )
+            if( !m_pPerformanceCounters->AreMetricsSetsCompatible(
+                    m_PerformanceQueryMetricsSetIndex,
+                    activeMetricsSetIndex ) )
             {
                 canReuseCurrentQueryPool &= m_pPerformanceCounters->SupportsQueryPoolReuse();
             }

@@ -50,6 +50,7 @@ namespace Profiler
         virtual uint32_t GetMetricsSetCount() const { return 0; }
         virtual VkResult SetActiveMetricsSet( uint32_t ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
         virtual uint32_t GetActiveMetricsSetIndex() const { return 0; }
+        virtual bool AreMetricsSetsCompatible( uint32_t, uint32_t ) const { return false; }
 
         virtual void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& ) const {}
         virtual void GetMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ) const {}
@@ -94,6 +95,7 @@ namespace Profiler
         void GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
         void GetQueueFamilyMetricsProperties( uint32_t queueFamilyIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
         void GetAvailableMetrics( uint32_t queueFamilyIndex, const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters ) const final;
+        bool AreMetricsSetsCompatible( uint32_t firstMetricsSetIndex, uint32_t secondMetricsSetIndex ) const final;
 
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
@@ -121,6 +123,8 @@ namespace Profiler
             std::string m_Description;
             std::vector<uint32_t> m_Counters;
             uint32_t m_QueueFamilyIndex;
+            uint32_t m_CompatibleHash; // m_QueueFamilyIndex & m_Counters
+            uint32_t m_FullHash;       // All fields
         };
 
         struct QueueFamilyCounters
