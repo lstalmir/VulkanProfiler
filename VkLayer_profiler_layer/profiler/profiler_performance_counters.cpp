@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 #include "profiler_performance_counters.h"
-#include "profiler_hasher.h"
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
@@ -471,6 +470,7 @@ namespace Profiler
             hashInput.GetData(),
             hashInput.GetSize() );
 
+        // Calculate a full hash to identify identical sets.
         hashInput.Reset();
         hashInput.Add( compatibleHash );
         hashInput.Add( name );
@@ -481,32 +481,23 @@ namespace Profiler
             hashInput.GetSize() );
 
         // Check if an identical counter set already exists.
+        uint32_t metricsSetIndex = FindMetricsSetByHash( fullHash );
+
+        // Create and register the counter set if it does not exist yet.
+        if( metricsSetIndex == UINT32_MAX )
         {
-            std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+            MetricsSet metricsSet = {};
+            metricsSet.m_Name = name;
+            metricsSet.m_Description = description;
+            metricsSet.m_Counters = counterIndices;
+            metricsSet.m_QueueFamilyIndex = queueFamilyIndex;
+            metricsSet.m_CompatibleHash = compatibleHash;
+            metricsSet.m_FullHash = fullHash;
 
-            const size_t setCount = m_MetricsSets.size();
-            for( size_t i = 0; i < setCount; ++i )
-            {
-                if( m_MetricsSets[i].m_FullHash == fullHash )
-                {
-                    ProfilerPlatformFunctions::WriteDebug( "Reused metrics set #%u", static_cast<uint32_t>( i ) );
-
-                    // An identical counter set already exists, return its index.
-                    return static_cast<uint32_t>( i );
-                }
-            }
+            metricsSetIndex = RegisterMetricsSet( std::move( metricsSet ) );
         }
 
-        // Create and register the counter set.
-        MetricsSet metricsSet = {};
-        metricsSet.m_Name = name;
-        metricsSet.m_Description = description;
-        metricsSet.m_Counters = counterIndices;
-        metricsSet.m_QueueFamilyIndex = queueFamilyIndex;
-        metricsSet.m_CompatibleHash = compatibleHash;
-        metricsSet.m_FullHash = fullHash;
-
-        return RegisterMetricsSet( std::move( metricsSet ) );
+        return metricsSetIndex;
     }
 
     /***********************************************************************************\
@@ -583,6 +574,31 @@ namespace Profiler
         }
 
         return performanceCreateInfo;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FindMetricsSetByHash
+
+    Description:
+        Try to find an existing counter set by its full hash (all properties must match).
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerPerformanceCountersKHR::FindMetricsSetByHash( uint32_t fullHash ) const
+    {
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+
+        const uint32_t setCount = static_cast<uint32_t>( m_MetricsSets.size() );
+        for( uint32_t setIndex = 0; setIndex < setCount; ++setIndex )
+        {
+            if( m_MetricsSets[setIndex].m_FullHash == fullHash )
+            {
+                return setIndex;
+            }
+        }
+
+        return UINT32_MAX;
     }
 
     /***********************************************************************************\

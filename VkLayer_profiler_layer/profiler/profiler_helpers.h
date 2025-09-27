@@ -73,6 +73,33 @@ namespace Profiler
 {
     /***********************************************************************************\
 
+    Class:
+        Iterable
+
+    Description:
+        Iterable class concept.
+
+    \***********************************************************************************/
+    template<typename T>
+    using Iterable =
+        std::void_t<
+            std::enable_if_t<std::is_same_v<
+                decltype( std::begin( std::declval<const T&>() ) ),
+                decltype( std::end( std::declval<const T&>() ) )>>,
+            decltype( *std::begin( std::declval<const T&>() ) )>;
+
+    template<typename T, typename = void>
+    struct IsIterable : std::false_type
+    {
+    };
+
+    template<typename T>
+    struct IsIterable<T, Iterable<T>> : std::true_type
+    {
+    };
+
+    /***********************************************************************************\
+
     Function:
         ClearMemory
 
@@ -270,6 +297,91 @@ namespace Profiler
                 m_pHead = pStructure;
             }
         }
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        HashInput
+
+    Description:
+        Helper class that allows to compute hash of given data.
+
+    \***********************************************************************************/
+    class HashInput
+    {
+    public:
+        void Reset()
+        {
+            m_Buffer.clear();
+        }
+
+        void Add( const void* pData, size_t dataSize )
+        {
+            const char* pCharData = reinterpret_cast<const char*>( pData );
+            m_Buffer.insert( m_Buffer.end(), pCharData, pCharData + dataSize );
+        }
+
+        void Add( const std::string& str )
+        {
+            Add( str.c_str(), str.length() );
+        }
+
+        template<typename T>
+        std::enable_if_t<IsIterable<T>::value> Add( const T& iterable, bool sort = false )
+        {
+            Add( std::begin( iterable ), std::end( iterable ), sort );
+        }
+
+        template<typename T>
+        std::enable_if_t<!IsIterable<T>::value> Add( const T& value )
+        {
+            Add( &value, sizeof( T ) );
+        }
+
+        template<typename IteratorT>
+        void Add( const IteratorT& begin, const IteratorT& end, bool sort = false )
+        {
+            using ValueT = typename std::iterator_traits<IteratorT>::value_type;
+            static_assert( !IsIterable<ValueT>::value, "Nested iterables are not supported." );
+
+            if( sort )
+            {
+                // Align the input buffer to allow cast to ValueT*.
+                size_t currentSize = m_Buffer.size();
+                size_t alignedSize = ( currentSize + alignof( ValueT ) - 1 ) & ~( alignof( ValueT ) - 1 );
+                m_Buffer.resize( alignedSize, 0 );
+            }
+
+            const size_t insertOffset = m_Buffer.size();
+            m_Buffer.reserve( m_Buffer.size() + std::distance( begin, end ) * sizeof( ValueT ) );
+
+            for( IteratorT it = begin; it != end; ++it )
+            {
+                Add( *it );
+            }
+
+            if( sort )
+            {
+                // Sort the inserted values.
+                ValueT* pValues = reinterpret_cast<ValueT*>( m_Buffer.data() + insertOffset );
+                size_t valueCount = ( m_Buffer.size() - insertOffset ) / sizeof( ValueT );
+                std::sort( pValues, pValues + valueCount );
+            }
+        }
+
+        const char* GetData() const
+        {
+            return m_Buffer.data();
+        }
+
+        size_t GetSize() const
+        {
+            return m_Buffer.size();
+        }
+
+    private:
+        std::vector<char> m_Buffer;
     };
 
     /***********************************************************************************\

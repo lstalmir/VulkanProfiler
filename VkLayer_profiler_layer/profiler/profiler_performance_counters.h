@@ -140,6 +140,7 @@ namespace Profiler
 
         VkQueryPoolPerformanceCreateInfoKHR GetQueryPoolPerformanceCreateInfo( uint32_t queueFamilyIndex ) const;
 
+        uint32_t FindMetricsSetByHash( uint32_t fullHash ) const;
         uint32_t RegisterMetricsSet( MetricsSet&& metricsSet );
     };
 }
