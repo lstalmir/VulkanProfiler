@@ -256,10 +256,10 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetActiveMetricsSetIndex
+        GetMetricsSets
 
     Description:
-        Returns the currently active counter set index.
+        Returns list of available performance counter sets.
 
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersKHR::GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets ) const
@@ -272,23 +272,43 @@ namespace Profiler
         // Fill in the properties.
         for( size_t i = 0; i < m_MetricsSets.size(); ++i )
         {
-            const MetricsSet& set = m_MetricsSets.at( i );
-
-            metricsSets[i].metricsCount = static_cast<uint32_t>( set.m_Counters.size() );
-            ProfilerStringFunctions::CopyString( metricsSets[i].name, set.m_Name.c_str(), set.m_Name.length() );
+            FillPerformanceMetricsSetProperties( m_MetricsSets[i], metricsSets[i] );
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        GetActiveMetricsSetIndex
+        GetMetricsSetProperties
 
     Description:
-        Returns the currently active counter set index.
+        Returns properties of the specified performance counter set.
 
     \***********************************************************************************/
-    void DeviceProfilerPerformanceCountersKHR::GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const
+    void DeviceProfilerPerformanceCountersKHR::GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetPropertiesEXT& properties ) const
+    {
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+
+        if( metricsSetIndex < m_MetricsSets.size() )
+        {
+            FillPerformanceMetricsSetProperties( m_MetricsSets[metricsSetIndex], properties );
+        }
+        else
+        {
+            memset( &properties, 0, sizeof( properties ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMetricsSetMetricsProperties
+
+    Description:
+        Returns list of performance counters in the specified counter set.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersKHR::GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const
     {
         std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
@@ -312,10 +332,7 @@ namespace Profiler
             const VkPerformanceCounterKHR& counter = queueFamilyCounters.m_Counters[counterIndex];
             const VkPerformanceCounterDescriptionKHR& description = queueFamilyCounters.m_CounterDescriptions[counterIndex];
 
-            metrics[i].unit = static_cast<VkProfilerPerformanceCounterUnitEXT>( counter.unit );
-            metrics[i].storage = static_cast<VkProfilerPerformanceCounterStorageEXT>( counter.storage );
-            ProfilerStringFunctions::CopyString( metrics[i].shortName, description.name, std::size( metrics[i].shortName ) );
-            ProfilerStringFunctions::CopyString( metrics[i].description, description.description, std::size( metrics[i].description ) );
+            FillPerformanceCounterProperties( counter, description, metrics[i] );
         }
     }
 
@@ -346,10 +363,7 @@ namespace Profiler
             const VkPerformanceCounterKHR& counter = queueFamilyCounters.m_Counters[i];
             const VkPerformanceCounterDescriptionKHR& description = queueFamilyCounters.m_CounterDescriptions[i];
 
-            metrics[i].unit = static_cast<VkProfilerPerformanceCounterUnitEXT>( counter.unit );
-            metrics[i].storage = static_cast<VkProfilerPerformanceCounterStorageEXT>( counter.storage );
-            ProfilerStringFunctions::CopyString( metrics[i].shortName, description.name, std::size( metrics[i].shortName ) );
-            ProfilerStringFunctions::CopyString( metrics[i].description, description.description, std::size( metrics[i].description ) );
+            FillPerformanceCounterProperties( counter, description, metrics[i] );
         }
     }
 
@@ -619,5 +633,57 @@ namespace Profiler
 
         // Return the index of the newly created counter set.
         return static_cast<uint32_t>( m_MetricsSets.size() - 1 );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FillPerformanceMetricsSetProperties
+
+    Description:
+        Fill in the properties structure using internal counter set representation.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersKHR::FillPerformanceMetricsSetProperties(
+        const MetricsSet& metricsSet,
+        VkProfilerPerformanceMetricsSetPropertiesEXT& properties )
+    {
+        ProfilerStringFunctions::CopyString(
+            properties.name,
+            std::size( properties.name ),
+            metricsSet.m_Name.c_str(),
+            metricsSet.m_Name.length() );
+
+        properties.metricsCount = static_cast<uint32_t>( metricsSet.m_Counters.size() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FillPerformanceCounterProperties
+
+    Description:
+        Fill in the properties structure using VK_KHR_performance_query structures.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersKHR::FillPerformanceCounterProperties(
+        const VkPerformanceCounterKHR& counter,
+        const VkPerformanceCounterDescriptionKHR& description,
+        VkProfilerPerformanceCounterPropertiesEXT& properties )
+    {
+        ProfilerStringFunctions::CopyString(
+            properties.shortName,
+            std::size( properties.shortName ),
+            description.name,
+            std::size( description.name ) );
+
+        ProfilerStringFunctions::CopyString(
+            properties.description,
+            std::size( properties.description ),
+            description.description,
+            std::size( description.description ) );
+
+        properties.unit = static_cast<VkProfilerPerformanceCounterUnitEXT>( counter.unit );
+        properties.storage = static_cast<VkProfilerPerformanceCounterStorageEXT>( counter.storage );
     }
 }

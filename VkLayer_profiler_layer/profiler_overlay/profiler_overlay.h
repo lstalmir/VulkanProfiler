@@ -91,17 +91,18 @@ namespace Profiler
 
         std::string m_Title;
 
-        uint32_t m_ActiveMetricsSetIndex;
-        std::vector<bool> m_ActiveMetricsVisibility;
-
         struct VendorMetricsSet
         {
-            VkProfilerPerformanceMetricsSetPropertiesEXT           m_Properties;
+            uint32_t m_Index;
+            bool m_FilterResult;
+            VkProfilerPerformanceMetricsSetPropertiesEXT m_Properties;
             std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Metrics;
         };
 
+        const VendorMetricsSet* m_pActiveMetricsSet;
+        std::vector<bool> m_ActiveMetricsVisibility;
+
         std::vector<VendorMetricsSet> m_VendorMetricsSets;
-        std::vector<bool> m_VendorMetricsSetVisibility;
         std::string m_VendorMetricFilter;
 
         Milliseconds m_TimestampPeriod;
@@ -283,16 +284,19 @@ namespace Profiler
         std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceCounters;
 
         // Performance counter sets editor.
-        // TODO: Move to a separate file.
         uint32_t m_PerformanceQueryEditorQueueFamilyIndex;
         bool m_PerformanceQueryEditorShowOnlySelected;
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_PerformanceQueryEditorCounterProperties;
         std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
-        char m_PerformanceQueryEditorFilter[128];
-        char m_PerformanceQueryEditorSetName[64];
-        char m_PerformanceQueryEditorSetDescription[256];
+        std::string m_PerformanceQueryEditorFilter;
+        std::string m_PerformanceQueryEditorSetName;
+        std::string m_PerformanceQueryEditorSetDescription;
+        VendorMetricsSet m_PerformanceQueryEditorSet;
+
+        void LoadQueueFamilyPerformanceCounters( uint32_t queueFamilyIndex );
+        void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization
         struct PerformanceCounterExporter;
@@ -385,9 +389,9 @@ namespace Profiler
         void SelectQueueGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Performance counter helpers
-        std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
+        std::string GetDefaultPerformanceCountersFileName( const VendorMetricsSet* ) const;
         void UpdatePerformanceCounterExporter();
-        void SavePerformanceCountersToFile( const std::string&, uint32_t, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
+        void SavePerformanceCountersToFile( const std::string&, const VendorMetricsSet*, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();

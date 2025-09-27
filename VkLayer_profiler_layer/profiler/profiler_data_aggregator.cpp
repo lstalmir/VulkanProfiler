@@ -625,7 +625,7 @@ namespace Profiler
 
                 if( m_VendorMetricsSetIndex != UINT32_MAX )
                 {
-                    pPerformanceCounters->GetMetricsProperties( m_VendorMetricsSetIndex, m_VendorMetricProperties );
+                    pPerformanceCounters->GetMetricsSetMetricsProperties( m_VendorMetricsSetIndex, m_VendorMetricProperties );
                 }
             }
         }

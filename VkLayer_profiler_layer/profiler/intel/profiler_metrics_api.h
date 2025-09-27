@@ -72,7 +72,8 @@ namespace Profiler
         uint32_t GetActiveMetricsSetIndex() const final;
 
         void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets ) const final;
-        void GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
+        void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetPropertiesEXT& properties ) const final;
+        void GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
 
         bool SupportsQueryPoolReuse() const final { return true; }
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;

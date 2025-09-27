@@ -435,7 +435,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
     {
         // Return metrics supported by Intel Metrics Discovery API.
         std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties;
-        dd.Profiler.m_pPerformanceCounters->GetMetricsProperties( metricsSetIndex, properties );
+        dd.Profiler.m_pPerformanceCounters->GetMetricsSetMetricsProperties( metricsSetIndex, properties );
 
         const uint32_t propertyCount = static_cast<uint32_t>( properties.size() );
 

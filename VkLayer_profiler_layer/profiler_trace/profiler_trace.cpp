@@ -349,7 +349,9 @@ namespace Profiler
 
         if( !data.m_PerformanceQueryResults.empty() )
         {
-            m_Frontend.GetPerformanceCounterProperties( data.m_PerformanceQueryMetricsSetIndex, performanceCounterProperties );
+            m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                data.m_PerformanceQueryMetricsSetIndex,
+                performanceCounterProperties );
 
             m_Events.push_back( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),

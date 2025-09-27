@@ -283,19 +283,38 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetPerformanceCounterProperties
+        GetPerformanceMetricsSetCounterProperties
 
     Description:
         Returns list of performance counter properties for a given metrics set.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics )
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetPropertiesEXT& properties )
+    {
+        memset( &properties, 0, sizeof( properties ) );
+
+        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        {
+            m_pProfiler->m_pPerformanceCounters->GetMetricsSetProperties( setIndex, properties );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceMetricsSetCounterProperties
+
+    Description:
+        Returns list of performance counter properties for a given metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics )
     {
         metrics.clear();
 
         if( m_pProfiler->m_pPerformanceCounters != nullptr )
         {
-            m_pProfiler->m_pPerformanceCounters->GetMetricsProperties( setIndex, metrics );
+            m_pProfiler->m_pPerformanceCounters->GetMetricsSetMetricsProperties( setIndex, metrics );
         }
     }
 

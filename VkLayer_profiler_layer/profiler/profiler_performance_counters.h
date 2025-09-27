@@ -53,7 +53,8 @@ namespace Profiler
         virtual bool AreMetricsSetsCompatible( uint32_t, uint32_t ) const { return false; }
 
         virtual void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& ) const {}
-        virtual void GetMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ) const {}
+        virtual void GetMetricsSetProperties( uint32_t, VkProfilerPerformanceMetricsSetPropertiesEXT& ) const {}
+        virtual void GetMetricsSetMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ) const {}
         virtual void GetQueueFamilyMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ) const {}
         virtual void GetAvailableMetrics( uint32_t, const std::vector<uint32_t>&, std::vector<uint32_t>& ) const {}
 
@@ -92,7 +93,8 @@ namespace Profiler
         uint32_t GetActiveMetricsSetIndex() const final;
 
         void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets ) const final;
-        void GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
+        void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetPropertiesEXT& properties ) const final;
+        void GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
         void GetQueueFamilyMetricsProperties( uint32_t queueFamilyIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
         void GetAvailableMetrics( uint32_t queueFamilyIndex, const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters ) const final;
         bool AreMetricsSetsCompatible( uint32_t firstMetricsSetIndex, uint32_t secondMetricsSetIndex ) const final;
@@ -137,6 +139,9 @@ namespace Profiler
 
         std::shared_mutex mutable m_MetricsSetsMutex;
         std::vector<MetricsSet> m_MetricsSets;
+
+        static void FillPerformanceMetricsSetProperties( const MetricsSet& set, VkProfilerPerformanceMetricsSetPropertiesEXT& properties );
+        static void FillPerformanceCounterProperties( const VkPerformanceCounterKHR& counter, const VkPerformanceCounterDescriptionKHR& description, VkProfilerPerformanceCounterPropertiesEXT& properties );
 
         VkQueryPoolPerformanceCreateInfoKHR GetQueryPoolPerformanceCreateInfo( uint32_t queueFamilyIndex ) const;
 

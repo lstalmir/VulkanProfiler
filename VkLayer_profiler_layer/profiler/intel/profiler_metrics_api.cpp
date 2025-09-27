@@ -486,14 +486,35 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetMetricsProperties
+        GetMetricsSets
+
+    Description:
+        Get properties of the specified metrics set.
+
+    \***********************************************************************************/
+    void ProfilerMetricsApi_INTEL::GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetPropertiesEXT& properties ) const
+    {
+        if( metricsSetIndex < m_MetricsSetsProperties.size() )
+        {
+            memcpy( &properties, &m_MetricsSetsProperties[metricsSetIndex], sizeof( properties ) );
+        }
+        else
+        {
+            memset( &properties, 0, sizeof( properties ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMetricsSetMetricsProperties
 
     Description:
         Get detailed description of each reported metric.
         Metrics must appear in the same order as in returned reports.
 
     \***********************************************************************************/
-    void ProfilerMetricsApi_INTEL::GetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const
+    void ProfilerMetricsApi_INTEL::GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const
     {
         // Check if the metrics set is available.
         if( metricsSetIndex < m_MetricsSets.size() )
