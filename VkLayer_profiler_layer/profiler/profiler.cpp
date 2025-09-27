@@ -22,6 +22,7 @@
 #include "profiler_command_buffer.h"
 #include "profiler_helpers.h"
 #include <farmhash.h>
+#include <inttypes.h>
 #include <sstream>
 #include <fstream>
 
@@ -2145,7 +2146,7 @@ namespace Profiler
         assert( traits.ObjectTypeName != nullptr );
 
         char pObjectDebugName[ 64 ] = {};
-        ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016llx", traits.ObjectTypeName, object.m_Handle );
+        ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016" PRIx64, traits.ObjectTypeName, object.m_Handle );
 
         m_ObjectNames.insert_or_assign( object, pObjectDebugName );
     }

@@ -33,6 +33,7 @@
 #include <stack>
 #include <fstream>
 #include <regex>
+#include <inttypes.h>
 
 #include <imgui_internal.h>
 #include <ImGuiFileDialog.h>
@@ -46,6 +47,8 @@
 #include "imgui_widgets/imgui_histogram_ex.h"
 #include "imgui_widgets/imgui_table_ex.h"
 #include "imgui_widgets/imgui_ex.h"
+
+#include <imgui_stdlib.h>
 
 // Languages
 #include "lang/en_us.h"
@@ -568,7 +571,7 @@ namespace Profiler
         m_ActiveMetricsSetIndex = UINT32_MAX;
         m_VendorMetricsSetVisibility.clear();
         m_VendorMetricsSets.clear();
-        memset( m_VendorMetricFilter, 0, sizeof( m_VendorMetricFilter ) );
+        m_VendorMetricFilter.clear();
 
         m_TimestampPeriod = Milliseconds( 0 );
         m_TimestampDisplayUnit = 1.0f;
@@ -623,7 +626,7 @@ namespace Profiler
         m_MemoryComparator.Reset();
         m_MemoryCompareRefFrameIndex = InvalidFrameIndex;
         m_MemoryCompareSelFrameIndex = CurrentFrameIndex;
-        memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
+        m_ResourceBrowserNameFilter.clear();
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
         m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
         m_ResourceBrowserAccelerationStructureTypeFilter = g_KnownAccelerationStructureTypes;
@@ -2331,7 +2334,7 @@ namespace Profiler
             ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
             ImGui::SameLine();
             ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
-            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
+            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", &m_VendorMetricFilter ) )
             {
                 try
                 {
@@ -2492,25 +2495,25 @@ namespace Profiler
                             switch( metricProperties.storage )
                             {
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%d", it->second.int32 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, it->second.int32 );
                                 delta = CalcPerformanceCounterDelta( it->second.int32, metric.int32 );
                                 deltaValid = true;
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%lld", it->second.int64 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, it->second.int64 );
                                 delta = CalcPerformanceCounterDelta( it->second.int64, metric.int64 );
                                 deltaValid = true;
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%u", it->second.uint32 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, it->second.uint32 );
                                 delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
                                 deltaValid = true;
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%llu", it->second.uint64 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, it->second.uint64 );
                                 delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
                                 deltaValid = true;
                                 break;
@@ -2545,19 +2548,19 @@ namespace Profiler
                         switch( metricProperties.storage )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%d", metric.int32 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, metric.int32 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%lld", metric.int64 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, metric.int64 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, metric.uint32 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, metric.uint64 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
@@ -2851,7 +2854,7 @@ namespace Profiler
                 if( allocationCountDifference )
                 {
                     ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
-                        "(%+lld) %lld %s",
+                        "(%+" PRIi64 ") %" PRIi64 " %s",
                         allocationCountDifference,
                         allocationCount,
                         Lang::Allocations );
@@ -2859,7 +2862,7 @@ namespace Profiler
                 else
                 {
                     ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
-                        "%lld %s",
+                        "%" PRIi64 " %s",
                         allocationCount,
                         Lang::Allocations );
                 }
@@ -3015,7 +3018,7 @@ namespace Profiler
                         ImGui::TextUnformatted( m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" ).c_str() );
                         ImGui::Separator();
 
-                        ImGui::Text( "%llu %s", typeAllocationCount, Lang::Allocations );
+                        ImGui::Text( "%" PRIu64 " %s", typeAllocationCount, Lang::Allocations );
                         ImGui::SameLine( 0, 30.f * interfaceScale );
                         ImGui::Text( "%.2f / %.2f MB (%.1f%%)",
                             typeAllocationSize / 1048576.f,
@@ -3121,7 +3124,7 @@ namespace Profiler
         };
 
         ImGui::SetNextItemWidth( 150.f * interfaceScale );
-        ImGui::InputTextWithHint( "##NameFilter", "Name", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
+        ImGui::InputTextWithHint( "##NameFilter", "Name", &m_ResourceBrowserNameFilter );
 
         ImGui::SameLine( 0, 10.f * interfaceScale );
         ResourceUsageFlagsFilterComboBox(
@@ -3194,7 +3197,7 @@ namespace Profiler
                     }
 
                     std::string objectName = m_pStringSerializer->GetName( object );
-                    if( *m_ResourceBrowserNameFilter &&
+                    if( !m_ResourceBrowserNameFilter.empty() &&
                         ( objectName.find( m_ResourceBrowserNameFilter ) == std::string::npos ) )
                     {
                         return false;
@@ -3506,7 +3509,7 @@ namespace Profiler
         if( !m_pData->m_Memory.m_AccelerationStructures.count( accelerationStructure ) )
         {
             // Buffer data not found.
-            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( accelerationStructure ).c_str(),
                 VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructure ) );
@@ -3532,13 +3535,13 @@ namespace Profiler
         ImGui::TextUnformatted( "Size:" );
         ImGui::PopFont();
         ImGui::SameLine( columnValueOffset1 );
-        ImGui::Text( "%s (%llu bytes)", m_pStringSerializer->GetByteSize( accelerationStructureData.m_Size ), accelerationStructureData.m_Size );
+        ImGui::Text( "%s (%" PRIu64 " bytes)", m_pStringSerializer->GetByteSize( accelerationStructureData.m_Size ).c_str(), accelerationStructureData.m_Size );
 
         ImGui::PushFont( pBoldFont );
         ImGui::TextUnformatted( "Offset:" );
         ImGui::PopFont();
         ImGui::SameLine( columnValueOffset1 );
-        ImGui::Text( "%llu", accelerationStructureData.m_Offset );
+        ImGui::Text( "%" PRIu64, accelerationStructureData.m_Offset );
 
         ImGui::Dummy( ImVec2( 1, 5 ) );
         ImGui::Separator();
@@ -3562,7 +3565,7 @@ namespace Profiler
         if( !m_pData->m_Memory.m_Micromaps.count( micromap ) )
         {
             // Buffer data not found.
-            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( micromap ).c_str(),
                 VkObject_Traits<VkMicromapEXT>::GetObjectHandleAsUint64( micromap ) );
@@ -3588,13 +3591,13 @@ namespace Profiler
         ImGui::TextUnformatted( "Size:" );
         ImGui::PopFont();
         ImGui::SameLine( columnValueOffset1 );
-        ImGui::Text( "%s (%llu bytes)", m_pStringSerializer->GetByteSize( micromapData.m_Size ), micromapData.m_Size );
+        ImGui::Text( "%s (%" PRIu64 " bytes)", m_pStringSerializer->GetByteSize( micromapData.m_Size ).c_str(), micromapData.m_Size );
 
         ImGui::PushFont( pBoldFont );
         ImGui::TextUnformatted( "Offset:" );
         ImGui::PopFont();
         ImGui::SameLine( columnValueOffset1 );
-        ImGui::Text( "%llu", micromapData.m_Offset );
+        ImGui::Text( "%" PRIu64, micromapData.m_Offset );
 
         ImGui::Dummy( ImVec2( 1, 5 ) );
         ImGui::Separator();
@@ -3617,7 +3620,7 @@ namespace Profiler
         if( !m_pData->m_Memory.m_Buffers.count( buffer ) )
         {
             // Buffer data not found.
-            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( buffer ).c_str(),
                 VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( buffer ) );
@@ -3640,7 +3643,7 @@ namespace Profiler
         ImGui::TextUnformatted( "Size:" );
         ImGui::PopFont();
         ImGui::SameLine( columnValueOffset1 );
-        ImGui::Text( "%s (%llu bytes)", m_pStringSerializer->GetByteSize( bufferData.m_BufferSize ), bufferData.m_BufferSize );
+        ImGui::Text( "%s (%" PRIu64 " bytes)", m_pStringSerializer->GetByteSize( bufferData.m_BufferSize ).c_str(), bufferData.m_BufferSize );
 
         ImGui::PushFont( pBoldFont );
         ImGui::TextUnformatted( "Usage:" );
@@ -3676,12 +3679,12 @@ namespace Profiler
 
                 if( ImGui::TableNextColumn() )
                 {
-                    ImGui::Text( "%llu   ", binding.m_MemoryOffset );
+                    ImGui::Text( "%" PRIu64 "   ", binding.m_MemoryOffset );
                 }
 
                 if( ImGui::TableNextColumn() )
                 {
-                    ImGui::Text( "%llu   ", binding.m_Size );
+                    ImGui::Text( "%" PRIu64 "   ", binding.m_Size );
                 }
 
                 auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
@@ -3726,7 +3729,7 @@ namespace Profiler
         if( !m_pData->m_Memory.m_Images.count( image ) )
         {
             // Buffer data not found.
-            ImGui::Text( "'%s' at 0x%016llx does not exist in the current frame.\n"
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( image ).c_str(),
                 VkObject_Traits<VkImage>::GetObjectHandleAsUint64( image ) );
@@ -3840,12 +3843,12 @@ namespace Profiler
 
                     if( ImGui::TableNextColumn() )
                     {
-                        ImGui::Text( "%llu   ", binding.m_Opaque.m_ImageOffset );
+                        ImGui::Text( "%" PRIu64 "   ", binding.m_Opaque.m_ImageOffset );
                     }
 
                     if( ImGui::TableNextColumn() )
                     {
-                        ImGui::Text( "%llu   ", binding.m_Opaque.m_Size );
+                        ImGui::Text( "%" PRIu64 "   ", binding.m_Opaque.m_Size );
                     }
                 }
                 else
@@ -4101,7 +4104,7 @@ namespace Profiler
                                     ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
 
                                     ImGui::TextUnformatted( "Memory offset:" );
-                                    ImGuiX::TextAlignRight( "%llu", binding.m_Block.m_MemoryOffset );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Block.m_MemoryOffset );
 
                                     ImGui::TextUnformatted( "Image offset:" );
                                     ImGuiX::TextAlignRight( "<%u, %u, %u>",
@@ -4154,13 +4157,13 @@ namespace Profiler
                                     ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
 
                                     ImGui::TextUnformatted( "Memory offset:" );
-                                    ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_MemoryOffset );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Opaque.m_MemoryOffset );
 
                                     ImGui::TextUnformatted( "Image offset:" );
-                                    ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_ImageOffset );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Opaque.m_ImageOffset );
 
                                     ImGui::TextUnformatted( "Size:" );
-                                    ImGuiX::TextAlignRight( "%llu", binding.m_Opaque.m_Size );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Opaque.m_Size );
 
                                     ImGui::PopStyleVar();
                                     ImGui::EndTooltip();
@@ -4827,7 +4830,7 @@ namespace Profiler
         {
             SetupDefaultPipelineStateColumns();
             DrawPipelineStateValue( "Max ray recursion depth", "%u", rtci.maxPipelineRayRecursionDepth );
-            DrawPipelineStateValue( "Pipeline stack size", "%llu", m_InspectorPipeline.m_RayTracingPipelineStackSize, rtci.pDynamicState, VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR );
+            DrawPipelineStateValue( "Pipeline stack size", "%" PRIu64, m_InspectorPipeline.m_RayTracingPipelineStackSize, rtci.pDynamicState, VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR );
             ImGui::EndTable();
         }
         ImGuiX::EndPadding( contentPaddingBottom );
@@ -5056,7 +5059,7 @@ namespace Profiler
                     {
                         ImGuiX::TextAlignRight(
                             ImGuiX::TableGetColumnWidth(),
-                            "%llu",
+                            "%" PRIu64,
                             stats.m_Count );
                     }
 

@@ -97,11 +97,14 @@ add_library (imgui STATIC
     imgui/imgui_draw.cpp
     imgui/imgui_tables.cpp
     imgui/imgui_widgets.cpp
+    imgui/misc/cpp/imgui_stdlib.h
+    imgui/misc/cpp/imgui_stdlib.cpp
     ${imgui_backends})
 
 target_include_directories (imgui
     PUBLIC imgui
-    PUBLIC imgui/backends)
+    PUBLIC imgui/backends
+    PUBLIC imgui/misc/cpp)
 
 target_compile_definitions (imgui
     PRIVATE VK_NO_PROTOTYPES=1)
