@@ -48,6 +48,8 @@
 #include "imgui_widgets/imgui_table_ex.h"
 #include "imgui_widgets/imgui_ex.h"
 
+#include <imgui_stdlib.h>
+
 // Languages
 #include "lang/en_us.h"
 #include "lang/pl_pl.h"
@@ -557,7 +559,7 @@ namespace Profiler
         m_ActiveMetricsSetIndex = UINT32_MAX;
         m_VendorMetricsSetVisibility.clear();
         m_VendorMetricsSets.clear();
-        memset( m_VendorMetricFilter, 0, sizeof( m_VendorMetricFilter ) );
+        m_VendorMetricFilter.clear();
 
         m_TimestampPeriod = Milliseconds( 0 );
         m_TimestampDisplayUnit = 1.0f;
@@ -612,7 +614,7 @@ namespace Profiler
         m_MemoryComparator.Reset();
         m_MemoryCompareRefFrameIndex = InvalidFrameIndex;
         m_MemoryCompareSelFrameIndex = CurrentFrameIndex;
-        memset( m_ResourceBrowserNameFilter, 0, sizeof( m_ResourceBrowserNameFilter ) );
+        m_ResourceBrowserNameFilter.clear();
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
         m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
         m_ResourceBrowserAccelerationStructureTypeFilter = g_KnownAccelerationStructureTypes;
@@ -2174,7 +2176,7 @@ namespace Profiler
             ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
             ImGui::SameLine();
             ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
-            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
+            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", &m_VendorMetricFilter ) )
             {
                 try
                 {
@@ -2964,7 +2966,7 @@ namespace Profiler
         };
 
         ImGui::SetNextItemWidth( 150.f * interfaceScale );
-        ImGui::InputTextWithHint( "##NameFilter", "Name", m_ResourceBrowserNameFilter, std::size( m_ResourceBrowserNameFilter ) );
+        ImGui::InputTextWithHint( "##NameFilter", "Name", &m_ResourceBrowserNameFilter );
 
         ImGui::SameLine( 0, 10.f * interfaceScale );
         ResourceUsageFlagsFilterComboBox(
@@ -3037,7 +3039,7 @@ namespace Profiler
                     }
 
                     std::string objectName = m_pStringSerializer->GetName( object );
-                    if( *m_ResourceBrowserNameFilter &&
+                    if( !m_ResourceBrowserNameFilter.empty() &&
                         ( objectName.find( m_ResourceBrowserNameFilter ) == std::string::npos ) )
                     {
                         return false;

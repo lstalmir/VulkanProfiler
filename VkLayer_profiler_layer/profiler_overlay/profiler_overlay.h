@@ -101,9 +101,8 @@ namespace Profiler
         };
 
         std::vector<VendorMetricsSet> m_VendorMetricsSets;
-        std::vector<bool>             m_VendorMetricsSetVisibility;
-
-        char m_VendorMetricFilter[ 128 ] = {};
+        std::vector<bool> m_VendorMetricsSetVisibility;
+        std::string m_VendorMetricFilter;
 
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;
@@ -252,7 +251,7 @@ namespace Profiler
         std::vector<float> m_MemoryConsumptionHistory[VK_MAX_MEMORY_HEAPS];
         float m_MemoryConsumptionHistoryMax[VK_MAX_MEMORY_HEAPS];
 
-        char m_ResourceBrowserNameFilter[128];
+        std::string m_ResourceBrowserNameFilter;
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
         VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
         VkFlags m_ResourceBrowserAccelerationStructureTypeFilter;
