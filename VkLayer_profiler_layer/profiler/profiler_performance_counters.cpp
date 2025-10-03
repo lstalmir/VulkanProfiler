@@ -22,6 +22,8 @@
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <algorithm>
+
 namespace Profiler
 {
     /***********************************************************************************\

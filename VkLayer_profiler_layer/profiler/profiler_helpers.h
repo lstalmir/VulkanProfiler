@@ -20,6 +20,7 @@
 
 #pragma once
 #include <assert.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -361,7 +362,7 @@ namespace Profiler
                 Add( *it );
             }
 
-            if( sort )
+            if constexpr( Sort )
             {
                 // Sort the inserted values.
                 ValueT* pValues = reinterpret_cast<ValueT*>( m_Buffer.data() + insertOffset );
