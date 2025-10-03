@@ -95,8 +95,8 @@ namespace Profiler
         {
             uint32_t m_Index;
             bool m_FilterResult;
-            VkProfilerPerformanceMetricsSetPropertiesEXT m_Properties;
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Metrics;
+            VkProfilerPerformanceMetricsSetProperties2EXT m_Properties;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Metrics;
         };
 
         const VendorMetricsSet* m_pActiveMetricsSet;
@@ -284,9 +284,8 @@ namespace Profiler
         std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceCounters;
 
         // Performance counter sets editor.
-        uint32_t m_PerformanceQueryEditorQueueFamilyIndex;
         bool m_PerformanceQueryEditorShowOnlySelected;
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_PerformanceQueryEditorCounterProperties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceQueryEditorCounterProperties;
         std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
@@ -295,7 +294,6 @@ namespace Profiler
         std::string m_PerformanceQueryEditorSetDescription;
         VendorMetricsSet m_PerformanceQueryEditorSet;
 
-        void LoadQueueFamilyPerformanceCounters( uint32_t queueFamilyIndex );
         void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization

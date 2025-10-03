@@ -1225,16 +1225,15 @@ namespace Profiler
                 assert( m_Profiler.m_pPerformanceCounters != nullptr );
 
                 const uint32_t performanceQueryMetricsSetIndex = reader.GetPerformanceQueryMetricsSetIndex();
-                const uint32_t performanceQueryResultSize = reader.GetPerformanceQueryResultSize();
                 const uint8_t* pPerformanceQueryResult = reader.ReadPerformanceQueryResult();
 
                 m_Profiler.m_pPerformanceCounters->ParseReport(
                     performanceQueryMetricsSetIndex,
-                    performanceQueryResultSize,
+                    m_CommandPool.GetQueueFamilyIndex(),
                     pPerformanceQueryResult,
-                    m_Data.m_PerformanceQueryResults );
+                    m_Data.m_PerformanceCounters.m_Results );
 
-                m_Data.m_PerformanceQueryMetricsSetIndex = performanceQueryMetricsSetIndex;
+                m_Data.m_PerformanceCounters.m_MetricsSetIndex = performanceQueryMetricsSetIndex;
             }
 
             // Copy captured indirect argument buffer data
@@ -1325,9 +1324,6 @@ namespace Profiler
         // Collect secondary command buffer data
         commandBuffer = profilerCommandBuffer.GetData( reader );
         assert( commandBuffer.m_Handle == handle );
-
-        // Include profiling time of the secondary command buffer
-        m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
 
         // Propagate timestamps from command buffer to subpass
         if( subpassDataIndex == 0 )

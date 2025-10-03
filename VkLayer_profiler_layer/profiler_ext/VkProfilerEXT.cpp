@@ -434,7 +434,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
     if( dd.Profiler.m_pPerformanceCounters != nullptr )
     {
         // Return metrics supported by Intel Metrics Discovery API.
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> properties;
         dd.Profiler.m_pPerformanceCounters->GetMetricsSetMetricsProperties( metricsSetIndex, properties );
 
         const uint32_t propertyCount = static_cast<uint32_t>( properties.size() );
@@ -447,8 +447,23 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 
         // Copy metrics set properties to the output buffer.
         const uint32_t maxPropertyCount = std::min( *pProfilerMetricCount, propertyCount );
-        std::memcpy( pProfilerMetricProperties, properties.data(),
-            maxPropertyCount * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+        for( uint32_t i = 0; i < maxPropertyCount; ++i )
+        {
+            ProfilerStringFunctions::CopyString(
+                pProfilerMetricProperties[i].shortName,
+                std::size( pProfilerMetricProperties[i].shortName ),
+                properties[i].name,
+                std::size( properties[i].name ) );
+
+            ProfilerStringFunctions::CopyString(
+                pProfilerMetricProperties[i].description,
+                std::size( pProfilerMetricProperties[i].description ),
+                properties[i].description,
+                std::size( properties[i].description ) );
+
+            pProfilerMetricProperties[i].unit = properties[i].unit;
+            pProfilerMetricProperties[i].storage = properties[i].storage;
+        }
 
         // Check if the output buffer was sufficient.
         const uint32_t bufferSize = std::exchange( *pProfilerMetricCount, maxPropertyCount );
@@ -485,7 +500,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
     if( dd.Profiler.m_pPerformanceCounters != nullptr )
     {
         // Return metrics sets supported by Intel Metrics Discovery API.
-        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets;
+        std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> metricsSets;
         dd.Profiler.m_pPerformanceCounters->GetMetricsSets( metricsSets );
 
         const uint32_t metricsSetCount = static_cast<uint32_t>( metricsSets.size() );
@@ -498,8 +513,16 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
 
         // Copy metrics set properties to the output buffer.
         const uint32_t maxMetricsSetCount = std::min( *pMetricsSetCount, metricsSetCount );
-        std::memcpy( pMetricSets, metricsSets.data(),
-            maxMetricsSetCount * sizeof( VkProfilerPerformanceMetricsSetPropertiesEXT ) );
+        for( uint32_t i = 0; i < maxMetricsSetCount; ++i )
+        {
+            ProfilerStringFunctions::CopyString(
+                pMetricSets[i].name,
+                std::size( pMetricSets[i].name ),
+                metricsSets[i].name,
+                std::size( metricsSets[i].name ) );
+
+            pMetricSets[i].metricsCount = metricsSets[i].metricsCount;
+        }
 
         // Check if the output buffer was sufficient.
         const uint32_t bufferSize = std::exchange( *pMetricsSetCount, maxMetricsSetCount );

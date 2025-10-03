@@ -264,7 +264,7 @@ namespace Profiler
         if( (m_PerformanceQueryPool != VK_NULL_HANDLE) &&
             (m_PerformanceQueryMetricsSetIndex != UINT32_MAX) )
         {
-            writer.WritePerformanceQueryResults( m_PerformanceQueryPool, m_PerformanceQueryMetricsSetIndex );
+            writer.WritePerformanceQueryResults( m_PerformanceQueryPool, m_PerformanceQueryMetricsSetIndex, m_QueueFamilyIndex );
         }
     }
 

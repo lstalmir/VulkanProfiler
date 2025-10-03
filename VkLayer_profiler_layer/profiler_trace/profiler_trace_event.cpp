@@ -131,28 +131,28 @@ namespace Profiler
 
         for( uint32_t i = 0; i < m_CounterCount; ++i )
         {
-            const VkProfilerPerformanceCounterPropertiesEXT& properties = m_pCounterProperties[i];
+            const VkProfilerPerformanceCounterProperties2EXT& properties = m_pCounterProperties[i];
             const VkProfilerPerformanceCounterResultEXT result = m_pCounterResults ? m_pCounterResults[i] : VkProfilerPerformanceCounterResultEXT();
 
             switch( properties.storage )
             {
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                args[properties.shortName] = result.int32;
+                args[properties.name] = result.int32;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                args[properties.shortName] = result.uint32;
+                args[properties.name] = result.uint32;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                args[properties.shortName] = result.int64;
+                args[properties.name] = result.int64;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                args[properties.shortName] = result.uint64;
+                args[properties.name] = result.uint64;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                args[properties.shortName] = result.float32;
+                args[properties.name] = result.float32;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                args[properties.shortName] = result.float64;
+                args[properties.name] = result.float64;
                 break;
             }
         }

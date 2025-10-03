@@ -327,10 +327,10 @@ namespace Profiler
             Add( str.c_str(), str.length() );
         }
 
-        template<typename T>
-        std::enable_if_t<IsIterable<T>::value> Add( const T& iterable, bool sort = false )
+        template<bool Sort = false, typename T>
+        std::enable_if_t<IsIterable<T>::value> Add( const T& iterable )
         {
-            Add( std::begin( iterable ), std::end( iterable ), sort );
+            Add<Sort>( std::begin( iterable ), std::end( iterable ) );
         }
 
         template<typename T>
@@ -339,13 +339,13 @@ namespace Profiler
             Add( &value, sizeof( T ) );
         }
 
-        template<typename IteratorT>
-        void Add( const IteratorT& begin, const IteratorT& end, bool sort = false )
+        template<bool Sort = false, typename IteratorT>
+        void Add( const IteratorT& begin, const IteratorT& end )
         {
             using ValueT = typename std::iterator_traits<IteratorT>::value_type;
             static_assert( !IsIterable<ValueT>::value, "Nested iterables are not supported." );
 
-            if( sort )
+            if constexpr( Sort )
             {
                 // Align the input buffer to allow cast to ValueT*.
                 size_t currentSize = m_Buffer.size();

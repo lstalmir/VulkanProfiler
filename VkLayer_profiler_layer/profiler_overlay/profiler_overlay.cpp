@@ -416,7 +416,7 @@ namespace Profiler
         // Get vendor metrics sets
         if( success )
         {
-            std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> metricsSets;
+            std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> metricsSets;
             m_Frontend.GetPerformanceMetricsSets( metricsSets );
 
             const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
@@ -445,7 +445,19 @@ namespace Profiler
             // Fetch custom performance counters
             if( m_Frontend.SupportsCustomPerformanceMetricsSets() )
             {
-                LoadQueueFamilyPerformanceCounters( 0 );
+                m_Frontend.GetPerformanceCounterProperties( m_PerformanceQueryEditorCounterProperties );
+
+                m_PerformanceQueryEditorCounterIndices.clear();
+
+                m_PerformanceQueryEditorCounterAvailability.resize( m_PerformanceQueryEditorCounterProperties.size() );
+                std::fill( m_PerformanceQueryEditorCounterAvailability.begin(),
+                    m_PerformanceQueryEditorCounterAvailability.end(),
+                    false );
+
+                m_PerformanceQueryEditorCounterAvailabilityKnown.resize( m_PerformanceQueryEditorCounterProperties.size() );
+                std::fill( m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
+                    m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
+                    false );
             }
         }
 
@@ -653,7 +665,6 @@ namespace Profiler
         m_PerformanceQueryEditorSet.m_FilterResult = true;
         m_PerformanceQueryEditorSet.m_Properties = {};
         m_PerformanceQueryEditorSet.m_Metrics.clear();
-        m_PerformanceQueryEditorQueueFamilyIndex = 0;
         m_PerformanceQueryEditorShowOnlySelected = false;
         m_PerformanceQueryEditorCounterProperties.clear();
         m_PerformanceQueryEditorCounterIndices.clear();
@@ -2087,7 +2098,7 @@ namespace Profiler
         std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
         // Data source
-        const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_VendorMetrics;
+        const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_FramePerformanceCounters.m_Results;
 
         bool performanceQueryResultsFiltered = false;
         auto regexFilterFlags =
@@ -2102,8 +2113,8 @@ namespace Profiler
                 for( size_t metricIndex = 0; metricIndex < m_ActiveMetricsVisibility.size(); ++metricIndex )
                 {
                     const auto& metric = m_pActiveMetricsSet->m_Metrics[metricIndex];
-                    m_ActiveMetricsVisibility[ metricIndex ] =
-                        std::regex_search( metric.shortName, regex );
+                    m_ActiveMetricsVisibility[metricIndex] =
+                        std::regex_search( metric.name, regex );
                 }
             }
         };
@@ -2135,7 +2146,7 @@ namespace Profiler
                         (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
                     {
                         // Use the data from this command buffer.
-                        pVendorMetrics = &commandBuffer.m_PerformanceQueryResults;
+                        pVendorMetrics = &commandBuffer.m_PerformanceCounters.m_Results;
                         performanceQueryResultsFiltered = true;
                     }
 
@@ -2178,7 +2189,7 @@ namespace Profiler
             {
                 for( size_t i = 0; i < pVendorMetrics->size(); ++i )
                 {
-                    m_ReferencePerformanceCounters.try_emplace( m_pActiveMetricsSet->m_Metrics[i].shortName, ( *pVendorMetrics )[i] );
+                    m_ReferencePerformanceCounters.try_emplace( m_pActiveMetricsSet->m_Metrics[i].name, ( *pVendorMetrics )[i] );
                 }
             }
         }
@@ -2220,7 +2231,7 @@ namespace Profiler
                     // Match by metric name.
                     for( const auto& metric : metricsSet.m_Metrics )
                     {
-                        if( std::regex_search( metric.shortName, regexFilter ) )
+                        if( std::regex_search( metric.name, regexFilter ) )
                         {
                             metricsSet.m_FilterResult = true;
                             break;
@@ -2315,168 +2326,163 @@ namespace Profiler
         {
             const auto& vendorMetrics = *pVendorMetrics;
 
-            ImGui::BeginTable( "Performance counters table",
-                /* columns_count */ 6,
-                ImGuiTableFlags_NoClip |
-                (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
-
-            // Headers
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_NoHide );
-            ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
-            ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
-            ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
-            ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableHeadersRow();
-
-            for( uint32_t i = 0; i < vendorMetrics.size(); ++i )
+            if( ImGui::BeginTable( "Performance counters table",
+                    /* columns_count */ 5,
+                    ImGuiTableFlags_NoClip |
+                        ( ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV ) ) )
             {
-                const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[ i ];
-                const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = m_pActiveMetricsSet->m_Metrics[i];
+                // Headers
+                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
+                ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+                ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
+                ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+                ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableHeadersRow();
 
-                if( !m_ActiveMetricsVisibility[ i ] )
+                for( uint32_t i = 0; i < vendorMetrics.size(); ++i )
                 {
-                    continue;
-                }
+                    const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[i];
+                    const VkProfilerPerformanceCounterProperties2EXT& metricProperties = m_pActiveMetricsSet->m_Metrics[i];
 
-                ImGui::TableNextColumn();
-                {
-                }
-
-                ImGui::TableNextColumn();
-                {
-                    ImGui::Text( "%s", metricProperties.shortName );
-
-                    if( ImGui::IsItemHovered() &&
-                        metricProperties.description[ 0 ] )
+                    if( !m_ActiveMetricsVisibility[i] )
                     {
-                        ImGui::BeginTooltip();
-                        ImGui::PushTextWrapPos( 350.f * interfaceScale );
-                        ImGui::TextUnformatted( metricProperties.description );
-                        ImGui::PopTextWrapPos();
-                        ImGui::EndTooltip();
+                        continue;
                     }
-                }
 
-                float delta = 0.0f;
-                bool deltaValid = false;
+                    ImGui::TableNextColumn();
+                    {
+                        ImGui::Text( "%s", metricProperties.name );
 
-                ImGui::TableNextColumn();
-                {
-                    auto it = m_ReferencePerformanceCounters.find( metricProperties.shortName );
-                    if( it != m_ReferencePerformanceCounters.end() )
+                        if( ImGui::IsItemHovered() &&
+                            metricProperties.description[0] )
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::PushTextWrapPos( 350.f * interfaceScale );
+                            ImGui::TextUnformatted( metricProperties.description );
+                            ImGui::PopTextWrapPos();
+                            ImGui::EndTooltip();
+                        }
+                    }
+
+                    float delta = 0.0f;
+                    bool deltaValid = false;
+
+                    ImGui::TableNextColumn();
+                    {
+                        auto it = m_ReferencePerformanceCounters.find( metricProperties.name );
+                        if( it != m_ReferencePerformanceCounters.end() )
+                        {
+                            const float columnWidth = ImGuiX::TableGetColumnWidth();
+                            switch( metricProperties.storage )
+                            {
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, it->second.int32 );
+                                delta = CalcPerformanceCounterDelta( it->second.int32, metric.int32 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, it->second.int64 );
+                                delta = CalcPerformanceCounterDelta( it->second.int64, metric.int64 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, it->second.uint32 );
+                                delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, it->second.uint64 );
+                                delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%.2f", it->second.float32 );
+                                delta = CalcPerformanceCounterDelta( it->second.float32, metric.float32 );
+                                deltaValid = true;
+                                break;
+
+                            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                                ImGuiX::TextAlignRight( columnWidth, "%.2lf", it->second.float64 );
+                                delta = CalcPerformanceCounterDelta( it->second.float64, metric.float64 );
+                                deltaValid = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    ImGui::TableNextColumn();
+                    if( deltaValid )
+                    {
+                        const float columnWidth = ImGuiX::TableGetColumnWidth();
+                        ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
+                        ImGuiX::TextAlignRight( columnWidth, "%+.1f%%", delta );
+                        ImGui::PopStyleColor();
+                    }
+
+                    ImGui::TableNextColumn();
                     {
                         const float columnWidth = ImGuiX::TableGetColumnWidth();
                         switch( metricProperties.storage )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, it->second.int32 );
-                            delta = CalcPerformanceCounterDelta( it->second.int32, metric.int32 );
-                            deltaValid = true;
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, metric.int32 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, it->second.int64 );
-                            delta = CalcPerformanceCounterDelta( it->second.int64, metric.int64 );
-                            deltaValid = true;
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, metric.int64 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, it->second.uint32 );
-                            delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
-                            deltaValid = true;
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, metric.uint32 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, it->second.uint64 );
-                            delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
-                            deltaValid = true;
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, metric.uint64 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%.2f", it->second.float32 );
-                            delta = CalcPerformanceCounterDelta( it->second.float32, metric.float32 );
-                            deltaValid = true;
+                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%.2lf", it->second.float64 );
-                            delta = CalcPerformanceCounterDelta( it->second.float64, metric.float64 );
-                            deltaValid = true;
+                            ImGuiX::TextAlignRight( columnWidth, "%.2lf", metric.float64 );
                             break;
                         }
                     }
-                }
 
-                ImGui::TableNextColumn();
-                if( deltaValid )
-                {
-                    const float columnWidth = ImGuiX::TableGetColumnWidth();
-                    ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
-                    ImGuiX::TextAlignRight( columnWidth, "%+.1f%%", delta );
-                    ImGui::PopStyleColor();
-                }
-
-                ImGui::TableNextColumn();
-                {
-                    const float columnWidth = ImGuiX::TableGetColumnWidth();
-                    switch( metricProperties.storage )
+                    ImGui::TableNextColumn();
                     {
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                        ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, metric.int32 );
-                        break;
+                        const char* pUnitString = "???";
 
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                        ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, metric.int64 );
-                        break;
+                        static const char* const ppUnitString[11] = {
+                            "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
+                            "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
+                            "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
+                            "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
+                            "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
+                            "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
+                            "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
+                            "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
+                            "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
+                            "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
+                            "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
+                        };
 
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                        ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, metric.uint32 );
-                        break;
+                        if( ( metricProperties.unit >= 0 ) && ( metricProperties.unit < 11 ) )
+                        {
+                            pUnitString = ppUnitString[metricProperties.unit];
+                        }
 
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                        ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, metric.uint64 );
-                        break;
-
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                        ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
-                        break;
-
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                        ImGuiX::TextAlignRight( columnWidth, "%.2lf", metric.float64 );
-                        break;
+                        ImGui::TextUnformatted( pUnitString );
                     }
                 }
 
-                ImGui::TableNextColumn();
-                {
-                    const char* pUnitString = "???";
-
-                    static const char* const ppUnitString[ 11 ] =
-                    {
-                        "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
-                        "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
-                        "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
-                        "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
-                        "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
-                        "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
-                        "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
-                        "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
-                        "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
-                        "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
-                        "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
-                    };
-
-                    if( (metricProperties.unit >= 0) && (metricProperties.unit < 11) )
-                    {
-                        pUnitString = ppUnitString[ metricProperties.unit ];
-                    }
-
-                    ImGui::TextUnformatted( pUnitString );
-                }
+                ImGui::EndTable();
             }
-
-            ImGui::EndTable();
         }
 
         // Provide controls to manage custom performance counters sets.
@@ -2484,6 +2490,7 @@ namespace Profiler
         {
             const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
+            #if 0
             if( ImGui::Button( "Create" ) )
             {
                 RefreshPerformanceQueryEditorCountersSet();
@@ -2507,117 +2514,97 @@ namespace Profiler
 
             ImGui::InputText( "Name", &m_PerformanceQueryEditorSetName );
             ImGui::InputText( "Description", &m_PerformanceQueryEditorSetDescription );
+            #endif
 
-            int counterCount = static_cast<int>( m_PerformanceQueryEditorCounterProperties.size() );
-            if( m_PerformanceQueryEditorShowOnlySelected )
+            if( ImGui::BeginTable( "Performance counters table",
+                    /* columns_count */ 1,
+                    ImGuiTableFlags_NoClip |
+                        ( ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV ) ) )
             {
-                counterCount = static_cast<int>( m_PerformanceQueryEditorCounterIndices.size() );
-            }
-
-            ImGuiListClipper clipper;
-            clipper.Begin( counterCount );
-
-            std::vector<uint32_t> unknownCountersAvailability;
-
-            while( clipper.Step() )
-            {
-                for( uint32_t counterIndex = clipper.DisplayStart; counterIndex < clipper.DisplayEnd; ++counterIndex )
+                int counterCount = static_cast<int>( m_PerformanceQueryEditorCounterProperties.size() );
+                if( m_PerformanceQueryEditorShowOnlySelected )
                 {
-                    bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
-                    bool selected = std::find( m_PerformanceQueryEditorCounterIndices.begin(),
+                    counterCount = static_cast<int>( m_PerformanceQueryEditorCounterIndices.size() );
+                }
+
+                ImGuiListClipper clipper;
+                clipper.Begin( counterCount );
+
+                std::vector<uint32_t> unknownCountersAvailability;
+
+                while( clipper.Step() )
+                {
+                    for( uint32_t counterIndex = clipper.DisplayStart; counterIndex < clipper.DisplayEnd; ++counterIndex )
+                    {
+                        bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
+                        bool selected = std::find( m_PerformanceQueryEditorCounterIndices.begin(),
+                                            m_PerformanceQueryEditorCounterIndices.end(),
+                                            counterIndex ) != m_PerformanceQueryEditorCounterIndices.end();
+
+                        if( m_PerformanceQueryEditorShowOnlySelected && !selected )
+                        {
+                            continue;
+                        }
+
+                        if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] )
+                        {
+                            unknownCountersAvailability.push_back( counterIndex );
+                        }
+
+                        ImGui::TableNextColumn();
+                        ImGui::BeginDisabled( !available );
+                        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
+
+                        if( ImGui::Checkbox( m_PerformanceQueryEditorCounterProperties[counterIndex].name, &selected ) )
+                        {
+                            if( selected )
+                            {
+                                m_PerformanceQueryEditorCounterIndices.push_back( counterIndex );
+                            }
+                            else
+                            {
+                                m_PerformanceQueryEditorCounterIndices.erase(
+                                    std::remove( m_PerformanceQueryEditorCounterIndices.begin(),
                                         m_PerformanceQueryEditorCounterIndices.end(),
-                                        counterIndex ) != m_PerformanceQueryEditorCounterIndices.end();
+                                        counterIndex ),
+                                    m_PerformanceQueryEditorCounterIndices.end() );
+                            }
 
-                    if( m_PerformanceQueryEditorShowOnlySelected && !selected )
-                    {
-                        continue;
-                    }
+                            std::fill( m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
+                                m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
+                                false );
 
-                    if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] )
-                    {
-                        unknownCountersAvailability.push_back( counterIndex );
-                    }
+                            unknownCountersAvailability.clear();
 
-                    ImGui::BeginDisabled( !available );
-
-                    if( ImGui::Checkbox( m_PerformanceQueryEditorCounterProperties[counterIndex].shortName, &selected ) )
-                    {
-                        if( selected )
-                        {
-                            m_PerformanceQueryEditorCounterIndices.push_back( counterIndex );
-                        }
-                        else
-                        {
-                            m_PerformanceQueryEditorCounterIndices.erase(
-                                std::remove( m_PerformanceQueryEditorCounterIndices.begin(),
-                                    m_PerformanceQueryEditorCounterIndices.end(),
-                                    counterIndex ),
-                                m_PerformanceQueryEditorCounterIndices.end() );
+                            RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
                         }
 
-                        std::fill( m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
-                            m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
-                            false );
+                        ImGui::PopStyleVar();
+                        ImGui::EndDisabled();
+                    }
+                }
 
-                        unknownCountersAvailability.clear();
-
-                        RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
+                if( !unknownCountersAvailability.empty() )
+                {
+                    for( uint32_t counterIndex : unknownCountersAvailability )
+                    {
+                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = false;
+                        m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
                     }
 
-                    ImGui::EndDisabled();
-                }
-            }
+                    m_Frontend.GetAvailablePerformanceCounters(
+                        m_PerformanceQueryEditorCounterIndices,
+                        unknownCountersAvailability );
 
-            if( !unknownCountersAvailability.empty() )
-            {
-                for( uint32_t counterIndex : unknownCountersAvailability )
-                {
-                    m_PerformanceQueryEditorCounterAvailability[counterIndex] = false;
-                    m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
+                    for( uint32_t counterIndex : unknownCountersAvailability )
+                    {
+                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
+                    }
                 }
 
-                m_Frontend.GetAvailablePerformanceCounters(
-                    m_PerformanceQueryEditorQueueFamilyIndex,
-                    m_PerformanceQueryEditorCounterIndices,
-                    unknownCountersAvailability );
-
-                for( uint32_t counterIndex : unknownCountersAvailability )
-                {
-                    m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
-                }
+                ImGui::EndTable();
             }
         }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        LoadQueueFamilyPerformanceCounters
-
-    Description:
-        Load performance counters for given queue family.
-
-    \***********************************************************************************/
-    void ProfilerOverlayOutput::LoadQueueFamilyPerformanceCounters( uint32_t queueFamilyIndex )
-    {
-        const auto& queueFamilies = m_Frontend.GetQueueFamilyProperties();
-
-        m_PerformanceQueryEditorQueueFamilyIndex = std::min( queueFamilyIndex, static_cast<uint32_t>( queueFamilies.size() ) );
-        m_Frontend.GetQueueFamilyPerformanceCounterProperties(
-            m_PerformanceQueryEditorQueueFamilyIndex,
-            m_PerformanceQueryEditorCounterProperties );
-
-        m_PerformanceQueryEditorCounterIndices.clear();
-
-        m_PerformanceQueryEditorCounterAvailability.resize( m_PerformanceQueryEditorCounterProperties.size() );
-        std::fill( m_PerformanceQueryEditorCounterAvailability.begin(),
-            m_PerformanceQueryEditorCounterAvailability.end(),
-            false );
-
-        m_PerformanceQueryEditorCounterAvailabilityKnown.resize( m_PerformanceQueryEditorCounterProperties.size() );
-        std::fill( m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
-            m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
-            false );
     }
 
     /***********************************************************************************\
@@ -2633,7 +2620,6 @@ namespace Profiler
         static const std::string empty;
 
         const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet(
-            m_PerformanceQueryEditorQueueFamilyIndex,
             countersOnly ? empty : m_PerformanceQueryEditorSetName,
             countersOnly ? empty : m_PerformanceQueryEditorSetDescription,
             m_PerformanceQueryEditorCounterIndices );
@@ -6137,9 +6123,9 @@ namespace Profiler
         {
             assert( pMetricsSet != nullptr );
 
-            const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& properties = pMetricsSet->m_Metrics;
+            const std::vector<VkProfilerPerformanceCounterProperties2EXT>& properties = pMetricsSet->m_Metrics;
 
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> exportedProperties;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> exportedProperties;
             std::vector<VkProfilerPerformanceCounterResultEXT> exportedData;
 
             for( size_t i = 0; i < data.size(); ++i )
@@ -6185,7 +6171,7 @@ namespace Profiler
 
         if( deserializer.Open( fileName ) )
         {
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties = deserializer.ReadHeader();
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> properties = deserializer.ReadHeader();
             std::vector<VkProfilerPerformanceCounterResultEXT> results = deserializer.ReadRow();
 
             m_ReferencePerformanceCounters.clear();
@@ -6193,7 +6179,7 @@ namespace Profiler
             const size_t performanceCounterCount = std::min( properties.size(), results.size() );
             for( size_t i = 0; i < performanceCounterCount; ++i )
             {
-                m_ReferencePerformanceCounters.try_emplace( properties[i].shortName, results[i] );
+                m_ReferencePerformanceCounters.try_emplace( properties[i].name, results[i] );
             }
 
             m_SerializationSucceeded = true;
@@ -6296,7 +6282,7 @@ namespace Profiler
         if( serializer.Open( fileName ) )
         {
             // Convert top pipelines to performance counter format to reuse existing CSV serializer implementation.
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> pipelineNames;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> pipelineNames;
             pipelineNames.reserve( data.m_TopPipelines.size() );
 
             std::vector<VkProfilerPerformanceCounterResultEXT> pipelineDurations;
@@ -6306,8 +6292,8 @@ namespace Profiler
             {
                 const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
 
-                VkProfilerPerformanceCounterPropertiesEXT& pipelineNameInfo = pipelineNames.emplace_back();
-                ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() );
+                VkProfilerPerformanceCounterProperties2EXT& pipelineNameInfo = pipelineNames.emplace_back();
+                ProfilerStringFunctions::CopyString( pipelineNameInfo.name, pipelineName.c_str(), pipelineName.length() );
                 pipelineNameInfo.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
 
                 VkProfilerPerformanceCounterResultEXT& pipelineDuration = pipelineDurations.emplace_back();
@@ -6353,7 +6339,7 @@ namespace Profiler
 
         if( deserializer.Open( fileName ) )
         {
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties = deserializer.ReadHeader();
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> properties = deserializer.ReadHeader();
             std::vector<VkProfilerPerformanceCounterResultEXT> results = deserializer.ReadRow();
 
             m_ReferenceTopPipelines.clear();
@@ -6364,7 +6350,7 @@ namespace Profiler
                 // Only float32 storage is supported for top pipelines for now.
                 if( properties[i].storage == VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT )
                 {
-                    m_ReferenceTopPipelines.try_emplace( properties[i].shortName, results[i].float32 );
+                    m_ReferenceTopPipelines.try_emplace( properties[i].name, results[i].float32 );
                 }
             }
 
@@ -6644,7 +6630,7 @@ namespace Profiler
 
         if( ImGui::BeginPopupContextItem() )
         {
-            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceQueryResults.empty() ) )
+            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceCounters.m_Results.empty() ) )
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
                 m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );

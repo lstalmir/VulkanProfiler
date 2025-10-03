@@ -23,7 +23,7 @@
 
 #ifndef VK_EXT_profiler
 #define VK_EXT_profiler 1
-#define VK_EXT_PROFILER_SPEC_VERSION 4
+#define VK_EXT_PROFILER_SPEC_VERSION 5
 #define VK_EXT_PROFILER_EXTENSION_NAME "VK_EXT_profiler"
 
 #define VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT ((VkStructureType)1000999000)
@@ -31,7 +31,7 @@
 #define VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT ((VkStructureType)1000999002)
 #define VK_STRUCTURE_TYPE_PROFILER_RENDER_PASS_DATA_EXT ((VkStructureType)1000999003)
 
-enum VkProfilerCreateFlagBitsEXT
+typedef enum VkProfilerCreateFlagBitsEXT
 {
     VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT = 1,
     VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT = 2,
@@ -41,11 +41,10 @@ enum VkProfilerCreateFlagBitsEXT
     VK_PROFILER_CREATE_NO_THREADING_EXT = 16,
     VK_PROFILER_CREATE_NO_MEMORY_PROFILING_EXT = 32,
     VK_PROFILER_CREATE_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
-};
-
+} VkProfilerCreateFlagBitsEXT;
 typedef VkFlags VkProfilerCreateFlagsEXT;
 
-enum VkProfilerModeEXT
+typedef enum VkProfilerModeEXT
 {
     VK_PROFILER_MODE_PER_DRAWCALL_EXT,
     VK_PROFILER_MODE_PER_PIPELINE_EXT,
@@ -54,9 +53,9 @@ enum VkProfilerModeEXT
     VK_PROFILER_MODE_PER_SUBMIT_EXT,
     VK_PROFILER_MODE_PER_FRAME_EXT,
     VK_PROFILER_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerModeEXT;
 
-enum VkProfilerRegionTypeEXT
+typedef enum VkProfilerRegionTypeEXT
 {
     VK_PROFILER_REGION_TYPE_FRAME_EXT,
     VK_PROFILER_REGION_TYPE_SUBMIT_EXT,
@@ -67,9 +66,9 @@ enum VkProfilerRegionTypeEXT
     VK_PROFILER_REGION_TYPE_PIPELINE_EXT,
     VK_PROFILER_REGION_TYPE_COMMAND_EXT,
     VK_PROFILER_REGION_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerRegionTypeEXT;
 
-enum VkProfilerCommandTypeEXT
+typedef enum VkProfilerCommandTypeEXT
 {
     VK_PROFILER_COMMAND_UNKNOWN_EXT,
     VK_PROFILER_COMMAND_DRAW_EXT,
@@ -92,16 +91,16 @@ enum VkProfilerCommandTypeEXT
     VK_PROFILER_COMMAND_FILL_BUFFER_EXT,
     VK_PROFILER_COMMAND_UPDATE_BUFFER_EXT,
     VK_PROFILER_COMMAND_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerCommandTypeEXT;
 
-enum VkProfilerFrameDelimiterEXT
+typedef enum VkProfilerFrameDelimiterEXT
 {
     VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT,
     VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT,
     VK_PROFILER_FRAME_DELIMITER_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerFrameDelimiterEXT;
 
-enum VkProfilerPerformanceCounterUnitEXT
+typedef enum VkProfilerPerformanceCounterUnitEXT
 {
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_EXT,
@@ -115,9 +114,9 @@ enum VkProfilerPerformanceCounterUnitEXT
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_HERTZ_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerPerformanceCounterUnitEXT;
 
-enum VkProfilerPerformanceCounterStorageEXT
+typedef enum VkProfilerPerformanceCounterStorageEXT
 {
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT,
@@ -126,7 +125,15 @@ enum VkProfilerPerformanceCounterStorageEXT
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerPerformanceCounterStorageEXT;
+
+typedef enum VkProfilerPerformanceCounterFlagBitsEXT
+{
+    VK_PROFILER_PERFORMANCE_COUNTER_PERFORMANCE_IMPACTING_BIT_EXT = 1,
+    VK_PROFILER_PERFORMANCE_COUNTER_CONCURRENTLY_IMPACTED_BIT_EXT = 2,
+    VK_PROFILER_PERFORMANCE_COUNTER_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkProfilerPerformanceCounterFlagBitsEXT;
+typedef VkFlags VkProfilerPerformanceCounterFlagsEXT;
 
 typedef struct VkProfilerCreateInfoEXT
 {
@@ -223,6 +230,17 @@ typedef struct VkProfilerPerformanceCounterPropertiesEXT
     VkProfilerPerformanceCounterStorageEXT storage;
 } VkProfilerPerformanceCounterPropertiesEXT;
 
+typedef struct VkProfilerPerformanceCounterProperties2EXT
+{
+    VkProfilerPerformanceCounterFlagsEXT flags;
+    VkProfilerPerformanceCounterUnitEXT unit;
+    VkProfilerPerformanceCounterStorageEXT storage;
+    uint8_t uuid[ VK_UUID_SIZE ];
+    char name[ VK_MAX_DESCRIPTION_SIZE ];
+    char category[ VK_MAX_DESCRIPTION_SIZE ];
+    char description[ VK_MAX_DESCRIPTION_SIZE ];
+} VkProfilerPerformanceCounterProperties2EXT;
+
 typedef union VkProfilerPerformanceCounterResultEXT
 {
     int32_t     int32;
@@ -238,6 +256,13 @@ typedef struct VkProfilerPerformanceMetricsSetPropertiesEXT
     char     name[ 64 ];
     uint32_t metricsCount;
 } VkProfilerPerformanceMetricsSetPropertiesEXT;
+
+typedef struct VkProfilerPerformanceMetricsSetProperties2EXT
+{
+    uint32_t metricsCount;
+    char name[ VK_MAX_DESCRIPTION_SIZE ];
+    char description[ VK_MAX_DESCRIPTION_SIZE ];
+} VkProfilerPerformanceMetricsSetProperties2EXT;
 
 typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT);
 typedef void( VKAPI_PTR* PFN_vkGetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT*);

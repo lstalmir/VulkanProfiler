@@ -133,14 +133,14 @@ namespace Profiler
         // Command pools used for copying query data
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
-        // Vendor-specific metric properties
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
-        uint32_t                                               m_VendorMetricsSetIndex;
+        // Performance counter properties
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceMetricProperties;
+        uint32_t m_PerformanceMetricsSetIndex;
 
         void DataCollectionThreadProc();
 
-        void LoadVendorMetricsProperties();
-        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics( const Frame& ) const;
+        void LoadPerformanceMetricsProperties();
+        DeviceProfilerPerformanceCountersData AggregatePerformanceMetrics( const Frame& ) const;
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines( const Frame& ) const;
         void CollectPipelinesFromCommandBuffer( const DeviceProfilerCommandBufferData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;

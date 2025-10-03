@@ -345,12 +345,12 @@ namespace Profiler
             m_CommandQueue ) );
 
         // Performance counters
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> performanceCounterProperties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceCounterProperties;
 
-        if( !data.m_PerformanceQueryResults.empty() )
+        if( !data.m_PerformanceCounters.m_Results.empty() )
         {
             m_Frontend.GetPerformanceMetricsSetCounterProperties(
-                data.m_PerformanceQueryMetricsSetIndex,
+                data.m_PerformanceCounters.m_MetricsSetIndex,
                 performanceCounterProperties );
 
             m_Events.push_back( TraceCounterEvent(
@@ -358,7 +358,7 @@ namespace Profiler
                 m_CommandQueue,
                 performanceCounterProperties.size(),
                 performanceCounterProperties.data(),
-                data.m_PerformanceQueryResults.data() ) );
+                data.m_PerformanceCounters.m_Results.data() ) );
         }
 
         for( const auto& renderPassData : data.m_RenderPasses )
@@ -371,7 +371,7 @@ namespace Profiler
         }
 
         // Clear performance counters before the next command buffer
-        if( !data.m_PerformanceQueryResults.empty() )
+        if( !data.m_PerformanceCounters.m_Results.empty() )
         {
             m_Events.push_back( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),

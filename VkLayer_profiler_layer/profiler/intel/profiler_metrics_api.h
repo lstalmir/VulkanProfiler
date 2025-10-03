@@ -40,7 +40,7 @@ namespace Profiler
         MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
         MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_MetricsProperties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_MetricsProperties;
 
         // Some metrics are reported in premultiplied units, e.g., MHz
         // This vector contains factors applied to each metric in output reports
@@ -65,22 +65,22 @@ namespace Profiler
         VkResult Initialize( struct VkDevice_Object* pDevice ) final;
         void Destroy() final;
 
-        uint32_t GetReportSize( uint32_t metricsSetIndex ) const final;
+        uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const final;
         uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const final;
         uint32_t GetMetricsSetCount() const final;
         VkResult SetActiveMetricsSet( uint32_t metricsSetIndex ) final;
         uint32_t GetActiveMetricsSetIndex() const final;
 
-        void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets ) const final;
-        void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetPropertiesEXT& properties ) const final;
-        void GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics ) const final;
+        void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& metricsSets ) const final;
+        void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetProperties2EXT& properties ) const final;
+        void GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics ) const final;
 
         bool SupportsQueryPoolReuse() const final { return true; }
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
         void ParseReport(
             uint32_t metricsSetIndex,
-            uint32_t reportSize,
+            uint32_t queueFamilyIndex,
             const uint8_t* pReport,
             std::vector<VkProfilerPerformanceCounterResultEXT>& results ) final;
 
@@ -104,7 +104,7 @@ namespace Profiler
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
         std::vector<ProfilerMetricsSet_INTEL> m_MetricsSets;
-        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> m_MetricsSetsProperties;
+        std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> m_MetricsSetsProperties;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
         uint32_t                              m_ActiveMetricsSetIndex;

@@ -1391,6 +1391,20 @@ namespace Profiler
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
+    
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPerformanceCounterData
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerPerformanceCountersData
+    {
+        uint32_t                                            m_MetricsSetIndex = UINT32_MAX;
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
+    };
 
     /***********************************************************************************\
 
@@ -1413,10 +1427,7 @@ namespace Profiler
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_PerformanceQueryResults = {};
-        uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
-
-        uint64_t                                            m_ProfilerCpuOverheadNs = {};
+        DeviceProfilerPerformanceCountersData               m_PerformanceCounters = {};
 
         std::vector<uint8_t>                                m_IndirectPayload = {};
 
@@ -1829,7 +1840,7 @@ namespace Profiler
         DeviceProfilerCPUData                               m_CPU = {};
         std::vector<struct TipRange>                        m_TIP = {};
 
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
+        DeviceProfilerPerformanceCountersData               m_FramePerformanceCounters = {};
 
         DeviceProfilerSynchronizationTimestamps             m_SyncTimestamps = {};
     };

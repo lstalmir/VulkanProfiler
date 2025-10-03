@@ -164,17 +164,17 @@ namespace Profiler
         Write CSV header and save performance counter properties for the following rows.
 
     \***********************************************************************************/
-    void DeviceProfilerCsvSerializer::WriteHeader( uint32_t count, const VkProfilerPerformanceCounterPropertiesEXT* pProperties )
+    void DeviceProfilerCsvSerializer::WriteHeader( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties )
     {
         m_Properties.resize( count );
-        memcpy( m_Properties.data(), pProperties, count * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+        memcpy( m_Properties.data(), pProperties, count * sizeof( VkProfilerPerformanceCounterProperties2EXT ) );
 
         for( uint32_t i = 0; i < count; ++i )
         {
             m_Properties[i] = pProperties[i];
             m_File << sep( i )
                    << GetPerformanceCounterStorageName( pProperties[i].storage ) << ":"
-                   << "\"" << pProperties[i].shortName << "\"";
+                   << "\"" << pProperties[i].name << "\"";
         }
 
         m_File << std::endl;
@@ -311,7 +311,7 @@ namespace Profiler
         Read CSV header and return performance counter properties.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterPropertiesEXT> DeviceProfilerCsvDeserializer::ReadHeader()
+    std::vector<VkProfilerPerformanceCounterProperties2EXT> DeviceProfilerCsvDeserializer::ReadHeader()
     {
         m_Properties.clear();
 
@@ -345,13 +345,13 @@ namespace Profiler
                 size_t colon = header.find( ":" );
                 if( colon != std::string::npos )
                 {
-                    VkProfilerPerformanceCounterPropertiesEXT property = {};
+                    VkProfilerPerformanceCounterProperties2EXT property = {};
                     property.storage = GetPerformanceCounterStorageType( header.substr( 0, colon ) );
 
                     std::string_view name =
                         ( quoted ? header.substr( colon + 2, header.length() - colon - 3 )
                                  : header.substr( colon + 1 ) );
-                    ProfilerStringFunctions::CopyString( property.shortName, name.data(), name.length() );
+                    ProfilerStringFunctions::CopyString( property.name, name.data(), name.length() );
 
                     m_Properties.push_back( property );
                 }

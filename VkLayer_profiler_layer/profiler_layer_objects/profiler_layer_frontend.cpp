@@ -198,11 +198,11 @@ namespace Profiler
         Creates a custom performance metrics set.
 
     \***********************************************************************************/
-    uint32_t DeviceProfilerLayerFrontend::CreateCustomPerformanceMetricsSet( uint32_t queueFamilyIndex, const std::string& name, const std::string& description, const std::vector<uint32_t>& counters )
+    uint32_t DeviceProfilerLayerFrontend::CreateCustomPerformanceMetricsSet( const std::string& name, const std::string& description, const std::vector<uint32_t>& counters )
     {
         if( m_pProfiler->m_pPerformanceCounters != nullptr )
         {
-            return m_pProfiler->m_pPerformanceCounters->CreateCustomMetricsSet( queueFamilyIndex, name, description, counters );
+            return m_pProfiler->m_pPerformanceCounters->CreateCustomMetricsSet( name, description, counters );
         }
 
         return UINT32_MAX;
@@ -234,13 +234,13 @@ namespace Profiler
         Destroys the custom performance metrics set.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetQueueFamilyPerformanceCounterProperties( uint32_t queueFamilyIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics )
+    void DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics )
     {
         metrics.clear();
 
         if( m_pProfiler->m_pPerformanceCounters != nullptr )
         {
-            m_pProfiler->m_pPerformanceCounters->GetQueueFamilyMetricsProperties( queueFamilyIndex, metrics );
+            m_pProfiler->m_pPerformanceCounters->GetMetricsProperties( metrics );
         }
     }
 
@@ -253,11 +253,11 @@ namespace Profiler
         Updates the list of available performance counters for a given queue family.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetAvailablePerformanceCounters( uint32_t queueFamilyIndex, const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters )
+    void DeviceProfilerLayerFrontend::GetAvailablePerformanceCounters( const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters )
     {
         if( m_pProfiler->m_pPerformanceCounters != nullptr )
         {
-            m_pProfiler->m_pPerformanceCounters->GetAvailableMetrics( queueFamilyIndex, allocatedCounters, availableCounters );
+            m_pProfiler->m_pPerformanceCounters->GetAvailableMetrics( allocatedCounters, availableCounters );
         }
     }
 
@@ -270,7 +270,7 @@ namespace Profiler
         Returns list of available performance metrics sets.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSets( std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& sets )
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSets( std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& sets )
     {
         sets.clear();
 
@@ -289,7 +289,7 @@ namespace Profiler
         Returns list of performance counter properties for a given metrics set.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetPropertiesEXT& properties )
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT& properties )
     {
         memset( &properties, 0, sizeof( properties ) );
 
@@ -308,7 +308,7 @@ namespace Profiler
         Returns list of performance counter properties for a given metrics set.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metrics )
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics )
     {
         metrics.clear();
 

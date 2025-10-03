@@ -128,8 +128,8 @@ namespace Profiler
         , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
         , m_CopyCommandPools()
-        , m_VendorMetricProperties()
-        , m_VendorMetricsSetIndex( UINT32_MAX )
+        , m_PerformanceMetricProperties()
+        , m_PerformanceMetricsSetIndex( UINT32_MAX )
     {
     }
 
@@ -145,7 +145,7 @@ namespace Profiler
     VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
         m_pProfiler = pProfiler;
-        m_VendorMetricsSetIndex = UINT32_MAX;
+        m_PerformanceMetricsSetIndex = UINT32_MAX;
 
         VkResult result = VK_SUCCESS;
 
@@ -430,7 +430,7 @@ namespace Profiler
             auto frameIt = m_NextFrames.begin();
             while( (frameIt != m_NextFrames.end()) && (frameIt->m_FrameIndex < m_FrameIndex) && (frameIt->m_PendingSubmits.empty()) )
             {
-                LoadVendorMetricsProperties();
+                LoadPerformanceMetricsProperties();
 
                 std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
                 ResolveFrameData( *frameIt, *pFrameData );
@@ -534,7 +534,7 @@ namespace Profiler
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
         frameData.m_TopPipelines = CollectTopPipelines( frame );
-        frameData.m_VendorMetrics = AggregateVendorMetrics( frame );
+        frameData.m_FramePerformanceCounters = AggregatePerformanceMetrics( frame );
 
         frameData.m_Ticks = 0;
         frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
@@ -602,13 +602,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        LoadVendorMetricsProperties
+        LoadPerformanceMetricsProperties
 
     Description:
         Get metrics properties from the metrics API.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::LoadVendorMetricsProperties()
+    void ProfilerDataAggregator::LoadPerformanceMetricsProperties()
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
@@ -618,14 +618,14 @@ namespace Profiler
             // Check if vendor metrics set has changed.
             const uint32_t activeMetricsSetIndex = pPerformanceCounters->GetActiveMetricsSetIndex();
 
-            if( m_VendorMetricsSetIndex != activeMetricsSetIndex )
+            if( m_PerformanceMetricsSetIndex != activeMetricsSetIndex )
             {
-                m_VendorMetricsSetIndex = activeMetricsSetIndex;
-                m_VendorMetricProperties.clear();
+                m_PerformanceMetricsSetIndex = activeMetricsSetIndex;
+                m_PerformanceMetricProperties.clear();
 
-                if( m_VendorMetricsSetIndex != UINT32_MAX )
+                if( m_PerformanceMetricsSetIndex != UINT32_MAX )
                 {
-                    pPerformanceCounters->GetMetricsSetMetricsProperties( m_VendorMetricsSetIndex, m_VendorMetricProperties );
+                    pPerformanceCounters->GetMetricsSetMetricsProperties( m_PerformanceMetricsSetIndex, m_PerformanceMetricProperties );
                 }
             }
         }
@@ -634,18 +634,18 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        AggregateVendorMetrics
+        AggregatePerformanceMetrics
 
     Description:
-        Merge vendor metrics collected from different command buffers.
+        Merge performance metrics collected from different command buffers.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterResultEXT> ProfilerDataAggregator::AggregateVendorMetrics(
+    DeviceProfilerPerformanceCountersData ProfilerDataAggregator::AggregatePerformanceMetrics(
         const Frame& frame ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        const uint32_t metricCount = static_cast<uint32_t>( m_VendorMetricProperties.size() );
+        const uint32_t metricCount = static_cast<uint32_t>( m_PerformanceMetricProperties.size() );
 
         // No vendor metrics available
         if( metricCount == 0 )
@@ -666,13 +666,13 @@ namespace Profiler
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    if( commandBufferData.m_PerformanceQueryMetricsSetIndex != m_VendorMetricsSetIndex )
+                    if( commandBufferData.m_PerformanceCounters.m_MetricsSetIndex != m_PerformanceMetricsSetIndex )
                     {
                         // The command buffer has been recorded with at different set of metrics.
                         continue;
                     }
 
-                    if( commandBufferData.m_PerformanceQueryResults.empty() )
+                    if( commandBufferData.m_PerformanceCounters.m_Results.empty() )
                     {
                         // No performance query data collected for this command buffer.
                         continue;
@@ -683,7 +683,7 @@ namespace Profiler
                         // Get metric accumulator
                         __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
 
-                        switch( m_VendorMetricProperties[ i ].unit )
+                        switch( m_PerformanceMetricProperties[ i ].unit )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
@@ -695,8 +695,8 @@ namespace Profiler
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceQueryResults[ i ],
-                                m_VendorMetricProperties[ i ].storage );
+                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
+                                m_PerformanceMetricProperties[ i ].storage );
 
                             break;
                         }
@@ -714,8 +714,8 @@ namespace Profiler
                                 weightedMetric.weight,
                                 weightedMetric.value,
                                 (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceQueryResults[ i ],
-                                m_VendorMetricProperties[ i ].storage );
+                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
+                                m_PerformanceMetricProperties[ i ].storage );
 
                             break;
                         }
@@ -726,16 +726,18 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        std::vector<VkProfilerPerformanceCounterResultEXT> normalizedAggregatedVendorMetrics( metricCount );
+        DeviceProfilerPerformanceCountersData normalizedAggregatedVendorMetrics;
+        normalizedAggregatedVendorMetrics.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
+        normalizedAggregatedVendorMetrics.m_Results.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
         {
             const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
             Profiler::Aggregate<NormAggregator>(
-                normalizedAggregatedVendorMetrics[ i ],
+                normalizedAggregatedVendorMetrics.m_Results[ i ],
                 weightedMetric.weight,
                 weightedMetric.value,
-                m_VendorMetricProperties[ i ].storage );
+                m_PerformanceMetricProperties[ i ].storage );
         }
 
         return normalizedAggregatedVendorMetrics;
