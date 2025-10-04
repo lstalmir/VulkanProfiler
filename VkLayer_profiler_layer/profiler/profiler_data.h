@@ -1391,13 +1391,14 @@ namespace Profiler
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
     };
-    
+
     /***********************************************************************************\
 
     Structure:
         DeviceProfilerPerformanceCounterData
 
     Description:
+        Holds performance query results for a single performance query pass.
 
     \***********************************************************************************/
     struct DeviceProfilerPerformanceCountersData
@@ -1840,7 +1841,7 @@ namespace Profiler
         DeviceProfilerCPUData                               m_CPU = {};
         std::vector<struct TipRange>                        m_TIP = {};
 
-        DeviceProfilerPerformanceCountersData               m_FramePerformanceCounters = {};
+        DeviceProfilerPerformanceCountersData               m_PerformanceCounters = {};
 
         DeviceProfilerSynchronizationTimestamps             m_SyncTimestamps = {};
     };

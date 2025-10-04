@@ -44,27 +44,27 @@ namespace Profiler
     public:
         virtual ~DeviceProfilerPerformanceCounters() {}
 
-        virtual VkResult Initialize( struct VkDevice_Object* ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
+        virtual VkResult Initialize( struct VkDevice_Object* pDevice ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
         virtual void Destroy() {}
 
-        virtual uint32_t GetReportSize( uint32_t, uint32_t ) const { return 0; }
-        virtual uint32_t GetMetricsCount( uint32_t ) const { return 0; }
+        virtual uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const { return 0; }
+        virtual uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const { return 0; }
         virtual uint32_t GetMetricsSetCount() const { return 0; }
-        virtual VkResult SetActiveMetricsSet( uint32_t ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
+        virtual VkResult SetActiveMetricsSet( uint32_t metricsSetIndex ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
         virtual uint32_t GetActiveMetricsSetIndex() const { return 0; }
-        virtual bool AreMetricsSetsCompatible( uint32_t, uint32_t ) const { return false; }
-
-        virtual void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& ) const {}
-        virtual void GetMetricsSetProperties( uint32_t, VkProfilerPerformanceMetricsSetProperties2EXT& ) const {}
-        virtual void GetMetricsSetMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterProperties2EXT>& ) const {}
-        virtual void GetMetricsProperties( std::vector<VkProfilerPerformanceCounterProperties2EXT>& ) const {}
-        virtual void GetAvailableMetrics( const std::vector<uint32_t>&, std::vector<uint32_t>& ) const {}
+        virtual bool AreMetricsSetsCompatible( uint32_t metricsSet1, uint32_t metricsSet2 ) const { return false; }
+        virtual uint32_t GetRequiredPasses( uint32_t counterCount, const uint32_t* pCounterIndices ) const { return 0; }
+        virtual uint32_t GetMetricsSets( uint32_t count, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const { return 0; }
+        virtual void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const {}
+        virtual uint32_t GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const { return 0; }
+        virtual uint32_t GetMetricsProperties( uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const { return 0; }
+        virtual void GetAvailableMetrics( uint32_t selectedCountersCount, const uint32_t* pSelectedCounters, uint32_t& availableCountersCount, uint32_t* pAvailableCounters ) const { availableCountersCount = 0; }
 
         virtual bool SupportsQueryPoolReuse() const { return false; }
-        virtual VkResult CreateQueryPool( uint32_t, uint32_t, VkQueryPool* ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
+        virtual VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
 
         virtual bool SupportsCustomMetricsSets() const { return false; }
-        virtual uint32_t CreateCustomMetricsSet( const std::string&, const std::string&, const std::vector<uint32_t>& ) { return UINT32_MAX; }
+        virtual uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) { return UINT32_MAX; }
         virtual void DestroyCustomMetricsSet( uint32_t ) {}
 
         virtual void ParseReport( uint32_t, uint32_t, const uint8_t*, std::vector<VkProfilerPerformanceCounterResultEXT>& ) {}

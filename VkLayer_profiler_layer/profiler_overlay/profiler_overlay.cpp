@@ -416,23 +416,29 @@ namespace Profiler
         // Get vendor metrics sets
         if( success )
         {
-            std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> metricsSets;
-            m_Frontend.GetPerformanceMetricsSets( metricsSets );
+            const uint32_t vendorMetricsSetCount = m_Frontend.GetPerformanceMetricsSets( 0, nullptr );
+            std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> metricsSets( vendorMetricsSetCount );
 
-            const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
+            m_Frontend.GetPerformanceMetricsSets( vendorMetricsSetCount, metricsSets.data() );
+
             m_VendorMetricsSets.reserve( vendorMetricsSetCount );
 
-            for( uint32_t i = 0; i < vendorMetricsSetCount; ++i )
+            for (uint32_t i = 0; i < vendorMetricsSetCount; ++i)
             {
                 VendorMetricsSet& metricsSet = m_VendorMetricsSets.emplace_back();
                 metricsSet.m_Index = i;
                 metricsSet.m_FilterResult = true;
 
                 // Copy metrics set properties.
-                memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
+                metricsSet.m_Properties = metricsSets[i];
 
                 // Get metrics belonging to this set.
-                m_Frontend.GetPerformanceMetricsSetCounterProperties( i, metricsSet.m_Metrics );
+                const uint32_t counterCount = m_Frontend.GetPerformanceMetricsSetCounterProperties(i, 0, nullptr);
+                metricsSet.m_Metrics.resize(counterCount);
+
+                m_Frontend.GetPerformanceMetricsSetCounterProperties(i, counterCount, metricsSet.m_Metrics.data());
+
+                m_VendorMetricsSetVisibility.push_back(true);
             }
 
             const uint32_t activeMetricsSetIndex = m_Frontend.GetPerformanceMetricsSetIndex();
@@ -2098,7 +2104,7 @@ namespace Profiler
         std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
         // Data source
-        const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_FramePerformanceCounters.m_Results;
+        const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_PerformanceCounters.m_Results;
 
         bool performanceQueryResultsFiltered = false;
         auto regexFilterFlags =
@@ -6293,7 +6299,7 @@ namespace Profiler
                 const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
 
                 VkProfilerPerformanceCounterProperties2EXT& pipelineNameInfo = pipelineNames.emplace_back();
-                ProfilerStringFunctions::CopyString( pipelineNameInfo.name, pipelineName.c_str(), pipelineName.length() );
+                ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() );
                 pipelineNameInfo.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
 
                 VkProfilerPerformanceCounterResultEXT& pipelineDuration = pipelineDurations.emplace_back();

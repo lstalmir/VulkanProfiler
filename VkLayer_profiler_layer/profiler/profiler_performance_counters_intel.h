@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler/profiler_performance_counters.h"
+#include "profiler_performance_counters.h"
 #include <metrics_discovery_api.h>
 #ifdef WIN32
 #include <filesystem>
@@ -27,40 +27,23 @@
 #include <vector>
 #include <string>
 #include <shared_mutex>
-#include <vulkan/vulkan.h>
-// Import extension structures
-#include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
-    class DeviceProfiler;
-
-    struct ProfilerMetricsSet_INTEL
-    {
-        MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
-        MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
-
-        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_MetricsProperties;
-
-        // Some metrics are reported in premultiplied units, e.g., MHz
-        // This vector contains factors applied to each metric in output reports
-        std::vector<double> m_MetricFactors;
-    };
-
     /***********************************************************************************\
 
     Class:
-        ProfilerMetricsApi_INTEL
+        DeviceProfilerPerformanceCountersINTEL
 
     Description:
         Wrapper for metrics exposed by INTEL GPUs.
 
     \***********************************************************************************/
-    class ProfilerMetricsApi_INTEL
+    class DeviceProfilerPerformanceCountersINTEL
         : public DeviceProfilerPerformanceCounters
     {
     public:
-        ProfilerMetricsApi_INTEL();
+        DeviceProfilerPerformanceCountersINTEL();
 
         VkResult Initialize( struct VkDevice_Object* pDevice ) final;
         void Destroy() final;
@@ -71,9 +54,9 @@ namespace Profiler
         VkResult SetActiveMetricsSet( uint32_t metricsSetIndex ) final;
         uint32_t GetActiveMetricsSetIndex() const final;
 
-        void GetMetricsSets( std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& metricsSets ) const final;
-        void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetProperties2EXT& properties ) const final;
-        void GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics ) const final;
+        uint32_t GetMetricsSets( uint32_t count, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
+        void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
+        uint32_t GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const final;
 
         bool SupportsQueryPoolReuse() const final { return true; }
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
@@ -81,6 +64,7 @@ namespace Profiler
         void ParseReport(
             uint32_t metricsSetIndex,
             uint32_t queueFamilyIndex,
+            uint32_t reportSize,
             const uint8_t* pReport,
             std::vector<VkProfilerPerformanceCounterResultEXT>& results ) final;
 
@@ -88,6 +72,32 @@ namespace Profiler
         // Require at least version 1.1.
         static const uint32_t m_RequiredVersionMajor = 1;
         static const uint32_t m_MinRequiredVersionMinor = 1;
+
+        struct Counter
+        {
+            uint32_t m_MetricIndex;
+
+            MetricsDiscovery::IMetric_1_0* m_pMetric;
+            MetricsDiscovery::TMetricParams_1_0* m_pMetricParams;
+
+            VkProfilerPerformanceCounterUnitEXT m_Unit;
+            VkProfilerPerformanceCounterStorageEXT m_Storage;
+
+            // Some metrics are reported in premultiplied units, e.g., MHz.
+            // This vector contains factors applied to each metric in output reports.
+            double m_ResultFactor;
+
+            // Metrics discovery API does not provide UUIDs for metrics.
+            uint8_t m_UUID[VK_UUID_SIZE];
+        };
+
+        struct MetricsSet
+        {
+            MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
+            MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
+
+            std::vector<Counter> m_Counters;
+        };
 
         #ifdef WIN32
         HMODULE m_hMDDll;
@@ -103,8 +113,7 @@ namespace Profiler
         MetricsDiscovery::IConcurrentGroup_1_1* m_pConcurrentGroup;
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
-        std::vector<ProfilerMetricsSet_INTEL> m_MetricsSets;
-        std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> m_MetricsSetsProperties;
+        std::vector<MetricsSet> m_MetricsSets;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
         uint32_t                              m_ActiveMetricsSetIndex;
@@ -120,6 +129,10 @@ namespace Profiler
 
         void ResetMembers();
 
-        static VkProfilerPerformanceCounterUnitEXT TranslateUnit( const char* pUnit, double& factor );
+        static void FillPerformanceMetricsSetProperties( const MetricsSet& metricsSet, VkProfilerPerformanceMetricsSetProperties2EXT& properties );
+        static void FillPerformanceCounterProperties( const Counter& counter, VkProfilerPerformanceCounterProperties2EXT& properties );
+
+        static bool TranslateStorage( MetricsDiscovery::EMetricResultType resultType, VkProfilerPerformanceCounterStorageEXT& storage );
+        static bool TranslateUnit( const char* pUnit, double& factor, VkProfilerPerformanceCounterUnitEXT& unit );
     };
 }

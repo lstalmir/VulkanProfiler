@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1222,14 +1222,15 @@ namespace Profiler
             // Read vendor-specific data
             if( reader.HasPerformanceQueryResult() )
             {
-                assert( m_Profiler.m_pPerformanceCounters != nullptr );
-
                 const uint32_t performanceQueryMetricsSetIndex = reader.GetPerformanceQueryMetricsSetIndex();
+                const uint32_t performanceQueryResultSize = reader.GetPerformanceQueryResultSize();
                 const uint8_t* pPerformanceQueryResult = reader.ReadPerformanceQueryResult();
 
+                assert( m_Profiler.m_pPerformanceCounters != nullptr );
                 m_Profiler.m_pPerformanceCounters->ParseReport(
                     performanceQueryMetricsSetIndex,
                     m_CommandPool.GetQueueFamilyIndex(),
+                    performanceQueryResultSize,
                     pPerformanceQueryResult,
                     m_Data.m_PerformanceCounters.m_Results );
 

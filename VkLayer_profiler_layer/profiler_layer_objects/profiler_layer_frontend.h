@@ -58,13 +58,14 @@ namespace Profiler
         const std::unordered_map<VkQueue, VkQueue_Object>& GetDeviceQueues() final;
 
         bool SupportsCustomPerformanceMetricsSets() final;
-        uint32_t CreateCustomPerformanceMetricsSet( const std::string& name, const std::string& description, const std::vector<uint32_t>& counters ) final;
+        uint32_t CreateCustomPerformanceMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) final;
         void DestroyCustomPerformanceMetricsSet( uint32_t setIndex ) final;
-        void GetPerformanceCounterProperties( std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics ) final;
-        void GetAvailablePerformanceCounters( const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters ) final;
-        void GetPerformanceMetricsSets( std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& sets ) final;
-        void GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT& properties ) final;
-        void GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics ) final;
+        uint32_t GetPerformanceCounterProperties( uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) final;
+        uint32_t GetPerformanceMetricsSets( uint32_t setCount, VkProfilerPerformanceMetricsSetProperties2EXT* pSets ) final;
+        void GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) final;
+        uint32_t GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) final;
+        uint32_t GetPerformanceCounterRequiredPasses( uint32_t counterCount, const uint32_t* pCounters ) final;
+        void GetAvailablePerformanceCounters( uint32_t selectedCounterCount, const uint32_t* pSelectedCounters, uint32_t& availableCounterCount, uint32_t* pAvailableCounters ) final;
         VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) final;
         uint32_t GetPerformanceMetricsSetIndex() final;
 

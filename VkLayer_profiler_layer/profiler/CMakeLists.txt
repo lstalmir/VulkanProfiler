@@ -36,6 +36,7 @@ set (headers
     "profiler_memory_manager.h"
     "profiler_memory_tracker.h"
     "profiler_performance_counters.h"
+    "profiler_performance_counters_intel.h"
     "profiler_query_pool.h"
     "profiler_resources.h"
     "profiler_shader.h"
@@ -53,7 +54,8 @@ set (sources
     "profiler_data_aggregator.cpp"
     "profiler_memory_manager.cpp"
     "profiler_memory_tracker.cpp"
-    "profiler_performance_counters.cpp"
+    "profiler_performance_counters_khr.cpp"
+    "profiler_performance_counters_intel.cpp"
     "profiler_query_pool.cpp"
     "profiler_shader.cpp"
     "profiler_sync.cpp"
@@ -65,16 +67,10 @@ set (sources
     "profiler_helpers_linux.cpp"
     )
 
-set (intel
-    "intel/profiler_metrics_api.h"
-    "intel/profiler_metrics_api.cpp"
-    )
-
 # Link intermediate static library
 add_library (profiler
     ${sources}
-    ${headers}
-    ${intel})
+    ${headers})
 
 target_link_libraries (profiler
     PUBLIC profiler_common

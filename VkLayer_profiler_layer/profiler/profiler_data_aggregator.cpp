@@ -23,7 +23,7 @@
 #include "profiler_query_pool.h"
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
-#include "intel/profiler_metrics_api.h"
+#include "profiler_performance_counters.h"
 #include <assert.h>
 #include <algorithm>
 #include <unordered_set>
@@ -534,7 +534,7 @@ namespace Profiler
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
         frameData.m_TopPipelines = CollectTopPipelines( frame );
-        frameData.m_FramePerformanceCounters = AggregatePerformanceMetrics( frame );
+        frameData.m_PerformanceCounters = AggregatePerformanceMetrics( frame );
 
         frameData.m_Ticks = 0;
         frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
@@ -615,9 +615,8 @@ namespace Profiler
         auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
         if( pPerformanceCounters )
         {
-            // Check if vendor metrics set has changed.
+            // Check if metrics set has changed.
             const uint32_t activeMetricsSetIndex = pPerformanceCounters->GetActiveMetricsSetIndex();
-
             if( m_PerformanceMetricsSetIndex != activeMetricsSetIndex )
             {
                 m_PerformanceMetricsSetIndex = activeMetricsSetIndex;
@@ -625,7 +624,13 @@ namespace Profiler
 
                 if( m_PerformanceMetricsSetIndex != UINT32_MAX )
                 {
-                    pPerformanceCounters->GetMetricsSetMetricsProperties( m_PerformanceMetricsSetIndex, m_PerformanceMetricProperties );
+                    const uint32_t metricCount = pPerformanceCounters->GetMetricsCount( m_PerformanceMetricsSetIndex );
+                    m_PerformanceMetricProperties.resize( metricCount );
+
+                    pPerformanceCounters->GetMetricsSetMetricsProperties(
+                        m_PerformanceMetricsSetIndex,
+                        metricCount,
+                        m_PerformanceMetricProperties.data() );
                 }
             }
         }

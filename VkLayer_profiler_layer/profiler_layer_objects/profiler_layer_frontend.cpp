@@ -181,14 +181,9 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerLayerFrontend::SupportsCustomPerformanceMetricsSets()
     {
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
-        {
-            return m_pProfiler->m_pPerformanceCounters->SupportsCustomMetricsSets();
-        }
-
         return false;
     }
-
+    
     /***********************************************************************************\
 
     Function:
@@ -198,11 +193,12 @@ namespace Profiler
         Creates a custom performance metrics set.
 
     \***********************************************************************************/
-    uint32_t DeviceProfilerLayerFrontend::CreateCustomPerformanceMetricsSet( const std::string& name, const std::string& description, const std::vector<uint32_t>& counters )
+    uint32_t DeviceProfilerLayerFrontend::CreateCustomPerformanceMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo )
     {
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            return m_pProfiler->m_pPerformanceCounters->CreateCustomMetricsSet( name, description, counters );
+            return pPerformanceCounters->CreateCustomMetricsSet( pCreateInfo );
         }
 
         return UINT32_MAX;
@@ -219,46 +215,31 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerLayerFrontend::DestroyCustomPerformanceMetricsSet( uint32_t setIndex )
     {
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            m_pProfiler->m_pPerformanceCounters->DestroyCustomMetricsSet( setIndex );
+            return pPerformanceCounters->DestroyCustomMetricsSet( setIndex );
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        DestroyCustomPerformanceMetricsSet
+        GetPerformanceCounterProperties
 
     Description:
-        Destroys the custom performance metrics set.
+        Returns list of performance counters that can be used to create custom metrics sets.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics )
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters )
     {
-        metrics.clear();
-
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            m_pProfiler->m_pPerformanceCounters->GetMetricsProperties( metrics );
+            return pPerformanceCounters->GetMetricsProperties( counterCount, pCounters );
         }
-    }
 
-    /***********************************************************************************\
-
-    Function:
-        GetAvailablePerformanceCounters
-
-    Description:
-        Updates the list of available performance counters for a given queue family.
-
-    \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetAvailablePerformanceCounters( const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters )
-    {
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
-        {
-            m_pProfiler->m_pPerformanceCounters->GetAvailableMetrics( allocatedCounters, availableCounters );
-        }
+        return 0;
     }
 
     /***********************************************************************************\
@@ -270,13 +251,32 @@ namespace Profiler
         Returns list of available performance metrics sets.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSets( std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& sets )
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceMetricsSets( uint32_t setCount, VkProfilerPerformanceMetricsSetProperties2EXT* pSets )
     {
-        sets.clear();
-
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            m_pProfiler->m_pPerformanceCounters->GetMetricsSets( sets );
+            return pPerformanceCounters->GetMetricsSets( setCount, pSets );
+        }
+
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceMetricsSetProperties
+
+    Description:
+        Returns properties of a given performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pSet )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            pPerformanceCounters->GetMetricsSetProperties( setIndex, pSet );
         }
     }
 
@@ -289,33 +289,59 @@ namespace Profiler
         Returns list of performance counter properties for a given metrics set.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT& properties )
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters )
     {
-        memset( &properties, 0, sizeof( properties ) );
-
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            m_pProfiler->m_pPerformanceCounters->GetMetricsSetProperties( setIndex, properties );
+            return pPerformanceCounters->GetMetricsSetMetricsProperties( setIndex, counterCount, pCounters );
         }
+
+        return 0;
     }
 
     /***********************************************************************************\
 
     Function:
-        GetPerformanceMetricsSetCounterProperties
+        GetPerformanceCounterRequiredPasses
 
     Description:
-        Returns list of performance counter properties for a given metrics set.
+        Returns number of passes required to capture all selected performance counters.
 
     \***********************************************************************************/
-    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics )
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceCounterRequiredPasses( uint32_t counterCount, const uint32_t* pCounters )
     {
-        metrics.clear();
-
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            m_pProfiler->m_pPerformanceCounters->GetMetricsSetMetricsProperties( setIndex, metrics );
+            return pPerformanceCounters->GetRequiredPasses( counterCount, pCounters );
         }
+
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetPreformanceMetricsSetIndex
+
+    Description:
+        Sets the active performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::GetAvailablePerformanceCounters( uint32_t selectedCounterCount, const uint32_t* pSelectedCounters, uint32_t& availableCounterCount, uint32_t* pAvailableCounters )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetAvailableMetrics(
+                selectedCounterCount,
+                pSelectedCounters,
+                availableCounterCount,
+                pAvailableCounters );
+        }
+
+        availableCounterCount = 0;
     }
 
     /***********************************************************************************\
@@ -329,12 +355,13 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerLayerFrontend::SetPreformanceMetricsSetIndex( uint32_t setIndex )
     {
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            return m_pProfiler->m_pPerformanceCounters->SetActiveMetricsSet( setIndex );
+            return pPerformanceCounters->SetActiveMetricsSet( setIndex );
         }
 
-        return VK_ERROR_FEATURE_NOT_PRESENT;
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
     /***********************************************************************************\
@@ -348,9 +375,10 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t DeviceProfilerLayerFrontend::GetPerformanceMetricsSetIndex()
     {
-        if( m_pProfiler->m_pPerformanceCounters != nullptr )
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
         {
-            return m_pProfiler->m_pPerformanceCounters->GetActiveMetricsSetIndex();
+            return pPerformanceCounters->GetActiveMetricsSetIndex();
         }
 
         return UINT32_MAX;

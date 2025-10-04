@@ -133,7 +133,7 @@ namespace Profiler
         // Command pools used for copying query data
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
-        // Performance counter properties
+        // Performance metric properties
         std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceMetricProperties;
         uint32_t m_PerformanceMetricsSetIndex;
 

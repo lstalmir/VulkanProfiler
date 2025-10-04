@@ -20,6 +20,7 @@
 
 #include "profiler.h"
 #include "profiler_command_buffer.h"
+#include "profiler_performance_counters_intel.h"
 #include "profiler_helpers.h"
 #include <farmhash.h>
 #include <inttypes.h>
@@ -139,6 +140,7 @@ namespace Profiler
         , m_MemoryTracker()
         , m_pCommandBuffers()
         , m_pCommandPools()
+        , m_pPerformanceCounters( nullptr )
         , m_PipelineExecutablePropertiesEnabled( false )
         , m_ShaderModuleIdentifierEnabled( false )
         , m_pStablePowerStateHandle( nullptr )
@@ -403,11 +405,11 @@ namespace Profiler
         // Prepare for memory usage tracking
         m_MemoryTracker.Initialize( m_pDevice );
 
-        // Enable performance counters
+        // Enable performance counters if available
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
             // Use INTEL performance query extension.
-            m_pPerformanceCounters = std::make_unique<ProfilerMetricsApi_INTEL>();
+            m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersINTEL>();
         }
         else if( m_pDevice->EnabledExtensions.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
@@ -538,7 +540,7 @@ namespace Profiler
 
         m_DataAggregator.Destroy();
 
-        if( m_pPerformanceCounters != nullptr )
+        if( m_pPerformanceCounters )
         {
             m_pPerformanceCounters->Destroy();
             m_pPerformanceCounters.reset();

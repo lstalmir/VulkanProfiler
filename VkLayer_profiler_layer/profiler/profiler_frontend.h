@@ -58,13 +58,14 @@ namespace Profiler
         virtual const std::unordered_map<VkQueue, struct VkQueue_Object>& GetDeviceQueues() = 0;
 
         virtual bool SupportsCustomPerformanceMetricsSets() = 0;
-        virtual uint32_t CreateCustomPerformanceMetricsSet( const std::string& name, const std::string& description, const std::vector<uint32_t>& counters ) = 0;
+        virtual uint32_t CreateCustomPerformanceMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) = 0;
         virtual void DestroyCustomPerformanceMetricsSet( uint32_t setIndex ) = 0;
-        virtual void GetPerformanceCounterProperties( std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics ) = 0;
-        virtual void GetAvailablePerformanceCounters( const std::vector<uint32_t>& allocatedCounters, std::vector<uint32_t>& availableCounters ) = 0;
-        virtual void GetPerformanceMetricsSets( std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& sets ) = 0;
-        virtual void GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT& properties ) = 0;
-        virtual void GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, std::vector<VkProfilerPerformanceCounterProperties2EXT>& metrics ) = 0;
+        virtual uint32_t GetPerformanceCounterProperties( uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) = 0;
+        virtual uint32_t GetPerformanceMetricsSets( uint32_t setCount, VkProfilerPerformanceMetricsSetProperties2EXT* pSets ) = 0;
+        virtual void GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) = 0;
+        virtual uint32_t GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) = 0;
+        virtual uint32_t GetPerformanceCounterRequiredPasses( uint32_t counterCount, const uint32_t* pCounters ) = 0;
+        virtual void GetAvailablePerformanceCounters( uint32_t selectedCounterCount, const uint32_t* pSelectedCounters, uint32_t& availableCounterCount, uint32_t* pAvailableCounters ) = 0;
         virtual VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) = 0;
         virtual uint32_t GetPerformanceMetricsSetIndex() = 0;
 

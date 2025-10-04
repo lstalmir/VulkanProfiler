@@ -28,6 +28,7 @@
 #include "profiler_memory_tracker.h"
 #include "profiler_data.h"
 #include "profiler_sync.h"
+#include "profiler_performance_counters.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
@@ -39,9 +40,6 @@
 #include <functional>
 
 #include "lockable_unordered_map.h"
-
-// Vendor APIs
-#include "intel/profiler_metrics_api.h"
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"

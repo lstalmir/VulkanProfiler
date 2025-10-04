@@ -23,6 +23,26 @@
 
 using namespace Profiler;
 
+struct VkProfilerPerformanceCounterProperties2EXT_Initialized
+    : public VkProfilerPerformanceCounterProperties2EXT
+{
+    VkProfilerPerformanceCounterProperties2EXT_Initialized()
+    {
+        memset( this, 0, sizeof( *this ) );
+        sType = VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTER_PROPERTIES_2_EXT;
+    }
+};
+
+struct VkProfilerPerformanceMetricsSetProperties2EXT_Initialized
+    : public VkProfilerPerformanceMetricsSetProperties2EXT
+{
+    VkProfilerPerformanceMetricsSetProperties2EXT_Initialized()
+    {
+        memset( this, 0, sizeof( *this ) );
+        sType = VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_METRICS_SET_PROPERTIES_2_EXT;
+    }
+};
+
 /***************************************************************************************\
 
 Class:
@@ -110,7 +130,25 @@ private:
             { DeviceProfilerDrawcallType::eResolveImage,                VK_PROFILER_COMMAND_RESOLVE_IMAGE_EXT },
             { DeviceProfilerDrawcallType::eBlitImage,                   VK_PROFILER_COMMAND_BLIT_IMAGE_EXT },
             { DeviceProfilerDrawcallType::eFillBuffer,                  VK_PROFILER_COMMAND_FILL_BUFFER_EXT },
-            { DeviceProfilerDrawcallType::eUpdateBuffer,                VK_PROFILER_COMMAND_UPDATE_BUFFER_EXT }
+            { DeviceProfilerDrawcallType::eUpdateBuffer,                VK_PROFILER_COMMAND_UPDATE_BUFFER_EXT },
+            { DeviceProfilerDrawcallType::eDrawMeshTasks,               VK_PROFILER_COMMAND_DRAW_MESH_TASKS_EXT },
+            { DeviceProfilerDrawcallType::eDrawMeshTasksIndirect,       VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_EXT },
+            { DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount,  VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_COUNT_EXT },
+            { DeviceProfilerDrawcallType::eDrawMeshTasksNV,             VK_PROFILER_COMMAND_DRAW_MESH_TASKS_NV_EXT },
+            { DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV,     VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_NV_EXT },
+            { DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV, VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_COUNT_NV_EXT },
+            { DeviceProfilerDrawcallType::eTraceRaysKHR,                VK_PROFILER_COMMAND_TRACE_RAYS_EXT },
+            { DeviceProfilerDrawcallType::eTraceRaysIndirectKHR,        VK_PROFILER_COMMAND_TRACE_RAYS_INDIRECT_EXT },
+            { DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR,       VK_PROFILER_COMMAND_TRACE_RAYS_INDIRECT2_EXT },
+            { DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR, VK_PROFILER_COMMAND_BUILD_ACCELERATION_STRUCTURES_EXT },
+            { DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR, VK_PROFILER_COMMAND_BUILD_ACCELERATION_STRUCTURES_INDIRECT_EXT },
+            { DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR, VK_PROFILER_COMMAND_COPY_ACCELERATION_STRUCTURE_EXT },
+            { DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR, VK_PROFILER_COMMAND_COPY_ACCELERATION_STRUCTURE_TO_MEMORY_EXT },
+            { DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR, VK_PROFILER_COMMAND_COPY_MEMORY_TO_ACCELERATION_STRUCTURE_EXT },
+            { DeviceProfilerDrawcallType::eBuildMicromapsEXT,           VK_PROFILER_COMMAND_BUILD_MICROMAP_EXT },
+            { DeviceProfilerDrawcallType::eCopyMicromapEXT,             VK_PROFILER_COMMAND_COPY_MICROMAP_EXT },
+            { DeviceProfilerDrawcallType::eCopyMicromapToMemoryEXT,     VK_PROFILER_COMMAND_COPY_MICROMAP_TO_MEMORY_EXT },
+            { DeviceProfilerDrawcallType::eCopyMemoryToMicromapEXT,     VK_PROFILER_COMMAND_COPY_MEMORY_TO_MICROMAP_EXT }
         };
 
         auto it = commandTypes.find( type );
@@ -418,6 +456,221 @@ VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
 /***************************************************************************************\
 
 Function:
+    vkGetProfilerCustomPerfomanceMetricsSetsSupportEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerCustomPerfomanceMetricsSetsSupportEXT(
+    VkDevice device,
+    VkBool32* pSupported )
+{
+    ( *pSupported ) = VkDevice_Functions::DeviceDispatch.Get( device ).ProfilerFrontend.SupportsCustomPerformanceMetricsSets();
+}
+
+/***************************************************************************************\
+
+Function:
+    vkCreateProfilerCustomPerformanceMetricsSetEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateProfilerCustomPerformanceMetricsSetEXT(
+    VkDevice device,
+    const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo,
+    const VkAllocationCallbacks* pAllocator, 
+    uint32_t* pMetricsSetIndex )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    if( !pCreateInfo || !pMetricsSetIndex )
+    {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    ( *pMetricsSetIndex ) = dd.ProfilerFrontend.CreateCustomPerformanceMetricsSet( pCreateInfo );
+
+    if( *pMetricsSetIndex == UINT32_MAX )
+    {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkDestroyProfilerCustomPerformanceMetricsSetEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkDestroyProfilerCustomPerformanceMetricsSetEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex,
+    const VkAllocationCallbacks* pAllocator )
+{
+    VkDevice_Functions::DeviceDispatch.Get( device ).ProfilerFrontend.DestroyCustomPerformanceMetricsSet( metricsSetIndex );
+}
+
+/***************************************************************************************\
+
+Function:
+    vkEnumerateProfilerPerformanceMetricsEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsEXT(
+    VkDevice device,
+    uint32_t* pProfilerMetricCount,
+    VkProfilerPerformanceCounterProperties2EXT* pProfilerMetricProperties )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    // Get number of metrics.
+    if( pProfilerMetricProperties == nullptr )
+    {
+        ( *pProfilerMetricCount ) = dd.ProfilerFrontend.GetPerformanceCounterProperties( 0, nullptr );
+        return VK_SUCCESS;
+    }
+
+    // Get metrics properties.
+    const uint32_t metricCount = dd.ProfilerFrontend.GetPerformanceCounterProperties(
+        *pProfilerMetricCount,
+        pProfilerMetricProperties );
+
+    // Check if the output buffer was sufficient.
+    const uint32_t maxMetricCount = std::min( *pProfilerMetricCount, metricCount );
+    const uint32_t bufferSize = std::exchange( *pProfilerMetricCount, maxMetricCount );
+    if( bufferSize < metricCount )
+    {
+        return VK_INCOMPLETE;
+    }
+
+    return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkEnumerateProfilerPerformanceMetricsSets2EXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSets2EXT(
+    VkDevice device,
+    uint32_t* pProfilerMetricSetCount,
+    VkProfilerPerformanceMetricsSetProperties2EXT* pProfilerMetricSetProperties )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    // Get number of sets.
+    if( pProfilerMetricSetProperties == nullptr )
+    {
+        ( *pProfilerMetricSetCount ) = dd.ProfilerFrontend.GetPerformanceMetricsSets( 0, nullptr );
+        return VK_SUCCESS;
+    }
+
+    // Get metrics set properties.
+    const uint32_t setCount = dd.ProfilerFrontend.GetPerformanceMetricsSets(
+        *pProfilerMetricSetCount,
+        pProfilerMetricSetProperties );
+
+    // Check if the output buffer was sufficient.
+    const uint32_t writtenSetCount = std::min( *pProfilerMetricSetCount, setCount );
+    const uint32_t bufferSize = std::exchange( *pProfilerMetricSetCount, writtenSetCount );
+    if( bufferSize < setCount )
+    {
+        return VK_INCOMPLETE;
+    }
+
+    return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkEnumerateProfilerPerformanceMetricsSetMetricsEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetMetricsEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex,
+    uint32_t* pProfilerMetricCount,
+    VkProfilerPerformanceCounterProperties2EXT* pProfilerMetricProperties )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    // Get number of metrics in the set.
+    if( pProfilerMetricProperties == nullptr )
+    {
+        ( *pProfilerMetricCount ) = dd.ProfilerFrontend.GetPerformanceMetricsSetCounterProperties(
+            metricsSetIndex, 0, nullptr );
+        return VK_SUCCESS;
+    }
+
+    // Get metrics set counter properties.
+    const uint32_t propertyCount = dd.ProfilerFrontend.GetPerformanceMetricsSetCounterProperties(
+        metricsSetIndex,
+        *pProfilerMetricCount,
+        pProfilerMetricProperties );
+
+    // Check if the output buffer was sufficient.
+    const uint32_t writtenPropertyCount = std::min( *pProfilerMetricCount, propertyCount );
+    const uint32_t bufferSize = std::exchange( *pProfilerMetricCount, writtenPropertyCount );
+    if( bufferSize < propertyCount )
+    {
+        return VK_INCOMPLETE;
+    }
+
+    return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkGetProfilerPerformanceMetricsRequiredPassesEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerPerformanceMetricsRequiredPassesEXT(
+    VkDevice device,
+    uint32_t metricsCount,
+    uint32_t* pMetricsIndices,
+    uint32_t* pRequiredPassCount )
+{
+    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
+
+    if( !pRequiredPassCount ||
+        ( metricsCount && !pMetricsIndices ) )
+    {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    if( metricsCount )
+    {
+        ( *pRequiredPassCount ) = dd.ProfilerFrontend.GetPerformanceCounterRequiredPasses(
+            metricsCount,
+            pMetricsIndices );
+    }
+    else
+    {
+        ( *pRequiredPassCount ) = 0;
+    }
+
+    return VK_SUCCESS;
+}
+
+/***************************************************************************************\
+
+Function:
     vkEnumerateProfilerPerformanceCounterPropertiesEXT
 
 Description:
@@ -431,50 +684,46 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    if( dd.Profiler.m_pPerformanceCounters != nullptr )
+    // Get number of properties in the metrics set.
+    if( pProfilerMetricProperties == nullptr )
     {
-        // Return metrics supported by Intel Metrics Discovery API.
-        std::vector<VkProfilerPerformanceCounterProperties2EXT> properties;
-        dd.Profiler.m_pPerformanceCounters->GetMetricsSetMetricsProperties( metricsSetIndex, properties );
-
-        const uint32_t propertyCount = static_cast<uint32_t>( properties.size() );
-
-        if( pProfilerMetricProperties == nullptr )
-        {
-            ( *pProfilerMetricCount ) = propertyCount;
-            return VK_SUCCESS;
-        }
-
-        // Copy metrics set properties to the output buffer.
-        const uint32_t maxPropertyCount = std::min( *pProfilerMetricCount, propertyCount );
-        for( uint32_t i = 0; i < maxPropertyCount; ++i )
-        {
-            ProfilerStringFunctions::CopyString(
-                pProfilerMetricProperties[i].shortName,
-                std::size( pProfilerMetricProperties[i].shortName ),
-                properties[i].name,
-                std::size( properties[i].name ) );
-
-            ProfilerStringFunctions::CopyString(
-                pProfilerMetricProperties[i].description,
-                std::size( pProfilerMetricProperties[i].description ),
-                properties[i].description,
-                std::size( properties[i].description ) );
-
-            pProfilerMetricProperties[i].unit = properties[i].unit;
-            pProfilerMetricProperties[i].storage = properties[i].storage;
-        }
-
-        // Check if the output buffer was sufficient.
-        const uint32_t bufferSize = std::exchange( *pProfilerMetricCount, maxPropertyCount );
-        if( bufferSize < propertyCount )
-        {
-            return VK_INCOMPLETE;
-        }
+        ( *pProfilerMetricCount ) = dd.ProfilerFrontend.GetPerformanceMetricsSetCounterProperties(
+            metricsSetIndex, 0, nullptr );
+        return VK_SUCCESS;
     }
-    else
+
+    // Allocate temporary storage for properties.
+    std::vector<VkProfilerPerformanceCounterProperties2EXT_Initialized> properties( *pProfilerMetricCount );
+    const uint32_t propertyCount = dd.ProfilerFrontend.GetPerformanceMetricsSetCounterProperties(
+        metricsSetIndex,
+        *pProfilerMetricCount,
+        properties.data() );
+
+    // Copy metrics set properties to the output buffer.
+    const uint32_t maxPropertyCount = std::min( *pProfilerMetricCount, propertyCount );
+    for( uint32_t i = 0; i < maxPropertyCount; ++i )
     {
-        ( *pProfilerMetricCount ) = 0;
+        ProfilerStringFunctions::CopyString(
+            pProfilerMetricProperties[i].shortName,
+            std::size( pProfilerMetricProperties[i].shortName ),
+            properties[i].shortName,
+            std::size( properties[i].shortName ) );
+
+        ProfilerStringFunctions::CopyString(
+            pProfilerMetricProperties[i].description,
+            std::size( pProfilerMetricProperties[i].description ),
+            properties[i].description,
+            std::size( properties[i].description ) );
+
+        pProfilerMetricProperties[i].storage = properties[i].storage;
+        pProfilerMetricProperties[i].unit = properties[i].unit;
+    }
+
+    // Check if the output buffer was sufficient.
+    const uint32_t bufferSize = std::exchange( *pProfilerMetricCount, maxPropertyCount );
+    if( bufferSize < propertyCount )
+    {
+        return VK_INCOMPLETE;
     }
 
     return VK_SUCCESS;
@@ -483,7 +732,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEX
 /***************************************************************************************\
 
 Function:
-    vkSetProfilerPerformanceMetricsSetNameEXT
+    vkEnumerateProfilerPerformanceMetricsSetsEXT
 
 Description:
 
@@ -495,45 +744,37 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    VkResult result = VK_SUCCESS;
-
-    if( dd.Profiler.m_pPerformanceCounters != nullptr )
+    // Get number of metrics sets.
+    if( pMetricSets == nullptr )
     {
-        // Return metrics sets supported by Intel Metrics Discovery API.
-        std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> metricsSets;
-        dd.Profiler.m_pPerformanceCounters->GetMetricsSets( metricsSets );
-
-        const uint32_t metricsSetCount = static_cast<uint32_t>( metricsSets.size() );
-
-        if( pMetricSets == nullptr )
-        {
-            ( *pMetricsSetCount ) = metricsSetCount;
-            return VK_SUCCESS;
-        }
-
-        // Copy metrics set properties to the output buffer.
-        const uint32_t maxMetricsSetCount = std::min( *pMetricsSetCount, metricsSetCount );
-        for( uint32_t i = 0; i < maxMetricsSetCount; ++i )
-        {
-            ProfilerStringFunctions::CopyString(
-                pMetricSets[i].name,
-                std::size( pMetricSets[i].name ),
-                metricsSets[i].name,
-                std::size( metricsSets[i].name ) );
-
-            pMetricSets[i].metricsCount = metricsSets[i].metricsCount;
-        }
-
-        // Check if the output buffer was sufficient.
-        const uint32_t bufferSize = std::exchange( *pMetricsSetCount, maxMetricsSetCount );
-        if( bufferSize < metricsSetCount )
-        {
-            return VK_INCOMPLETE;
-        }
+        ( *pMetricsSetCount ) = dd.ProfilerFrontend.GetPerformanceMetricsSets( 0, nullptr );
+        return VK_SUCCESS;
     }
-    else
+
+    // Allocate temporary storage for properties.
+    std::vector<VkProfilerPerformanceMetricsSetProperties2EXT_Initialized> properties( *pMetricsSetCount );
+    const uint32_t metricsSetCount = dd.ProfilerFrontend.GetPerformanceMetricsSets(
+        *pMetricsSetCount,
+        properties.data() );
+
+    // Copy metrics set properties to the output buffer.
+    const uint32_t maxMetricsSetCount = std::min( *pMetricsSetCount, metricsSetCount );
+    for( uint32_t i = 0; i < maxMetricsSetCount; ++i )
     {
-        ( *pMetricsSetCount ) = 0;
+        ProfilerStringFunctions::CopyString(
+            pMetricSets[i].name,
+            std::size( pMetricSets[i].name ),
+            properties[i].name,
+            std::size( properties[i].name ) );
+
+        pMetricSets[i].metricsCount = properties[i].metricsCount;
+    }
+
+    // Check if the output buffer was sufficient.
+    const uint32_t bufferSize = std::exchange( *pMetricsSetCount, maxMetricsSetCount );
+    if( bufferSize < metricsSetCount )
+    {
+        return VK_INCOMPLETE;
     }
 
     return VK_SUCCESS;
@@ -551,14 +792,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkSetProfilerPerformanceMetricsSetEXT(
     VkDevice device,
     uint32_t metricsSetIndex )
 {
-    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-
-    if( dd.Profiler.m_pPerformanceCounters != nullptr )
-    {
-        return dd.Profiler.m_pPerformanceCounters->SetActiveMetricsSet( metricsSetIndex );
-    }
-
-    return VK_ERROR_FEATURE_NOT_PRESENT;
+    return VkDevice_Functions::DeviceDispatch.Get( device ).ProfilerFrontend.SetPreformanceMetricsSetIndex( metricsSetIndex );
 }
 
 /***************************************************************************************\
@@ -573,14 +807,5 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
     VkDevice device,
     uint32_t* pIndex )
 {
-    auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
-
-    if( dd.Profiler.m_pPerformanceCounters != nullptr )
-    {
-        ( *pIndex ) = dd.Profiler.m_pPerformanceCounters->GetActiveMetricsSetIndex();
-    }
-    else
-    {
-        ( *pIndex ) = UINT32_MAX;
-    }
+    (*pIndex) = VkDevice_Functions::DeviceDispatch.Get( device ).ProfilerFrontend.GetPerformanceMetricsSetIndex();
 }
