@@ -39,7 +39,7 @@ namespace Profiler
         MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
         MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_MetricsProperties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_MetricsProperties;
 
         // Some metrics are reported in premultiplied units, e.g., MHz
         // This vector contains factors applied to each metric in output reports
@@ -71,8 +71,8 @@ namespace Profiler
         VkResult SetActiveMetricsSet( uint32_t metricsSetIndex );
         uint32_t GetActiveMetricsSetIndex() const;
 
-        const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& GetMetricsSets() const;
-        const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& GetMetricsProperties( uint32_t metricsSetIndex ) const;
+        const std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& GetMetricsSets() const;
+        const std::vector<VkProfilerPerformanceCounterProperties2EXT>& GetMetricsProperties( uint32_t metricsSetIndex ) const;
 
         void ParseReport(
             uint32_t                                            metricsSetIndex,
@@ -100,7 +100,7 @@ namespace Profiler
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
         std::vector<ProfilerMetricsSet_INTEL> m_MetricsSets;
-        std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT> m_MetricsSetsProperties;
+        std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> m_MetricsSetsProperties;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
         uint32_t                              m_ActiveMetricsSetIndex;

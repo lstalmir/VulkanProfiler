@@ -23,29 +23,29 @@
 
 #ifndef VK_EXT_profiler
 #define VK_EXT_profiler 1
-#define VK_EXT_PROFILER_SPEC_VERSION 4
+#define VK_EXT_PROFILER_SPEC_VERSION 5
 #define VK_EXT_PROFILER_EXTENSION_NAME "VK_EXT_profiler"
 
 #define VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT ((VkStructureType)1000999000)
 #define VK_STRUCTURE_TYPE_PROFILER_DATA_EXT ((VkStructureType)1000999001)
 #define VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT ((VkStructureType)1000999002)
 #define VK_STRUCTURE_TYPE_PROFILER_RENDER_PASS_DATA_EXT ((VkStructureType)1000999003)
+#define VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTER_PROPERTIES_2_EXT ((VkStructureType)1000999004)
+#define VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_METRICS_SET_PROPERTIES_2_EXT ((VkStructureType)1000999005)
 
-enum VkProfilerCreateFlagBitsEXT
+typedef enum VkProfilerCreateFlagBitsEXT
 {
     VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT = 1,
     VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT = 2,
     VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT = 4,
-    VK_PROFILER_CREATE_NO_STABLE_POWER_STATE = 8,
-    VK_PROFILER_CREATE_NO_STABLE_POWER_STATE_EXT = VK_PROFILER_CREATE_NO_STABLE_POWER_STATE,
-    VK_PROFILER_CREATE_NO_THREADING_EXT = 16,
-    VK_PROFILER_CREATE_NO_MEMORY_PROFILING_EXT = 32,
+    VK_PROFILER_CREATE_NO_STABLE_POWER_STATE_BIT_EXT = 8,
+    VK_PROFILER_CREATE_NO_THREADING_BIT_EXT = 16,
+    VK_PROFILER_CREATE_NO_MEMORY_PROFILING_BIT_EXT = 32,
     VK_PROFILER_CREATE_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
-};
-
+} VkProfilerCreateFlagBitsEXT;
 typedef VkFlags VkProfilerCreateFlagsEXT;
 
-enum VkProfilerModeEXT
+typedef enum VkProfilerModeEXT
 {
     VK_PROFILER_MODE_PER_DRAWCALL_EXT,
     VK_PROFILER_MODE_PER_PIPELINE_EXT,
@@ -54,9 +54,9 @@ enum VkProfilerModeEXT
     VK_PROFILER_MODE_PER_SUBMIT_EXT,
     VK_PROFILER_MODE_PER_FRAME_EXT,
     VK_PROFILER_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerModeEXT;
 
-enum VkProfilerRegionTypeEXT
+typedef enum VkProfilerRegionTypeEXT
 {
     VK_PROFILER_REGION_TYPE_FRAME_EXT,
     VK_PROFILER_REGION_TYPE_SUBMIT_EXT,
@@ -67,9 +67,9 @@ enum VkProfilerRegionTypeEXT
     VK_PROFILER_REGION_TYPE_PIPELINE_EXT,
     VK_PROFILER_REGION_TYPE_COMMAND_EXT,
     VK_PROFILER_REGION_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerRegionTypeEXT;
 
-enum VkProfilerCommandTypeEXT
+typedef enum VkProfilerCommandTypeEXT
 {
     VK_PROFILER_COMMAND_UNKNOWN_EXT,
     VK_PROFILER_COMMAND_DRAW_EXT,
@@ -91,17 +91,43 @@ enum VkProfilerCommandTypeEXT
     VK_PROFILER_COMMAND_BLIT_IMAGE_EXT,
     VK_PROFILER_COMMAND_FILL_BUFFER_EXT,
     VK_PROFILER_COMMAND_UPDATE_BUFFER_EXT,
+    VK_PROFILER_COMMAND_DRAW_MESH_TASKS_EXT,
+    VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_EXT,
+    VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_COUNT_EXT,
+    VK_PROFILER_COMMAND_DRAW_MESH_TASKS_NV_EXT,
+    VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_NV_EXT,
+    VK_PROFILER_COMMAND_DRAW_MESH_TASKS_INDIRECT_COUNT_NV_EXT,
+    VK_PROFILER_COMMAND_TRACE_RAYS_EXT,
+    VK_PROFILER_COMMAND_TRACE_RAYS_INDIRECT_EXT,
+    VK_PROFILER_COMMAND_TRACE_RAYS_INDIRECT2_EXT,
+    VK_PROFILER_COMMAND_BUILD_ACCELERATION_STRUCTURES_EXT,
+    VK_PROFILER_COMMAND_BUILD_ACCELERATION_STRUCTURES_INDIRECT_EXT,
+    VK_PROFILER_COMMAND_COPY_ACCELERATION_STRUCTURE_EXT,
+    VK_PROFILER_COMMAND_COPY_ACCELERATION_STRUCTURE_TO_MEMORY_EXT,
+    VK_PROFILER_COMMAND_COPY_MEMORY_TO_ACCELERATION_STRUCTURE_EXT,
+    VK_PROFILER_COMMAND_BUILD_MICROMAP_EXT,
+    VK_PROFILER_COMMAND_COPY_MICROMAP_EXT,
+    VK_PROFILER_COMMAND_COPY_MICROMAP_TO_MEMORY_EXT,
+    VK_PROFILER_COMMAND_COPY_MEMORY_TO_MICROMAP_EXT,
     VK_PROFILER_COMMAND_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerCommandTypeEXT;
 
-enum VkProfilerFrameDelimiterEXT
+typedef enum VkProfilerFrameDelimiterEXT
 {
     VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT,
     VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT,
     VK_PROFILER_FRAME_DELIMITER_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerFrameDelimiterEXT;
 
-enum VkProfilerPerformanceCounterUnitEXT
+typedef enum VkProfilerPerformanceCounterFlagBitsEXT
+{
+    VK_PROFILER_PERFORMANCE_COUNTER_PERFORMANCE_IMPACTING_BIT_EXT = 1,
+    VK_PROFILER_PERFORMANCE_COUNTER_CONCURRENTLY_IMPACTED_BIT_EXT = 2,
+    VK_PROFILER_PERFORMANCE_COUNTER_SCOPE_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkProfilerPerformanceCounterFlagBitsEXT;
+typedef VkFlags VkProfilerPerformanceCounterFlagsEXT;
+
+typedef enum VkProfilerPerformanceCounterUnitEXT
 {
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_EXT,
@@ -115,9 +141,9 @@ enum VkProfilerPerformanceCounterUnitEXT
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_HERTZ_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_UNIT_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerPerformanceCounterUnitEXT;
 
-enum VkProfilerPerformanceCounterStorageEXT
+typedef enum VkProfilerPerformanceCounterStorageEXT
 {
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT,
@@ -126,7 +152,7 @@ enum VkProfilerPerformanceCounterStorageEXT
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT,
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_MAX_ENUM_EXT = 0x7FFFFFFF
-};
+} VkProfilerPerformanceCounterStorageEXT;
 
 typedef struct VkProfilerCreateInfoEXT
 {
@@ -223,6 +249,19 @@ typedef struct VkProfilerPerformanceCounterPropertiesEXT
     VkProfilerPerformanceCounterStorageEXT storage;
 } VkProfilerPerformanceCounterPropertiesEXT;
 
+typedef struct VkProfilerPerformanceCounterProperties2EXT
+{
+    VkStructureType sType;
+    void* pNext;
+    VkProfilerPerformanceCounterFlagsEXT flags;
+    VkProfilerPerformanceCounterUnitEXT unit;
+    VkProfilerPerformanceCounterStorageEXT storage;
+    uint8_t uuid[ VK_UUID_SIZE ];
+    char shortName[ VK_MAX_DESCRIPTION_SIZE ];
+    char category[ VK_MAX_DESCRIPTION_SIZE ];
+    char description[ VK_MAX_DESCRIPTION_SIZE ];
+} VkProfilerPerformanceCounterProperties2EXT;
+
 typedef union VkProfilerPerformanceCounterResultEXT
 {
     int32_t     int32;
@@ -239,6 +278,25 @@ typedef struct VkProfilerPerformanceMetricsSetPropertiesEXT
     uint32_t metricsCount;
 } VkProfilerPerformanceMetricsSetPropertiesEXT;
 
+typedef struct VkProfilerPerformanceMetricsSetProperties2EXT
+{
+    VkStructureType sType;
+    void* pNext;
+    uint32_t metricsCount;
+    char name[ VK_MAX_DESCRIPTION_SIZE ];
+    char description[ VK_MAX_DESCRIPTION_SIZE ];
+} VkProfilerPerformanceMetricsSetProperties2EXT;
+
+typedef struct VkProfilerCustomPerformanceMetricsSetCreateInfoEXT
+{
+    VkStructureType sType;
+    const void* pNext;
+    uint32_t metricsCount;
+    const uint32_t* pMetricsIndices;
+    char name[ VK_MAX_DESCRIPTION_SIZE ];
+    char description[ VK_MAX_DESCRIPTION_SIZE ];
+} VkProfilerCustomPerformanceMetricsSetCreateInfoEXT;
+
 typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT);
 typedef void( VKAPI_PTR* PFN_vkGetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT*);
 typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerFrameDelimiterEXT )(VkDevice, VkProfilerFrameDelimiterEXT);
@@ -246,6 +304,13 @@ typedef void( VKAPI_PTR* PFN_vkGetProfilerFrameDelimiterEXT )(VkDevice, VkProfil
 typedef VkResult( VKAPI_PTR* PFN_vkGetProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
 typedef void( VKAPI_PTR* PFN_vkFreeProfilerFrameDataEXT )(VkDevice, VkProfilerDataEXT*);
 typedef VkResult( VKAPI_PTR* PFN_vkFlushProfilerEXT )(VkDevice);
+typedef void( VKAPI_PTR* PFN_vkGetProfilerCustomPerfomanceMetricsSetsSupportEXT )( VkDevice, VkBool32* );
+typedef VkResult( VKAPI_PTR* PFN_vkCreateProfilerCustomPerformanceMetricsSetEXT )( VkDevice, const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT*, const VkAllocationCallbacks*, uint32_t* );
+typedef void( VKAPI_PTR* PFN_vkDestroyProfilerCustomPerformanceMetricsSetEXT )( VkDevice, uint32_t, const VkAllocationCallbacks* );
+typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsEXT )( VkDevice, uint32_t*, VkProfilerPerformanceCounterProperties2EXT* );
+typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsSets2EXT )( VkDevice, uint32_t*, VkProfilerPerformanceMetricsSetProperties2EXT* );
+typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsSetMetricsEXT )( VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterProperties2EXT* );
+typedef VkResult( VKAPI_PTR* PFN_vkGetProfilerPerformanceMetricsRequiredPassesEXT )( VkDevice, uint32_t, uint32_t*, uint32_t* );
 typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsSetsEXT )(VkDevice, uint32_t*, VkProfilerPerformanceMetricsSetPropertiesEXT*);
 typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceCounterPropertiesEXT )(VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterPropertiesEXT*);
 typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerPerformanceMetricsSetEXT )(VkDevice, uint32_t);
@@ -279,10 +344,47 @@ VKAPI_ATTR void VKAPI_CALL vkFreeProfilerFrameDataEXT(
 VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
     VkDevice device );
 
+VKAPI_ATTR void VKAPI_CALL vkGetProfilerCustomPerfomanceMetricsSetsSupportEXT(
+    VkDevice device,
+    VkBool32* pSupported );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateProfilerCustomPerformanceMetricsSetEXT(
+    VkDevice device,
+    const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo,
+    const VkAllocationCallbacks* pAllocator,
+    uint32_t* pMetricsSetIndex );
+
+VKAPI_ATTR void VKAPI_CALL vkDestroyProfilerCustomPerformanceMetricsSetEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex,
+    const VkAllocationCallbacks* pAllocator );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsEXT(
+    VkDevice device,
+    uint32_t* pProfilerMetricCount,
+    VkProfilerPerformanceCounterProperties2EXT* pProfilerMetricProperties );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSets2EXT(
+    VkDevice device,
+    uint32_t* pProfilerMetricSetCount,
+    VkProfilerPerformanceMetricsSetProperties2EXT* pProfilerMetricSetProperties );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetMetricsEXT(
+    VkDevice device,
+    uint32_t metricsSetIndex,
+    uint32_t* pProfilerMetricCount,
+    VkProfilerPerformanceCounterProperties2EXT* pProfilerMetricProperties );
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerPerformanceMetricsRequiredPassesEXT(
+    VkDevice device,
+    uint32_t metricsCount,
+    uint32_t* pMetricsIndices,
+    uint32_t* pRequiredPassCount );
+
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsSetsEXT(
     VkDevice device,
     uint32_t* pProfilerMetricSetCount,
-    VkProfilerPerformanceMetricsSetPropertiesEXT* pProfilerMetricsSetNameInfos );
+    VkProfilerPerformanceMetricsSetPropertiesEXT* pProfilerMetricSetProperties );
 
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceCounterPropertiesEXT(
     VkDevice device,

@@ -134,7 +134,7 @@ namespace Profiler
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
         // Vendor-specific metric properties
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_VendorMetricProperties;
         uint32_t                                               m_VendorMetricsSetIndex;
 
         void DataCollectionThreadProc();

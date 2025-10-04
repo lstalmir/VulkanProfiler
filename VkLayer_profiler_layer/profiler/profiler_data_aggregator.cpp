@@ -623,7 +623,7 @@ namespace Profiler
 
                 if( m_VendorMetricsSetIndex != UINT32_MAX )
                 {
-                    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& metricsProperties =
+                    const std::vector<VkProfilerPerformanceCounterProperties2EXT>& metricsProperties =
                         m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( m_VendorMetricsSetIndex );
 
                     // Preallocate space for the metrics properties.
@@ -633,7 +633,7 @@ namespace Profiler
                     if( !metricsProperties.empty() )
                     {
                         memcpy( m_VendorMetricProperties.data(), metricsProperties.data(),
-                            metricsProperties.size() * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+                            metricsProperties.size() * sizeof( VkProfilerPerformanceCounterProperties2EXT ) );
                     }
                 }
                 else

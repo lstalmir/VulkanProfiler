@@ -151,7 +151,9 @@ namespace Profiler
                 metricsSet.m_pMetricSetParams = pMetricSet->GetParams();
 
                 // Construct metrics set properties.
-                VkProfilerPerformanceMetricsSetPropertiesEXT& metricsSetProperties = m_MetricsSetsProperties.emplace_back();
+                VkProfilerPerformanceMetricsSetProperties2EXT& metricsSetProperties = m_MetricsSetsProperties.emplace_back();
+                metricsSetProperties.sType = VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_METRICS_SET_PROPERTIES_2_EXT;
+                metricsSetProperties.pNext = nullptr;
                 ProfilerStringFunctions::CopyString( metricsSetProperties.name, metricsSet.m_pMetricSetParams->ShortName, -1 );
                 metricsSetProperties.metricsCount = metricsSet.m_pMetricSetParams->MetricsCount;
 
@@ -161,8 +163,11 @@ namespace Profiler
                     MD::IMetric_1_0* pMetric = metricsSet.m_pMetricSet->GetMetric( metricIndex );
                     MD::TMetricParams_1_0* pMetricParams = pMetric->GetParams();
 
-                    VkProfilerPerformanceCounterPropertiesEXT counterProperties = {};
+                    VkProfilerPerformanceCounterProperties2EXT counterProperties = {};
+                    counterProperties.sType = VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTER_PROPERTIES_2_EXT;
+                    counterProperties.pNext = nullptr;
                     ProfilerStringFunctions::CopyString( counterProperties.shortName, pMetricParams->ShortName, -1 );
+                    ProfilerStringFunctions::CopyString( counterProperties.category, pMetricParams->GroupName, -1 );
                     ProfilerStringFunctions::CopyString( counterProperties.description, pMetricParams->LongName, -1 );
 
                     switch( pMetricParams->ResultType )
@@ -190,6 +195,12 @@ namespace Profiler
                     // Factor applied to the output
                     double metricFactor = 1.0;
                     counterProperties.unit = TranslateUnit( pMetricParams->MetricResultUnits, metricFactor );
+
+                    // API does not provide UUIDs for metrics
+                    uint32_t uuid[VK_UUID_SIZE / 4] = {};
+                    uuid[0] = setIndex;
+                    uuid[1] = metricIndex;
+                    memcpy( counterProperties.uuid, uuid, sizeof( uuid ) );
 
                     metricsSet.m_MetricsProperties.push_back( counterProperties );
                     metricsSet.m_MetricFactors.push_back( metricFactor );
@@ -493,7 +504,7 @@ namespace Profiler
         Get properties of available metrics sets.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& ProfilerMetricsApi_INTEL::GetMetricsSets() const
+    const std::vector<VkProfilerPerformanceMetricsSetProperties2EXT>& ProfilerMetricsApi_INTEL::GetMetricsSets() const
     {
         return m_MetricsSetsProperties;
     }
@@ -508,9 +519,9 @@ namespace Profiler
         Metrics must appear in the same order as in returned reports.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& ProfilerMetricsApi_INTEL::GetMetricsProperties( uint32_t metricsSetIndex ) const
+    const std::vector<VkProfilerPerformanceCounterProperties2EXT>& ProfilerMetricsApi_INTEL::GetMetricsProperties( uint32_t metricsSetIndex ) const
     {
-        static const std::vector<VkProfilerPerformanceCounterPropertiesEXT> emptyProperties;
+        static const std::vector<VkProfilerPerformanceCounterProperties2EXT> emptyProperties;
 
         // Check if the metrics set is available.
         if( metricsSetIndex >= m_MetricsSets.size() )

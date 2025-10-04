@@ -230,7 +230,7 @@ namespace Profiler
     struct TraceCounterEvent : TraceEvent
     {
         size_t m_CounterCount;
-        const VkProfilerPerformanceCounterPropertiesEXT* m_pCounterProperties;
+        const VkProfilerPerformanceCounterProperties2EXT* m_pCounterProperties;
         const VkProfilerPerformanceCounterResultEXT* m_pCounterResults;
 
         TraceCounterEvent() = default;
@@ -240,7 +240,7 @@ namespace Profiler
             TimestampType timestamp,
             VkQueue queue,
             size_t counterCount,
-            const VkProfilerPerformanceCounterPropertiesEXT* pCounterProperties,
+            const VkProfilerPerformanceCounterProperties2EXT* pCounterProperties,
             const VkProfilerPerformanceCounterResultEXT* pCounterResults,
             const nlohmann::json& color = {} )
             : TraceEvent( Phase::eCounter, "", "", timestamp, queue, color )

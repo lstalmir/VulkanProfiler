@@ -131,7 +131,7 @@ namespace Profiler
 
         for( uint32_t i = 0; i < m_CounterCount; ++i )
         {
-            const VkProfilerPerformanceCounterPropertiesEXT& properties = m_pCounterProperties[i];
+            const VkProfilerPerformanceCounterProperties2EXT& properties = m_pCounterProperties[i];
             const VkProfilerPerformanceCounterResultEXT result = m_pCounterResults ? m_pCounterResults[i] : VkProfilerPerformanceCounterResultEXT();
 
             switch( properties.storage )

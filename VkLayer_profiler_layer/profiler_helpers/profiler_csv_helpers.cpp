@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -164,10 +164,10 @@ namespace Profiler
         Write CSV header and save performance counter properties for the following rows.
 
     \***********************************************************************************/
-    void DeviceProfilerCsvSerializer::WriteHeader( uint32_t count, const VkProfilerPerformanceCounterPropertiesEXT* pProperties )
+    void DeviceProfilerCsvSerializer::WriteHeader( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties )
     {
         m_Properties.resize( count );
-        memcpy( m_Properties.data(), pProperties, count * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+        memcpy( m_Properties.data(), pProperties, count * sizeof( VkProfilerPerformanceCounterProperties2EXT ) );
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -311,7 +311,7 @@ namespace Profiler
         Read CSV header and return performance counter properties.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterPropertiesEXT> DeviceProfilerCsvDeserializer::ReadHeader()
+    std::vector<VkProfilerPerformanceCounterProperties2EXT> DeviceProfilerCsvDeserializer::ReadHeader()
     {
         m_Properties.clear();
 
@@ -345,7 +345,7 @@ namespace Profiler
                 size_t colon = header.find( ":" );
                 if( colon != std::string::npos )
                 {
-                    VkProfilerPerformanceCounterPropertiesEXT property = {};
+                    VkProfilerPerformanceCounterProperties2EXT property = {};
                     property.storage = GetPerformanceCounterStorageType( header.substr( 0, colon ) );
 
                     std::string_view name =
