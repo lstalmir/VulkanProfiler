@@ -149,6 +149,7 @@ namespace Profiler
                 for( uint32_t metricIndex = 0; metricIndex < counterCount; ++metricIndex )
                 {
                     Counter counter = {};
+                    counter.m_MetricIndex = metricIndex;
                     counter.m_pMetric = set.m_pMetricSet->GetMetric( metricIndex );
                     counter.m_pMetricParams = counter.m_pMetric->GetParams();
 
@@ -604,38 +605,38 @@ namespace Profiler
         }
 
         const size_t resultCount = metricsSet.m_Counters.size();
+        results.resize( resultCount );
+
         for( size_t i = 0; i < resultCount; ++i )
         {
-            // Metric type information is stored in metric properties to reduce memory transaction overhead
-            VkProfilerPerformanceCounterResultEXT parsedMetric = {};
+            const Counter& counter = metricsSet.m_Counters[ i ];
 
-            // Const factor applied to the metric
-            const double factor = metricsSet.m_Counters[ i ].m_ResultFactor;
+            // Get intermediate value for this metric
+            assert( counter.m_MetricIndex < intermediateValueCount );
+            const MD::TTypedValue_1_0 intermediateValue = intermediateValues[ counter.m_MetricIndex ];
 
-            switch( intermediateValues[ i ].ValueType )
+            switch( intermediateValue.ValueType )
             {
-            default:
             case MD::VALUE_TYPE_FLOAT:
-                parsedMetric.float32 = static_cast<float>(intermediateValues[ i ].ValueFloat * factor);
+                results[i].float32 = static_cast<float>( intermediateValue.ValueFloat * counter.m_ResultFactor );
                 break;
 
             case MD::VALUE_TYPE_UINT32:
-                parsedMetric.uint32 = static_cast<uint32_t>(intermediateValues[ i ].ValueUInt32 * factor);
+                results[i].uint32 = static_cast<uint32_t>( intermediateValue.ValueUInt32 * counter.m_ResultFactor );
                 break;
 
             case MD::VALUE_TYPE_UINT64:
-                parsedMetric.uint64 = static_cast<uint64_t>(intermediateValues[ i ].ValueUInt64 * factor);
+                results[i].uint64 = static_cast<uint64_t>( intermediateValue.ValueUInt64 * counter.m_ResultFactor );
                 break;
 
             case MD::VALUE_TYPE_BOOL:
-                parsedMetric.uint32 = intermediateValues[ i ].ValueBool;
+                results[i].uint32 = intermediateValue.ValueBool;
                 break;
 
+            default:
             case MD::VALUE_TYPE_CSTRING:
                 assert( !"PROFILER: Intel MDAPI string metrics not supported!" );
             }
-
-            results.push_back( parsedMetric );
         }
     }
 

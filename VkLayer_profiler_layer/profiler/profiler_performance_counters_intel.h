@@ -75,6 +75,8 @@ namespace Profiler
 
         struct Counter
         {
+            uint32_t m_MetricIndex;
+
             MetricsDiscovery::IMetric_1_0* m_pMetric;
             MetricsDiscovery::TMetricParams_1_0* m_pMetricParams;
 
