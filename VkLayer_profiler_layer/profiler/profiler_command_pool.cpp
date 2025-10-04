@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerCommandPool::DeviceProfilerCommandPool( DeviceProfiler& profiler, VkCommandPool commandPool, const VkCommandPoolCreateInfo& createInfo )
         : m_CommandPool( commandPool )
+        , m_QueueFamilyIndex( createInfo.queueFamilyIndex )
         , m_SupportsTimestampQuery( false )
     {
         // Get target command queue family properties
@@ -68,6 +69,20 @@ namespace Profiler
     VkCommandPool DeviceProfilerCommandPool::GetHandle() const
     {
         return m_CommandPool;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetQueueFamilyIndex
+
+    Description:
+        Get command pool's target queue family index.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerCommandPool::GetQueueFamilyIndex() const
+    {
+        return m_QueueFamilyIndex;
     }
 
     /***********************************************************************************\

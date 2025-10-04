@@ -20,6 +20,7 @@
 
 #include "profiler.h"
 #include "profiler_command_buffer.h"
+#include "profiler_performance_counters_intel.h"
 #include "profiler_helpers.h"
 #include <farmhash.h>
 #include <inttypes.h>
@@ -139,7 +140,7 @@ namespace Profiler
         , m_MemoryTracker()
         , m_pCommandBuffers()
         , m_pCommandPools()
-        , m_SubmitFence( VK_NULL_HANDLE )
+        , m_pPerformanceCounters( nullptr )
         , m_PipelineExecutablePropertiesEnabled( false )
         , m_ShaderModuleIdentifierEnabled( false )
         , m_pStablePowerStateHandle( nullptr )
@@ -387,20 +388,25 @@ namespace Profiler
             #endif
         }
 
-        // Create submit fence
-        VkFenceCreateInfo fenceCreateInfo;
-        ClearStructure( &fenceCreateInfo, VK_STRUCTURE_TYPE_FENCE_CREATE_INFO );
-
-        DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateFence(
-            m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence ) );
-
         // Prepare for memory usage tracking
         m_MemoryTracker.Initialize( m_pDevice );
 
-        // Enable vendor-specific extensions
+        // Enable performance counters if available
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
-            m_MetricsApiINTEL.Initialize( m_pDevice );
+            // Use INTEL performance query extension.
+            m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersINTEL>();
+        }
+
+        if( m_pPerformanceCounters )
+        {
+            // Initialize performance counters.
+            // Clear the pointer if the initialization fails.
+            VkResult result = m_pPerformanceCounters->Initialize( m_pDevice );
+            if( result != VK_SUCCESS )
+            {
+                m_pPerformanceCounters.reset();
+            }
         }
 
         // Capture pipeline statistics and internal representations for debugging
@@ -515,12 +521,10 @@ namespace Profiler
 
         m_DataAggregator.Destroy();
 
-        m_MetricsApiINTEL.Destroy();
-
-        if( m_SubmitFence != VK_NULL_HANDLE )
+        if( m_pPerformanceCounters )
         {
-            m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
-            m_SubmitFence = VK_NULL_HANDLE;
+            m_pPerformanceCounters->Destroy();
+            m_pPerformanceCounters.reset();
         }
 
         if( m_pStablePowerStateHandle != nullptr )

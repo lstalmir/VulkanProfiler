@@ -1395,6 +1395,21 @@ namespace Profiler
     /***********************************************************************************\
 
     Structure:
+        DeviceProfilerPerformanceCounterData
+
+    Description:
+        Holds performance query results for a single performance query pass.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPerformanceCountersData
+    {
+        uint32_t                                            m_MetricsSetIndex = UINT32_MAX;
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
+    };
+
+    /***********************************************************************************\
+
+    Structure:
         DeviceProfilerCommandBufferData
 
     Description:
@@ -1413,10 +1428,7 @@ namespace Profiler
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_PerformanceQueryResults = {};
-        uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
-
-        uint64_t                                            m_ProfilerCpuOverheadNs = {};
+        DeviceProfilerPerformanceCountersData               m_PerformanceCounters = {};
 
         std::vector<uint8_t>                                m_IndirectPayload = {};
 
@@ -1829,7 +1841,7 @@ namespace Profiler
         DeviceProfilerCPUData                               m_CPU = {};
         std::vector<struct TipRange>                        m_TIP = {};
 
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
+        DeviceProfilerPerformanceCountersData               m_PerformanceCounters = {};
 
         DeviceProfilerSynchronizationTimestamps             m_SyncTimestamps = {};
     };

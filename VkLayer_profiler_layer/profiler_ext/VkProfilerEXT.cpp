@@ -489,11 +489,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateProfilerCustomPerformanceMetricsSetEXT(
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
-    ( *pMetricsSetIndex ) = dd.ProfilerFrontend.CreateCustomPerformanceMetricsSet(
-        pCreateInfo->name,
-        pCreateInfo->description,
-        pCreateInfo->metricsCount,
-        pCreateInfo->pMetricsIndices );
+    ( *pMetricsSetIndex ) = dd.ProfilerFrontend.CreateCustomPerformanceMetricsSet( pCreateInfo );
 
     if( *pMetricsSetIndex == UINT32_MAX )
     {

@@ -2069,12 +2069,12 @@ namespace Profiler
     void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
     {
         // Vendor-specific
-        if( !m_pData->m_VendorMetrics.empty() )
+        if( !m_pData->m_PerformanceCounters.m_Results.empty() )
         {
             std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
 
             // Data source
-            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_VendorMetrics;
+            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_PerformanceCounters.m_Results;
 
             bool performanceQueryResultsFiltered = false;
             auto regexFilterFlags =
@@ -2118,7 +2118,7 @@ namespace Profiler
                             (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
                         {
                             // Use the data from this command buffer.
-                            pVendorMetrics = &commandBuffer.m_PerformanceQueryResults;
+                            pVendorMetrics = &commandBuffer.m_PerformanceCounters.m_Results;
                             performanceQueryResultsFiltered = true;
                         }
 
@@ -6449,7 +6449,7 @@ namespace Profiler
 
         if( ImGui::BeginPopupContextItem() )
         {
-            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceQueryResults.empty() ) )
+            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceCounters.m_Results.empty() ) )
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
                 m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
