@@ -318,7 +318,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerQueryDataBufferWriter::WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex )
     {
-        assert( m_pProfiler->m_pPerformanceCounteres != nullptr );
+        assert( m_pProfiler->m_pPerformanceCounters != nullptr );
         const uint32_t dataSize = m_pProfiler->m_pPerformanceCounters->GetReportSize(
             metricsSetIndex,
             queueFamilyIndex );
