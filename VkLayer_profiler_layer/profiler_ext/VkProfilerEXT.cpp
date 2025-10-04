@@ -652,14 +652,22 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetProfilerPerformanceMetricsRequiredPassesEXT(
 {
     auto& dd = VkDevice_Functions::DeviceDispatch.Get( device );
 
-    if( !pMetricsIndices || !pRequiredPassCount )
+    if( !pRequiredPassCount ||
+        ( metricsCount && !pMetricsIndices ) )
     {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
-    ( *pRequiredPassCount ) = dd.ProfilerFrontend.GetPerformanceCounterRequiredPasses(
-        metricsCount,
-        pMetricsIndices );
+    if( metricsCount )
+    {
+        ( *pRequiredPassCount ) = dd.ProfilerFrontend.GetPerformanceCounterRequiredPasses(
+            metricsCount,
+            pMetricsIndices );
+    }
+    else
+    {
+        ( *pRequiredPassCount ) = 0;
+    }
 
     return VK_SUCCESS;
 }
