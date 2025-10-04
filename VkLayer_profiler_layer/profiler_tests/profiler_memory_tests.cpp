@@ -25,10 +25,10 @@ namespace Profiler
     class DeviceProfilerMemoryULT : public ProfilerBaseULT
     {
     protected:
-        struct SparseBufferBindingFeature : VulkanFeature
+        struct SparseBindingFeature : VulkanFeature
         {
-            SparseBufferBindingFeature()
-                : VulkanFeature( "sparseResidencyBuffer", std::string(), false )
+            SparseBindingFeature()
+                : VulkanFeature( "sparseBinding", std::string(), false )
             {
             }
 
@@ -43,27 +43,7 @@ namespace Profiler
                 pFeatures->features.sparseBinding = true;
                 pFeatures->features.sparseResidencyBuffer = true;
             }
-        } sparseBufferFeature;
-
-        struct SparseImageBindingFeature : VulkanFeature
-        {
-            SparseImageBindingFeature()
-                : VulkanFeature( "sparseResidencyImage2D", std::string(), false )
-            {
-            }
-
-            inline bool CheckSupport( const VkPhysicalDeviceFeatures2* pFeatures ) const override
-            {
-                return pFeatures->features.sparseBinding &&
-                       pFeatures->features.sparseResidencyImage2D;
-            }
-
-            inline void Configure( VkPhysicalDeviceFeatures2* pFeatures ) override
-            {
-                pFeatures->features.sparseBinding = true;
-                pFeatures->features.sparseResidencyImage2D = true;
-            }
-        } sparseImageFeature;
+        } sparseBindingFeature;
 
         VkPhysicalDeviceMemoryProperties MemoryProperties = {};
 
@@ -76,8 +56,7 @@ namespace Profiler
         inline void SetUpVulkan( VulkanState::CreateInfo& createInfo ) override
         {
             ProfilerBaseULT::SetUpVulkan( createInfo );
-            createInfo.DeviceFeatures.push_back( &sparseBufferFeature );
-            createInfo.DeviceFeatures.push_back( &sparseImageFeature );
+            createInfo.DeviceFeatures.push_back( &sparseBindingFeature );
         }
 
         inline uint32_t FindMemoryType( VkMemoryPropertyFlags properties ) const
@@ -492,7 +471,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Test:
-        SparseBinding_Buffer_Simple
+        SparseBinding_Simple
 
     Description:
         This test verifies that binding an entire sparse resource works correctly.
@@ -507,9 +486,9 @@ namespace Profiler
         Requires sparseBinding and sparseResidencyBuffer features to be supported.
 
     \***********************************************************************************/
-    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Buffer_Simple )
+    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Simple )
     {
-        SkipIfUnsupported( sparseBufferFeature );
+        SkipIfUnsupported( sparseBindingFeature );
 
         VkBuffer buffer = {};
         VkDeviceMemory deviceMemory = {};
@@ -538,7 +517,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Test:
-        SparseBinding_Buffer_UnbindEntireResource
+        SparseBinding_UnbindEntireResource
 
     Description:
         This test verifies that unbinding an entire sparse resource works correctly.
@@ -550,9 +529,9 @@ namespace Profiler
         Requires sparseBinding and sparseResidencyBuffer features to be supported.
 
     \***********************************************************************************/
-    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Buffer_UnbindEntireResource )
+    TEST_F( DeviceProfilerMemoryULT, SparseBinding_UnbindEntireResource )
     {
-        SkipIfUnsupported( sparseBufferFeature );
+        SkipIfUnsupported( sparseBindingFeature );
 
         VkBuffer buffer = {};
         VkDeviceMemory deviceMemory = {};
@@ -585,7 +564,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Test:
-        SparseBinding_Buffer_UnbindPartialResource_AtBegin
+        SparseBinding_UnbindPartialResource_AtBegin
 
     Description:
         This test verifies that unbinding a sparse resource at the beginning of an
@@ -600,9 +579,9 @@ namespace Profiler
         Requires sparseBinding and sparseResidencyBuffer features to be supported.
 
     \***********************************************************************************/
-    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Buffer_UnbindPartialResource_AtBegin )
+    TEST_F( DeviceProfilerMemoryULT, SparseBinding_UnbindPartialResource_AtBegin )
     {
-        SkipIfUnsupported( sparseBufferFeature );
+        SkipIfUnsupported( sparseBindingFeature );
 
         VkBuffer buffer = {};
         VkDeviceMemory deviceMemory = {};
@@ -641,7 +620,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Test:
-        SparseBinding_Buffer_UnbindPartialResource_AtEnd
+        SparseBinding_UnbindPartialResource_AtEnd
 
     Description:
         This test verifies that unbinding a sparse resource at the end of an existing
@@ -656,9 +635,9 @@ namespace Profiler
         Requires sparseBinding and sparseResidencyBuffer features to be supported.
 
     \***********************************************************************************/
-    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Buffer_UnbindPartialResource_AtEnd )
+    TEST_F( DeviceProfilerMemoryULT, SparseBinding_UnbindPartialResource_AtEnd )
     {
-        SkipIfUnsupported( sparseBufferFeature );
+        SkipIfUnsupported( sparseBindingFeature );
 
         VkBuffer buffer = {};
         VkDeviceMemory deviceMemory = {};
@@ -697,7 +676,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Test:
-        SparseBinding_Buffer_UnbindPartialResource_InMiddle
+        SparseBinding_UnbindPartialResource_InMiddle
 
     Description:
         This test verifies that unbinding a sparse resource in the middle of an existing
@@ -713,9 +692,9 @@ namespace Profiler
         Requires sparseBinding and sparseResidencyBuffer features to be supported.
 
     \***********************************************************************************/
-    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Buffer_UnbindPartialResource_InMiddle )
+    TEST_F( DeviceProfilerMemoryULT, SparseBinding_UnbindPartialResource_InMiddle )
     {
-        SkipIfUnsupported( sparseBufferFeature );
+        SkipIfUnsupported( sparseBindingFeature );
 
         VkBuffer buffer = {};
         VkDeviceMemory deviceMemory = {};
@@ -761,7 +740,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Test:
-        SparseBinding_Buffer_UnbindPartialResource_Multiple
+        SparseBinding_UnbindPartialResource_Multiple
 
     Description:
         This test verifies that unbinding a sparse resource in the middle of multiple
@@ -776,9 +755,9 @@ namespace Profiler
         Requires sparseBinding and sparseResidencyBuffer features to be supported.
 
     \***********************************************************************************/
-    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Buffer_UnbindPartialResource_Multiple )
+    TEST_F( DeviceProfilerMemoryULT, SparseBinding_UnbindPartialResource_Multiple )
     {
-        SkipIfUnsupported( sparseBufferFeature );
+        SkipIfUnsupported( sparseBindingFeature );
 
         VkBuffer buffer = {};
         VkDeviceMemory deviceMemory = {};
@@ -829,74 +808,6 @@ namespace Profiler
         }
 
         vkDestroyBuffer( Vk->Device, buffer, nullptr );
-        vkFreeMemory( Vk->Device, deviceMemory, nullptr );
-    }
-
-    /***********************************************************************************\
-
-    Test:
-        SparseBinding_Image_Simple
-
-    Description:
-        This test verifies that binding an entire sparse resource works correctly.
-
-        The resource is a 2D image of size 4096x4096, created with sparse binding and
-        sparse residency flags and transfer src and dst usages. It is bound to device-
-        local memory at offset 0 with size equal to the image memory requirements size.
-        The expected result is that there is a single memory binding reported, and its
-        size is equal to the memory requirements size, with image and memory offsets
-        both set to 0.
-
-        Requires sparseBinding and sparseResidencyImage2D features to be supported.
-
-    \***********************************************************************************/
-    TEST_F( DeviceProfilerMemoryULT, SparseBinding_Image_Simple )
-    {
-        SkipIfUnsupported( sparseImageFeature );
-
-        VkImage image = {};
-        VkDeviceMemory deviceMemory = {};
-        VkMemoryRequirements memoryRequirements = {};
-        std::vector<VkSparseImageMemoryRequirements> sparseMemoryRequirements = {};
-
-        { // Create image resource
-            VkImageCreateInfo imageCreateInfo = {};
-            imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-            imageCreateInfo.flags = VK_IMAGE_CREATE_SPARSE_BINDING_BIT | VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT;
-            imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-            imageCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-            imageCreateInfo.extent.width = 4096;
-            imageCreateInfo.extent.height = 4096;
-            imageCreateInfo.extent.depth = 1;
-            imageCreateInfo.mipLevels = 8;
-            imageCreateInfo.arrayLayers = 1;
-            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-            imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-            imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-            imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            ASSERT_EQ( VK_SUCCESS, vkCreateImage( Vk->Device, &imageCreateInfo, nullptr, &image ) );
-        }
-        { // Get image memory requirements
-            vkGetImageMemoryRequirements( Vk->Device, image, &memoryRequirements );
-        }
-        { // Get sparse image memory requirements
-            uint32_t sparseMemoryRequirementCount = 0;
-            vkGetImageSparseMemoryRequirements( Vk->Device, image, &sparseMemoryRequirementCount, nullptr );
-            ASSERT_GT( sparseMemoryRequirementCount, 0u );
-            sparseMemoryRequirements.resize( sparseMemoryRequirementCount );
-            vkGetImageSparseMemoryRequirements( Vk->Device, image, &sparseMemoryRequirementCount, sparseMemoryRequirements.data() );
-        }
-
-        {
-            ASSERT_EQ( sparseMemoryRequirements[0].formatProperties.aspectMask, VK_IMAGE_ASPECT_COLOR_BIT );
-        }
-
-        { // Collect and post-process data
-            Prof->FinishFrame();
-        }
-
-        vkDestroyImage( Vk->Device, image, nullptr );
         vkFreeMemory( Vk->Device, deviceMemory, nullptr );
     }
 }

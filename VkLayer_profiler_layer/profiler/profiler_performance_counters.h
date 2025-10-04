@@ -21,9 +21,6 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include <vector>
-#include <string>
-#include <set>
-#include <shared_mutex>
 // Import extension structures
 #include "profiler_ext/VkProfilerEXT.h"
 
