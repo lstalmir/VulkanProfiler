@@ -137,22 +137,22 @@ namespace Profiler
             switch( properties.storage )
             {
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                args[properties.name] = result.int32;
+                args[properties.shortName] = result.int32;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                args[properties.name] = result.uint32;
+                args[properties.shortName] = result.uint32;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                args[properties.name] = result.int64;
+                args[properties.shortName] = result.int64;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                args[properties.name] = result.uint64;
+                args[properties.shortName] = result.uint64;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                args[properties.name] = result.float32;
+                args[properties.shortName] = result.float32;
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                args[properties.name] = result.float64;
+                args[properties.shortName] = result.float64;
                 break;
             }
         }

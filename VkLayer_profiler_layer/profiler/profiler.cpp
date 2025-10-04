@@ -20,6 +20,7 @@
 
 #include "profiler.h"
 #include "profiler_command_buffer.h"
+#include "profiler_performance_counters_khr.h"
 #include "profiler_performance_counters_intel.h"
 #include "profiler_helpers.h"
 #include <farmhash.h>

@@ -181,6 +181,12 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerLayerFrontend::SupportsCustomPerformanceMetricsSets()
     {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->SupportsCustomMetricsSets();
+        }
+
         return false;
     }
     

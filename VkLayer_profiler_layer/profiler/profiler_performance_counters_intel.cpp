@@ -583,7 +583,6 @@ namespace Profiler
 
         // Convert MDAPI-specific TTypedValue_1_0 to custom VkProfilerMetricEXT
         uint32_t reportCount = 0;
-        uint32_t reportSize = metricsSet.m_pMetricSetParams->QueryReportSize;
 
         // Check if there is data, otherwise we'll get integer zero-division
         if( !metricsSet.m_Counters.empty() )

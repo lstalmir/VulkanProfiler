@@ -437,8 +437,6 @@ namespace Profiler
                 metricsSet.m_Metrics.resize(counterCount);
 
                 m_Frontend.GetPerformanceMetricsSetCounterProperties(i, counterCount, metricsSet.m_Metrics.data());
-
-                m_VendorMetricsSetVisibility.push_back(true);
             }
 
             const uint32_t activeMetricsSetIndex = m_Frontend.GetPerformanceMetricsSetIndex();
@@ -451,7 +449,12 @@ namespace Profiler
             // Fetch custom performance counters
             if( m_Frontend.SupportsCustomPerformanceMetricsSets() )
             {
-                m_Frontend.GetPerformanceCounterProperties( m_PerformanceQueryEditorCounterProperties );
+                const uint32_t counterCount = m_Frontend.GetPerformanceCounterProperties( 0, nullptr );
+                m_PerformanceQueryEditorCounterProperties.resize( counterCount );
+
+                m_Frontend.GetPerformanceCounterProperties(
+                    counterCount,
+                    m_PerformanceQueryEditorCounterProperties.data() );
 
                 m_PerformanceQueryEditorCounterIndices.clear();
 
@@ -2120,7 +2123,7 @@ namespace Profiler
                 {
                     const auto& metric = m_pActiveMetricsSet->m_Metrics[metricIndex];
                     m_ActiveMetricsVisibility[metricIndex] =
-                        std::regex_search( metric.name, regex );
+                        std::regex_search( metric.shortName, regex );
                 }
             }
         };
@@ -2195,7 +2198,7 @@ namespace Profiler
             {
                 for( size_t i = 0; i < pVendorMetrics->size(); ++i )
                 {
-                    m_ReferencePerformanceCounters.try_emplace( m_pActiveMetricsSet->m_Metrics[i].name, ( *pVendorMetrics )[i] );
+                    m_ReferencePerformanceCounters.try_emplace( m_pActiveMetricsSet->m_Metrics[i].shortName, ( *pVendorMetrics )[i] );
                 }
             }
         }
@@ -2237,7 +2240,7 @@ namespace Profiler
                     // Match by metric name.
                     for( const auto& metric : metricsSet.m_Metrics )
                     {
-                        if( std::regex_search( metric.name, regexFilter ) )
+                        if( std::regex_search( metric.shortName, regexFilter ) )
                         {
                             metricsSet.m_FilterResult = true;
                             break;
@@ -2357,7 +2360,7 @@ namespace Profiler
 
                     ImGui::TableNextColumn();
                     {
-                        ImGui::Text( "%s", metricProperties.name );
+                        ImGui::Text( "%s", metricProperties.shortName );
 
                         if( ImGui::IsItemHovered() &&
                             metricProperties.description[0] )
@@ -2375,7 +2378,7 @@ namespace Profiler
 
                     ImGui::TableNextColumn();
                     {
-                        auto it = m_ReferencePerformanceCounters.find( metricProperties.name );
+                        auto it = m_ReferencePerformanceCounters.find( metricProperties.shortName );
                         if( it != m_ReferencePerformanceCounters.end() )
                         {
                             const float columnWidth = ImGuiX::TableGetColumnWidth();
@@ -2561,7 +2564,7 @@ namespace Profiler
                         ImGui::BeginDisabled( !available );
                         ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
 
-                        if( ImGui::Checkbox( m_PerformanceQueryEditorCounterProperties[counterIndex].name, &selected ) )
+                        if( ImGui::Checkbox( m_PerformanceQueryEditorCounterProperties[counterIndex].shortName, &selected ) )
                         {
                             if( selected )
                             {
@@ -2598,9 +2601,16 @@ namespace Profiler
                         m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
                     }
 
+                    uint32_t unknownCounterCount = static_cast<uint32_t>( unknownCountersAvailability.size() );
+
                     m_Frontend.GetAvailablePerformanceCounters(
-                        m_PerformanceQueryEditorCounterIndices,
-                        unknownCountersAvailability );
+                        static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() ),
+                        m_PerformanceQueryEditorCounterIndices.data(),
+                        unknownCounterCount,
+                        unknownCountersAvailability.data() );
+
+                    // The function returns number of available counters.
+                    unknownCountersAvailability.resize( unknownCounterCount );
 
                     for( uint32_t counterIndex : unknownCountersAvailability )
                     {
@@ -2623,22 +2633,45 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::RefreshPerformanceQueryEditorCountersSet( bool countersOnly )
     {
-        static const std::string empty;
+        VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
 
-        const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet(
-            countersOnly ? empty : m_PerformanceQueryEditorSetName,
-            countersOnly ? empty : m_PerformanceQueryEditorSetDescription,
-            m_PerformanceQueryEditorCounterIndices );
-
-        m_PerformanceQueryEditorSet.m_Index = metricsSetIndex;
-
-        m_Frontend.GetPerformanceMetricsSetProperties( metricsSetIndex, m_PerformanceQueryEditorSet.m_Properties );
-        m_Frontend.GetPerformanceMetricsSetCounterProperties( metricsSetIndex, m_PerformanceQueryEditorSet.m_Metrics );
-
-        if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+        if( !countersOnly )
         {
-            m_pActiveMetricsSet = &m_PerformanceQueryEditorSet;
-            m_ActiveMetricsVisibility.resize( m_PerformanceQueryEditorSet.m_Metrics.size(), true );
+            ProfilerStringFunctions::CopyString(
+                createInfo.name,
+                m_PerformanceQueryEditorSetName.c_str(),
+                m_PerformanceQueryEditorSetName.length() + 1 );
+
+            ProfilerStringFunctions::CopyString(
+                createInfo.description,
+                m_PerformanceQueryEditorSetDescription.c_str(),
+                m_PerformanceQueryEditorSetDescription.length() + 1 );
+        }
+
+        createInfo.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
+        createInfo.pMetricsIndices = m_PerformanceQueryEditorCounterIndices.data();
+
+        const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
+        if( metricsSetIndex != UINT32_MAX )
+        {
+            m_PerformanceQueryEditorSet.m_Index = metricsSetIndex;
+            m_PerformanceQueryEditorSet.m_Metrics.resize( createInfo.metricsCount );
+
+            m_Frontend.GetPerformanceMetricsSetProperties(
+                metricsSetIndex,
+                &m_PerformanceQueryEditorSet.m_Properties );
+
+            m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                metricsSetIndex,
+                createInfo.metricsCount,
+                m_PerformanceQueryEditorSet.m_Metrics.data() );
+
+            if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+            {
+                m_pActiveMetricsSet = &m_PerformanceQueryEditorSet;
+                m_ActiveMetricsVisibility.resize( m_PerformanceQueryEditorSet.m_Metrics.size(), true );
+            }
         }
     }
 
@@ -6185,7 +6218,7 @@ namespace Profiler
             const size_t performanceCounterCount = std::min( properties.size(), results.size() );
             for( size_t i = 0; i < performanceCounterCount; ++i )
             {
-                m_ReferencePerformanceCounters.try_emplace( properties[i].name, results[i] );
+                m_ReferencePerformanceCounters.try_emplace( properties[i].shortName, results[i] );
             }
 
             m_SerializationSucceeded = true;
@@ -6356,7 +6389,7 @@ namespace Profiler
                 // Only float32 storage is supported for top pipelines for now.
                 if( properties[i].storage == VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT )
                 {
-                    m_ReferenceTopPipelines.try_emplace( properties[i].name, results[i].float32 );
+                    m_ReferenceTopPipelines.try_emplace( properties[i].shortName, results[i].float32 );
                 }
             }
 

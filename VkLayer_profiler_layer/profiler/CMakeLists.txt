@@ -36,6 +36,7 @@ set (headers
     "profiler_memory_manager.h"
     "profiler_memory_tracker.h"
     "profiler_performance_counters.h"
+    "profiler_performance_counters_khr.h"
     "profiler_performance_counters_intel.h"
     "profiler_query_pool.h"
     "profiler_resources.h"

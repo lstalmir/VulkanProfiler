@@ -174,7 +174,7 @@ namespace Profiler
             m_Properties[i] = pProperties[i];
             m_File << sep( i )
                    << GetPerformanceCounterStorageName( pProperties[i].storage ) << ":"
-                   << "\"" << pProperties[i].name << "\"";
+                   << "\"" << pProperties[i].shortName << "\"";
         }
 
         m_File << std::endl;
@@ -351,7 +351,7 @@ namespace Profiler
                     std::string_view name =
                         ( quoted ? header.substr( colon + 2, header.length() - colon - 3 )
                                  : header.substr( colon + 1 ) );
-                    ProfilerStringFunctions::CopyString( property.name, name.data(), name.length() );
+                    ProfilerStringFunctions::CopyString( property.shortName, name.data(), name.length() );
 
                     m_Properties.push_back( property );
                 }
