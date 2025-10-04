@@ -96,8 +96,8 @@ namespace Profiler
 
         struct VendorMetricsSet
         {
-            VkProfilerPerformanceMetricsSetPropertiesEXT           m_Properties;
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Metrics;
+            VkProfilerPerformanceMetricsSetProperties2EXT           m_Properties;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Metrics;
         };
 
         std::vector<VendorMetricsSet> m_VendorMetricsSets;
