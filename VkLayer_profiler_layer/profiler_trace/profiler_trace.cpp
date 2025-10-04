@@ -345,14 +345,14 @@ namespace Profiler
             m_CommandQueue ) );
 
         // Performance counters
-        const uint32_t performanceCounterCount = static_cast<uint32_t>( data.m_PerformanceQueryResults.size() );
+        const uint32_t performanceCounterCount = static_cast<uint32_t>( data.m_PerformanceCounters.m_Results.size() );
         std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceCounterProperties(
             performanceCounterCount );
 
         if( performanceCounterCount )
         {
             m_Frontend.GetPerformanceMetricsSetCounterProperties(
-                data.m_PerformanceQueryMetricsSetIndex,
+                data.m_PerformanceCounters.m_MetricsSetIndex,
                 performanceCounterCount,
                 performanceCounterProperties.data() );
 
@@ -361,7 +361,7 @@ namespace Profiler
                 m_CommandQueue,
                 performanceCounterProperties.size(),
                 performanceCounterProperties.data(),
-                data.m_PerformanceQueryResults.data() ) );
+                data.m_PerformanceCounters.m_Results.data() ) );
         }
 
         for( const auto& renderPassData : data.m_RenderPasses )
