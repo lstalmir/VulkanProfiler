@@ -20,6 +20,7 @@
 
 #include "profiler.h"
 #include "profiler_command_buffer.h"
+#include "profiler_performance_counters_khr.h"
 #include "profiler_performance_counters_intel.h"
 #include "profiler_helpers.h"
 #include <farmhash.h>
@@ -185,6 +186,12 @@ namespace Profiler
             availableExtensionNames.insert( extension.extensionName );
         }
 
+        // Some extensions require either VK_KHR_get_physical_device_properties2 or Vulkan 1.1.
+        const bool hasGetPhysicalDeviceProperties2 =
+            ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 &&
+                physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ||
+            physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+
         // Enable shader module identifier if available.
         if( availableExtensionNames.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
             !devicePNextChain.Contains( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT ) )
@@ -200,9 +207,7 @@ namespace Profiler
             {
                 if( availableExtensionNames.count( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME ) )
                 {
-                    if( ( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 ) &&
-                            ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ) ||
-                        ( physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) ) )
+                    if( hasGetPhysicalDeviceProperties2 )
                     {
                         deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
                         enableShaderModuleIdentifier = true;
@@ -223,12 +228,24 @@ namespace Profiler
             }
         }
 
-        if( config.m_EnablePerformanceQueryExt )
+        // Enable performance query extensions if requested and available.
+        if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::intel )
         {
             if( availableExtensionNames.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
             {
                 // Enable MDAPI data collection on Intel GPUs.
                 deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+            }
+        }
+        else if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::khr )
+        {
+            if( availableExtensionNames.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+            {
+                if( hasGetPhysicalDeviceProperties2 )
+                {
+                    // Enable KHR performance query extension.
+                    deviceExtensions.insert( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME );
+                }
             }
         }
 
@@ -261,9 +278,7 @@ namespace Profiler
         // Enable memory budget extension to track memory usage.
         if( availableExtensionNames.count( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME ) )
         {
-            if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 &&
-                    physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ||
-                physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+            if( hasGetPhysicalDeviceProperties2 )
             {
                 deviceExtensions.insert( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME );
             }
@@ -396,6 +411,11 @@ namespace Profiler
         {
             // Use INTEL performance query extension.
             m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersINTEL>();
+        }
+        else if( m_pDevice->EnabledExtensions.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+        {
+            // Use KHR performance query extension.
+            m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersKHR>();
         }
 
         if( m_pPerformanceCounters )

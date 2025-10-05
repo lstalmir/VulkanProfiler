@@ -121,8 +121,25 @@
                     "label": "Enable performance query extensions",
                     "description": "Enable vendor-specific extensions for collection of additional performance data.",
                     "env": "VKPROF_enable_performance_query_ext",
-                    "type": "BOOL",
-                    "default": true
+                    "type": "ENUM",
+                    "default": "intel",
+                    "flags": [
+                        {
+                            "key": "none",
+                            "label": "None",
+                            "description": "Do not enable any performance counters."
+                        },
+                        {
+                            "key": "intel",
+                            "label": "Intel",
+                            "description": "Enable VK_INTEL_performance_query extension and use Metrics-Discovery API to process the metrics."
+                        },
+                        {
+                            "key": "khr",
+                            "label": "KHR",
+                            "description": "Enable VK_KHR_performance_query extension."
+                        }
+                    ]
                 },
                 {
                     "key": "enable_pipeline_executable_properties_ext",

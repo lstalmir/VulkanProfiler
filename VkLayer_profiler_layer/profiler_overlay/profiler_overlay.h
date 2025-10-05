@@ -285,6 +285,20 @@ namespace Profiler
 
         std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceQueryData;
 
+        // Performance counter sets editor.
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceQueryEditorCounterProperties;
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pPerformanceQueryEditorSet;
+        std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
+        std::string m_PerformanceQueryEditorFilter;
+        std::string m_PerformanceQueryEditorSetName;
+        std::string m_PerformanceQueryEditorSetDescription;
+
+        uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
+        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected );
+        void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
+
         // Performance counter serialization
         struct PerformanceQueryExporter;
         std::unique_ptr<PerformanceQueryExporter> m_pPerformanceQueryExporter;

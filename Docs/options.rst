@@ -32,10 +32,26 @@ This section describes in detail all available configuration options exposed by 
     Enables tracking of allocations and resources created by the application. The data can be used to investigate potential memory-related issues, like resource placement on a heap or frequent reallocations. It can be disabled to reduce CPU overhead.
 
 .. confval:: enable_performance_query_ext
-    :type: bool
-    :default: true
+    :type: enum
+    :default: intel
 
-    Enables VK_INTEL_performance_query extension and collects detailed performance metrics from Intel graphics cards. The metrics are collected at VkCommandBuffer level and then aggregated into the entire frame. The scope of available metrics depends on the driver and the GPU used for measurements.
+    Enables the selected performance extension and collects detailed performance metrics. The metrics are collected at VkCommandBuffer level and then aggregated into the entire frame. The scope of available metrics depends on the driver and the GPU used for measurements.
+
+    The following options are available:
+
+    .. glossary::
+
+        none
+            Disables collection of performance counters.
+
+        intel
+            Enables VK_INTEL_performance_query extension and uses Metrics-Discovery library to process the results. The extension provides predefined metrics sets exposed by the Intel graphics driver and does not support custom sets.
+
+        khr
+            Enables VK_KHR_performance_query extension. It does not come with any built-in sets, but it provides a list of available counters that user can select from to build custom sets. The layer has a limitation on the selected counters that all of them must be collected in a single query pass.
+
+            .. NOTE::
+                The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application's knowledge. Because of that, the layer does not support multi-pass performance queries.
 
 .. confval:: enable_pipeline_executable_properties_ext
     :type: bool
