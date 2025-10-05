@@ -288,13 +288,13 @@ namespace Profiler
         // Performance counter sets editor.
         bool m_PerformanceQueryEditorShowOnlySelected;
         std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceQueryEditorCounterProperties;
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pPerformanceQueryEditorSet;
         std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
         std::string m_PerformanceQueryEditorFilter;
         std::string m_PerformanceQueryEditorSetName;
         std::string m_PerformanceQueryEditorSetDescription;
-        VendorMetricsSet m_PerformanceQueryEditorSet;
 
         void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
