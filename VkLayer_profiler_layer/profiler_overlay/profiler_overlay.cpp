@@ -2561,7 +2561,8 @@ namespace Profiler
                                             m_PerformanceQueryEditorCounterIndices.end(),
                                             counterIndex ) != m_PerformanceQueryEditorCounterIndices.end();
 
-                        if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] )
+                        if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
+                            ( unknownCountersAvailability.size() < 10 ) )
                         {
                             unknownCountersAvailability.push_back( counterIndex );
                         }
