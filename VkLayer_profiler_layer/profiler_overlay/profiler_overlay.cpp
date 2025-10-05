@@ -2364,7 +2364,7 @@ namespace Profiler
                         {
                             ImGui::Text( "%s", metricProperties.shortName );
 
-                            if( ImGui::IsItemHovered() &&
+                            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) &&
                                 metricProperties.description[0] )
                             {
                                 ImGui::BeginTooltip();
@@ -2548,6 +2548,8 @@ namespace Profiler
                 {
                     for( uint32_t counterIndex = clipper.DisplayStart; counterIndex < clipper.DisplayEnd; ++counterIndex )
                     {
+                        const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
+
                         bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
                         bool selected = std::find( m_PerformanceQueryEditorCounterIndices.begin(),
                                             m_PerformanceQueryEditorCounterIndices.end(),
@@ -2567,7 +2569,7 @@ namespace Profiler
                         ImGui::BeginDisabled( !available );
                         ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
 
-                        if( ImGui::Checkbox( m_PerformanceQueryEditorCounterProperties[counterIndex].shortName, &selected ) )
+                        if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
                         {
                             if( selected )
                             {
@@ -2595,6 +2597,28 @@ namespace Profiler
 
                         ImGui::PopStyleVar();
                         ImGui::EndDisabled();
+
+                        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) &&
+                            ( !available || metricProperties.description[0] ) )
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::PushTextWrapPos( 350.f * interfaceScale );
+
+                            if( !available )
+                            {
+                                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 160, 160, 160, 255 ) );
+                                ImGui::TextUnformatted( "This metric cannot be enabled in this set because it would require multiple query passes." );
+                                ImGui::PopStyleColor();
+                            }
+
+                            if( metricProperties.description[0] )
+                            {
+                                ImGui::TextUnformatted( metricProperties.description );
+                            }
+
+                            ImGui::PopTextWrapPos();
+                            ImGui::EndTooltip();
+                        }
                     }
                 }
 
