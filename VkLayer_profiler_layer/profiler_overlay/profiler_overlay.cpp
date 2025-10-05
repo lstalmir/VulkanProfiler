@@ -423,9 +423,10 @@ namespace Profiler
 
             m_VendorMetricsSets.reserve( vendorMetricsSetCount );
 
-            for (uint32_t i = 0; i < vendorMetricsSetCount; ++i)
+            for( uint32_t i = 0; i < vendorMetricsSetCount; ++i )
             {
                 VendorMetricsSet& metricsSet = m_VendorMetricsSets.emplace_back();
+                metricsSet.m_Properties = metricsSets[i];
                 metricsSet.m_Index = i;
                 metricsSet.m_FilterResult = true;
 
@@ -433,10 +434,10 @@ namespace Profiler
                 metricsSet.m_Properties = metricsSets[i];
 
                 // Get metrics belonging to this set.
-                const uint32_t counterCount = m_Frontend.GetPerformanceMetricsSetCounterProperties(i, 0, nullptr);
-                metricsSet.m_Metrics.resize(counterCount);
+                const uint32_t counterCount = m_Frontend.GetPerformanceMetricsSetCounterProperties( i, 0, nullptr );
+                metricsSet.m_Metrics.resize( counterCount );
 
-                m_Frontend.GetPerformanceMetricsSetCounterProperties(i, counterCount, metricsSet.m_Metrics.data());
+                m_Frontend.GetPerformanceMetricsSetCounterProperties( i, counterCount, metricsSet.m_Metrics.data() );
             }
 
             const uint32_t activeMetricsSetIndex = m_Frontend.GetPerformanceMetricsSetIndex();
