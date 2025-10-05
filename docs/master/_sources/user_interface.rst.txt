@@ -94,13 +94,16 @@ The currently presented times can be exported to a CSV (Comma-Separated Values) 
 Performance counters
 --------------------
 
-Performance counters are currently supported only on Intel GPUs.
+The layer offers support for 2 performance query extensions: VK_INTEL_performance_query and VK_KHR_performance_query.
 
-The layer uses VK_INTEL_performance_query extension to collect detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).
+If either extension is enabled in the configuration, the layer collects detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).
 
-Then, `Intel Metrics-Discovery <https://github.com/intel/metrics-discovery>`_ library is used to calculate the metrics from the query results.
+With **VK_INTEL_performance_query** enabled, `Intel Metrics-Discovery <https://github.com/intel/metrics-discovery>`_ library is used to calculate the metrics from the query results.
 The API groups metrics into sets, allowing only metrics from a single set to be collected at a time.
 The set can be changed to any of the available ones listed in the combo box at the top of the window.
+
+**VK_KHR_performance_query** allows to create more customized metrics sets, but it comes with no predefined sets.
+The layer also has a limitation on the selected counters that all of them must be collectible in a single query pass.
 
 Similarly as in :ref:`Top pipelines` view, the reference metrics values can be saved and loaded from a file.
 

@@ -140,11 +140,24 @@
 <span class="sig-name descname"><span class="pre">enable_performance_query_ext</span></span><a class="headerlink" href="#confval-enable_performance_query_ext" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd">bool</dd>
+<dd class="field-odd">enum</dd>
 <dt class="field-even">Default<span class="colon">:</span></dt>
-<dd class="field-even">true</dd>
+<dd class="field-even">intel</dd>
 </dl>
-<p>Enables VK_INTEL_performance_query extension and collects detailed performance metrics from Intel graphics cards. The metrics are collected at VkCommandBuffer level and then aggregated into the entire frame. The scope of available metrics depends on the driver and the GPU used for measurements.</p>
+<p>Enables the selected performance extension and collects detailed performance metrics. The metrics are collected at VkCommandBuffer level and then aggregated into the entire frame. The scope of available metrics depends on the driver and the GPU used for measurements.</p>
+<p>The following options are available:</p>
+<dl class="glossary">
+<dt id="term-none">none<a class="headerlink" href="#term-none" title="Link to this term"></a></dt><dd><p>Disables collection of performance counters.</p>
+</dd>
+<dt id="term-intel">intel<a class="headerlink" href="#term-intel" title="Link to this term"></a></dt><dd><p>Enables VK_INTEL_performance_query extension and uses Metrics-Discovery library to process the results. The extension provides predefined metrics sets exposed by the Intel graphics driver and does not support custom sets.</p>
+</dd>
+<dt id="term-khr">khr<a class="headerlink" href="#term-khr" title="Link to this term"></a></dt><dd><p>Enables VK_KHR_performance_query extension. It does not come with any built-in sets, but it provides a list of available counters that user can select from to build custom sets. The layer has a limitation on the selected counters that all of them must be collected in a single query pass.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application’s knowledge. Because of that, the layer does not support multi-pass performance queries.</p>
+</div>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="std confval">

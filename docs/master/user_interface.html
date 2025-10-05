@@ -164,11 +164,13 @@ Clicking again on a selected mark deselects it.</p>
 </section>
 <section id="performance-counters">
 <h2>Performance counters<a class="headerlink" href="#performance-counters" title="Link to this heading"></a></h2>
-<p>Performance counters are currently supported only on Intel GPUs.</p>
-<p>The layer uses VK_INTEL_performance_query extension to collect detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).</p>
-<p>Then, <a class="reference external" href="https://github.com/intel/metrics-discovery">Intel Metrics-Discovery</a> library is used to calculate the metrics from the query results.
+<p>The layer offers support for 2 performance query extensions: VK_INTEL_performance_query and VK_KHR_performance_query.</p>
+<p>If either extension is enabled in the configuration, the layer collects detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).</p>
+<p>With <strong>VK_INTEL_performance_query</strong> enabled, <a class="reference external" href="https://github.com/intel/metrics-discovery">Intel Metrics-Discovery</a> library is used to calculate the metrics from the query results.
 The API groups metrics into sets, allowing only metrics from a single set to be collected at a time.
 The set can be changed to any of the available ones listed in the combo box at the top of the window.</p>
+<p><strong>VK_KHR_performance_query</strong> allows to create more customized metrics sets, but it comes with no predefined sets.
+The layer also has a limitation on the selected counters that all of them must be collectible in a single query pass.</p>
 <p>Similarly as in <a class="reference internal" href="#top-pipelines"><span class="std std-ref">Top pipelines</span></a> view, the reference metrics values can be saved and loaded from a file.</p>
 </section>
 <section id="memory">
