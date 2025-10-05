@@ -296,6 +296,8 @@ namespace Profiler
         std::string m_PerformanceQueryEditorSetName;
         std::string m_PerformanceQueryEditorSetDescription;
 
+        uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
+        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected );
         void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization
