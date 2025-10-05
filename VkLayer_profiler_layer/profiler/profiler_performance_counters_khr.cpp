@@ -469,9 +469,9 @@ namespace Profiler
             testedCounters.clear();
 
             // Construct a list of allocated counters for the given queue family.
-            for( uint32_t i = 0; i < availableCountersCount; ++i )
+            for( uint32_t i = 0; i < selectedCountersCount; ++i )
             {
-                const Counter& counter = m_Counters.at( pAvailableCounters[i] );
+                const Counter& counter = m_Counters.at( pSelectedCounters[i] );
                 const uint32_t counterIndexInFamily = counter.m_QueueFamilyCounterIndices[queueFamilyIndex];
 
                 if( counterIndexInFamily != UINT32_MAX )
