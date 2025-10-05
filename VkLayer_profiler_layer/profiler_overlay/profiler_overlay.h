@@ -34,6 +34,7 @@
 #include <list>
 #include <vector>
 #include <stack>
+#include <memory>
 #include <mutex>
 #include <functional>
 
@@ -90,20 +91,6 @@ namespace Profiler
         OverlayResources m_Resources;
 
         std::string m_Title;
-
-        struct VendorMetricsSet
-        {
-            uint32_t m_Index;
-            bool m_FilterResult;
-            VkProfilerPerformanceMetricsSetProperties2EXT m_Properties;
-            std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Metrics;
-        };
-
-        const VendorMetricsSet* m_pActiveMetricsSet;
-        std::vector<bool> m_ActiveMetricsVisibility;
-
-        std::vector<VendorMetricsSet> m_VendorMetricsSets;
-        std::string m_VendorMetricFilter;
 
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;
@@ -275,13 +262,28 @@ namespace Profiler
         DeviceProfilerMicromapMemoryData m_ResourceInspectorMicromapData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorMicromapBufferData;
 
+        // Performance counters.
+        struct PerformanceQueryMetricsSet
+            : public std::enable_shared_from_this<PerformanceQueryMetricsSet>
+        {
+            uint32_t m_MetricsSetIndex;
+            bool m_FilterResult;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Metrics;
+            VkProfilerPerformanceMetricsSetProperties2EXT m_Properties;
+        };
+
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pActivePerformanceQueryMetricsSet;
+        std::vector<std::shared_ptr<PerformanceQueryMetricsSet>> m_pPerformanceQueryMetricsSets;
+        std::vector<bool> m_ActivePerformanceQueryMetricsFilterResults;
+        std::string m_PerformanceQueryMetricsFilter;
+
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
         VkCommandBuffer m_PerformanceQueryCommandBufferFilter;
-        std::string     m_PerformanceQueryCommandBufferFilterName;
+        std::string m_PerformanceQueryCommandBufferFilterName;
 
-        std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceCounters;
+        std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceQueryData;
 
         // Performance counter sets editor.
         bool m_PerformanceQueryEditorShowOnlySelected;
@@ -297,8 +299,8 @@ namespace Profiler
         void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization
-        struct PerformanceCounterExporter;
-        std::unique_ptr<PerformanceCounterExporter> m_pPerformanceCounterExporter;
+        struct PerformanceQueryExporter;
+        std::unique_ptr<PerformanceQueryExporter> m_pPerformanceQueryExporter;
 
         // Top pipelines serialization
         struct TopPipelinesExporter;
@@ -387,9 +389,9 @@ namespace Profiler
         void SelectQueueGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Performance counter helpers
-        std::string GetDefaultPerformanceCountersFileName( const VendorMetricsSet* ) const;
+        std::string GetDefaultPerformanceCountersFileName( const std::shared_ptr<PerformanceQueryMetricsSet>& ) const;
         void UpdatePerformanceCounterExporter();
-        void SavePerformanceCountersToFile( const std::string&, const VendorMetricsSet*, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
+        void SavePerformanceCountersToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>&, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();
