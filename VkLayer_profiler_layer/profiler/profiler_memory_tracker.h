@@ -89,5 +89,7 @@ namespace Profiler
         std::shared_mutex mutable m_MemoryBindingMutex;
 
         void ResetMemoryData();
+
+        void UnbindBufferMemoryRange( std::vector<DeviceProfilerBufferMemoryBindingData>& bindings, VkDeviceSize offset, VkDeviceSize size );
     };
 }

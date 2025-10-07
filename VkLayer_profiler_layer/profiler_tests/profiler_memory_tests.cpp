@@ -747,10 +747,10 @@ namespace Profiler
         existing memory bindings works correctly.
 
         First the entire resource is bound at offset 0 to memory at offset 0, with
-        a separate binding for each [alignment] bytes, resulting in [count] bindings.
+        a separate binding for each [alignment] bytes, resulting in 1 binding.
         Then, the last [2 x alignment] bytes of the resource are unbound.
-        The expected result is that the number of reported memory bindings decreases by 2,
-        and the first [count - 2] bindings remain unchanged.
+        The expected result is that the number of reported memory bindings remains
+        the same, and the only binding size decreases by [2 x alignment].
 
         Requires sparseBinding and sparseResidencyBuffer features to be supported.
 
@@ -795,19 +795,87 @@ namespace Profiler
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
             const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
 
-            ASSERT_EQ( count - 2, bufferData.GetMemoryBindingCount() );
+            ASSERT_EQ( 1, bufferData.GetMemoryBindingCount() );
 
-            for( uint32_t i = 0; i < count - 2; ++i )
-            {
-                const DeviceProfilerBufferMemoryBindingData& bindingData = bufferData.GetMemoryBindings()[i];
-                EXPECT_EQ( deviceMemory, bindingData.m_Memory );
-                EXPECT_EQ( memoryRequirements.alignment, bindingData.m_Size );
-                EXPECT_EQ( memoryRequirements.alignment * i, bindingData.m_BufferOffset );
-                EXPECT_EQ( memoryRequirements.alignment * i, bindingData.m_MemoryOffset );
-            }
+            const DeviceProfilerBufferMemoryBindingData& bindingData = *bufferData.GetMemoryBindings();
+            EXPECT_EQ( deviceMemory, bindingData.m_Memory );
+            EXPECT_EQ( memoryRequirements.size - 2 * memoryRequirements.alignment, bindingData.m_Size );
+            EXPECT_EQ( 0, bindingData.m_BufferOffset );
+            EXPECT_EQ( 0, bindingData.m_MemoryOffset );
         }
 
         vkDestroyBuffer( Vk->Device, buffer, nullptr );
         vkFreeMemory( Vk->Device, deviceMemory, nullptr );
+    }
+
+    /***********************************************************************************\
+
+    Test:
+        SparseBinding_RebindResource
+
+    Description:
+        This test verifies that rebinding a sparse resource to a different memory
+        works correctly.
+
+        First the entire resource is bound at offset 0 to memory at offset 0, with
+        a single separate binding. Then, first [alignment] bytes of the resource are
+        bound to a different memory. The expected result is that the number of reported
+        memory bindings increases to 2, the first binding points to the new memory, and
+        the second binding points to the original memory with size reduced by [alignment].
+
+        Requires sparseBinding and sparseResidencyBuffer features to be supported.
+
+    \***********************************************************************************/
+    TEST_F( DeviceProfilerMemoryULT, SparseBinding_RebindResource )
+    {
+        SkipIfUnsupported( sparseBindingFeature );
+
+        VkBuffer buffer = {};
+        VkDeviceMemory deviceMemory = {};
+        VkDeviceMemory deviceMemory2 = {};
+        VkMemoryRequirements memoryRequirements = {};
+        ASSERT_EQ( VK_SUCCESS, CreateSparseBufferResource( 256 * 1024, &buffer, &deviceMemory, &memoryRequirements ) );
+        ASSERT_GT( memoryRequirements.size, memoryRequirements.alignment );
+
+        { // Allocate memory for the new binding
+            VkMemoryAllocateInfo memoryAllocateInfo = {};
+            memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            memoryAllocateInfo.memoryTypeIndex = FindMemoryType( 0, memoryRequirements.memoryTypeBits );
+            memoryAllocateInfo.allocationSize = memoryRequirements.alignment;
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &memoryAllocateInfo, nullptr, &deviceMemory2 ) );
+        }
+
+        { // Bind the resource to the new memory
+            VkSparseMemoryBind sparseMemoryBind = {};
+            sparseMemoryBind.memory = deviceMemory2;
+            sparseMemoryBind.memoryOffset = 0;
+            sparseMemoryBind.resourceOffset = 0;
+            sparseMemoryBind.size = memoryRequirements.alignment;
+            ASSERT_EQ( VK_SUCCESS, BindSparseBufferResource( buffer, sparseMemoryBind ) );
+        }
+
+        { // Collect and post-process data
+            Prof->FinishFrame();
+
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
+
+            ASSERT_EQ( 2, bufferData.GetMemoryBindingCount() );
+            const DeviceProfilerBufferMemoryBindingData* pBindings = bufferData.GetMemoryBindings();
+
+            EXPECT_EQ( deviceMemory2, pBindings[0].m_Memory );
+            EXPECT_EQ( memoryRequirements.alignment, pBindings[0].m_Size );
+            EXPECT_EQ( 0, pBindings[0].m_BufferOffset );
+            EXPECT_EQ( 0, pBindings[0].m_MemoryOffset );
+
+            EXPECT_EQ( deviceMemory, pBindings[1].m_Memory );
+            EXPECT_EQ( memoryRequirements.size - memoryRequirements.alignment, pBindings[1].m_Size );
+            EXPECT_EQ( memoryRequirements.alignment, pBindings[1].m_BufferOffset );
+            EXPECT_EQ( memoryRequirements.alignment, pBindings[1].m_MemoryOffset );
+        }
+
+        vkDestroyBuffer( Vk->Device, buffer, nullptr );
+        vkFreeMemory( Vk->Device, deviceMemory, nullptr );
+        vkFreeMemory( Vk->Device, deviceMemory2, nullptr );
     }
 }
