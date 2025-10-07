@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,5 +23,35 @@
 namespace Profiler
 {
     #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+    /***********************************************************************************\
+
+    Function:
+        CreateXcbSurfaceKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkWaylandSurfaceKhr_Functions::CreateWaylandSurfaceKHR(
+        VkInstance instance,
+        const VkWaylandSurfaceCreateInfoKHR* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkSurfaceKHR* pSurface )
+    {
+        auto& id = InstanceDispatch.Get( instance );
+
+        VkResult result = id.Instance.Callbacks.CreateWaylandSurfaceKHR(
+            instance, pCreateInfo, pAllocator, pSurface );
+
+        if( result == VK_SUCCESS )
+        {
+            VkSurfaceKhr_Object surfaceObject = {};
+            surfaceObject.Handle = *pSurface;
+            surfaceObject.Window = pCreateInfo->surface;
+
+            id.Instance.Surfaces.emplace( *pSurface, surfaceObject );
+        }
+
+        return result;
+    }
     #endif // VK_USE_PLATFORM_WAYLAND_KHR
 }

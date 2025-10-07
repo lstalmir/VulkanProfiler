@@ -23,12 +23,23 @@ cmake_minimum_required (VERSION 3.8...3.31)
 find_package (X11)
 
 if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.16.0)
+    # Suppress CMake version warnings in ECM by requiring at least 3.16+
+    # once we checked that it is indeed 3.16+.
+    cmake_minimum_required (VERSION 3.16...3.31)
+
     # ECM is required on Linux to find Wayland and XCB.
+    # Additionally, pkgconfig is required for Wayland to find wayland.xml.
     find_package (ECM NO_MODULE)
+    find_package (PkgConfig)
+
     if (ECM_FOUND)
         set (CMAKE_MODULE_PATH ${ECM_FIND_MODULE_DIR})
         find_package (XCB COMPONENTS XCB SHAPE)
-        #find_package (Wayland)
+    endif ()
+
+    if (ECM_FOUND AND PkgConfig_FOUND)
+        find_package (Wayland COMPONENTS Client)
+        find_program (WAYLAND_SCANNER NAMES wayland-scanner)
     endif ()
 endif ()
 
@@ -46,7 +57,7 @@ if (XCB_FOUND AND XCB_SHAPE_FOUND)
     add_definitions (-DVK_USE_PLATFORM_XCB_KHR)
 endif ()
 
-if (Wayland_FOUND)
+if (Wayland_FOUND AND WAYLAND_SCANNER)
     message ("-- Profiler platform enabled: Wayland")
     set (PROFILER_PLATFORM_WAYLAND_FOUND 1)
     set (PROFILER_PLATFORM_FOUND 1)

@@ -26,6 +26,7 @@ Following packages are required for building on Debian-based systems:
 - libxkbcommon-dev
 - libx11-dev, libxext-dev (for Xlib support)
 - libxcb1-dev, libxcb-shape0-dev (for XCB support)
+- libwayland-dev (for Wayland support)
 
 To build the layer create "cmake_build" folder in the project root directory and run following command from it:
 ```
