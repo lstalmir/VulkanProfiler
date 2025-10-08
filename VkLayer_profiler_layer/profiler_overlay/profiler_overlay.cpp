@@ -24,6 +24,7 @@
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_string_serializer.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
+#include "profiler_helpers/profiler_metrics_set_file.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "utils/scoped_value.h"
@@ -176,6 +177,20 @@ namespace Profiler
         IGFD::FileDialogConfig m_FileDialogConfig;
         std::vector<VkProfilerPerformanceCounterResultEXT> m_Data;
         std::vector<bool> m_DataMask;
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pMetricsSet;
+        Action m_Action;
+    };
+
+    struct ProfilerOverlayOutput::PerformanceQueryMetricsSetExporter
+    {
+        enum class Action
+        {
+            eExport,
+            eImport
+        };
+
+        IGFD::FileDialog m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
         std::shared_ptr<PerformanceQueryMetricsSet> m_pMetricsSet;
         Action m_Action;
     };
@@ -459,14 +474,10 @@ namespace Profiler
                 m_PerformanceQueryEditorCounterIndices.clear();
 
                 m_PerformanceQueryEditorCounterAvailability.resize( m_PerformanceQueryEditorCounterProperties.size() );
-                std::fill( m_PerformanceQueryEditorCounterAvailability.begin(),
-                    m_PerformanceQueryEditorCounterAvailability.end(),
-                    false );
+                Fill( m_PerformanceQueryEditorCounterAvailability, false );
 
                 m_PerformanceQueryEditorCounterAvailabilityKnown.resize( m_PerformanceQueryEditorCounterProperties.size() );
-                std::fill( m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
-                    m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
-                    false );
+                Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
             }
         }
 
@@ -1095,6 +1106,7 @@ namespace Profiler
 
         // Draw other windows
         UpdatePerformanceCounterExporter();
+        UpdatePerformanceQueryMetricsSetExporter();
         UpdateTopPipelinesExporter();
         UpdateTraceExporter();
         UpdateNotificationWindow();
@@ -2287,61 +2299,114 @@ namespace Profiler
         }
 
         // Show a combo box that allows the user to change the active metrics set.
-        ImGui::TextUnformatted( Lang::PerformanceCountersSet );
-        ImGui::SameLine( 100.f * interfaceScale );
-        ImGui::PushItemWidth( -1 );
-
-        const char* pActiveMetricsSetName = "None";
-        if( m_pActivePerformanceQueryMetricsSet )
         {
-            pActiveMetricsSetName = m_pActivePerformanceQueryMetricsSet->m_Properties.name;
-        }
+            ImGui::TextUnformatted( Lang::PerformanceCountersSet );
+            ImGui::SameLine( 100.f * interfaceScale );
 
-        auto PerformanceMetricsSetTooltip = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
-        {
-            if( ( pMetricsSet &&
-                    pMetricsSet->m_Properties.description[0] ) &&
-                ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            const ImGuiStyle& style = ImGui::GetStyle();
+            const float contentAreaWidth = ImGui::GetContentRegionAvail().x;
+            const float buttonSpacing = 2.f * interfaceScale;
+            const float buttonWidth = 16.f * interfaceScale;
+            const ImVec2 buttonSize = { buttonWidth, buttonWidth };
+            const float buttonWidthWithSpacing = buttonWidth + style.FramePadding.x * 2.f;
+            const float comboWidth = contentAreaWidth - ( buttonWidthWithSpacing + buttonSpacing + 1.f ) * 3.f;
+            ImGui::PushItemWidth( comboWidth );
+
+            const char* pActiveMetricsSetName = "None";
+            if( m_pActivePerformanceQueryMetricsSet )
             {
-                ImGui::BeginTooltip();
-                ImGui::PushTextWrapPos( 350.f * interfaceScale );
-                ImGui::TextUnformatted( pMetricsSet->m_Properties.description );
-                ImGui::PopTextWrapPos();
-                ImGui::EndTooltip();
+                pActiveMetricsSetName = m_pActivePerformanceQueryMetricsSet->m_Properties.name;
             }
-        };
 
-        if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", pActiveMetricsSetName ) )
-        {
-            // Enumerate metrics sets.
-            for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
+            auto PerformanceMetricsSetTooltip = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
             {
-                std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = m_pPerformanceQueryMetricsSets[metricsSetIndex];
-
-                if( !pMetricsSet->m_FilterResult )
+                if( ( pMetricsSet &&
+                        pMetricsSet->m_Properties.description[0] ) &&
+                    ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
                 {
-                    continue;
+                    ImGui::BeginTooltip();
+                    ImGui::PushTextWrapPos( 350.f * interfaceScale );
+                    ImGui::TextUnformatted( pMetricsSet->m_Properties.description );
+                    ImGui::PopTextWrapPos();
+                    ImGui::EndTooltip();
                 }
+            };
 
-                if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
+            if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", pActiveMetricsSetName ) )
+            {
+                // Enumerate metrics sets.
+                for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
                 {
-                    // Notify the profiler.
-                    if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+                    std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = m_pPerformanceQueryMetricsSets[metricsSetIndex];
+
+                    if( !pMetricsSet->m_FilterResult )
                     {
-                        // Refresh the performance metric properties.
-                        m_pActivePerformanceQueryMetricsSet = pMetricsSet;
-                        m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
-                        UpdateActiveMetricsFilterResults();
+                        continue;
                     }
+
+                    if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
+                    {
+                        // Notify the profiler.
+                        if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+                        {
+                            // Refresh the performance metric properties.
+                            m_pActivePerformanceQueryMetricsSet = pMetricsSet;
+                            m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
+                            UpdateActiveMetricsFilterResults();
+                        }
+                    }
+
+                    PerformanceMetricsSetTooltip( pMetricsSet );
                 }
 
-                PerformanceMetricsSetTooltip( pMetricsSet );
+                ImGui::EndCombo();
             }
 
-            ImGui::EndCombo();
-        }
+            PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
 
-        PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
+            // Bookmark the current metrics set.
+            ImGui::BeginDisabled( !supportsCustomMetricsSets || !m_pActivePerformanceQueryMetricsSet );
+            ImGui::SameLine( 0, buttonSpacing );
+            if( !Contains( m_pPerformanceQueryMetricsSets, m_pActivePerformanceQueryMetricsSet ) )
+            {
+                if( ImGui::ImageButton( "Bookmark##Set", m_Resources.GetBookmarkEmptyIconImage(), buttonSize ) )
+                {
+                    // Add bookmark.
+                    // TODO: Ask for name and description.
+                    m_pPerformanceQueryMetricsSets.push_back( m_pActivePerformanceQueryMetricsSet );
+                }
+            }
+            else
+            {
+                if( ImGui::ImageButton( "Bookmark##Reset", m_Resources.GetBookmarkFilledIconImage(), buttonSize ) )
+                {
+                    // Remove bookmark.
+                    Erase( m_pPerformanceQueryMetricsSets, m_pActivePerformanceQueryMetricsSet );
+                }
+            }
+            ImGui::EndDisabled();
+
+            // Save the current metrics set to a file.
+            ImGui::BeginDisabled( !supportsCustomMetricsSets || !m_pActivePerformanceQueryMetricsSet );
+            ImGui::SameLine( 0, buttonSpacing );
+            if( ImGui::ImageButton( "Save##MetricsSet", m_Resources.GetBookmarkEmptyIconImage(), buttonSize ) )
+            {
+                m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
+                m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet = m_pActivePerformanceQueryMetricsSet;
+                m_pPerformanceQueryMetricsSetExporter->m_Action = PerformanceQueryMetricsSetExporter::Action::eExport;
+            }
+            ImGui::EndDisabled();
+
+            // Load a metrics set from a file.
+            ImGui::BeginDisabled( !supportsCustomMetricsSets );
+            ImGui::SameLine( 0, buttonSpacing );
+            if( ImGui::ImageButton( "Load##MetricsSet", m_Resources.GetBookmarkEmptyIconImage(), buttonSize ) )
+            {
+                m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
+                m_pPerformanceQueryMetricsSetExporter->m_Action = PerformanceQueryMetricsSetExporter::Action::eImport;
+            }
+            ImGui::EndDisabled();
+        }
 
         // Setup performance counters table.
         constexpr ImGuiTableFlags tableFlags =
@@ -2577,9 +2642,7 @@ namespace Profiler
                         const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
 
                         bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
-                        bool selected = std::find( m_PerformanceQueryEditorCounterIndices.begin(),
-                                            m_PerformanceQueryEditorCounterIndices.end(),
-                                            counterIndex ) != m_PerformanceQueryEditorCounterIndices.end();
+                        bool selected = Contains( m_PerformanceQueryEditorCounterIndices, counterIndex );
 
                         if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
                             ( unknownCountersAvailability.size() < 10 ) )
@@ -2675,18 +2738,10 @@ namespace Profiler
         }
         else
         {
-            m_PerformanceQueryEditorCounterIndices.erase(
-                std::remove(
-                    m_PerformanceQueryEditorCounterIndices.begin(),
-                    m_PerformanceQueryEditorCounterIndices.end(),
-                    counterIndex ),
-                m_PerformanceQueryEditorCounterIndices.end() );
+            Erase( m_PerformanceQueryEditorCounterIndices, counterIndex );
         }
 
-        std::fill(
-            m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
-            m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
-            false );
+        Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
 
         RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
     }
@@ -2754,10 +2809,7 @@ namespace Profiler
                 m_pActivePerformanceQueryMetricsSet = m_pPerformanceQueryEditorSet;
                 m_ActivePerformanceQueryMetricsFilterResults.resize( m_pPerformanceQueryEditorSet->m_Metrics.size() );
 
-                std::fill(
-                    m_ActivePerformanceQueryMetricsFilterResults.begin(),
-                    m_ActivePerformanceQueryMetricsFilterResults.end(),
-                    true );
+                Fill( m_ActivePerformanceQueryMetricsFilterResults, true );
             }
         }
     }
@@ -6285,6 +6337,136 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetDefaultPerformanceQueryMetricsSetFileName
+
+    Description:
+        Returns the default file name for performance query metrics set.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetDefaultPerformanceQueryMetricsSetFileName(
+        const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet ) const
+    {
+        std::string sanitizedMetricsSetName = pMetricsSet->m_Properties.name;
+        EraseIf( sanitizedMetricsSetName, []( char ch )
+            { return std::strchr( "<>:\"/\\|?*", ch ); } );
+        ReplaceIf(
+            sanitizedMetricsSetName, []( char ch )
+            { return std::isspace( ch ); },
+            '_' );
+
+        return sanitizedMetricsSetName + ".json";
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceQueryMetricsSetExporter
+
+    Description:
+        Shows a file dialog if performance metrics set save or load was requested and
+        saves/loads them when OK is pressed.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceQueryMetricsSetExporter()
+    {
+        static const std::string scFileDialogId = "#PerformanceQueryMetricsSetSaveFileDialog";
+
+        if( m_pPerformanceQueryMetricsSetExporter != nullptr )
+        {
+            // Initialize the file dialog on the first call to this function.
+            if( !m_pPerformanceQueryMetricsSetExporter->m_FileDialog.IsOpened() )
+            {
+                m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.flags =
+                    ImGuiFileDialogFlags_Default;
+
+                if( m_pPerformanceQueryMetricsSetExporter->m_Action == PerformanceQueryMetricsSetExporter::Action::eImport )
+                {
+                    // Don't ask for overwrite when selecting file to load.
+                    m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.flags ^=
+                        ImGuiFileDialogFlags_ConfirmOverwrite;
+                }
+
+                if( m_pPerformanceQueryMetricsSetExporter->m_Action == PerformanceQueryMetricsSetExporter::Action::eExport )
+                {
+                    m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.fileName =
+                        GetDefaultPerformanceQueryMetricsSetFileName( m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet );
+                }
+            }
+
+            // Draw the file dialog until the user closes it.
+            bool closed = DisplayFileDialog(
+                scFileDialogId,
+                m_pPerformanceQueryMetricsSetExporter->m_FileDialog,
+                m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig,
+                "Select performance metrics set file path",
+                ".json" );
+
+            if( closed )
+            {
+                if( m_pPerformanceQueryMetricsSetExporter->m_FileDialog.IsOk() )
+                {
+                    switch( m_pPerformanceQueryMetricsSetExporter->m_Action )
+                    {
+                    case PerformanceQueryMetricsSetExporter::Action::eExport:
+                        SavePerformanceQueryMetricsSetToFile(
+                            m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetFilePathName(),
+                            m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet );
+                        break;
+
+                    case PerformanceQueryMetricsSetExporter::Action::eImport:
+                        LoadPerformanceQueryMetricsSetFromFile(
+                            m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetFilePathName() );
+                        break;
+                    }
+                }
+
+                // Destroy the exporter.
+                m_pPerformanceQueryMetricsSetExporter.reset();
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SavePerformanceQueryMetricsSetToFile
+
+    Description:
+        Writes performance metrics set to a JSON file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SavePerformanceQueryMetricsSetToFile(
+        const std::string& fileName,
+        const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+    {
+        DeviceProfilerMetricsSetFile file;
+
+        assert( pMetricsSet != nullptr );
+        file.SetName( pMetricsSet->m_Properties.name );
+        file.SetDescription( pMetricsSet->m_Properties.description );
+        file.SetCounters( static_cast<uint32_t>( pMetricsSet->m_Metrics.size() ), pMetricsSet->m_Metrics.data() );
+
+        // Write the file
+        if( file.Write( fileName ) )
+        {
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Performance counters saved successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for writing.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         LoadPerformanceCountersFromFile
 
     Description:
@@ -6310,6 +6492,81 @@ namespace Profiler
 
             m_SerializationSucceeded = true;
             m_SerializationMessage = "Performance counters loaded successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for reading.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SavePerformanceQueryMetricsSetToFile
+
+    Description:
+        Writes performance metrics set to a JSON file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::LoadPerformanceQueryMetricsSetFromFile( const std::string& fileName )
+    {
+        DeviceProfilerMetricsSetFile file;
+
+        if( file.Read( fileName ) )
+        {
+            const std::string& name = file.GetName();
+            const std::string& description = file.GetDescription();
+            const std::vector<uint32_t> counterIndices = file.GetCounters( m_Frontend );
+
+            VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
+            createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
+            createInfo.metricsCount = static_cast<uint32_t>( counterIndices.size() );
+            createInfo.pMetricsIndices = counterIndices.data();
+            ProfilerStringFunctions::CopyString( createInfo.name, name.c_str(), name.length() );
+            ProfilerStringFunctions::CopyString( createInfo.description, description.c_str(), description.length() );
+
+            uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
+            if( metricsSetIndex != UINT32_MAX )
+            {
+                auto pMetricsSet = std::make_shared<PerformanceQueryMetricsSet>();
+                pMetricsSet->m_MetricsSetIndex = metricsSetIndex;
+
+                m_Frontend.GetPerformanceMetricsSetProperties( metricsSetIndex, &pMetricsSet->m_Properties );
+
+                // There will be at most createInfo.metricsCount metrics in the set.
+                pMetricsSet->m_Metrics.resize( createInfo.metricsCount );
+                const uint32_t actualMetricsCount = m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                    metricsSetIndex, createInfo.metricsCount, pMetricsSet->m_Metrics.data() );
+
+                pMetricsSet->m_Metrics.resize( actualMetricsCount );
+
+                // Add the new metrics set to the list and select it.
+                m_pPerformanceQueryMetricsSets.push_back( pMetricsSet );
+
+                if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+                {
+                    m_pActivePerformanceQueryMetricsSet = pMetricsSet;
+                    m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Metrics.size(), true );
+                }
+
+                m_SerializationSucceeded = true;
+                m_SerializationMessage = fmt::format(
+                    "Performance metrics set loaded successfully ({} / {} counters found).\n{}",
+                    actualMetricsCount,
+                    file.GetCounterCount(),
+                    fileName );
+            }
+            else
+            {
+                m_SerializationSucceeded = false;
+                m_SerializationMessage = "Failed to create performance metrics set.\n" + fileName;
+            }
         }
         else
         {

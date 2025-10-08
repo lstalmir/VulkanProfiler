@@ -26,6 +26,7 @@ set (headers
     "profiler_csv_helpers.h"
     "profiler_string_serializer.h"
     "profiler_memory_comparator.h"
+    "profiler_metrics_set_file.h"
     "profiler_time_helpers.h"
     )
 
@@ -33,6 +34,7 @@ set (sources
     "profiler_csv_helpers.cpp"
     "profiler_string_serializer.cpp"
     "profiler_memory_comparator.cpp"
+    "profiler_metrics_set_file.cpp"
     )
 
 # Link intermediate static library
