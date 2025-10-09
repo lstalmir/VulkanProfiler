@@ -1,5 +1,13 @@
 [
     {
+        "name": "OpenImg",
+        "path": "assets/open.png"
+    },
+    {
+        "name": "SaveImg",
+        "path": "assets/save.png"
+    },
+    {
         "name": "CopyImg",
         "path": "assets/copy.png"
     },

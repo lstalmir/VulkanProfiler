@@ -49,6 +49,8 @@ namespace Profiler
         ImFont* GetBoldFont() const;
         ImFont* GetCodeFont() const;
 
+        void* GetOpenIconImage() const;
+        void* GetSaveIconImage() const;
         void* GetCopyIconImage() const;
         void* GetBookmarkEmptyIconImage() const;
         void* GetBookmarkFilledIconImage() const;
@@ -60,6 +62,8 @@ namespace Profiler
         ImFont* m_pBoldFont = nullptr;
         ImFont* m_pCodeFont = nullptr;
 
+        void* m_pOpenIconImage = nullptr;
+        void* m_pSaveIconImage = nullptr;
         void* m_pCopyIconImage = nullptr;
         void* m_pBookmarkEmptyIconImage = nullptr;
         void* m_pBookmarkFilledIconImage = nullptr;

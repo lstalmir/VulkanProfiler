@@ -2150,6 +2150,65 @@ namespace Profiler
             }
         };
 
+        auto UpdateMetricsSetFilterResultsWithRegex = [&]( const std::regex& regex, const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+        {
+            pMetricsSet->m_FilterResult = false;
+
+            // Match by metrics set name.
+            if( std::regex_search( pMetricsSet->m_Properties.name, regex ) )
+            {
+                pMetricsSet->m_FilterResult = true;
+                return;
+            }
+
+            // Match by metric name.
+            for( const auto& metric : pMetricsSet->m_Metrics )
+            {
+                if( std::regex_search( metric.shortName, regex ) )
+                {
+                    pMetricsSet->m_FilterResult = true;
+                    return;
+                }
+            }
+        };
+
+        auto UpdateMetricsSetFilterResults = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+        {
+            try
+            {
+                // Try to compile the regex filter.
+                UpdateMetricsSetFilterResultsWithRegex(
+                    std::regex( m_PerformanceQueryMetricsFilter, regexFilterFlags ),
+                    pMetricsSet );
+            }
+            catch( ... )
+            {
+                // Regex compilation failed, don't change the visibility of the set.
+            }
+        };
+
+        auto UpdateMetricsSetsFilterResults = [&]()
+        {
+            try
+            {
+                // Try to compile the regex filter.
+                const std::regex regexFilter( m_PerformanceQueryMetricsFilter, regexFilterFlags );
+
+                // Enumerate only sets that match the query.
+                for( size_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
+                {
+                    UpdateMetricsSetFilterResultsWithRegex( regexFilter, m_pPerformanceQueryMetricsSets[metricsSetIndex] );
+                }
+
+                // Update visibility of metrics in the active metrics set.
+                UpdateActiveMetricsFilterResultsWithRegex( regexFilter );
+            }
+            catch( ... )
+            {
+                // Regex compilation failed, don't change the visibility of the sets.
+            }
+        };
+
         // Data source
         const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_PerformanceCounters.m_Results;
 
@@ -2231,42 +2290,7 @@ namespace Profiler
         ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
         if( ImGui::InputText( "##PerformanceQueryMetricsFilter", &m_PerformanceQueryMetricsFilter ) )
         {
-            try
-            {
-                // Text changed, construct a regex from the string and find the matching metrics sets.
-                std::regex regexFilter( m_PerformanceQueryMetricsFilter, regexFilterFlags );
-
-                // Enumerate only sets that match the query.
-                for( size_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
-                {
-                    PerformanceQueryMetricsSet& metricsSet = *m_pPerformanceQueryMetricsSets[metricsSetIndex];
-                    metricsSet.m_FilterResult = false;
-
-                    // Match by metrics set name.
-                    if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
-                    {
-                        metricsSet.m_FilterResult = true;
-                        continue;
-                    }
-
-                    // Match by metric name.
-                    for( const auto& metric : metricsSet.m_Metrics )
-                    {
-                        if( std::regex_search( metric.shortName, regexFilter ) )
-                        {
-                            metricsSet.m_FilterResult = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Update visibility of metrics in the active metrics set.
-                UpdateActiveMetricsFilterResultsWithRegex( regexFilter );
-            }
-            catch( ... )
-            {
-                // Regex compilation failed, don't change the visibility of the sets.
-            }
+            UpdateMetricsSetsFilterResults();
         }
 
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
@@ -2309,7 +2333,7 @@ namespace Profiler
             const float buttonWidth = 16.f * interfaceScale;
             const ImVec2 buttonSize = { buttonWidth, buttonWidth };
             const float buttonWidthWithSpacing = buttonWidth + style.FramePadding.x * 2.f;
-            const float comboWidth = contentAreaWidth - ( buttonWidthWithSpacing + buttonSpacing + 1.f ) * 3.f;
+            const float comboWidth = contentAreaWidth - ( buttonWidthWithSpacing + buttonSpacing ) * 3.f;
             ImGui::PushItemWidth( comboWidth );
 
             const char* pActiveMetricsSetName = "None";
@@ -2374,6 +2398,9 @@ namespace Profiler
                     // Add bookmark.
                     // TODO: Ask for name and description.
                     m_pPerformanceQueryMetricsSets.push_back( m_pActivePerformanceQueryMetricsSet );
+
+                    // Update visibility of the new metrics set in the list.
+                    UpdateMetricsSetFilterResults( m_pActivePerformanceQueryMetricsSet );
                 }
             }
             else
@@ -2389,7 +2416,7 @@ namespace Profiler
             // Save the current metrics set to a file.
             ImGui::BeginDisabled( !supportsCustomMetricsSets || !m_pActivePerformanceQueryMetricsSet );
             ImGui::SameLine( 0, buttonSpacing );
-            if( ImGui::ImageButton( "Save##MetricsSet", m_Resources.GetBookmarkEmptyIconImage(), buttonSize ) )
+            if( ImGui::ImageButton( "Save##MetricsSet", m_Resources.GetSaveIconImage(), buttonSize ) )
             {
                 m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
                 m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet = m_pActivePerformanceQueryMetricsSet;
@@ -2400,7 +2427,7 @@ namespace Profiler
             // Load a metrics set from a file.
             ImGui::BeginDisabled( !supportsCustomMetricsSets );
             ImGui::SameLine( 0, buttonSpacing );
-            if( ImGui::ImageButton( "Load##MetricsSet", m_Resources.GetBookmarkEmptyIconImage(), buttonSize ) )
+            if( ImGui::ImageButton( "Load##MetricsSet", m_Resources.GetOpenIconImage(), buttonSize ) )
             {
                 m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
                 m_pPerformanceQueryMetricsSetExporter->m_Action = PerformanceQueryMetricsSetExporter::Action::eImport;
