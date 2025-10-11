@@ -465,14 +465,10 @@ namespace Profiler
                 }
 
                 m_PerformanceQueryEditorCounterAvailability.resize( m_PerformanceQueryEditorCounterProperties.size() );
-                std::fill( m_PerformanceQueryEditorCounterAvailability.begin(),
-                    m_PerformanceQueryEditorCounterAvailability.end(),
-                    false );
+                Fill( m_PerformanceQueryEditorCounterAvailability, false );
 
                 m_PerformanceQueryEditorCounterAvailabilityKnown.resize( m_PerformanceQueryEditorCounterProperties.size() );
-                std::fill( m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
-                    m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
-                    false );
+                Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
             }
         }
 
@@ -2628,9 +2624,7 @@ namespace Profiler
                         const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
 
                         bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
-                        bool selected = std::find( m_PerformanceQueryEditorCounterIndices.begin(),
-                                            m_PerformanceQueryEditorCounterIndices.end(),
-                                            counterIndex ) != m_PerformanceQueryEditorCounterIndices.end();
+                        bool selected = Contains( m_PerformanceQueryEditorCounterIndices, counterIndex );
 
                         if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
                             ( unknownCountersAvailability.size() < 10 ) )
@@ -2726,18 +2720,10 @@ namespace Profiler
         }
         else
         {
-            m_PerformanceQueryEditorCounterIndices.erase(
-                std::remove(
-                    m_PerformanceQueryEditorCounterIndices.begin(),
-                    m_PerformanceQueryEditorCounterIndices.end(),
-                    counterIndex ),
-                m_PerformanceQueryEditorCounterIndices.end() );
+            Erase( m_PerformanceQueryEditorCounterIndices, counterIndex );
         }
 
-        std::fill(
-            m_PerformanceQueryEditorCounterAvailabilityKnown.begin(),
-            m_PerformanceQueryEditorCounterAvailabilityKnown.end(),
-            false );
+        Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
 
         RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
     }
@@ -2805,10 +2791,7 @@ namespace Profiler
                 m_pActivePerformanceQueryMetricsSet = m_pPerformanceQueryEditorSet;
                 m_ActivePerformanceQueryMetricsFilterResults.resize( m_pPerformanceQueryEditorSet->m_Metrics.size() );
 
-                std::fill(
-                    m_ActivePerformanceQueryMetricsFilterResults.begin(),
-                    m_ActivePerformanceQueryMetricsFilterResults.end(),
-                    true );
+                Fill( m_ActivePerformanceQueryMetricsFilterResults, true );
             }
         }
     }

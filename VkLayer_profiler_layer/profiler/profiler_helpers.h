@@ -179,6 +179,101 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        Contains
+
+    Description:
+        Checks whether the iterable collection contains the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE bool Contains( const Iterable& iterable, const ValueType& value )
+    {
+        auto end = std::end( iterable );
+        return std::find( std::begin( iterable ), end, value ) != end;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Erase
+
+    Description:
+        Remove all occurrences of the given value from the iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void Erase( Iterable& iterable, const ValueType& value )
+    {
+        auto end = std::end( iterable );
+        auto firstRemoved = std::remove( std::begin( iterable ), end, value );
+        if( firstRemoved != end )
+        {
+            iterable.erase( firstRemoved, end );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EraseIf
+
+    Description:
+        Remove all elements that satisfy the predicate from the iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename PredicateType>
+    PROFILER_FORCE_INLINE void EraseIf( Iterable& iterable, const PredicateType& predicate )
+    {
+        auto end = std::end( iterable );
+        auto firstRemoved = std::remove_if( std::begin( iterable ), end, predicate );
+        if( firstRemoved != end )
+        {
+            iterable.erase( firstRemoved, end );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ReplaceIfs
+
+    Description:
+        Replace all elements that satisfy the predicate with the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename PredicateType, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void ReplaceIf( Iterable& iterable, const PredicateType& predicate, const ValueType& value )
+    {
+        auto it = std::begin( iterable );
+        auto end = std::end( iterable );
+        while( it != end )
+        {
+            if( predicate( *it ) )
+            {
+                *it = value;
+            }
+            it++;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Fill
+
+    Description:
+        Fill the iterable collection with the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void Fill( Iterable& iterable, const ValueType& value )
+    {
+        std::fill( std::begin( iterable ), std::end( iterable ), value );
+    }
+
+    /***********************************************************************************\
+
     Class:
         __PNextTypeTraits
 
