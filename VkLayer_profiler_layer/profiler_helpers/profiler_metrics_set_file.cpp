@@ -67,6 +67,8 @@ namespace Profiler
             {
                 m_Counters.push_back( counter.get<std::string>() );
             }
+
+            return true;
         }
         catch( ... )
         {
@@ -94,6 +96,8 @@ namespace Profiler
 
             std::ofstream file( filename );
             file << json;
+
+            return true;
         }
         catch( ... )
         {
