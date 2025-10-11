@@ -264,6 +264,8 @@ namespace Profiler
         m_pBackend->CreateFontsImage();
 
         // Create image objects
+        m_pOpenIconImage = CreateImage( OverlayAssets::OpenImg, sizeof( OverlayAssets::OpenImg ) );
+        m_pSaveIconImage = CreateImage( OverlayAssets::SaveImg, sizeof( OverlayAssets::SaveImg ) );
         m_pCopyIconImage = CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
         m_pBookmarkEmptyIconImage = CreateImage( OverlayAssets::BookmarkEmptyImg, sizeof( OverlayAssets::BookmarkEmptyImg ) );
         m_pBookmarkFilledIconImage = CreateImage( OverlayAssets::BookmarkFilledImg, sizeof( OverlayAssets::BookmarkFilledImg ) );
@@ -304,6 +306,18 @@ namespace Profiler
         {
             m_pBackend->WaitIdle();
             m_pBackend->DestroyFontsImage();
+
+            if( m_pOpenIconImage )
+            {
+                m_pBackend->DestroyImage( m_pOpenIconImage );
+                m_pOpenIconImage = nullptr;
+            }
+
+            if( m_pSaveIconImage )
+            {
+                m_pBackend->DestroyImage( m_pSaveIconImage );
+                m_pSaveIconImage = nullptr;
+            }
 
             if( m_pCopyIconImage )
             {
@@ -367,6 +381,34 @@ namespace Profiler
     ImFont* OverlayResources::GetCodeFont() const
     {
         return m_pCodeFont;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetOpenIconImage
+
+    Description:
+        Returns the open icon image descriptor set.
+
+    \***********************************************************************************/
+    void* OverlayResources::GetOpenIconImage() const
+    {
+        return m_pOpenIconImage;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSaveIconImage
+
+    Description:
+        Returns the save icon image descriptor set.
+
+    \***********************************************************************************/
+    void* OverlayResources::GetSaveIconImage() const
+    {
+        return m_pSaveIconImage;
     }
 
     /***********************************************************************************\

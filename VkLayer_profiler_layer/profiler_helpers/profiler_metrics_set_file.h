@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,55 +19,45 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_ext/VkProfilerEXT.h"
 #include <stdint.h>
-
-struct ImFont;
+#include <fstream>
+#include <string>
+#include <vector>
 
 namespace Profiler
 {
-    class OverlayBackend;
+    class DeviceProfilerFrontend;
 
     /***********************************************************************************\
 
     Class:
-        OverlayResources
+        DeviceProfilerMetricsSetFile
 
     Description:
-        Manages the fonts and images used by the overlay.
+        Serializes performance metrics set into JSON file.
 
     \***********************************************************************************/
-    class OverlayResources
+    class DeviceProfilerMetricsSetFile
     {
     public:
-        bool InitializeFonts();
-        void Destroy();
+        DeviceProfilerMetricsSetFile();
 
-        bool InitializeImages( OverlayBackend* pBackend );
-        void DestroyImages();
+        bool Read( const std::string& filename );
+        bool Write( const std::string& filename ) const;
 
-        ImFont* GetDefaultFont() const;
-        ImFont* GetBoldFont() const;
-        ImFont* GetCodeFont() const;
+        void SetName( const std::string_view& name );
+        void SetDescription( const std::string_view& description );
+        void SetCounters( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties );
 
-        void* GetOpenIconImage() const;
-        void* GetSaveIconImage() const;
-        void* GetCopyIconImage() const;
-        void* GetBookmarkEmptyIconImage() const;
-        void* GetBookmarkFilledIconImage() const;
+        const std::string& GetName() const;
+        const std::string& GetDescription() const;
+        std::vector<uint32_t> GetCounters( DeviceProfilerFrontend& frontend ) const;
+        uint32_t GetCounterCount() const;
 
     private:
-        OverlayBackend* m_pBackend = nullptr;
-
-        ImFont* m_pDefaultFont = nullptr;
-        ImFont* m_pBoldFont = nullptr;
-        ImFont* m_pCodeFont = nullptr;
-
-        void* m_pOpenIconImage = nullptr;
-        void* m_pSaveIconImage = nullptr;
-        void* m_pCopyIconImage = nullptr;
-        void* m_pBookmarkEmptyIconImage = nullptr;
-        void* m_pBookmarkFilledIconImage = nullptr;
-
-        void* CreateImage( const uint8_t* pAsset, int assetSize );
+        std::string m_Name;
+        std::string m_Description;
+        std::vector<std::string> m_Counters;
     };
 }

@@ -46,3 +46,6 @@
 [submodule "External/implot"]
 	path = External/implot
 	url = https://github.com/epezent/implot
+[submodule "External/tabler-icons"]
+	path = External/tabler-icons
+	url = https://github.com/tabler/tabler-icons
