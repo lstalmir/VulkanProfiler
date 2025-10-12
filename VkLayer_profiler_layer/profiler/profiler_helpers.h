@@ -189,9 +189,8 @@ namespace Profiler
     template<typename Iterable, typename ValueType = typename Iterable::value_type>
     PROFILER_FORCE_INLINE bool Contains( const Iterable& iterable, const ValueType& value )
     {
-        return std::find(
-                   std::begin( iterable ),
-                   std::end( iterable ), value ) != std::end( iterable );
+        auto end = std::end( iterable );
+        return std::find( std::begin( iterable ), end, value ) != end;
     }
 
     /***********************************************************************************\
@@ -217,7 +216,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Erase
+        EraseIf
 
     Description:
         Remove all elements that satisfy the predicate from the iterable collection.
@@ -237,10 +236,10 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Erase
+        ReplaceIfs
 
     Description:
-        Remove all elements that satisfy the predicate from the iterable collection.
+        Replace all elements that satisfy the predicate with the given value.
 
     \***********************************************************************************/
     template<typename Iterable, typename PredicateType, typename ValueType = typename Iterable::value_type>
@@ -261,10 +260,10 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        Erase
+        Fill
 
     Description:
-        Remove all occurrences of the given value from the iterable collection.
+        Fill the iterable collection with the given value.
 
     \***********************************************************************************/
     template<typename Iterable, typename ValueType = typename Iterable::value_type>
