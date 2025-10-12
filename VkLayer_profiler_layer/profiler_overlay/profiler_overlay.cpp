@@ -2820,25 +2820,8 @@ namespace Profiler
 
         VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
-
-        if( !countersOnly )
-        {
-            ProfilerStringFunctions::CopyString(
-                createInfo.name,
-                m_PerformanceQueryEditorSetName.c_str(),
-                m_PerformanceQueryEditorSetName.length() + 1 );
-
-            ProfilerStringFunctions::CopyString(
-                createInfo.description,
-                m_PerformanceQueryEditorSetDescription.c_str(),
-                m_PerformanceQueryEditorSetDescription.length() + 1 );
-        }
-        else
-        {
-            ProfilerStringFunctions::CopyString( createInfo.name, "Dynamic" );
-            ProfilerStringFunctions::CopyString( createInfo.description, "Metrics set created from the selected counters." );
-        }
-
+        createInfo.pName = !countersOnly ? m_PerformanceQueryEditorSetName.c_str() : "Dynamic";
+        createInfo.pDescription = !countersOnly ? m_PerformanceQueryEditorSetDescription.c_str() : "Metrics set created from the selected counters.";
         createInfo.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
         createInfo.pMetricsIndices = m_PerformanceQueryEditorCounterIndices.data();
 

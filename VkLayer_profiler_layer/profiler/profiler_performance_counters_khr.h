@@ -64,6 +64,7 @@ namespace Profiler
         bool SupportsCustomMetricsSets() const final { return true; }
         uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) final;
         void DestroyCustomMetricsSet( uint32_t metricsSetIndex ) final;
+        void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) final;
 
         void ParseReport(
             uint32_t metricsSetIndex,

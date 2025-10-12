@@ -418,9 +418,23 @@ namespace Profiler
             m_Buffer.insert( m_Buffer.end(), pCharData, pCharData + dataSize );
         }
 
+        void Add( const char* pStr )
+        {
+            const size_t length = ( pStr ? strlen( pStr ) : 0 );
+            Add( length );
+            if( pStr )
+            {
+                Add( pStr, length );
+            }
+        }
+
         void Add( const std::string& str )
         {
-            Add( str.c_str(), str.length() );
+            Add( str.length() );
+            if( !str.empty() )
+            {
+                Add( str.c_str(), str.length() );
+            }
         }
 
         template<bool Sort = false, typename T>

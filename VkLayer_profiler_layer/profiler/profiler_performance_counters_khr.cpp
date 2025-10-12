@@ -598,8 +598,8 @@ namespace Profiler
         // Calculate a full hash to identify identical sets.
         hashInput.Reset();
         hashInput.Add( compatibleHash );
-        hashInput.Add( pCreateInfo->name, strnlen( pCreateInfo->name, std::size( pCreateInfo->name ) ) );
-        hashInput.Add( pCreateInfo->description, strnlen( pCreateInfo->description, std::size( pCreateInfo->description ) ) );
+        hashInput.Add( pCreateInfo->pName );
+        hashInput.Add( pCreateInfo->pDescription );
 
         uint32_t fullHash = Farmhash::Fingerprint32(
             hashInput.GetData(),
@@ -612,8 +612,8 @@ namespace Profiler
         if( metricsSetIndex == UINT32_MAX )
         {
             MetricsSet metricsSet = {};
-            metricsSet.m_Name = pCreateInfo->name;
-            metricsSet.m_Description = pCreateInfo->description;
+            metricsSet.m_Name = pCreateInfo->pName ? pCreateInfo->pName : std::string();
+            metricsSet.m_Description = pCreateInfo->pDescription ? pCreateInfo->pDescription : std::string();
             metricsSet.m_CounterIndices = std::move( sortedCounterIndices );
             metricsSet.m_CompatibleHash = compatibleHash;
             metricsSet.m_FullHash = fullHash;
@@ -668,6 +668,61 @@ namespace Profiler
         if( metricsSetIndex < m_MetricsSets.size() )
         {
             m_MetricsSets.erase( m_MetricsSets.begin() + metricsSetIndex );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateCustomMetricsSets
+
+    Description:
+        Update properties of existing custom counter sets.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersKHR::UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos )
+    {
+        if( !updateCount || !pUpdateInfos )
+        {
+            return;
+        }
+
+        // Avoid vector reallocation during updates.
+        std::scoped_lock lock( m_MetricsSetsMutex );
+
+        for( uint32_t i = 0; i < updateCount; ++i )
+        {
+            const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT& updateInfo = pUpdateInfos[i];
+            assert( updateInfo.sType == VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_UPDATE_INFO_EXT );
+            assert( updateInfo.pNext == nullptr );
+
+            if( updateInfo.metricsSetIndex >= m_MetricsSets.size() )
+            {
+                continue;
+            }
+
+            // Update the metrics set properties.
+            MetricsSet& metricsSet = m_MetricsSets[updateInfo.metricsSetIndex];
+
+            if( updateInfo.pName != nullptr )
+            {
+                metricsSet.m_Name = updateInfo.pName;
+            }
+
+            if( updateInfo.pDescription != nullptr )
+            {
+                metricsSet.m_Description = updateInfo.pDescription;
+            }
+
+            // Update the full hash.
+            HashInput hashInput;
+            hashInput.Add( metricsSet.m_CompatibleHash );
+            hashInput.Add( metricsSet.m_Name );
+            hashInput.Add( metricsSet.m_Description );
+
+            metricsSet.m_FullHash = Farmhash::Fingerprint32(
+                hashInput.GetData(),
+                hashInput.GetSize() );
         }
     }
 

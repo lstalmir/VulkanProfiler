@@ -518,6 +518,24 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyProfilerCustomPerformanceMetricsSetEXT(
 /***************************************************************************************\
 
 Function:
+    vkUpdateProfilerCustomPerformanceMetricsSetsEXT
+
+Description:
+
+\***************************************************************************************/
+VKAPI_ATTR void VKAPI_CALL vkUpdateProfilerCustomPerformanceMetricsSetsEXT(
+    VkDevice device,
+    uint32_t updateInfosCount,
+    const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos )
+{
+    VkDevice_Functions::DeviceDispatch.Get( device ).ProfilerFrontend.UpdateCustomPerformanceMetricsSets(
+        updateInfosCount,
+        pUpdateInfos );
+}
+
+/***************************************************************************************\
+
+Function:
     vkEnumerateProfilerPerformanceMetricsEXT
 
 Description:
