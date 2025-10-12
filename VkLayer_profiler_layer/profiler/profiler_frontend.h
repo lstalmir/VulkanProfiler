@@ -60,6 +60,7 @@ namespace Profiler
         virtual bool SupportsCustomPerformanceMetricsSets() = 0;
         virtual uint32_t CreateCustomPerformanceMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) = 0;
         virtual void DestroyCustomPerformanceMetricsSet( uint32_t setIndex ) = 0;
+        virtual void UpdateCustomPerformanceMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) = 0;
         virtual uint32_t GetPerformanceCounterProperties( uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) = 0;
         virtual uint32_t GetPerformanceMetricsSets( uint32_t setCount, VkProfilerPerformanceMetricsSetProperties2EXT* pSets ) = 0;
         virtual void GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) = 0;
