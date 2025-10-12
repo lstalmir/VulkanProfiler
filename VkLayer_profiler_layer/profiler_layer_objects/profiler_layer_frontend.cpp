@@ -189,7 +189,7 @@ namespace Profiler
 
         return false;
     }
-    
+
     /***********************************************************************************\
 
     Function:
@@ -225,6 +225,24 @@ namespace Profiler
         if( pPerformanceCounters )
         {
             return pPerformanceCounters->DestroyCustomMetricsSet( setIndex );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateCustomPerformanceMetricsSets
+
+    Description:
+        Creates a custom performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::UpdateCustomPerformanceMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            pPerformanceCounters->UpdateCustomMetricsSets( updateCount, pUpdateInfos );
         }
     }
 

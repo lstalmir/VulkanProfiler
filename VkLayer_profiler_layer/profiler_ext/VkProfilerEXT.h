@@ -33,6 +33,7 @@
 #define VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTER_PROPERTIES_2_EXT ((VkStructureType)1000999004)
 #define VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_METRICS_SET_PROPERTIES_2_EXT ((VkStructureType)1000999005)
 #define VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT ((VkStructureType)1000999006)
+#define VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_UPDATE_INFO_EXT ((VkStructureType)1000999007)
 
 typedef enum VkProfilerCreateFlagBitsEXT
 {
@@ -294,9 +295,18 @@ typedef struct VkProfilerCustomPerformanceMetricsSetCreateInfoEXT
     const void* pNext;
     uint32_t metricsCount;
     const uint32_t* pMetricsIndices;
-    char name[ VK_MAX_DESCRIPTION_SIZE ];
-    char description[ VK_MAX_DESCRIPTION_SIZE ];
+    const char* pName;
+    const char* pDescription;
 } VkProfilerCustomPerformanceMetricsSetCreateInfoEXT;
+
+typedef struct VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT
+{
+    VkStructureType sType;
+    const void* pNext;
+    uint32_t metricsSetIndex;
+    const char* pName;
+    const char* pDescription;
+} VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT;
 
 typedef VkResult( VKAPI_PTR* PFN_vkSetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT);
 typedef void( VKAPI_PTR* PFN_vkGetProfilerSamplingModeEXT )(VkDevice, VkProfilerModeEXT*);
@@ -308,6 +318,7 @@ typedef VkResult( VKAPI_PTR* PFN_vkFlushProfilerEXT )(VkDevice);
 typedef void( VKAPI_PTR* PFN_vkGetProfilerCustomPerfomanceMetricsSetsSupportEXT )( VkDevice, VkBool32* );
 typedef VkResult( VKAPI_PTR* PFN_vkCreateProfilerCustomPerformanceMetricsSetEXT )( VkDevice, const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT*, const VkAllocationCallbacks*, uint32_t* );
 typedef void( VKAPI_PTR* PFN_vkDestroyProfilerCustomPerformanceMetricsSetEXT )( VkDevice, uint32_t, const VkAllocationCallbacks* );
+typedef void( VKAPI_PTR* PFN_vkUpdateProfilerCustomPerformanceMetricsSetsEXT )( VkDevice, uint32_t, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* );
 typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsEXT )( VkDevice, uint32_t*, VkProfilerPerformanceCounterProperties2EXT* );
 typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsSets2EXT )( VkDevice, uint32_t*, VkProfilerPerformanceMetricsSetProperties2EXT* );
 typedef VkResult( VKAPI_PTR* PFN_vkEnumerateProfilerPerformanceMetricsSetMetricsEXT )( VkDevice, uint32_t, uint32_t*, VkProfilerPerformanceCounterProperties2EXT* );
@@ -359,6 +370,11 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyProfilerCustomPerformanceMetricsSetEXT(
     VkDevice device,
     uint32_t metricsSetIndex,
     const VkAllocationCallbacks* pAllocator );
+
+VKAPI_ATTR void VKAPI_CALL vkUpdateProfilerCustomPerformanceMetricsSetsEXT(
+    VkDevice device,
+    uint32_t updateInfosCount,
+    const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos );
 
 VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateProfilerPerformanceMetricsEXT(
     VkDevice device,

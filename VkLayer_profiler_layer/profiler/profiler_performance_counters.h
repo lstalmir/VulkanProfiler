@@ -63,6 +63,7 @@ namespace Profiler
         virtual bool SupportsCustomMetricsSets() const { return false; }
         virtual uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) { return UINT32_MAX; }
         virtual void DestroyCustomMetricsSet( uint32_t ) {}
+        virtual void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) {}
 
         virtual void ParseReport( uint32_t metricsSetIndex, uint32_t queueFamilyIndex, uint32_t reportSize, const uint8_t* pReport, std::vector<VkProfilerPerformanceCounterResultEXT>& results ) {}
     };
