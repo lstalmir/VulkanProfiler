@@ -290,6 +290,7 @@ namespace Profiler
         std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceQueryEditorCounterProperties;
         std::shared_ptr<PerformanceQueryMetricsSet> m_pPerformanceQueryEditorSet;
         std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
+        std::vector<uint32_t> m_PerformanceQueryEditorCounterVisibileIndices;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
         std::string m_PerformanceQueryEditorFilter;
