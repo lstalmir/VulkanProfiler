@@ -37,6 +37,7 @@
 #include <memory>
 #include <mutex>
 #include <functional>
+#include <regex>
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
@@ -277,6 +278,13 @@ namespace Profiler
         std::vector<std::shared_ptr<PerformanceQueryMetricsSet>> m_pPerformanceQueryMetricsSets;
         std::vector<bool> m_ActivePerformanceQueryMetricsFilterResults;
         std::string m_PerformanceQueryMetricsFilter;
+        std::regex m_PerformanceQueryMetricsFilterRegex;
+
+        bool CompilePerformanceQueryMetricsFilterRegex();
+        void UpdatePerformanceQueryEditorMetricsFilterResults();
+        void UpdatePerformanceQueryActiveMetricsFilterResults();
+        void UpdatePerformanceQueryMetricsSetFilterResults( const std::shared_ptr<PerformanceQueryMetricsSet>& );
+        void UpdatePerformanceQueryMetricsSetsFilterResults();
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
