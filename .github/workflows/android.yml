@@ -66,6 +66,7 @@ jobs:
 
     - uses: nttld/setup-ndk@v1
       with:
+        ndk-version: r26d
         add-to-path: true
 
     - name: Configure CMake
