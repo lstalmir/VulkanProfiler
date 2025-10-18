@@ -181,6 +181,6 @@ namespace ImGuiX
 
     void TableBorderInnerH( float thickness )
     {
-        TableBorderInnerH( ImGui::GetColorU32( ImGuiCol_TableBorderLight ), thickness );
+        TableBorderInnerH( ImGui::GetColorU32( ImGuiCol_TableBorderStrong ), thickness );
     }
 }
