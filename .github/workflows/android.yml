@@ -1,0 +1,99 @@
+# Copyright (c) 2025 Lukasz Stalmirski
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+name: CMake
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
+  workflow_dispatch:
+    inputs:
+      build_types:
+        description: 'Comma-separated list of build configurations.'
+        required: true
+        default: '"Release"'
+
+jobs:
+  build:
+    if: github.event.pull_request.draft == false
+
+    # Build configs.
+    strategy:
+      matrix:
+        build_type: ${{fromJson(format('[{0}]', inputs.build_types || '"Release","Debug"'))}}
+
+    name: Build Android ${{matrix.build_type}}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Install Dependencies
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      if: runner.os == 'Linux'
+      with:
+        packages: extra-cmake-modules ninja
+        version: 1.0
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
+
+    - uses: nttld/setup-ndk@v1
+      with:
+        add-to-path: true
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: cmake -B ${{github.workspace}}/build \
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DCMAKE_ANDROID_ARCH_ABI=arm-v8a \
+            -DCMAKE_ANDROID_STL_TYPE=c++_static \
+            -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=NO \
+            -G Ninja
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+
+    - name: Build
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j 4
+      
+    - name: Install
+      if: matrix.build_type == 'Release'
+      # Install build artifacts to a common directory
+      run: cmake --install ${{github.workspace}}/build --prefix ${{github.workspace}}/install
+
+    - name: Publish artifacts
+      if: matrix.build_type == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{matrix.os}}-${{matrix.build_type}}-${{runner.arch}}
+        path: ${{github.workspace}}/install
+        retention-days: 1
