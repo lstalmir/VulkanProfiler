@@ -279,6 +279,7 @@ namespace Profiler
         std::vector<bool> m_ActivePerformanceQueryMetricsFilterResults;
         std::string m_PerformanceQueryMetricsFilter;
         std::regex m_PerformanceQueryMetricsFilterRegex;
+        bool m_PerformanceQueryMetricsSetPropertiesExpanded;
 
         bool CompilePerformanceQueryMetricsFilterRegex();
         void UpdatePerformanceQueryEditorMetricsFilterResults();
@@ -309,7 +310,7 @@ namespace Profiler
         std::unique_ptr<PerformanceQueryMetricsSetExporter> m_pPerformanceQueryMetricsSetExporter;
 
         uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
-        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected );
+        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected, bool refresh );
         void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization
