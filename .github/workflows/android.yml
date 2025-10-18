@@ -74,11 +74,11 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: cmake -B ${{github.workspace}}/build \
             -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DCMAKE_ANDROID_ARCH_ABI=arm-v8a \
             -DCMAKE_ANDROID_STL_TYPE=c++_static \
             -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=NO \
-            -G Ninja
+            -G=Ninja
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
