@@ -59,7 +59,7 @@ namespace Profiler
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
     {
-        m_Data.m_Handle = m_Profiler.GetObjectHandle( commandBuffer );
+        m_Data.m_Handle = m_Profiler.GetObjectHandle( commandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER );
         m_Data.m_Level = level;
 
         // Profile the command buffer only if it will be submitted to the queue supporting graphics or compute commands
@@ -931,7 +931,7 @@ namespace Profiler
             for( uint32_t i = 0; i < count; ++i )
             {
                 currentSubpass.m_Data.push_back( DeviceProfilerCommandBufferData{
-                    m_Profiler.GetObjectHandle( pCommandBuffers[ i ] ),
+                    m_Profiler.GetObjectHandle( pCommandBuffers[ i ], VK_OBJECT_TYPE_COMMAND_BUFFER ),
                     VK_COMMAND_BUFFER_LEVEL_SECONDARY
                     } );
 
