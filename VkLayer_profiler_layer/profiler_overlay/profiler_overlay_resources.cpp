@@ -24,6 +24,7 @@
 #include "profiler_overlay/profiler_overlay_assets.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <assert.h>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -371,7 +372,7 @@ namespace Profiler
         GetIcon
 
     Description:
-        Returns the specified icon image descriptor set.
+        Returns the specified icon's image descriptor set.
 
     \***********************************************************************************/
     void* OverlayResources::GetIcon( OverlayIcon icon ) const

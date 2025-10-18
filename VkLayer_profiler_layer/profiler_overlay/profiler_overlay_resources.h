@@ -87,7 +87,7 @@ namespace Profiler
         void* CreateImage( const uint8_t* pAsset, int assetSize );
 
         template<size_t Size>
-        void* CreateImage( const uint8_t( &asset )[Size] )
+        void* CreateImage( const uint8_t ( &asset )[Size] )
         {
             return CreateImage( asset, static_cast<int>( Size ) );
         }
