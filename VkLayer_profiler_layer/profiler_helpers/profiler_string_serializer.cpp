@@ -224,7 +224,7 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eClearAttachments:
             return fmt::format( "vkCmdClearAttachments ({})",
-                GetName( drawcall.m_Payload.m_ClearAttachments.m_Count ) );
+                drawcall.m_Payload.m_ClearAttachments.m_Count );
 
         case DeviceProfilerDrawcallType::eClearColorImage:
             return fmt::format( "vkCmdClearColorImage ({}, C=[{}, {}, {}, {}])",
