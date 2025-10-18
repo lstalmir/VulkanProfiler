@@ -55,7 +55,7 @@ jobs:
       uses: awalsh128/cache-apt-pkgs-action@latest
       if: runner.os == 'Linux'
       with:
-        packages: extra-cmake-modules ninja
+        packages: extra-cmake-modules ninja-build
         version: 1.0
 
     - uses: actions/setup-python@v5
