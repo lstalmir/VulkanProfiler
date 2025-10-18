@@ -1534,7 +1534,7 @@ namespace Profiler
             if( snapshotIt == m_pSnapshots.end() )
             {
                 // Add a button to save the frame snapshot.
-                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetBookmarkEmptyIconImage(), buttonSize ) )
+                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetIcon( OverlayIcon::BookmarkEmpty ), buttonSize ) )
                 {
                     auto snapshotItRev = m_pSnapshots.rbegin();
                     while( snapshotItRev != m_pSnapshots.rend() )
@@ -1560,7 +1560,7 @@ namespace Profiler
                 ImGui::PushStyleColor( ImGuiCol_ButtonHovered, { 0.8f, 0.2f, 0.2f, 1.0f } );
 
                 // Add a button to remove the frame snapshot.
-                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetBookmarkFilledIconImage(), buttonSize ) )
+                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetIcon( OverlayIcon::BookmarkFilled ), buttonSize ) )
                 {
                     snapshotIt = m_pSnapshots.erase( snapshotIt );
 
@@ -6699,7 +6699,7 @@ namespace Profiler
                 ImGui::TextUnformatted( applicationInfo.pApplicationName );
                 
                 ImGui::SameLine();
-                if( ImGui::ImageButton( "##CopyApplicationName", m_Resources.GetCopyIconImage(), iconSize ) )
+                if( ImGui::ImageButton( "##CopyApplicationName", m_Resources.GetIcon( OverlayIcon::Copy ), iconSize ) )
                 {
                     ImGui::SetClipboardText( applicationInfo.pApplicationName );
                 }
@@ -6723,7 +6723,7 @@ namespace Profiler
                 ImGui::TextUnformatted( applicationInfo.pEngineName );
 
                 ImGui::SameLine();
-                if( ImGui::ImageButton( "##CopyEngineName", m_Resources.GetCopyIconImage(), iconSize ) )
+                if( ImGui::ImageButton( "##CopyEngineName", m_Resources.GetIcon( OverlayIcon::Copy ), iconSize ) )
                 {
                     ImGui::SetClipboardText( applicationInfo.pEngineName );
                 }

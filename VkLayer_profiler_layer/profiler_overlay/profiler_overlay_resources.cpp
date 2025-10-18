@@ -24,6 +24,7 @@
 #include "profiler_overlay/profiler_overlay_assets.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <assert.h>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -264,9 +265,9 @@ namespace Profiler
         m_pBackend->CreateFontsImage();
 
         // Create image objects
-        m_pCopyIconImage = CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
-        m_pBookmarkEmptyIconImage = CreateImage( OverlayAssets::BookmarkEmptyImg, sizeof( OverlayAssets::BookmarkEmptyImg ) );
-        m_pBookmarkFilledIconImage = CreateImage( OverlayAssets::BookmarkFilledImg, sizeof( OverlayAssets::BookmarkFilledImg ) );
+        m_pIcons[OverlayIcon::Copy] = CreateImage( OverlayAssets::CopyImg );
+        m_pIcons[OverlayIcon::BookmarkEmpty] = CreateImage( OverlayAssets::BookmarkEmptyImg );
+        m_pIcons[OverlayIcon::BookmarkFilled] = CreateImage( OverlayAssets::BookmarkFilledImg );
 
         return true;
     }
@@ -305,22 +306,13 @@ namespace Profiler
             m_pBackend->WaitIdle();
             m_pBackend->DestroyFontsImage();
 
-            if( m_pCopyIconImage )
+            for( void*& pIcon : m_pIcons )
             {
-                m_pBackend->DestroyImage( m_pCopyIconImage );
-                m_pCopyIconImage = nullptr;
-            }
-
-            if( m_pBookmarkEmptyIconImage )
-            {
-                m_pBackend->DestroyImage( m_pBookmarkEmptyIconImage );
-                m_pBookmarkEmptyIconImage = nullptr;
-            }
-
-            if( m_pBookmarkFilledIconImage )
-            {
-                m_pBackend->DestroyImage( m_pBookmarkFilledIconImage );
-                m_pBookmarkFilledIconImage = nullptr;
+                if( pIcon )
+                {
+                    m_pBackend->DestroyImage( pIcon );
+                    pIcon = nullptr;
+                }
             }
         }
 
@@ -372,43 +364,17 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetCopyIconImage
+        GetIcon
 
     Description:
-        Returns the copy icon image descriptor set.
+        Returns the specified icon's image descriptor set.
 
     \***********************************************************************************/
-    void* OverlayResources::GetCopyIconImage() const
+    void* OverlayResources::GetIcon( OverlayIcon icon ) const
     {
-        return m_pCopyIconImage;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetBookmarkEmptyIconImage
-
-    Description:
-        Returns the empty bookmark icon image descriptor set.
-
-    \***********************************************************************************/
-    void* OverlayResources::GetBookmarkEmptyIconImage() const
-    {
-        return m_pBookmarkEmptyIconImage;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetBookmarkFilledIconImage
-
-    Description:
-        Returns the filled bookmark icon image descriptor set.
-
-    \***********************************************************************************/
-    void* OverlayResources::GetBookmarkFilledIconImage() const
-    {
-        return m_pBookmarkFilledIconImage;
+        assert( icon < OverlayIcon::IconCount );
+        assert( m_pIcons[icon] );
+        return m_pIcons[icon];
     }
 
     /***********************************************************************************\

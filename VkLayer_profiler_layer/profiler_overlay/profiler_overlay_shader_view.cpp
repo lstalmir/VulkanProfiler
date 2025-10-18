@@ -1356,7 +1356,7 @@ namespace Profiler
             ImGui::SameLine();
             ImGui::PushStyleColor( ImGuiCol_Button, IM_COL32( 0, 0, 0, 0 ) );
             ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 2.f * interfaceScale );
-            if( ImGui::ImageButton( "##CopyShaderIdentifier", m_Resources.GetCopyIconImage(), iconSize ) )
+            if( ImGui::ImageButton( "##CopyShaderIdentifier", m_Resources.GetIcon( OverlayIcon::Copy ), iconSize ) )
             {
                 ImGui::SetClipboardText( m_ShaderIdentifier.c_str() );
             }
