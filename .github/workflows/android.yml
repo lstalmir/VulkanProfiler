@@ -67,7 +67,8 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
       run: |
-        python ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
             -B ${{github.workspace}}/build \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
@@ -79,7 +80,8 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
       run: |
-        python ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
             -B ${{github.workspace}}/build \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
@@ -91,7 +93,8 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
       run: |
-        python ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
             -B ${{github.workspace}}/build \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
@@ -103,7 +106,8 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
       run: |
-        python ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
             -B ${{github.workspace}}/build \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
