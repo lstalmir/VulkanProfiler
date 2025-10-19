@@ -60,13 +60,24 @@ set (sources
     "profiler_query_pool.cpp"
     "profiler_shader.cpp"
     "profiler_sync.cpp"
-    # Windows
-    "profiler_counters_windows.inl"
-    "profiler_helpers_windows.cpp"
-    # Linux
-    "profiler_counters_linux.inl"
-    "profiler_helpers_linux.cpp"
     )
+
+if (WIN32)
+    list (APPEND sources
+        "profiler_counters_windows.inl"
+        "profiler_helpers_windows.cpp")
+
+elseif (ANDROID)
+    list (APPEND sources
+        "profiler_counters_android.inl"
+        "profiler_helpers_android.cpp")
+
+elseif (UNIX AND NOT APPLE)
+    list (APPEND sources
+        "profiler_counters_linux.inl"
+        "profiler_helpers_linux.cpp")
+
+endif ()
 
 # Link intermediate static library
 add_library (profiler
@@ -76,3 +87,9 @@ add_library (profiler
 target_link_libraries (profiler
     PUBLIC profiler_common
     PUBLIC metrics-discovery)
+
+if (ANDROID)
+    target_link_libraries (profiler
+        PRIVATE android
+        PRIVATE log)
+endif ()

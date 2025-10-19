@@ -511,7 +511,12 @@ namespace Profiler
 #if defined( _MSC_VER )
             sprintf_s( dst, fmt, args... );
 #else
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat"
+
             sprintf( dst, fmt, args... );
+
+#pragma clang diagnostic pop
 #endif
         }
         
@@ -521,8 +526,13 @@ namespace Profiler
 #if defined( _MSC_VER )
             sprintf_s( dst, dstSize, fmt, args... );
 #else
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat"
+
             (void) dstSize;
             sprintf( dst, fmt, args... );
+
+#pragma clang diagnostic pop
 #endif
         }
 
