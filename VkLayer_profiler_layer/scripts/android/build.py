@@ -68,7 +68,7 @@ def build( args ):
     run_command( [ "cmake",
         "--build", args.build_dir,
         "--config", args.config,
-        "--parallel", config.parallel ] )
+        "--parallel", args.parallel ] )
 
 def install( args ):
     if args.install_dir:
