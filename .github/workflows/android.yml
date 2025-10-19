@@ -72,21 +72,21 @@ jobs:
 
     - name: Configure CMake
       env:
-        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
       # Configure CMake in a 'build' subdirectory.
-      run: cmake -G "Ninja" \
+      run: |
+        cmake -G "Ninja" \
             -B ${{github.workspace}}/build \
             -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DCMAKE_ANDROID_ARCH_ABI=${{matrix.arch_abi}} \
             -DCMAKE_ANDROID_STL_TYPE=c++_static \
-            -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=NO \
-            ${{github.workspace}}
+            -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=NO
 
     - name: Build
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j 4
-      
+
     - name: Install
       if: matrix.build_type == 'Release'
       # Install build artifacts to a common directory
