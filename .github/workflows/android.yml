@@ -1,0 +1,120 @@
+# Copyright (c) 2025 Lukasz Stalmirski
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+name: CMake
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
+  workflow_dispatch:
+    inputs:
+      build_types:
+        description: 'Comma-separated list of build configurations.'
+        required: true
+        default: '"Release"'
+
+jobs:
+  build:
+    if: github.event.pull_request.draft == false
+
+    # Build configs.
+    strategy:
+      matrix:
+        build_type: ${{fromJson(format('[{0}]', inputs.build_types || '"Release","Debug"'))}}
+
+    name: Build android ${{matrix.build_type}}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+    - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
+
+    - uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r29
+        add-to-path: true
+
+    - name: Build arm64-v8a
+      env:
+        ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
+      run: |
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
+            -B ${{github.workspace}}/build/arm64-v8a \
+            --config ${{matrix.build_type}} \
+            --ndk $ANDROID_NDK_HOME \
+            --abi arm64-v8a \
+            --install ${{github.workspace}}/install
+
+    - name: Build armeabi-v7a
+      env:
+        ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
+      run: |
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
+            -B ${{github.workspace}}/build/armeabi-v7a \
+            --config ${{matrix.build_type}} \
+            --ndk $ANDROID_NDK_HOME \
+            --abi armeabi-v7a \
+            --install ${{github.workspace}}/install
+
+    - name: Build x86
+      env:
+        ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
+      run: |
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
+            -B ${{github.workspace}}/build/x86 \
+            --config ${{matrix.build_type}} \
+            --ndk $ANDROID_NDK_HOME \
+            --abi x86 \
+            --install ${{github.workspace}}/install
+
+    - name: Build x86_64
+      env:
+        ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
+      run: |
+        python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
+            ${{github.workspace}} \
+            -B ${{github.workspace}}/build/x86_64 \
+            --config ${{matrix.build_type}} \
+            --ndk $ANDROID_NDK_HOME \
+            --abi x86_64 \
+            --install ${{github.workspace}}/install
+
+    - name: Publish artifacts
+      if: matrix.build_type == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-${{matrix.build_type}}.apk
+        path: ${{github.workspace}}/install
+        retention-days: 1

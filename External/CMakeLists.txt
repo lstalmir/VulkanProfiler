@@ -107,6 +107,7 @@ target_include_directories (imgui
     PUBLIC imgui/misc/cpp)
 
 target_compile_definitions (imgui
+    PUBLIC IMGUI_USER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/imgui_config.h"
     PRIVATE VK_NO_PROTOTYPES=1)
 
 target_link_libraries (imgui

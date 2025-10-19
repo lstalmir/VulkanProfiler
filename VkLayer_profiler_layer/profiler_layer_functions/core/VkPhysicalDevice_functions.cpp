@@ -186,13 +186,9 @@ namespace Profiler
         VkExtensionProperties* pProperties )
     {
         const bool queryThisLayerExtensionsOnly =
-            (pLayerName) &&
-            (strcmp( pLayerName, VK_LAYER_profiler_name ) != 0);
-
-        // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
-        // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
-        // vkEnumerateDeviceExtensionProperties implementation.
-        auto& id = InstanceDispatch.Get( physicalDevice );
+            (physicalDevice == VK_NULL_HANDLE) ||
+            ((pLayerName) &&
+             (strcmp( pLayerName, VK_LAYER_profiler_name ) != 0));
 
         VkResult result = VK_SUCCESS;
 
@@ -201,6 +197,10 @@ namespace Profiler
 
         if( !pLayerName || !queryThisLayerExtensionsOnly )
         {
+            // EnumerateDeviceExtensionProperties is actually VkInstance (VkPhysicalDevice) function.
+            // Get dispatch table associated with the VkPhysicalDevice and invoke next layer's
+            // vkEnumerateDeviceExtensionProperties implementation.
+            auto& id = InstanceDispatch.Get( physicalDevice );
             result = id.Instance.Callbacks.EnumerateDeviceExtensionProperties(
                 physicalDevice, pLayerName, pPropertyCount, pProperties );
         }
