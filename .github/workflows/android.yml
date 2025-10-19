@@ -69,12 +69,11 @@ jobs:
       run: |
         python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
             ${{github.workspace}} \
-            -B ${{github.workspace}}/build \
+            -B ${{github.workspace}}/build/arm64-v8a \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi arm64-v8a \
-            --install ${{github.workspace}}/install \
-            -j 4
+            --install ${{github.workspace}}/install
 
     - name: Build armeabi-v7a
       env:
@@ -82,12 +81,11 @@ jobs:
       run: |
         python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
             ${{github.workspace}} \
-            -B ${{github.workspace}}/build \
+            -B ${{github.workspace}}/build/armeabi-v7a \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi armeabi-v7a \
-            --install ${{github.workspace}}/install \
-            -j 4
+            --install ${{github.workspace}}/install
 
     - name: Build x86
       env:
@@ -95,12 +93,11 @@ jobs:
       run: |
         python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
             ${{github.workspace}} \
-            -B ${{github.workspace}}/build \
+            -B ${{github.workspace}}/build/x86 \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi x86 \
-            --install ${{github.workspace}}/install \
-            -j 4
+            --install ${{github.workspace}}/install
 
     - name: Build x86_64
       env:
@@ -108,12 +105,11 @@ jobs:
       run: |
         python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/android/build.py \
             ${{github.workspace}} \
-            -B ${{github.workspace}}/build \
+            -B ${{github.workspace}}/build/x86_64 \
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi x86_64 \
-            --install ${{github.workspace}}/install \
-            -j 4
+            --install ${{github.workspace}}/install
 
     - name: Publish artifacts
       if: matrix.build_type == 'Release'

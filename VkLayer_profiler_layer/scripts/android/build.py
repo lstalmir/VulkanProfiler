@@ -34,7 +34,8 @@ def parse_args():
     parser.add_argument( "-B", help="Build directory", dest="build_dir", default=os.getcwd() )
     parser.add_argument( "-G", help="CMake generator", dest="generator" )
     parser.add_argument( "--config", help="Build configuration", default="Release" )
-    parser.add_argument( "--parallel", "-j", help="Number of concurrent build jobs", default="1" )
+    parser.add_argument( "--parallel", "-j", help="Number of concurrent build jobs", default="4" )
+    parser.add_argument( "--clean", help="Remove CMakeCache.txt to force reconfiguration of the makefiles", default=False, action="store_true" )
 
     # Actions
     parser.add_argument( "--install", help="Install the layer to the specified location", dest="install_dir" )
@@ -47,12 +48,19 @@ def run_command( command ):
 
 def configure( args ):
     cmake_toolchain_file = os.path.join( args.ndk, "build", "cmake", "android.toolchain.cmake" )
+    if not os.path.exists( cmake_toolchain_file ):
+        raise FileNotFoundError( cmake_toolchain_file )
+
+    if args.clean:
+        cmake_cache = os.path.join( args.build_dir, "CMakeCache.txt" )
+        if os.path.exists( cmake_cache ):
+            print( f"Removing {cmake_cache}" )
+            os.remove( cmake_cache )
 
     cmake_command = [ "cmake", args.source ]
-    if args.build_dir:
-        cmake_command += [ "-B", args.build_dir ]
     if args.generator:
         cmake_command += [ "-G", args.generator ]
+    cmake_command += [ "-B", args.build_dir ]
     cmake_command += [ f"-DCMAKE_BUILD_TYPE={args.config}" ]
     cmake_command += [ f"-DCMAKE_TOOLCHAIN_FILE={cmake_toolchain_file}" ]
     cmake_command += [ f"-DCMAKE_ANDROID_NDK={args.ndk}" ]
