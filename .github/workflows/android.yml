@@ -72,7 +72,8 @@ jobs:
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi arm64-v8a \
-            --install ${{github.workspace}}/install
+            --install ${{github.workspace}}/install \
+            -j 4
 
     - name: Build armeabi-v7a
       env:
@@ -83,7 +84,8 @@ jobs:
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi armeabi-v7a \
-            --install ${{github.workspace}}/install
+            --install ${{github.workspace}}/install \
+            -j 4
 
     - name: Build x86
       env:
@@ -94,7 +96,8 @@ jobs:
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi x86 \
-            --install ${{github.workspace}}/install
+            --install ${{github.workspace}}/install \
+            -j 4
 
     - name: Build x86_64
       env:
@@ -105,7 +108,8 @@ jobs:
             --config ${{matrix.build_type}} \
             --ndk $ANDROID_NDK_HOME \
             --abi x86_64 \
-            --install ${{github.workspace}}/install
+            --install ${{github.workspace}}/install \
+            -j 4
 
     - name: Publish artifacts
       if: matrix.build_type == 'Release'
