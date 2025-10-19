@@ -102,6 +102,44 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(
     return Profiler::VkInstance_Functions::EnumerateInstanceExtensionProperties( pLayerName, pPropertyCount, pProperties );
 }
 
+/***************************************************************************************\
+
+Function:
+    vkEnumerateDeviceLayerProperties
+
+Description:
+    Entrypoint to the vkEnumerateDeviceLayerProperties.
+    Although device layers have been deprecated since 1.1, loader on Android requires
+    this function to be present to intercept device commands.
+
+\***************************************************************************************/
+VK_LAYER_EXPORT VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(
+    VkPhysicalDevice physicalDevice,
+    uint32_t* pPropertyCount,
+    VkLayerProperties* pProperties )
+{
+    return Profiler::VkInstance_Functions::EnumerateDeviceLayerProperties( physicalDevice, pPropertyCount, pProperties );
+}
+
+/***************************************************************************************\
+
+Function:
+    vkEnumerateDeviceExtensionProperties
+
+Description:
+    Entrypoint to the vkEnumerateDeviceExtensionProperties.
+    Loader on Android requires this function to be exported directly from the SO.
+
+\***************************************************************************************/
+VK_LAYER_EXPORT VkResult VKAPI_CALL vkEnumerateDeviceExtensionProperties(
+    VkPhysicalDevice physicalDevice,
+    const char* pLayerName,
+    uint32_t* pPropertyCount,
+    VkExtensionProperties* pProperties )
+{
+    return Profiler::VkInstance_Functions::EnumerateDeviceExtensionProperties( physicalDevice, pLayerName, pPropertyCount, pProperties );
+}
+
 #ifdef WIN32
 /***************************************************************************************\
 
