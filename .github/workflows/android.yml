@@ -42,7 +42,7 @@ jobs:
       matrix:
         build_type: ${{fromJson(format('[{0}]', inputs.build_types || '"Release","Debug"'))}}
 
-    name: Build Android ${{matrix.build_type}}
+    name: Build android ${{matrix.build_type}}
     runs-on: ubuntu-latest
 
     steps:
@@ -53,7 +53,6 @@ jobs:
 
     - name: Install Dependencies
       uses: awalsh128/cache-apt-pkgs-action@latest
-      if: runner.os == 'Linux'
       with:
         packages: extra-cmake-modules ninja-build
         version: 1.0
@@ -72,13 +71,14 @@ jobs:
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build \
+      run: cmake ${{github.workspace}} \
+            -B ${{github.workspace}}/build \
+            -G "Ninja" \
             -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DCMAKE_ANDROID_ARCH_ABI=arm-v8a \
             -DCMAKE_ANDROID_STL_TYPE=c++_static \
-            -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=NO \
-            -G=Ninja
+            -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=NO
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
