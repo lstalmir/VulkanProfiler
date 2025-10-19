@@ -41,7 +41,7 @@ jobs:
     strategy:
       matrix:
         build_type: ${{fromJson(format('[{0}]', inputs.build_types || '"Release","Debug"'))}}
-        arch_abi: [ arm-v8a ]
+        arch_abi: [ arm64-v8a ]
 
     name: Build android-${{matrix.arch_abi}} ${{matrix.build_type}}
     runs-on: ubuntu-latest
@@ -55,7 +55,7 @@ jobs:
     - name: Install Dependencies
       uses: awalsh128/cache-apt-pkgs-action@latest
       with:
-        packages: extra-cmake-modules ninja-build
+        packages: extra-cmake-modules
         version: 1.0
 
     - uses: actions/setup-python@v5
@@ -67,7 +67,7 @@ jobs:
     - uses: nttld/setup-ndk@v1
       id: setup-ndk
       with:
-        ndk-version: r26d
+        ndk-version: r29
         add-to-path: true
 
     - name: Configure CMake
@@ -75,12 +75,14 @@ jobs:
         ANDROID_NDK_HOME: ${{steps.setup-ndk.outputs.ndk-path}}
       # Configure CMake in a 'build' subdirectory.
       run: |
-        cmake -G "Ninja" \
-            -B ${{github.workspace}}/build \
+        cmake -B ${{github.workspace}}/build \
             -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DCMAKE_ANDROID_NDK="$ANDROID_NDK_HOME" \
             -DCMAKE_ANDROID_ARCH_ABI=${{matrix.arch_abi}} \
             -DCMAKE_ANDROID_STL_TYPE=c++_static \
+            -DANDROID_NDK="$ANDROID_NDK_HOME" \
+            -DANDROID_ABI=${{matrix.arch_abi}} \
             -DANDROID_USE_LEGACY_TOOLCHAIN_FILE=NO
 
     - name: Build
