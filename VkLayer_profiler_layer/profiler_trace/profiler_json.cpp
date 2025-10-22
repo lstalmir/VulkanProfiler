@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -369,6 +369,33 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
+        GetPipelineArgs
+
+    Description:
+        Serialize pipeline state into JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::GetPipelineArgs( const DeviceProfilerPipeline& pipeline ) const
+    {
+        nlohmann::json args = {};
+        nlohmann::json shaderStages = nlohmann::json::array();
+
+        // Append shader stages info.
+        for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
+        {
+            shaderStages.push_back( GetShaderStageArgs( shader ) );
+        }
+
+        args["shaders"] = shaderStages;
+
+        // TODO: Append pipeline create info details.
+
+        return args;
+    }
+
+    /*************************************************************************\
+
+    Function:
         GetColorClearValue
 
     Description:
@@ -409,5 +436,51 @@ namespace Profiler
         return { "VkClearDepthStencilValue", {
             { "depth", value.depth },
             { "stencil", value.stencil } } };
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetGraphicsPipelineArgs
+
+    Description:
+        Serialize graphics pipeline state into JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::GetShaderStageArgs( const ProfilerShader& shader ) const
+    {
+        nlohmann::json shaderStage = {
+            { "stage", m_pStringSerializer->GetShaderStageName( shader.m_Stage ) },
+            { "entryPoint", shader.m_EntryPoint }
+        };
+
+        if( shader.m_pShaderModule )
+        {
+            static constexpr char hexDigits[] = "0123456789abcdef";
+
+            const ProfilerShaderModule& shaderModule = *shader.m_pShaderModule;
+            const uint32_t identifierSize = shaderModule.m_IdentifierSize;
+            const uint8_t* pIdentifier = shaderModule.m_Identifier;
+
+            std::string shaderIdentifier;
+            shaderIdentifier.reserve( identifierSize * 3 );
+
+            // Convert from the end to keep the little-endian order.
+            for( uint32_t i = identifierSize; i > 0; --i )
+            {
+                shaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] >> 4] );
+                shaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] & 0xF] );
+
+                if( ( i != 1 ) && ( ( i - 1 ) % 8 ) == 0 )
+                {
+                    // Insert a dash separator every 8 bytes for better readability.
+                    shaderIdentifier.push_back( '-' );
+                }
+            }
+
+            shaderStage["shaderIdentifier"] = shaderIdentifier;
+        }
+
+        return shaderStage;
     }
 }

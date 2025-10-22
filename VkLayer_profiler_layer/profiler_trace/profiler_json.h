@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,11 +39,13 @@ namespace Profiler
         DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
 
         nlohmann::json GetCommandArgs( const struct DeviceProfilerDrawcall& ) const;
+        nlohmann::json GetPipelineArgs( const struct DeviceProfilerPipeline& ) const;
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;
         nlohmann::json GetDepthStencilClearValue( const VkClearDepthStencilValue& ) const;
+        nlohmann::json GetShaderStageArgs( const struct ProfilerShader& ) const;
     };
 }
