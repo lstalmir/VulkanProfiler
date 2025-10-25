@@ -529,6 +529,7 @@ namespace Profiler
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerPipelineData& data )
     {
         const std::string eventName = m_pStringSerializer->GetName( data );
+        const nlohmann::json eventArgs = m_pJsonSerializer->GetPipelineArgs( data );
 
         const bool isValidPipeline =
             (data.m_Handle ||
@@ -543,7 +544,9 @@ namespace Profiler
                 eventName,
                 "Pipelines",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueue ) );
+                m_CommandQueue,
+                {} ,
+                eventArgs ) );
         }
 
         for( const auto& drawcall : data.m_Drawcalls )
