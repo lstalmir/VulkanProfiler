@@ -22,6 +22,7 @@ Table of contents
    - :ref:`Configuration`
 - :ref:`Options`
 - :ref:`User interface`
+- :ref:`How-tos`
 
 .. toctree::
    :maxdepth: 2
@@ -31,3 +32,4 @@ Table of contents
    getting_started/index
    options
    user_interface
+   how_tos
