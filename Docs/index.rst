@@ -31,3 +31,4 @@ Table of contents
    getting_started/index
    options
    user_interface
+   how_tos
