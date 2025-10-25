@@ -22,6 +22,7 @@ Table of contents
    - :ref:`Configuration`
 - :ref:`Options`
 - :ref:`User interface`
+- :ref:`How-tos`
 
 .. toctree::
    :maxdepth: 2

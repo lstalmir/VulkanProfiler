@@ -3,12 +3,12 @@ How-tos
 
 This section contains useful information and recommendations on using the profiling layer.
 
-Profling compute-only applications
-----------------------------------
+Profiling compute-only applications
+-----------------------------------
 
 The layer initially supported only graphics applications, where presentation to the screen was required to browse and read the results.
-However, latest releases also support offscreen, compute-only workloads.
-Such applications may run in console with no GUI implementation, so in order to read the data, the profiler has to be configured to write it to a file.
+However, recent releases also support offscreen and compute-only workloads.
+Such applications may run in console with no GUI implementation, so in order to read the data the profiler has to be configured to write it to a file.
 
 Recommended configuration for collecting API-command-level data has been attached below.
 
