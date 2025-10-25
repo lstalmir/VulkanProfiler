@@ -3,8 +3,8 @@ How-tos
 
 This section contains useful information and recommendations on using the profiling layer.
 
-Profiling compute-only applications
------------------------------------
+Profiling offscreen applications
+--------------------------------
 
 The layer initially supported only graphics applications, where presentation to the screen was required to browse and read the results.
 However, recent releases also support offscreen and compute-only workloads.
