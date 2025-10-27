@@ -23,6 +23,8 @@
 #include "profiler_helpers/profiler_string_serializer.h"
 #include "profiler_layer_objects/VkObject.h"
 
+#include <fmt/format.h>
+
 namespace Profiler
 {
     /*************************************************************************\
@@ -378,17 +380,45 @@ namespace Profiler
     nlohmann::json DeviceProfilerJsonSerializer::GetPipelineArgs( const DeviceProfilerPipeline& pipeline ) const
     {
         nlohmann::json args = {};
-        nlohmann::json shaderStages = nlohmann::json::array();
 
         // Append shader stages info.
-        for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
+        if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
         {
-            shaderStages.push_back( GetShaderStageArgs( shader ) );
+            nlohmann::json& shaderStages = args["shaders"];
+
+            for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
+            {
+                shaderStages.push_back( GetShaderStageArgs( shader ) );
+            }
         }
 
-        args["shaders"] = shaderStages;
+        // Append pipeline create info details.
+        if( pipeline.m_pCreateInfo )
+        {
+            nlohmann::json& createInfo = args["createInfo"];
 
-        // TODO: Append pipeline create info details.
+            switch( pipeline.m_Type )
+            {
+            case DeviceProfilerPipelineType::eGraphics:
+            {
+                createInfo = GetGraphicsPipelineCreateInfoArgs(
+                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo );
+                break;
+            }
+            case DeviceProfilerPipelineType::eCompute:
+            {
+                createInfo = GetComputePipelineCreateInfoArgs(
+                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo );
+                break;
+            }
+            case DeviceProfilerPipelineType::eRayTracingKHR:
+            {
+                createInfo = GetRayTracingPipelineCreateInfoArgs(
+                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR );
+                break;
+            }
+            }
+        }
 
         return args;
     }
@@ -441,10 +471,10 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        GetGraphicsPipelineArgs
+        GetShaderStageArgs
 
     Description:
-        Serialize graphics pipeline state into JSON object.
+        Serialize shader stage into JSON object.
 
     \*************************************************************************/
     nlohmann::json DeviceProfilerJsonSerializer::GetShaderStageArgs( const ProfilerShader& shader ) const
@@ -482,5 +512,286 @@ namespace Profiler
         }
 
         return shaderStage;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetGraphicsPipelineCreateInfoArgs
+
+    Description:
+        Serialize graphics pipeline state into JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& createInfo ) const
+    {
+        nlohmann::json args = {};
+
+        // VkPipelineVertexInputStateCreateInfo
+        if( createInfo.pVertexInputState )
+        {
+            const VkPipelineVertexInputStateCreateInfo& state = *createInfo.pVertexInputState;
+
+            nlohmann::json& stateArgs = args["vertexInputState"];
+            stateArgs["attributes"] = nlohmann::json::array();
+            stateArgs["bindings"] = nlohmann::json::array();
+
+            for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
+            {
+                const VkVertexInputAttributeDescription& attribute = state.pVertexAttributeDescriptions[i];
+
+                nlohmann::json attributeArgs = {
+                    { "location", attribute.location },
+                    { "binding", attribute.binding },
+                    { "format", m_pStringSerializer->GetFormatName( attribute.format ) },
+                    { "offset", attribute.offset }
+                };
+
+                stateArgs["attributes"].push_back( attributeArgs );
+            }
+
+            for( uint32_t i = 0; i < state.vertexBindingDescriptionCount; ++i )
+            {
+                const VkVertexInputBindingDescription& binding = state.pVertexBindingDescriptions[i];
+
+                nlohmann::json bindingArgs = {
+                    { "binding", binding.binding },
+                    { "stride", binding.stride },
+                    { "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) }
+                };
+
+                stateArgs["bindings"].push_back( bindingArgs );
+            }
+        }
+        else
+        {
+            args["vertexInputState"] = nullptr;
+        }
+
+        // VkPipelineInputAssemblyStateCreateInfo
+        if( createInfo.pInputAssemblyState )
+        {
+            const VkPipelineInputAssemblyStateCreateInfo& state = *createInfo.pInputAssemblyState;
+
+            nlohmann::json& stateArgs = args["inputAssemblyState"];
+            stateArgs["topology"] = m_pStringSerializer->GetPrimitiveTopologyName( state.topology );
+            stateArgs["primitiveRestartEnable"] = m_pStringSerializer->GetBool( state.primitiveRestartEnable );
+        }
+        else
+        {
+            args["inputAssemblyState"] = nullptr;
+        }
+
+        // VkPipelineTessellationStateCreateInfo
+        if( createInfo.pTessellationState )
+        {
+            const VkPipelineTessellationStateCreateInfo& state = *createInfo.pTessellationState;
+
+            nlohmann::json& stateArgs = args["tessellationState"];
+            stateArgs["patchControlPoints"] = state.patchControlPoints;
+        }
+        else
+        {
+            args["tessellationState"] = nullptr;
+        }
+
+        // VkPipelineViewportStateCreateInfo
+        if( createInfo.pViewportState )
+        {
+            const VkPipelineViewportStateCreateInfo& state = *createInfo.pViewportState;
+
+            nlohmann::json& stateArgs = args["viewportState"];
+            stateArgs["viewports"] = nlohmann::json::array();
+            stateArgs["scissors"] = nlohmann::json::array();
+
+            for( uint32_t i = 0; i < state.viewportCount; ++i )
+            {
+                const VkViewport* pViewport = ( state.pViewports ? &state.pViewports[i] : nullptr );
+                if( pViewport )
+                {
+                    nlohmann::json viewportArgs = {
+                        { "x", pViewport->x },
+                        { "y", pViewport->y },
+                        { "width", pViewport->width },
+                        { "height", pViewport->height },
+                        { "minDepth", pViewport->minDepth },
+                        { "maxDepth", pViewport->maxDepth }
+                    };
+
+                    stateArgs["viewports"].push_back( viewportArgs );
+                }
+            }
+
+            for( uint32_t i = 0; i < state.scissorCount; ++i )
+            {
+                const VkRect2D* pScissor = ( state.pScissors ? &state.pScissors[i] : nullptr );
+                if( pScissor )
+                {
+                    nlohmann::json scissorArgs = {
+                        { "offsetX", pScissor->offset.x },
+                        { "offsetY", pScissor->offset.y },
+                        { "extentWidth", pScissor->extent.width },
+                        { "extentHeight", pScissor->extent.height }
+                    };
+
+                    stateArgs["scissors"].push_back( scissorArgs );
+                }
+            }
+        }
+        else
+        {
+            args["viewportState"] = nullptr;
+        }
+
+        // VkPipelineRasterizationStateCreateInfo
+        if( createInfo.pRasterizationState )
+        {
+            const VkPipelineRasterizationStateCreateInfo& state = *createInfo.pRasterizationState;
+
+            nlohmann::json& stateArgs = args["rasterizationState"];
+            stateArgs["depthClampEnable"] = m_pStringSerializer->GetBool( state.depthClampEnable );
+            stateArgs["rasterizerDiscardEnable"] = m_pStringSerializer->GetBool( state.rasterizerDiscardEnable );
+            stateArgs["polygonMode"] = m_pStringSerializer->GetPolygonModeName( state.polygonMode );
+            stateArgs["cullMode"] = m_pStringSerializer->GetCullModeName( state.cullMode );
+            stateArgs["frontFace"] = m_pStringSerializer->GetFrontFaceName( state.frontFace );
+            stateArgs["depthBiasEnable"] = m_pStringSerializer->GetBool( state.depthBiasEnable );
+            stateArgs["depthBiasConstantFactor"] = state.depthBiasConstantFactor;
+            stateArgs["depthBiasClamp"] = state.depthBiasClamp;
+            stateArgs["depthBiasSlopeFactor"] = state.depthBiasSlopeFactor;
+            stateArgs["lineWidth"] = state.lineWidth;
+        }
+        else
+        {
+            args["rasterizationState"] = nullptr;
+        }
+
+        // VkPipelineMultisampleStateCreateInfo
+        if( createInfo.pMultisampleState )
+        {
+            const VkPipelineMultisampleStateCreateInfo& state = *createInfo.pMultisampleState;
+
+            nlohmann::json& stateArgs = args["multisampleState"];
+            stateArgs["rasterizationSamples"] = state.rasterizationSamples;
+            stateArgs["sampleShadingEnable"] = m_pStringSerializer->GetBool( state.sampleShadingEnable );
+            stateArgs["minSampleShading"] = state.minSampleShading;
+            stateArgs["sampleMask"] = fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF );
+            stateArgs["alphaToCoverateEnable"] = m_pStringSerializer->GetBool( state.alphaToCoverageEnable );
+            stateArgs["alphaToOneEnable"] = m_pStringSerializer->GetBool( state.alphaToOneEnable );
+        }
+        else
+        {
+            args["multisampleState"] = nullptr;
+        }
+
+        // VkPipelineDepthStencilStateCreateInfo
+        if( createInfo.pDepthStencilState )
+        {
+            const VkPipelineDepthStencilStateCreateInfo& state = *createInfo.pDepthStencilState;
+
+            nlohmann::json& stateArgs = args["depthStencilState"];
+            stateArgs["depthTestEnable"] = m_pStringSerializer->GetBool( state.depthTestEnable );
+            stateArgs["depthWriteEnable"] = m_pStringSerializer->GetBool( state.depthWriteEnable );
+            stateArgs["depthCompareOp"] = m_pStringSerializer->GetCompareOpName( state.depthCompareOp );
+            stateArgs["depthBoundsTestEnable"] = m_pStringSerializer->GetBool( state.depthBoundsTestEnable );
+            stateArgs["minDepthBounds"] = state.minDepthBounds;
+            stateArgs["maxDepthBounds"] = state.maxDepthBounds;
+            stateArgs["stencilTestEnable"] = m_pStringSerializer->GetBool( state.stencilTestEnable );
+
+            stateArgs["front"] = {
+                { "failOp", state.front.failOp },
+                { "passOp", state.front.passOp },
+                { "depthFailOp", state.front.depthFailOp },
+                { "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) },
+                { "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) },
+                { "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) },
+                { "reference", fmt::format( "0x{:02X}", state.front.reference ) }
+            };
+
+            stateArgs["back"] = {
+                { "failOp", state.back.failOp },
+                { "passOp", state.back.passOp },
+                { "depthFailOp", state.back.depthFailOp },
+                { "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) },
+                { "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) },
+                { "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) },
+                { "reference", fmt::format( "0x{:02X}", state.back.reference ) }
+            };
+        }
+        else
+        {
+            args["depthStencilState"] = nullptr;
+        }
+
+        // VkPipelineColorBlendStateCreateInfo
+        if( createInfo.pColorBlendState )
+        {
+            const VkPipelineColorBlendStateCreateInfo& state = *createInfo.pColorBlendState;
+
+            nlohmann::json& stateArgs = args["colorBlendState"];
+            stateArgs["logicOpEnable"] = m_pStringSerializer->GetBool( state.logicOpEnable );
+            stateArgs["logicOp"] = m_pStringSerializer->GetLogicOpName( state.logicOp );
+            stateArgs["blendConstants"] = m_pStringSerializer->GetVec4( state.blendConstants );
+            stateArgs["attachments"] = nlohmann::json::array();
+
+            for( uint32_t i = 0; i < state.attachmentCount; ++i )
+            {
+                const VkPipelineColorBlendAttachmentState& attachment = state.pAttachments[i];
+
+                nlohmann::json attachmentArgs = {
+                    { "blendEnable", m_pStringSerializer->GetBool( attachment.blendEnable ) },
+                    { "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) },
+                    { "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) },
+                    { "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) },
+                    { "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) },
+                    { "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) },
+                    { "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) },
+                    { "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) }
+                };
+
+                stateArgs["attachments"].push_back( attachmentArgs );
+            }
+        }
+        else
+        {
+            args["colorBlendState"] = nullptr;
+        }
+
+        return args;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetComputePipelineCreateInfoArgs
+
+    Description:
+        Serialize compute pipeline state into JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& createInfo ) const
+    {
+        nlohmann::json args = {};
+
+        // No additional state to serialize for compute pipelines yet.
+
+        return args;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetRayTracingPipelineCreateInfoArgs
+
+    Description:
+        Serialize ray-tracing pipeline state into JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& createInfo ) const
+    {
+        nlohmann::json args = {};
+
+        // No additional state to serialize for ray-tracing pipelines yet.
+
+        return args;
     }
 }

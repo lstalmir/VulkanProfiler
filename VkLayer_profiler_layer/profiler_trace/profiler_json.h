@@ -47,5 +47,8 @@ namespace Profiler
         nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;
         nlohmann::json GetDepthStencilClearValue( const VkClearDepthStencilValue& ) const;
         nlohmann::json GetShaderStageArgs( const struct ProfilerShader& ) const;
+        nlohmann::json GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& ) const;
+        nlohmann::json GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& ) const;
+        nlohmann::json GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& ) const;
     };
 }
