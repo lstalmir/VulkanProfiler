@@ -87,6 +87,7 @@ namespace Profiler
         std::string GetCompareOpName( VkCompareOp ) const;
         std::string GetLogicOpName( VkLogicOp ) const;
         std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
+        std::string GetDynamicStateName( VkDynamicState ) const;
 
         std::string GetMemoryPropertyFlagNames( VkMemoryPropertyFlags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBufferUsageFlagNames( VkBufferUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
