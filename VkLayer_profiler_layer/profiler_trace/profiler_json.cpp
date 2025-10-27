@@ -789,8 +789,24 @@ namespace Profiler
     nlohmann::json DeviceProfilerJsonSerializer::GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& createInfo ) const
     {
         nlohmann::json args = {};
+        args["maxPipelineRayRecursionDepth"] = createInfo.maxPipelineRayRecursionDepth;
 
-        // No additional state to serialize for ray-tracing pipelines yet.
+        // VkRayTracingPipelineInterfaceCreateInfoKHR
+        if( createInfo.pLibraryInterface )
+        {
+            const VkRayTracingPipelineInterfaceCreateInfoKHR& state = *createInfo.pLibraryInterface;
+
+            nlohmann::json stateArgs = {
+                { "maxPipelineRayPayloadSize", state.maxPipelineRayPayloadSize },
+                { "maxPipelineRayHitAttributeSize", state.maxPipelineRayHitAttributeSize }
+            };
+
+            args["libraryInterface"] = stateArgs;
+        }
+        else
+        {
+            args["libraryInterface"] = nullptr;
+        }
 
         return args;
     }
