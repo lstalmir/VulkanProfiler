@@ -395,26 +395,24 @@ namespace Profiler
         // Append pipeline create info details.
         if( pipeline.m_pCreateInfo )
         {
-            nlohmann::json& createInfo = args["createInfo"];
-
             switch( pipeline.m_Type )
             {
             case DeviceProfilerPipelineType::eGraphics:
             {
-                createInfo = GetGraphicsPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo );
+                args.update( GetGraphicsPipelineCreateInfoArgs(
+                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo ) );
                 break;
             }
             case DeviceProfilerPipelineType::eCompute:
             {
-                createInfo = GetComputePipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo );
+                args.update( GetComputePipelineCreateInfoArgs(
+                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo ) );
                 break;
             }
             case DeviceProfilerPipelineType::eRayTracingKHR:
             {
-                createInfo = GetRayTracingPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR );
+                args.update( GetRayTracingPipelineCreateInfoArgs(
+                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR ) );
                 break;
             }
             }
@@ -526,234 +524,218 @@ namespace Profiler
     nlohmann::json DeviceProfilerJsonSerializer::GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& createInfo ) const
     {
         nlohmann::json args = {};
+        args["vertexInputState"] = nullptr;
+        args["inputAssemblyState"] = nullptr;
+        args["tessellationState"] = nullptr;
+        args["viewportState"] = nullptr;
+        args["rasterizationState"] = nullptr;
+        args["multisampleState"] = nullptr;
+        args["depthStencilState"] = nullptr;
+        args["colorBlendState"] = nullptr;
+        args["dynamicStates"] = nlohmann::json::array();
 
         // VkPipelineVertexInputStateCreateInfo
         if( createInfo.pVertexInputState )
         {
-            const VkPipelineVertexInputStateCreateInfo& state = *createInfo.pVertexInputState;
+            const auto& state = *createInfo.pVertexInputState;
+            args["vertexInputState"] = {
+                { "attributeCount", state.vertexAttributeDescriptionCount },
+                { "attributes", nullptr },
+                { "bindingCount", state.vertexBindingDescriptionCount },
+                { "bindings", nullptr }
+            };
 
-            nlohmann::json& stateArgs = args["vertexInputState"];
-            stateArgs["attributes"] = nlohmann::json::array();
-            stateArgs["bindings"] = nlohmann::json::array();
-
-            for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
+            if( state.pVertexAttributeDescriptions )
             {
-                const VkVertexInputAttributeDescription& attribute = state.pVertexAttributeDescriptions[i];
-
-                nlohmann::json attributeArgs = {
-                    { "location", attribute.location },
-                    { "binding", attribute.binding },
-                    { "format", m_pStringSerializer->GetFormatName( attribute.format ) },
-                    { "offset", attribute.offset }
-                };
-
-                stateArgs["attributes"].push_back( attributeArgs );
+                auto& attributesArgs = args["vertexInputState"]["attributes"] = nlohmann::json::array();
+                for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
+                {
+                    const auto& attribute = state.pVertexAttributeDescriptions[i];
+                    attributesArgs.push_back( {
+                        { "location", attribute.location },
+                        { "binding", attribute.binding },
+                        { "format", m_pStringSerializer->GetFormatName( attribute.format ) },
+                        { "offset", attribute.offset } } );
+                }
             }
 
-            for( uint32_t i = 0; i < state.vertexBindingDescriptionCount; ++i )
+            if( state.pVertexBindingDescriptions )
             {
-                const VkVertexInputBindingDescription& binding = state.pVertexBindingDescriptions[i];
-
-                nlohmann::json bindingArgs = {
-                    { "binding", binding.binding },
-                    { "stride", binding.stride },
-                    { "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) }
-                };
-
-                stateArgs["bindings"].push_back( bindingArgs );
+                auto& bindingsArgs = args["vertexInputState"]["bindings"] = nlohmann::json::array();
+                for( uint32_t i = 0; i < state.vertexBindingDescriptionCount; ++i )
+                {
+                    const auto& binding = state.pVertexBindingDescriptions[i];
+                    bindingsArgs.push_back( {
+                        { "binding", binding.binding },
+                        { "stride", binding.stride },
+                        { "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) } } );
+                }
             }
-        }
-        else
-        {
-            args["vertexInputState"] = nullptr;
         }
 
         // VkPipelineInputAssemblyStateCreateInfo
         if( createInfo.pInputAssemblyState )
         {
-            const VkPipelineInputAssemblyStateCreateInfo& state = *createInfo.pInputAssemblyState;
-
-            nlohmann::json& stateArgs = args["inputAssemblyState"];
-            stateArgs["topology"] = m_pStringSerializer->GetPrimitiveTopologyName( state.topology );
-            stateArgs["primitiveRestartEnable"] = m_pStringSerializer->GetBool( state.primitiveRestartEnable );
-        }
-        else
-        {
-            args["inputAssemblyState"] = nullptr;
+            const auto& state = *createInfo.pInputAssemblyState;
+            args["inputAssemblyState"] = {
+                { "topology", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ) },
+                { "primitiveRestartEnable", static_cast<bool>( state.primitiveRestartEnable ) }
+            };
         }
 
         // VkPipelineTessellationStateCreateInfo
         if( createInfo.pTessellationState )
         {
-            const VkPipelineTessellationStateCreateInfo& state = *createInfo.pTessellationState;
-
-            nlohmann::json& stateArgs = args["tessellationState"];
-            stateArgs["patchControlPoints"] = state.patchControlPoints;
-        }
-        else
-        {
-            args["tessellationState"] = nullptr;
+            const auto& state = *createInfo.pTessellationState;
+            args["tessellationState"] = {
+                { "patchControlPoints", state.patchControlPoints }
+            };
         }
 
         // VkPipelineViewportStateCreateInfo
         if( createInfo.pViewportState )
         {
-            const VkPipelineViewportStateCreateInfo& state = *createInfo.pViewportState;
+            const auto& state = *createInfo.pViewportState;
+            args["viewportState"] = {
+                { "viewportCount", state.viewportCount },
+                { "viewports", nullptr },
+                { "scissorCount", state.scissorCount },
+                { "scissors", nullptr }
+            };
 
-            nlohmann::json& stateArgs = args["viewportState"];
-            stateArgs["viewports"] = nlohmann::json::array();
-            stateArgs["scissors"] = nlohmann::json::array();
-
-            for( uint32_t i = 0; i < state.viewportCount; ++i )
+            if( state.pViewports )
             {
-                const VkViewport* pViewport = ( state.pViewports ? &state.pViewports[i] : nullptr );
-                if( pViewport )
+                auto& viewportsArgs = args["viewportState"]["viewports"] = nlohmann::json::array();
+                for( uint32_t i = 0; i < state.viewportCount; ++i )
                 {
-                    nlohmann::json viewportArgs = {
-                        { "x", pViewport->x },
-                        { "y", pViewport->y },
-                        { "width", pViewport->width },
-                        { "height", pViewport->height },
-                        { "minDepth", pViewport->minDepth },
-                        { "maxDepth", pViewport->maxDepth }
-                    };
-
-                    stateArgs["viewports"].push_back( viewportArgs );
+                    const auto& viewport = state.pViewports[i];
+                    viewportsArgs.push_back( {
+                        { "x", viewport.x },
+                        { "y", viewport.y },
+                        { "width", viewport.width },
+                        { "height", viewport.height },
+                        { "minDepth", viewport.minDepth },
+                        { "maxDepth", viewport.maxDepth } } );
                 }
             }
 
-            for( uint32_t i = 0; i < state.scissorCount; ++i )
+            if( state.pScissors )
             {
-                const VkRect2D* pScissor = ( state.pScissors ? &state.pScissors[i] : nullptr );
-                if( pScissor )
+                auto& scissorsArgs = args["viewportState"]["scissors"] = nlohmann::json::array();
+                for( uint32_t i = 0; i < state.scissorCount; ++i )
                 {
-                    nlohmann::json scissorArgs = {
-                        { "offsetX", pScissor->offset.x },
-                        { "offsetY", pScissor->offset.y },
-                        { "extentWidth", pScissor->extent.width },
-                        { "extentHeight", pScissor->extent.height }
-                    };
-
-                    stateArgs["scissors"].push_back( scissorArgs );
+                    const auto& scissor = state.pScissors[i];
+                    scissorsArgs.push_back( {
+                        { "offsetX", scissor.offset.x },
+                        { "offsetY", scissor.offset.y },
+                        { "extentWidth", scissor.extent.width },
+                        { "extentHeight", scissor.extent.height } } );
                 }
             }
-        }
-        else
-        {
-            args["viewportState"] = nullptr;
         }
 
         // VkPipelineRasterizationStateCreateInfo
         if( createInfo.pRasterizationState )
         {
-            const VkPipelineRasterizationStateCreateInfo& state = *createInfo.pRasterizationState;
-
-            nlohmann::json& stateArgs = args["rasterizationState"];
-            stateArgs["depthClampEnable"] = m_pStringSerializer->GetBool( state.depthClampEnable );
-            stateArgs["rasterizerDiscardEnable"] = m_pStringSerializer->GetBool( state.rasterizerDiscardEnable );
-            stateArgs["polygonMode"] = m_pStringSerializer->GetPolygonModeName( state.polygonMode );
-            stateArgs["cullMode"] = m_pStringSerializer->GetCullModeName( state.cullMode );
-            stateArgs["frontFace"] = m_pStringSerializer->GetFrontFaceName( state.frontFace );
-            stateArgs["depthBiasEnable"] = m_pStringSerializer->GetBool( state.depthBiasEnable );
-            stateArgs["depthBiasConstantFactor"] = state.depthBiasConstantFactor;
-            stateArgs["depthBiasClamp"] = state.depthBiasClamp;
-            stateArgs["depthBiasSlopeFactor"] = state.depthBiasSlopeFactor;
-            stateArgs["lineWidth"] = state.lineWidth;
-        }
-        else
-        {
-            args["rasterizationState"] = nullptr;
+            const auto& state = *createInfo.pRasterizationState;
+            args["rasterizationState"] = {
+                { "depthClampEnable", static_cast<bool>( state.depthClampEnable ) },
+                { "rasterizerDiscardEnable", static_cast<bool>( state.rasterizerDiscardEnable ) },
+                { "polygonMode", m_pStringSerializer->GetPolygonModeName( state.polygonMode ) },
+                { "cullMode", m_pStringSerializer->GetCullModeName( state.cullMode ) },
+                { "frontFace", m_pStringSerializer->GetFrontFaceName( state.frontFace ) },
+                { "depthBiasEnable", static_cast<bool>( state.depthBiasEnable ) },
+                { "depthBiasConstantFactor", state.depthBiasConstantFactor },
+                { "depthBiasClamp", state.depthBiasClamp },
+                { "depthBiasSlopeFactor", state.depthBiasSlopeFactor },
+                { "lineWidth", state.lineWidth }
+            };
         }
 
         // VkPipelineMultisampleStateCreateInfo
         if( createInfo.pMultisampleState )
         {
-            const VkPipelineMultisampleStateCreateInfo& state = *createInfo.pMultisampleState;
-
-            nlohmann::json& stateArgs = args["multisampleState"];
-            stateArgs["rasterizationSamples"] = state.rasterizationSamples;
-            stateArgs["sampleShadingEnable"] = m_pStringSerializer->GetBool( state.sampleShadingEnable );
-            stateArgs["minSampleShading"] = state.minSampleShading;
-            stateArgs["sampleMask"] = fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF );
-            stateArgs["alphaToCoverateEnable"] = m_pStringSerializer->GetBool( state.alphaToCoverageEnable );
-            stateArgs["alphaToOneEnable"] = m_pStringSerializer->GetBool( state.alphaToOneEnable );
-        }
-        else
-        {
-            args["multisampleState"] = nullptr;
+            const auto& state = *createInfo.pMultisampleState;
+            args["multisampleState"] = {
+                { "rasterizationSamples", state.rasterizationSamples },
+                { "sampleShadingEnable", static_cast<bool>( state.sampleShadingEnable ) },
+                { "minSampleShading", state.minSampleShading },
+                { "sampleMask", fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF ) },
+                { "alphaToCoverateEnable", static_cast<bool>( state.alphaToCoverageEnable ) },
+                { "alphaToOneEnable", static_cast<bool>( state.alphaToOneEnable ) }
+            };
         }
 
         // VkPipelineDepthStencilStateCreateInfo
         if( createInfo.pDepthStencilState )
         {
-            const VkPipelineDepthStencilStateCreateInfo& state = *createInfo.pDepthStencilState;
-
-            nlohmann::json& stateArgs = args["depthStencilState"];
-            stateArgs["depthTestEnable"] = m_pStringSerializer->GetBool( state.depthTestEnable );
-            stateArgs["depthWriteEnable"] = m_pStringSerializer->GetBool( state.depthWriteEnable );
-            stateArgs["depthCompareOp"] = m_pStringSerializer->GetCompareOpName( state.depthCompareOp );
-            stateArgs["depthBoundsTestEnable"] = m_pStringSerializer->GetBool( state.depthBoundsTestEnable );
-            stateArgs["minDepthBounds"] = state.minDepthBounds;
-            stateArgs["maxDepthBounds"] = state.maxDepthBounds;
-            stateArgs["stencilTestEnable"] = m_pStringSerializer->GetBool( state.stencilTestEnable );
-
-            stateArgs["front"] = {
-                { "failOp", state.front.failOp },
-                { "passOp", state.front.passOp },
-                { "depthFailOp", state.front.depthFailOp },
-                { "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) },
-                { "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) },
-                { "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) },
-                { "reference", fmt::format( "0x{:02X}", state.front.reference ) }
+            const auto& state = *createInfo.pDepthStencilState;
+            args["depthStencilState"] = {
+                { "depthTestEnable", static_cast<bool>( state.depthTestEnable ) },
+                { "depthWriteEnable", static_cast<bool>( state.depthWriteEnable ) },
+                { "depthCompareOp", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ) },
+                { "depthBoundsTestEnable", static_cast<bool>( state.depthBoundsTestEnable ) },
+                { "minDepthBounds", state.minDepthBounds },
+                { "maxDepthBounds", state.maxDepthBounds },
+                { "stencilTestEnable", static_cast<bool>( state.stencilTestEnable ) },
+                { "front", {
+                    { "failOp", state.front.failOp },
+                    { "passOp", state.front.passOp },
+                    { "depthFailOp", state.front.depthFailOp },
+                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) },
+                    { "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) },
+                    { "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) },
+                    { "reference", fmt::format( "0x{:02X}", state.front.reference ) } } },
+                { "back", {
+                    { "failOp", state.back.failOp },
+                    { "passOp", state.back.passOp },
+                    { "depthFailOp", state.back.depthFailOp },
+                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) },
+                    { "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) },
+                    { "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) },
+                    { "reference", fmt::format( "0x{:02X}", state.back.reference ) } } }
             };
-
-            stateArgs["back"] = {
-                { "failOp", state.back.failOp },
-                { "passOp", state.back.passOp },
-                { "depthFailOp", state.back.depthFailOp },
-                { "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) },
-                { "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) },
-                { "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) },
-                { "reference", fmt::format( "0x{:02X}", state.back.reference ) }
-            };
-        }
-        else
-        {
-            args["depthStencilState"] = nullptr;
         }
 
         // VkPipelineColorBlendStateCreateInfo
         if( createInfo.pColorBlendState )
         {
-            const VkPipelineColorBlendStateCreateInfo& state = *createInfo.pColorBlendState;
+            const auto& state = *createInfo.pColorBlendState;
+            args["colorBlendState"] = {
+                { "logicOpEnable", static_cast<bool>( state.logicOpEnable ) },
+                { "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) },
+                { "blendConstants", state.blendConstants },
+                { "attachments", nullptr }
+            };
 
-            nlohmann::json& stateArgs = args["colorBlendState"];
-            stateArgs["logicOpEnable"] = m_pStringSerializer->GetBool( state.logicOpEnable );
-            stateArgs["logicOp"] = m_pStringSerializer->GetLogicOpName( state.logicOp );
-            stateArgs["blendConstants"] = m_pStringSerializer->GetVec4( state.blendConstants );
-            stateArgs["attachments"] = nlohmann::json::array();
-
-            for( uint32_t i = 0; i < state.attachmentCount; ++i )
+            if( state.pAttachments )
             {
-                const VkPipelineColorBlendAttachmentState& attachment = state.pAttachments[i];
-
-                nlohmann::json attachmentArgs = {
-                    { "blendEnable", m_pStringSerializer->GetBool( attachment.blendEnable ) },
-                    { "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) },
-                    { "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) },
-                    { "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) },
-                    { "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) },
-                    { "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) },
-                    { "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) },
-                    { "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) }
-                };
-
-                stateArgs["attachments"].push_back( attachmentArgs );
+                auto& attachmentsArgs = args["colorBlendState"]["attachments"] = nlohmann::json::array();
+                for( uint32_t i = 0; i < state.attachmentCount; ++i )
+                {
+                    const auto& attachment = state.pAttachments[i];
+                    attachmentsArgs.push_back( {
+                        { "blendEnable", static_cast<bool>( attachment.blendEnable ) },
+                        { "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) },
+                        { "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) },
+                        { "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) },
+                        { "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) },
+                        { "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) },
+                        { "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) },
+                        { "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) } } );
+                }
             }
         }
-        else
+
+        // VkPipelineDynamicStateCreateInfo
+        if( createInfo.pDynamicState )
         {
-            args["colorBlendState"] = nullptr;
+            const auto& state = *createInfo.pDynamicState;
+            for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
+            {
+                args["dynamicStates"].push_back(
+                    m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
+            }
         }
 
         return args;
@@ -790,22 +772,28 @@ namespace Profiler
     {
         nlohmann::json args = {};
         args["maxPipelineRayRecursionDepth"] = createInfo.maxPipelineRayRecursionDepth;
+        args["libraryInterface"] = nullptr;
+        args["dynamicStates"] = nlohmann::json::array();
 
         // VkRayTracingPipelineInterfaceCreateInfoKHR
         if( createInfo.pLibraryInterface )
         {
-            const VkRayTracingPipelineInterfaceCreateInfoKHR& state = *createInfo.pLibraryInterface;
-
-            nlohmann::json stateArgs = {
+            const auto& state = *createInfo.pLibraryInterface;
+            args["libraryInterface"] = {
                 { "maxPipelineRayPayloadSize", state.maxPipelineRayPayloadSize },
                 { "maxPipelineRayHitAttributeSize", state.maxPipelineRayHitAttributeSize }
             };
-
-            args["libraryInterface"] = stateArgs;
         }
-        else
+
+        // VkPipelineDynamicStateCreateInfo
+        if( createInfo.pDynamicState )
         {
-            args["libraryInterface"] = nullptr;
+            const auto& state = *createInfo.pDynamicState;
+            for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
+            {
+                args["dynamicStates"].push_back(
+                    m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
+            }
         }
 
         return args;
