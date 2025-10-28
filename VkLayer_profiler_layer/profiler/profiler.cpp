@@ -786,9 +786,9 @@ namespace Profiler
         for( uint32_t i = 0; i < count; ++i )
         {
             VkCommandBuffer commandBuffer = pCommandBuffers[ i ];
-            RegisterObject( commandBuffer );
+            RegisterObject( commandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER );
 
-            SetDefaultObjectName( commandBuffer );
+            SetDefaultObjectName( VkObjectHandle( commandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER ) );
 
             m_pCommandBuffers.unsafe_insert( commandBuffer,
                 std::make_unique<ProfilerCommandBuffer>( *this, profilerCommandPool, commandBuffer, level ) );
@@ -813,7 +813,7 @@ namespace Profiler
         for( uint32_t i = 0; i < count; ++i )
         {
             FreeCommandBuffer( pCommandBuffers[ i ] );
-            UnregisterObject( pCommandBuffers[ i ] );
+            UnregisterObject( pCommandBuffers[ i ], VK_OBJECT_TYPE_COMMAND_BUFFER );
         }
     }
 
@@ -899,7 +899,7 @@ namespace Profiler
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             DeviceProfilerPipeline profilerPipeline;
-            profilerPipeline.m_Handle = RegisterObject( pPipelines[i] );
+            profilerPipeline.m_Handle = RegisterObject( pPipelines[i], VK_OBJECT_TYPE_PIPELINE );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eGraphics;
 
@@ -930,7 +930,7 @@ namespace Profiler
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             DeviceProfilerPipeline profilerPipeline;
-            profilerPipeline.m_Handle = RegisterObject( pPipelines[i] );
+            profilerPipeline.m_Handle = RegisterObject( pPipelines[i], VK_OBJECT_TYPE_PIPELINE );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
             
@@ -957,7 +957,7 @@ namespace Profiler
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             DeviceProfilerPipeline profilerPipeline;
-            profilerPipeline.m_Handle = RegisterObject( pPipelines[i] );
+            profilerPipeline.m_Handle = RegisterObject( pPipelines[i], VK_OBJECT_TYPE_PIPELINE );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eRayTracingKHR;
             
@@ -1079,7 +1079,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        UnregisterObject( pipeline );
+        UnregisterObject( pipeline, VK_OBJECT_TYPE_PIPELINE );
 
         m_Pipelines.remove( pipeline );
     }
@@ -1096,7 +1096,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        RegisterObject( module );
+        RegisterObject( module, VK_OBJECT_TYPE_SHADER_MODULE );
 
         VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
         shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
@@ -1127,7 +1127,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        UnregisterObject( module );
+        UnregisterObject( module, VK_OBJECT_TYPE_SHADER_MODULE );
 
         m_pShaderModules.remove( module );
     }
@@ -1213,7 +1213,7 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerRenderPass deviceProfilerRenderPass;
-        deviceProfilerRenderPass.m_Handle = RegisterObject( renderPass );
+        deviceProfilerRenderPass.m_Handle = RegisterObject( renderPass, VK_OBJECT_TYPE_RENDER_PASS );
         deviceProfilerRenderPass.m_Type = DeviceProfilerRenderPassType::eGraphics;
         
         for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
@@ -1233,7 +1233,7 @@ namespace Profiler
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
         // Assign default debug name for the render pass
-        SetDefaultObjectName( renderPass );
+        SetDefaultObjectName( VkObjectHandle( renderPass, VK_OBJECT_TYPE_RENDER_PASS ) );
 
         // Store render pass
         m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
@@ -1252,7 +1252,7 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerRenderPass deviceProfilerRenderPass;
-        deviceProfilerRenderPass.m_Handle = RegisterObject( renderPass );
+        deviceProfilerRenderPass.m_Handle = RegisterObject( renderPass, VK_OBJECT_TYPE_RENDER_PASS );
         deviceProfilerRenderPass.m_Type = DeviceProfilerRenderPassType::eGraphics;
 
         for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
@@ -1301,7 +1301,7 @@ namespace Profiler
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
         // Assign default debug name for the render pass
-        SetDefaultObjectName( renderPass );
+        SetDefaultObjectName( VkObjectHandle( renderPass, VK_OBJECT_TYPE_RENDER_PASS ) );
 
         // Store render pass
         m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
@@ -1319,7 +1319,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        UnregisterObject( renderPass );
+        UnregisterObject( renderPass, VK_OBJECT_TYPE_RENDER_PASS );
 
         m_RenderPasses.remove( renderPass );
     }
@@ -1551,7 +1551,9 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.RegisterAllocation( RegisterObject( allocatedMemory ), pAllocateInfo );
+        m_MemoryTracker.RegisterAllocation(
+            RegisterObject( allocatedMemory, VK_OBJECT_TYPE_DEVICE_MEMORY ),
+            pAllocateInfo );
     }
 
     /***********************************************************************************\
@@ -1569,9 +1571,10 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.UnregisterAllocation( GetObjectHandle( allocatedMemory ) );
+        m_MemoryTracker.UnregisterAllocation(
+            GetObjectHandle( allocatedMemory, VK_OBJECT_TYPE_DEVICE_MEMORY ) );
 
-        UnregisterObject( allocatedMemory );
+        UnregisterObject( allocatedMemory, VK_OBJECT_TYPE_DEVICE_MEMORY );
     }
 
     /***********************************************************************************\
@@ -1590,8 +1593,8 @@ namespace Profiler
         }
 
         m_MemoryTracker.RegisterAccelerationStructure(
-            RegisterObject( accelerationStructure ),
-            GetObjectHandle( pCreateInfo->buffer ),
+            RegisterObject( accelerationStructure, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR ),
+            GetObjectHandle( pCreateInfo->buffer, VK_OBJECT_TYPE_BUFFER ),
             pCreateInfo );
     }
 
@@ -1610,9 +1613,10 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.UnregisterAccelerationStructure( GetObjectHandle( accelerationStructure ) );
+        m_MemoryTracker.UnregisterAccelerationStructure(
+            GetObjectHandle( accelerationStructure, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR ) );
 
-        UnregisterObject( accelerationStructure );
+        UnregisterObject( accelerationStructure, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR );
     }
 
     /***********************************************************************************\
@@ -1631,8 +1635,8 @@ namespace Profiler
         }
 
         m_MemoryTracker.RegisterMicromap(
-            RegisterObject( micromap ),
-            GetObjectHandle( pCreateInfo->buffer ),
+            RegisterObject( micromap, VK_OBJECT_TYPE_MICROMAP_EXT ),
+            GetObjectHandle( pCreateInfo->buffer, VK_OBJECT_TYPE_BUFFER ),
             pCreateInfo );
     }
 
@@ -1651,9 +1655,10 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.UnregisterMicromap( GetObjectHandle( micromap ) );
+        m_MemoryTracker.UnregisterMicromap(
+            GetObjectHandle( micromap, VK_OBJECT_TYPE_MICROMAP_EXT ) );
 
-        UnregisterObject( micromap );
+        UnregisterObject( micromap, VK_OBJECT_TYPE_MICROMAP_EXT );
     }
 
     /***********************************************************************************\
@@ -1671,7 +1676,9 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.RegisterBuffer( RegisterObject( buffer ), pCreateInfo );
+        m_MemoryTracker.RegisterBuffer(
+            RegisterObject( buffer, VK_OBJECT_TYPE_BUFFER ),
+            pCreateInfo );
     }
 
     /***********************************************************************************\
@@ -1689,9 +1696,10 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.UnregisterBuffer( GetObjectHandle( buffer ) );
+        m_MemoryTracker.UnregisterBuffer(
+            GetObjectHandle( buffer, VK_OBJECT_TYPE_BUFFER ) );
 
-        UnregisterObject( buffer );
+        UnregisterObject( buffer, VK_OBJECT_TYPE_BUFFER );
     }
 
     /***********************************************************************************\
@@ -1710,8 +1718,8 @@ namespace Profiler
         }
 
         m_MemoryTracker.BindBufferMemory(
-            GetObjectHandle( buffer ),
-            GetObjectHandle( memory ),
+            GetObjectHandle( buffer, VK_OBJECT_TYPE_BUFFER ),
+            GetObjectHandle( memory, VK_OBJECT_TYPE_DEVICE_MEMORY ),
             offset );
     }
 
@@ -1730,14 +1738,14 @@ namespace Profiler
             return;
         }
 
-        const VkObjectHandle<VkBuffer> bufferHandle = GetObjectHandle( buffer );
+        const VkObjectHandle<VkBuffer> bufferHandle = GetObjectHandle( buffer, VK_OBJECT_TYPE_BUFFER );
 
         for( uint32_t i = 0; i < bindCount; ++i )
         {
             m_MemoryTracker.BindSparseBufferMemory(
                 bufferHandle,
                 pBinds[i].resourceOffset,
-                GetObjectHandle( pBinds[i].memory ),
+                GetObjectHandle( pBinds[i].memory, VK_OBJECT_TYPE_DEVICE_MEMORY ),
                 pBinds[i].memoryOffset,
                 pBinds[i].size,
                 pBinds[i].flags );
@@ -1759,7 +1767,9 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.RegisterImage( RegisterObject( image ), pCreateInfo );
+        m_MemoryTracker.RegisterImage(
+            RegisterObject( image, VK_OBJECT_TYPE_IMAGE ),
+            pCreateInfo );
     }
 
     /***********************************************************************************\
@@ -1777,9 +1787,10 @@ namespace Profiler
             return;
         }
 
-        m_MemoryTracker.UnregisterImage( GetObjectHandle( image ) );
+        m_MemoryTracker.UnregisterImage(
+            GetObjectHandle( image, VK_OBJECT_TYPE_IMAGE ) );
 
-        UnregisterObject( image );
+        UnregisterObject( image, VK_OBJECT_TYPE_IMAGE );
     }
 
     /***********************************************************************************\
@@ -1798,8 +1809,8 @@ namespace Profiler
         }
 
         m_MemoryTracker.BindImageMemory(
-            GetObjectHandle( image ),
-            GetObjectHandle( memory ),
+            GetObjectHandle( image, VK_OBJECT_TYPE_IMAGE ),
+            GetObjectHandle( memory, VK_OBJECT_TYPE_DEVICE_MEMORY ),
             offset );
     }
 
@@ -1818,14 +1829,14 @@ namespace Profiler
             return;
         }
 
-        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
+        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image, VK_OBJECT_TYPE_IMAGE );
 
         for( uint32_t i = 0; i < bindCount; ++i )
         {
             m_MemoryTracker.BindSparseImageMemory(
                 imageHandle,
                 pBinds[i].resourceOffset,
-                GetObjectHandle( pBinds[i].memory ),
+                GetObjectHandle( pBinds[i].memory, VK_OBJECT_TYPE_DEVICE_MEMORY ),
                 pBinds[i].memoryOffset,
                 pBinds[i].size,
                 pBinds[i].flags );
@@ -1847,7 +1858,7 @@ namespace Profiler
             return;
         }
 
-        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
+        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image, VK_OBJECT_TYPE_IMAGE );
 
         for( uint32_t i = 0; i < bindCount; ++i )
         {
@@ -1856,7 +1867,7 @@ namespace Profiler
                 pBinds[i].subresource,
                 pBinds[i].offset,
                 pBinds[i].extent,
-                GetObjectHandle( pBinds[i].memory ),
+                GetObjectHandle( pBinds[i].memory, VK_OBJECT_TYPE_DEVICE_MEMORY ),
                 pBinds[i].memoryOffset,
                 pBinds[i].flags );
         }
@@ -2141,7 +2152,7 @@ namespace Profiler
         // There is special function for VkPipeline objects
         if( object.m_Type == VK_OBJECT_TYPE_PIPELINE )
         {
-            SetDefaultObjectName( VkObject_Traits<VkPipeline>::GetObjectHandleAsVulkanHandle( object.m_Handle ) );
+            SetDefaultPipelineName( GetPipeline( object.GetHandle<VkPipeline>() ) );
             return;
         }
 
@@ -2152,20 +2163,6 @@ namespace Profiler
         ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016" PRIx64, traits.ObjectTypeName, object.m_Handle );
 
         m_ObjectNames.insert_or_assign( object, pObjectDebugName );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        SetDefaultObjectName
-
-    Description:
-        Set default pipeline name consisting of shader tuple hashes.
-
-    \***********************************************************************************/
-    void DeviceProfiler::SetDefaultObjectName( VkPipeline object )
-    {
-        SetDefaultPipelineName( GetPipeline( object ) );
     }
 
     /***********************************************************************************\
@@ -2237,7 +2234,7 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerPipeline internalPipeline;
-        internalPipeline.m_Handle = RegisterObject( (VkPipeline)type );
+        internalPipeline.m_Handle = RegisterObject( (VkPipeline)type, VK_OBJECT_TYPE_PIPELINE );
         internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
         internalPipeline.m_Type = type;
         internalPipeline.m_Internal = true;
@@ -2299,13 +2296,13 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename ObjectT>
-    VkObjectHandle<ObjectT> DeviceProfiler::RegisterObject( ObjectT object )
+    VkObjectHandle<ObjectT> DeviceProfiler::RegisterObject( ObjectT object, VkObjectType type )
     {
         uint64_t creationTime = m_CpuTimestampCounter.GetCurrentValue();
 
-        m_ObjectCreateTimes.insert_or_assign( object, creationTime );
+        m_ObjectCreateTimes.insert_or_assign( VkObjectHandle( object, type ), creationTime );
 
-        return VkObjectHandle<ObjectT>( object, creationTime );
+        return VkObjectHandle<ObjectT>( object, type, creationTime );
     }
 
     /***********************************************************************************\
@@ -2318,8 +2315,8 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename ObjectT>
-    void DeviceProfiler::UnregisterObject( ObjectT object )
+    void DeviceProfiler::UnregisterObject( ObjectT object, VkObjectType type )
     {
-        m_ObjectCreateTimes.remove( object );
+        m_ObjectCreateTimes.remove( VkObjectHandle( object, type ) );
     }
 }

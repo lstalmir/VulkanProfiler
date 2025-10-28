@@ -306,12 +306,12 @@ namespace Profiler
             m_pBackend->WaitIdle();
             m_pBackend->DestroyFontsImage();
 
-            for( void*& pIcon : m_pIcons )
+            for( uint64_t& pIcon : m_pIcons )
             {
                 if( pIcon )
                 {
                     m_pBackend->DestroyImage( pIcon );
-                    pIcon = nullptr;
+                    pIcon = 0;
                 }
             }
         }
@@ -370,7 +370,7 @@ namespace Profiler
         Returns the specified icon's image descriptor set.
 
     \***********************************************************************************/
-    void* OverlayResources::GetIcon( OverlayIcon icon ) const
+    uint64_t OverlayResources::GetIcon( OverlayIcon icon ) const
     {
         assert( icon < OverlayIcon::IconCount );
         assert( m_pIcons[icon] );
@@ -386,7 +386,7 @@ namespace Profiler
         Creates an image object from the asset data.
 
     \***********************************************************************************/
-    void* OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
+    uint64_t OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
     {
         int width, height, channels;
         std::unique_ptr<stbi_uc[]> pixels;
@@ -402,7 +402,7 @@ namespace Profiler
 
         if( !pixels || channels != 4 )
         {
-            return nullptr;
+            return 0;
         }
 
         return m_pBackend->CreateImage( width, height, pixels.get() );

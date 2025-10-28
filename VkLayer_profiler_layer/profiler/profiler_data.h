@@ -296,7 +296,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -328,8 +328,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
-            m_CountBuffer = profiler.template GetObjectHandle<VkBuffer>( m_CountBuffer.m_Handle );
+            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
+            m_CountBuffer = profiler.template GetObjectHandle<VkBuffer>( m_CountBuffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -367,7 +367,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -393,8 +393,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
-            m_CountBuffer = profiler.template GetObjectHandle<VkBuffer>( m_CountBuffer.m_Handle );
+            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
+            m_CountBuffer = profiler.template GetObjectHandle<VkBuffer>( m_CountBuffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -445,7 +445,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -459,8 +459,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcBuffer = profiler.template GetObjectHandle<VkBuffer>( m_SrcBuffer.m_Handle );
-            m_DstBuffer = profiler.template GetObjectHandle<VkBuffer>( m_DstBuffer.m_Handle );
+            m_SrcBuffer = profiler.template GetObjectHandle<VkBuffer>( m_SrcBuffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
+            m_DstBuffer = profiler.template GetObjectHandle<VkBuffer>( m_DstBuffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -474,8 +474,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcBuffer = profiler.template GetObjectHandle<VkBuffer>( m_SrcBuffer.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            m_SrcBuffer = profiler.template GetObjectHandle<VkBuffer>( m_SrcBuffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
+            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
         }
     };
 
@@ -489,8 +489,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
+            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
         }
     };
 
@@ -504,8 +504,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstBuffer = profiler.template GetObjectHandle<VkBuffer>( m_DstBuffer.m_Handle );
+            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
+            m_DstBuffer = profiler.template GetObjectHandle<VkBuffer>( m_DstBuffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -526,7 +526,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Image = profiler.template GetObjectHandle<VkImage>( m_Image.m_Handle );
+            m_Image = profiler.template GetObjectHandle<VkImage>( m_Image.m_Handle, VK_OBJECT_TYPE_IMAGE );
         }
     };
 
@@ -540,7 +540,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Image = profiler.template GetObjectHandle<VkImage>( m_Image.m_Handle );
+            m_Image = profiler.template GetObjectHandle<VkImage>( m_Image.m_Handle, VK_OBJECT_TYPE_IMAGE );
         }
     };
 
@@ -554,8 +554,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
+            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
         }
     };
 
@@ -569,8 +569,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
+            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle, VK_OBJECT_TYPE_IMAGE );
         }
     };
 
@@ -586,7 +586,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -601,7 +601,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle, VK_OBJECT_TYPE_BUFFER );
         }
     };
 
@@ -673,8 +673,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Src.m_Handle );
-            m_Dst = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Dst.m_Handle );
+            m_Src = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Src.m_Handle, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR );
+            m_Dst = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Dst.m_Handle, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR );
         }
     };
 
@@ -689,7 +689,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Src.m_Handle );
+            m_Src = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Src.m_Handle, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR );
         }
     };
 
@@ -704,7 +704,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Dst = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Dst.m_Handle );
+            m_Dst = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Dst.m_Handle, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR );
         }
     };
 
@@ -731,8 +731,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkMicromapEXT>( m_Src.m_Handle );
-            m_Dst = profiler.template GetObjectHandle<VkMicromapEXT>( m_Dst.m_Handle );
+            m_Src = profiler.template GetObjectHandle<VkMicromapEXT>( m_Src.m_Handle, VK_OBJECT_TYPE_MICROMAP_EXT );
+            m_Dst = profiler.template GetObjectHandle<VkMicromapEXT>( m_Dst.m_Handle, VK_OBJECT_TYPE_MICROMAP_EXT );
         }
     };
 
@@ -747,7 +747,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Dst = profiler.template GetObjectHandle<VkMicromapEXT>( m_Dst.m_Handle );
+            m_Dst = profiler.template GetObjectHandle<VkMicromapEXT>( m_Dst.m_Handle, VK_OBJECT_TYPE_MICROMAP_EXT );
         }
     };
 
@@ -762,7 +762,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkMicromapEXT>( m_Src.m_Handle );
+            m_Src = profiler.template GetObjectHandle<VkMicromapEXT>( m_Src.m_Handle, VK_OBJECT_TYPE_MICROMAP_EXT );
         }
     };
 

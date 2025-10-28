@@ -21,6 +21,10 @@
 #pragma once
 #include <vulkan/vulkan.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef VK_EXT_profiler
 #define VK_EXT_profiler 1
 #define VK_EXT_PROFILER_SPEC_VERSION 5
@@ -418,3 +422,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerActivePerformanceMetricsSetIndexEXT(
     uint32_t* pMetricsSetIndex );
 #endif // VK_NO_PROTOTYPES
 #endif // VK_EXT_profiler
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

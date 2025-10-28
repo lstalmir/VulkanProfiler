@@ -87,8 +87,8 @@ namespace Profiler
         float GetDPIScale() const override;
         ImVec2 GetRenderArea() const override;
 
-        void* CreateImage( int width, int height, const void* pData ) override;
-        void DestroyImage( void* pImage ) override;
+        uint64_t CreateImage( int width, int height, const void* pData ) override;
+        void DestroyImage( uint64_t image ) override;
         void CreateFontsImage() override;
         void DestroyFontsImage() override;
 

@@ -89,7 +89,7 @@ namespace Profiler
         VkObject GetObjectHandle( VkObject ) const;
 
         template<typename ObjectT>
-        VkObjectHandle<ObjectT> GetObjectHandle( ObjectT ) const;
+        VkObjectHandle<ObjectT> GetObjectHandle( ObjectT, VkObjectType ) const;
 
         bool ShouldCapturePipelineExecutableProperties() const;
 
@@ -148,7 +148,6 @@ namespace Profiler
         const char* GetObjectName( VkObject ) const;
         void SetObjectName( VkObject, const char* );
         void SetDefaultObjectName( VkObject );
-        void SetDefaultObjectName( VkPipeline );
 
         template<typename VkObjectTypeEnumT>
         void SetObjectName( uint64_t, VkObjectTypeEnumT, const char* );
@@ -217,10 +216,10 @@ namespace Profiler
         void ResolveFrameData( TipRangeId& tip );
 
         template<typename ObjectT>
-        VkObjectHandle<ObjectT> RegisterObject( ObjectT );
+        VkObjectHandle<ObjectT> RegisterObject( ObjectT, VkObjectType );
 
         template<typename ObjectT>
-        void UnregisterObject( ObjectT );
+        void UnregisterObject( ObjectT, VkObjectType );
     };
 
     /***********************************************************************************\
@@ -233,9 +232,9 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename ObjectT>
-    inline VkObjectHandle<ObjectT> DeviceProfiler::GetObjectHandle( ObjectT object ) const
+    inline VkObjectHandle<ObjectT> DeviceProfiler::GetObjectHandle( ObjectT object, VkObjectType type ) const
     {
-        return GetObjectHandle( VkObject( object ) ).GetHandle<ObjectT>();
+        return GetObjectHandle( VkObjectHandle<ObjectT>( object, type ) ).template GetHandle<ObjectT>();
     }
 
     /***********************************************************************************\
