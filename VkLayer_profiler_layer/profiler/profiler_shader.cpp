@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <utility>
+#include <sstream>
 
 #include <farmhash.h>
 
@@ -637,13 +638,12 @@ namespace Profiler
         GetShaderStageHashesString
 
     Description:
-        Construct a string with selected shader stage hahes.
+        Construct a string with selected shader stage hashes and entry point names.
 
     \***********************************************************************************/
     std::string ProfilerShaderTuple::GetShaderStageHashesString( VkShaderStageFlags stages, bool skipEmptyStages ) const
     {
-        char buffer[256] = { 0 };
-        char* pBuffer = buffer;
+        std::stringstream buffer = {};
         bool isFirstStage = true;
 
         // Array of prefixes for each shader stage, must be kept in sync with VkShaderStageFlagBits.
@@ -698,15 +698,26 @@ namespace Profiler
             if( !isFirstStage )
             {
                 // Separate shader stages with comma.
-                pBuffer = ProfilerStringFunctions::Append( pBuffer, ", " );
+                buffer << ", ";
             }
 
-            pBuffer = ProfilerStringFunctions::Append( pBuffer, pShaderPrefix );
-            pBuffer = ProfilerStringFunctions::Append( pBuffer, '=' );
-            pBuffer = ProfilerStringFunctions::Hex( pBuffer, pShader ? pShader->m_Hash : 0U );
+            buffer << pShaderPrefix << "=";
+            buffer << std::hex << std::setw( 8 ) << std::setfill( '0' ) << std::uppercase;
+
+            if( pShader )
+            {
+                // Append shader hash and entry point name.
+                buffer << pShader->m_Hash << " (" << pShader->m_EntryPoint << ")";
+            }
+            else
+            {
+                // Stage not present.
+                buffer << 0;
+            }
+
             isFirstStage = false;
         }
 
-        return buffer;
+        return buffer.str();
     }
 }
