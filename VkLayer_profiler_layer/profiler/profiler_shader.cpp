@@ -641,7 +641,7 @@ namespace Profiler
         Construct a string with selected shader stage hashes and entry point names.
 
     \***********************************************************************************/
-    std::string ProfilerShaderTuple::GetShaderStageHashesString( VkShaderStageFlags stages, bool skipEmptyStages ) const
+    std::string ProfilerShaderTuple::GetShaderStageHashesString( VkShaderStageFlags stages, bool showEntryPoints, bool skipEmptyStages ) const
     {
         std::stringstream buffer = {};
         bool isFirstStage = true;
@@ -707,7 +707,12 @@ namespace Profiler
             if( pShader )
             {
                 // Append shader hash and entry point name.
-                buffer << pShader->m_Hash << " (" << pShader->m_EntryPoint << ")";
+                buffer << pShader->m_Hash;
+
+                if( showEntryPoints )
+                {
+                    buffer << " (" << pShader->m_EntryPoint << ")";
+                }
             }
             else
             {

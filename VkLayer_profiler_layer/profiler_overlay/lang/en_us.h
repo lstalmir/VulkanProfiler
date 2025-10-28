@@ -174,6 +174,7 @@ namespace Profiler
         inline static constexpr char CollectedFrameCount[] = "Collected frame count";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
         inline static constexpr char ShowShaderCapabilities[] = "Show shader capabilities";
+        inline static constexpr char ShowEntryPoints[] = "Show entry points";
         inline static constexpr char TimeUnit[] = "Time unit";
 
         inline static constexpr char Milliseconds[] = "ms";

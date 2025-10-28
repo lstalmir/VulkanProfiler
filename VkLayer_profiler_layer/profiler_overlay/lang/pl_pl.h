@@ -153,6 +153,7 @@ namespace Profiler
         inline static constexpr char CollectedFrameCount[] = u8"Liczba zebranych ramek";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
         inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
+        inline static constexpr char ShowEntryPoints[] = u8"Pokaż punkty wejścia shaderów";
         inline static constexpr char TimeUnit[] = u8"Jednostka czasu";
 
         // Application info window

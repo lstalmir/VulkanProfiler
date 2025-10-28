@@ -613,6 +613,7 @@ namespace Profiler
         m_ShowEmptyStatistics = false;
         m_ShowAllTopPipelines = false;
         m_ShowActiveFrame = false;
+        m_ShowEntryPoints = false;
 
         m_SetLastMainWindowPos = false;
 
@@ -1875,7 +1876,7 @@ namespace Profiler
                 const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
 
                 m_ReferenceTopPipelines.try_emplace(
-                    m_pStringSerializer->GetName( pipeline ), pipelineTimeMs );
+                    m_pStringSerializer->GetName( pipeline, m_ShowEntryPoints ), pipelineTimeMs );
             }
         }
 
@@ -1944,7 +1945,7 @@ namespace Profiler
                 snprintf( pipelineIndexStr, sizeof( pipelineIndexStr ), "TopPipeline_%u", pipelineIndex );
 
                 const float pipelineTime = GetDuration( pipeline );
-                std::string pipelineName = m_pStringSerializer->GetName( pipeline );
+                std::string pipelineName = m_pStringSerializer->GetName( pipeline, m_ShowEntryPoints );
 
                 if( ImGui::TableNextColumn() )
                 {
@@ -2037,7 +2038,10 @@ namespace Profiler
                 // Show reference time if available.
                 if( !m_ReferenceTopPipelines.empty() )
                 {
-                    auto ref = m_ReferenceTopPipelines.find( pipelineName );
+                    // Reference pipelines always have entry point names.
+                    std::string refPipelineName = m_pStringSerializer->GetName( pipeline, true /*showEntryPoints*/ );
+
+                    auto ref = m_ReferenceTopPipelines.find( refPipelineName );
                     if( ref != m_ReferenceTopPipelines.end() )
                     {
                         // Convert saved reference time to the same unit as the pipeline time.
@@ -5416,6 +5420,9 @@ namespace Profiler
 
         // Display shader capability badges in frame browser.
         ImGui::Checkbox( Lang::ShowShaderCapabilities, &m_ShowShaderCapabilities );
+
+        // Display shader entry point names in the default pipeline names.
+        ImGui::Checkbox( Lang::ShowEntryPoints, &m_ShowEntryPoints );
     }
 
     /***********************************************************************************\
@@ -6035,7 +6042,7 @@ namespace Profiler
             const DeviceProfilerPipelineData& pipelineData =
                 *reinterpret_cast<const DeviceProfilerPipelineData*>(data.userData);
 
-            regionName = m_pStringSerializer->GetName( pipelineData );
+            regionName = m_pStringSerializer->GetName( pipelineData, m_ShowEntryPoints );
             regionDuration = GetDuration( pipelineData );
             break;
         }
@@ -6433,7 +6440,7 @@ namespace Profiler
 
             for( const DeviceProfilerPipelineData& pipeline : data.m_TopPipelines )
             {
-                const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
+                const std::string pipelineName = m_pStringSerializer->GetName( pipeline, true /*showEntryPoints*/ );
 
                 VkProfilerPerformanceCounterProperties2EXT& pipelineNameInfo = pipelineNames.emplace_back();
                 ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() );
@@ -7061,7 +7068,7 @@ namespace Profiler
 
             const char* indexStr = GetFrameBrowserNodeIndexStr( index );
             inPipelineSubtree =
-                (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline ).c_str() ));
+                (ImGui::TreeNode( indexStr, "%s", m_pStringSerializer->GetName( pipeline, m_ShowEntryPoints ).c_str() ));
 
             DrawPipelineContextMenu( pipeline );
         }
@@ -7453,7 +7460,7 @@ namespace Profiler
 
             if( ImGui::MenuItem( Lang::CopyName, nullptr, nullptr ) )
             {
-                ImGui::SetClipboardText( m_pStringSerializer->GetName( pipeline ).c_str() );
+                ImGui::SetClipboardText( m_pStringSerializer->GetName( pipeline, m_ShowEntryPoints ).c_str() );
             }
 
             ImGui::EndPopup();
