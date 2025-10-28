@@ -38,6 +38,8 @@ namespace Profiler
     class DeviceProfilerStringSerializer
     {
     public:
+        inline static const char* DefaultFlagsSeparator = " | ";
+
         DeviceProfilerStringSerializer( DeviceProfilerFrontend& );
 
         std::string GetName( const struct DeviceProfilerDrawcall& ) const;
@@ -49,6 +51,9 @@ namespace Profiler
         std::string GetName( const struct DeviceProfilerCommandBufferData& ) const;
 
         std::string GetName( const struct VkObject& object ) const;
+        std::string GetObjectID( const struct VkObject& object ) const;
+        std::string GetObjectTypeName( const VkObjectType objectType ) const;
+        std::string GetShortObjectTypeName( const VkObjectType objectType ) const;
 
         std::string GetCommandName( const struct DeviceProfilerDrawcall& ) const;
 
@@ -58,6 +63,8 @@ namespace Profiler
 
         std::string GetColorHex( const float* ) const;
 
+        std::string GetByteSize( VkDeviceSize ) const;
+
         std::string GetQueueTypeName( VkQueueFlags ) const;
         std::string GetQueueFlagNames( VkQueueFlags ) const;
 
@@ -65,6 +72,8 @@ namespace Profiler
         std::string GetShortShaderName( const struct ProfilerShader& ) const;
         std::string GetShaderStageName( VkShaderStageFlagBits ) const;
         std::string GetShortShaderStageName( VkShaderStageFlagBits ) const;
+        std::string GetShaderGroupTypeName( VkRayTracingShaderGroupTypeKHR ) const;
+        std::string GetGeneralShaderGroupTypeName( VkShaderStageFlagBits ) const;
 
         std::string GetFormatName( VkFormat ) const;
         std::string GetIndexTypeName( VkIndexType ) const;
@@ -78,14 +87,25 @@ namespace Profiler
         std::string GetCompareOpName( VkCompareOp ) const;
         std::string GetLogicOpName( VkLogicOp ) const;
         std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
+        std::string GetDynamicStateName( VkDynamicState ) const;
+
+        std::string GetMemoryPropertyFlagNames( VkMemoryPropertyFlags, const char* separator = DefaultFlagsSeparator ) const;
+        std::string GetBufferUsageFlagNames( VkBufferUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
+        std::string GetImageUsageFlagNames( VkImageUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
+
+        std::string GetImageTypeName( VkImageType, VkImageCreateFlags = 0, uint32_t = 1 ) const;
+        std::string GetImageTilingName( VkImageTiling ) const;
+        std::string GetImageAspectFlagNames( VkImageAspectFlags, const char* separator = DefaultFlagsSeparator ) const;
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
+        std::string GetAccelerationStructureTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
         std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
 
         std::string GetCopyMicromapModeName( VkCopyMicromapModeEXT mode ) const;
         std::string GetMicromapTypeName( VkMicromapTypeEXT type ) const;
+        std::string GetMicromapTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBuildMicromapModeName( VkBuildMicromapModeEXT mode ) const;
         std::string GetBuildMicromapFlagNames( VkBuildMicromapFlagsEXT flags ) const;
 

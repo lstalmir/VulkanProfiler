@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_config.h"
 #include "profiler_data.h"
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -57,13 +58,26 @@ namespace Profiler
 
         virtual const std::unordered_map<VkQueue, struct VkQueue_Object>& GetDeviceQueues() = 0;
 
-        virtual const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& GetPerformanceMetricsSets() = 0;
-        virtual const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& GetPerformanceCounterProperties( uint32_t setIndex ) = 0;
+        virtual bool SupportsCustomPerformanceMetricsSets() = 0;
+        virtual uint32_t CreateCustomPerformanceMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) = 0;
+        virtual void DestroyCustomPerformanceMetricsSet( uint32_t setIndex ) = 0;
+        virtual void UpdateCustomPerformanceMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) = 0;
+        virtual uint32_t GetPerformanceCounterProperties( uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) = 0;
+        virtual uint32_t GetPerformanceMetricsSets( uint32_t setCount, VkProfilerPerformanceMetricsSetProperties2EXT* pSets ) = 0;
+        virtual void GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) = 0;
+        virtual uint32_t GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) = 0;
+        virtual uint32_t GetPerformanceCounterRequiredPasses( uint32_t counterCount, const uint32_t* pCounters ) = 0;
+        virtual void GetAvailablePerformanceCounters( uint32_t selectedCounterCount, const uint32_t* pSelectedCounters, uint32_t& availableCounterCount, uint32_t* pAvailableCounters ) = 0;
         virtual VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) = 0;
         virtual uint32_t GetPerformanceMetricsSetIndex() = 0;
 
-        virtual VkProfilerSyncModeEXT GetProfilerSyncMode() = 0;
-        virtual VkResult SetProfilerSyncMode( VkProfilerSyncModeEXT mode ) = 0;
+        virtual uint64_t GetDeviceCreateTimestamp( VkTimeDomainEXT timeDomain ) = 0;
+        virtual uint64_t GetHostTimestampFrequency( VkTimeDomainEXT timeDomain ) = 0;
+
+        virtual const DeviceProfilerConfig& GetProfilerConfig() = 0;
+
+        virtual VkProfilerFrameDelimiterEXT GetProfilerFrameDelimiter() = 0;
+        virtual VkResult SetProfilerFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter ) = 0;
 
         virtual VkProfilerModeEXT GetProfilerSamplingMode() = 0;
         virtual VkResult SetProfilerSamplingMode( VkProfilerModeEXT mode ) = 0;
@@ -72,5 +86,38 @@ namespace Profiler
         virtual void SetObjectName( const struct VkObject& object, const std::string& name ) = 0;
 
         virtual std::shared_ptr<DeviceProfilerFrameData> GetData() = 0;
+        virtual void SetDataBufferSize( uint32_t maxFrames ) = 0;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        DeviceProfilerOutput
+
+    Description:
+        An output interface for presenting profiling data.
+        This can be a GUI overlay, a file output, etc.
+
+    \***********************************************************************************/
+    class DeviceProfilerOutput
+    {
+    public:
+        explicit DeviceProfilerOutput( DeviceProfilerFrontend& frontend )
+            : m_Frontend( frontend )
+        {
+        }
+
+        virtual ~DeviceProfilerOutput() = default;
+
+        virtual bool IsAvailable() = 0;
+
+        virtual bool Initialize() = 0;
+        virtual void Destroy() = 0;
+
+        virtual void Update() = 0;
+        virtual void Present() = 0;
+
+    protected:
+        DeviceProfilerFrontend& m_Frontend;
     };
 }

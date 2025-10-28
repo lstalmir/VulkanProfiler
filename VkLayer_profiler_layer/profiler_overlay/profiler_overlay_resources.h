@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_helpers.h"
 #include <stdint.h>
 
 struct ImFont;
@@ -26,6 +27,23 @@ struct ImFont;
 namespace Profiler
 {
     class OverlayBackend;
+
+    /***********************************************************************************\
+
+    Class:
+        OverlayIcon
+
+    Description:
+        Available overlay icons.
+
+    \***********************************************************************************/
+    enum class OverlayIcon
+    {
+        Copy,
+        BookmarkEmpty,
+        BookmarkFilled,
+        IconCount
+    };
 
     /***********************************************************************************\
 
@@ -49,7 +67,7 @@ namespace Profiler
         ImFont* GetBoldFont() const;
         ImFont* GetCodeFont() const;
 
-        void* GetCopyIconImage() const;
+        void* GetIcon( OverlayIcon icon ) const;
 
     private:
         OverlayBackend* m_pBackend = nullptr;
@@ -58,8 +76,15 @@ namespace Profiler
         ImFont* m_pBoldFont = nullptr;
         ImFont* m_pCodeFont = nullptr;
 
-        void* m_pCopyIconImage = nullptr;
+        EnumArray<OverlayIcon, void*, static_cast<size_t>( OverlayIcon::IconCount )>
+            m_pIcons = { nullptr };
 
         void* CreateImage( const uint8_t* pAsset, int assetSize );
+
+        template<size_t Size>
+        void* CreateImage( const uint8_t ( &asset )[Size] )
+        {
+            return CreateImage( asset, static_cast<int>( Size ) );
+        }
     };
 }

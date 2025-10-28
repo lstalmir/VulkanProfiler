@@ -20,34 +20,16 @@
 
 #include "profiler.h"
 #include "profiler_command_buffer.h"
+#include "profiler_performance_counters_khr.h"
+#include "profiler_performance_counters_intel.h"
 #include "profiler_helpers.h"
 #include <farmhash.h>
+#include <inttypes.h>
 #include <sstream>
 #include <fstream>
 
 namespace
 {
-    static inline VkImageAspectFlags GetImageAspectFlagsForFormat( VkFormat format )
-    {
-        // Assume color aspect except for depth-stencil formats
-        switch( format )
-        {
-        case VK_FORMAT_D16_UNORM:
-        case VK_FORMAT_D32_SFLOAT:
-            return VK_IMAGE_ASPECT_DEPTH_BIT;
-
-        case VK_FORMAT_D16_UNORM_S8_UINT:
-        case VK_FORMAT_D24_UNORM_S8_UINT:
-        case VK_FORMAT_D32_SFLOAT_S8_UINT:
-            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-
-        case VK_FORMAT_S8_UINT:
-            return VK_IMAGE_ASPECT_STENCIL_BIT;
-        }
-
-        return VK_IMAGE_ASPECT_COLOR_BIT;
-    }
-
     template<typename RenderPassCreateInfo>
     static inline void CountRenderPassAttachmentClears(
         Profiler::DeviceProfilerRenderPass& renderPass,
@@ -56,7 +38,7 @@ namespace
         for( uint32_t attachmentIndex = 0; attachmentIndex < pCreateInfo->attachmentCount; ++attachmentIndex )
         {
             const auto& attachment = pCreateInfo->pAttachments[ attachmentIndex ];
-            const auto imageFormatAspectFlags = GetImageAspectFlagsForFormat( attachment.format );
+            const auto imageFormatAspectFlags = Profiler::GetFormatAllAspectFlags( attachment.format );
 
             // Color attachment clear
             if( (imageFormatAspectFlags & VK_IMAGE_ASPECT_COLOR_BIT) &&
@@ -146,21 +128,22 @@ namespace Profiler
     DeviceProfiler::DeviceProfiler()
         : m_pDevice( nullptr )
         , m_Config()
-        , m_PresentMutex()
-        , m_SubmitMutex()
-        , m_pData( nullptr )
+        , m_DataMutex()
+        , m_pData()
         , m_MemoryManager()
         , m_DataAggregator()
         , m_NextFrameIndex( 0 )
+        , m_DataBufferSize( 1 )
+        , m_MinDataBufferSize( 1 )
         , m_LastFrameBeginTimestamp( 0 )
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
         , m_MemoryTracker()
         , m_pCommandBuffers()
         , m_pCommandPools()
-        , m_SubmitFence( VK_NULL_HANDLE )
-        , m_PerformanceConfigurationINTEL( VK_NULL_HANDLE )
+        , m_pPerformanceCounters( nullptr )
         , m_PipelineExecutablePropertiesEnabled( false )
+        , m_ShaderModuleIdentifierEnabled( false )
         , m_pStablePowerStateHandle( nullptr )
     {
     }
@@ -168,54 +151,188 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        EnumerateOptionalDeviceExtensions
+        SetupDeviceCreateInfo
 
     Description:
         Get list of optional device extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings& settings, const VkProfilerCreateInfoEXT* pCreateInfo )
+    void DeviceProfiler::SetupDeviceCreateInfo(
+        VkPhysicalDevice_Object& physicalDevice,
+        const ProfilerLayerSettings& settings,
+        std::unordered_set<std::string>& deviceExtensions,
+        PNextChain& devicePNextChain )
     {
-        std::unordered_set<std::string> deviceExtensions = {
-            VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-            VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME
-        };
+        // Check if profiler create info was provided.
+        const VkProfilerCreateInfoEXT* pProfilerCreateInfo =
+            devicePNextChain.Find<VkProfilerCreateInfoEXT>( VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT );
 
         // Load configuration that will be used by the profiler.
         DeviceProfilerConfig config;
-        DeviceProfiler::LoadConfiguration( settings, pCreateInfo, &config );
+        DeviceProfiler::LoadConfiguration( settings, pProfilerCreateInfo, &config );
 
-        if( config.m_EnablePerformanceQueryExt )
+        // Enumerate available extensions.
+        uint32_t extensionCount = 0;
+        physicalDevice.pInstance->Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice.Handle, nullptr, &extensionCount, nullptr );
+
+        std::vector<VkExtensionProperties> availableExtensions( extensionCount );
+        physicalDevice.pInstance->Callbacks.EnumerateDeviceExtensionProperties(
+            physicalDevice.Handle, nullptr, &extensionCount, availableExtensions.data() );
+
+        std::unordered_set<std::string> availableExtensionNames;
+        for( const VkExtensionProperties& extension : availableExtensions )
         {
-            // Enable MDAPI data collection on Intel GPUs
-            deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+            availableExtensionNames.insert( extension.extensionName );
+        }
+
+        // Some extensions require either VK_KHR_get_physical_device_properties2 or Vulkan 1.1.
+        const bool hasGetPhysicalDeviceProperties2 =
+            ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_1 &&
+                physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_1 ) ||
+            physicalDevice.pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+
+        // Enable shader module identifier if available.
+        if( availableExtensionNames.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
+            !devicePNextChain.Contains( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT ) )
+        {
+            bool enableShaderModuleIdentifier = false;
+
+            if( ( physicalDevice.pInstance->ApplicationInfo.apiVersion >= VK_API_VERSION_1_3 ) &&
+                ( physicalDevice.Properties.apiVersion >= VK_API_VERSION_1_3 ) )
+            {
+                enableShaderModuleIdentifier = true;
+            }
+            else
+            {
+                if( availableExtensionNames.count( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME ) )
+                {
+                    if( hasGetPhysicalDeviceProperties2 )
+                    {
+                        deviceExtensions.insert( VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME );
+                        enableShaderModuleIdentifier = true;
+                    }
+                }
+            }
+
+            if( enableShaderModuleIdentifier )
+            {
+                // Enable shader module identifiers.
+                deviceExtensions.insert( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME );
+
+                VkPhysicalDeviceShaderModuleIdentifierFeaturesEXT shaderModuleIdentifierFeatures = {};
+                shaderModuleIdentifierFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT;
+                shaderModuleIdentifierFeatures.shaderModuleIdentifier = VK_TRUE;
+
+                devicePNextChain.Append( shaderModuleIdentifierFeatures );
+            }
+        }
+
+        // Enable performance query extensions if requested and available.
+        if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::intel )
+        {
+            if( availableExtensionNames.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+            {
+                // Enable MDAPI data collection on Intel GPUs.
+                deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
+            }
+        }
+        else if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::khr )
+        {
+            if( availableExtensionNames.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+            {
+                if( hasGetPhysicalDeviceProperties2 )
+                {
+                    // Enable KHR performance query extension.
+                    deviceExtensions.insert( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME );
+                }
+            }
         }
 
         if( config.m_EnablePipelineExecutablePropertiesExt )
         {
-            // Enable pipeline executable properties capture
-            deviceExtensions.insert( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
+            if( availableExtensionNames.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME ) &&
+                !devicePNextChain.Contains( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR ) )
+            {
+                // Enable pipeline executable properties capture.
+                deviceExtensions.insert( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
+
+                VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR pipelineExecutablePropertiesFeatures = {};
+                pipelineExecutablePropertiesFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
+                pipelineExecutablePropertiesFeatures.pipelineExecutableInfo = VK_TRUE;
+
+                devicePNextChain.Append( pipelineExecutablePropertiesFeatures );
+            }
         }
 
-        return deviceExtensions;
+        // Enable calibrated timestamps extension to synchronize CPU and GPU events in traces.
+        if( availableExtensionNames.count( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
+        else if( availableExtensionNames.count( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME ) )
+        {
+            deviceExtensions.insert( VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME );
+        }
+
+        // Enable memory budget extension to track memory usage.
+        if( availableExtensionNames.count( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME ) )
+        {
+            if( hasGetPhysicalDeviceProperties2 )
+            {
+                deviceExtensions.insert( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME );
+            }
+        }
     }
 
     /***********************************************************************************\
 
     Function:
-        EnumerateOptionalInstanceExtensions
+        SetupInstanceCreateInfo
 
     Description:
         Get list of optional instance extensions that may be utilized by the profiler.
 
     \***********************************************************************************/
-    std::unordered_set<std::string> DeviceProfiler::EnumerateOptionalInstanceExtensions()
+    void DeviceProfiler::SetupInstanceCreateInfo(
+        const VkInstanceCreateInfo& createInfo,
+        PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr,
+        std::unordered_set<std::string>& instanceExtensions )
     {
-        return {
-            VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
-            VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-        };
+        std::unordered_set<std::string> availableInstanceExtensions;
+
+        // Try to enumerate available extensions.
+        if( pfnGetInstanceProcAddr != nullptr )
+        {
+            PFN_vkEnumerateInstanceExtensionProperties pfnEnumerateInstanceExtensionProperties =
+                (PFN_vkEnumerateInstanceExtensionProperties)pfnGetInstanceProcAddr( nullptr, "vkEnumerateInstanceExtensionProperties" );
+
+            if( pfnEnumerateInstanceExtensionProperties != nullptr )
+            {
+                uint32_t extensionCount = 0;
+                pfnEnumerateInstanceExtensionProperties( nullptr, &extensionCount, nullptr );
+
+                std::vector<VkExtensionProperties> extensions( extensionCount );
+                pfnEnumerateInstanceExtensionProperties( nullptr, &extensionCount, extensions.data() );
+
+                for( const VkExtensionProperties& extension : extensions )
+                {
+                    availableInstanceExtensions.insert( extension.extensionName );
+                }
+            }
+        }
+
+        // Enable extensions required by some of the features to work correctly.
+        if( ( createInfo.pApplicationInfo == nullptr ) ||
+            ( createInfo.pApplicationInfo->apiVersion == 0 ||
+                createInfo.pApplicationInfo->apiVersion == VK_API_VERSION_1_0 ) )
+        {
+            if( availableInstanceExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+            {
+                // Required by Vk_EXT_shader_module_identifier and VK_EXT_memory_budget.
+                instanceExtensions.insert( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -259,13 +376,20 @@ namespace Profiler
         Initializes profiler resources.
 
     \***********************************************************************************/
-    VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice, const VkProfilerCreateInfoEXT* pCreateInfo )
+    VkResult DeviceProfiler::Initialize( VkDevice_Object* pDevice, const VkDeviceCreateInfo* pCreateInfo )
     {
         m_pDevice = pDevice;
-        m_NextFrameIndex = 0;
+
+        // Frame #0 is allocated by the aggregator.
+        m_NextFrameIndex = 1;
+
+        // Check if profiler create info was provided.
+        const PNextChain pNextChain( pCreateInfo->pNext );
+        const VkProfilerCreateInfoEXT* pProfilerCreateInfo =
+            pNextChain.Find<VkProfilerCreateInfoEXT>( VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT );
 
         // Configure the profiler.
-        DeviceProfiler::LoadConfiguration( pDevice->pInstance->LayerSettings, pCreateInfo, &m_Config );
+        DeviceProfiler::LoadConfiguration( pDevice->pInstance->LayerSettings, pProfilerCreateInfo, &m_Config );
 
         // Check if preemption is enabled
         // It may break the results
@@ -279,26 +403,60 @@ namespace Profiler
             #endif
         }
 
-        // Create submit fence
-        VkFenceCreateInfo fenceCreateInfo;
-        ClearStructure( &fenceCreateInfo, VK_STRUCTURE_TYPE_FENCE_CREATE_INFO );
-
-        DESTROYANDRETURNONFAIL( m_pDevice->Callbacks.CreateFence(
-            m_pDevice->Handle, &fenceCreateInfo, nullptr, &m_SubmitFence ) );
-
         // Prepare for memory usage tracking
         m_MemoryTracker.Initialize( m_pDevice );
 
-        // Enable vendor-specific extensions
+        // Enable performance counters if available
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
-            InitializeINTEL();
+            // Use INTEL performance query extension.
+            m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersINTEL>();
+        }
+        else if( m_pDevice->EnabledExtensions.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+        {
+            // Use KHR performance query extension.
+            m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersKHR>();
+        }
+
+        if( m_pPerformanceCounters )
+        {
+            // Initialize performance counters.
+            // Clear the pointer if the initialization fails.
+            VkResult result = m_pPerformanceCounters->Initialize( m_pDevice );
+            if( result != VK_SUCCESS )
+            {
+                m_pPerformanceCounters.reset();
+            }
         }
 
         // Capture pipeline statistics and internal representations for debugging
         m_PipelineExecutablePropertiesEnabled =
             m_Config.m_EnablePipelineExecutablePropertiesExt &&
             m_pDevice->EnabledExtensions.count( VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME );
+
+        if( m_PipelineExecutablePropertiesEnabled )
+        {
+            const VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR* pPipelineExecutablePropertiesFeatures =
+                pNextChain.Find<VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR>( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR );
+
+            m_PipelineExecutablePropertiesEnabled =
+                ( pPipelineExecutablePropertiesFeatures != nullptr ) &&
+                ( pPipelineExecutablePropertiesFeatures->pipelineExecutableInfo == VK_TRUE );
+        }
+
+        // Collect shader module identifiers if available
+        m_ShaderModuleIdentifierEnabled =
+            m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME );
+
+        if( m_ShaderModuleIdentifierEnabled )
+        {
+            const VkPhysicalDeviceShaderModuleIdentifierFeaturesEXT* pShaderModuleIdentifierFeatures =
+                pNextChain.Find<VkPhysicalDeviceShaderModuleIdentifierFeaturesEXT>( VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT );
+
+            m_ShaderModuleIdentifierEnabled =
+                ( pShaderModuleIdentifierFeatures != nullptr ) &&
+                ( pShaderModuleIdentifierFeatures->shaderModuleIdentifier == VK_TRUE );
+        }
 
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
@@ -316,7 +474,7 @@ namespace Profiler
         DESTROYANDRETURNONFAIL( m_DataAggregator.Initialize( this ) );
 
         m_pData = m_DataAggregator.GetAggregatedData();
-        assert( m_pData );
+        assert( !m_pData.empty() );
 
         // Initialize internal pipelines
         CreateInternalPipeline( DeviceProfilerPipelineType::eCopyBuffer, "CopyBuffer" );
@@ -356,131 +514,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        InitializeINTEL
-
-    Description:
-        Initializes INTEL-specific profiler resources.
-
-    \***********************************************************************************/
-    VkResult DeviceProfiler::InitializeINTEL()
-    {
-        // Load MDAPI
-        VkResult result = m_MetricsApiINTEL.Initialize( m_pDevice );
-
-        if( result != VK_SUCCESS ||
-            m_MetricsApiINTEL.IsAvailable() == false )
-        {
-            return result;
-        }
-
-        // Import extension functions
-        if( m_pDevice->Callbacks.InitializePerformanceApiINTEL == nullptr )
-        {
-            auto gpa = m_pDevice->Callbacks.GetDeviceProcAddr;
-
-            #define GPA( PROC ) (PFN_vk##PROC)gpa( m_pDevice->Handle, "vk" #PROC ); \
-            assert( m_pDevice->Callbacks.PROC )
-
-            m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL = GPA( AcquirePerformanceConfigurationINTEL );
-            m_pDevice->Callbacks.CmdSetPerformanceMarkerINTEL = GPA( CmdSetPerformanceMarkerINTEL );
-            m_pDevice->Callbacks.CmdSetPerformanceOverrideINTEL = GPA( CmdSetPerformanceOverrideINTEL );
-            m_pDevice->Callbacks.CmdSetPerformanceStreamMarkerINTEL = GPA( CmdSetPerformanceStreamMarkerINTEL );
-            m_pDevice->Callbacks.GetPerformanceParameterINTEL = GPA( GetPerformanceParameterINTEL );
-            m_pDevice->Callbacks.InitializePerformanceApiINTEL = GPA( InitializePerformanceApiINTEL );
-            m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL = GPA( QueueSetPerformanceConfigurationINTEL );
-            m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL = GPA( ReleasePerformanceConfigurationINTEL );
-            m_pDevice->Callbacks.UninitializePerformanceApiINTEL = GPA( UninitializePerformanceApiINTEL );
-        }
-
-        // Initialize performance API
-        {
-            VkInitializePerformanceApiInfoINTEL initInfo = {};
-            initInfo.sType = VK_STRUCTURE_TYPE_INITIALIZE_PERFORMANCE_API_INFO_INTEL;
-
-            result = m_pDevice->Callbacks.InitializePerformanceApiINTEL(
-                m_pDevice->Handle, &initInfo );
-
-            if( result != VK_SUCCESS )
-            {
-                m_MetricsApiINTEL.Destroy();
-                return result;
-            }
-        }
-
-        return VK_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        AcquirePerformanceConfigurationINTEL
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::AcquirePerformanceConfigurationINTEL( VkQueue queue )
-    {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        assert( m_MetricsApiINTEL.IsAvailable() );
-        assert( m_PerformanceConfigurationINTEL == VK_NULL_HANDLE );
-
-        VkResult result;
-
-        // Acquire performance configuration
-        {
-            VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
-            acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
-            acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
-
-            assert( m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL );
-            result = m_pDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
-                m_pDevice->Handle,
-                &acquireInfo,
-                &m_PerformanceConfigurationINTEL );
-        }
-
-        // Set performance configuration for the queue
-        if( result == VK_SUCCESS )
-        {
-            assert( m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL );
-            result = m_pDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
-                queue, m_PerformanceConfigurationINTEL );
-        }
-
-        assert( result == VK_SUCCESS );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        ReleasePerformanceConfigurationINTEL
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::ReleasePerformanceConfigurationINTEL()
-    {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        assert( m_MetricsApiINTEL.IsAvailable() );
-
-        if( m_PerformanceConfigurationINTEL )
-        {
-            assert( m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL );
-            VkResult result = m_pDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
-                m_pDevice->Handle, m_PerformanceConfigurationINTEL );
-
-            // Reset object handle for the next submit
-            m_PerformanceConfigurationINTEL = VK_NULL_HANDLE;
-
-            assert( result == VK_SUCCESS );
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
         Destroy
 
     Description:
@@ -489,6 +522,13 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::Destroy()
     {
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        // Begin a fake frame at the end to allow finalization of the last submitted frame.
+        BeginNextFrame();
+        ResolveFrameData( tip );
+
+        // Reset members and destroy resources.
         m_DeferredOperationCallbacks.clear();
 
         m_pCommandBuffers.clear();
@@ -501,10 +541,10 @@ namespace Profiler
 
         m_DataAggregator.Destroy();
 
-        if( m_SubmitFence != VK_NULL_HANDLE )
+        if( m_pPerformanceCounters )
         {
-            m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, m_SubmitFence, nullptr );
-            m_SubmitFence = VK_NULL_HANDLE;
+            m_pPerformanceCounters->Destroy();
+            m_pPerformanceCounters.reset();
         }
 
         if( m_pStablePowerStateHandle != nullptr )
@@ -518,10 +558,16 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        SetSamplingMode
+
+    Description:
+        Set granularity of timestamp queries in the command buffers.
+        Does not affect command buffers that were already recorded.
+
     \***********************************************************************************/
-    VkResult DeviceProfiler::SetMode( VkProfilerModeEXT mode )
+    VkResult DeviceProfiler::SetSamplingMode( VkProfilerModeEXT mode )
     {
-        // TODO: Invalidate all command buffers
         m_Config.m_SamplingMode = mode;
 
         return VK_SUCCESS;
@@ -530,24 +576,69 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SetSyncMode
+        SetFrameDelimiter
 
     Description:
-        Set synchronization mode used to wait for data from the GPU.
-        VK_PROFILER_SYNC_MODE_PRESENT_EXT - Wait on vkQueuePresentKHR
-        VK_PROFILER_SYNC_MODE_SUBMIT_EXT - Wait on vkQueueSumit
+        Set which API call delimits frames reported by the profiler.
+        VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT - vkQueuePresentKHR
+        VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT - vkQueueSumit, vkQueueSubmit2(KHR)
 
     \***********************************************************************************/
-    VkResult DeviceProfiler::SetSyncMode( VkProfilerSyncModeEXT syncMode )
+    VkResult DeviceProfiler::SetFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter )
     {
-        // Check if synchronization mode is supported by current implementation
-        if( syncMode != VK_PROFILER_SYNC_MODE_PRESENT_EXT &&
-            syncMode != VK_PROFILER_SYNC_MODE_SUBMIT_EXT )
+        // Check if frame delimiter is supported by current implementation
+        if( frameDelimiter != VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT &&
+            frameDelimiter != VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
         {
             return VK_ERROR_VALIDATION_FAILED_EXT;
         }
 
-        m_Config.m_SyncMode = syncMode;
+        m_Config.m_FrameDelimiter = frameDelimiter;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDataBufferSize
+
+    Description:
+        Set the maximum number of buffered frames.
+
+    \***********************************************************************************/
+    VkResult DeviceProfiler::SetDataBufferSize( uint32_t size )
+    {
+        std::scoped_lock lk( m_DataMutex );
+
+        size = std::max( size, m_MinDataBufferSize );
+
+        m_DataAggregator.SetDataBufferSize( size );
+        m_DataBufferSize = size;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetMinDataBufferSize
+
+    Description:
+        Set the minimum number of buffered frames.
+
+    \***********************************************************************************/
+    VkResult DeviceProfiler::SetMinDataBufferSize( uint32_t size )
+    {
+        std::scoped_lock lk( m_DataMutex );
+
+        if( size > m_DataBufferSize )
+        {
+            m_DataAggregator.SetDataBufferSize( size );
+            m_DataBufferSize = size;
+        }
+
+        m_MinDataBufferSize = size;
 
         return VK_SUCCESS;
     }
@@ -555,9 +646,18 @@ namespace Profiler
     /***********************************************************************************\
 
     \***********************************************************************************/
-    std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData() const
+    std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData()
     {
-        return m_pData;
+        std::scoped_lock lk( m_DataMutex );
+        std::shared_ptr<DeviceProfilerFrameData> pData = nullptr;
+
+        if( !m_pData.empty() )
+        {
+            pData = m_pData.front();
+            m_pData.pop_front();
+        }
+
+        return pData;
     }
 
     /***********************************************************************************\
@@ -593,6 +693,18 @@ namespace Profiler
     ProfilerShader& DeviceProfiler::GetShader( VkShaderEXT handle )
     {
         return m_Shaders.at( handle );
+    }
+
+    /***********************************************************************************\
+    \***********************************************************************************/
+    VkObject DeviceProfiler::GetObjectHandle( VkObject object ) const
+    {
+        if( object.m_CreateTime == 0 )
+        {
+            m_ObjectCreateTimes.find( object, &object.m_CreateTime );
+        }
+
+        return object;
     }
 
     /***********************************************************************************\
@@ -642,7 +754,7 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
+        std::scoped_lock lk( m_pCommandBuffers );
 
         for( auto it = m_pCommandBuffers.begin(); it != m_pCommandBuffers.end(); )
         {
@@ -667,13 +779,14 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
+        std::scoped_lock lk( m_pCommandBuffers );
 
         DeviceProfilerCommandPool& profilerCommandPool = GetCommandPool( commandPool );
 
         for( uint32_t i = 0; i < count; ++i )
         {
             VkCommandBuffer commandBuffer = pCommandBuffers[ i ];
+            RegisterObject( commandBuffer );
 
             SetDefaultObjectName( commandBuffer );
 
@@ -695,11 +808,12 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_SubmitMutex, m_PresentMutex, m_pCommandBuffers );
+        std::scoped_lock lk( m_pCommandBuffers );
 
         for( uint32_t i = 0; i < count; ++i )
         {
             FreeCommandBuffer( pCommandBuffers[ i ] );
+            UnregisterObject( pCommandBuffers[ i ] );
         }
     }
 
@@ -785,7 +899,7 @@ namespace Profiler
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             DeviceProfilerPipeline profilerPipeline;
-            profilerPipeline.m_Handle = pPipelines[i];
+            profilerPipeline.m_Handle = RegisterObject( pPipelines[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eGraphics;
 
@@ -816,7 +930,7 @@ namespace Profiler
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             DeviceProfilerPipeline profilerPipeline;
-            profilerPipeline.m_Handle = pPipelines[ i ];
+            profilerPipeline.m_Handle = RegisterObject( pPipelines[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
             
@@ -847,7 +961,7 @@ namespace Profiler
         for( uint32_t i = 0; i < pipelineCount; ++i )
         {
             DeviceProfilerPipeline profilerPipeline;
-            profilerPipeline.m_Handle = pPipelines[ i ];
+            profilerPipeline.m_Handle = RegisterObject( pPipelines[i] );
             profilerPipeline.m_BindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eRayTracingKHR;
             
@@ -855,6 +969,103 @@ namespace Profiler
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
             SetDefaultPipelineName( profilerPipeline, deferred );
+
+            profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
+
+            // Calculate default pipeline stack size.
+            VkDeviceSize rayGenStackMax = 0;
+            VkDeviceSize closestHitStackMax = 0;
+            VkDeviceSize missStackMax = 0;
+            VkDeviceSize intersectionStackMax = 0;
+            VkDeviceSize anyHitStackMax = 0;
+            VkDeviceSize callableStackMax = 0;
+
+            for( uint32_t groupIndex = 0; groupIndex < createInfo.groupCount; ++groupIndex )
+            {
+                const VkRayTracingShaderGroupCreateInfoKHR& group = createInfo.pGroups[groupIndex];
+                switch( group.type )
+                {
+                case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+                {
+                    // Ray generation, miss and callable shaders.
+                    VkDeviceSize stackSize = m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                        m_pDevice->Handle,
+                        profilerPipeline.m_Handle,
+                        groupIndex,
+                        VK_SHADER_GROUP_SHADER_GENERAL_KHR );
+
+                    switch( createInfo.pStages[group.generalShader].stage )
+                    {
+                    case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+                        rayGenStackMax = std::max( rayGenStackMax, stackSize );
+                        break;
+
+                    case VK_SHADER_STAGE_MISS_BIT_KHR:
+                        missStackMax = std::max( missStackMax, stackSize );
+                        break;
+
+                    case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+                        callableStackMax = std::max( callableStackMax, stackSize );
+                        break;
+
+                    default:
+                        assert( !"Unsupported general shader group." );
+                        break;
+                    }
+                    break;
+                }
+
+                case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+                case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+                {
+                    // Closest-hit, any-hit and intersection shaders.
+                    if( group.closestHitShader != VK_SHADER_UNUSED_KHR )
+                    {
+                        closestHitStackMax = std::max( closestHitStackMax,
+                            m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                                m_pDevice->Handle,
+                                profilerPipeline.m_Handle,
+                                groupIndex,
+                                VK_SHADER_GROUP_SHADER_CLOSEST_HIT_KHR ) );
+                    }
+                    if( group.anyHitShader != VK_SHADER_UNUSED_KHR )
+                    {
+                        anyHitStackMax = std::max( anyHitStackMax,
+                            m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                                m_pDevice->Handle,
+                                profilerPipeline.m_Handle,
+                                groupIndex,
+                                VK_SHADER_GROUP_SHADER_ANY_HIT_KHR ) );
+                    }
+                    if( group.intersectionShader != VK_SHADER_UNUSED_KHR )
+                    {
+                        intersectionStackMax = std::max( intersectionStackMax,
+                            m_pDevice->Callbacks.GetRayTracingShaderGroupStackSizeKHR(
+                                m_pDevice->Handle,
+                                profilerPipeline.m_Handle,
+                                groupIndex,
+                                VK_SHADER_GROUP_SHADER_INTERSECTION_KHR ) );
+                    }
+                    break;
+                }
+
+                default:
+                {
+                    assert( !"Unsupported shader group type." );
+                    break;
+                }
+                }
+            }
+
+            // Calculate the default pipeline stack size according to the Vulkan spec.
+            const uint32_t maxRayRecursionDepth = std::min( 1U, createInfo.maxPipelineRayRecursionDepth );
+            const VkDeviceSize closestHitAndMissStackMax = std::max( closestHitStackMax, missStackMax );
+
+            profilerPipeline.m_RayTracingPipelineStackSize =
+                rayGenStackMax +
+                ( maxRayRecursionDepth ) * std::max( closestHitAndMissStackMax, intersectionStackMax + anyHitStackMax ) +
+                ( maxRayRecursionDepth - 1 ) * closestHitAndMissStackMax +
+                2 * callableStackMax;
 
             // Save shader groups.
             for( uint32_t groupIndex = 0; groupIndex < createInfo.groupCount; ++groupIndex )
@@ -901,6 +1112,8 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        UnregisterObject( pipeline );
+
         m_Pipelines.remove( pipeline );
     }
 
@@ -916,11 +1129,12 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        RegisterObject( module );
+
         VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
         shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
 
-        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
-            m_pDevice->Callbacks.GetShaderModuleIdentifierEXT )
+        if( m_ShaderModuleIdentifierEnabled )
         {
             // Get shader module identifier.
             m_pDevice->Callbacks.GetShaderModuleIdentifierEXT( m_pDevice->Handle, module, &shaderModuleIdentifier );
@@ -945,6 +1159,8 @@ namespace Profiler
     void DeviceProfiler::DestroyShaderModule( VkShaderModule module )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
+
+        UnregisterObject( module );
 
         m_pShaderModules.remove( module );
     }
@@ -971,8 +1187,7 @@ namespace Profiler
             VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
             shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
 
-            if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
-                m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+            if( m_ShaderModuleIdentifierEnabled )
             {
                 // Get shader module identifier from a temporary shader module info structure based on the provided shader.
                 VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
@@ -1031,7 +1246,7 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerRenderPass deviceProfilerRenderPass;
-        deviceProfilerRenderPass.m_Handle = renderPass;
+        deviceProfilerRenderPass.m_Handle = RegisterObject( renderPass );
         deviceProfilerRenderPass.m_Type = DeviceProfilerRenderPassType::eGraphics;
         
         for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
@@ -1070,7 +1285,7 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerRenderPass deviceProfilerRenderPass;
-        deviceProfilerRenderPass.m_Handle = renderPass;
+        deviceProfilerRenderPass.m_Handle = RegisterObject( renderPass );
         deviceProfilerRenderPass.m_Type = DeviceProfilerRenderPassType::eGraphics;
 
         for( uint32_t subpassIndex = 0; subpassIndex < pCreateInfo->subpassCount; ++subpassIndex )
@@ -1137,6 +1352,8 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
+        UnregisterObject( renderPass );
+
         m_RenderPasses.remove( renderPass );
     }
 
@@ -1150,12 +1367,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        if( m_MetricsApiINTEL.IsAvailable() )
-        {
-            AcquirePerformanceConfigurationINTEL( submitBatch.m_Handle );
-        }
     }
 
     /***********************************************************************************\
@@ -1168,20 +1379,19 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        if( m_MetricsApiINTEL.IsAvailable() )
-        {
-            ReleasePerformanceConfigurationINTEL();
-        }
-
-        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
-        {
-            m_DataAggregator.Aggregate();
-        }
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
         // Append the submit batch for aggregation
         m_DataAggregator.AppendSubmit( submitBatch );
+
+        if( m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        {
+            // Begin the next frame
+            BeginNextFrame();
+        }
+
+        // Get data captured during the last frame
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\
@@ -1284,35 +1494,17 @@ namespace Profiler
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
-        std::scoped_lock lk( m_PresentMutex );
-
         // Update FPS counter
         m_CpuFpsCounter.Update();
 
-        BeginNextFrame();
-
-        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        if( m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
         {
-            // Collect data from the submitted command buffers
-            m_DataAggregator.Aggregate();
+            // Begin the next frame
+            BeginNextFrame();
         }
 
         // Get data captured during the last frame
-        std::shared_ptr<DeviceProfilerFrameData> pData = m_DataAggregator.GetAggregatedData();
-        assert( pData );
-
-        // Check if new data is available
-        if( pData != m_pData )
-        {
-            m_pData = std::move( pData );
-
-            // Collect memory data
-            m_pData->m_Memory = m_MemoryTracker.GetMemoryData();
-
-            // Return TIP data
-            m_pDevice->TIP.EndFunction( tip );
-            m_pData->m_TIP = m_pDevice->TIP.GetData();
-        }
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\
@@ -1325,18 +1517,56 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BeginNextFrame()
     {
-        // Recalibrate the timestamps for the next frame.
-        m_Synchronization.SendSynchronizationTimestamps();
-
         // Prepare aggregator for the next frame.
         DeviceProfilerFrame frame = {};
         frame.m_FrameIndex = m_NextFrameIndex++;
         frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
         frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
         frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
+        frame.m_FrameDelimiter = static_cast<VkProfilerFrameDelimiterEXT>( m_Config.m_FrameDelimiter.value );
         frame.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
 
         m_DataAggregator.AppendFrame( frame );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveFrameData
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::ResolveFrameData( TipRangeId& tip )
+    {
+        if( !m_DataAggregator.IsDataCollectionThreadRunning() )
+        {
+            // Collect data from the submitted command buffers
+            m_DataAggregator.Aggregate();
+        }
+
+        m_pDevice->TIP.EndFunction( tip );
+
+        // Check if new data is available
+        auto pResolvedData = m_DataAggregator.GetAggregatedData();
+        if( !pResolvedData.empty() )
+        {
+            std::scoped_lock lk( m_DataMutex );
+
+            m_pData.insert( m_pData.end(), pResolvedData.begin(), pResolvedData.end() );
+
+            // Return TIP data
+            m_pData.back()->m_TIP = m_pDevice->TIP.GetData();
+
+            // Free frames above the buffer size
+            if( m_DataBufferSize )
+            {
+                while( m_pData.size() > m_DataBufferSize )
+                {
+                    m_pData.pop_front();
+                }
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -1349,7 +1579,12 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::AllocateMemory( VkDeviceMemory allocatedMemory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
-        m_MemoryTracker.RegisterAllocation( allocatedMemory, pAllocateInfo );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.RegisterAllocation( RegisterObject( allocatedMemory ), pAllocateInfo );
     }
 
     /***********************************************************************************\
@@ -1362,7 +1597,96 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::FreeMemory( VkDeviceMemory allocatedMemory )
     {
-        m_MemoryTracker.UnregisterAllocation( allocatedMemory );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.UnregisterAllocation( GetObjectHandle( allocatedMemory ) );
+
+        UnregisterObject( allocatedMemory );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateAccelerationStructure
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateAccelerationStructure( VkAccelerationStructureKHR accelerationStructure, const VkAccelerationStructureCreateInfoKHR* pCreateInfo )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.RegisterAccelerationStructure(
+            RegisterObject( accelerationStructure ),
+            GetObjectHandle( pCreateInfo->buffer ),
+            pCreateInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyAccelerationStructure
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyAccelerationStructure( VkAccelerationStructureKHR accelerationStructure )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.UnregisterAccelerationStructure( GetObjectHandle( accelerationStructure ) );
+
+        UnregisterObject( accelerationStructure );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateMicromap
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CreateMicromap( VkMicromapEXT micromap, const VkMicromapCreateInfoEXT* pCreateInfo )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.RegisterMicromap(
+            RegisterObject( micromap ),
+            GetObjectHandle( pCreateInfo->buffer ),
+            pCreateInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyAccelerationStructure
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::DestroyMicromap( VkMicromapEXT micromap )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.UnregisterMicromap( GetObjectHandle( micromap ) );
+
+        UnregisterObject( micromap );
     }
 
     /***********************************************************************************\
@@ -1375,7 +1699,12 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo )
     {
-        m_MemoryTracker.RegisterBuffer( buffer, pCreateInfo );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.RegisterBuffer( RegisterObject( buffer ), pCreateInfo );
     }
 
     /***********************************************************************************\
@@ -1388,7 +1717,14 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyBuffer( VkBuffer buffer )
     {
-        m_MemoryTracker.UnregisterBuffer( buffer );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.UnregisterBuffer( GetObjectHandle( buffer ) );
+
+        UnregisterObject( buffer );
     }
 
     /***********************************************************************************\
@@ -1401,7 +1737,15 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset )
     {
-        m_MemoryTracker.BindBufferMemory( buffer, memory, offset );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.BindBufferMemory(
+            GetObjectHandle( buffer ),
+            GetObjectHandle( memory ),
+            offset );
     }
 
     /***********************************************************************************\
@@ -1412,9 +1756,25 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::BindBufferMemory( const VkSparseBufferMemoryBindInfo* pBindInfo )
+    void DeviceProfiler::BindBufferMemory( VkBuffer buffer, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
     {
-        m_MemoryTracker.BindBufferMemory( pBindInfo );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        const VkObjectHandle<VkBuffer> bufferHandle = GetObjectHandle( buffer );
+
+        for( uint32_t i = 0; i < bindCount; ++i )
+        {
+            m_MemoryTracker.BindSparseBufferMemory(
+                bufferHandle,
+                pBinds[i].resourceOffset,
+                GetObjectHandle( pBinds[i].memory ),
+                pBinds[i].memoryOffset,
+                pBinds[i].size,
+                pBinds[i].flags );
+        }
     }
 
     /***********************************************************************************\
@@ -1427,7 +1787,12 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::CreateImage( VkImage image, const VkImageCreateInfo* pCreateInfo )
     {
-        m_MemoryTracker.RegisterImage( image, pCreateInfo );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.RegisterImage( RegisterObject( image ), pCreateInfo );
     }
 
     /***********************************************************************************\
@@ -1440,7 +1805,14 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::DestroyImage( VkImage image )
     {
-        m_MemoryTracker.UnregisterImage( image );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.UnregisterImage( GetObjectHandle( image ) );
+
+        UnregisterObject( image );
     }
 
     /***********************************************************************************\
@@ -1453,7 +1825,74 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
     {
-        m_MemoryTracker.BindImageMemory( image, memory, offset );
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        m_MemoryTracker.BindImageMemory(
+            GetObjectHandle( image ),
+            GetObjectHandle( memory ),
+            offset );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindImageMemory( VkImage image, uint32_t bindCount, const VkSparseMemoryBind* pBinds )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
+
+        for( uint32_t i = 0; i < bindCount; ++i )
+        {
+            m_MemoryTracker.BindSparseImageMemory(
+                imageHandle,
+                pBinds[i].resourceOffset,
+                GetObjectHandle( pBinds[i].memory ),
+                pBinds[i].memoryOffset,
+                pBinds[i].size,
+                pBinds[i].flags );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindImageMemory( VkImage image, uint32_t bindCount, const VkSparseImageMemoryBind* pBinds )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        const VkObjectHandle<VkImage> imageHandle = GetObjectHandle( image );
+
+        for( uint32_t i = 0; i < bindCount; ++i )
+        {
+            m_MemoryTracker.BindSparseImageMemory(
+                imageHandle,
+                pBinds[i].subresource,
+                pBinds[i].offset,
+                pBinds[i].extent,
+                GetObjectHandle( pBinds[i].memory ),
+                pBinds[i].memoryOffset,
+                pBinds[i].flags );
+        }
     }
 
     /***********************************************************************************\
@@ -1637,8 +2076,7 @@ namespace Profiler
                         VkShaderModuleIdentifierEXT shaderModuleIdentifier = {};
                         shaderModuleIdentifier.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_IDENTIFIER_EXT;
 
-                        if( m_pDevice->EnabledExtensions.count( VK_EXT_SHADER_MODULE_IDENTIFIER_EXTENSION_NAME ) &&
-                            m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT )
+                        if( m_ShaderModuleIdentifierEnabled )
                         {
                             m_pDevice->Callbacks.GetShaderModuleCreateInfoIdentifierEXT(
                                 m_pDevice->Handle,
@@ -1693,6 +2131,30 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetObjectName
+
+    Description:
+        Get object name.
+
+    \***********************************************************************************/
+    const char* DeviceProfiler::GetObjectName( VkObject object ) const
+    {
+        // Grab the latest hangle to the object.
+        object = GetObjectHandle( object );
+
+        std::shared_lock lock( m_ObjectNames );
+        auto it = m_ObjectNames.unsafe_find( object );
+        if( it != m_ObjectNames.end() )
+        {
+            return it->second.c_str();
+        }
+
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         SetObjectName
 
     Description:
@@ -1703,7 +2165,10 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pName );
+        // Grab the latest handle to the object.
+        object = GetObjectHandle( object );
+
+        m_ObjectNames.insert_or_assign( object, pName );
     }
 
     /***********************************************************************************\
@@ -1726,10 +2191,13 @@ namespace Profiler
             return;
         }
 
-        char pObjectDebugName[ 64 ] = {};
-        ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016llx", object.m_pTypeName, object.m_Handle );
+        VkObject_Runtime_Traits traits = VkObject_Runtime_Traits::FromObjectType( object.m_Type );
+        assert( traits.ObjectTypeName != nullptr );
 
-        m_pDevice->Debug.ObjectNames.insert_or_assign( object, pObjectDebugName );
+        char pObjectDebugName[ 64 ] = {};
+        ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016" PRIx64, traits.ObjectTypeName, object.m_Handle );
+
+        m_ObjectNames.insert_or_assign( object, pObjectDebugName );
     }
 
     /***********************************************************************************\
@@ -1791,11 +2259,11 @@ namespace Profiler
             // Don't set the default in such case.
             if( deferred )
             {
-                m_pDevice->Debug.ObjectNames.insert( pipeline.m_Handle, std::move( pipelineName ) );
+                m_ObjectNames.insert( pipeline.m_Handle, std::move( pipelineName ) );
             }
             else
             {
-                m_pDevice->Debug.ObjectNames.insert_or_assign( pipeline.m_Handle, std::move( pipelineName ) );
+                m_ObjectNames.insert_or_assign( pipeline.m_Handle, std::move( pipelineName ) );
             }
         }
     }
@@ -1815,7 +2283,7 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerPipeline internalPipeline;
-        internalPipeline.m_Handle = (VkPipeline)type;
+        internalPipeline.m_Handle = RegisterObject( (VkPipeline)type );
         internalPipeline.m_ShaderTuple.m_Hash = (uint32_t)type;
         internalPipeline.m_Type = type;
         internalPipeline.m_Internal = true;
@@ -1839,8 +2307,6 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         // Assume m_CommandBuffers map is already locked
-        assert( !m_pCommandBuffers.try_lock() );
-
         auto it = m_pCommandBuffers.unsafe_find( commandBuffer );
 
         // Collect command buffer data now, command buffer won't be available later
@@ -1861,12 +2327,45 @@ namespace Profiler
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
-        // Assume m_CommandBuffers map is already locked
-        assert( !m_pCommandBuffers.try_lock() );
-
         // Collect command buffer data now, command buffer won't be available later
         m_DataAggregator.Aggregate( it->second.get() );
 
+        // Assume m_CommandBuffers map is already locked
         return m_pCommandBuffers.unsafe_remove( it );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RegisterObject
+
+    Description:
+        Save object handle and its creation time to distinguish between instances of
+        the same object handle in time.
+
+    \***********************************************************************************/
+    template<typename ObjectT>
+    VkObjectHandle<ObjectT> DeviceProfiler::RegisterObject( ObjectT object )
+    {
+        uint64_t creationTime = m_CpuTimestampCounter.GetCurrentValue();
+
+        m_ObjectCreateTimes.insert_or_assign( object, creationTime );
+
+        return VkObjectHandle<ObjectT>( object, creationTime );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UnregisterObject
+
+    Description:
+        Remove the object handle from the profiler.
+
+    \***********************************************************************************/
+    template<typename ObjectT>
+    void DeviceProfiler::UnregisterObject( ObjectT object )
+    {
+        m_ObjectCreateTimes.remove( object );
     }
 }

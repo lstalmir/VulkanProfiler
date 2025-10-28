@@ -17,7 +17,10 @@
                     "vkCmdEndDebugUtilsLabelEXT",
                     "vkCmdInsertDebugUtilsLabelEXT",
                     "vkSetDebugUtilsObjectNameEXT",
-                    "vkSetDebugUtilsObjectTagEXT"
+                    "vkSetDebugUtilsObjectTagEXT",
+                    "vkQueueBeginDebugUtilsLabelEXT",
+                    "vkQueueEndDebugUtilsLabelEXT",
+                    "vkQueueInsertDebugUtilsLabelEXT"
                 ]
             },
             {
@@ -28,12 +31,12 @@
         "device_extensions": [
             {
                 "name": "VK_EXT_profiler",
-                "spec_version": "3",
+                "spec_version": "4",
                 "entrypoints": [
-                    "vkSetProfilerModeEXT",
-                    "vkGetProfilerModeEXT",
-                    "vkSetProfilerSyncModeEXT",
-                    "vkGetProfilerSyncModeEXT",
+                    "vkSetProfilerSamplingModeEXT",
+                    "vkGetProfilerSamplingModeEXT",
+                    "vkSetProfilerFrameDelimiterEXT",
+                    "vkGetProfilerFrameDelimiterEXT",
                     "vkGetProfilerFrameDataEXT",
                     "vkFreeProfilerFrameDataEXT",
                     "vkFlushProfilerEXT",
@@ -65,10 +68,51 @@
         "features": {
             "settings": [
                 {
-                    "key": "enable_overlay",
-                    "label": "Enable overlay",
-                    "description": "Show an interactive overlay window with data on top of the profiled application.",
-                    "env": "VKPROF_enable_overlay",
+                    "key": "output",
+                    "label": "Output",
+                    "description": "Output mode of the profiler.",
+                    "env": "VKPROF_output",
+                    "type": "ENUM",
+                    "default": "overlay",
+                    "flags": [
+                        {
+                            "key": "none",
+                            "label": "None",
+                            "description": "Do not write the data anywhere."
+                        },
+                        {
+                            "key": "overlay",
+                            "label": "Overlay",
+                            "description": "Show an interactive overlay window with data on top of the profiled application."
+                        },
+                        {
+                            "key": "trace",
+                            "label": "Trace file",
+                            "description": "Write profiling data to a trace file. The file will be created in the directory of the profiled application."
+                        }
+                    ],
+                    "settings": [
+                        {
+                            "key": "output_trace_file",
+                            "label": "Output trace file",
+                            "description": "Path to the output file.",
+                            "env": "VKPROF_output_trace_file",
+                            "type": "SAVE_FILE",
+                            "default": "",
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    { "key": "output", "value": "trace" }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "key": "enable_memory_profiling",
+                    "label": "Enable memory profiling",
+                    "description": "Track allocations and resources created by the application.",
+                    "env": "VKPROF_enable_memory_profiling",
                     "type": "BOOL",
                     "default": true
                 },
@@ -77,8 +121,25 @@
                     "label": "Enable performance query extensions",
                     "description": "Enable vendor-specific extensions for collection of additional performance data.",
                     "env": "VKPROF_enable_performance_query_ext",
-                    "type": "BOOL",
-                    "default": true
+                    "type": "ENUM",
+                    "default": "intel",
+                    "flags": [
+                        {
+                            "key": "none",
+                            "label": "None",
+                            "description": "Do not enable any performance counters."
+                        },
+                        {
+                            "key": "intel",
+                            "label": "Intel",
+                            "description": "Enable VK_INTEL_performance_query extension and use Metrics-Discovery API to process the metrics."
+                        },
+                        {
+                            "key": "khr",
+                            "label": "KHR",
+                            "description": "Enable VK_KHR_performance_query extension."
+                        }
+                    ]
                 },
                 {
                     "key": "enable_pipeline_executable_properties_ext",
@@ -122,6 +183,34 @@
                     "default": true
                 },
                 {
+                    "key": "frame_count",
+                    "label": "Frame count",
+                    "description": "Number of frames to collect and display in the overlay. Set 0 to collect all frames.",
+                    "env": "VKPROF_frame_count",
+                    "type": "INT",
+                    "default": 1
+                },
+                {
+                    "key": "frame_delimiter",
+                    "label": "Frame delimiter",
+                    "description": "API function to use for delimiting collected frames.",
+                    "env": "VKPROF_frame_delimiter",
+                    "type": "ENUM",
+                    "default": "present",
+                    "flags": [
+                        {
+                            "key": "present",
+                            "label": "Present",
+                            "description": "Delimit frames on each present. Recommended option for applications presenting rendered frames to the screen."
+                        },
+                        {
+                            "key": "submit",
+                            "label": "Submit",
+                            "description": "Delimit frames on each submission. Recommended for applications rendering offscreen or compute-only workloads."
+                        }
+                    ]
+                },
+                {
                     "key": "sampling_mode",
                     "label": "Sampling mode",
                     "description": "Level of timestamp data collection.",
@@ -148,26 +237,6 @@
                             "key": "commandbuffer",
                             "label": "Per VkCommandBuffer",
                             "description": "Instrument each VkCommandBuffer object change (lowest overhead)."
-                        }
-                    ]
-                },
-                {
-                    "key": "sync_mode",
-                    "label": "Synchronization mode",
-                    "description": "Frequency of data collection.",
-                    "env": "VKPROF_sync_mode",
-                    "type": "ENUM",
-                    "default": "present",
-                    "flags": [
-                        {
-                            "key": "present",
-                            "label": "On Present",
-                            "description": "Synchronize and collect data on each present (lower overhead)."
-                        },
-                        {
-                            "key": "submit",
-                            "label": "On Submit",
-                            "description": "Synchronize and collect data on each submit (higher overhead)."
                         }
                     ]
                 },

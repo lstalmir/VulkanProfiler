@@ -98,7 +98,7 @@ namespace Profiler
 
         void SetContext( const void* handle );
         void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount );
-        void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex );
+        void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex );
 
     private:
         DeviceProfiler*                 m_pProfiler;

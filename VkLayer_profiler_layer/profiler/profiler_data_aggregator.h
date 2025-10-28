@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -57,6 +57,7 @@ namespace Profiler
         uint32_t                                        m_ThreadId = 0;
         uint64_t                                        m_Timestamp = 0;
         float                                           m_FramesPerSec = 0;
+        VkProfilerFrameDelimiterEXT                     m_FrameDelimiter = {};
         DeviceProfilerSynchronizationTimestamps         m_SyncTimestamps = {};
     };
 
@@ -105,13 +106,15 @@ namespace Profiler
         VkResult Initialize( DeviceProfiler* );
         void Destroy();
 
+        void SetDataBufferSize( uint32_t maxFrames );
+
         bool IsDataCollectionThreadRunning() const { return m_DataCollectionThreadRunning; }
 
         void AppendFrame( const DeviceProfilerFrame& );
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
         void Aggregate( ProfilerCommandBuffer* = nullptr );
 
-        std::shared_ptr<DeviceProfilerFrameData> GetAggregatedData() const { return m_pCurrentFrameData; }
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> GetAggregatedData();
 
     private:
         DeviceProfiler* m_pProfiler;
@@ -119,23 +122,25 @@ namespace Profiler
         std::thread m_DataCollectionThread;
         std::atomic_bool m_DataCollectionThreadRunning;
 
-        std::shared_ptr<DeviceProfilerFrameData> m_pCurrentFrameData;
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pResolvedFrames;
         std::list<Frame> m_NextFrames;
 
         std::shared_mutex m_Mutex;
         uint32_t m_FrameIndex;
 
+        uint32_t m_MaxResolvedFrameCount;
+
         // Command pools used for copying query data
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
-        // Vendor-specific metric properties
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
-        uint32_t                                               m_VendorMetricsSetIndex;
+        // Performance metric properties
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceMetricProperties;
+        uint32_t m_PerformanceMetricsSetIndex;
 
         void DataCollectionThreadProc();
 
-        void LoadVendorMetricsProperties();
-        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics( const Frame& ) const;
+        void LoadPerformanceMetricsProperties();
+        DeviceProfilerPerformanceCountersData AggregatePerformanceMetrics( const Frame& ) const;
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines( const Frame& ) const;
         void CollectPipelinesFromCommandBuffer( const DeviceProfilerCommandBufferData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;

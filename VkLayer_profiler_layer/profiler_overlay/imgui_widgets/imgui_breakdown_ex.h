@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,9 +34,10 @@ namespace ImGuiX
     Input:
         label          Title of the histogram
         values         Widths of the bars
-        values_count   Number of elements in values_x and values_y arrays
+        values_count   Number of elements in values array
         values_offset  First element offset
-        tooltip_text   Tooltip text to display over each breakdown element
+        hovered_index  Index of the hovered value on output
+        colors         Colors of the bars, if nullptr then random colors are used
         graph_size     Size of the histogram
 
     \*************************************************************************/
@@ -45,6 +46,7 @@ namespace ImGuiX
         const float* values,
         int values_count,
         int values_offset = 0,
-        const char** tooltip_text = NULL,
+        int* hovered_index = nullptr,
+        const ImU32* colors = nullptr,
         ImVec2 graph_size = ImVec2( 0, 0 ) );
 }

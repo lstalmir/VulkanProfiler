@@ -54,5 +54,9 @@ namespace Profiler
             uint32_t bindInfoCount,
             const VkBindSparseInfo* pBindInfo,
             VkFence fence );
+
+        // vkQueueWaitIdle
+        static VKAPI_ATTR VkResult VKAPI_CALL QueueWaitIdle(
+            VkQueue queue );
     };
 }

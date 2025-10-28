@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "profiler_data_helpers.h"
+#include "profiler_string_serializer.h"
 #include "profiler/profiler_data.h"
 #include "profiler/profiler_frontend.h"
 #include "profiler/profiler_helpers.h"
@@ -31,14 +31,30 @@ namespace Profiler
     struct FlagsStringBuilder
     {
         std::stringstream m_Stream;
-        bool m_Empty = true;
+        bool              m_Empty = true;
+        const char*       m_pSeparator = DeviceProfilerStringSerializer::DefaultFlagsSeparator;
 
-        void AddFlag(std::string&& flag)
+        void AddFlag( const std::string_view& flag )
         {
-            if (!m_Empty)
-                m_Stream << " | ";
+            if( !m_Empty )
+                m_Stream << m_pSeparator;
             m_Stream << flag;
             m_Empty = false;
+        }
+
+        void AddUnknownFlags( uint64_t flags, uint32_t startIndex )
+        {
+            for( uint32_t i = startIndex; i < sizeof( uint64_t ) * 8; ++i )
+            {
+                uint64_t unkownFlag = ( 1ULL << i );
+                if( flags & unkownFlag )
+                {
+                    if( !m_Empty )
+                        m_Stream << m_pSeparator;
+                    m_Stream << "Unknown flag (" << unkownFlag << ")";
+                    m_Empty = false;
+                }
+            }
         }
 
         std::string BuildString()
@@ -454,7 +470,100 @@ namespace Profiler
             return objectName;
         }
 
-        return fmt::format( "{} {:#018x}", object.m_pTypeName, object.m_Handle );
+        return fmt::format( "{} {:#018x}",
+            VkObject_Runtime_Traits::FromObjectType( object.m_Type ).ObjectTypeName,
+            object.m_Handle );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetObjectID
+
+    Description:
+        Returns unique identifier for the Vulkan API object.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetObjectID( const VkObject& object ) const
+    {
+        return fmt::format( "{}:{}:{}",
+            static_cast<uint32_t>( object.m_Type ),
+            object.m_Handle,
+            object.m_CreateTime );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetObjectTypeName
+
+    Description:
+        Returns pretty Vulkan object type name.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetObjectTypeName( VkObjectType objectType ) const
+    {
+        switch( objectType )
+        {
+        default:
+        {
+            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            if( traits.ObjectType == objectType )
+            {
+                std::string typeName = traits.ObjectTypeName + 2; // Skip "Vk" prefix.
+
+                // Strip extension suffix.
+                while( typeName.length() > 1 && isupper( typeName.back() ) )
+                {
+                    typeName.pop_back();
+                }
+
+                // Insert spaces before uppercase letters to make it more readable.
+                for( auto it = typeName.begin() + 1; it != typeName.end(); ++it )
+                {
+                    if( isupper( *it ) )
+                    {
+                        it = typeName.insert( it, ' ' ) + 1;
+                    }
+                }
+
+                return typeName;
+            }
+
+            return fmt::format( "Unknown Object Type ({})", static_cast<uint32_t>( objectType ) );
+        }
+
+        case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:
+            return "Ray-Tracing Acceleration Structure";
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShortObjectTypeName
+
+    Description:
+        Returns short Vulkan object type name.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShortObjectTypeName( VkObjectType objectType ) const
+    {
+        switch( objectType )
+        {
+        default:
+        {
+            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            if( traits.ObjectType == objectType )
+            {
+                return GetObjectTypeName( objectType );
+            }
+            return "Unknown";
+        }
+
+        case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:
+            return "RTAS";
+        }
     }
 
     /***********************************************************************************\
@@ -686,6 +795,39 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetByteSize
+
+    Description:
+        Returns short representation of a byte size.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetByteSize( VkDeviceSize size ) const
+    {
+        typedef uint8_t Kilobyte[1024];
+        typedef Kilobyte Megabyte[1024];
+        typedef Megabyte Gigabyte[1024];
+
+        if( size < sizeof( Kilobyte ) )
+        {
+            return fmt::format( "{} B", size );
+        }
+
+        if( size < sizeof( Megabyte ) )
+        {
+            return fmt::format( "{:.1f} kB", size / static_cast<float>( sizeof( Kilobyte ) ) );
+        }
+
+        if( size < sizeof( Gigabyte ) )
+        {
+            return fmt::format( "{:.1f} MB", size / static_cast<float>( sizeof( Megabyte ) ) );
+        }
+
+        return fmt::format( "{:.1f} GB", size / static_cast<float>( sizeof( Gigabyte ) ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetQueueFlagNames
 
     Description:
@@ -735,12 +877,7 @@ namespace Profiler
         if( flags & VK_QUEUE_OPTICAL_FLOW_BIT_NV )
             builder.AddFlag( "Optical flow" );
 
-        for( uint32_t i = 8; i < 8 * sizeof( flags ); ++i )
-        {
-            uint32_t unkownFlag = 1U << i;
-            if( flags & unkownFlag )
-                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
-        }
+        builder.AddUnknownFlags( flags, 8 );
 
         return builder.BuildString();
     }
@@ -756,6 +893,15 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetShaderName( const ProfilerShader& shader ) const
     {
+        if( shader.m_pShaderModule && shader.m_pShaderModule->m_pFileName )
+        {
+            return fmt::format( "{} {:08X} ({} > {})",
+                GetShaderStageName( shader.m_Stage ),
+                shader.m_Hash,
+                shader.m_pShaderModule->m_pFileName,
+                shader.m_EntryPoint );
+        }
+
         return fmt::format( "{} {:08X} ({})",
             GetShaderStageName( shader.m_Stage ),
             shader.m_Hash,
@@ -868,6 +1014,54 @@ namespace Profiler
             return "callable";
         default:
             return fmt::to_string( static_cast<uint32_t>(stage) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShaderGroupTypeName
+
+    Description:
+        Returns string representation of VkRayTracingShaderGroupTypeKHR.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetShaderGroupTypeName( VkRayTracingShaderGroupTypeKHR groupType ) const
+    {
+        switch( groupType )
+        {
+        case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+            return "General";
+        case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+            return "Triangles";
+        case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+            return "Procedural";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>( groupType ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetGeneralShaderGroupTypeName
+
+    Description:
+        Returns string representation of VkShaderStageFlagBits for a general shader group.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetGeneralShaderGroupTypeName( VkShaderStageFlagBits stage ) const
+    {
+        switch( stage )
+        {
+        case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+            return "Raygen";
+        case VK_SHADER_STAGE_MISS_BIT_KHR:
+            return "Miss";
+        case VK_SHADER_STAGE_CALLABLE_BIT_KHR:
+            return "Callable";
+        default:
+            return std::string();
         }
     }
 
@@ -1814,6 +2008,455 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetDynamicStateName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetDynamicStateName( VkDynamicState state ) const
+    {
+        switch( state )
+        {
+        case VK_DYNAMIC_STATE_VIEWPORT:
+            return "Viewport";
+        case VK_DYNAMIC_STATE_SCISSOR:
+            return "Scissor";
+        case VK_DYNAMIC_STATE_LINE_WIDTH:
+            return "Line width";
+        case VK_DYNAMIC_STATE_DEPTH_BIAS:
+            return "Depth bias";
+        case VK_DYNAMIC_STATE_BLEND_CONSTANTS:
+            return "Blend constants";
+        case VK_DYNAMIC_STATE_DEPTH_BOUNDS:
+            return "Depth bounds";
+        case VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK:
+            return "Stencil compare mask";
+        case VK_DYNAMIC_STATE_STENCIL_WRITE_MASK:
+            return "Stencil write mask";
+        case VK_DYNAMIC_STATE_STENCIL_REFERENCE:
+            return "Stencil reference";
+        case VK_DYNAMIC_STATE_CULL_MODE:
+            return "Cull mode";
+        case VK_DYNAMIC_STATE_FRONT_FACE:
+            return "Front face";
+        case VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY:
+            return "Primitive topology";
+        case VK_DYNAMIC_STATE_VIEWPORT_WITH_COUNT:
+            return "Viewport with count";
+        case VK_DYNAMIC_STATE_SCISSOR_WITH_COUNT:
+            return "Scissor with count";
+        case VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE:
+            return "Vertex input binding stride";
+        case VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE:
+            return "Depth test enable";
+        case VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE:
+            return "Depth write enable";
+        case VK_DYNAMIC_STATE_DEPTH_COMPARE_OP:
+            return "Depth compare op";
+        case VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE:
+            return "Depth bounds test enable";
+        case VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE:
+            return "Stencil test enable";
+        case VK_DYNAMIC_STATE_STENCIL_OP:
+            return "Stencil op";
+        case VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE:
+            return "Rasterizer discard enable";
+        case VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE:
+            return "Depth bias enable";
+        case VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE:
+            return "Primitive restart enable";
+        case VK_DYNAMIC_STATE_LINE_STIPPLE:
+            return "Line stipple";
+        case VK_DYNAMIC_STATE_VIEWPORT_W_SCALING_NV:
+            return "Viewport W scaling";
+        case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_EXT:
+            return "Discard rectangle";
+        case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_ENABLE_EXT:
+            return "Discard rectangle enable";
+        case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_MODE_EXT:
+            return "Discard rectangle mode";
+        case VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_EXT:
+            return "Sample locations";
+        case VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR:
+            return "Ray tracing pipeline stack size";
+        case VK_DYNAMIC_STATE_VIEWPORT_SHADING_RATE_PALETTE_NV:
+            return "Viewport shading rate palette";
+        case VK_DYNAMIC_STATE_VIEWPORT_COARSE_SAMPLE_ORDER_NV:
+            return "Viewport coarse sample order";
+        case VK_DYNAMIC_STATE_EXCLUSIVE_SCISSOR_ENABLE_NV:
+            return "Exclusive scissor enable";
+        case VK_DYNAMIC_STATE_EXCLUSIVE_SCISSOR_NV:
+            return "Exclusive scissor";
+        case VK_DYNAMIC_STATE_FRAGMENT_SHADING_RATE_KHR:
+            return "Fragment shading rate";
+        case VK_DYNAMIC_STATE_VERTEX_INPUT_EXT:
+            return "Vertex input";
+        case VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT:
+            return "Patch control points";
+        case VK_DYNAMIC_STATE_LOGIC_OP_EXT:
+            return "Logic op";
+        case VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT:
+            return "Color write enable";
+        case VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT:
+            return "Depth clamp enable";
+        case VK_DYNAMIC_STATE_POLYGON_MODE_EXT:
+            return "Polygon mode";
+        case VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT:
+            return "Rasterization samples";
+        case VK_DYNAMIC_STATE_SAMPLE_MASK_EXT:
+            return "Sample mask";
+        case VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT:
+            return "Alpha to coverage enable";
+        case VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT:
+            return "Alpha to one enable";
+        case VK_DYNAMIC_STATE_LOGIC_OP_ENABLE_EXT:
+            return "Logic op enable";
+        case VK_DYNAMIC_STATE_COLOR_BLEND_ENABLE_EXT:
+            return "Color blend enable";
+        case VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT:
+            return "Color blend equation";
+        case VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT:
+            return "Color write mask";
+        case VK_DYNAMIC_STATE_TESSELLATION_DOMAIN_ORIGIN_EXT:
+            return "Tessellation domain origin";
+        case VK_DYNAMIC_STATE_RASTERIZATION_STREAM_EXT:
+            return "Rasterization stream";
+        case VK_DYNAMIC_STATE_CONSERVATIVE_RASTERIZATION_MODE_EXT:
+            return "Conservative rasterization mode";
+        case VK_DYNAMIC_STATE_EXTRA_PRIMITIVE_OVERESTIMATION_SIZE_EXT:
+            return "Extra primitive overestimation size";
+        case VK_DYNAMIC_STATE_DEPTH_CLIP_ENABLE_EXT:
+            return "Depth clip enable";
+        case VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_ENABLE_EXT:
+            return "Sample locations enable";
+        case VK_DYNAMIC_STATE_COLOR_BLEND_ADVANCED_EXT:
+            return "Color blend advanced";
+        case VK_DYNAMIC_STATE_PROVOKING_VERTEX_MODE_EXT:
+            return "Provoking vertex mode";
+        case VK_DYNAMIC_STATE_LINE_RASTERIZATION_MODE_EXT:
+            return "Line rasterization mode";
+        case VK_DYNAMIC_STATE_LINE_STIPPLE_ENABLE_EXT:
+            return "Line stipple enable";
+        case VK_DYNAMIC_STATE_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE_EXT:
+            return "Depth clip negative one to one";
+        case VK_DYNAMIC_STATE_VIEWPORT_W_SCALING_ENABLE_NV:
+            return "Viewport W scaling enable";
+        case VK_DYNAMIC_STATE_VIEWPORT_SWIZZLE_NV:
+            return "Viewport swizzle";
+        case VK_DYNAMIC_STATE_COVERAGE_TO_COLOR_ENABLE_NV:
+            return "Coverage to color enable";
+        case VK_DYNAMIC_STATE_COVERAGE_TO_COLOR_LOCATION_NV:
+            return "Coverage to color location";
+        case VK_DYNAMIC_STATE_COVERAGE_MODULATION_MODE_NV:
+            return "Coverage modulation mode";
+        case VK_DYNAMIC_STATE_COVERAGE_MODULATION_TABLE_ENABLE_NV:
+            return "Coverage modulation table enable";
+        case VK_DYNAMIC_STATE_COVERAGE_MODULATION_TABLE_NV:
+            return "Coverage modulation table";
+        case VK_DYNAMIC_STATE_SHADING_RATE_IMAGE_ENABLE_NV:
+            return "Shading rate image enable";
+        case VK_DYNAMIC_STATE_REPRESENTATIVE_FRAGMENT_TEST_ENABLE_NV:
+            return "Representative fragment test enable";
+        case VK_DYNAMIC_STATE_COVERAGE_REDUCTION_MODE_NV:
+            return "Coverage reduction mode";
+        case VK_DYNAMIC_STATE_ATTACHMENT_FEEDBACK_LOOP_ENABLE_EXT:
+            return "Attachment feedback loop enable";
+        case VK_DYNAMIC_STATE_DEPTH_CLAMP_RANGE_EXT:
+            return "Depth clamp range";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(state) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMemoryPropertyFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetMemoryPropertyFlagNames(
+        VkMemoryPropertyFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+            builder.AddFlag( "Device local" );
+        if( flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
+            builder.AddFlag( "Host visible" );
+        if( flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
+            builder.AddFlag( "Host coherent" );
+        if( flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT )
+            builder.AddFlag( "Host cached" );
+        if( flags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT )
+            builder.AddFlag( "Lazily allocated" );
+        if( flags & VK_MEMORY_PROPERTY_PROTECTED_BIT )
+            builder.AddFlag( "Protected" );
+        if( flags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD )
+            builder.AddFlag( "Device coherent" );
+        if( flags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD )
+            builder.AddFlag( "Device uncached" );
+        if( flags & VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV )
+            builder.AddFlag( "RDMA capable" );
+
+        builder.AddUnknownFlags( flags, 9 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBufferUsageFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetBufferUsageFlagNames(
+        VkBufferUsageFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT )
+            builder.AddFlag( "Transfer source" );
+        if( flags & VK_BUFFER_USAGE_TRANSFER_DST_BIT )
+            builder.AddFlag( "Transfer destination" );
+        if( flags & VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT )
+            builder.AddFlag( "Uniform texel buffer" );
+        if( flags & VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT )
+            builder.AddFlag( "Storage texel buffer" );
+        if( flags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT )
+            builder.AddFlag( "Uniform buffer" );
+        if( flags & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT )
+            builder.AddFlag( "Storage buffer" );
+        if( flags & VK_BUFFER_USAGE_INDEX_BUFFER_BIT )
+            builder.AddFlag( "Index buffer" );
+        if( flags & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+            builder.AddFlag( "Vertex buffer" );
+        if( flags & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT )
+            builder.AddFlag( "Indirect buffer" );
+        if( flags & VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT )
+            builder.AddFlag( "Conditional rendering" );
+        if( flags & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR )
+            builder.AddFlag( "Shader binding table" );
+        if( flags & VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT )
+            builder.AddFlag( "Transform feedback buffer" );
+        if( flags & VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT )
+            builder.AddFlag( "Transform feedback counter buffer" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_DECODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video decode source" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_DECODE_DST_BIT_KHR )
+            builder.AddFlag( "Video decode destination" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_ENCODE_DST_BIT_KHR )
+            builder.AddFlag( "Video encode destination" );
+        if( flags & VK_BUFFER_USAGE_VIDEO_ENCODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video encode source" );
+        if( flags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT )
+            builder.AddFlag( "Shader device address" );
+        if( flags & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR )
+            builder.AddFlag( "Acceleration structure build input read-only" );
+        if( flags & VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR )
+            builder.AddFlag( "Acceleration structure storage" );
+        if( flags & VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Sampler descriptor buffer" );
+        if( flags & VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Resource descriptor buffer" );
+        if( flags & VK_BUFFER_USAGE_MICROMAP_BUILD_INPUT_READ_ONLY_BIT_EXT )
+            builder.AddFlag( "Micromap build input read-only" );
+        if( flags & VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT )
+            builder.AddFlag( "Micromap storage" );
+        if( flags & VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT )
+            builder.AddFlag( "Push descriptors descriptor buffer" );
+
+        builder.AddUnknownFlags( flags, 27 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageUsageFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageUsageFlagNames(
+        VkImageUsageFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT )
+            builder.AddFlag( "Transfer source" );
+        if( flags & VK_IMAGE_USAGE_TRANSFER_DST_BIT )
+            builder.AddFlag( "Transfer destination" );
+        if( flags & VK_IMAGE_USAGE_SAMPLED_BIT )
+            builder.AddFlag( "Sampled image" );
+        if( flags & VK_IMAGE_USAGE_STORAGE_BIT )
+            builder.AddFlag( "Storage image" );
+        if( flags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
+            builder.AddFlag( "Color attachment" );
+        if( flags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
+            builder.AddFlag( "Depth-stencil attachment" );
+        if( flags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT )
+            builder.AddFlag( "Transient attachment" );
+        if( flags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT )
+            builder.AddFlag( "Input attachment" );
+        if( flags & VK_IMAGE_USAGE_HOST_TRANSFER_BIT )
+            builder.AddFlag( "Host transfer" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR )
+            builder.AddFlag( "Video decode destination" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video decode source" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR )
+            builder.AddFlag( "Video decoded picture buffer" );
+        if( flags & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT )
+            builder.AddFlag( "Fragment density map" );
+        if( flags & VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR )
+            builder.AddFlag( "Fragment shading rate attachment" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR )
+            builder.AddFlag( "Video encode destination" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR )
+            builder.AddFlag( "Video encode source" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR )
+            builder.AddFlag( "Video encode decoded picture buffer" );
+        if( flags & VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT )
+            builder.AddFlag( "Attachment feedback loop" );
+        if( flags & VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI )
+            builder.AddFlag( "Invocation mask" );
+        if( flags & VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM )
+            builder.AddFlag( "Sample weight image" );
+        if( flags & VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM )
+            builder.AddFlag( "Sample block match image" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR )
+            builder.AddFlag( "Video encode quantization delta map" );
+        if( flags & VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR )
+            builder.AddFlag( "Video encode emphasis map" );
+
+        builder.AddUnknownFlags( flags, 27 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageTypeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageTypeName(
+        VkImageType type,
+        VkImageCreateFlags flags,
+        uint32_t arrayLayers ) const
+    {
+        std::string typeName;
+        switch( type )
+        {
+        case VK_IMAGE_TYPE_1D:
+            typeName = "Image 1D";
+            break;
+        case VK_IMAGE_TYPE_2D:
+            typeName = "Image 2D";
+            break;
+        case VK_IMAGE_TYPE_3D:
+            typeName = "Image 3D";
+            break;
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>( type ) );
+        }
+
+        if( flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT )
+        {
+            typeName += " Cube";
+            arrayLayers /= 6;
+        }
+
+        if( arrayLayers > 1 )
+        {
+            typeName += " Array";
+        }
+
+        return typeName;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageTilingName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageTilingName(
+        VkImageTiling tiling ) const
+    {
+        switch( tiling )
+        {
+        case VK_IMAGE_TILING_OPTIMAL:
+            return "Optimal";
+        case VK_IMAGE_TILING_LINEAR:
+            return "Linear";
+        case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
+            return "DRM format modifier";
+        }
+        return fmt::format( "Unknown tiling ({})", static_cast<uint32_t>( tiling ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageTypeName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetImageAspectFlagNames(
+        VkImageAspectFlags flags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( flags & VK_IMAGE_ASPECT_COLOR_BIT )
+            builder.AddFlag( "Color" );
+        if( flags & VK_IMAGE_ASPECT_DEPTH_BIT )
+            builder.AddFlag( "Depth" );
+        if( flags & VK_IMAGE_ASPECT_STENCIL_BIT )
+            builder.AddFlag( "Stencil" );
+        if( flags & VK_IMAGE_ASPECT_METADATA_BIT )
+            builder.AddFlag( "Metadata" );
+        if( flags & VK_IMAGE_ASPECT_PLANE_0_BIT )
+            builder.AddFlag( "Plane 0" );
+        if( flags & VK_IMAGE_ASPECT_PLANE_1_BIT )
+            builder.AddFlag( "Plane 1" );
+        if( flags & VK_IMAGE_ASPECT_PLANE_2_BIT )
+            builder.AddFlag( "Plane 2" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT )
+            builder.AddFlag( "Memory plane 0" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT )
+            builder.AddFlag( "Memory plane 1" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT )
+            builder.AddFlag( "Memory plane 2" );
+        if( flags & VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT )
+            builder.AddFlag( "Memory plane 3" );
+
+        builder.AddUnknownFlags( flags, 11 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetCopyAccelerationStructureModeName
 
     Description:
@@ -1862,6 +2505,33 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetAccelerationStructureTypeFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames(
+        VkFlags typeFlags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR ) )
+            builder.AddFlag( "Top-level" );
+        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR ) )
+            builder.AddFlag( "Bottom-level" );
+        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR ) )
+            builder.AddFlag( "Generic" );
+
+        builder.AddUnknownFlags( typeFlags, 3 );
+
+        return builder.BuildString();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetBuildAccelerationStructureFlagNames
 
     Description:
@@ -1885,12 +2555,7 @@ namespace Profiler
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_MOTION_BIT_NV )
             builder.AddFlag( "Motion (32)" );
 
-        for( uint32_t i = 6; i < 8 * sizeof( flags ); ++i )
-        {
-            uint32_t unkownFlag = 1U << i;
-            if( flags & unkownFlag )
-                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
-        }
+        builder.AddUnknownFlags( flags, 6 );
 
         return builder.BuildString();
     }
@@ -1958,6 +2623,29 @@ namespace Profiler
             return "Opacity Micromap";
         }
         return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMicromapTypeFlagNames
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetMicromapTypeFlagNames(
+        VkFlags typeFlags,
+        const char* separator ) const
+    {
+        FlagsStringBuilder builder;
+        builder.m_pSeparator = separator;
+
+        if( typeFlags & ( 1U << VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT ) )
+            builder.AddFlag( "Opacity Micromap" );
+
+        builder.AddUnknownFlags( typeFlags, 1 );
+
+        return builder.BuildString();
     }
 
     /***********************************************************************************\
@@ -2048,12 +2736,7 @@ namespace Profiler
         if( flags & VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR )
             builder.AddFlag( "No duplicate any-hit invocation (2)" );
 
-        for( uint32_t i = 2; i < 8 * sizeof( flags ); ++i )
-        {
-            uint32_t unkownFlag = 1U << i;
-            if( flags & unkownFlag )
-                builder.AddFlag( fmt::format( "Unknown flag ({})", unkownFlag ) );
-        }
+        builder.AddUnknownFlags( flags, 2 );
 
         return builder.BuildString();
     }

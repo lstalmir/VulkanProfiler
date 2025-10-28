@@ -38,6 +38,8 @@ namespace Profiler
     {
         VkPhysicalDevice Handle = VK_NULL_HANDLE;
 
+        struct VkInstance_Object* pInstance;
+
         VkPhysicalDeviceProperties Properties;
         VkPhysicalDeviceMemoryProperties MemoryProperties;
 

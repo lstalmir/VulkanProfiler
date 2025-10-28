@@ -41,6 +41,17 @@
 // Windows: Undefine names conflicting in tests
 #undef SetEnvironmentVariable
 
+#define SkipIfUnsupported( feature )                    \
+    do                                                  \
+    {                                                   \
+        const auto& f = ( feature );                    \
+        if( !f.Enabled )                                \
+        {                                               \
+            GTEST_SKIP() << f.Name << " not supported"; \
+            return;                                     \
+        }                                               \
+    } while( 0 )
+
 namespace Profiler
 {
     /***********************************************************************************\

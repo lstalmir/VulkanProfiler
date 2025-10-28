@@ -19,10 +19,14 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include <nlohmann/json.hpp>
 #include <vulkan/vulkan.h>
+#include <atomic>
 #include <vector>
 #include <string>
+#include <mutex>
 
 namespace Profiler
 {
@@ -60,25 +64,21 @@ namespace Profiler
     class DeviceProfilerTraceSerializer
     {
     public:
-        template<typename GpuDurationType>
-        inline DeviceProfilerTraceSerializer( class DeviceProfilerFrontend * pFrontend, const class DeviceProfilerStringSerializer* pStringSerializer, GpuDurationType gpuTimestampPeriod )
-            : DeviceProfilerTraceSerializer(
-                pFrontend,
-                pStringSerializer,
-                std::chrono::duration_cast<Milliseconds>(gpuTimestampPeriod) )
-        {
-        }
-
-        DeviceProfilerTraceSerializer( class DeviceProfilerFrontend* pFrontend, const class DeviceProfilerStringSerializer* pStringSerializer, Milliseconds gpuTimestampPeriod );
+        DeviceProfilerTraceSerializer( DeviceProfilerFrontend& frontend );
         ~DeviceProfilerTraceSerializer();
 
+        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
         DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+
+        DeviceProfilerTraceSerializationResult SaveEventsToFile( const std::string& fileName );
 
         static std::string GetDefaultTraceFileName( int samplingMode );
 
     private:
-        const class DeviceProfilerStringSerializer* m_pStringSerializer;
-        const class DeviceProfilerJsonSerializer* m_pJsonSerializer;
+        DeviceProfilerFrontend& m_Frontend;
+
+        class DeviceProfilerStringSerializer* m_pStringSerializer;
+        class DeviceProfilerJsonSerializer* m_pJsonSerializer;
 
         // Currently serialized frame data
         const struct DeviceProfilerFrameData* m_pData;
@@ -90,7 +90,8 @@ namespace Profiler
         const struct DeviceProfilerCommandBufferData* m_pCommandBufferData;
         const struct DeviceProfilerPipelineData* m_pPipelineData;
 
-        std::vector<struct TraceEvent*> m_pEvents;
+        // Serialized events
+        nlohmann::json m_Events;
 
         // Debug labels can cross command buffer and frame boundaries
         // Tracking depth of the stack to detect labels which begin in one frame and end in the next
@@ -103,7 +104,7 @@ namespace Profiler
         uint64_t     m_HostTimestampFrequency;
         Milliseconds m_GpuTimestampPeriod;
 
-        void SetupTimestampNormalizationConstants( VkQueue );
+        void SetupTimestampNormalizationConstants();
         Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 
@@ -121,8 +122,48 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
-        void SaveEventsToFile( const std::string&, DeviceProfilerTraceSerializationResult& );
-
         void Cleanup();
+    };
+
+    /*************************************************************************\
+
+    Class:
+        ProfilerTraceOutput
+
+    Description:
+        Reads data from the profiler and writes it to a file.
+
+    \*************************************************************************/
+    class ProfilerTraceOutput : public DeviceProfilerOutput
+    {
+    public:
+        ProfilerTraceOutput( DeviceProfilerFrontend& frontend );
+        ~ProfilerTraceOutput();
+
+        bool Initialize() override;
+        void Destroy() override;
+
+        bool IsAvailable() override;
+
+        void Update() override;
+        void Present() override;
+
+        void SetOutputFileName( const std::string& fileName );
+        void SetMaxFrameCount( uint32_t maxFrameCount );
+
+    private:
+        DeviceProfilerStringSerializer* m_pStringSerializer;
+        DeviceProfilerTraceSerializer* m_pTraceSerializer;
+        std::mutex m_TraceSerializerMutex;
+
+        std::string m_OutputFileName;
+
+        uint32_t m_MaxFrameCount;
+        std::atomic_uint32_t m_SerializedFrameCount;
+        std::atomic_bool m_Flushed;
+
+        void ResetMembers();
+
+        void Flush();
     };
 }

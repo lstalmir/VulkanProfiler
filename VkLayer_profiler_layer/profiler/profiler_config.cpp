@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Lukasz Stalmirski
+// Copyright (c) 2022-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,12 +29,17 @@ namespace Profiler
 
     void DeviceProfilerConfig::LoadFromCreateInfo( const VkProfilerCreateInfoEXT* pCreateInfo )
     {
-        m_EnableOverlay = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) == 0;
+        if( (m_Output == output_t::overlay) && (pCreateInfo->flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) )
+        {
+            m_Output = output_t::none;
+        }
+
         m_EnablePerformanceQueryExt = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) == 0;
         m_EnableRenderPassBeginEndProfiling = (pCreateInfo->flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0;
-        m_SetStablePowerState = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_STABLE_POWER_STATE) == 0;
-        m_EnableThreading = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_THREADING_EXT) == 0;
+        m_SetStablePowerState = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_STABLE_POWER_STATE_BIT_EXT) == 0;
+        m_EnableThreading = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_THREADING_BIT_EXT) == 0;
+        m_EnableMemoryProfiling = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_MEMORY_PROFILING_BIT_EXT) == 0;
         m_SamplingMode = pCreateInfo->samplingMode;
-        m_SyncMode = pCreateInfo->syncMode;
+        m_FrameDelimiter = pCreateInfo->frameDelimiter;
     }
 }

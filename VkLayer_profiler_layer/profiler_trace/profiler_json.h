@@ -43,11 +43,17 @@ namespace Profiler
             const struct DeviceProfilerPipeline&,
             const struct DeviceProfilerCommandBufferData& ) const;
 
+        nlohmann::json GetPipelineArgs( const struct DeviceProfilerPipeline& ) const;
+
     private:
         class DeviceProfilerFrontend* m_pFrontend;
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;
         nlohmann::json GetDepthStencilClearValue( const VkClearDepthStencilValue& ) const;
+        nlohmann::json GetShaderStageArgs( const struct ProfilerShader& ) const;
+        nlohmann::json GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& ) const;
+        nlohmann::json GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& ) const;
+        nlohmann::json GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& ) const;
     };
 }

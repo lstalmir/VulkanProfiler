@@ -129,8 +129,16 @@ namespace Profiler
         }
 
         void Reset() final { m_Value = m_Default; }
-        void Read( const std::string_view& value ) final { sscanf( value.data(), "%f %f", &m_Value.x, &m_Value.y ); }
         void Write( ImGuiTextBuffer* pOut ) const final { pOut->appendf( "%f %f", m_Value.x, m_Value.y ); }
+
+        void Read( const std::string_view& value ) final
+        {
+            float x, y;
+            if( sscanf( value.data(), "%f %f", &x, &y ) == 2 )
+            {
+                m_Value = Float2( x, y );
+            }
+        }
     };
 
     /***********************************************************************************\

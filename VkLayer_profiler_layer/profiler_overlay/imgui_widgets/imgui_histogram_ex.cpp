@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -93,6 +93,50 @@ namespace ImGuiX
 
     /*************************************************************************\
 
+    Function:
+        IsMouseHoveringWindow
+
+    \*************************************************************************/
+    bool IsMouseHoveringWindow( ImGuiWindow* window )
+    {
+        auto IsMouseHoveringWindowImpl = []( ImGuiWindow* w ) {
+            bool is_mouse_over = false;
+            if( w && w->WasActive && !w->SkipItems )
+            {
+                ImRect rc = w->Rect();
+                is_mouse_over =
+                    rc.ContainsWithPad( GImGui->IO.MousePos, GImGui->Style.TouchExtraPadding );
+            }
+            return is_mouse_over;
+        };
+
+        // Check if any modal window is open
+        ImGuiWindow* modal_window = GetTopMostPopupModal();
+        if( modal_window && ( modal_window != window ) )
+            return false;
+
+        // Check if the cursor is over the current window
+        if( !IsMouseHoveringWindowImpl( window ) )
+            return false;
+
+        // Check if the cursor is over any other window above the current one
+        ImGuiWindow** next_window = GImGui->Windows.Data;
+        ImGuiWindow** last_window = GImGui->Windows.Data + GImGui->Windows.Size;
+        while( next_window != last_window && *next_window != window )
+            next_window++;
+
+        while( next_window != last_window )
+        {
+            if( ( *next_window != window ) && IsMouseHoveringWindowImpl( *next_window ) )
+                return false;
+            next_window++;
+        }
+
+        return true;
+    }
+
+    /*************************************************************************\
+
         PlotHistogramEx
 
     \*************************************************************************/
@@ -116,6 +160,9 @@ namespace ImGuiX
         ImGuiWindow* window = GetCurrentWindow();
         if( window->SkipItems )
             return;
+
+        // Check if cursor is above the current window
+        const bool mouse_over_window = IsMouseHoveringWindow( window );
 
         const ImGuiStyle& style = g.Style;
         const ImGuiID id = window->GetID( label );
@@ -144,6 +191,8 @@ namespace ImGuiX
                 const auto& d = GetHistogramColumnData( values, values_stride, i );
                 if( d.y != d.y ) // Ignore NaN values
                     continue;
+                if( d.flags & HistogramColumnFlags_Event )
+                    continue;
                 y_min = ImMin( y_min, d.y );
                 y_max = ImMax( y_max, d.y );
                 x_size += (double)d.x;
@@ -153,6 +202,9 @@ namespace ImGuiX
             if( scale_max == FLT_MAX )
                 scale_max = y_max;
         }
+        // Avoid division by zero
+        if( !x_size )
+            x_size = 1.f;
 
         RenderFrame( frame_bb.Min, frame_bb.Max, GetColorU32( ImGuiCol_FrameBg ), true, style.FrameRounding );
 
@@ -179,6 +231,45 @@ namespace ImGuiX
             if( data.y != data.y ) // Ignore NaN values
                 continue;
 
+            // Handle events
+            if( data.flags & HistogramColumnFlags_Event )
+            {
+                // Draw a vertical line without advancing the cursor.
+                const float x_pos = inner_bb.Min.x + prev_pos;
+                const float y_pos = inner_bb.Min.y + inner_bb.GetHeight() * ( scale_min / ( scale_max - scale_min ) ) - 5.0f;
+
+                window->DrawList->AddTriangleFilled(
+                    { x_pos - 5.0f * g.IO.FontGlobalScale, y_pos },
+                    { x_pos + 5.0f * g.IO.FontGlobalScale, y_pos },
+                    { x_pos, y_pos + 5.0f * g.IO.FontGlobalScale },
+                    data.color );
+
+                // Check if mouse is over the event
+                const ImRect event_bb(
+                    { x_pos - 5.0f * g.IO.FontGlobalScale, y_pos - 5.0f * g.IO.FontGlobalScale },
+                    { x_pos + 5.0f * g.IO.FontGlobalScale, y_pos + 5.0f * g.IO.FontGlobalScale } );
+
+                const bool event_hovered =
+                    ( mouse_over_window ) &&
+                    ( flags & HistogramFlags_NoHover ) == 0 &&
+                    ( data.flags & HistogramColumnFlags_NoHover ) == 0 &&
+                    event_bb.ContainsWithPad( g.IO.MousePos, style.TouchExtraPadding );
+
+                if( event_hovered )
+                {
+                    if( click_cb && IsMouseClicked( ImGuiMouseButton_Left, 0, ImGuiKeyOwner_NoOwner ) )
+                    {
+                        click_cb( data );
+                    }
+
+                    if( hover_cb )
+                    {
+                        hover_cb( data );
+                    }
+                }
+                continue;
+            }
+
             const float x_norm = data.x / float(x_size);
             const float y_norm = (data.y - scale_min) / (scale_max - scale_min);
 
@@ -196,8 +287,10 @@ namespace ImGuiX
 
                 const ImRect column_bb( { x_pos, y_pos }, { x_pos + column_width, inner_bb.Max.y } );
                 const bool hovered_column =
+                    ( mouse_over_window ) &&
                     ( flags & HistogramFlags_NoHover ) == 0 &&
-                    column_bb.Contains( g.IO.MousePos );
+                    ( data.flags & HistogramColumnFlags_NoHover ) == 0 &&
+                    column_bb.ContainsWithPad( g.IO.MousePos, style.TouchExtraPadding );
 
                 window->DrawList->AddRectFilled(
                     column_bb.Min,
@@ -206,7 +299,7 @@ namespace ImGuiX
 
                 if( hovered_column )
                 {
-                    if( click_cb && IsMouseClicked( ImGuiMouseButton_Left ) )
+                    if( click_cb && IsMouseClicked( ImGuiMouseButton_Left, 0, ImGuiKeyOwner_NoOwner ) )
                     {
                         click_cb( data );
                     }

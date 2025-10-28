@@ -42,6 +42,22 @@ namespace ImGuiX
 
     /*************************************************************************\
 
+    Enum:
+        HistogramColumnFlags
+
+    Description:
+        Flags for HistogramColumnData.
+
+    \*************************************************************************/
+    enum HistogramColumnFlags
+    {
+        HistogramColumnFlags_None = 0,
+        HistogramColumnFlags_NoHover = 1 << 0,
+        HistogramColumnFlags_Event = 1 << 1,
+    };
+
+    /*************************************************************************\
+
     Structure:
         HistogramColumnData
 
@@ -51,15 +67,18 @@ namespace ImGuiX
     Members:
         x              Width of the bar
         y              Height of the bar
+        color          Color of the bar
+        flags          Flags for the bar
         userData       Pointer to the custom data associated with the bar
 
     \*************************************************************************/
     struct HistogramColumnData
     {
-        float x;
-        float y;
-        ImU32 color;
-        const void* userData;
+        float x = 0.0f;
+        float y = 0.0f;
+        ImU32 color = 0;
+        int flags = HistogramColumnFlags_None;
+        const void* userData = nullptr;
     };
 
     typedef void(HistogramColumnHoverCallback)( const HistogramColumnData& data );

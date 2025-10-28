@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -107,6 +107,55 @@ namespace Profiler
 
         // Complete events contain additional 'dur' parameter
         jsonObject[ "dur" ] = m_Duration.count();
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize TraceCounterEvent to JSON object.
+
+    \*************************************************************************/
+    void TraceCounterEvent::Serialize( nlohmann::json& jsonObject ) const
+    {
+        TraceEvent::Serialize( jsonObject );
+
+        jsonObject.erase( "name" );
+        jsonObject.erase( "cat" );
+        jsonObject.erase( "args" );
+
+        // Counter events contain all metrics in 'args' parameter
+        nlohmann::json& args = jsonObject["args"];
+
+        for( uint32_t i = 0; i < m_CounterCount; ++i )
+        {
+            const VkProfilerPerformanceCounterProperties2EXT& properties = m_pCounterProperties[i];
+            const VkProfilerPerformanceCounterResultEXT result = m_pCounterResults ? m_pCounterResults[i] : VkProfilerPerformanceCounterResultEXT();
+
+            switch( properties.storage )
+            {
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                args[properties.shortName] = result.int32;
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                args[properties.shortName] = result.uint32;
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                args[properties.shortName] = result.int64;
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                args[properties.shortName] = result.uint64;
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                args[properties.shortName] = result.float32;
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                args[properties.shortName] = result.float64;
+                break;
+            }
+        }
     }
 
     /*************************************************************************\

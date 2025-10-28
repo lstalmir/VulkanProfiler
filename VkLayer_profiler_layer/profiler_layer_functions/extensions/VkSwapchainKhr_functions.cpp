@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "VkSwapchainKhr_functions.h"
+#include "profiler_layer_functions/Helpers.h"
 
 namespace Profiler
 {
@@ -41,8 +42,10 @@ namespace Profiler
         VkSwapchainCreateInfoKHR createInfo = *pCreateInfo;
 
         // TODO: Move to separate layer
+        // Enable the overlay only if the WSI is supported by the layer
         const bool createProfilerOverlay =
-            dd.Profiler.m_Config.m_EnableOverlay;
+            (dd.Profiler.m_Config.m_Output == Profiler::output_t::overlay) &&
+            (dd.Device.pInstance->Surfaces.count( pCreateInfo->surface ));
 
         if( createProfilerOverlay )
         {
@@ -59,7 +62,14 @@ namespace Profiler
         {
             VkSwapchainKhr_Object swapchainObject = {};
             swapchainObject.Handle = *pSwapchain;
-            swapchainObject.pSurface = &dd.Device.pInstance->Surfaces[ pCreateInfo->surface ];
+
+            // Find the surface object, required to intercept input messages by the overlay.
+            // In case of unsupported WSIs pSurface will be nullptr and overlay won't be initialized.
+            auto surfaceIt = dd.Device.pInstance->Surfaces.find( pCreateInfo->surface );
+            if( surfaceIt != dd.Device.pInstance->Surfaces.end() )
+            {
+                swapchainObject.pSurface = &surfaceIt->second;
+            }
 
             uint32_t swapchainImageCount = 0;
             dd.Device.Callbacks.GetSwapchainImagesKHR(
@@ -70,6 +80,9 @@ namespace Profiler
                 device, *pSwapchain, &swapchainImageCount, swapchainObject.Images.data() );
 
             dd.Device.Swapchains.emplace( *pSwapchain, swapchainObject );
+
+            // Resize the buffers to fit all frames in flight so that the data is not dropped when the next present is late.
+            dd.Profiler.SetMinDataBufferSize( swapchainImageCount + 1 );
         }
 
         if( createProfilerOverlay )
@@ -86,28 +99,28 @@ namespace Profiler
                 result = dd.OverlayBackend.SetSwapchain( *pSwapchain, *pCreateInfo );
             }
 
-            if( result == VK_SUCCESS && !dd.Overlay.IsAvailable() )
+            if( result == VK_SUCCESS && !dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() ) )
             {
-                // Initialize overlay for the first time
-                bool success = dd.Overlay.Initialize( dd.ProfilerFrontend, dd.OverlayBackend );
-
-                if( success )
+                // Destructor doesn't call Destroy, so explicit call is required to avoid resource leaks
+                if( dd.pOutput )
                 {
-                    // Initialize overlay with configuration
-                    if( !dd.Profiler.m_Config.m_RefPipelines.empty() )
-                    {
-                        dd.Overlay.LoadTopPipelinesFromFile( dd.Profiler.m_Config.m_RefPipelines );
-                    }
-
-                    if( !dd.Profiler.m_Config.m_RefMetrics.empty() )
-                    {
-                        dd.Overlay.LoadPerformanceCountersFromFile( dd.Profiler.m_Config.m_RefMetrics );
-                    }
+                    dd.pOutput->Destroy();
+                    dd.pOutput.reset();
                 }
 
-                if( !success )
+                // Initialize overlay for the first time
+                result = CreateUniqueObject<ProfilerOverlayOutput>(
+                    &dd.pOutput,
+                    dd.ProfilerFrontend,
+                    dd.OverlayBackend );
+
+                if( result == VK_SUCCESS )
                 {
-                    result = VK_ERROR_INITIALIZATION_FAILED;
+                    bool success = dd.pOutput->Initialize();
+                    if( !success )
+                    {
+                        result = VK_ERROR_INITIALIZATION_FAILED;
+                    }
                 }
             }
         }
@@ -133,9 +146,15 @@ namespace Profiler
         // After recreating swapchain using CreateSwapchainKHR parent swapchain of the overlay has changed.
         // The old swapchain is then destroyed and will invalidate the overlay if we don't check which
         // swapchain is actually being destreoyed.
-        if( (dd.Overlay.IsAvailable()) && (dd.OverlayBackend.GetSwapchain() == swapchain) )
+        if( dd.OverlayBackend.GetSwapchain() == swapchain )
         {
-            dd.Overlay.Destroy();
+            // Destroy the overlay output associated with the backend.
+            if( dynamic_cast<ProfilerOverlayOutput*>( dd.pOutput.get() ) )
+            {
+                dd.pOutput->Destroy();
+                dd.pOutput.reset();
+            }
+
             dd.OverlayBackend.Destroy();
         }
 
@@ -159,15 +178,38 @@ namespace Profiler
     {
         auto& dd = DeviceDispatch.Get( queue );
 
+        // Synchronize host access to the queue object in case the overlay tries to use it.
+        VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
+
         // End profiling of the previous frame
         dd.Profiler.FinishFrame();
 
-        // Display overlay
-        if( (dd.Overlay.IsAvailable()) &&
-            (dd.OverlayBackend.GetSwapchain() == pPresentInfo->pSwapchains[ 0 ]) )
+        // Overlay rendering may be executed on a different queue than the one used for presenting.
+        // Synchronization of rendering is required, so override the pointer to the present info.
+        const bool overridePresentInfo =
+            ( dd.OverlayBackend.IsInitialized() ) &&
+            ( dd.OverlayBackend.GetSwapchain() == pPresentInfo->pSwapchains[0] );
+
+        if( overridePresentInfo )
         {
             dd.OverlayBackend.SetFramePresentInfo( *pPresentInfo );
-            dd.Overlay.Update();
+        }
+
+        if( dd.pOutput )
+        {
+            // Consume the collected data from the profiler.
+            // Treat QueuePresentKHR as a submit to collect at least one frame of data before the presentation.
+            if( dd.Profiler.m_Config.m_FrameDelimiter >= VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
+            {
+                dd.pOutput->Update();
+            }
+
+            // Present the data
+            dd.pOutput->Present();
+        }
+
+        if( overridePresentInfo )
+        {
             pPresentInfo = &dd.OverlayBackend.GetFramePresentInfo();
         }
 

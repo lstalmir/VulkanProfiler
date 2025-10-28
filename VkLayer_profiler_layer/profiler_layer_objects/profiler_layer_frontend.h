@@ -58,13 +58,26 @@ namespace Profiler
 
         const std::unordered_map<VkQueue, VkQueue_Object>& GetDeviceQueues() final;
 
-        const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& GetPerformanceMetricsSets() final;
-        const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& GetPerformanceCounterProperties( uint32_t setIndex ) final;
+        bool SupportsCustomPerformanceMetricsSets() final;
+        uint32_t CreateCustomPerformanceMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) final;
+        void DestroyCustomPerformanceMetricsSet( uint32_t setIndex ) final;
+        void UpdateCustomPerformanceMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) final;
+        uint32_t GetPerformanceCounterProperties( uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) final;
+        uint32_t GetPerformanceMetricsSets( uint32_t setCount, VkProfilerPerformanceMetricsSetProperties2EXT* pSets ) final;
+        void GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) final;
+        uint32_t GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters ) final;
+        uint32_t GetPerformanceCounterRequiredPasses( uint32_t counterCount, const uint32_t* pCounters ) final;
+        void GetAvailablePerformanceCounters( uint32_t selectedCounterCount, const uint32_t* pSelectedCounters, uint32_t& availableCounterCount, uint32_t* pAvailableCounters ) final;
         VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) final;
         uint32_t GetPerformanceMetricsSetIndex() final;
 
-        VkProfilerSyncModeEXT GetProfilerSyncMode() final;
-        VkResult SetProfilerSyncMode( VkProfilerSyncModeEXT mode ) final;
+        uint64_t GetDeviceCreateTimestamp( VkTimeDomainEXT timeDomain ) final;
+        uint64_t GetHostTimestampFrequency( VkTimeDomainEXT timeDomain ) final;
+
+        const DeviceProfilerConfig& GetProfilerConfig() final;
+
+        VkProfilerFrameDelimiterEXT GetProfilerFrameDelimiter() final;
+        VkResult SetProfilerFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter ) final;
 
         VkProfilerModeEXT GetProfilerSamplingMode() final;
         VkResult SetProfilerSamplingMode( VkProfilerModeEXT mode ) final;
@@ -73,6 +86,7 @@ namespace Profiler
         void SetObjectName( const VkObject& object, const std::string& name ) final;
 
         std::shared_ptr<DeviceProfilerFrameData> GetData() final;
+        void SetDataBufferSize( uint32_t maxFrames ) final;
 
     private:
         VkDevice_Object* m_pDevice = nullptr;

@@ -59,6 +59,8 @@ namespace Profiler
         // Performance tab
         inline static constexpr char GPUTime[] = u8"Czas GPU";
         inline static constexpr char CPUTime[] = u8"Czas CPU";
+        inline static constexpr char Frames[] = u8"Ramki###Frames";
+        inline static constexpr char Submits[] = u8"Przesłania komend###Frames";
         inline static constexpr char RenderPasses[] = u8"Render passy";
         inline static constexpr char Pipelines[] = u8"Stany potoku";
         inline static constexpr char Drawcalls[] = u8"Komendy";
@@ -66,6 +68,7 @@ namespace Profiler
         inline static constexpr char Duration[] = u8"Czas trwania";
         inline static constexpr char Height[] = u8"Wysokość";
         inline static constexpr char ShowIdle[] = u8"Pokaż przerwy";
+        inline static constexpr char ShowActiveFrame[] = u8"Pokaż aktywną ramkę";
         inline static constexpr char HistogramGroups[] = u8"Grupowanie histogramu";
         inline static constexpr char GPUCycles[] = u8"Cykle GPU";
         inline static constexpr char QueueUtilization[] = u8"Wykorzystanie kolejek###QueueUtilization";
@@ -89,6 +92,7 @@ namespace Profiler
         inline static constexpr char Container[] = u8"Kontener";
         inline static constexpr char Inspect[] = u8"Inspekcja";
         inline static constexpr char ShowPerformanceMetrics[] = u8"Pokaż liczniki wydajności";
+        inline static constexpr char SelectedFrame[] = u8"Wybrana ramka";
         inline static constexpr char CopyToClipboard[] = u8"Kopiuj do schowka";
         inline static constexpr char CopyName[] = u8"Kopiuj nazwę";
         inline static constexpr char ShowMore[] = u8"Pokaż więcej...";
@@ -143,11 +147,10 @@ namespace Profiler
         inline static constexpr char PipelineStateNotAvailable[] = u8"Informacje o stanie potoku nie są dostępne.";
 
         // Settings tab
-        inline static constexpr char Present[] = u8"Co ramkę";
-        inline static constexpr char Submit[] = u8"Co przesłanie komend";
         inline static constexpr char SamplingMode[] = u8"Częstotliwość próbkowania";
-        inline static constexpr char SyncMode[] = u8"Częstotliwość synchronizacji";
+        inline static constexpr char FrameDelimiter[] = u8"Podział ramek";
         inline static constexpr char InterfaceScale[] = u8"Skala interfejsu";
+        inline static constexpr char CollectedFrameCount[] = u8"Liczba zebranych ramek";
         inline static constexpr char ShowDebugLabels[] = u8"Pokaż etykiety";
         inline static constexpr char ShowShaderCapabilities[] = u8"Pokaż funkcjonalności shadera";
         inline static constexpr char TimeUnit[] = u8"Jednostka czasu";

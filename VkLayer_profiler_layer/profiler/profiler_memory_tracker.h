@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler_data.h"
+#include "profiler_layer_objects/VkObject.h"
 #include "utils/lockable_unordered_map.h"
 #include <vulkan/vulkan.h>
 
@@ -44,17 +45,25 @@ namespace Profiler
         VkResult Initialize( VkDevice_Object* pDevice );
         void Destroy();
 
-        void RegisterAllocation( VkDeviceMemory memory, const VkMemoryAllocateInfo* pAllocateInfo );
-        void UnregisterAllocation( VkDeviceMemory memory );
+        void RegisterAllocation( VkObjectHandle<VkDeviceMemory> memory, const VkMemoryAllocateInfo* pAllocateInfo );
+        void UnregisterAllocation( VkObjectHandle<VkDeviceMemory> memory );
 
-        void RegisterBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo );
-        void UnregisterBuffer( VkBuffer buffer );
-        void BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset );
-        void BindBufferMemory( const VkSparseBufferMemoryBindInfo* );
+        void RegisterBuffer( VkObjectHandle<VkBuffer> buffer, const VkBufferCreateInfo* pCreateInfo );
+        void UnregisterBuffer( VkObjectHandle<VkBuffer> buffer );
+        void BindBufferMemory( VkObjectHandle<VkBuffer> buffer, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset );
+        void BindSparseBufferMemory( VkObjectHandle<VkBuffer> buffer, VkDeviceSize bufferOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
 
-        void RegisterImage( VkImage image, const VkImageCreateInfo* pCreateInfo );
-        void UnregisterImage( VkImage image );
-        void BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset );
+        void RegisterImage( VkObjectHandle<VkImage> image, const VkImageCreateInfo* pCreateInfo );
+        void UnregisterImage( VkObjectHandle<VkImage> image );
+        void BindImageMemory( VkObjectHandle<VkImage> image, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset );
+        void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkDeviceSize imageOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
+        void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags );
+
+        void RegisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure, VkObjectHandle<VkBuffer> buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo );
+        void UnregisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure );
+
+        void RegisterMicromap( VkObjectHandle<VkMicromapEXT> micromap, VkObjectHandle<VkBuffer> buffer, const VkMicromapCreateInfoEXT* pCreateInfo );
+        void UnregisterMicromap( VkObjectHandle<VkMicromapEXT> micromap );
 
         std::pair<VkBuffer, DeviceProfilerBufferMemoryData> GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage ) const;
 
@@ -63,15 +72,23 @@ namespace Profiler
     private:
         VkDevice_Object* m_pDevice;
 
+        PFN_vkGetPhysicalDeviceMemoryProperties2 m_pfnGetPhysicalDeviceMemoryProperties2;
+
+        bool m_MemoryBudgetEnabled;
+
         std::shared_mutex mutable m_AggregatedDataMutex;
         uint64_t m_TotalAllocationSize;
         uint64_t m_TotalAllocationCount;
         std::vector<DeviceProfilerMemoryHeapData> m_Heaps;
         std::vector<DeviceProfilerMemoryTypeData> m_Types;
 
-        ConcurrentMap<VkDeviceMemory, DeviceProfilerDeviceMemoryData> m_Allocations;
-        ConcurrentMap<VkBuffer, DeviceProfilerBufferMemoryData> m_Buffers;
-        ConcurrentMap<VkImage, DeviceProfilerImageMemoryData> m_Images;
+        ConcurrentMap<VkObjectHandle<VkDeviceMemory>, DeviceProfilerDeviceMemoryData> m_Allocations;
+        ConcurrentMap<VkObjectHandle<VkBuffer>, DeviceProfilerBufferMemoryData> m_Buffers;
+        ConcurrentMap<VkObjectHandle<VkImage>, DeviceProfilerImageMemoryData> m_Images;
+        ConcurrentMap<VkObjectHandle<VkAccelerationStructureKHR>, DeviceProfilerAccelerationStructureMemoryData> m_AccelerationStructures;
+        ConcurrentMap<VkObjectHandle<VkMicromapEXT>, DeviceProfilerMicromapMemoryData> m_Micromaps;
+
+        std::shared_mutex mutable m_MemoryBindingMutex;
 
         PFN_vkGetBufferDeviceAddress m_pfnGetBufferDeviceAddress;
 

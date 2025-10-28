@@ -42,7 +42,7 @@ namespace ImGuiX
         if( column_index == -1 )
             column_index = table->CurrentColumn;
 
-        return table->Columns[ column_index ].WidthGiven;
+        return table->Columns[column_index].WidthGiven + table->CellPaddingX * 2.f;
     }
 
     /*************************************************************************\
@@ -136,13 +136,7 @@ namespace ImGuiX
         }
 
         // Draw a horizontal line below the headers row.
-        ImU32 col = ImGui::GetColorU32( ImGuiCol_TableBorderLight );
-        ImVec2 hr_beg = { table->BorderX1, table->RowPosY1 + g.FontSize + g.Style.CellPadding.y + 2 };
-        ImVec2 hr_end = { table->BorderX2, hr_beg.y };
-
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        IM_ASSERT( dl );
-        dl->AddLine( hr_beg, hr_end, col, 1.5f );
+        TableBorderInnerH( 1.5f );
     }
 
     /*************************************************************************\
@@ -164,5 +158,29 @@ namespace ImGuiX
         }
 
         return false;
+    }
+
+    /*************************************************************************\
+
+        TableBorderInnerH
+
+    \*************************************************************************/
+    void TableBorderInnerH( ImU32 color, float thickness )
+    {
+        ImGuiContext& g = *GImGui;
+        ImGuiTable* table = ImGui::GetCurrentTable();
+        IM_ASSERT( table );
+
+        ImVec2 hr_beg = { table->BorderX1, table->RowPosY1 + g.FontSize + g.Style.CellPadding.y + 2 };
+        ImVec2 hr_end = { table->BorderX2, hr_beg.y };
+
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        IM_ASSERT( dl );
+        dl->AddLine( hr_beg, hr_end, color, thickness );
+    }
+
+    void TableBorderInnerH( float thickness )
+    {
+        TableBorderInnerH( ImGui::GetColorU32( ImGuiCol_TableBorderLight ), thickness );
     }
 }

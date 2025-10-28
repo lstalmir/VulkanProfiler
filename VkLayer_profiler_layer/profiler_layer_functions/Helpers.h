@@ -92,4 +92,33 @@ namespace Profiler
 
         pStruct->pNext = reinterpret_cast<VkBaseOutStructure*>(pNext);
     }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateUniqueObject
+
+    Description:
+        Construct a new object without throwing.
+
+    \***********************************************************************************/
+    template<typename T, typename U, typename... ConstructorArgs>
+    inline VkResult CreateUniqueObject( std::unique_ptr<U>* ppObject, ConstructorArgs&&... args ) noexcept
+    {
+        try
+        {
+            ( *ppObject ) = std::make_unique<T>( std::forward<ConstructorArgs>( args )... );
+            return VK_SUCCESS;
+        }
+        catch( const std::bad_alloc& )
+        {
+            // Allocation of the object (or sub-object) failed.
+            return VK_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        catch( ... )
+        {
+            // Exception thrown by the constructor.
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+    }
 }

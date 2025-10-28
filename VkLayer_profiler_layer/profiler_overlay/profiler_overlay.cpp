@@ -22,19 +22,22 @@
 #include "profiler_overlay_shader_view.h"
 #include "profiler/profiler_frontend.h"
 #include "profiler_trace/profiler_trace.h"
-#include "profiler_helpers/profiler_data_helpers.h"
+#include "profiler_helpers/profiler_string_serializer.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkQueue_object.h"
+#include "utils/scoped_value.h"
 
 #include <string>
 #include <sstream>
 #include <stack>
 #include <fstream>
 #include <regex>
+#include <inttypes.h>
 
 #include <imgui_internal.h>
 #include <ImGuiFileDialog.h>
+#include <implot.h>
 
 #include <fmt/format.h>
 
@@ -44,6 +47,8 @@
 #include "imgui_widgets/imgui_histogram_ex.h"
 #include "imgui_widgets/imgui_table_ex.h"
 #include "imgui_widgets/imgui_ex.h"
+
+#include <imgui_stdlib.h>
 
 // Languages
 #include "lang/en_us.h"
@@ -59,6 +64,85 @@ namespace Profiler
 {
     // Define static members
     std::mutex s_ImGuiMutex;
+    // Prevents recursive locks of the ImGui mutex in the same thread.
+    thread_local bool s_ImGuiMutexLockedInThisThread = false;
+
+    // Constants
+    static constexpr VkBufferUsageFlags g_KnownBufferUsageFlags =
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+        VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT |
+        VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT |
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+        VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT |
+        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+        VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+        VK_BUFFER_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+        VK_BUFFER_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+        VK_BUFFER_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+        VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT |
+        VK_BUFFER_USAGE_MICROMAP_BUILD_INPUT_READ_ONLY_BIT_EXT |
+        VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT |
+        VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT;
+
+    static constexpr VkImageUsageFlags g_KnownImageUsageFlags =
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_HOST_TRANSFER_BIT |
+        VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+        VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT |
+        VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR |
+        VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT |
+        VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI |
+        VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM |
+        VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR |
+        VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR;
+
+    static constexpr VkFlags g_KnownAccelerationStructureTypes =
+        1 << VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR |
+        1 << VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR |
+        1 << VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR;
+
+    static constexpr VkFlags g_KnownMicromapTypes =
+        1 << VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT;
+
+    static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
+        IM_COL32( 110, 177, 165, 255 ),
+        IM_COL32( 219, 219, 146, 255 ),
+        IM_COL32( 157, 153, 183, 255 ),
+        IM_COL32( 216, 97, 84, 255 ),
+        IM_COL32( 97, 145, 177, 255 ),
+        IM_COL32( 217, 147, 68, 255 ),
+        IM_COL32( 146, 188, 75, 255 ),
+        IM_COL32( 217, 171, 194, 255 ),
+        IM_COL32( 183, 183, 183, 255 ),
+        IM_COL32( 154, 97, 156, 255 ),
+        IM_COL32( 170, 200, 164, 255 ),
+        IM_COL32( 219, 202, 81, 255 ),
+        IM_COL32( 194, 163, 116, 255 )
+    };
 
     struct ProfilerOverlayOutput::PerformanceGraphColumn : ImGuiX::HistogramColumnData
     {
@@ -68,9 +152,19 @@ namespace Profiler
 
     struct ProfilerOverlayOutput::QueueGraphColumn : ImGuiX::HistogramColumnData
     {
+        enum DataType
+        {
+            eIdle,
+            eCommandBuffer,
+            eSignalSemaphores,
+            eWaitSemaphores,
+        };
+
+        DataType userDataType;
+        FrameBrowserTreeNodeIndex nodeIndex;
     };
 
-    struct ProfilerOverlayOutput::PerformanceCounterExporter
+    struct ProfilerOverlayOutput::PerformanceQueryExporter
     {
         enum class Action
         {
@@ -82,7 +176,7 @@ namespace Profiler
         IGFD::FileDialogConfig m_FileDialogConfig;
         std::vector<VkProfilerPerformanceCounterResultEXT> m_Data;
         std::vector<bool> m_DataMask;
-        uint32_t m_MetricsSetIndex;
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pMetricsSet;
         Action m_Action;
     };
 
@@ -173,6 +267,41 @@ namespace Profiler
         return IM_COL32( 255, 128, 128, 255 );
     }
 
+    uint32_t ProfilerOverlayOutput::MakeFrameIndex( size_t frameDataIndex, uint32_t frameIndexFlags )
+    {
+        assert( ( frameDataIndex & FrameIndexMask ) == frameDataIndex );
+        assert( ( frameIndexFlags & FrameIndexMask ) == 0 );
+        return static_cast<uint32_t>( frameDataIndex & FrameIndexMask ) | ( frameIndexFlags & FrameIndexFlagsMask );
+    }
+
+    void ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::SetFrameIndex( uint32_t frameIndex )
+    {
+        if( size() < 2 ) resize( 2 );
+        uint16_t* pIndex = data();
+        pIndex[0] = static_cast<uint16_t>( frameIndex & 0xffff );
+        pIndex[1] = static_cast<uint16_t>( ( frameIndex >> 16 ) & 0xffff );
+    }
+
+    uint32_t ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetFrameIndex() const
+    {
+        if( size() < 2 ) return 0;
+        const uint16_t* pIndex = data();
+        return ( static_cast<uint32_t>( pIndex[0] ) ) |
+               ( static_cast<uint32_t>( pIndex[1] ) << 16 );
+    }
+
+    const uint16_t* ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetTreeNodeIndex() const
+    {
+        if( size() < 2 ) return nullptr;
+        return data() + 2;
+    }
+
+    size_t ProfilerOverlayOutput::FrameBrowserTreeNodeIndex::GetTreeNodeIndexSize() const
+    {
+        if( size() < 2 ) return 0;
+        return size() - 2;
+    }
+
     /***********************************************************************************\
 
     Function:
@@ -182,8 +311,10 @@ namespace Profiler
         Constructor.
 
     \***********************************************************************************/
-    ProfilerOverlayOutput::ProfilerOverlayOutput()
-        : m_InspectorShaderView( m_Resources )
+    ProfilerOverlayOutput::ProfilerOverlayOutput( DeviceProfilerFrontend& frontend, OverlayBackend& backend )
+        : DeviceProfilerOutput( frontend )
+        , m_Backend( backend )
+        , m_InspectorShaderView( m_Resources )
         , m_pLastMainWindowPos( m_Settings.AddFloat2( "LastMainWindowPos", Float2() ) )
         , m_pLastMainWindowSize( m_Settings.AddFloat2( "LastMainWindowSize", Float2() ) )
         , m_PerformanceWindowState{ m_Settings.AddBool( "PerformanceWindowOpen", true ), true }
@@ -220,15 +351,11 @@ namespace Profiler
         Initializes profiler overlay.
 
     \***********************************************************************************/
-    bool ProfilerOverlayOutput::Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend )
+    bool ProfilerOverlayOutput::Initialize()
     {
         bool success = true;
 
-        // Setup objects
-        m_pFrontend = &frontend;
-        m_pBackend = &backend;
-
-        const VkPhysicalDeviceProperties& deviceProperties = m_pFrontend->GetPhysicalDeviceProperties();
+        const VkPhysicalDeviceProperties& deviceProperties = m_Frontend.GetPhysicalDeviceProperties();
 
         // Set main window title
         m_Title = fmt::format( "{0} - {1}###VkProfiler",
@@ -242,8 +369,11 @@ namespace Profiler
         if( success )
         {
             std::scoped_lock lk( s_ImGuiMutex );
+            ScopedValue imGuiLockFlag( s_ImGuiMutexLockedInThisThread, true );
+
             IMGUI_CHECKVERSION();
             m_pImGuiContext = ImGui::CreateContext();
+            m_pImPlotContext = ImPlot::CreateContext();
 
             ImGui::SetCurrentContext( m_pImGuiContext );
 
@@ -251,7 +381,7 @@ namespace Profiler
             m_Settings.InitializeHandlers();
 
             ImGuiIO& io = ImGui::GetIO();
-            io.DisplaySize = m_pBackend->GetRenderArea();
+            io.DisplaySize = m_Backend.GetRenderArea();
             io.DeltaTime = 1.0f / 60.0f;
             io.IniFilename = "VK_LAYER_profiler_imgui.ini";
             io.ConfigFlags = ImGuiConfigFlags_DockingEnable;
@@ -269,54 +399,83 @@ namespace Profiler
             }
 
             // Initialize ImGui backends
-            success = m_pBackend->PrepareImGuiBackend();
-        }
+            success = m_Backend.PrepareImGuiBackend();
 
-        if( success )
-        {
-            // Initialize backend-dependent config
-            float dpiScale = m_pBackend->GetDPIScale();
-            ImGuiIO& io = ImGui::GetIO();
-            io.FontGlobalScale = (dpiScale > 1e-3f) ? dpiScale : 1.0f;
+            // The following code requires ImGui context so it must be executed under s_ImGuiMutex lock.
+            if( success )
+            {
+                // Initialize backend-dependent config
+                float dpiScale = m_Backend.GetDPIScale();
+                io.FontGlobalScale = ( dpiScale > 1e-3f ) ? dpiScale : 1.0f;
 
-            // Initialize resources
-            success = m_Resources.InitializeImages( m_pBackend );
+                // Initialize resources
+                success = m_Resources.InitializeImages( &m_Backend );
+            }
         }
 
         // Get vendor metrics sets
         if( success )
         {
-            const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& metricsSets =
-                m_pFrontend->GetPerformanceMetricsSets();
+            const uint32_t metricsSetCount = m_Frontend.GetPerformanceMetricsSets( 0, nullptr );
+            m_pPerformanceQueryMetricsSets.reserve( metricsSetCount );
 
-            const uint32_t vendorMetricsSetCount = static_cast<uint32_t>( metricsSets.size() );
-            m_VendorMetricsSets.reserve( vendorMetricsSetCount );
-            m_VendorMetricsSetVisibility.reserve( vendorMetricsSetCount );
+            std::vector<VkProfilerPerformanceMetricsSetProperties2EXT> metricsSets( metricsSetCount,
+                { VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_METRICS_SET_PROPERTIES_2_EXT } );
+            m_Frontend.GetPerformanceMetricsSets( metricsSetCount, metricsSets.data() );
 
-            for( uint32_t i = 0; i < vendorMetricsSetCount; ++i )
+            for( uint32_t metricsSetIndex = 0; metricsSetIndex < metricsSetCount; ++metricsSetIndex )
             {
-                VendorMetricsSet& metricsSet = m_VendorMetricsSets.emplace_back();
-                memcpy( &metricsSet.m_Properties, &metricsSets[i], sizeof( metricsSet.m_Properties ) );
+                PerformanceQueryMetricsSet& metricsSet = *m_pPerformanceQueryMetricsSets.emplace_back( std::make_shared<PerformanceQueryMetricsSet>() );
+                metricsSet.m_MetricsSetIndex = metricsSetIndex;
+                metricsSet.m_FilterResult = true;
+                metricsSet.m_Properties = metricsSets[metricsSetIndex];
 
                 // Get metrics belonging to this set.
-                metricsSet.m_Metrics = m_pFrontend->GetPerformanceCounterProperties( i );
+                const uint32_t counterCount = m_Frontend.GetPerformanceMetricsSetCounterProperties( metricsSetIndex, 0, nullptr );
+                metricsSet.m_Metrics.resize( counterCount );
 
-                m_VendorMetricsSetVisibility.push_back( true );
+                m_Frontend.GetPerformanceMetricsSetCounterProperties( metricsSetIndex, counterCount, metricsSet.m_Metrics.data() );
             }
 
-            m_ActiveMetricsSetIndex = m_pFrontend->GetPerformanceMetricsSetIndex();
-
-            if( m_ActiveMetricsSetIndex < m_VendorMetricsSets.size() )
+            const uint32_t activeMetricsSetIndex = m_Frontend.GetPerformanceMetricsSetIndex();
+            if( activeMetricsSetIndex < m_pPerformanceQueryMetricsSets.size() )
             {
-                m_ActiveMetricsVisibility.resize(
-                    m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Metrics.size(), true );
+                m_pActivePerformanceQueryMetricsSet = m_pPerformanceQueryMetricsSets[activeMetricsSetIndex];
+                m_ActivePerformanceQueryMetricsFilterResults.resize(
+                    m_pActivePerformanceQueryMetricsSet->m_Metrics.size(), true );
+            }
+
+            // Fetch custom performance counters
+            if( m_Frontend.SupportsCustomPerformanceMetricsSets() )
+            {
+                const uint32_t counterCount = m_Frontend.GetPerformanceCounterProperties( 0, nullptr );
+                m_PerformanceQueryEditorCounterProperties.resize( counterCount,
+                    { VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTER_PROPERTIES_2_EXT } );
+
+                m_Frontend.GetPerformanceCounterProperties(
+                    counterCount,
+                    m_PerformanceQueryEditorCounterProperties.data() );
+
+                m_PerformanceQueryEditorCounterIndices.clear();
+
+                m_PerformanceQueryEditorCounterVisibileIndices.resize( counterCount );
+                for( uint32_t i = 0; i < counterCount; i++ )
+                {
+                    m_PerformanceQueryEditorCounterVisibileIndices[i] = i;
+                }
+
+                m_PerformanceQueryEditorCounterAvailability.resize( m_PerformanceQueryEditorCounterProperties.size() );
+                Fill( m_PerformanceQueryEditorCounterAvailability, false );
+
+                m_PerformanceQueryEditorCounterAvailabilityKnown.resize( m_PerformanceQueryEditorCounterProperties.size() );
+                Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
             }
         }
 
         // Initialize the disassembler in the shader view
         if( success )
         {
-            m_InspectorShaderView.Initialize( *m_pFrontend );
+            m_InspectorShaderView.Initialize( m_Frontend );
             m_InspectorShaderView.SetShaderSavedCallback( std::bind(
                 &ProfilerOverlayOutput::ShaderRepresentationSaved,
                 this,
@@ -327,15 +486,46 @@ namespace Profiler
         // Initialize serializer
         if( success )
         {
-            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( *m_pFrontend ) );
+            m_pStringSerializer.reset( new (std::nothrow) DeviceProfilerStringSerializer( m_Frontend ) );
             success = (m_pStringSerializer != nullptr);
         }
 
         // Initialize settings
         if( success )
         {
-            m_SamplingMode = m_pFrontend->GetProfilerSamplingMode();
-            m_SyncMode = m_pFrontend->GetProfilerSyncMode();
+            m_SamplingMode = m_Frontend.GetProfilerSamplingMode();
+            m_FrameDelimiter = m_Frontend.GetProfilerFrameDelimiter();
+
+            switch( m_FrameDelimiter )
+            {
+            case VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT:
+                m_pFrameStr = Lang::Frame;
+                m_pFramesStr = Lang::Frames;
+                break;
+
+            case VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT:
+                m_pFrameStr = Lang::Submit;
+                m_pFramesStr = Lang::Submits;
+                break;
+            }
+        }
+
+        // Initialize the overlay according to the configuration
+        if( success )
+        {
+            const DeviceProfilerConfig& config = m_Frontend.GetProfilerConfig();
+            
+            if( !config.m_RefMetrics.empty() )
+            {
+                LoadPerformanceCountersFromFile( config.m_RefMetrics );
+            }
+
+            if( !config.m_RefPipelines.empty() )
+            {
+                LoadTopPipelinesFromFile( config.m_RefPipelines );
+            }
+
+            SetMaxFrameCount( std::max( config.m_FrameCount, 0 ) );
         }
 
         // Don't leave object in partly-initialized state if something went wrong
@@ -361,14 +551,17 @@ namespace Profiler
         if( m_pImGuiContext )
         {
             std::scoped_lock imGuiLock( s_ImGuiMutex );
+            ScopedValue imGuiLockFlag( s_ImGuiMutexLockedInThisThread, true );
+
             ImGui::SetCurrentContext( m_pImGuiContext );
 
             // Destroy resources created for the ImGui overlay.
             m_Resources.Destroy();
 
             // Destroy ImGui backends.
-            m_pBackend->DestroyImGuiBackend();
+            m_Backend.DestroyImGuiBackend();
 
+            ImPlot::DestroyContext( m_pImPlotContext );
             ImGui::DestroyContext();
         }
 
@@ -387,17 +580,10 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::ResetMembers()
     {
-        m_pFrontend = nullptr;
-        m_pBackend = nullptr;
-
         m_pImGuiContext = nullptr;
+        m_pImPlotContext = nullptr;
 
         m_Title.clear();
-
-        m_ActiveMetricsSetIndex = UINT32_MAX;
-        m_VendorMetricsSetVisibility.clear();
-        m_VendorMetricsSets.clear();
-        memset( m_VendorMetricFilter, 0, sizeof( m_VendorMetricFilter ) );
 
         m_TimestampPeriod = Milliseconds( 0 );
         m_TimestampDisplayUnit = 1.0f;
@@ -409,6 +595,16 @@ namespace Profiler
         m_HistogramValueMode = HistogramValueMode::eDuration;
         m_HistogramShowIdle = false;
 
+        m_pFrames.clear();
+        m_pSnapshots.clear();
+        m_SelectedFrameIndex = 0;
+        m_MaxFrameCount = 1;
+
+        m_pFrameStr = Lang::Frame;
+        m_pFramesStr = Lang::Frames;
+
+        m_HasNewSnapshots = false;
+
         m_pData = nullptr;
         m_Pause = false;
         m_Fullscreen = false;
@@ -416,6 +612,7 @@ namespace Profiler
         m_ShowShaderCapabilities = true;
         m_ShowEmptyStatistics = false;
         m_ShowAllTopPipelines = false;
+        m_ShowActiveFrame = false;
 
         m_SetLastMainWindowPos = false;
 
@@ -423,23 +620,68 @@ namespace Profiler
 
         m_TimeUnit = TimeUnit::eMilliseconds;
         m_SamplingMode = VK_PROFILER_MODE_PER_DRAWCALL_EXT;
-        m_SyncMode = VK_PROFILER_SYNC_MODE_PRESENT_EXT;
+        m_FrameDelimiter = VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT;
 
-        m_SelectedFrameBrowserNodeIndex = { 0xFFFF };
+        m_SelectedFrameBrowserNodeIndex = { 0, 0, 0xFFFF };
         m_ScrollToSelectedFrameBrowserNode = false;
         m_FrameBrowserNodeIndexStr.clear();
         m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::time_point();
         m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::time_point();
+
+        m_SelectedSemaphores.clear();
 
         m_InspectorPipeline = DeviceProfilerPipeline();
         m_InspectorShaderView.Clear();
         m_InspectorTabs.clear();
         m_InspectorTabIndex = 0;
 
+        m_MemoryComparator.Reset();
+        m_MemoryCompareRefFrameIndex = InvalidFrameIndex;
+        m_MemoryCompareSelFrameIndex = CurrentFrameIndex;
+        m_ResourceBrowserNameFilter.clear();
+        m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
+        m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
+        m_ResourceBrowserAccelerationStructureTypeFilter = g_KnownAccelerationStructureTypes;
+        m_ResourceBrowserMicromapTypeFilter = g_KnownMicromapTypes;
+        m_ResourceBrowserShowDifferences = false;
+        m_ResourceInspectorImageMapSubresource = {};
+        m_ResourceInspectorImageMapBlockSize = 16.f;
+        ResetResourceInspector();
+
+        m_MemoryConsumptionHistoryVisible = true;
+        m_MemoryConsumptionHistoryAutoScroll = true;
+        m_MemoryConsumptionHistoryTimeRangeMin = 0.0;
+        m_MemoryConsumptionHistoryTimeRangeMax = 5.0;
+        m_MemoryConsumptionHistoryUpdatePeriod = 0.25f;
+        m_MemoryConsumptionHistoryUpdateCounter.Reset();
+        m_MemoryConsumptionHistoryTimePoints = {};
+
+        for( auto& heapMemoryConsumptionHistory : m_MemoryConsumptionHistory )
+        {
+            heapMemoryConsumptionHistory = {};
+        }
+
+        memset( m_MemoryConsumptionHistoryMax, 0, sizeof( m_MemoryConsumptionHistoryMax ) );
+
+        m_pActivePerformanceQueryMetricsSet = nullptr;
+        m_pPerformanceQueryMetricsSets.clear();
+        m_ActivePerformanceQueryMetricsFilterResults.clear();
+        m_PerformanceQueryMetricsFilter.clear();
+
         m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
-        m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
-        m_ReferencePerformanceCounters.clear();
-        m_pPerformanceCounterExporter = nullptr;
+        m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
+        m_ReferencePerformanceQueryData.clear();
+        m_pPerformanceQueryExporter = nullptr;
+
+        m_PerformanceQueryEditorCounterProperties.clear();
+        m_pPerformanceQueryEditorSet = nullptr;
+        m_PerformanceQueryEditorCounterIndices.clear();
+        m_PerformanceQueryEditorCounterVisibileIndices.clear();
+        m_PerformanceQueryEditorCounterAvailability.clear();
+        m_PerformanceQueryEditorCounterAvailabilityKnown.clear();
+        m_PerformanceQueryEditorFilter.clear();
+        m_PerformanceQueryEditorSetName.clear();
+        m_PerformanceQueryEditorSetDescription.clear();
 
         m_pTopPipelinesExporter = nullptr;
         m_ReferenceTopPipelines.clear();
@@ -468,6 +710,9 @@ namespace Profiler
         m_QueueUtilizationTabDockSpaceId = 0;
         m_TopPipelinesTabDockSpaceId = 0;
         m_FrameBrowserDockSpaceId = 0;
+        m_MemoryTabDockSpaceId = 0;
+        m_ResourceBrowserDockSpaceId = 0;
+        m_ResourceInspectorDockSpaceId = 0;
     }
 
     /***********************************************************************************\
@@ -479,9 +724,96 @@ namespace Profiler
         Check if profiler overlay is ready for presenting.
 
     \***********************************************************************************/
-    bool ProfilerOverlayOutput::IsAvailable() const
+    bool ProfilerOverlayOutput::IsAvailable()
     {
-        return (m_pFrontend != nullptr) && (m_pBackend != nullptr);
+        return (m_pImGuiContext != nullptr);
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetMaxFrameCount
+
+    Description:
+        Set maximum number of frames to be displayed in the overlay.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SetMaxFrameCount( uint32_t maxFrameCount )
+    {
+        m_MaxFrameCount = maxFrameCount;
+
+        // Update buffers in the frontend to avoid dropping data.
+        m_Frontend.SetDataBufferSize( maxFrameCount + 1 );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Update
+
+    Description:
+        Consume available data from the frontend.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::Update()
+    {
+        std::scoped_lock lk( m_DataMutex );
+
+        // Update data
+        if( !m_Pause || m_pFrames.empty() )
+        {
+            auto pData = m_Frontend.GetData();
+            if( pData )
+            {
+                m_pFrames.push_back( std::move( pData ) );
+            }
+        }
+
+        if( m_MaxFrameCount )
+        {
+            while( m_pFrames.size() > m_MaxFrameCount )
+            {
+                m_pFrames.pop_front();
+            }
+        }
+
+        if( !m_pFrames.empty() )
+        {
+            m_MemoryConsumptionHistoryUpdateCounter.End();
+
+            float timeSinceLastUpdate = m_MemoryConsumptionHistoryUpdateCounter.GetValue<Milliseconds>().count() / 1000.f;
+            if( timeSinceLastUpdate >= m_MemoryConsumptionHistoryUpdatePeriod )
+            {
+                std::shared_ptr<DeviceProfilerFrameData> pLatestData = m_pFrames.back();
+
+                const size_t memoryHeapCount = pLatestData->m_Memory.m_Heaps.size();
+                for( size_t i = 0; i < memoryHeapCount; ++i )
+                {
+                    m_MemoryConsumptionHistory[i].push_back( pLatestData->m_Memory.m_Heaps[i].m_AllocationSize / 1048576. );
+                    m_MemoryConsumptionHistoryMax[i] = std::max( m_MemoryConsumptionHistoryMax[i], m_MemoryConsumptionHistory[i].back() );
+                }
+
+                uint64_t dataTimestamp = pLatestData->m_CPU.m_EndTimestamp;
+                uint64_t createTimestamp = m_Frontend.GetDeviceCreateTimestamp( pLatestData->m_SyncTimestamps.m_HostTimeDomain );
+                m_MemoryConsumptionHistoryTimePoints.push_back(
+                    static_cast<double>( dataTimestamp - createTimestamp ) / m_Frontend.GetHostTimestampFrequency( pLatestData->m_SyncTimestamps.m_HostTimeDomain ) );
+
+                m_MemoryConsumptionHistoryUpdateCounter.Begin();
+            }
+        }
+
+        // There is a separate list for saved frames.
+        const FrameDataList& framesList = GetActiveFramesList();
+
+        // Preserve index flags when clamping the index to the valid range.
+        const size_t frameIndexMax = framesList.size() - 1;
+        const size_t frameIndex = std::min<size_t>( m_SelectedFrameIndex & FrameIndexMask, frameIndexMax );
+        const uint32_t frameIndexFlags = m_SelectedFrameIndex & FrameIndexFlagsMask;
+
+        m_SelectedFrameIndex = MakeFrameIndex( frameIndex, frameIndexFlags );
+        m_pData = GetNthElement( framesList, frameIndexMax - frameIndex );
+
+        m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
     }
 
     /***********************************************************************************\
@@ -493,28 +825,27 @@ namespace Profiler
         Draw profiler overlay before presenting the image to screen.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::Update()
+    void ProfilerOverlayOutput::Present()
     {
         std::scoped_lock lk( s_ImGuiMutex );
+        ScopedValue imGuiLockFlag( s_ImGuiMutexLockedInThisThread, true );
+
         ImGui::SetCurrentContext( m_pImGuiContext );
+        ImPlot::SetCurrentContext( m_pImPlotContext );
 
         // Must be set before calling NewFrame to avoid clipping on window resize.
         ImGuiIO& io = ImGui::GetIO();
-        io.DisplaySize = m_pBackend->GetRenderArea();
+        io.DisplaySize = m_Backend.GetRenderArea();
 
-        if( !m_pBackend->NewFrame() )
+        if( !m_Backend.NewFrame() )
         {
             return;
         }
 
         ImGui::NewFrame();
 
-        // Update data
-        if( !m_Pause || !m_pData )
-        {
-            m_pData = m_pFrontend->GetData();
-            m_FrameTime = GetDuration( 0, m_pData->m_Ticks );
-        }
+        // Prevent data modification during presentation.
+        std::shared_lock dataLock( m_DataMutex );
 
         // Initialize IDs of the popup windows before entering the main window scope
         uint32_t applicationInfoPopupID = ImGui::GetID( Lang::ApplicationInfo );
@@ -618,14 +949,14 @@ namespace Profiler
         }
         if( ImGui::IsItemHovered() )
         {
-            ImGui::SetTooltip( "Save trace of the current frame to file" );
+            ImGui::SetTooltip( "Save trace of the current %s to file", m_pFrameStr );
         }
 
         // Keep results
         ImGui::SameLine();
         ImGui::Checkbox( Lang::Pause, &m_Pause );
 
-        const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
+        const VkApplicationInfo& applicationInfo = m_Frontend.GetApplicationInfo();
         ImGuiX::TextAlignRight( "Vulkan %u.%u",
             VK_API_VERSION_MAJOR( applicationInfo.apiVersion ),
             VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
@@ -634,7 +965,8 @@ namespace Profiler
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
-        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_1" );
+        m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_3" );
+        m_MemoryTabDockSpaceId = ImGui::GetID( "##m_MemoryTabDockSpaceId" );
 
         ImU32 defaultWindowBg = ImGui::GetColorU32( ImGuiCol_WindowBg );
         ImU32 defaultTitleBg = ImGui::GetColorU32( ImGuiCol_TitleBg );
@@ -731,6 +1063,10 @@ namespace Profiler
         {
             UpdateMemoryTab();
         }
+        else
+        {
+            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
+        }
         EndDockingWindow();
 
         if( BeginDockingWindow( Lang::Inspector, m_MainDockSpaceId, m_InspectorWindowState ) )
@@ -767,6 +1103,9 @@ namespace Profiler
         UpdateNotificationWindow();
         UpdateApplicationInfoWindow();
 
+        // Data not used from now on
+        dataLock.unlock();
+
         // Set initial tab
         if( ImGui::GetFrameCount() == 1 )
         {
@@ -786,7 +1125,7 @@ namespace Profiler
         ImGui::PopFont();
         ImGui::Render();
 
-        m_pBackend->RenderDrawData( ImGui::GetDrawData() );
+        m_Backend.RenderDrawData( ImGui::GetDrawData() );
     }
 
     /***********************************************************************************\
@@ -832,17 +1171,29 @@ namespace Profiler
         if( requiresInitialization )
         {
             ImGui::DockBuilderRemoveNode( m_PerformanceTabDockSpaceId );
-            ImGui::DockBuilderAddNode( m_PerformanceTabDockSpaceId, ImGuiDockNodeFlags_DockSpace );
+            ImGui::DockBuilderAddNode( m_PerformanceTabDockSpaceId, ImGuiDockNodeFlags_None );
             ImGui::DockBuilderSetNodeSize( m_PerformanceTabDockSpaceId, ImGui::GetMainViewport()->Size );
 
             ImGuiID dockMain = m_PerformanceTabDockSpaceId;
+            ImGuiID dockLeft;
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Left, 0.3f, &dockLeft, &dockMain );
             ImGuiID dockQueueUtilization, dockTopPipelines;
             ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.12f, &dockQueueUtilization, &dockMain );
             ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Up, 0.2f, &dockTopPipelines, &dockMain );
+            ImGuiID dockFrames;
+            ImGui::DockBuilderSplitNode( dockLeft, ImGuiDir_Up, 0.2f, &dockFrames, &dockLeft );
 
+            ImGuiDockNode* pDockLeft = ImGui::DockBuilderGetNode( dockLeft );
+            pDockLeft->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;
+
+            ImGuiDockNode* pDockFrames = ImGui::DockBuilderGetNode( dockFrames );
+            pDockFrames->LocalFlags |= ImGuiDockNodeFlags_NoWindowMenuButton;
+
+            ImGui::DockBuilderDockWindow( m_pFramesStr, dockFrames );
+            ImGui::DockBuilderDockWindow( Lang::Snapshots, dockFrames );
             ImGui::DockBuilderDockWindow( Lang::QueueUtilization, dockQueueUtilization );
             ImGui::DockBuilderDockWindow( Lang::TopPipelines, dockTopPipelines );
-            ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockMain );
+            ImGui::DockBuilderDockWindow( Lang::FrameBrowser, dockLeft );
             ImGui::DockBuilderDockWindow( Lang::PerformanceCounters, dockMain );
             ImGui::DockBuilderFinish( m_PerformanceTabDockSpaceId );
         }
@@ -868,7 +1219,7 @@ namespace Profiler
 
             ImGui::Text( "%s: %.2f ms", Lang::GPUTime, gpuTimeMs.count() );
             ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
-            ImGuiX::TextAlignRight( "%s %u", Lang::Frame, m_pData->m_CPU.m_FrameIndex );
+            ImGuiX::TextAlignRight( "%s %u", m_pFrameStr, m_pData->m_CPU.m_FrameIndex );
             ImGui::PopStyleColor();
             ImGui::Text( "%s: %.2f ms", Lang::CPUTime, cpuTimeMs.count() );
             ImGuiX::TextAlignRight( "%.1f %s", m_pData->m_CPU.m_FramesPerSec, Lang::FPS );
@@ -877,6 +1228,7 @@ namespace Profiler
         // Histogram
         {
             static const char* groupOptions[] = {
+                m_pFramesStr,
                 Lang::RenderPasses,
                 Lang::Pipelines,
                 Lang::Drawcalls };
@@ -887,7 +1239,11 @@ namespace Profiler
             {
                 if( ImGui::BeginCombo( Lang::HistogramGroups, nullptr, ImGuiComboFlags_NoPreview ) )
                 {
+                    ImGuiX::TSelectable( m_pFramesStr, m_HistogramGroupMode, HistogramGroupMode::eFrame );
+
+                    ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_RENDER_PASS_EXT );
                     ImGuiX::TSelectable( Lang::RenderPasses, m_HistogramGroupMode, HistogramGroupMode::eRenderPass );
+                    ImGui::EndDisabled();
 
                     ImGui::BeginDisabled( m_SamplingMode > VK_PROFILER_MODE_PER_PIPELINE_EXT );
                     ImGuiX::TSelectable( Lang::Pipelines, m_HistogramGroupMode, HistogramGroupMode::ePipeline );
@@ -912,8 +1268,11 @@ namespace Profiler
 
                 ImGui::SameLine( 0, 20 * interfaceScale );
                 ImGui::PushItemWidth( 100 * interfaceScale );
-
                 ImGui::Checkbox( Lang::ShowIdle, &m_HistogramShowIdle );
+
+                ImGui::SameLine( 0, 20 * interfaceScale );
+                ImGui::PushItemWidth( 100 * interfaceScale );
+                ImGui::Checkbox( Lang::ShowActiveFrame, &m_ShowActiveFrame );
             }
 
             float histogramHeight = (m_HistogramValueMode == HistogramValueMode::eConstant) ? 30.f : 110.0f;
@@ -951,10 +1310,66 @@ namespace Profiler
 
         PerformanceTabDockSpace();
 
+        // Frames list
+        ImGui::SetNextItemOpen( true, ImGuiCond_Once );
+
+        if( ImGui::Begin( m_pFramesStr, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            PrintFramesList( m_pFrames );
+        }
+
+        ImGui::End();
+
+        // Snapshots list
+        int snapshotsWindowFlags = ImGuiWindowFlags_NoMove;
+        if( m_HasNewSnapshots )
+        {
+            // Show a dot hinting that the new snapshots are availble in this tab.
+            snapshotsWindowFlags |= ImGuiWindowFlags_UnsavedDocument;
+        }
+
+        bool snapshotsWindowOpen = ImGui::Begin( Lang::Snapshots, nullptr, snapshotsWindowFlags );
+
+        if( m_HasNewSnapshots )
+        {
+            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            {
+                ImGui::SetTooltip( "New snapshots have been captured" );
+            }
+        }
+
+        if( snapshotsWindowOpen )
+        {
+            // Stop showing a hint about the new snapshots.
+            m_HasNewSnapshots = false;
+
+            PrintFramesList( m_pSnapshots, SnapshotFrameIndexFlag );
+
+            if( m_pSnapshots.empty() )
+            {
+                ImGui::TextUnformatted( "No data snapshots captured" );
+            }
+        }
+
+        ImGui::End();
+
+        // m_pData may be temporarily replaced by another frame to correctly scroll to its node.
+        // Save pointer to the current frame to restore it later.
+        std::shared_ptr<DeviceProfilerFrameData> pCurrentFrameData = m_pData;
+
         // Force frame browser open
         if( m_ScrollToSelectedFrameBrowserNode )
         {
             ImGui::SetNextItemOpen( true );
+
+            // Update frame index when scrolling to a node from a different frame
+            m_SelectedFrameIndex = m_SelectedFrameBrowserNodeIndex.GetFrameIndex();
+            uint32_t frameIndex = ( m_SelectedFrameIndex & FrameIndexMask );
+
+            // Temporarily replace pointer to the current frame data
+            const FrameDataList& framesList = GetActiveFramesList();
+            const size_t frameIndexMax = framesList.size() - 1;
+            m_pData = GetNthElement( framesList, frameIndexMax - frameIndex );
         }
 
         // Frame browser
@@ -967,16 +1382,16 @@ namespace Profiler
                     Lang::DurationDescending,
                     Lang::DurationAscending };
 
-                const char* selectedOption = sortOptions[ (size_t)m_FrameBrowserSortMode ];
+                const char* selectedOption = sortOptions[(size_t)m_FrameBrowserSortMode];
 
                 ImGui::Text( Lang::Sort );
                 ImGui::SameLine();
 
                 if( ImGui::BeginCombo( "##FrameBrowserSortMode", selectedOption ) )
                 {
-                    for( size_t i = 0; i < std::extent_v<decltype(sortOptions)>; ++i )
+                    for( size_t i = 0; i < std::extent_v<decltype( sortOptions )>; ++i )
                     {
-                        if( ImGuiX::TSelectable( sortOptions[ i ], selectedOption, sortOptions[ i ] ) )
+                        if( ImGuiX::TSelectable( sortOptions[i], selectedOption, sortOptions[i] ) )
                         {
                             // Selection changed
                             m_FrameBrowserSortMode = FrameBrowserSortMode( i );
@@ -988,6 +1403,11 @@ namespace Profiler
             }
 
             FrameBrowserTreeNodeIndex index;
+            index.SetFrameIndex( m_SelectedFrameIndex );
+
+            ImGui::Text( "%s #%u", m_pFrameStr, m_pData->m_CPU.m_FrameIndex );
+            PrintDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
+
             index.emplace_back( 0 );
 
             // Enumerate submits in frame
@@ -1003,7 +1423,7 @@ namespace Profiler
                 const char* indexStr = GetFrameBrowserNodeIndexStr( index );
                 if( ImGui::TreeNode( indexStr, "vkQueueSubmit(%s, %u)",
                         queueName.c_str(),
-                        static_cast<uint32_t>(submitBatch.m_Submits.size()) ) )
+                        static_cast<uint32_t>( submitBatch.m_Submits.size() ) ) )
                 {
                     index.emplace_back( 0 );
 
@@ -1016,10 +1436,10 @@ namespace Profiler
 
                         const char* indexStr = GetFrameBrowserNodeIndexStr( index );
                         const bool inSubmitSubtree =
-                            (submitBatch.m_Submits.size() > 1) &&
-                            (ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.back() ));
+                            ( submitBatch.m_Submits.size() > 1 ) &&
+                            ( ImGui::TreeNode( indexStr, "VkSubmitInfo #%u", index.back() ) );
 
-                        if( (inSubmitSubtree) || (submitBatch.m_Submits.size() == 1) )
+                        if( ( inSubmitSubtree ) || ( submitBatch.m_Submits.size() == 1 ) )
                         {
                             index.emplace_back( 0 );
 
@@ -1060,6 +1480,122 @@ namespace Profiler
         ImGui::End();
 
         m_ScrollToSelectedFrameBrowserNode = false;
+        m_pData = std::move( pCurrentFrameData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateQueueUtilizationTab
+
+    Description:
+        Updates "Queue utilization" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintFramesList(const FrameDataList& framesList, uint32_t frameIndexFlags)
+    {
+        if( framesList.empty() )
+        {
+            return;
+        }
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        uint32_t frameIndex = MakeFrameIndex( framesList.size() - 1, frameIndexFlags );
+
+        for( auto frameIt = framesList.begin(); frameIt != framesList.end(); )
+        {
+            // If the container was modified during the iteration, the iterator must not be incremented.
+            bool incrementIteratorAtEnd = true;
+
+            std::shared_ptr<DeviceProfilerFrameData> pFrame = *frameIt;
+            std::string frameName = fmt::format(
+                "{} #{} ({:.2f} {})###Selectable_frame_{}",
+                m_pFrameStr,
+                pFrame->m_CPU.m_FrameIndex,
+                GetDuration( 0, pFrame->m_Ticks ),
+                m_pTimestampDisplayUnitStr,
+                frameIndex );
+
+            bool selected = ( frameIndex == m_SelectedFrameIndex );
+            if( ImGui::Selectable( frameName.c_str(), &selected, ImGuiSelectableFlags_SpanAvailWidth | ImGuiSelectableFlags_AllowOverlap ) )
+            {
+                m_SelectedFrameIndex = frameIndex;
+            }
+
+            const float buttonWidth = 12.f * interfaceScale;
+            const ImVec2 buttonSize = { buttonWidth, buttonWidth };
+
+            ImGui::SameLine( ImGui::GetContentRegionAvail().x - buttonSize.x );
+            ImGui::PushStyleColor( ImGuiCol_Button, { 0.0f, 0.0f, 0.0f, 0.0f } );
+
+            std::string snapshotButtonId = fmt::format( "##SnapshotButton_{}", frameIndex );
+
+            auto snapshotIt = std::find( m_pSnapshots.begin(), m_pSnapshots.end(), pFrame );
+            if( snapshotIt == m_pSnapshots.end() )
+            {
+                // Add a button to save the frame snapshot.
+                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetIcon( OverlayIcon::BookmarkEmpty ), buttonSize ) )
+                {
+                    auto snapshotItRev = m_pSnapshots.rbegin();
+                    while( snapshotItRev != m_pSnapshots.rend() )
+                    {
+                        if( ( *snapshotItRev )->m_CPU.m_FrameIndex < pFrame->m_CPU.m_FrameIndex )
+                        {
+                            break;
+                        }
+                        snapshotItRev++;
+                    }
+
+                    m_pSnapshots.insert( snapshotItRev.base(), pFrame );
+                    m_HasNewSnapshots = true;
+                }
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Save data snapshot" );
+                }
+            }
+            else
+            {
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, { 0.8f, 0.2f, 0.2f, 1.0f } );
+
+                // Add a button to remove the frame snapshot.
+                if( ImGui::ImageButton( snapshotButtonId.c_str(), m_Resources.GetIcon( OverlayIcon::BookmarkFilled ), buttonSize ) )
+                {
+                    snapshotIt = m_pSnapshots.erase( snapshotIt );
+
+                    if( &framesList == &m_pSnapshots )
+                    {
+                        // The frame was removed from ths current list and erase returned the next iterator.
+                        // Skip incrementation in this iteration.
+                        frameIt = snapshotIt;
+                        incrementIteratorAtEnd = false;
+                    }
+
+                    if( ( m_SelectedFrameIndex & SnapshotFrameIndexFlag ) && m_pSnapshots.empty() )
+                    {
+                        // Select current frame if last snapshot was removed and was currently viewed.
+                        m_SelectedFrameIndex = 0;
+                    }
+                }
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Delete data snapshot" );
+                }
+
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::PopStyleColor();
+
+            // Move to the next frame if the current one was not removed.
+            if( incrementIteratorAtEnd )
+            {
+                frameIt++;
+                frameIndex--;
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -1078,11 +1614,17 @@ namespace Profiler
         ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, { 1, 1 } );
         ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
 
+        // Select first and last frame for queue utilization calculation.
+        const bool showActiveFrame = GetShowActiveFrame();
+        const FrameDataList& framesList = GetActiveFramesList();
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = showActiveFrame ? m_pData : framesList.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = showActiveFrame ? m_pData : framesList.back();
+
         // m_FrameTime is active time, queue utilization calculation should take idle time into account as well.
-        const float frameDuration = GetDuration( m_pData->m_BeginTimestamp, m_pData->m_EndTimestamp );
+        const float frameDuration = GetDuration( pFirstFrame->m_BeginTimestamp, pLastFrame->m_EndTimestamp );
 
         std::vector<QueueGraphColumn> queueGraphColumns;
-        for( const auto& [_, queue] : m_pFrontend->GetDeviceQueues() )
+        for( const auto& [_, queue] : m_Frontend.GetDeviceQueues() )
         {
             // Enumerate columns for command queue activity graph.
             queueGraphColumns.clear();
@@ -1104,7 +1646,6 @@ namespace Profiler
                     queueUtilization * 100.f / frameDuration );
 
                 ImGui::PushItemWidth( -1 );
-                ImGui::SetCursorPosY( ImGui::GetCursorPosY() - 3 * interfaceScale );
                 ImGuiX::PlotHistogramEx(
                     queueGraphId,
                     queueGraphColumns.data(),
@@ -1112,22 +1653,159 @@ namespace Profiler
                     0,
                     sizeof( queueGraphColumns.front() ),
                     "", 0, FLT_MAX, { 0, 8 * interfaceScale },
-                    ImGuiX::HistogramFlags_NoHover |
-                        ImGuiX::HistogramFlags_NoScale );
-
-                if( ImGui::IsItemHovered() )
-                {
-                    ImGui::BeginTooltip();
-                    ImGui::Text( "%s", queueName.c_str() );
-                    ImGui::Text( "%s", m_pStringSerializer->GetQueueFlagNames( queue.Flags ).c_str() );
-                    ImGui::EndTooltip();
-                }
+                    ImGuiX::HistogramFlags_NoScale,
+                    std::bind( &ProfilerOverlayOutput::DrawQueueGraphLabel, this, std::placeholders::_1 ),
+                    std::bind( &ProfilerOverlayOutput::SelectQueueGraphColumn, this, std::placeholders::_1 ) );
             }
         }
 
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawQueueGraphLabel
+
+    Description:
+        Show a tooltip with queue submit description.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawQueueGraphLabel( const ImGuiX::HistogramColumnData& data )
+    {
+        const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
+
+        switch( column.userDataType )
+        {
+        case QueueGraphColumn::eIdle:
+        {
+            ImGui::SetTooltip( "Idle\n%.2f %s", column.x, m_pTimestampDisplayUnitStr );
+            break;
+        }
+        case QueueGraphColumn::eCommandBuffer:
+        {
+            const DeviceProfilerCommandBufferData& commandBufferData =
+                *reinterpret_cast<const DeviceProfilerCommandBufferData*>( column.userData );
+
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::Text( "%s\n%.2f %s",
+                    m_pStringSerializer->GetName( commandBufferData.m_Handle ).c_str(),
+                    column.x,
+                    m_pTimestampDisplayUnitStr );
+
+                ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
+                ImGui::TextUnformatted( "Click to show in Frame Browser" );
+                ImGui::PopStyleColor();
+
+                ImGui::EndTooltip();
+            }
+            break;
+        }
+        case QueueGraphColumn::eSignalSemaphores:
+        {
+            const std::vector<VkSemaphore>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::Text( "Signal semaphores:" );
+
+                ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
+                for( VkSemaphore semaphore : semaphores )
+                {
+                    ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
+                }
+                ImGui::PopStyleVar();
+                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+
+                ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
+                ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
+                ImGui::PopStyleColor();
+
+                ImGui::EndTooltip();
+            }
+            break;
+        }
+        case QueueGraphColumn::eWaitSemaphores:
+        {
+            const std::vector<VkSemaphore>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+
+            if( ImGui::BeginTooltip() )
+            {
+                ImGui::Text( "Wait semaphores:" );
+
+                ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
+                for( VkSemaphore semaphore : semaphores )
+                {
+                    ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
+                }
+                ImGui::PopStyleVar();
+                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+
+                ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
+                ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
+                ImGui::PopStyleColor();
+
+                ImGui::EndTooltip();
+            }
+            break;
+        }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SelectQueueGraphColumn
+
+    Description:
+        Select a queue graph column and scroll to it in the frame browser.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SelectQueueGraphColumn( const ImGuiX::HistogramColumnData& data )
+    {
+        const QueueGraphColumn& column = static_cast<const QueueGraphColumn&>( data );
+
+        switch( column.userDataType )
+        {
+        case QueueGraphColumn::eCommandBuffer:
+        {
+            m_SelectedFrameBrowserNodeIndex = column.nodeIndex;
+            m_ScrollToSelectedFrameBrowserNode = true;
+
+            m_SelectionUpdateTimestamp = std::chrono::high_resolution_clock::now();
+            break;
+        }
+        case QueueGraphColumn::eSignalSemaphores:
+        case QueueGraphColumn::eWaitSemaphores:
+        {
+            const std::vector<VkSemaphore>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+
+            // Unselect the semaphores if they are already selected.
+            bool unselect = false;
+            for( VkSemaphore semaphore : semaphores )
+            {
+                if( m_SelectedSemaphores.count( semaphore ) )
+                {
+                    unselect = true;
+                    break;
+                }
+            }
+
+            m_SelectedSemaphores.clear();
+
+            if( !unselect )
+            {
+                m_SelectedSemaphores.insert( semaphores.begin(), semaphores.end() );
+            }
+            break;
+        }
+        }
     }
 
     /***********************************************************************************\
@@ -1189,7 +1867,8 @@ namespace Profiler
             m_ReferenceTopPipelines.clear();
 
             const uint32_t frameIndex = m_pData->m_CPU.m_FrameIndex;
-            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", Lang::Frame, frameIndex );
+            m_ReferenceTopPipelinesShortDescription = fmt::format( "{} #{}", m_pFrameStr, frameIndex );
+            m_ReferenceTopPipelinesFullDescription.clear();
 
             for( const DeviceProfilerPipelineData& pipeline : m_pData->m_TopPipelines )
             {
@@ -1424,265 +2103,386 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
     {
-        // Vendor-specific
-        if( !m_pData->m_VendorMetrics.empty() )
+        const bool supportsCustomMetricsSets = m_Frontend.SupportsCustomPerformanceMetricsSets();
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+        bool performanceQueryResultsFiltered = false;
+        constexpr auto regexFilterFlags =
+            std::regex::ECMAScript | std::regex::icase | std::regex::optimize;
+
+        auto UpdateEditorMetricsFilterResultsWithRegex = [&]( const std::regex& regex )
         {
-            std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
+            m_PerformanceQueryEditorCounterVisibileIndices.clear();
 
-            // Data source
-            const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_VendorMetrics;
+            const size_t metricsCount = m_PerformanceQueryEditorCounterProperties.size();
+            const auto* pMetrics = m_PerformanceQueryEditorCounterProperties.data();
 
-            bool performanceQueryResultsFiltered = false;
-            auto regexFilterFlags =
-                std::regex::ECMAScript | std::regex::icase | std::regex::optimize;
-
-            auto UpdateActiveMetricsVisiblityWithRegex = [&]( const std::regex& regex ) {
-                const VendorMetricsSet& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
-                assert( activeMetricsSet.m_Metrics.size() == m_ActiveMetricsVisibility.size() );
-
-                for( size_t metricIndex = 0; metricIndex < m_ActiveMetricsVisibility.size(); ++metricIndex )
-                {
-                    const auto& metric = activeMetricsSet.m_Metrics[ metricIndex ];
-                    m_ActiveMetricsVisibility[ metricIndex ] =
-                        std::regex_search( metric.shortName, regex );
-                }
-            };
-
-            auto UpdateActiveMetricsVisiblity = [&]() {
-                try
-                {
-                    // Try to compile the regex filter.
-                    UpdateActiveMetricsVisiblityWithRegex(
-                        std::regex( m_VendorMetricFilter, regexFilterFlags ) );
-                }
-                catch( ... )
-                {
-                    // Regex compilation failed, don't change the visibility of the metrics.
-                }
-            };
-
-            // Find the first command buffer that matches the filter.
-            // TODO: Aggregation.
-            for( const auto& submitBatch : m_pData->m_Submits )
+            for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
             {
-                for( const auto& submit : submitBatch.m_Submits )
+                if( std::regex_search( pMetrics[metricIndex].shortName, regex ) )
                 {
-                    for( const auto& commandBuffer : submit.m_CommandBuffers )
+                    m_PerformanceQueryEditorCounterVisibileIndices.push_back( metricIndex );
+                }
+            }
+        };
+
+        auto UpdateActiveMetricsFilterResultsWithRegex = [&]( const std::regex& regex )
+        {
+            if( m_pActivePerformanceQueryMetricsSet )
+            {
+                assert( m_ActivePerformanceQueryMetricsFilterResults.size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() );
+
+                const size_t metricsCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
+                const auto* pMetrics = m_pActivePerformanceQueryMetricsSet->m_Metrics.data();
+
+                for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
+                {
+                    m_ActivePerformanceQueryMetricsFilterResults[metricIndex] =
+                        std::regex_search( pMetrics[metricIndex].shortName, regex );
+                }
+            }
+        };
+
+        auto UpdateActiveMetricsFilterResults = [&]()
+        {
+            try
+            {
+                // Try to compile the regex filter.
+                UpdateActiveMetricsFilterResultsWithRegex(
+                    std::regex( m_PerformanceQueryMetricsFilter, regexFilterFlags ) );
+            }
+            catch( ... )
+            {
+                // Regex compilation failed, don't change the visibility of the metrics.
+            }
+        };
+
+        auto UpdateMetricsSetFilterResultsWithRegex = [&]( const std::regex& regex, const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+        {
+            pMetricsSet->m_FilterResult = false;
+
+            // Match by metrics set name.
+            if( std::regex_search( pMetricsSet->m_Properties.name, regex ) )
+            {
+                pMetricsSet->m_FilterResult = true;
+                return;
+            }
+
+            // Match by metric name.
+            for( const auto& metric : pMetricsSet->m_Metrics )
+            {
+                if( std::regex_search( metric.shortName, regex ) )
+                {
+                    pMetricsSet->m_FilterResult = true;
+                    return;
+                }
+            }
+        };
+
+        auto UpdateMetricsSetFilterResults = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+        {
+            try
+            {
+                // Try to compile the regex filter.
+                UpdateMetricsSetFilterResultsWithRegex(
+                    std::regex( m_PerformanceQueryMetricsFilter, regexFilterFlags ),
+                    pMetricsSet );
+            }
+            catch( ... )
+            {
+                // Regex compilation failed, don't change the visibility of the set.
+            }
+        };
+
+        auto UpdateMetricsSetsFilterResults = [&]()
+        {
+            try
+            {
+                // Try to compile the regex filter.
+                const std::regex regexFilter( m_PerformanceQueryMetricsFilter, regexFilterFlags );
+
+                // Enumerate only sets that match the query.
+                for( size_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
+                {
+                    UpdateMetricsSetFilterResultsWithRegex( regexFilter, m_pPerformanceQueryMetricsSets[metricsSetIndex] );
+                }
+
+                // Update visibility of metrics in the active metrics set.
+                UpdateActiveMetricsFilterResultsWithRegex( regexFilter );
+
+                // Update visibility of metrics in the editor.
+                UpdateEditorMetricsFilterResultsWithRegex( regexFilter );
+            }
+            catch( ... )
+            {
+                // Regex compilation failed, don't change the visibility of the sets.
+            }
+        };
+
+        // Data source
+        const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_PerformanceCounters.m_Results;
+
+        // Find the first command buffer that matches the filter.
+        // TODO: Aggregation.
+        std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
+
+        for( const auto& submitBatch : m_pData->m_Submits )
+        {
+            for( const auto& submit : submitBatch.m_Submits )
+            {
+                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                {
+                    if( (performanceQueryResultsFiltered == false) &&
+                        (commandBuffer.m_Handle != VK_NULL_HANDLE) &&
+                        (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
                     {
-                        if( (performanceQueryResultsFiltered == false) &&
-                            (commandBuffer.m_Handle != VK_NULL_HANDLE) &&
-                            (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
-                        {
-                            // Use the data from this command buffer.
-                            pVendorMetrics = &commandBuffer.m_PerformanceQueryResults;
-                            performanceQueryResultsFiltered = true;
-                        }
-
-                        uniqueCommandBuffers.insert( commandBuffer.m_Handle );
-                    }
-                }
-            }
-
-            const float interfaceScale = ImGui::GetIO().FontGlobalScale;
-
-            // Toolbar with save and load options.
-            ImGui::BeginDisabled( m_pPerformanceCounterExporter != nullptr || pVendorMetrics->empty() );
-            if( ImGui::Button( Lang::Save ) )
-            {
-                m_pPerformanceCounterExporter = std::make_unique<PerformanceCounterExporter>();
-                m_pPerformanceCounterExporter->m_Data = *pVendorMetrics;
-                m_pPerformanceCounterExporter->m_DataMask = m_ActiveMetricsVisibility;
-                m_pPerformanceCounterExporter->m_MetricsSetIndex = m_ActiveMetricsSetIndex;
-                m_pPerformanceCounterExporter->m_Action = PerformanceCounterExporter::Action::eExport;
-            }
-            ImGui::EndDisabled();
-
-            ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
-            ImGui::BeginDisabled( m_pPerformanceCounterExporter != nullptr || pVendorMetrics->empty() );
-            if( ImGui::Button( Lang::Load ) )
-            {
-                m_pPerformanceCounterExporter = std::make_unique<PerformanceCounterExporter>();
-                m_pPerformanceCounterExporter->m_Action = PerformanceCounterExporter::Action::eImport;
-            }
-            ImGui::EndDisabled();
-
-            ImGui::SameLine();
-            ImGui::BeginDisabled( pVendorMetrics->empty() );
-            if( ImGui::Button( Lang::SetRef ) )
-            {
-                m_ReferencePerformanceCounters.clear();
-
-                const auto& activeMetricsSet = m_VendorMetricsSets[m_ActiveMetricsSetIndex];
-                if( pVendorMetrics->size() == activeMetricsSet.m_Metrics.size() )
-                {
-                    for( size_t i = 0; i < pVendorMetrics->size(); ++i )
-                    {
-                        m_ReferencePerformanceCounters.try_emplace( activeMetricsSet.m_Metrics[i].shortName, ( *pVendorMetrics )[i] );
-                    }
-                }
-            }
-            ImGui::EndDisabled();
-
-            ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
-            ImGui::BeginDisabled( pVendorMetrics->empty() || m_ReferencePerformanceCounters.empty() );
-            if( ImGui::Button( Lang::ClearRef ) )
-            {
-                m_ReferencePerformanceCounters.clear();
-            }
-            ImGui::EndDisabled();
-
-            // Show a search box for filtering metrics sets to find specific metrics.
-            ImGui::SameLine();
-            ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
-            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", m_VendorMetricFilter, std::extent_v<decltype( m_VendorMetricFilter )> ) )
-            {
-                try
-                {
-                    // Text changed, construct a regex from the string and find the matching metrics sets.
-                    std::regex regexFilter( m_VendorMetricFilter, regexFilterFlags );
-
-                    // Enumerate only sets that match the query.
-                    for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
-                    {
-                        const auto& metricsSet = m_VendorMetricsSets[metricsSetIndex];
-
-                        m_VendorMetricsSetVisibility[metricsSetIndex] = false;
-
-                        // Match by metrics set name.
-                        if( std::regex_search( metricsSet.m_Properties.name, regexFilter ) )
-                        {
-                            m_VendorMetricsSetVisibility[metricsSetIndex] = true;
-                            continue;
-                        }
-
-                        // Match by metric name.
-                        for( const auto& metric : metricsSet.m_Metrics )
-                        {
-                            if( std::regex_search( metric.shortName, regexFilter ) )
-                            {
-                                m_VendorMetricsSetVisibility[metricsSetIndex] = true;
-                                break;
-                            }
-                        }
+                        // Use the data from this command buffer.
+                        pVendorMetrics = &commandBuffer.m_PerformanceCounters.m_Results;
+                        performanceQueryResultsFiltered = true;
                     }
 
-                    // Update visibility of metrics in the active metrics set.
-                    UpdateActiveMetricsVisiblityWithRegex( regexFilter );
-                }
-                catch( ... )
-                {
-                    // Regex compilation failed, don't change the visibility of the sets.
+                    uniqueCommandBuffers.insert( commandBuffer.m_Handle );
                 }
             }
+        }
 
-            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+        // Toolbar with save and load options.
+        ImGui::BeginDisabled( m_pPerformanceQueryExporter != nullptr || !m_pActivePerformanceQueryMetricsSet || pVendorMetrics->empty() );
+        if( ImGui::Button( Lang::Save ) )
+        {
+            m_pPerformanceQueryExporter = std::make_unique<PerformanceQueryExporter>();
+            m_pPerformanceQueryExporter->m_Data = *pVendorMetrics;
+            m_pPerformanceQueryExporter->m_DataMask = m_ActivePerformanceQueryMetricsFilterResults;
+            m_pPerformanceQueryExporter->m_pMetricsSet = m_pActivePerformanceQueryMetricsSet;
+            m_pPerformanceQueryExporter->m_Action = PerformanceQueryExporter::Action::eExport;
+        }
+        ImGui::EndDisabled();
 
-            // Show a combo box that allows the user to select the filter the profiled range.
-            ImGui::TextUnformatted( Lang::PerformanceCountersRange );
-            ImGui::SameLine( 100.f * interfaceScale );
-            ImGui::PushItemWidth( -1 );
-            if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
+        ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+        ImGui::BeginDisabled( m_pPerformanceQueryExporter != nullptr );
+        if( ImGui::Button( Lang::Load ) )
+        {
+            m_pPerformanceQueryExporter = std::make_unique<PerformanceQueryExporter>();
+            m_pPerformanceQueryExporter->m_Action = PerformanceQueryExporter::Action::eImport;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet || pVendorMetrics->empty() );
+        if( ImGui::Button( Lang::SetRef ) )
+        {
+            m_ReferencePerformanceQueryData.clear();
+
+            if( pVendorMetrics->size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() )
             {
-                if( ImGuiX::TSelectable( Lang::Frame, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+                for( size_t i = 0; i < pVendorMetrics->size(); ++i )
+                {
+                    m_ReferencePerformanceQueryData.try_emplace(
+                        m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName,
+                        ( *pVendorMetrics )[i] );
+                }
+            }
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine( 0.0f, 1.5f * interfaceScale );
+        ImGui::BeginDisabled( m_ReferencePerformanceQueryData.empty() );
+        if( ImGui::Button( Lang::ClearRef ) )
+        {
+            m_ReferencePerformanceQueryData.clear();
+        }
+        ImGui::EndDisabled();
+
+        // Show a search box for filtering metrics sets to find specific metrics.
+        ImGui::SameLine();
+        ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
+        if( ImGui::InputText( "##PerformanceQueryMetricsFilter", &m_PerformanceQueryMetricsFilter ) )
+        {
+            UpdateMetricsSetsFilterResults();
+        }
+
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+
+        // Show a combo box that allows the user to select the filter the profiled range.
+        ImGui::TextUnformatted( Lang::PerformanceCountersRange );
+        ImGui::SameLine( 100.f * interfaceScale );
+        ImGui::PushItemWidth( -1 );
+        if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
+        {
+            if( ImGuiX::TSelectable( m_pFrameStr, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+            {
+                // Selection changed.
+                m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
+            }
+
+            // Enumerate command buffers.
+            for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
+            {
+                std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
+
+                if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
                 {
                     // Selection changed.
-                    m_PerformanceQueryCommandBufferFilterName = Lang::Frame;
+                    m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        // Show a combo box that allows the user to change the active metrics set.
+        ImGui::TextUnformatted( Lang::PerformanceCountersSet );
+        ImGui::SameLine( 100.f * interfaceScale );
+        ImGui::PushItemWidth( -1 );
+
+        const char* pActiveMetricsSetName = "None";
+        if( m_pActivePerformanceQueryMetricsSet )
+        {
+            pActiveMetricsSetName = m_pActivePerformanceQueryMetricsSet->m_Properties.name;
+        }
+
+        auto PerformanceMetricsSetTooltip = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+        {
+            if( ( pMetricsSet &&
+                    pMetricsSet->m_Properties.description[0] ) &&
+                ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            {
+                ImGui::BeginTooltip();
+                ImGui::PushTextWrapPos( 350.f * interfaceScale );
+                ImGui::TextUnformatted( pMetricsSet->m_Properties.description );
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
+            }
+        };
+
+        if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", pActiveMetricsSetName ) )
+        {
+            // Enumerate metrics sets.
+            for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
+            {
+                std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = m_pPerformanceQueryMetricsSets[metricsSetIndex];
+
+                if( !pMetricsSet->m_FilterResult )
+                {
+                    continue;
                 }
 
-                // Enumerate command buffers.
-                for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
+                if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
                 {
-                    std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
-
-                    if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
+                    // Notify the profiler.
+                    if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
                     {
-                        // Selection changed.
-                        m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
+                        // Refresh the performance metric properties.
+                        m_pActivePerformanceQueryMetricsSet = pMetricsSet;
+                        m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
+                        UpdateActiveMetricsFilterResults();
                     }
                 }
 
-                ImGui::EndCombo();
+                PerformanceMetricsSetTooltip( pMetricsSet );
             }
 
-            // Show a combo box that allows the user to change the active metrics set.
-            ImGui::TextUnformatted( Lang::PerformanceCountersSet );
-            ImGui::SameLine( 100.f * interfaceScale );
-            ImGui::PushItemWidth( -1 );
-            if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.name ) )
-            {
-                // Enumerate metrics sets.
-                for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_VendorMetricsSets.size(); ++metricsSetIndex )
-                {
-                    if( m_VendorMetricsSetVisibility[ metricsSetIndex ] )
-                    {
-                        const auto& metricsSet = m_VendorMetricsSets[ metricsSetIndex ];
+            ImGui::EndCombo();
+        }
 
-                        if( ImGuiX::Selectable( metricsSet.m_Properties.name, (m_ActiveMetricsSetIndex == metricsSetIndex) ) )
+        PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
+
+        // Setup performance counters table.
+        constexpr ImGuiTableFlags tableFlags =
+            ImGuiTableFlags_NoClip |
+            ( ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV );
+
+        auto PerformanceMetricTooltip = [&]( const VkProfilerPerformanceCounterProperties2EXT& metricProperties, bool available, bool selected )
+        {
+            if( ( supportsCustomMetricsSets ||
+                    metricProperties.description[0] ) &&
+                ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            {
+                ImGui::BeginTooltip();
+                ImGui::PushTextWrapPos( 350.f * interfaceScale );
+
+                if( metricProperties.description[0] )
+                {
+                    ImGui::TextUnformatted( metricProperties.description );
+                }
+
+                if( supportsCustomMetricsSets )
+                {
+                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 160, 160, 160, 255 ) );
+
+                    if( available )
+                    {
+                        if( !selected )
                         {
-                            // Notify the profiler.
-                            if( m_pFrontend->SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
-                            {
-                                // Refresh the performance metric properties.
-                                m_ActiveMetricsSetIndex = metricsSetIndex;
-                                m_ActiveMetricsVisibility.resize( m_VendorMetricsSets[ m_ActiveMetricsSetIndex ].m_Properties.metricsCount, true );
-                                UpdateActiveMetricsVisiblity();
-                            }
+                            ImGui::TextUnformatted( "Click to add this metric to the set." );
+                        }
+                        else
+                        {
+                            ImGui::TextUnformatted( "Click to remove this metric from the set." );
                         }
                     }
+                    else
+                    {
+                        ImGui::TextUnformatted( "This metric cannot be enabled in this set because it would require multiple query passes." );
+                    }
+
+                    ImGui::PopStyleColor();
                 }
 
-                ImGui::EndCombo();
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
             }
+        };
 
-            if( pVendorMetrics->empty() )
+        if( ImGui::BeginTable( "Performance counters table", 5, tableFlags ) )
+        {
+            // Headers
+            ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
+            ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+            ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
+            ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+            ImGui::TableHeadersRow();
+
+            if( m_pActivePerformanceQueryMetricsSet &&
+                pVendorMetrics &&
+                pVendorMetrics->size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() )
             {
-                // Vendor metrics not available.
-                ImGui::TextUnformatted( Lang::PerformanceCountersNotAvailableForCommandBuffer );
-            }
-
-            const auto& activeMetricsSet = m_VendorMetricsSets[ m_ActiveMetricsSetIndex ];
-            if( pVendorMetrics->size() == activeMetricsSet.m_Metrics.size() )
-            {
-                const auto& vendorMetrics = *pVendorMetrics;
-
-                ImGui::BeginTable( "Performance counters table",
-                    /* columns_count */ 5,
-                    ImGuiTableFlags_NoClip |
-                    (ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV) );
-
-                // Headers
-                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
-                ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
-                ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
-                ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
-                ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableHeadersRow();
-
-                for( uint32_t i = 0; i < vendorMetrics.size(); ++i )
+                for( uint32_t i = 0; i < pVendorMetrics->size(); ++i )
                 {
-                    const VkProfilerPerformanceCounterResultEXT& metric = vendorMetrics[ i ];
-                    const VkProfilerPerformanceCounterPropertiesEXT& metricProperties = activeMetricsSet.m_Metrics[ i ];
+                    const VkProfilerPerformanceCounterResultEXT& metric = ( *pVendorMetrics )[i];
+                    const VkProfilerPerformanceCounterProperties2EXT& metricProperties = m_pActivePerformanceQueryMetricsSet->m_Metrics[i];
 
-                    if( !m_ActiveMetricsVisibility[ i ] )
+                    if( !m_ActivePerformanceQueryMetricsFilterResults[i] )
                     {
                         continue;
                     }
 
                     ImGui::TableNextColumn();
                     {
-                        ImGui::Text( "%s", metricProperties.shortName );
-
-                        if( ImGui::IsItemHovered() &&
-                            metricProperties.description[ 0 ] )
+                        if( supportsCustomMetricsSets )
                         {
-                            ImGui::BeginTooltip();
-                            ImGui::PushTextWrapPos( 350.f * interfaceScale );
-                            ImGui::TextUnformatted( metricProperties.description );
-                            ImGui::PopTextWrapPos();
-                            ImGui::EndTooltip();
+                            ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
+
+                            bool selected = true;
+                            if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
+                            {
+                                const uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metricProperties.uuid );
+                                assert( counterIndex != UINT32_MAX );
+
+                                SetPerformanceQueryEditorCounterSelected( counterIndex, selected );
+                            }
+
+                            ImGui::PopStyleVar();
                         }
+                        else
+                        {
+                            ImGui::TextUnformatted( metricProperties.shortName );
+                        }
+
+                        PerformanceMetricTooltip( metricProperties, true, true );
                     }
 
                     float delta = 0.0f;
@@ -1690,32 +2490,32 @@ namespace Profiler
 
                     ImGui::TableNextColumn();
                     {
-                        auto it = m_ReferencePerformanceCounters.find( metricProperties.shortName );
-                        if( it != m_ReferencePerformanceCounters.end() )
+                        auto it = m_ReferencePerformanceQueryData.find( metricProperties.shortName );
+                        if( it != m_ReferencePerformanceQueryData.end() )
                         {
                             const float columnWidth = ImGuiX::TableGetColumnWidth();
                             switch( metricProperties.storage )
                             {
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%d", it->second.int32 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, it->second.int32 );
                                 delta = CalcPerformanceCounterDelta( it->second.int32, metric.int32 );
                                 deltaValid = true;
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%lld", it->second.int64 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, it->second.int64 );
                                 delta = CalcPerformanceCounterDelta( it->second.int64, metric.int64 );
                                 deltaValid = true;
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%u", it->second.uint32 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, it->second.uint32 );
                                 delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
                                 deltaValid = true;
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%llu", it->second.uint64 );
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, it->second.uint64 );
                                 delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
                                 deltaValid = true;
                                 break;
@@ -1750,19 +2550,19 @@ namespace Profiler
                         switch( metricProperties.storage )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%d", metric.int32 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, metric.int32 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%lld", metric.int64 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, metric.int64 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%u", metric.uint32 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, metric.uint32 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%llu", metric.uint64 );
+                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, metric.uint64 );
                             break;
 
                         case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
@@ -1779,8 +2579,7 @@ namespace Profiler
                     {
                         const char* pUnitString = "???";
 
-                        static const char* const ppUnitString[ 11 ] =
-                        {
+                        static const char* const ppUnitString[11] = {
                             "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
                             "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
                             "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
@@ -1794,21 +2593,219 @@ namespace Profiler
                             "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
                         };
 
-                        if( (metricProperties.unit >= 0) && (metricProperties.unit < 11) )
+                        if( ( metricProperties.unit >= 0 ) && ( metricProperties.unit < 11 ) )
                         {
-                            pUnitString = ppUnitString[ metricProperties.unit ];
+                            pUnitString = ppUnitString[metricProperties.unit];
                         }
 
                         ImGui::TextUnformatted( pUnitString );
+                    }
+                }
+            }
+
+            ImGui::EndTable();
+        }
+
+        // Provide controls to manage custom performance counters sets.
+        if( supportsCustomMetricsSets )
+        {
+            if( ImGui::BeginTable( "##Performance counters editor table", 1, tableFlags ) )
+            {
+                ImGuiListClipper clipper;
+                clipper.Begin( static_cast<int>( m_PerformanceQueryEditorCounterVisibileIndices.size() ) );
+
+                std::vector<uint32_t> unknownCountersAvailability;
+
+                while( clipper.Step() )
+                {
+                    for( uint32_t i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i )
+                    {
+                        const uint32_t counterIndex = m_PerformanceQueryEditorCounterVisibileIndices[i];
+                        const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
+
+                        bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
+                        bool selected = Contains( m_PerformanceQueryEditorCounterIndices, counterIndex );
+
+                        if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
+                            ( unknownCountersAvailability.size() < 10 ) )
+                        {
+                            unknownCountersAvailability.push_back( counterIndex );
+                        }
+
+                        ImGui::TableNextColumn();
+                        ImGui::BeginDisabled( !available );
+                        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
+
+                        if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
+                        {
+                            SetPerformanceQueryEditorCounterSelected( counterIndex, selected );
+                        }
+
+                        ImGui::PopStyleVar();
+                        ImGui::EndDisabled();
+
+                        PerformanceMetricTooltip( metricProperties, available, selected );
+                    }
+                }
+
+                if( !unknownCountersAvailability.empty() )
+                {
+                    for( uint32_t counterIndex : unknownCountersAvailability )
+                    {
+                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = false;
+                        m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
+                    }
+
+                    uint32_t unknownCounterCount = static_cast<uint32_t>( unknownCountersAvailability.size() );
+
+                    m_Frontend.GetAvailablePerformanceCounters(
+                        static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() ),
+                        m_PerformanceQueryEditorCounterIndices.data(),
+                        unknownCounterCount,
+                        unknownCountersAvailability.data() );
+
+                    // The function returns number of available counters.
+                    unknownCountersAvailability.resize( unknownCounterCount );
+
+                    for( uint32_t counterIndex : unknownCountersAvailability )
+                    {
+                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
                     }
                 }
 
                 ImGui::EndTable();
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FindPerformanceQueryCounterIndexByUUID
+
+    Description:
+
+    \***********************************************************************************/
+    uint32_t ProfilerOverlayOutput::FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const
+    {
+        for( uint32_t counterIndex = 0; counterIndex < m_PerformanceQueryEditorCounterProperties.size(); ++counterIndex )
+        {
+            if( memcmp( m_PerformanceQueryEditorCounterProperties[counterIndex].uuid, uuid, VK_UUID_SIZE ) == 0 )
+            {
+                return counterIndex;
+            }
+        }
+
+        return UINT32_MAX;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetPerformanceQueryEditorCounterSelected
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected )
+    {
+        if( counterIndex >= m_PerformanceQueryEditorCounterProperties.size() )
+        {
+            return;
+        }
+
+        if( selected )
+        {
+            m_PerformanceQueryEditorCounterIndices.push_back( counterIndex );
+        }
         else
         {
-            ImGui::TextUnformatted( Lang::PerformanceCountesrNotAvailable );
+            Erase( m_PerformanceQueryEditorCounterIndices, counterIndex );
+        }
+
+        Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
+
+        RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RefreshPerformanceQueryEditorCountersSet
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::RefreshPerformanceQueryEditorCountersSet( bool countersOnly )
+    {
+        if( m_PerformanceQueryEditorCounterIndices.empty() )
+        {
+            m_pPerformanceQueryEditorSet = nullptr;
+            m_pActivePerformanceQueryMetricsSet = nullptr;
+            m_ActivePerformanceQueryMetricsFilterResults.clear();
+            return;
+        }
+
+        VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
+        createInfo.pName = !countersOnly ? m_PerformanceQueryEditorSetName.c_str() : "Dynamic";
+        createInfo.pDescription = !countersOnly ? m_PerformanceQueryEditorSetDescription.c_str() : "Metrics set created from the selected counters.";
+        createInfo.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
+        createInfo.pMetricsIndices = m_PerformanceQueryEditorCounterIndices.data();
+
+        const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
+        if( metricsSetIndex != UINT32_MAX )
+        {
+            m_pPerformanceQueryEditorSet = std::make_shared<PerformanceQueryMetricsSet>();
+            m_pPerformanceQueryEditorSet->m_MetricsSetIndex = metricsSetIndex;
+            m_pPerformanceQueryEditorSet->m_Metrics.resize( createInfo.metricsCount );
+
+            m_Frontend.GetPerformanceMetricsSetProperties(
+                metricsSetIndex,
+                &m_pPerformanceQueryEditorSet->m_Properties );
+
+            m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                metricsSetIndex,
+                createInfo.metricsCount,
+                m_pPerformanceQueryEditorSet->m_Metrics.data() );
+
+            if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+            {
+                m_pActivePerformanceQueryMetricsSet = m_pPerformanceQueryEditorSet;
+                m_ActivePerformanceQueryMetricsFilterResults.resize( m_pPerformanceQueryEditorSet->m_Metrics.size() );
+
+                Fill( m_ActivePerformanceQueryMetricsFilterResults, true );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateMemoryTab
+
+    Description:
+        Updates "Memory" tab.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::MemoryTabDockSpace( int flags )
+    {
+        bool requiresInitialization = ( ImGui::DockBuilderGetNode( m_MemoryTabDockSpaceId ) == nullptr );
+        ImGui::DockSpace( m_MemoryTabDockSpaceId, ImVec2( 0, 0 ), flags );
+
+        if( requiresInitialization )
+        {
+            ImGui::DockBuilderRemoveNode( m_MemoryTabDockSpaceId );
+            ImGui::DockBuilderAddNode( m_MemoryTabDockSpaceId, ImGuiDockNodeFlags_None );
+            ImGui::DockBuilderSetNodeSize( m_MemoryTabDockSpaceId, ImGui::GetMainViewport()->Size );
+
+            ImGuiID dockMain = m_MemoryTabDockSpaceId;
+            ImGuiID dockLeft;
+            ImGui::DockBuilderSplitNode( dockMain, ImGuiDir_Left, 0.35f, &dockLeft, &dockMain );
+
+            ImGui::DockBuilderDockWindow( Lang::ResourceBrowser, dockLeft );
+            ImGui::DockBuilderDockWindow( Lang::ResourceInspector, dockMain );
+            ImGui::DockBuilderFinish( m_MemoryTabDockSpaceId );
         }
     }
 
@@ -1823,124 +2820,1551 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdateMemoryTab()
     {
-        const VkPhysicalDeviceMemoryProperties& memoryProperties =
-            m_pFrontend->GetPhysicalDeviceMemoryProperties();
-
-        if( ImGui::CollapsingHeader( Lang::MemoryHeapUsage ) )
+        if( !m_Frontend.GetProfilerConfig().m_EnableMemoryProfiling )
         {
+            ImGui::TextUnformatted( "Memory profiling disabled." );
+
+            MemoryTabDockSpace( ImGuiDockNodeFlags_KeepAliveOnly );
+            return;
+        }
+
+        const VkPhysicalDeviceMemoryProperties& memoryProperties =
+            m_Frontend.GetPhysicalDeviceMemoryProperties();
+
+        float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+        // Memory comparator options.
+        enum MemoryComparatorComboBoxFlags
+        {
+            MemoryComparatorComboBoxFlag_Default = 0,
+            MemoryComparatorComboBoxFlag_AllowNone = 1 << 0,
+        };
+
+        constexpr const char pComboBoxItemContext[] = "MemCmBoxIt";
+        constexpr float comboBoxWidth = 160.f;
+
+        auto MemoryComparatorFrameDataComboBoxItems =
+            [&]( const char* pLabel,
+                const FrameDataList& frameDataList,
+                uint32_t frameIndexFlags,
+                uint32_t& currentFrameIndex )
+        {
+            bool changed = false;
+
+            if( !frameDataList.empty() )
+            {
+                uint32_t frameIndex = MakeFrameIndex( frameDataList.size() - 1, frameIndexFlags );
+
+                // Print items header.
+                ImGui::PushFont( m_Resources.GetBoldFont() );
+                ImGui::TextUnformatted( pLabel, ImGui::FindRenderedTextEnd( pLabel ) );
+                ImGui::PopFont();
+
+                // List all available snapshots for comparison.
+                for( const auto& pFrame : frameDataList )
+                {
+                    std::string frameName = GetFrameName( pFrame, pComboBoxItemContext, frameIndex, true );
+
+                    if( ImGuiX::Selectable( frameName.c_str(), currentFrameIndex == frameIndex ) )
+                    {
+                        currentFrameIndex = frameIndex;
+                        changed = true;
+                    }
+
+                    frameIndex--;
+                }
+            }
+
+            return changed;
+        };
+
+        auto MemoryComparatorFrameDataComboBox =
+            [&]( const char* pName,
+                uint32_t& frameIndex,
+                int flags = MemoryComparatorComboBoxFlag_Default )
+        {
+            bool changed = false;
+
+            std::shared_ptr<DeviceProfilerFrameData> pCurrentData = GetFrameData( frameIndex );
+            std::string currentDataName = "None";
+
+            if( frameIndex == CurrentFrameIndex )
+            {
+                currentDataName = "Current frame";
+            }
+            else if( pCurrentData )
+            {
+                currentDataName = GetFrameName( pCurrentData, pComboBoxItemContext, frameIndex );
+            }
+
+            if( ImGuiX::BeginSlimCombo( pName, currentDataName.c_str() ) )
+            {
+                if( flags & MemoryComparatorComboBoxFlag_AllowNone )
+                {
+                    // Empty entry to disable comparison.
+                    if( ImGuiX::Selectable( "None", pCurrentData == nullptr ) )
+                    {
+                        // Clear the reference data.
+                        frameIndex = InvalidFrameIndex;
+                        changed = true;
+                    }
+                }
+
+                // Current frame.
+                if( ImGuiX::Selectable( "Current frame", frameIndex == CurrentFrameIndex ) )
+                {
+                    frameIndex = CurrentFrameIndex;
+                    changed = true;
+                }
+
+                // Frame snapshots.
+                if( MemoryComparatorFrameDataComboBoxItems( Lang::Snapshots, m_pSnapshots, SnapshotFrameIndexFlag, frameIndex ) )
+                {
+                    changed = true;
+                }
+
+                // Current frames.
+                if( MemoryComparatorFrameDataComboBoxItems( m_pFramesStr, m_pFrames, 0, frameIndex ) )
+                {
+                    changed = true;
+                }
+
+                ImGuiX::EndSlimCombo();
+            }
+
+            return changed;
+        };
+
+        MemoryComparatorFrameDataComboBox( "Selected##MemCmBoxSel", m_MemoryCompareSelFrameIndex );
+        m_MemoryComparator.SetComparisonData( GetFrameData( m_MemoryCompareSelFrameIndex ) );
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+
+        MemoryComparatorFrameDataComboBox( "Reference##MemCmBoxRef", m_MemoryCompareRefFrameIndex, MemoryComparatorComboBoxFlag_AllowNone );
+        m_MemoryComparator.SetReferenceData( GetFrameData( m_MemoryCompareRefFrameIndex ) );
+
+        const bool hasComparisonData = m_MemoryComparator.HasValidInput();
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::BeginDisabled( !hasComparisonData );
+        ImGui::Checkbox( "Show differences", &m_ResourceBrowserShowDifferences );
+        ImGui::EndDisabled();
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::Checkbox( "Show graphs", &m_MemoryConsumptionHistoryVisible );
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::Checkbox( "Scroll graphs", &m_MemoryConsumptionHistoryAutoScroll );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        // Set selected frame data.
+        std::shared_ptr<DeviceProfilerFrameData> pRestoreData =
+            std::exchange( m_pData, GetFrameData( m_MemoryCompareSelFrameIndex ) );
+
+        // Compare memory usage in the selected frames and get the results.
+        const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
+
+        auto GetBufferMemoryData = [&]( VkObjectHandle<VkBuffer> buffer )
+        {
+            auto currentBufferData = m_pData->m_Memory.m_Buffers.find( buffer );
+            if( currentBufferData != m_pData->m_Memory.m_Buffers.end() )
+            {
+                return currentBufferData->second;
+            }
+
+            auto freedBufferData = memoryComparisonResults.m_FreedBuffers.find( buffer );
+            if( freedBufferData != memoryComparisonResults.m_FreedBuffers.end() )
+            {
+                return *freedBufferData->second;
+            }
+
+            return DeviceProfilerBufferMemoryData();
+        };
+
+        // Memory usage overview.
+        if( ImGui::BeginTable( "##MemoryHeapsTable", memoryProperties.memoryHeapCount, ImGuiTableFlags_BordersInnerV ) )
+        {
+            constexpr uint32_t maxValueCount = std::max( VK_MAX_MEMORY_HEAPS, VK_MAX_MEMORY_TYPES );
+            uint32_t valueCount = 0;
+            float values[maxValueCount];
+            ImU32 colors[maxValueCount];
+            uint32_t indexes[maxValueCount];
+
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
+                ImGui::TableSetupColumn( nullptr, ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthStretch );
+            }
+
+            ImGui::TableNextRow();
+
+            for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
+            {
+                const int64_t allocationSize = m_pData->m_Memory.m_Heaps[i].m_AllocationSize;
+                const int64_t allocationCount = m_pData->m_Memory.m_Heaps[i].m_AllocationCount;
+                const int64_t budgetSize = m_pData->m_Memory.m_Heaps[i].m_BudgetSize;
+                const int64_t memoryHeapSize = memoryProperties.memoryHeaps[i].size;
+
+                int64_t allocationSizeDifference = 0;
+                int64_t allocationCountDifference = 0;
+
+                if( hasComparisonData )
+                {
+                    allocationSizeDifference = memoryComparisonResults.m_MemoryHeapDifferences[i].m_SizeDifference;
+                    allocationCountDifference = memoryComparisonResults.m_MemoryHeapDifferences[i].m_CountDifference;
+                }
+
+                ImGui::TableNextColumn();
+
+                ImGui::PushFont( m_Resources.GetBoldFont() );
                 ImGui::Text( "%s %u", Lang::MemoryHeap, i );
+                ImGui::PopFont();
 
-                ImGuiX::TextAlignRight( "%u %s", m_pData->m_Memory.m_Heaps[ i ].m_AllocationCount, Lang::Allocations );
+                if( allocationCountDifference )
+                {
+                    ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
+                        "(%+" PRIi64 ") %" PRIi64 " %s",
+                        allocationCountDifference,
+                        allocationCount,
+                        Lang::Allocations );
+                }
+                else
+                {
+                    ImGuiX::TextAlignRight( ImGuiX::TableGetColumnWidth(),
+                        "%" PRIi64 " %s",
+                        allocationCount,
+                        Lang::Allocations );
+                }
 
+                // Plot heap utilization progress bar.
                 float usage = 0.f;
-                char usageStr[ 64 ] = {};
+                float other = 0.f;
+                float unused = 100.f;
+                float difference = 0.f;
+                char usageStr[128] = {};
 
-                if( memoryProperties.memoryHeaps[ i ].size != 0 )
+                if( budgetSize < memoryHeapSize )
                 {
-                    usage = (float)m_pData->m_Memory.m_Heaps[ i ].m_AllocationSize / memoryProperties.memoryHeaps[ i ].size;
-
-                    snprintf( usageStr, sizeof( usageStr ),
-                        "%.2f/%.2f MB (%.1f%%)",
-                        m_pData->m_Memory.m_Heaps[ i ].m_AllocationSize / 1048576.f,
-                        memoryProperties.memoryHeaps[ i ].size / 1048576.f,
-                        usage * 100.f );
+                    other = 100.f * ( memoryHeapSize - budgetSize ) / memoryHeapSize;
+                    unused -= other;
                 }
 
-                ImGui::ProgressBar( usage, { -1, 0 }, usageStr );
-
-                if( ImGui::IsItemHovered() && (memoryProperties.memoryHeaps[ i ].flags != 0) )
+                if( memoryHeapSize != 0 )
                 {
-                    ImGui::BeginTooltip();
+                    usage = 100.f * allocationSize / memoryHeapSize;
 
-                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                    if( allocationSizeDifference )
                     {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT" );
+                        snprintf( usageStr, sizeof( usageStr ),
+                            "(%+.2f) %.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            allocationSizeDifference / 1048576.f,
+                            allocationSize / 1048576.f,
+                            memoryHeapSize / 1048576.f,
+                            usage,
+                            i );
                     }
-
-                    if( memoryProperties.memoryHeaps[ i ].flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
+                    else
                     {
-                        ImGui::TextUnformatted( "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT" );
+                        snprintf( usageStr, sizeof( usageStr ),
+                            "%.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            allocationSize / 1048576.f,
+                            memoryHeapSize / 1048576.f,
+                            usage,
+                            i );
                     }
-
-                    ImGui::EndTooltip();
                 }
 
-                std::vector<float> memoryTypeUsages( memoryProperties.memoryTypeCount );
-                std::vector<std::string> memoryTypeDescriptors( memoryProperties.memoryTypeCount );
+                valueCount = 0;
+
+                if( allocationSizeDifference )
+                {
+                    if( memoryHeapSize != 0 )
+                    {
+                        difference = 100.f * allocationSizeDifference / memoryHeapSize;
+                    }
+
+                    usage -= std::max( 0.f, difference );
+                }
+
+                if( usage > 0 )
+                {
+                    values[valueCount] = usage;
+                    colors[valueCount] = ImGui::GetColorU32( ImGuiCol_PlotHistogram );
+                    valueCount++;
+                    unused -= usage;
+                }
+
+                if( difference != 0 )
+                {
+                    values[valueCount] = std::abs( difference );
+                    colors[valueCount] = difference > 0 ? IM_COL32( 0x5C, 0xCA, 0x35, 0xFF ) : IM_COL32( 0xCA, 0x35, 0x5C, 0xFF );
+                    valueCount++;
+                    unused -= std::abs( difference );
+                }
+
+                if( unused > 0 )
+                {
+                    values[valueCount] = unused;
+                    colors[valueCount] = 0;
+                    valueCount++;
+                }
+
+                if( other > 0 )
+                {
+                    values[valueCount] = other;
+                    colors[valueCount] = IM_COL32( 0x80, 0x80, 0x80, 0x50 );
+                    valueCount++;
+                }
+
+                ImGui::PushStyleColor( ImGuiCol_FrameBg, { 1.0f, 1.0f, 1.0f, 0.02f } );
+                ImGuiX::PlotBreakdownEx( usageStr, values, valueCount, 0, nullptr, colors );
+                ImGui::PopStyleColor();
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    if( ImGui::BeginTooltip() )
+                    {
+                        ImGui::PushFont( m_Resources.GetBoldFont() );
+                        ImGui::TextUnformatted(
+                            ( memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT )
+                                ? "Device memory heap\t"
+                                : "Host memory heap\t" );
+                        ImGui::PopFont();
+                        ImGuiX::TextAlignRight( "%.02f MB", memoryHeapSize / 1048576.f );
+
+                        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
+
+                        ImGui::TextUnformatted( "Budget:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", budgetSize / 1048576.f );
+
+                        ImGui::TextUnformatted( "Allocated:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", allocationSize / 1048576.f );
+
+                        ImGui::TextUnformatted( "Free:" );
+                        ImGuiX::TextAlignRight( "%.02f MB", ( budgetSize - allocationSize ) / 1048576.f );
+
+                        ImGui::PopStyleVar();
+                        ImGui::EndTooltip();
+                    }
+                }
+
+                // Plot memory types breakdown for the current heap.
+                valueCount = 0;
 
                 for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
                 {
-                    if( memoryProperties.memoryTypes[ typeIndex ].heapIndex == i )
+                    if( memoryProperties.memoryTypes[typeIndex].heapIndex == i )
                     {
-                        memoryTypeUsages[ typeIndex ] = static_cast<float>( m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationSize );
+                        const uint64_t typeAllocationSize = m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize;
 
-                        // Prepare descriptor for memory type
-                        std::stringstream sstr;
-
-                        sstr << Lang::MemoryTypeIndex << " " << typeIndex << "\n"
-                             << m_pData->m_Memory.m_Types[ typeIndex ].m_AllocationCount << " " << Lang::Allocations << "\n";
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+                        if( typeAllocationSize )
                         {
-                            sstr << "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT\n";
+                            values[valueCount] = typeAllocationSize;
+                            colors[valueCount] = g_MemoryTypesBreakdownColorMap[typeIndex % std::size( g_MemoryTypesBreakdownColorMap )];
+                            indexes[valueCount] = typeIndex;
+                            valueCount++;
                         }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_HOST_CACHED_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_PROTECTED_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_PROTECTED_BIT\n";
-                        }
-
-                        if( memoryProperties.memoryTypes[ typeIndex ].propertyFlags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT )
-                        {
-                            sstr << "VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT\n";
-                        }
-
-                        memoryTypeDescriptors[ typeIndex ] = sstr.str();
                     }
                 }
 
-                // Get descriptor pointers
-                std::vector<const char*> memoryTypeDescriptorPointers( memoryProperties.memoryTypeCount );
+                int hoveredIndex = -1;
+                ImGuiX::PlotBreakdownEx( "##MemoryTypesBreakdown", values, valueCount, 0, &hoveredIndex, colors, ImVec2( 0, 5.f * interfaceScale ) );
 
-                for( uint32_t typeIndex = 0; typeIndex < memoryProperties.memoryTypeCount; ++typeIndex )
+                if( hoveredIndex != -1 )
                 {
-                    memoryTypeDescriptorPointers[ typeIndex ] = memoryTypeDescriptors[ typeIndex ].c_str();
+                    if( ImGui::BeginTooltip() )
+                    {
+                        const uint32_t typeIndex = indexes[hoveredIndex];
+
+                        const uint64_t typeAllocationCount = m_pData->m_Memory.m_Types[typeIndex].m_AllocationCount;
+                        const uint64_t typeAllocationSize = m_pData->m_Memory.m_Types[typeIndex].m_AllocationSize;
+                        const float typeAllocationUsage = allocationSize ? ( 100.f * typeAllocationSize / allocationSize ) : 0.f;
+
+                        ImGui::PushFont( m_Resources.GetBoldFont() );
+                        ImGui::Text( "%s %u", Lang::MemoryTypeIndex, typeIndex );
+                        ImGui::PopFont();
+
+                        ImGui::TextUnformatted( m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[typeIndex].propertyFlags, "\n" ).c_str() );
+                        ImGui::Separator();
+
+                        ImGui::Text( "%" PRIu64 " %s", typeAllocationCount, Lang::Allocations );
+                        ImGui::SameLine( 0, 30.f * interfaceScale );
+                        ImGui::Text( "%.2f / %.2f MB (%.1f%%)",
+                            typeAllocationSize / 1048576.f,
+                            allocationSize / 1048576.f,
+                            typeAllocationUsage );
+
+                        ImGui::EndTooltip();
+                    }
                 }
 
-                ImGuiX::PlotBreakdownEx(
-                    "HEAP_BREAKDOWN",
-                    memoryTypeUsages.data(),
-                    memoryProperties.memoryTypeCount, 0,
-                    memoryTypeDescriptorPointers.data() );
+                // Memory consumption history.
+                if( m_MemoryConsumptionHistoryVisible )
+                {
+                    if( ImPlot::BeginPlot(
+                            fmt::format( "##MemoryHistory{}", i ).c_str(),
+                            ImVec2( -1, 100.f * interfaceScale ),
+                            ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoMenus ) )
+                    {
+                        const ImVec4 color = ImGui::ColorConvertU32ToFloat4( m_GraphicsPipelineColumnColor );
+
+                        if( !m_MemoryConsumptionHistoryTimePoints.empty() )
+                        {
+                            ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
+                            ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
+                            ImPlot::SetupAxisLimitsConstraints( ImAxis_X1, 0.0, m_MemoryConsumptionHistoryTimePoints.back() + 30.0 );
+                            ImPlot::SetupAxisLimitsConstraints( ImAxis_Y1, 0.0, memoryHeapSize * 1.2 );
+                            ImPlot::SetupAxisLinks( ImAxis_X1, &m_MemoryConsumptionHistoryTimeRangeMin, &m_MemoryConsumptionHistoryTimeRangeMax );
+
+                            if( m_MemoryConsumptionHistoryAutoScroll )
+                            {
+                                m_MemoryConsumptionHistoryTimeRangeMin = 0.0;
+                                m_MemoryConsumptionHistoryTimeRangeMax = m_MemoryConsumptionHistoryTimePoints.back();
+
+                                ImPlot::SetupAxisLimits( ImAxis_X1, m_MemoryConsumptionHistoryTimeRangeMin, m_MemoryConsumptionHistoryTimeRangeMax, ImGuiCond_Always );
+                                ImPlot::SetupAxisLimits( ImAxis_Y1, 0.0, m_MemoryConsumptionHistoryMax[i] * 1.2, ImGuiCond_Always );
+                            }
+
+                            ImPlot::SetupFinish();
+
+                            ImPlot::SetNextFillStyle( color, 0.5f );
+                            ImPlot::PlotShaded( "Allocated",
+                                m_MemoryConsumptionHistoryTimePoints.data(),
+                                m_MemoryConsumptionHistory[i].data(),
+                                m_MemoryConsumptionHistory[i].size() );
+
+                            ImPlot::SetNextLineStyle( color );
+                            ImPlot::PlotLine( "Allocated",
+                                m_MemoryConsumptionHistoryTimePoints.data(),
+                                m_MemoryConsumptionHistory[i].data(),
+                                m_MemoryConsumptionHistory[i].size() );
+                        }
+
+                        ImPlot::EndPlot();
+                    }
+                }
+
+                // Force text baseline to 0 to align the next cell correctly.
+                ImGui::ItemSize( ImVec2(), 0.0f );
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        ImGui::PushFont( m_Resources.GetBoldFont() );
+        ImGui::TextUnformatted( "Resources" );
+        ImGui::PopFont();
+
+        // Fiters.
+        auto ResourceUsageFlagsFilterComboBox =
+            [&]( const char* pLabel,
+                VkFlags& resourceUsageFilter,
+                VkFlags knownUsageFlags,
+                std::string ( DeviceProfilerStringSerializer::*pfnGetUsageFlagNames )( VkFlags, const char* ) const )
+        {
+            if( ImGui::BeginCombo( pLabel, nullptr, ImGuiComboFlags_NoPreview ) )
+            {
+                bool allChecked = ( resourceUsageFilter == knownUsageFlags );
+                if( ImGui::Checkbox( "<All>", &allChecked ) )
+                {
+                    resourceUsageFilter = allChecked ? knownUsageFlags : 0;
+                }
+
+                for( uint32_t i = 0; i < sizeof( VkFlags ) * 8; ++i )
+                {
+                    const VkFlags usageFlag = static_cast<VkFlags>( 1U << i );
+
+                    if( knownUsageFlags & usageFlag )
+                    {
+                        const std::string label = ( ( m_pStringSerializer.get() )->*pfnGetUsageFlagNames )( usageFlag, "" );
+
+                        bool checked = ( resourceUsageFilter & usageFlag ) != 0;
+                        if( ImGui::Checkbox( label.c_str(), &checked ) )
+                        {
+                            resourceUsageFilter ^= usageFlag;
+                        }
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+        };
+
+        ImGui::SetNextItemWidth( 150.f * interfaceScale );
+        ImGui::InputTextWithHint( "##NameFilter", "Name", &m_ResourceBrowserNameFilter );
+
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Buffers###BufferUsageFilter",
+            m_ResourceBrowserBufferUsageFilter,
+            g_KnownBufferUsageFlags,
+            &DeviceProfilerStringSerializer::GetBufferUsageFlagNames );
+
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Images###ImagesUsageFilter",
+            m_ResourceBrowserImageUsageFilter,
+            g_KnownImageUsageFlags,
+            &DeviceProfilerStringSerializer::GetImageUsageFlagNames );
+
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Acceleration structures###AccelerationStructureFilter",
+            m_ResourceBrowserAccelerationStructureTypeFilter,
+            g_KnownAccelerationStructureTypes,
+            &DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames );
+
+        ImGui::SameLine( 0, 10.f * interfaceScale );
+        ResourceUsageFlagsFilterComboBox(
+            "Micromaps###MicromapFilter",
+            m_ResourceBrowserMicromapTypeFilter,
+            g_KnownMicromapTypes,
+            &DeviceProfilerStringSerializer::GetMicromapTypeFlagNames );
+
+        ImGui::Separator();
+
+        MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
+
+        // Resource browser and inspector are always docked, never draw background for them.
+        ImGui::PushStyleColor( ImGuiCol_WindowBg, 0 );
+
+        if( ImGui::Begin( Lang::ResourceBrowser, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            // Resources list.
+            if( ImGui::BeginTable( "##ResourceBrowserTable", 3 ) )
+            {
+                ImGui::TableSetupColumn( "Diff", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHeaderLabel, 10.f * interfaceScale );
+                ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed, 60.f * interfaceScale );
+                ImGui::TableSetupColumn( "Name", ImGuiTableColumnFlags_WidthStretch );
+
+                enum class ResourceCompareResult
+                {
+                    eUnchanged,
+                    eAdded,
+                    eRemoved
+                };
+
+                // Common code for drawing a table row for any resource type.
+                auto DrawResourceBrowserTableRow =
+                    [&]( VkObject object,
+                        VkFlags usageFlags,
+                        VkFlags usageFlagsFilter,
+                        ResourceCompareResult compareResult,
+                        bool* pSelected ) -> bool
+                {
+                    if( ( usageFlags & usageFlagsFilter ) == 0 )
+                    {
+                        return false;
+                    }
+
+                    if( m_ResourceBrowserShowDifferences &&
+                        ( compareResult == ResourceCompareResult::eUnchanged ) )
+                    {
+                        return false;
+                    }
+
+                    std::string objectName = m_pStringSerializer->GetName( object );
+                    if( !m_ResourceBrowserNameFilter.empty() &&
+                        ( objectName.find( m_ResourceBrowserNameFilter ) == std::string::npos ) )
+                    {
+                        return false;
+                    }
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+
+                    int pushedStyleColors = 0;
+                    switch( compareResult )
+                    {
+                    case ResourceCompareResult::eAdded:
+                        ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0, 255, 0, 255 ) );
+                        ImGui::TextUnformatted( "+" );
+                        pushedStyleColors++;
+                        break;
+
+                    case ResourceCompareResult::eRemoved:
+                        ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 0, 0, 255 ) );
+                        ImGui::TextUnformatted( "-" );
+                        pushedStyleColors++;
+                        break;
+
+                    case ResourceCompareResult::eUnchanged:
+                        break;
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(
+                        m_pStringSerializer->GetShortObjectTypeName( object.m_Type ).c_str() );
+
+                    if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                    {
+                        ImGui::SetTooltip( "%s",
+                            m_pStringSerializer->GetObjectTypeName( object.m_Type ).c_str() );
+                    }
+
+                    ImGui::TableNextColumn();
+                    objectName = fmt::format( "{}###{}",
+                        objectName,
+                        m_pStringSerializer->GetObjectID( object ) );
+
+                    bool selectionChanged = false;
+                    if( ImGui::Selectable( objectName.c_str(), pSelected, ImGuiSelectableFlags_SpanAllColumns ) )
+                    {
+                        selectionChanged = true;
+                    }
+
+                    ImGui::PopStyleColor( pushedStyleColors );
+                    return selectionChanged;
+                };
+
+                // Buffer resource row.
+                auto DrawResourceBrowserBufferTableRow =
+                    [&]( VkObjectHandle<VkBuffer> buffer,
+                        const DeviceProfilerBufferMemoryData& bufferData,
+                        ResourceCompareResult compareResult )
+                {
+                    bool selected = ( m_ResourceInspectorBuffer == buffer );
+
+                    DrawResourceBrowserTableRow(
+                        buffer,
+                        bufferData.m_BufferUsage,
+                        m_ResourceBrowserBufferUsageFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
+                    {
+                        ResetResourceInspector();
+                        m_ResourceInspectorBuffer = buffer;
+                        m_ResourceInspectorBufferData = bufferData;
+                    }
+                };
+
+                // Image resource row.
+                auto DrawResourceBrowserImageTableRow =
+                    [&]( VkObjectHandle<VkImage> image,
+                        const DeviceProfilerImageMemoryData& imageData,
+                        ResourceCompareResult compareResult )
+                {
+                    bool selected = ( m_ResourceInspectorImage == image );
+
+                    DrawResourceBrowserTableRow(
+                        image,
+                        imageData.m_ImageUsage,
+                        m_ResourceBrowserImageUsageFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
+                    {
+                        ResetResourceInspector();
+                        m_ResourceInspectorImage = image;
+                        m_ResourceInspectorImageData = imageData;
+                    }
+                };
+
+                // Acceleration structure resource row.
+                auto DrawResourceBrowserAccelerationStructureTableRow =
+                    [&]( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure,
+                        const DeviceProfilerAccelerationStructureMemoryData& accelerationStructureData,
+                        ResourceCompareResult compareResult )
+                {
+                    bool selected = ( m_ResourceInspectorAccelerationStructure == accelerationStructure );
+
+                    // Acceleration structure types are a simple enum, convert to bitmask for filtering.
+                    VkFlags accelerationStructureTypeBit = ( 1U << accelerationStructureData.m_Type );
+
+                    DrawResourceBrowserTableRow(
+                        accelerationStructure,
+                        accelerationStructureTypeBit,
+                        m_ResourceBrowserAccelerationStructureTypeFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
+                    {
+                        ResetResourceInspector();
+                        m_ResourceInspectorAccelerationStructure = accelerationStructure;
+                        m_ResourceInspectorAccelerationStructureData = accelerationStructureData;
+                        m_ResourceInspectorAccelerationStructureBufferData = GetBufferMemoryData( accelerationStructureData.m_Buffer );
+                    }
+                };
+
+                // Micromap resource row.
+                auto DrawResourceBrowserMicromapTableRow =
+                    [&]( VkObjectHandle<VkMicromapEXT> micromap,
+                        const DeviceProfilerMicromapMemoryData& micromapData,
+                        ResourceCompareResult compareResult )
+                {
+                    bool selected = ( m_ResourceInspectorMicromap == micromap );
+
+                    // Micromap types are a simple enum, convert to bitmask for filtering.
+                    VkFlags micromapTypeBit = ( 1U << micromapData.m_Type );
+
+                    DrawResourceBrowserTableRow(
+                        micromap,
+                        micromapTypeBit,
+                        m_ResourceBrowserMicromapTypeFilter,
+                        compareResult,
+                        &selected );
+
+                    if( selected )
+                    {
+                        ResetResourceInspector();
+                        m_ResourceInspectorMicromap = micromap;
+                        m_ResourceInspectorMicromapData = micromapData;
+                        m_ResourceInspectorMicromapBufferData = GetBufferMemoryData( micromapData.m_Buffer );
+                    }
+                };
+
+                // List all resources.
+                for( const auto& [buffer, data] : m_pData->m_Memory.m_Buffers )
+                {
+                    DrawResourceBrowserBufferTableRow(
+                        buffer,
+                        data,
+                        memoryComparisonResults.m_AllocatedBuffers.count( buffer )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
+
+                for( const auto& [buffer, pData] : memoryComparisonResults.m_FreedBuffers )
+                {
+                    DrawResourceBrowserBufferTableRow(
+                        buffer,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
+
+                for( const auto& [image, data] : m_pData->m_Memory.m_Images )
+                {
+                    DrawResourceBrowserImageTableRow(
+                        image,
+                        data,
+                        memoryComparisonResults.m_AllocatedImages.count( image )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
+
+                for( const auto& [image, pData] : memoryComparisonResults.m_FreedImages )
+                {
+                    DrawResourceBrowserImageTableRow(
+                        image,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
+
+                for( const auto& [accelerationStructure, data] : m_pData->m_Memory.m_AccelerationStructures )
+                {
+                    DrawResourceBrowserAccelerationStructureTableRow(
+                        accelerationStructure,
+                        data,
+                        memoryComparisonResults.m_AllocatedAccelerationStructures.count( accelerationStructure )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
+
+                for( const auto& [accelerationStructure, pData] : memoryComparisonResults.m_FreedAccelerationStructures )
+                {
+                    DrawResourceBrowserAccelerationStructureTableRow(
+                        accelerationStructure,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
+
+                for( const auto& [micromap, data] : m_pData->m_Memory.m_Micromaps )
+                {
+                    DrawResourceBrowserMicromapTableRow(
+                        micromap,
+                        data,
+                        memoryComparisonResults.m_AllocatedMicromaps.count( micromap )
+                            ? ResourceCompareResult::eAdded
+                            : ResourceCompareResult::eUnchanged );
+                }
+
+                for( const auto& [micromap, pData] : memoryComparisonResults.m_FreedMicromaps )
+                {
+                    DrawResourceBrowserMicromapTableRow(
+                        micromap,
+                        *pData,
+                        ResourceCompareResult::eRemoved );
+                }
+
+                ImGui::EndTable();
             }
         }
+        ImGui::End();
+
+        if( ImGui::Begin( Lang::ResourceInspector, nullptr, ImGuiWindowFlags_NoMove ) )
+        {
+            if( m_ResourceInspectorBuffer != VK_NULL_HANDLE )
+            {
+                DrawResourceInspectorBufferInfo(
+                    m_ResourceInspectorBuffer,
+                    m_ResourceInspectorBufferData );
+            }
+
+            if( m_ResourceInspectorImage != VK_NULL_HANDLE )
+            {
+                DrawResourceInspectorImageInfo(
+                    m_ResourceInspectorImage,
+                    m_ResourceInspectorImageData );
+            }
+
+            if( m_ResourceInspectorAccelerationStructure != VK_NULL_HANDLE )
+            {
+                DrawResourceInspectorAccelerationStructureInfo(
+                    m_ResourceInspectorAccelerationStructure,
+                    m_ResourceInspectorAccelerationStructureData,
+                    m_ResourceInspectorAccelerationStructureBufferData );
+            }
+
+            if( m_ResourceInspectorMicromap != VK_NULL_HANDLE )
+            {
+                DrawResourceInspectorMicromapInfo(
+                    m_ResourceInspectorMicromap,
+                    m_ResourceInspectorMicromapData,
+                    m_ResourceInspectorMicromapBufferData );
+            }
+        }
+        ImGui::End();
+
+        ImGui::PopStyleColor();
+
+        // Restore the current frame data.
+        m_pData = std::move( pRestoreData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetResourceInspector
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::ResetResourceInspector()
+    {
+        m_ResourceInspectorBuffer = VK_NULL_HANDLE;
+        m_ResourceInspectorBufferData = {};
+
+        m_ResourceInspectorImage = VK_NULL_HANDLE;
+        m_ResourceInspectorImageData = {};
+
+        m_ResourceInspectorAccelerationStructure = VK_NULL_HANDLE;
+        m_ResourceInspectorAccelerationStructureData = {};
+        m_ResourceInspectorAccelerationStructureBufferData = {};
+
+        m_ResourceInspectorMicromap = VK_NULL_HANDLE;
+        m_ResourceInspectorMicromapData = {};
+        m_ResourceInspectorMicromapBufferData = {};
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorAccelerationStructureInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorAccelerationStructureInfo(
+        VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure,
+        const DeviceProfilerAccelerationStructureMemoryData& accelerationStructureData,
+        const DeviceProfilerBufferMemoryData& bufferData )
+    {
+        if( !m_pData->m_Memory.m_AccelerationStructures.count( accelerationStructure ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( accelerationStructure ).c_str(),
+                VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructure ) );
+        }
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnValueOffset1 = 80.f * interfaceScale;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Struct:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( accelerationStructure ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Type:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetAccelerationStructureTypeName( accelerationStructureData.m_Type ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s (%" PRIu64 " bytes)", m_pStringSerializer->GetByteSize( accelerationStructureData.m_Size ).c_str(), accelerationStructureData.m_Size );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Offset:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%" PRIu64, accelerationStructureData.m_Offset );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGui::Separator();
+
+        DrawResourceInspectorBufferInfo( accelerationStructureData.m_Buffer, bufferData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorMicromapInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorMicromapInfo(
+        VkObjectHandle<VkMicromapEXT> micromap,
+        const DeviceProfilerMicromapMemoryData& micromapData,
+        const DeviceProfilerBufferMemoryData& bufferData )
+    {
+        if( !m_pData->m_Memory.m_Micromaps.count( micromap ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( micromap ).c_str(),
+                VkObject_Traits<VkMicromapEXT>::GetObjectHandleAsUint64( micromap ) );
+        }
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnValueOffset1 = 80.f * interfaceScale;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Micromap:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( micromap ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Type:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetMicromapTypeName( micromapData.m_Type ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s (%" PRIu64 " bytes)", m_pStringSerializer->GetByteSize( micromapData.m_Size ).c_str(), micromapData.m_Size );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Offset:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%" PRIu64, micromapData.m_Offset );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGui::Separator();
+
+        DrawResourceInspectorBufferInfo( micromapData.m_Buffer, bufferData );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorBufferInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorBufferInfo(
+        VkObjectHandle<VkBuffer> buffer,
+        const DeviceProfilerBufferMemoryData& bufferData )
+    {
+        if( !m_pData->m_Memory.m_Buffers.count( buffer ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( buffer ).c_str(),
+                VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( buffer ) );
+        }
+
+        const VkPhysicalDeviceMemoryProperties& memoryProperties =
+            m_Frontend.GetPhysicalDeviceMemoryProperties();
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnValueOffset1 = 80.f * interfaceScale;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Buffer:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( buffer ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s (%" PRIu64 " bytes)", m_pStringSerializer->GetByteSize( bufferData.m_BufferSize ).c_str(), bufferData.m_BufferSize );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Usage:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( bufferData.m_BufferUsage, "\n" ).c_str() );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
+        {
+            ImGui::TableSetupColumn( "Memory" );
+            ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+            ImGuiX::TableHeadersRow( pBoldFont );
+
+            const DeviceProfilerBufferMemoryBindingData* pBindings = bufferData.GetMemoryBindings();
+            const size_t bindingCount = bufferData.GetMemoryBindingCount();
+
+            for( size_t i = 0; i < bindingCount; ++i )
+            {
+                const DeviceProfilerBufferMemoryBindingData& binding = pBindings[i];
+
+                ImGui::TableNextRow();
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Memory ).c_str() );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::Text( "%" PRIu64 "   ", binding.m_MemoryOffset );
+                }
+
+                if( ImGui::TableNextColumn() )
+                {
+                    ImGui::Text( "%" PRIu64 "   ", binding.m_Size );
+                }
+
+                auto allocationIt = m_pData->m_Memory.m_Allocations.find( binding.m_Memory );
+                if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                {
+                    const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                    const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_TypeIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_HeapIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                    }
+                }
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorImageMemoryMap
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorImageInfo(
+        VkObjectHandle<VkImage> image,
+        const DeviceProfilerImageMemoryData& imageData )
+    {
+        if( !m_pData->m_Memory.m_Images.count( image ) )
+        {
+            // Buffer data not found.
+            ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
+                         "It may have been freed or hasn't been created yet.",
+                m_pStringSerializer->GetName( image ).c_str(),
+                VkObject_Traits<VkImage>::GetObjectHandleAsUint64( image ) );
+        }
+
+        const VkPhysicalDeviceMemoryProperties& memoryProperties =
+            m_Frontend.GetPhysicalDeviceMemoryProperties();
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+        const float columnWidth = ImGui::GetContentRegionAvail().x * 0.55f;
+        const float columnValueOffset1 = 80.f * interfaceScale;
+        const float columnValueOffset2 = 60.f * interfaceScale + columnWidth;
+
+        ImFont* pBoldFont = m_Resources.GetBoldFont();
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Image:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetName( image ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Type:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetImageTypeName( imageData.m_ImageType, imageData.m_ImageFlags, imageData.m_ImageArrayLayers ).c_str() );
+
+        ImGui::SameLine( columnWidth );
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Mips:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset2 );
+        ImGui::Text( "%u", imageData.m_ImageMipLevels );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Size:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%u x %u x %u", imageData.m_ImageExtent.width, imageData.m_ImageExtent.height, imageData.m_ImageExtent.depth );
+
+        ImGui::SameLine( columnWidth );
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Layers:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset2 );
+        ImGui::Text( "%u", imageData.m_ImageArrayLayers );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Format:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetFormatName( imageData.m_ImageFormat ).c_str() );
+
+        ImGui::SameLine( columnWidth );
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Tiling:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset2 );
+        ImGui::TextUnformatted( m_pStringSerializer->GetImageTilingName( imageData.m_ImageTiling ).c_str() );
+
+        ImGui::PushFont( pBoldFont );
+        ImGui::TextUnformatted( "Usage:" );
+        ImGui::PopFont();
+        ImGui::SameLine( columnValueOffset1 );
+        ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( imageData.m_ImageUsage, "\n" ).c_str() );
+
+        ImGui::Dummy( ImVec2( 1, 5 ) );
+
+        if( imageData.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT )
+        {
+            if( ImGui::CollapsingHeader( "Sparse residency map" ) )
+            {
+                DrawResourceInspectorImageMemoryMap();
+            }
+        }
+
+        if( ImGui::CollapsingHeader( "Memory bindings" ) &&
+            ImGui::BeginTable( "##ImageBindingsTable", 8 ) )
+        {
+            ImGui::TableSetupColumn( "Memory" );
+            ImGui::TableSetupColumn( "Layer", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Mip", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Offset", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Size", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Heap", ImGuiTableColumnFlags_WidthFixed );
+            ImGui::TableSetupColumn( "Properties", ImGuiTableColumnFlags_WidthFixed );
+            ImGuiX::TableHeadersRow( pBoldFont );
+
+            const DeviceProfilerImageMemoryBindingData* pBindings = imageData.GetMemoryBindings();
+            const size_t bindingCount = imageData.GetMemoryBindingCount();
+
+            for( size_t i = 0; i < bindingCount; ++i )
+            {
+                const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                VkObjectHandle<VkDeviceMemory> memory;
+
+                ImGui::TableNextRow();
+
+                if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
+                {
+                    memory = binding.m_Opaque.m_Memory;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::TableNextColumn();
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%" PRIu64 "   ", binding.m_Opaque.m_ImageOffset );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%" PRIu64 "   ", binding.m_Opaque.m_Size );
+                    }
+                }
+                else
+                {
+                    assert( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock );
+
+                    memory = binding.m_Block.m_Memory;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::TextUnformatted( m_pStringSerializer->GetName( memory ).c_str() );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u",
+                            binding.m_Block.m_ImageSubresource.arrayLayer );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u",
+                            binding.m_Block.m_ImageSubresource.mipLevel );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "<%u, %u, %u>  ",
+                            binding.m_Block.m_ImageOffset.x,
+                            binding.m_Block.m_ImageOffset.y,
+                            binding.m_Block.m_ImageOffset.z );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "<%u, %u, %u>  ",
+                            binding.m_Block.m_ImageExtent.width,
+                            binding.m_Block.m_ImageExtent.height,
+                            binding.m_Block.m_ImageExtent.depth );
+                    }
+                }
+
+                auto allocationIt = m_pData->m_Memory.m_Allocations.find( memory );
+                if( allocationIt != m_pData->m_Memory.m_Allocations.end() )
+                {
+                    const DeviceProfilerDeviceMemoryData& memoryData = allocationIt->second;
+                    const VkMemoryPropertyFlags memoryPropertyFlags = memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags;
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_TypeIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", memoryData.m_HeapIndex );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%s  ", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryPropertyFlags, "\n" ).c_str() );
+                    }
+                }
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawResourceInspectorImageMemoryMap
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawResourceInspectorImageMemoryMap()
+    {
+        assert( m_ResourceInspectorImage != VK_NULL_HANDLE );
+
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemInnerSpacing, ImVec2( 0, 0 ) );
+
+        ImGui::TextUnformatted( "Aspect:" );
+        ImGui::SameLine( 0, 5.f * interfaceScale );
+        ImGui::PushItemWidth( 100.f * interfaceScale );
+
+        if( !m_ResourceInspectorImageMapSubresource.aspectMask )
+        {
+            const VkImageAspectFlags allAspectFlags =
+                GetFormatAllAspectFlags( m_ResourceInspectorImageData.m_ImageFormat );
+
+            m_ResourceInspectorImageMapSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        }
+
+        std::string aspectName = m_pStringSerializer->GetImageAspectFlagNames( m_ResourceInspectorImageMapSubresource.aspectMask );
+        if( ImGui::BeginCombo( "##Aspect", aspectName.c_str() ) )
+        {
+            const VkImageAspectFlags allAspectFlags =
+                GetFormatAllAspectFlags( m_ResourceInspectorImageData.m_ImageFormat );
+
+            for( uint32_t i = 0; i < sizeof( VkImageAspectFlags ) * 8; ++i )
+            {
+                const VkImageAspectFlags aspectFlag = static_cast<VkImageAspectFlags>( 1U << i );
+                if( allAspectFlags & aspectFlag )
+                {
+                    ImGuiX::TSelectable(
+                        m_pStringSerializer->GetImageAspectFlagNames( aspectFlag ).c_str(),
+                        m_ResourceInspectorImageMapSubresource.aspectMask,
+                        aspectFlag );
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        ImGui::SameLine( 0, 15.f * interfaceScale );
+        ImGui::TextUnformatted( "Mip:" );
+        ImGui::SameLine( 0, 5.f * interfaceScale );
+        ImGui::PushItemWidth( 80.f * interfaceScale );
+
+        int iMipLevel = static_cast<int>( m_ResourceInspectorImageMapSubresource.mipLevel );
+        if( ImGui::InputInt( "##Mip", &iMipLevel, 1, 0, ImGuiInputTextFlags_CharsDecimal ) )
+        {
+            const int iMaxMip = static_cast<int>( m_ResourceInspectorImageData.m_ImageMipLevels - 1 );
+
+            m_ResourceInspectorImageMapSubresource.mipLevel =
+                static_cast<uint32_t>( std::clamp( iMipLevel, 0, iMaxMip ) );
+        }
+
+        ImGui::SameLine( 0, 15.f * interfaceScale );
+        ImGui::TextUnformatted( "Slice:" );
+        ImGui::SameLine( 0, 5.f * interfaceScale );
+        ImGui::PushItemWidth( 80.f * interfaceScale );
+
+        int iSlice = static_cast<int>( m_ResourceInspectorImageMapSubresource.arrayLayer );
+        if( ImGui::InputInt( "##Slice", &iSlice, 1, 0, ImGuiInputTextFlags_CharsDecimal ) )
+        {
+            const int iMaxSlice = static_cast<int>(
+                ( m_ResourceInspectorImageData.m_ImageType == VK_IMAGE_TYPE_3D )
+                    ? ( m_ResourceInspectorImageData.m_ImageExtent.depth - 1 )
+                    : ( m_ResourceInspectorImageData.m_ImageArrayLayers - 1 ) );
+
+            m_ResourceInspectorImageMapSubresource.arrayLayer =
+                static_cast<uint32_t>( std::clamp( iSlice, 0, iMaxSlice ) );
+        }
+
+        ImGui::SameLine( 0, 15.f * interfaceScale );
+        ImGui::TextUnformatted( "Grid:" );
+        ImGui::SameLine( 0, 5.f * interfaceScale );
+        ImGui::PushItemWidth( 80.f * interfaceScale );
+
+        int iBlockSize = static_cast<int>( m_ResourceInspectorImageMapBlockSize );
+        if( ImGui::InputInt( "##Grid", &iBlockSize, 1, 0, ImGuiInputTextFlags_CharsDecimal ) )
+        {
+            m_ResourceInspectorImageMapBlockSize = static_cast<int>( std::max( 4, iBlockSize ) );
+        }
+
+        ImGui::PopStyleVar();
+
+        const DeviceProfilerImageMemoryBindingData* pBindings = m_ResourceInspectorImageData.GetMemoryBindings();
+        const size_t bindingCount = m_ResourceInspectorImageData.GetMemoryBindingCount();
+
+        const VkSparseImageMemoryRequirements* pSparseMemoryRequirements = &m_ResourceInspectorImageData.m_SparseMemoryRequirements.front();
+        for( const VkSparseImageMemoryRequirements& sparseMemoryRequirements : m_ResourceInspectorImageData.m_SparseMemoryRequirements )
+        {
+            if( sparseMemoryRequirements.formatProperties.aspectMask & m_ResourceInspectorImageMapSubresource.aspectMask )
+            {
+                pSparseMemoryRequirements = &sparseMemoryRequirements;
+                break;
+            }
+        }
+
+        const VkSparseImageFormatProperties& formatProperties = pSparseMemoryRequirements->formatProperties;
+
+        VkExtent3D imageMipExtent = m_ResourceInspectorImageData.m_ImageExtent;
+        imageMipExtent.width = std::max( 1U, imageMipExtent.width >> m_ResourceInspectorImageMapSubresource.mipLevel );
+        imageMipExtent.height = std::max( 1U, imageMipExtent.height >> m_ResourceInspectorImageMapSubresource.mipLevel );
+        imageMipExtent.depth = std::max( 1U, imageMipExtent.depth >> m_ResourceInspectorImageMapSubresource.mipLevel );
+
+        uint32_t blockCountX = ( imageMipExtent.width + formatProperties.imageGranularity.width - 1 ) / formatProperties.imageGranularity.width;
+        uint32_t blockCountY = ( imageMipExtent.height + formatProperties.imageGranularity.height - 1 ) / formatProperties.imageGranularity.height;
+
+        uint32_t allocatedBlockCount = 0;
+        uint32_t totalBlockCount = blockCountX * blockCountY;
+
+        const float blockSize = m_ResourceInspectorImageMapBlockSize * interfaceScale;
+        const float blockMargin = 1.f * interfaceScale;
+        const ImVec2 blockMapSize( blockCountX * blockSize, blockCountY * blockSize );
+
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, ImGui::GetStyleColorVec4( ImGuiCol_ScrollbarBg ) );
+        ImGui::PushStyleColor( ImGuiCol_ScrollbarBg, 0 );
+
+        if( ImGui::BeginChild( "##ImageMemoryMap",
+                ImVec2( 0, blockMapSize.y + 25.f * interfaceScale ),
+                ImGuiChildFlags_Border,
+                ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
+        {
+            ImVec2 mousePos = ImGui::GetMousePos();
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+
+            for( uint32_t y = 0; y < blockCountY; ++y )
+            {
+                for( uint32_t x = 0; x < blockCountX; ++x )
+                {
+                    ImVec2 lt = ImGui::GetCursorScreenPos();
+                    lt.x += x * blockSize;
+                    lt.y += y * blockSize;
+                    ImVec2 rb = ImVec2( lt.x + blockSize, lt.y + blockSize );
+                    dl->AddRect( lt, rb, IM_COL32( 128, 128, 128, 64 ) );
+                }
+            }
+
+            if( m_ResourceInspectorImageMapSubresource.mipLevel < pSparseMemoryRequirements->imageMipTailFirstLod )
+            {
+                for( size_t i = 0; i < bindingCount; ++i )
+                {
+                    const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                    if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock )
+                    {
+                        if( ( binding.m_Block.m_ImageSubresource.aspectMask == m_ResourceInspectorImageMapSubresource.aspectMask ) &&
+                            ( binding.m_Block.m_ImageSubresource.mipLevel == m_ResourceInspectorImageMapSubresource.mipLevel ) &&
+                            ( ( m_ResourceInspectorImageData.m_ImageType == VK_IMAGE_TYPE_3D )
+                                    ? ( ( binding.m_Block.m_ImageOffset.z <= m_ResourceInspectorImageMapSubresource.arrayLayer ) &&
+                                          ( binding.m_Block.m_ImageOffset.z + binding.m_Block.m_ImageExtent.depth >= m_ResourceInspectorImageMapSubresource.arrayLayer ) )
+                                    : ( binding.m_Block.m_ImageSubresource.arrayLayer == m_ResourceInspectorImageMapSubresource.arrayLayer ) ) )
+                        {
+                            ImVec2 lt = ImGui::GetCursorScreenPos();
+                            lt.x += ( (float)binding.m_Block.m_ImageOffset.x / formatProperties.imageGranularity.width ) * blockSize;
+                            lt.y += ( (float)binding.m_Block.m_ImageOffset.y / formatProperties.imageGranularity.height ) * blockSize;
+                            ImVec2 rb = lt;
+                            rb.x += ( (float)binding.m_Block.m_ImageExtent.width / formatProperties.imageGranularity.width ) * blockSize;
+                            rb.y += ( (float)binding.m_Block.m_ImageExtent.height / formatProperties.imageGranularity.height ) * blockSize;
+                            ImRect bb( lt, rb );
+                            dl->AddRect( lt, rb, ImGuiX::Darker( m_GraphicsPipelineColumnColor ) );
+
+                            ImU32 color = m_GraphicsPipelineColumnColor;
+                            bool hovered = bb.Contains( mousePos );
+                            if( hovered )
+                                color = ImGuiX::Darker( color, 1.5f );
+
+                            bb.Expand( ImVec2( -1, -1 ) );
+                            dl->AddRectFilled( bb.Min, bb.Max, color );
+
+                            if( hovered )
+                            {
+                                if( ImGui::BeginTooltip() )
+                                {
+                                    ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Block.m_Memory ).c_str() );
+                                    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
+
+                                    ImGui::TextUnformatted( "Memory offset:" );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Block.m_MemoryOffset );
+
+                                    ImGui::TextUnformatted( "Image offset:" );
+                                    ImGuiX::TextAlignRight( "<%u, %u, %u>",
+                                        binding.m_Block.m_ImageOffset.x,
+                                        binding.m_Block.m_ImageOffset.y,
+                                        binding.m_Block.m_ImageOffset.z );
+
+                                    ImGui::TextUnformatted( "Image extent:" );
+                                    ImGuiX::TextAlignRight( "<%u, %u, %u>",
+                                        binding.m_Block.m_ImageExtent.width,
+                                        binding.m_Block.m_ImageExtent.height,
+                                        binding.m_Block.m_ImageExtent.depth );
+
+                                    ImGui::PopStyleVar();
+                                    ImGui::EndTooltip();
+                                }
+                            }
+
+                            allocatedBlockCount++;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for( size_t i = 0; i < bindingCount; ++i )
+                {
+                    const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
+
+                    if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
+                    {
+                        if( ( ( formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT ) &&
+                                ( binding.m_Opaque.m_ImageOffset == pSparseMemoryRequirements->imageMipTailOffset ) ) ||
+                            ( binding.m_Opaque.m_ImageOffset == ( pSparseMemoryRequirements->imageMipTailOffset + pSparseMemoryRequirements->imageMipTailStride * m_ResourceInspectorImageMapSubresource.arrayLayer ) ) )
+                        {
+                            ImVec2 lt = ImGui::GetCursorScreenPos();
+                            ImVec2 rb = lt;
+                            rb.x += formatProperties.imageGranularity.width * blockSize - 2;
+                            rb.y += formatProperties.imageGranularity.height * blockSize - 2;
+
+                            ImRect bb( lt, rb );
+                            dl->AddRectFilled( bb.Min, bb.Max, m_GraphicsPipelineColumnColor );
+
+                            ImVec2 cp = ImGui::GetMousePos();
+                            if( bb.Contains( cp ) )
+                            {
+                                if( ImGui::BeginTooltip() )
+                                {
+                                    ImGui::TextUnformatted( m_pStringSerializer->GetName( binding.m_Opaque.m_Memory ).c_str() );
+                                    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 1.f * interfaceScale ) );
+
+                                    ImGui::TextUnformatted( "Memory offset:" );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Opaque.m_MemoryOffset );
+
+                                    ImGui::TextUnformatted( "Image offset:" );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Opaque.m_ImageOffset );
+
+                                    ImGui::TextUnformatted( "Size:" );
+                                    ImGuiX::TextAlignRight( "%" PRIu64, binding.m_Opaque.m_Size );
+
+                                    ImGui::PopStyleVar();
+                                    ImGui::EndTooltip();
+                                }
+                            }
+
+                            allocatedBlockCount = totalBlockCount;
+                        }
+                    }
+                }
+            }
+
+            ImGui::Dummy( blockMapSize );
+        }
+
+        ImGui::EndChild();
+        ImGui::PopStyleColor( 2 );
+
+        ImGui::Text( "Mip: %u - %u x %u x %u",
+            m_ResourceInspectorImageMapSubresource.mipLevel,
+            imageMipExtent.width,
+            imageMipExtent.height,
+            imageMipExtent.depth );
+
+        ImGui::SameLine( 0, 20.f * interfaceScale );
+        ImGui::Text( "Allocated: %u / %u (%.1f / %.1f kB)",
+            allocatedBlockCount,
+            totalBlockCount,
+            allocatedBlockCount * m_ResourceInspectorImageData.m_MemoryRequirements.alignment / 1024.f,
+            totalBlockCount * m_ResourceInspectorImageData.m_MemoryRequirements.alignment / 1024.f );
+
+        ImGui::Dummy( ImVec2( 0, 5.f * interfaceScale ) );
     }
 
     /***********************************************************************************\
@@ -2096,6 +4520,10 @@ namespace Profiler
         {
         case DeviceProfilerPipelineType::eGraphics:
             DrawInspectorGraphicsPipelineState();
+            break;
+
+        case DeviceProfilerPipelineType::eRayTracingKHR:
+            DrawInspectorRayTracingPipelineState();
             break;
         }
     }
@@ -2534,6 +4962,183 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        DrawInspectorRayTracingPipelineState
+
+    Description:
+        Draws the inspected ray tracing pipeline state.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawInspectorRayTracingPipelineState()
+    {
+        assert( m_InspectorPipeline.m_Type == DeviceProfilerPipelineType::eRayTracingKHR );
+        assert( m_InspectorPipeline.m_pCreateInfo != nullptr );
+        const VkRayTracingPipelineCreateInfoKHR& rtci = m_InspectorPipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR;
+
+        const ImGuiTableFlags tableFlags =
+            // ImGuiTableFlags_BordersInnerH |
+            ImGuiTableFlags_PadOuterX |
+            ImGuiTableFlags_SizingStretchSame;
+
+        const float contentPaddingTop = 2.0f;
+        const float contentPaddingLeft = 5.0f;
+        const float contentPaddingRight = 10.0f;
+        const float contentPaddingBottom = 10.0f;
+
+        const float dynamicColumnWidth = ImGui::CalcTextSize( "Dynamic" ).x + 5;
+
+        auto SetupDefaultPipelineStateColumns = [&]() {
+            ImGui::TableSetupColumn( "Name", 0, 1.5f );
+            ImGui::TableSetupColumn( "Dynamic", ImGuiTableColumnFlags_WidthFixed, dynamicColumnWidth );
+        };
+
+        ImGui::PushStyleColor( ImGuiCol_Header, IM_COL32( 40, 40, 43, 128 ) );
+
+        // VkRayTracingPipelineCreateInfoKHR
+        ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+        if( ImGui::BeginTable( "##RTPipeline", 3, tableFlags ) )
+        {
+            SetupDefaultPipelineStateColumns();
+            DrawPipelineStateValue( "Max ray recursion depth", "%u", rtci.maxPipelineRayRecursionDepth );
+            DrawPipelineStateValue( "Pipeline stack size", "%" PRIu64, m_InspectorPipeline.m_RayTracingPipelineStackSize, rtci.pDynamicState, VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR );
+            ImGui::EndTable();
+        }
+        ImGuiX::EndPadding( contentPaddingBottom );
+
+        // VkRayTracingPipelineInterfaceCreateInfoKHR
+        ImGui::BeginDisabled( rtci.pLibraryInterface == nullptr );
+        if( ImGui::CollapsingHeader( "Pipeline interface" ) &&
+            ( rtci.pLibraryInterface != nullptr ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##RTPipelineInterface", 3, tableFlags ) )
+            {
+                SetupDefaultPipelineStateColumns();
+
+                const VkRayTracingPipelineInterfaceCreateInfoKHR& state = *rtci.pLibraryInterface;
+                DrawPipelineStateValue( "Max ray payload size", "%u", state.maxPipelineRayPayloadSize );
+                DrawPipelineStateValue( "Max ray hit attribute size", "%u", state.maxPipelineRayHitAttributeSize );
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+        ImGui::EndDisabled();
+
+        // Shader groups
+        if( ImGui::CollapsingHeader( "Pipeline shader groups", ImGuiTreeNodeFlags_DefaultOpen ) )
+        {
+            ImGuiX::BeginPadding( contentPaddingTop, contentPaddingRight, contentPaddingLeft );
+            if( ImGui::BeginTable( "##RTShaderGroups", 6, tableFlags ) )
+            {
+                ImGui::TableSetupColumn( "#", ImGuiTableColumnFlags_WidthFixed );
+                ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_WidthFixed );
+                ImGui::TableSetupColumn( "General" );
+                ImGui::TableSetupColumn( "Closest-Hit" );
+                ImGui::TableSetupColumn( "Any-Hit" );
+                ImGui::TableSetupColumn( "Intersection" );
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
+
+                auto ShaderGroupColumn = [&]( uint32_t shader ) {
+                    if( ImGui::TableNextColumn() )
+                    {
+                        if( shader != VK_SHADER_UNUSED_KHR )
+                        {
+                            const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( shader );
+                            if( pShader )
+                            {
+                                std::string shaderName;
+
+                                // Prefer shader module file name if available.
+                                if( pShader->m_pShaderModule && pShader->m_pShaderModule->m_pFileName )
+                                {
+                                    shaderName = fmt::format(
+                                        "{} ({})",
+                                        pShader->m_pShaderModule->m_pFileName,
+                                        pShader->m_EntryPoint );
+                                }
+                                else
+                                {
+                                    shaderName = fmt::format(
+                                        "{:08X} ({})",
+                                        pShader->m_Hash,
+                                        pShader->m_EntryPoint );
+                                }
+
+                                if( ImGui::TextLink( shaderName.c_str() ) )
+                                {
+                                    // Switch to the shader inspector tab.
+                                    const size_t shaderIndex = ( pShader - m_InspectorPipeline.m_ShaderTuple.m_Shaders.data() );
+                                    SetInspectorTabIndex( shaderIndex + 1 );
+                                }
+
+                                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                                {
+                                    ImGui::SetTooltip( "%s", m_pStringSerializer->GetShaderName( *pShader ).c_str() );
+                                }
+                            }
+                            else
+                            {
+                                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 255, 128, 128, 255 ) );
+                                ImGui::Text( "Invalid (%u)", shader );
+                                ImGui::PopStyleColor();
+                            }
+                        }
+                        else
+                        {
+                            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 128, 128, 128, 255 ) );
+                            ImGui::TextUnformatted( "Unused" );
+                            ImGui::PopStyleColor();
+                        }
+                    }
+                };
+
+                for( uint32_t i = 0; i < rtci.groupCount; ++i )
+                {
+                    const VkRayTracingShaderGroupCreateInfoKHR& group = rtci.pGroups[i];
+                    ImGui::TableNextRow();
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        ImGui::Text( "%u", i );
+                    }
+
+                    if( ImGui::TableNextColumn() )
+                    {
+                        std::string groupTypeName;
+
+                        if( group.type == VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR )
+                        {
+                            const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( group.generalShader );
+                            if( pShader )
+                            {
+                                groupTypeName = m_pStringSerializer->GetGeneralShaderGroupTypeName( pShader->m_Stage );
+                            }
+                        }
+
+                        if( groupTypeName.empty() )
+                        {
+                            groupTypeName = m_pStringSerializer->GetShaderGroupTypeName( group.type );
+                        }
+
+                        ImGui::TextUnformatted( groupTypeName.c_str() );
+                    }
+
+                    ShaderGroupColumn( group.generalShader );
+                    ShaderGroupColumn( group.closestHitShader );
+                    ShaderGroupColumn( group.anyHitShader );
+                    ShaderGroupColumn( group.intersectionShader );
+                }
+
+                ImGui::EndTable();
+            }
+            ImGuiX::EndPadding( contentPaddingBottom );
+        }
+
+        ImGui::PopStyleColor();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         SetInspectorTabIndex
 
     Description:
@@ -2623,7 +5228,7 @@ namespace Profiler
                     {
                         ImGuiX::TextAlignRight(
                             ImGuiX::TableGetColumnWidth(),
-                            "%u",
+                            "%" PRIu64,
                             stats.m_Count );
                     }
 
@@ -2744,6 +5349,13 @@ namespace Profiler
             ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
         }
 
+        // Set number of collected frames
+        int maxFrameCount = static_cast<int>( m_MaxFrameCount );
+        if( ImGui::InputInt( Lang::CollectedFrameCount, &maxFrameCount ) )
+        {
+            SetMaxFrameCount( std::max<uint32_t>( 0, maxFrameCount ) );
+        }
+
         // Select sampling mode (constant in runtime for now)
         ImGui::BeginDisabled();
         {
@@ -2762,23 +5374,20 @@ namespace Profiler
         }
         ImGui::EndDisabled();
 
-        // Select synchronization mode
+        // Select frame delimiter (constant in runtime)
+        ImGui::BeginDisabled();
         {
-            static const char* syncGroupOptions[] = {
+            static const char* frameDelimiterOptions[] = {
                 Lang::Present,
                 Lang::Submit };
 
-            int syncModeSelectedOption = static_cast<int>(m_SyncMode);
-            if( ImGui::Combo( Lang::SyncMode, &syncModeSelectedOption, syncGroupOptions, 2 ) )
+            int frameDelimiterSelectedOption = static_cast<int>(m_FrameDelimiter);
+            if( ImGui::Combo( Lang::FrameDelimiter, &frameDelimiterSelectedOption, frameDelimiterOptions, 2 ) )
             {
-                VkProfilerSyncModeEXT syncMode = static_cast<VkProfilerSyncModeEXT>(syncModeSelectedOption);
-                VkResult result = m_pFrontend->SetProfilerSyncMode( syncMode );
-                if( result == VK_SUCCESS )
-                {
-                    m_SyncMode = syncMode;
-                }
+                assert( false );
             }
         }
+        ImGui::EndDisabled();
 
         // Select time display unit.
         {
@@ -2820,49 +5429,145 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetQueueGraphColumns( VkQueue queue, std::vector<QueueGraphColumn>& columns ) const
     {
-        uint64_t lastTimestamp = m_pData->m_BeginTimestamp;
+        uint64_t lastTimestamp;
 
-        for( const auto& submitBatch : m_pData->m_Submits )
-        {
-            if( submitBatch.m_Handle != queue )
-            {
-                continue;
-            }
+        const bool showActiveFrame = GetShowActiveFrame();
+        const FrameDataList& framesList = GetActiveFramesList();
+        std::shared_ptr<DeviceProfilerFrameData> pFirstFrame = showActiveFrame ? m_pData : framesList.front();
+        std::shared_ptr<DeviceProfilerFrameData> pLastFrame = showActiveFrame ? m_pData : framesList.back();
+        lastTimestamp = pFirstFrame->m_BeginTimestamp;
 
-            for( const auto& submit : submitBatch.m_Submits )
+        FrameBrowserTreeNodeIndex index;
+        index.SetFrameIndex( MakeFrameIndex( framesList.size() - 1, m_SelectedFrameIndex & FrameIndexFlagsMask ) );
+
+        auto AppendSemaphoreEvent = [&]( const std::vector<VkSemaphore>& semaphores, QueueGraphColumn::DataType type ) {
+            QueueGraphColumn& column = columns.emplace_back();
+            column.flags = ImGuiX::HistogramColumnFlags_Event;
+            column.color = IM_COL32( 128, 128, 128, 255 );
+            column.userDataType = type;
+            column.userData = &semaphores;
+
+            // Highlight events with selected semaphores.
+            for( VkSemaphore semaphore : semaphores )
             {
-                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                if( m_SelectedSemaphores.count( semaphore ) )
                 {
-                    if( !commandBuffer.m_DataValid )
-                    {
-                        continue;
-                    }
-
-                    if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
-                    {
-                        QueueGraphColumn& idle = columns.emplace_back();
-                        idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
-                        idle.y = 0;
-                        idle.color = 0;
-                    }
-
-                    QueueGraphColumn& column = columns.emplace_back();
-                    column.x = GetDuration( commandBuffer );
-                    column.y = 1;
-                    column.color = m_GraphicsPipelineColumnColor;
-
-                    lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+                    column.color = IM_COL32( 255, 32, 16, 255 );
+                    break;
                 }
             }
+        };
+
+        for( const auto& pFrame : framesList )
+        {
+            const uint32_t frameIndex = index.GetFrameIndex();
+
+            // Skip other frames if requested
+            if( showActiveFrame )
+            {
+                if( frameIndex != m_SelectedFrameIndex )
+                {
+                    index.SetFrameIndex( frameIndex - 1 );
+                    continue;
+                }
+            }
+
+            const bool isActiveFrame = ( frameIndex == m_SelectedFrameIndex );
+
+            // Count queue submits in the frame.
+            index.emplace_back( 0 );
+
+            for( const auto& submitBatch : pFrame->m_Submits )
+            {
+                if( submitBatch.m_Handle != queue )
+                {
+                    // Index must be incremented to account for the submissions on the other queues.
+                    index.back()++;
+                    continue;
+                }
+
+                // Count submit infos.
+                index.emplace_back( 0 );
+
+                for( const auto& submit : submitBatch.m_Submits )
+                {
+                    // Count command buffers.
+                    index.emplace_back( 0 );
+
+                    bool firstCommandBuffer = true;
+
+                    for( const auto& commandBuffer : submit.m_CommandBuffers )
+                    {
+                        if( !commandBuffer.m_DataValid )
+                        {
+                            // Take command buffers with no data into account.
+                            index.back()++;
+                            continue;
+                        }
+
+                        if( lastTimestamp != commandBuffer.m_BeginTimestamp.m_Value )
+                        {
+                            QueueGraphColumn& idle = columns.emplace_back();
+                            idle.x = GetDuration( lastTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                            idle.y = 1;
+                            idle.color = 0;
+                            idle.userDataType = QueueGraphColumn::eIdle;
+                            idle.userData = nullptr;
+                        }
+
+                        if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
+                        {
+                            // Enumerate wait semaphores before the first executed command buffer.
+                            AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
+                        }
+
+                        QueueGraphColumn& column = columns.emplace_back();
+                        column.x = GetDuration( commandBuffer );
+                        column.y = 1;
+                        column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
+                        column.userDataType = QueueGraphColumn::eCommandBuffer;
+                        column.userData = &commandBuffer;
+                        column.nodeIndex = index;
+
+                        lastTimestamp = commandBuffer.m_EndTimestamp.m_Value;
+                        firstCommandBuffer = false;
+
+                        index.back()++;
+                    }
+
+                    // Insert wait semaphores if no command buffers were submitted.
+                    if( firstCommandBuffer && !submit.m_WaitSemaphores.empty() )
+                    {
+                        AppendSemaphoreEvent( submit.m_WaitSemaphores, QueueGraphColumn::eWaitSemaphores );
+                    }
+
+                    // Enumerate signal semaphores after the last executed command buffer.
+                    if( !submit.m_SignalSemaphores.empty() )
+                    {
+                        AppendSemaphoreEvent( submit.m_SignalSemaphores, QueueGraphColumn::eSignalSemaphores );
+                    }
+
+                    index.pop_back();
+                    index.back()++;
+                }
+
+                index.pop_back();
+                index.back()++;
+            }
+
+            index.pop_back();
+            index.SetFrameIndex( frameIndex - 1 );
         }
 
-        if( ( lastTimestamp != m_pData->m_BeginTimestamp ) &&
-            ( lastTimestamp != m_pData->m_EndTimestamp ) )
+        if( ( lastTimestamp != pFirstFrame->m_BeginTimestamp ) &&
+            ( lastTimestamp != pLastFrame->m_EndTimestamp ) )
         {
             QueueGraphColumn& idle = columns.emplace_back();
-            idle.x = GetDuration( lastTimestamp, m_pData->m_EndTimestamp );
-            idle.y = 0;
+            idle.x = GetDuration( lastTimestamp, pLastFrame->m_EndTimestamp );
+            idle.y = 1;
             idle.color = 0;
+            idle.userDataType = QueueGraphColumn::eIdle;
+            idle.userData = nullptr;
         }
     }
 
@@ -2880,7 +5585,10 @@ namespace Profiler
         float utilization = 0.0f;
         for( const auto& column : columns )
         {
-            utilization += column.x * column.y;
+            if( column.userDataType == QueueGraphColumn::eCommandBuffer )
+            {
+                utilization += column.x * column.y;
+            }
         }
 
         return utilization;
@@ -2897,11 +5605,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::GetPerformanceGraphColumns( std::vector<PerformanceGraphColumn>& columns ) const
     {
-        FrameBrowserTreeNodeIndex index;
-        index.emplace_back( 0 );
-
         using QueueTimestampPair = std::pair<VkQueue, uint64_t>;
-        const auto& queues = m_pFrontend->GetDeviceQueues();
+        const auto& queues = m_Frontend.GetDeviceQueues();
         const size_t queueCount = queues.size();
 
         QueueTimestampPair* pLastTimestampsPerQueue = nullptr;
@@ -2938,51 +5643,92 @@ namespace Profiler
             }
         }
 
-        // Enumerate submits batches in frame
-        for( const auto& submitBatch : m_pData->m_Submits )
+        const bool showActiveFrame = GetShowActiveFrame();
+        const FrameDataList& framesList = GetActiveFramesList();
+
+        FrameBrowserTreeNodeIndex index;
+        index.SetFrameIndex( MakeFrameIndex( framesList.size() - 1, m_SelectedFrameIndex & FrameIndexFlagsMask ) );
+
+        for( const std::shared_ptr<DeviceProfilerFrameData>& pFrame : framesList )
         {
-            index.emplace_back( 0 );
+            const uint32_t frameIndex = index.GetFrameIndex();
 
-            // End timestamp of the last executed command buffer on this queue
-            QueueTimestampPair* pLastQueueTimestamp = nullptr;
-
-            if( m_HistogramShowIdle && pLastTimestampsPerQueue != nullptr )
+            // Skip other frames if requested
+            if( showActiveFrame )
             {
-                for( size_t i = 0; i < queueCount; ++i )
+                if( frameIndex != m_SelectedFrameIndex )
                 {
-                    if( pLastTimestampsPerQueue[i].first == submitBatch.m_Handle )
-                    {
-                        pLastQueueTimestamp = &pLastTimestampsPerQueue[i];
-                        break;
-                    }
+                    index.SetFrameIndex( frameIndex - 1 );
+                    continue;
                 }
             }
 
-            // Enumerate submits in submit batch
-            for( const auto& submit : submitBatch.m_Submits )
+            // Enumerate frames only
+            if( m_HistogramGroupMode == HistogramGroupMode::eFrame )
+            {
+                PerformanceGraphColumn& column = columns.emplace_back();
+                column.x = GetDuration( pFrame->m_BeginTimestamp, pFrame->m_EndTimestamp );
+                column.y = ( m_HistogramValueMode == HistogramValueMode::eDuration ? column.x : 1 );
+                column.color = ImGuiX::ColorAlpha( m_RenderPassColumnColor, frameIndex == m_SelectedFrameIndex ? 1.0f : 0.2f );
+                column.userData = pFrame.get();
+                column.groupMode = HistogramGroupMode::eFrame;
+                column.nodeIndex = index;
+
+                index.SetFrameIndex( frameIndex - 1 );
+                continue;
+            }
+
+            index.emplace_back( 0 );
+
+            // Enumerate submits batches in frame
+            for( const auto& submitBatch : pFrame->m_Submits )
             {
                 index.emplace_back( 0 );
 
-                // Enumerate command buffers in submit
-                for( const auto& commandBuffer : submit.m_CommandBuffers )
+                // End timestamp of the last executed command buffer on this queue
+                QueueTimestampPair* pLastQueueTimestamp = nullptr;
+
+                if( m_HistogramShowIdle && pLastTimestampsPerQueue != nullptr )
                 {
-                    // Insert idle time since last command buffer
-                    if( m_HistogramShowIdle &&
-                        ( pLastQueueTimestamp != nullptr ) &&
-                        ( commandBuffer.m_BeginTimestamp.m_Index != UINT64_MAX ) &&
-                        ( commandBuffer.m_EndTimestamp.m_Index != UINT64_MAX ) )
+                    for( size_t i = 0; i < queueCount; ++i )
                     {
-                        if( pLastQueueTimestamp->second != 0 )
+                        if( pLastTimestampsPerQueue[i].first == submitBatch.m_Handle )
                         {
-                            PerformanceGraphColumn& column = columns.emplace_back();
-                            column.x = GetDuration( pLastQueueTimestamp->second, commandBuffer.m_BeginTimestamp.m_Value );
-                            column.y = 0;
+                            pLastQueueTimestamp = &pLastTimestampsPerQueue[i];
+                            break;
+                        }
+                    }
+                }
+
+                // Enumerate submits in submit batch
+                for( const auto& submit : submitBatch.m_Submits )
+                {
+                    index.emplace_back( 0 );
+
+                    // Enumerate command buffers in submit
+                    for( const auto& commandBuffer : submit.m_CommandBuffers )
+                    {
+                        // Insert idle time since last command buffer
+                        if( m_HistogramShowIdle &&
+                            ( pLastQueueTimestamp != nullptr ) &&
+                            ( commandBuffer.m_BeginTimestamp.m_Index != UINT64_MAX ) &&
+                            ( commandBuffer.m_EndTimestamp.m_Index != UINT64_MAX ) )
+                        {
+                            if( pLastQueueTimestamp->second != 0 )
+                            {
+                                PerformanceGraphColumn& column = columns.emplace_back();
+                                column.x = GetDuration( pLastQueueTimestamp->second, commandBuffer.m_BeginTimestamp.m_Value );
+                                column.y = 0;
+                            }
+
+                            pLastQueueTimestamp->second = commandBuffer.m_EndTimestamp.m_Value;
                         }
 
-                        pLastQueueTimestamp->second = commandBuffer.m_EndTimestamp.m_Value;
+                        GetPerformanceGraphColumns( commandBuffer, index, columns );
+                        index.back()++;
                     }
 
-                    GetPerformanceGraphColumns( commandBuffer, index, columns );
+                    index.pop_back();
                     index.back()++;
                 }
 
@@ -2991,7 +5737,7 @@ namespace Profiler
             }
 
             index.pop_back();
-            index.back()++;
+            index.SetFrameIndex( index.GetFrameIndex() - 1 );
         }
 
         // Free memory allocated on heap
@@ -3000,8 +5746,7 @@ namespace Profiler
             free( pLastTimestampsPerQueue );
         }
 
-        index.pop_back();
-        assert( index.empty() );
+        assert( index.size() == 2 );
     }
 
     /***********************************************************************************\
@@ -3044,6 +5789,8 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
+        const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
+
         if( (m_HistogramGroupMode <= HistogramGroupMode::eRenderPass) &&
             ((data.m_Handle != VK_NULL_HANDLE) ||
              (data.m_Dynamic == true) ||
@@ -3054,7 +5801,7 @@ namespace Profiler
             PerformanceGraphColumn& column = columns.emplace_back();
             column.x = cycleCount;
             column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-            column.color = m_RenderPassColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_RenderPassColumnColor, isActiveFrame ? 1.0f : 0.2f );
             column.userData = &data;
             column.groupMode = HistogramGroupMode::eRenderPass;
             column.nodeIndex = index;
@@ -3069,7 +5816,7 @@ namespace Profiler
                 PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassBegin;
                 column.nodeIndex = index;
@@ -3132,7 +5879,7 @@ namespace Profiler
                 PerformanceGraphColumn& column = columns.emplace_back();
                 column.x = cycleCount;
                 column.y = (m_HistogramValueMode == HistogramValueMode::eDuration ? cycleCount : 1);
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 column.userData = &data;
                 column.groupMode = HistogramGroupMode::eRenderPassEnd;
                 column.nodeIndex = index;
@@ -3161,6 +5908,7 @@ namespace Profiler
               (data.m_Handle != VK_NULL_HANDLE)) ||
              (m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT)) )
         {
+            const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
             const float cycleCount = GetDuration( data );
 
             PerformanceGraphColumn& column = columns.emplace_back();
@@ -3173,15 +5921,15 @@ namespace Profiler
             switch( data.m_BindPoint )
             {
             case VK_PIPELINE_BIND_POINT_GRAPHICS:
-                column.color = m_GraphicsPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             case VK_PIPELINE_BIND_POINT_COMPUTE:
-                column.color = m_ComputePipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_ComputePipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
-                column.color = m_RayTracingPipelineColumnColor;
+                column.color = ImGuiX::ColorAlpha( m_RayTracingPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
                 break;
 
             default:
@@ -3218,6 +5966,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex& index,
         std::vector<PerformanceGraphColumn>& columns ) const
     {
+        const bool isActiveFrame = ( index.GetFrameIndex() == m_SelectedFrameIndex );
         const float cycleCount = GetDuration( data );
 
         PerformanceGraphColumn& column = columns.emplace_back();
@@ -3230,15 +5979,15 @@ namespace Profiler
         switch( data.GetPipelineType() )
         {
         case DeviceProfilerPipelineType::eGraphics:
-            column.color = m_GraphicsPipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
 
         case DeviceProfilerPipelineType::eCompute:
-            column.color = m_ComputePipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_ComputePipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
 
         default:
-            column.color = m_InternalPipelineColumnColor;
+            column.color = ImGuiX::ColorAlpha( m_InternalPipelineColumnColor, isActiveFrame ? 1.0f : 0.2f );
             break;
         }
     }
@@ -3261,6 +6010,16 @@ namespace Profiler
 
         switch( data.groupMode )
         {
+        case HistogramGroupMode::eFrame:
+        {
+            const DeviceProfilerFrameData& frameData =
+                *reinterpret_cast<const DeviceProfilerFrameData*>( data.userData );
+
+            regionName = fmt::format( "{} #{}", m_pFrameStr, frameData.m_CPU.m_FrameIndex );
+            regionDuration = GetDuration( frameData.m_BeginTimestamp, frameData.m_EndTimestamp );
+            break;
+        }
+
         case HistogramGroupMode::eRenderPass:
         {
             const DeviceProfilerRenderPassData& renderPassData =
@@ -3378,12 +6137,12 @@ namespace Profiler
     {
         // Allocate size for the string.
         m_FrameBrowserNodeIndexStr.resize(
-            (index.size() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
+            (index.GetTreeNodeIndexSize() * sizeof( FrameBrowserTreeNodeIndex::value_type ) * 2) + 1 );
 
         ProfilerStringFunctions::Hex(
             m_FrameBrowserNodeIndexStr.data(),
-            index.data(),
-            index.size() );
+            index.GetTreeNodeIndex(),
+            index.GetTreeNodeIndexSize() );
 
         return m_FrameBrowserNodeIndexStr.data();
     }
@@ -3397,15 +6156,16 @@ namespace Profiler
         Returns the default file name for performance counters.
 
     \***********************************************************************************/
-    std::string ProfilerOverlayOutput::GetDefaultPerformanceCountersFileName( uint32_t metricsSetIndex ) const
+    std::string ProfilerOverlayOutput::GetDefaultPerformanceCountersFileName(
+        const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet ) const
     {
         std::stringstream stringBuilder;
         stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
         stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
 
-        if( metricsSetIndex < m_VendorMetricsSets.size() )
+        if( pMetricsSet )
         {
-            std::string metricsSetName = m_VendorMetricsSets[metricsSetIndex].m_Properties.name;
+            std::string metricsSetName = pMetricsSet->m_Properties.name;
             std::replace( metricsSetName.begin(), metricsSetName.end(), ' ', '_' );
             stringBuilder << metricsSetName << "_";
         }
@@ -3429,59 +6189,59 @@ namespace Profiler
     {
         static const std::string scFileDialogId = "#PerformanceCountersSaveFileDialog";
 
-        if( m_pPerformanceCounterExporter != nullptr )
+        if( m_pPerformanceQueryExporter != nullptr )
         {
             // Initialize the file dialog on the first call to this function.
-            if( !m_pPerformanceCounterExporter->m_FileDialog.IsOpened() )
+            if( !m_pPerformanceQueryExporter->m_FileDialog.IsOpened() )
             {
-                m_pPerformanceCounterExporter->m_FileDialogConfig.flags =
+                m_pPerformanceQueryExporter->m_FileDialogConfig.flags =
                     ImGuiFileDialogFlags_Default;
 
-                if( m_pPerformanceCounterExporter->m_Action == PerformanceCounterExporter::Action::eImport )
+                if( m_pPerformanceQueryExporter->m_Action == PerformanceQueryExporter::Action::eImport )
                 {
                     // Don't ask for overwrite when selecting file to load.
-                    m_pPerformanceCounterExporter->m_FileDialogConfig.flags ^=
+                    m_pPerformanceQueryExporter->m_FileDialogConfig.flags ^=
                         ImGuiFileDialogFlags_ConfirmOverwrite;
                 }
 
-                if( m_pPerformanceCounterExporter->m_Action == PerformanceCounterExporter::Action::eExport )
+                if( m_pPerformanceQueryExporter->m_Action == PerformanceQueryExporter::Action::eExport )
                 {
-                    m_pPerformanceCounterExporter->m_FileDialogConfig.fileName =
-                        GetDefaultPerformanceCountersFileName( m_pPerformanceCounterExporter->m_MetricsSetIndex );
+                    m_pPerformanceQueryExporter->m_FileDialogConfig.fileName =
+                        GetDefaultPerformanceCountersFileName( m_pPerformanceQueryExporter->m_pMetricsSet );
                 }
             }
 
             // Draw the file dialog until the user closes it.
             bool closed = DisplayFileDialog(
                 scFileDialogId,
-                m_pPerformanceCounterExporter->m_FileDialog,
-                m_pPerformanceCounterExporter->m_FileDialogConfig,
+                m_pPerformanceQueryExporter->m_FileDialog,
+                m_pPerformanceQueryExporter->m_FileDialogConfig,
                 "Select performance counters file path",
                 ".csv" );
 
             if( closed )
             {
-                if( m_pPerformanceCounterExporter->m_FileDialog.IsOk() )
+                if( m_pPerformanceQueryExporter->m_FileDialog.IsOk() )
                 {
-                    switch (m_pPerformanceCounterExporter->m_Action)
+                    switch( m_pPerformanceQueryExporter->m_Action )
                     {
-                    case PerformanceCounterExporter::Action::eExport:
+                    case PerformanceQueryExporter::Action::eExport:
                         SavePerformanceCountersToFile(
-                            m_pPerformanceCounterExporter->m_FileDialog.GetFilePathName(),
-                            m_pPerformanceCounterExporter->m_MetricsSetIndex,
-                            m_pPerformanceCounterExporter->m_Data,
-                            m_pPerformanceCounterExporter->m_DataMask );
+                            m_pPerformanceQueryExporter->m_FileDialog.GetFilePathName(),
+                            m_pPerformanceQueryExporter->m_pMetricsSet,
+                            m_pPerformanceQueryExporter->m_Data,
+                            m_pPerformanceQueryExporter->m_DataMask );
                         break;
 
-                    case PerformanceCounterExporter::Action::eImport:
+                    case PerformanceQueryExporter::Action::eImport:
                         LoadPerformanceCountersFromFile(
-                            m_pPerformanceCounterExporter->m_FileDialog.GetFilePathName() );
+                            m_pPerformanceQueryExporter->m_FileDialog.GetFilePathName() );
                         break;
                     }
                 }
 
                 // Destroy the exporter.
-                m_pPerformanceCounterExporter.reset();
+                m_pPerformanceQueryExporter.reset();
             }
         }
     }
@@ -3497,7 +6257,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::SavePerformanceCountersToFile(
         const std::string& fileName,
-        uint32_t metricsSetIndex,
+        const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet,
         const std::vector<VkProfilerPerformanceCounterResultEXT>& data,
         const std::vector<bool>& mask )
     {
@@ -3505,10 +6265,10 @@ namespace Profiler
 
         if( serializer.Open( fileName ) )
         {
-            const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& properties =
-                m_VendorMetricsSets[metricsSetIndex].m_Metrics;
+            assert( pMetricsSet != nullptr );
 
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> exportedProperties;
+            const std::vector<VkProfilerPerformanceCounterProperties2EXT>& properties = pMetricsSet->m_Metrics;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> exportedProperties;
             std::vector<VkProfilerPerformanceCounterResultEXT> exportedData;
 
             for( size_t i = 0; i < data.size(); ++i )
@@ -3554,15 +6314,15 @@ namespace Profiler
 
         if( deserializer.Open( fileName ) )
         {
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties = deserializer.ReadHeader();
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> properties = deserializer.ReadHeader();
             std::vector<VkProfilerPerformanceCounterResultEXT> results = deserializer.ReadRow();
 
-            m_ReferencePerformanceCounters.clear();
+            m_ReferencePerformanceQueryData.clear();
 
             const size_t performanceCounterCount = std::min( properties.size(), results.size() );
             for( size_t i = 0; i < performanceCounterCount; ++i )
             {
-                m_ReferencePerformanceCounters.try_emplace( properties[i].shortName, results[i] );
+                m_ReferencePerformanceQueryData.try_emplace( properties[i].shortName, results[i] );
             }
 
             m_SerializationSucceeded = true;
@@ -3665,7 +6425,7 @@ namespace Profiler
         if( serializer.Open( fileName ) )
         {
             // Convert top pipelines to performance counter format to reuse existing CSV serializer implementation.
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> pipelineNames;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> pipelineNames;
             pipelineNames.reserve( data.m_TopPipelines.size() );
 
             std::vector<VkProfilerPerformanceCounterResultEXT> pipelineDurations;
@@ -3675,7 +6435,7 @@ namespace Profiler
             {
                 const std::string pipelineName = m_pStringSerializer->GetName( pipeline );
 
-                VkProfilerPerformanceCounterPropertiesEXT& pipelineNameInfo = pipelineNames.emplace_back();
+                VkProfilerPerformanceCounterProperties2EXT& pipelineNameInfo = pipelineNames.emplace_back();
                 ProfilerStringFunctions::CopyString( pipelineNameInfo.shortName, pipelineName.c_str(), pipelineName.length() );
                 pipelineNameInfo.storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
 
@@ -3722,7 +6482,7 @@ namespace Profiler
 
         if( deserializer.Open( fileName ) )
         {
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> properties = deserializer.ReadHeader();
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> properties = deserializer.ReadHeader();
             std::vector<VkProfilerPerformanceCounterResultEXT> results = deserializer.ReadRow();
 
             m_ReferenceTopPipelines.clear();
@@ -3818,7 +6578,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
-        DeviceProfilerTraceSerializer serializer( m_pFrontend, m_pStringSerializer.get(), m_TimestampPeriod );
+        DeviceProfilerTraceSerializer serializer( m_Frontend );
         DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
 
         m_SerializationSucceeded = result.m_Succeeded;
@@ -3848,7 +6608,7 @@ namespace Profiler
 
         if( (now - m_SerializationFinishTimestamp) < 4s )
         {
-            const ImVec2 outputSize = m_pBackend->GetRenderArea();
+            const ImVec2 outputSize = m_Backend.GetRenderArea();
             const ImVec2 windowPos = {
                 static_cast<float>(outputSize.x - m_SerializationOutputWindowSize.width),
                 static_cast<float>(outputSize.y - m_SerializationOutputWindowSize.height) };
@@ -3922,7 +6682,7 @@ namespace Profiler
             const float headerColumnWidth = 150.f * interfaceScale;
             const ImVec2 iconSize = { 12.f * interfaceScale, 12.f * interfaceScale };
 
-            const VkApplicationInfo& applicationInfo = m_pFrontend->GetApplicationInfo();
+            const VkApplicationInfo& applicationInfo = m_Frontend.GetApplicationInfo();
 
             ImGui::PushStyleColor( ImGuiCol_Button, { 0, 0, 0, 0 } );
 
@@ -3939,7 +6699,7 @@ namespace Profiler
                 ImGui::TextUnformatted( applicationInfo.pApplicationName );
                 
                 ImGui::SameLine();
-                if( ImGui::ImageButton( "##CopyApplicationName", m_Resources.GetCopyIconImage(), iconSize ) )
+                if( ImGui::ImageButton( "##CopyApplicationName", m_Resources.GetIcon( OverlayIcon::Copy ), iconSize ) )
                 {
                     ImGui::SetClipboardText( applicationInfo.pApplicationName );
                 }
@@ -3963,7 +6723,7 @@ namespace Profiler
                 ImGui::TextUnformatted( applicationInfo.pEngineName );
 
                 ImGui::SameLine();
-                if( ImGui::ImageButton( "##CopyEngineName", m_Resources.GetCopyIconImage(), iconSize ) )
+                if( ImGui::ImageButton( "##CopyEngineName", m_Resources.GetIcon( OverlayIcon::Copy ), iconSize ) )
                 {
                     ImGui::SetClipboardText( applicationInfo.pEngineName );
                 }
@@ -4013,7 +6773,7 @@ namespace Profiler
 
         if( ImGui::BeginPopupContextItem() )
         {
-            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceQueryResults.empty() ) )
+            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceCounters.m_Results.empty() ) )
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
                 m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
@@ -4515,7 +7275,7 @@ namespace Profiler
             const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get();
 
             const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties =
-                m_pFrontend->GetRayTracingPipelineProperties();
+                m_Frontend.GetRayTracingPipelineProperties();
 
             auto PrintShaderBindingTable = [&]( const char* pName, const VkStridedDeviceAddressRegionKHR& table, size_t tableOffset ) {
                 ImGui::Text( "%s Shader Binding Table (0x%016llx, %u, %u)",
@@ -4870,9 +7630,22 @@ namespace Profiler
     template <typename Data>
     void ProfilerOverlayOutput::PrintDuration( const Data& data )
     {
-        if( ( data.m_BeginTimestamp.m_Value != UINT64_MAX ) && ( data.m_EndTimestamp.m_Value != UINT64_MAX ) )
+        PrintDuration( data.m_BeginTimestamp.m_Value, data.m_EndTimestamp.m_Value );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PrintDuration
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::PrintDuration( uint64_t from, uint64_t to )
+    {
+        if( ( from != UINT64_MAX ) && ( to != UINT64_MAX ) )
         {
-            const float time = this->template GetDuration<Data>( data );
+            const float time = GetDuration( from, to );
 
             // Print the duration
             ImGuiX::TextAlignRight( "%.2f %s",
@@ -4913,6 +7686,121 @@ namespace Profiler
     {
         return static_cast<float>(end - begin) * m_TimestampPeriod.count() * m_TimestampDisplayUnit;
     }
+
+    /***********************************************************************************\
+
+    Function:
+        GetShowActiveFrame
+
+    Description:
+        Returns whether only the active frame data should be shown in the profiler.
+
+    \***********************************************************************************/
+    bool ProfilerOverlayOutput::GetShowActiveFrame() const
+    {
+        // Snapshots are sparse, so the overlay always shows only the selected frame.
+        return m_ShowActiveFrame || ( m_SelectedFrameIndex & SnapshotFrameIndexFlag );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetActiveFramesList
+
+    Description:
+        Get the frame data list that contains the currenly selected frame.
+
+    \***********************************************************************************/
+    const ProfilerOverlayOutput::FrameDataList& ProfilerOverlayOutput::GetActiveFramesList() const
+    {
+        return ( m_SelectedFrameIndex & SnapshotFrameIndexFlag )
+                   ? m_pSnapshots
+                   : m_pFrames;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameData
+
+    Description:
+        Get the frame data by index.
+
+    \***********************************************************************************/
+    std::shared_ptr<DeviceProfilerFrameData> ProfilerOverlayOutput::GetFrameData( uint32_t frameIndex ) const
+    {
+        const uint32_t index = ( frameIndex & FrameIndexMask );
+        const uint32_t flags = ( frameIndex & FrameIndexFlagsMask );
+
+        if( frameIndex == InvalidFrameIndex )
+        {
+            return nullptr;
+        }
+
+        if( frameIndex == CurrentFrameIndex )
+        {
+            return m_pData;
+        }
+
+        if( flags & SnapshotFrameIndexFlag )
+        {
+            if( index < m_pSnapshots.size() )
+            {
+                return GetNthElement( m_pSnapshots, m_pSnapshots.size() - index - 1 );
+            }
+        }
+        else
+        {
+            if( index < m_pFrames.size() )
+            {
+                return GetNthElement( m_pFrames, m_pFrames.size() - index - 1 );
+            }
+        }
+
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameName
+
+    Description:
+        Get the unique name of the frame including context name and frame index for
+        identification within ImGui.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetFrameName( const char* pContextName, uint32_t frameIndex, bool indent ) const
+    {
+        std::shared_ptr<DeviceProfilerFrameData> pFrameData = GetFrameData( frameIndex );
+
+        if( pFrameData )
+        {
+            return GetFrameName( pFrameData, pContextName, frameIndex, indent );
+        }
+
+        return std::string();
+    };
+
+    /***********************************************************************************\
+
+    Function:
+        GetFrameName
+
+    Description:
+        Get the unique name of the frame including context name and frame index for
+        identification within ImGui.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetFrameName( const std::shared_ptr<DeviceProfilerFrameData>& pFrameData, const char* pContextName, uint32_t frameIndex, bool indent ) const
+    {
+        return fmt::format( "{}{} #{}###{}{}",
+            indent ? "   " : "",
+            m_pFrameStr,
+            pFrameData->m_CPU.m_FrameIndex,
+            pContextName,
+            frameIndex );
+    };
 
     /***********************************************************************************\
 

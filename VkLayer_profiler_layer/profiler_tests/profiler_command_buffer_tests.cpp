@@ -58,11 +58,15 @@ namespace Profiler
                 return &createInfo;
             }
 
-            bool Configure() override
+            bool CheckSupport( const VkPhysicalDeviceFeatures2* ) const override
+            {
+                return createInfo.nestedCommandBuffer;
+            }
+
+            void Configure( VkPhysicalDeviceFeatures2* ) override
             {
                 createInfo.nestedCommandBufferRendering = false;
                 createInfo.nestedCommandBufferSimultaneousUse = false;
-                return createInfo.nestedCommandBuffer;
             }
         } nestedCommandBufferFeature;
 
@@ -181,7 +185,8 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -242,11 +247,7 @@ namespace Profiler
 
     TEST_F( ProfilerCommandBufferULT, ProfileNestedCommandBuffers )
     {
-        if( !nestedCommandBufferFeature.Enabled )
-        {
-            GTEST_SKIP() << "Nested command buffers are not supported.";
-            return;
-        }
+        SkipIfUnsupported( nestedCommandBufferFeature );
 
         // Create simple triangle app
         VulkanSimpleTriangle simpleTriangle( Vk );
@@ -351,7 +352,8 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -523,7 +525,8 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();
@@ -545,7 +548,10 @@ namespace Profiler
             Prof->FinishFrame();
         }
         { // Validate data
-            const auto& data = *Prof->GetData();
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            ASSERT_NE( nullptr, pData );
+
+            const DeviceProfilerFrameData& data = *pData;
             ASSERT_EQ( 1, data.m_Submits.size() );
 
             const auto& submit = data.m_Submits.front();

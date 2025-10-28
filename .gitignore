@@ -30,6 +30,7 @@ out/
 build/
 cmake_build/
 cov_build/
+docs_build/
 
 # User-defined files
 _*

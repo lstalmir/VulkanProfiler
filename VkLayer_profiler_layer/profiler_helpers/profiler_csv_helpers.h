@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-struct VkProfilerPerformanceCounterPropertiesEXT;
+struct VkProfilerPerformanceCounterProperties2EXT;
 union VkProfilerPerformanceCounterResultEXT;
 
 namespace Profiler
@@ -47,12 +47,12 @@ namespace Profiler
         bool Open( const std::string& filename );
         void Close();
 
-        void WriteHeader( uint32_t count, const VkProfilerPerformanceCounterPropertiesEXT* pProperties );
+        void WriteHeader( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties );
         void WriteRow( uint32_t count, const VkProfilerPerformanceCounterResultEXT* pValues );
 
     private:
         std::ofstream m_File;
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Properties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Properties;
     };
 
     /***********************************************************************************\
@@ -73,11 +73,11 @@ namespace Profiler
         bool Open( const std::string& filename );
         void Close();
 
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> ReadHeader();
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> ReadHeader();
         std::vector<VkProfilerPerformanceCounterResultEXT> ReadRow();
 
     private:
         std::ifstream m_File;
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Properties;
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Properties;
     };
 }

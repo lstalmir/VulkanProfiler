@@ -769,6 +769,10 @@ namespace Profiler
             info.signalSemaphoreCount = 1;
             info.pSignalSemaphores = &semaphore;
 
+            // Host access to the queue must be synchronized.
+            // A lock is required because Present may be executed on a different queue (e.g., not supporting graphics operations).
+            VkQueue_Object_InternalScope queueScope( *m_pGraphicsQueue );
+
             result = m_pDevice->Callbacks.QueueSubmit( m_pGraphicsQueue->Handle, 1, &info, fence );
         }
 

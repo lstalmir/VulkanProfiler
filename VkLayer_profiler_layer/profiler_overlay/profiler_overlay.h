@@ -19,9 +19,12 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_frontend.h"
 #include "profiler/profiler_data_aggregator.h"
+#include "profiler/profiler_counters.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler/profiler_stat_comparators.h"
+#include "profiler_helpers/profiler_memory_comparator.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include "profiler_overlay_backend.h"
 #include "profiler_overlay_settings.h"
@@ -31,6 +34,7 @@
 #include <list>
 #include <vector>
 #include <stack>
+#include <memory>
 #include <mutex>
 #include <functional>
 
@@ -38,6 +42,7 @@
 #include "profiler_ext/VkProfilerEXT.h"
 
 struct ImGuiContext;
+struct ImPlotContext;
 class ImGui_ImplVulkan_Context;
 class ImGui_Window_Context;
 
@@ -48,8 +53,6 @@ namespace ImGuiX
 
 namespace Profiler
 {
-    class DeviceProfilerFrontend;
-
     /***********************************************************************************\
 
     Class:
@@ -59,46 +62,35 @@ namespace Profiler
         Writes profiling output to the overlay.
 
     \***********************************************************************************/
-    class ProfilerOverlayOutput final
+    class ProfilerOverlayOutput final : public DeviceProfilerOutput
     {
     public:
-        ProfilerOverlayOutput();
+        ProfilerOverlayOutput( DeviceProfilerFrontend& frontend, OverlayBackend& backend );
         ~ProfilerOverlayOutput();
 
-        bool Initialize( DeviceProfilerFrontend& frontend, OverlayBackend& backend );
-        void Destroy();
+        bool Initialize() override;
+        void Destroy() override;
 
-        bool IsAvailable() const;
+        bool IsAvailable() override;
 
-        void Update();
+        void Update() override;
+        void Present() override;
 
         void LoadPerformanceCountersFromFile( const std::string& );
         void LoadTopPipelinesFromFile( const std::string& );
 
+        void SetMaxFrameCount( uint32_t maxFrameCount );
+
     private:
         OverlaySettings m_Settings;
 
-        DeviceProfilerFrontend* m_pFrontend;
-        OverlayBackend* m_pBackend;
+        OverlayBackend& m_Backend;
 
         ImGuiContext* m_pImGuiContext;
+        ImPlotContext* m_pImPlotContext;
         OverlayResources m_Resources;
 
         std::string m_Title;
-
-        uint32_t m_ActiveMetricsSetIndex;
-        std::vector<bool> m_ActiveMetricsVisibility;
-
-        struct VendorMetricsSet
-        {
-            VkProfilerPerformanceMetricsSetPropertiesEXT           m_Properties;
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Metrics;
-        };
-
-        std::vector<VendorMetricsSet> m_VendorMetricsSets;
-        std::vector<bool>             m_VendorMetricsSetVisibility;
-
-        char m_VendorMetricFilter[ 128 ] = {};
 
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;
@@ -115,6 +107,7 @@ namespace Profiler
 
         enum class HistogramGroupMode
         {
+            eFrame,
             eRenderPass,
             ePipeline,
             eDrawcall,
@@ -132,7 +125,37 @@ namespace Profiler
         HistogramValueMode m_HistogramValueMode;
         bool m_HistogramShowIdle;
 
-        typedef std::vector<uint16_t> FrameBrowserTreeNodeIndex;
+        struct FrameBrowserTreeNodeIndex : std::vector<uint16_t>
+        {
+            using std::vector<uint16_t>::vector;
+
+            void SetFrameIndex( uint32_t frameIndex );
+            uint32_t GetFrameIndex() const;
+
+            const uint16_t* GetTreeNodeIndex() const;
+            size_t GetTreeNodeIndexSize() const;
+        };
+
+        // Used to distinguish indexes between m_pFrames and m_pSnapshots.
+        inline static const uint32_t SnapshotFrameIndexFlag = 0x80000000;
+        inline static const uint32_t FrameIndexFlagsMask = 0x80000000;
+        inline static const uint32_t FrameIndexMask = ~FrameIndexFlagsMask;
+        inline static const uint32_t InvalidFrameIndex = UINT32_MAX;
+        inline static const uint32_t CurrentFrameIndex = UINT32_MAX - 1;
+        static uint32_t MakeFrameIndex( size_t, uint32_t );
+
+        typedef std::list<std::shared_ptr<DeviceProfilerFrameData>>
+            FrameDataList;
+
+        std::shared_mutex m_DataMutex;
+        FrameDataList m_pFrames;
+        FrameDataList m_pSnapshots;
+         // 0 - current frame, 1 - previous frame, etc.
+        uint32_t m_SelectedFrameIndex;
+        uint32_t m_MaxFrameCount;
+        const char* m_pFramesStr;
+        const char* m_pFrameStr;
+        bool m_HasNewSnapshots;
 
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
         bool m_Pause;
@@ -141,6 +164,13 @@ namespace Profiler
         bool m_ShowShaderCapabilities;
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
+        bool m_ShowActiveFrame;
+
+        bool GetShowActiveFrame() const;
+        const FrameDataList& GetActiveFramesList() const;
+        std::shared_ptr<DeviceProfilerFrameData> GetFrameData( uint32_t frameIndex ) const;
+        std::string GetFrameName( const char* pContextName, uint32_t frameIndex, bool indent = false ) const;
+        std::string GetFrameName( const std::shared_ptr<DeviceProfilerFrameData>& pFrameData, const char* pContextName, uint32_t frameIndex, bool indent = false ) const;
 
         bool m_SetLastMainWindowPos;
         Float2* m_pLastMainWindowPos;
@@ -157,7 +187,7 @@ namespace Profiler
 
         TimeUnit m_TimeUnit;
         VkProfilerModeEXT m_SamplingMode;
-        VkProfilerSyncModeEXT m_SyncMode;
+        VkProfilerFrameDelimiterEXT m_FrameDelimiter;
 
         // Frame browser state.
         struct FrameBrowserContext
@@ -177,6 +207,9 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point m_SelectionUpdateTimestamp;
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
 
+        // Queue utilization state.
+        std::unordered_set<VkSemaphore> m_SelectedSemaphores;
+
         // Cached inspector tab state.
         DeviceProfilerPipeline m_InspectorPipeline;
         OverlayShaderView m_InspectorShaderView;
@@ -191,17 +224,85 @@ namespace Profiler
         std::vector<InspectorTab> m_InspectorTabs;
         size_t m_InspectorTabIndex;
 
+        // Memory inspector state.
+        DeviceProfilerMemoryComparator m_MemoryComparator;
+        uint32_t m_MemoryCompareRefFrameIndex;
+        uint32_t m_MemoryCompareSelFrameIndex;
+
+        bool m_MemoryConsumptionHistoryVisible;
+        bool m_MemoryConsumptionHistoryAutoScroll;
+        double m_MemoryConsumptionHistoryTimeRangeMin;
+        double m_MemoryConsumptionHistoryTimeRangeMax;
+        float m_MemoryConsumptionHistoryUpdatePeriod;
+        CpuTimestampCounter m_MemoryConsumptionHistoryUpdateCounter;
+        std::vector<float> m_MemoryConsumptionHistoryTimePoints;
+        std::vector<float> m_MemoryConsumptionHistory[VK_MAX_MEMORY_HEAPS];
+        float m_MemoryConsumptionHistoryMax[VK_MAX_MEMORY_HEAPS];
+
+        std::string m_ResourceBrowserNameFilter;
+        VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
+        VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
+        VkFlags m_ResourceBrowserAccelerationStructureTypeFilter;
+        VkFlags m_ResourceBrowserMicromapTypeFilter;
+        bool m_ResourceBrowserShowDifferences;
+
+        VkObjectHandle<VkBuffer> m_ResourceInspectorBuffer;
+        DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
+
+        VkObjectHandle<VkImage> m_ResourceInspectorImage;
+        DeviceProfilerImageMemoryData m_ResourceInspectorImageData;
+        VkImageSubresource m_ResourceInspectorImageMapSubresource;
+        float m_ResourceInspectorImageMapBlockSize;
+
+        VkObjectHandle<VkAccelerationStructureKHR> m_ResourceInspectorAccelerationStructure;
+        DeviceProfilerAccelerationStructureMemoryData m_ResourceInspectorAccelerationStructureData;
+        DeviceProfilerBufferMemoryData m_ResourceInspectorAccelerationStructureBufferData;
+
+        VkObjectHandle<VkMicromapEXT> m_ResourceInspectorMicromap;
+        DeviceProfilerMicromapMemoryData m_ResourceInspectorMicromapData;
+        DeviceProfilerBufferMemoryData m_ResourceInspectorMicromapBufferData;
+
+        // Performance counters.
+        struct PerformanceQueryMetricsSet
+            : public std::enable_shared_from_this<PerformanceQueryMetricsSet>
+        {
+            uint32_t m_MetricsSetIndex;
+            bool m_FilterResult;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Metrics;
+            VkProfilerPerformanceMetricsSetProperties2EXT m_Properties;
+        };
+
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pActivePerformanceQueryMetricsSet;
+        std::vector<std::shared_ptr<PerformanceQueryMetricsSet>> m_pPerformanceQueryMetricsSets;
+        std::vector<bool> m_ActivePerformanceQueryMetricsFilterResults;
+        std::string m_PerformanceQueryMetricsFilter;
+
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
         VkCommandBuffer m_PerformanceQueryCommandBufferFilter;
-        std::string     m_PerformanceQueryCommandBufferFilterName;
+        std::string m_PerformanceQueryCommandBufferFilterName;
 
-        std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceCounters;
+        std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceQueryData;
+
+        // Performance counter sets editor.
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceQueryEditorCounterProperties;
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pPerformanceQueryEditorSet;
+        std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
+        std::vector<uint32_t> m_PerformanceQueryEditorCounterVisibileIndices;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
+        std::string m_PerformanceQueryEditorFilter;
+        std::string m_PerformanceQueryEditorSetName;
+        std::string m_PerformanceQueryEditorSetDescription;
+
+        uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
+        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected );
+        void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization
-        struct PerformanceCounterExporter;
-        std::unique_ptr<PerformanceCounterExporter> m_pPerformanceCounterExporter;
+        struct PerformanceQueryExporter;
+        std::unique_ptr<PerformanceQueryExporter> m_pPerformanceQueryExporter;
 
         // Top pipelines serialization
         struct TopPipelinesExporter;
@@ -236,8 +337,12 @@ namespace Profiler
         int m_QueueUtilizationTabDockSpaceId;
         int m_TopPipelinesTabDockSpaceId;
         int m_FrameBrowserDockSpaceId;
+        int m_MemoryTabDockSpaceId;
+        int m_ResourceBrowserDockSpaceId;
+        int m_ResourceInspectorDockSpaceId;
 
         void PerformanceTabDockSpace( int flags = 0 );
+        void MemoryTabDockSpace( int flags = 0 );
 
         struct WindowState
         {
@@ -282,11 +387,13 @@ namespace Profiler
         struct QueueGraphColumn;
         void GetQueueGraphColumns( VkQueue, std::vector<QueueGraphColumn>& ) const;
         float GetQueueUtilization( const std::vector<QueueGraphColumn>& ) const;
+        void DrawQueueGraphLabel( const ImGuiX::HistogramColumnData& );
+        void SelectQueueGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Performance counter helpers
-        std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
+        std::string GetDefaultPerformanceCountersFileName( const std::shared_ptr<PerformanceQueryMetricsSet>& ) const;
         void UpdatePerformanceCounterExporter();
-        void SavePerformanceCountersToFile( const std::string&, uint32_t, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
+        void SavePerformanceCountersToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>&, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();
@@ -300,16 +407,26 @@ namespace Profiler
         void UpdateNotificationWindow();
         void UpdateApplicationInfoWindow();
 
-        // Inspector helpers
+        // Resource inspector helpers
+        void ResetResourceInspector();
+        void DrawResourceInspectorAccelerationStructureInfo( VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorMicromapInfo( VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorBufferInfo( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorImageInfo( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData& );
+        void DrawResourceInspectorImageMemoryMap();
+
+        // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
         void SelectInspectorShaderStage( size_t );
         void DrawInspectorShaderStage();
         void DrawInspectorPipelineState();
         void DrawInspectorGraphicsPipelineState();
+        void DrawInspectorRayTracingPipelineState();
         void SetInspectorTabIndex( size_t );
         void ShaderRepresentationSaved( bool, const std::string& );
 
         // Frame browser helpers
+        void PrintFramesList( const FrameDataList&, uint32_t = 0 );
         void PrintCommandBuffer( const DeviceProfilerCommandBufferData&, FrameBrowserTreeNodeIndex& );
         void PrintRenderPass( const DeviceProfilerRenderPassData&, FrameBrowserTreeNodeIndex&, const FrameBrowserContext& );
         void PrintSubpass( const DeviceProfilerSubpassData&, FrameBrowserTreeNodeIndex&, bool, const FrameBrowserContext& );
@@ -331,6 +448,7 @@ namespace Profiler
 
         template<typename Data>
         void PrintDuration( const Data& data );
+        void PrintDuration( uint64_t from, uint64_t to );
 
         template<typename Data>
         float GetDuration( const Data& data ) const;

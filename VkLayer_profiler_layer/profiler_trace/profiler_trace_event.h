@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,8 @@
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <nlohmann/json.hpp>
+
+#include "profiler_ext/VkProfilerEXT.h"
 
 namespace Profiler
 {
@@ -207,6 +209,44 @@ namespace Profiler
             const nlohmann::json& args = {} )
             : TraceEvent( Phase::eComplete, name, category, timestamp, queue, color, args )
             , m_Duration( std::chrono::duration_cast<decltype(m_Duration)>(duration) )
+        {
+        }
+
+        void Serialize( nlohmann::json& j ) const override;
+    };
+
+    /*************************************************************************\
+
+    Structure:
+        TraceCounterEvent
+
+    Description:
+        Counter events are used to report performance counters in the trace.
+
+    See:
+        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+
+    \*************************************************************************/
+    struct TraceCounterEvent : TraceEvent
+    {
+        size_t m_CounterCount;
+        const VkProfilerPerformanceCounterProperties2EXT* m_pCounterProperties;
+        const VkProfilerPerformanceCounterResultEXT* m_pCounterResults;
+
+        TraceCounterEvent() = default;
+
+        template<typename TimestampType>
+        inline TraceCounterEvent(
+            TimestampType timestamp,
+            VkQueue queue,
+            size_t counterCount,
+            const VkProfilerPerformanceCounterProperties2EXT* pCounterProperties,
+            const VkProfilerPerformanceCounterResultEXT* pCounterResults,
+            const nlohmann::json& color = {} )
+            : TraceEvent( Phase::eCounter, "", "", timestamp, queue, color )
+            , m_CounterCount( counterCount )
+            , m_pCounterProperties( pCounterProperties )
+            , m_pCounterResults( pCounterResults )
         {
         }
 

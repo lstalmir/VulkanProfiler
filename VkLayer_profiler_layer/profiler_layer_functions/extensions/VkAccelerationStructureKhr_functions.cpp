@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,65 @@
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Function:
+        CreateAccelerationStructureKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR VkResult VKAPI_CALL VkAccelerationStructureKhr_Functions::CreateAccelerationStructureKHR(
+        VkDevice device,
+        const VkAccelerationStructureCreateInfoKHR* pCreateInfo,
+        const VkAllocationCallbacks* pAllocator,
+        VkAccelerationStructureKHR* pAccelerationStructure )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Invoke next layer's implementation
+        VkResult result = dd.Device.Callbacks.CreateAccelerationStructureKHR(
+            device,
+            pCreateInfo,
+            pAllocator,
+            pAccelerationStructure );
+
+        if( result == VK_SUCCESS )
+        {
+            // Register the acceleration structure
+            dd.Profiler.CreateAccelerationStructure( *pAccelerationStructure, pCreateInfo );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyAccelerationStructureKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkAccelerationStructureKhr_Functions::DestroyAccelerationStructureKHR(
+        VkDevice device,
+        VkAccelerationStructureKHR accelerationStructure,
+        const VkAllocationCallbacks* pAllocator )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Unregister the acceleration structure
+        dd.Profiler.DestroyAccelerationStructure( accelerationStructure );
+
+        // Invoke next layer's implementation
+        dd.Device.Callbacks.DestroyAccelerationStructureKHR(
+            device,
+            accelerationStructure,
+            pAllocator );
+    }
+
     /***********************************************************************************\
 
     Function:

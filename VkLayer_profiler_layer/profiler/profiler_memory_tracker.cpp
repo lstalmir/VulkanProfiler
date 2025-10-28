@@ -34,6 +34,8 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerMemoryTracker::DeviceProfilerMemoryTracker()
         : m_pDevice( nullptr )
+        , m_pfnGetPhysicalDeviceMemoryProperties2( nullptr )
+        , m_MemoryBudgetEnabled( false )
         , m_AggregatedDataMutex()
         , m_TotalAllocationSize( 0 )
         , m_TotalAllocationCount( 0 )
@@ -42,6 +44,8 @@ namespace Profiler
         , m_Allocations()
         , m_Buffers()
         , m_Images()
+        , m_AccelerationStructures()
+        , m_Micromaps()
         , m_pfnGetBufferDeviceAddress( nullptr )
     {
     }
@@ -58,6 +62,24 @@ namespace Profiler
     {
         m_pDevice = pDevice;
 
+        // Resolve function pointers.
+        if( m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2 )
+        {
+            m_pfnGetPhysicalDeviceMemoryProperties2 = m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2;
+        }
+        else if( m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR &&
+                 m_pDevice->pInstance->EnabledExtensions.count( VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ) )
+        {
+            m_pfnGetPhysicalDeviceMemoryProperties2 = m_pDevice->pInstance->Callbacks.GetPhysicalDeviceMemoryProperties2KHR;
+        }
+
+        // Enable available extensions.
+        if( m_pfnGetPhysicalDeviceMemoryProperties2 )
+        {
+            m_MemoryBudgetEnabled = m_pDevice->EnabledExtensions.count( VK_EXT_MEMORY_BUDGET_EXTENSION_NAME );
+        }
+
+        // Preallocate memory data structures.
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
             m_pDevice->pPhysicalDevice->MemoryProperties;
         m_Heaps.resize( memoryProperties.memoryHeapCount );
@@ -109,7 +131,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterAllocation( VkDeviceMemory memory, const VkMemoryAllocateInfo* pAllocateInfo )
+    void DeviceProfilerMemoryTracker::RegisterAllocation( VkObjectHandle<VkDeviceMemory> memory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -143,7 +165,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterAllocation( VkDeviceMemory memory )
+    void DeviceProfilerMemoryTracker::UnregisterAllocation( VkObjectHandle<VkDeviceMemory> memory )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -174,12 +196,13 @@ namespace Profiler
         Register new buffer resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterBuffer( VkBuffer buffer, const VkBufferCreateInfo* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterBuffer( VkObjectHandle<VkBuffer> buffer, const VkBufferCreateInfo* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerBufferMemoryData data = {};
         data.m_BufferSize = pCreateInfo->size;
+        data.m_BufferFlags = pCreateInfo->flags;
         data.m_BufferUsage = pCreateInfo->usage;
 
         m_pDevice->Callbacks.GetBufferMemoryRequirements(
@@ -204,7 +227,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterBuffer( VkBuffer buffer )
+    void DeviceProfilerMemoryTracker::UnregisterBuffer( VkObjectHandle<VkBuffer> buffer )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_Buffers.remove( buffer );
@@ -218,7 +241,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindBufferMemory( VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset )
+    void DeviceProfilerMemoryTracker::BindBufferMemory( VkObjectHandle<VkBuffer> buffer, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -227,46 +250,120 @@ namespace Profiler
         auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
-            it->second.m_MemoryBindingCount = 1;
-            it->second.m_pMemoryBindings.reset( new DeviceProfilerBufferMemoryBindingData[1] );
+            DeviceProfilerBufferMemoryData& bufferData = it->second;
+            lk.unlock();
 
-            DeviceProfilerBufferMemoryBindingData& binding = it->second.m_pMemoryBindings[0];
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same buffer from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            DeviceProfilerBufferMemoryBindingData binding;
             binding.m_Memory = memory;
             binding.m_MemoryOffset = offset;
             binding.m_BufferOffset = 0;
-            binding.m_Size = it->second.m_BufferSize;
+            binding.m_Size = bufferData.m_BufferSize;
 
-            it->second.m_BufferAddress = GetBufferDeviceAddress( buffer, it->second.m_BufferUsage );
+            if( !( bufferData.m_BufferFlags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT ) )
+            {
+                // Non-sparse buffers have address assigned upon memory binding.
+                bufferData.m_BufferAddress = GetBufferDeviceAddress( buffer, bufferData.m_BufferUsage );
+            }
+
+            // Only one binding at a time is allowed using this API.
+            bufferData.m_MemoryBindings = binding;
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        BindBufferMemory
+        BindSparseBufferMemory
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindBufferMemory( const VkSparseBufferMemoryBindInfo* pBindInfo )
+    void DeviceProfilerMemoryTracker::BindSparseBufferMemory( VkObjectHandle<VkBuffer> buffer, VkDeviceSize bufferOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         std::shared_lock lk( m_Buffers );
 
-        auto it = m_Buffers.unsafe_find( pBindInfo->buffer );
+        auto it = m_Buffers.unsafe_find( buffer );
         if( it != m_Buffers.end() )
         {
-            it->second.m_MemoryBindingCount = pBindInfo->bindCount;
-            it->second.m_pMemoryBindings.reset( new DeviceProfilerBufferMemoryBindingData[pBindInfo->bindCount] );
+            DeviceProfilerBufferMemoryData& bufferData = it->second;
+            lk.unlock();
 
-            for( uint32_t i = 0; i < pBindInfo->bindCount; ++i )
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same buffer from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            if( !std::holds_alternative<std::vector<DeviceProfilerBufferMemoryBindingData>>( bufferData.m_MemoryBindings ) )
             {
-                DeviceProfilerBufferMemoryBindingData& binding = it->second.m_pMemoryBindings[i];
-                binding.m_Memory = pBindInfo->pBinds[i].memory;
-                binding.m_MemoryOffset = pBindInfo->pBinds[i].memoryOffset;
-                binding.m_BufferOffset = pBindInfo->pBinds[i].resourceOffset;
-                binding.m_Size = pBindInfo->pBinds[i].size;
+                // Create a vector to hold multiple bindings.
+                bufferData.m_MemoryBindings = std::vector<DeviceProfilerBufferMemoryBindingData>();
+            }
+
+            std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
+                std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( bufferData.m_MemoryBindings );
+
+            if( memory.m_Handle != VK_NULL_HANDLE )
+            {
+                // New memory binding of the buffer region.
+                DeviceProfilerBufferMemoryBindingData& binding = bindings.emplace_back();
+                binding.m_Memory = memory;
+                binding.m_MemoryOffset = memoryOffset;
+                binding.m_BufferOffset = bufferOffset;
+                binding.m_Size = size;
+            }
+            else
+            {
+                // If memory is null, the resource region is unbound.
+                // Remove all bindings that entirely cover the range and update the partially-unbound regions.
+                const VkDeviceSize startUnbindOffset = bufferOffset;
+                const VkDeviceSize endUnbindOffset = bufferOffset + size;
+
+                for( auto binding = bindings.begin(); binding != bindings.end(); )
+                {
+                    const VkDeviceSize startBindingOffset = binding->m_BufferOffset;
+                    const VkDeviceSize endBindingOffset = binding->m_BufferOffset + binding->m_Size;
+
+                    if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
+                    {
+                        // Binding entirely covered by the unbound range, remove it.
+                        binding = bindings.erase( binding );
+                    }
+                    else if( ( startUnbindOffset > startBindingOffset ) && ( endUnbindOffset < endBindingOffset ) )
+                    {
+                        // Buffer partially-unbound in the middle.
+                        DeviceProfilerBufferMemoryBindingData newBinding = *binding;
+                        newBinding.m_Size = startUnbindOffset - startBindingOffset;
+                        binding->m_BufferOffset = endUnbindOffset;
+                        binding->m_MemoryOffset += newBinding.m_Size + size;
+                        binding->m_Size -= newBinding.m_Size + size;
+                        binding = bindings.insert( binding, newBinding );
+                        binding++;
+                    }
+                    else if( ( startUnbindOffset <= startBindingOffset ) && ( endUnbindOffset > startBindingOffset ) )
+                    {
+                        // Buffer partially-unbound at the start.
+                        binding->m_BufferOffset = endUnbindOffset;
+                        binding->m_MemoryOffset += endUnbindOffset - startBindingOffset;
+                        binding->m_Size -= endUnbindOffset - startBindingOffset;
+                        binding++;
+                    }
+                    else if( ( startUnbindOffset < endBindingOffset ) && ( endUnbindOffset >= endBindingOffset ) )
+                    {
+                        // Buffer partially-unbound at the end.
+                        binding->m_Size -= endBindingOffset - startUnbindOffset;
+                        binding++;
+                    }
+                    else
+                    {
+                        // Binding not affected.
+                        binding++;
+                    }
+                }
             }
         }
     }
@@ -280,7 +377,7 @@ namespace Profiler
         Register new buffer resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterImage( VkImage image, const VkImageCreateInfo* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterImage( VkObjectHandle<VkImage> image, const VkImageCreateInfo* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -288,15 +385,33 @@ namespace Profiler
         data.m_ImageExtent = pCreateInfo->extent;
         data.m_ImageFormat = pCreateInfo->format;
         data.m_ImageType = pCreateInfo->imageType;
+        data.m_ImageFlags = pCreateInfo->flags;
         data.m_ImageUsage = pCreateInfo->usage;
         data.m_ImageTiling = pCreateInfo->tiling;
-        data.m_Memory = VK_NULL_HANDLE;
-        data.m_MemoryOffset = 0;
+        data.m_ImageMipLevels = pCreateInfo->mipLevels;
+        data.m_ImageArrayLayers = pCreateInfo->arrayLayers;
 
         m_pDevice->Callbacks.GetImageMemoryRequirements(
             m_pDevice->Handle,
             image,
             &data.m_MemoryRequirements );
+
+        if( data.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT )
+        {
+            uint32_t sparseMemoryRequirementCount = 0;
+            m_pDevice->Callbacks.GetImageSparseMemoryRequirements(
+                m_pDevice->Handle,
+                image,
+                &sparseMemoryRequirementCount,
+                nullptr );
+
+            data.m_SparseMemoryRequirements.resize( sparseMemoryRequirementCount );
+            m_pDevice->Callbacks.GetImageSparseMemoryRequirements(
+                m_pDevice->Handle,
+                image,
+                &sparseMemoryRequirementCount,
+                data.m_SparseMemoryRequirements.data() );
+        }
 
         m_Images.insert( image, data );
     }
@@ -309,7 +424,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterImage( VkImage image )
+    void DeviceProfilerMemoryTracker::UnregisterImage( VkObjectHandle<VkImage> image )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_Images.remove( image );
@@ -323,7 +438,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindImageMemory( VkImage image, VkDeviceMemory memory, VkDeviceSize offset )
+    void DeviceProfilerMemoryTracker::BindImageMemory( VkObjectHandle<VkImage> image, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -332,15 +447,223 @@ namespace Profiler
         auto it = m_Images.unsafe_find( image );
         if( it != m_Images.end() )
         {
-            it->second.m_Memory = memory;
-            it->second.m_MemoryOffset = offset;
+            DeviceProfilerImageMemoryData& imageData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same image from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            DeviceProfilerImageMemoryBindingData binding;
+            binding.m_Type = DeviceProfilerImageMemoryBindingType::eOpaque;
+            binding.m_Opaque.m_Memory = memory;
+            binding.m_Opaque.m_MemoryOffset = offset;
+            binding.m_Opaque.m_ImageOffset = 0;
+            binding.m_Opaque.m_Size = imageData.m_MemoryRequirements.size;
+
+            // Only one binding at a time is allowed using this API.
+            imageData.m_MemoryBindings = binding;
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        GetMemoryData
+        BindSparseImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkObjectHandle<VkImage> image, VkDeviceSize imageOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Images );
+
+        auto it = m_Images.unsafe_find( image );
+        if( it != m_Images.end() )
+        {
+            DeviceProfilerImageMemoryData& imageData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same image from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings ) )
+            {
+                // Create a vector to hold multiple bindings.
+                imageData.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
+            }
+
+            std::vector<DeviceProfilerImageMemoryBindingData>& bindings =
+                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings );
+
+            if( memory.m_Handle != VK_NULL_HANDLE )
+            {
+                // New memory binding of the buffer region.
+                DeviceProfilerImageMemoryBindingData& binding = bindings.emplace_back();
+                binding.m_Type = DeviceProfilerImageMemoryBindingType::eOpaque;
+                binding.m_Opaque.m_Memory = memory;
+                binding.m_Opaque.m_MemoryOffset = memoryOffset;
+                binding.m_Opaque.m_ImageOffset = imageOffset;
+                binding.m_Opaque.m_Size = size;
+            }
+            else
+            {
+                // Memory unbinds not supported yet.
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindSparseImageMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkObjectHandle<VkImage> image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        std::shared_lock lk( m_Images );
+
+        auto it = m_Images.unsafe_find( image );
+        if( it != m_Images.end() )
+        {
+            DeviceProfilerImageMemoryData& imageData = it->second;
+            lk.unlock();
+
+            // Memory bindings must be synchronized with the data collection thread.
+            // Assuming that the application won't bind memory to the same image from multiple threads at the same time.
+            std::shared_lock bindingLock( m_MemoryBindingMutex );
+
+            if( !std::holds_alternative<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings ) )
+            {
+                // Create a vector to hold multiple bindings.
+                imageData.m_MemoryBindings = std::vector<DeviceProfilerImageMemoryBindingData>();
+            }
+
+            std::vector<DeviceProfilerImageMemoryBindingData>& bindings =
+                std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings );
+
+            // Remove bindings that are entirely overlapped by the new binding.
+            for( auto it = bindings.begin(); it != bindings.end(); )
+            {
+                if( ( it->m_Type == DeviceProfilerImageMemoryBindingType::eBlock ) &&
+                    ( it->m_Block.m_ImageSubresource.aspectMask == subresource.aspectMask ) &&
+                    ( it->m_Block.m_ImageSubresource.arrayLayer == subresource.arrayLayer ) &&
+                    ( it->m_Block.m_ImageSubresource.mipLevel == subresource.mipLevel ) &&
+                    ( it->m_Block.m_ImageOffset.x >= offset.x ) &&
+                    ( it->m_Block.m_ImageOffset.y >= offset.y ) &&
+                    ( it->m_Block.m_ImageOffset.z >= offset.z ) &&
+                    ( it->m_Block.m_ImageOffset.x + it->m_Block.m_ImageExtent.width ) <= ( offset.x + extent.width ) &&
+                    ( it->m_Block.m_ImageOffset.y + it->m_Block.m_ImageExtent.height ) <= ( offset.y + extent.height ) &&
+                    ( it->m_Block.m_ImageOffset.z + it->m_Block.m_ImageExtent.depth ) <= ( offset.z + extent.depth ) )
+                {
+                    // Binding entirely covered by the new one, remove it.
+                    it = bindings.erase( it );
+                }
+                else
+                {
+                    it = std::next( it );
+                }
+            }
+
+            if( memory.m_Handle != VK_NULL_HANDLE )
+            {
+                // New memory binding of the buffer region.
+                DeviceProfilerImageMemoryBindingData& binding = bindings.emplace_back();
+                binding.m_Type = DeviceProfilerImageMemoryBindingType::eBlock;
+                binding.m_Block.m_Memory = memory;
+                binding.m_Block.m_MemoryOffset = memoryOffset;
+                binding.m_Block.m_ImageSubresource = subresource;
+                binding.m_Block.m_ImageOffset = offset;
+                binding.m_Block.m_ImageExtent = extent;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RegisterAccelerationStructure
+
+    Description:
+        Register new acceleration structure resource to track its memory usage.
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::RegisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure, VkObjectHandle<VkBuffer> buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        DeviceProfilerAccelerationStructureMemoryData data = {};
+        data.m_Type = pCreateInfo->type;
+        data.m_Flags = pCreateInfo->createFlags;
+        data.m_Buffer = buffer;
+        data.m_Offset = pCreateInfo->offset;
+        data.m_Size = pCreateInfo->size;
+
+        m_AccelerationStructures.insert( accelerationStructure, data );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UnregisterAccelerationStructure
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::UnregisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+        m_AccelerationStructures.remove( accelerationStructure );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RegisterMicromap
+
+    Description:
+        Register new opacity micromap resource to track its memory usage.
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::RegisterMicromap( VkObjectHandle<VkMicromapEXT> micromap, VkObjectHandle<VkBuffer> buffer, const VkMicromapCreateInfoEXT* pCreateInfo )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+
+        DeviceProfilerMicromapMemoryData data = {};
+        data.m_Type = pCreateInfo->type;
+        data.m_Flags = pCreateInfo->createFlags;
+        data.m_Buffer = buffer;
+        data.m_Offset = pCreateInfo->offset;
+        data.m_Size = pCreateInfo->size;
+
+        m_Micromaps.insert( micromap, data );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UnregisterMicromap
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerMemoryTracker::UnregisterMicromap( VkObjectHandle<VkMicromapEXT> micromap )
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+        m_Micromaps.remove( micromap );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBufferAtAddress
 
     Description:
 
@@ -348,7 +671,6 @@ namespace Profiler
     std::pair<VkBuffer, DeviceProfilerBufferMemoryData> DeviceProfilerMemoryTracker::GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage ) const
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
-
         std::shared_lock lk( m_Buffers );
 
         for( const auto& [buffer, data] : m_Buffers )
@@ -378,15 +700,52 @@ namespace Profiler
         TipGuard tip( m_pDevice->TIP, __func__ );
 
         DeviceProfilerMemoryData data;
+
+        std::unique_lock bindingLock( m_MemoryBindingMutex );
         data.m_Allocations = m_Allocations.to_unordered_map();
         data.m_Buffers = m_Buffers.to_unordered_map();
         data.m_Images = m_Images.to_unordered_map();
+        data.m_AccelerationStructures = m_AccelerationStructures.to_unordered_map();
+        data.m_Micromaps = m_Micromaps.to_unordered_map();
+        bindingLock.unlock();
 
-        std::shared_lock lk( m_AggregatedDataMutex );
+        std::unique_lock dataLock( m_AggregatedDataMutex );
         data.m_TotalAllocationSize = m_TotalAllocationSize;
         data.m_TotalAllocationCount = m_TotalAllocationCount;
         data.m_Heaps = m_Heaps;
         data.m_Types = m_Types;
+        dataLock.unlock();
+
+        // Get available memory budget.
+        VkPhysicalDeviceMemoryBudgetPropertiesEXT memoryBudget = {};
+        memoryBudget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+
+        if( m_MemoryBudgetEnabled )
+        {
+            // Query current memory budget using VK_EXT_memory_budget extension.
+            VkPhysicalDeviceMemoryProperties2 memoryProperties = {};
+            memoryProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+            memoryProperties.pNext = &memoryBudget;
+
+            m_pfnGetPhysicalDeviceMemoryProperties2( m_pDevice->pPhysicalDevice->Handle, &memoryProperties );
+        }
+        else
+        {
+            // Memory budget extension not available, use total heap sizes.
+            const uint32_t memoryHeapCount = m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeapCount;
+            const VkMemoryHeap* pMemoryHeaps = m_pDevice->pPhysicalDevice->MemoryProperties.memoryHeaps;
+
+            for( uint32_t i = 0; i < memoryHeapCount; i++ )
+            {
+                memoryBudget.heapBudget[i] = pMemoryHeaps[i].size;
+            }
+        }
+
+        const size_t heapCount = m_Heaps.size();
+        for( size_t i = 0; i < heapCount; ++i )
+        {
+            data.m_Heaps[i].m_BudgetSize = memoryBudget.heapBudget[i];
+        }
 
         return data;
     }
@@ -408,6 +767,8 @@ namespace Profiler
         m_Allocations.clear();
         m_Buffers.clear();
         m_Images.clear();
+        m_AccelerationStructures.clear();
+        m_Micromaps.clear();
     }
 
     /***********************************************************************************\

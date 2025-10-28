@@ -81,6 +81,17 @@ namespace ImGuiX
     /*************************************************************************\
 
     Function:
+        ColorAlpha
+
+    Description:
+        Set color alpha.
+
+    \*************************************************************************/
+    ImU32 ColorAlpha( ImU32, float );
+
+    /*************************************************************************\
+
+    Function:
         Darker
 
     Description:
@@ -88,6 +99,18 @@ namespace ImGuiX
 
     \*************************************************************************/
     ImU32 Darker( ImU32, float = 0.75f );
+
+    /*************************************************************************\
+
+    Function:
+        BeginSlimCombo
+
+    Description:
+        Compact combo box.
+
+    \*************************************************************************/
+    bool BeginSlimCombo( const char* label, const char* preview_value, ImGuiComboFlags flags = 0 );
+    void EndSlimCombo();
 
     /*************************************************************************\
 

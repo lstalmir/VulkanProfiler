@@ -187,15 +187,77 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetPerformanceMetricsSets
+        SupportsCustomPerformanceMetricsSets
 
     Description:
-        Returns list of available performance metrics sets.
+        Checks if the profiler supports custom performance metrics sets.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceMetricsSetPropertiesEXT>& DeviceProfilerLayerFrontend::GetPerformanceMetricsSets()
+    bool DeviceProfilerLayerFrontend::SupportsCustomPerformanceMetricsSets()
     {
-        return m_pProfiler->m_MetricsApiINTEL.GetMetricsSets();
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->SupportsCustomMetricsSets();
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreateCustomPerformanceMetricsSet
+
+    Description:
+        Creates a custom performance metrics set.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerLayerFrontend::CreateCustomPerformanceMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->CreateCustomMetricsSet( pCreateInfo );
+        }
+
+        return UINT32_MAX;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyCustomPerformanceMetricsSet
+
+    Description:
+        Destroys the custom performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::DestroyCustomPerformanceMetricsSet( uint32_t setIndex )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->DestroyCustomMetricsSet( setIndex );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateCustomPerformanceMetricsSets
+
+    Description:
+        Creates a custom performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::UpdateCustomPerformanceMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            pPerformanceCounters->UpdateCustomMetricsSets( updateCount, pUpdateInfos );
+        }
     }
 
     /***********************************************************************************\
@@ -204,12 +266,120 @@ namespace Profiler
         GetPerformanceCounterProperties
 
     Description:
+        Returns list of performance counters that can be used to create custom metrics sets.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetMetricsProperties( counterCount, pCounters );
+        }
+
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceMetricsSets
+
+    Description:
+        Returns list of available performance metrics sets.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceMetricsSets( uint32_t setCount, VkProfilerPerformanceMetricsSetProperties2EXT* pSets )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetMetricsSets( setCount, pSets );
+        }
+
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceMetricsSetProperties
+
+    Description:
+        Returns properties of a given performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::GetPerformanceMetricsSetProperties( uint32_t setIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pSet )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            pPerformanceCounters->GetMetricsSetProperties( setIndex, pSet );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceMetricsSetCounterProperties
+
+    Description:
         Returns list of performance counter properties for a given metrics set.
 
     \***********************************************************************************/
-    const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& DeviceProfilerLayerFrontend::GetPerformanceCounterProperties( uint32_t setIndex )
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceMetricsSetCounterProperties( uint32_t setIndex, uint32_t counterCount, VkProfilerPerformanceCounterProperties2EXT* pCounters )
     {
-        return m_pProfiler->m_MetricsApiINTEL.GetMetricsProperties( setIndex );
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetMetricsSetMetricsProperties( setIndex, counterCount, pCounters );
+        }
+
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPerformanceCounterRequiredPasses
+
+    Description:
+        Returns number of passes required to capture all selected performance counters.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerLayerFrontend::GetPerformanceCounterRequiredPasses( uint32_t counterCount, const uint32_t* pCounters )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetRequiredPasses( counterCount, pCounters );
+        }
+
+        return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetPreformanceMetricsSetIndex
+
+    Description:
+        Sets the active performance metrics set.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::GetAvailablePerformanceCounters( uint32_t selectedCounterCount, const uint32_t* pSelectedCounters, uint32_t& availableCounterCount, uint32_t* pAvailableCounters )
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetAvailableMetrics(
+                selectedCounterCount,
+                pSelectedCounters,
+                availableCounterCount,
+                pAvailableCounters );
+        }
+
+        availableCounterCount = 0;
     }
 
     /***********************************************************************************\
@@ -223,7 +393,13 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerLayerFrontend::SetPreformanceMetricsSetIndex( uint32_t setIndex )
     {
-        return m_pProfiler->m_MetricsApiINTEL.SetActiveMetricsSet( setIndex );
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->SetActiveMetricsSet( setIndex );
+        }
+
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 
     /***********************************************************************************\
@@ -237,35 +413,83 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t DeviceProfilerLayerFrontend::GetPerformanceMetricsSetIndex()
     {
-        return m_pProfiler->m_MetricsApiINTEL.GetActiveMetricsSetIndex();
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetActiveMetricsSetIndex();
+        }
+
+        return UINT32_MAX;
     }
 
     /***********************************************************************************\
 
     Function:
-        GetProfilerSyncMode
+        GetHostTimestampFrequency
 
     Description:
-        Returns the data synchronization mode currently used by the profiler.
+        Returns the timestamp query frequency in the selected time domain.
 
     \***********************************************************************************/
-    VkProfilerSyncModeEXT DeviceProfilerLayerFrontend::GetProfilerSyncMode()
+    uint64_t DeviceProfilerLayerFrontend::GetDeviceCreateTimestamp( VkTimeDomainEXT timeDomain )
     {
-        return static_cast<VkProfilerSyncModeEXT>( m_pProfiler->m_Config.m_SyncMode.value );
+        return m_pProfiler->m_Synchronization.GetCreateTimestamp( timeDomain );
     }
 
     /***********************************************************************************\
 
     Function:
-        SetProfilerSyncMode
+        GetHostTimestampFrequency
 
     Description:
-        Sets the data synchronization mode used by the profiler.
+        Returns the timestamp query frequency in the selected time domain.
 
     \***********************************************************************************/
-    VkResult DeviceProfilerLayerFrontend::SetProfilerSyncMode( VkProfilerSyncModeEXT mode )
+    uint64_t DeviceProfilerLayerFrontend::GetHostTimestampFrequency( VkTimeDomainEXT timeDomain )
     {
-        return m_pProfiler->SetSyncMode( mode );
+        return OSGetTimestampFrequency( timeDomain );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetProfilerConfig
+
+    Description:
+        Returns the configuration of the profiler.
+
+    \***********************************************************************************/
+    const DeviceProfilerConfig& DeviceProfilerLayerFrontend::GetProfilerConfig()
+    {
+        return m_pProfiler->m_Config;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetProfilerFrameDelimiter
+
+    Description:
+        Returns the frame delimiter currently used by the profiler.
+
+    \***********************************************************************************/
+    VkProfilerFrameDelimiterEXT DeviceProfilerLayerFrontend::GetProfilerFrameDelimiter()
+    {
+        return static_cast<VkProfilerFrameDelimiterEXT>( m_pProfiler->m_Config.m_FrameDelimiter.value );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetProfilerFrameDelimiter
+
+    Description:
+        Sets the frame delimiter used by the profiler.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerLayerFrontend::SetProfilerFrameDelimiter( VkProfilerFrameDelimiterEXT frameDelimiter )
+    {
+        return m_pProfiler->SetFrameDelimiter( frameDelimiter );
     }
 
     /***********************************************************************************\
@@ -293,7 +517,7 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerLayerFrontend::SetProfilerSamplingMode( VkProfilerModeEXT mode )
     {
-        return m_pProfiler->SetMode( mode );
+        return m_pProfiler->SetSamplingMode( mode );
     }
 
     /***********************************************************************************\
@@ -307,12 +531,10 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerLayerFrontend::GetObjectName( const VkObject& object )
     {
-        std::shared_lock lk( m_pDevice->Debug.ObjectNames );
-
-        auto it = m_pDevice->Debug.ObjectNames.unsafe_find( object );
-        if( it != m_pDevice->Debug.ObjectNames.end() )
+        const char* pName = m_pProfiler->GetObjectName( object );
+        if( pName )
         {
-            return it->second;
+            return pName;
         }
 
         return std::string();
@@ -324,12 +546,12 @@ namespace Profiler
         SetObjectName
 
     Description:
-        Returns the name of the object set by the profiled application.
+        Sets the name of the object.
 
     \***********************************************************************************/
     void DeviceProfilerLayerFrontend::SetObjectName( const VkObject& object, const std::string& name )
     {
-        m_pDevice->Debug.ObjectNames.insert( object, name );
+        m_pProfiler->SetObjectName( object, name.c_str() );
     }
 
     /***********************************************************************************\
@@ -344,5 +566,19 @@ namespace Profiler
     std::shared_ptr<DeviceProfilerFrameData> DeviceProfilerLayerFrontend::GetData()
     {
         return m_pProfiler->GetData();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDataBufferSize
+
+    Description:
+        Sets the maximum number of buffered frames.
+
+    \***********************************************************************************/
+    void DeviceProfilerLayerFrontend::SetDataBufferSize( uint32_t maxFrames )
+    {
+        m_pProfiler->SetDataBufferSize( maxFrames );
     }
 }

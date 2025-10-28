@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 #include "profiler_overlay/profiler_overlay_assets.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <assert.h>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -219,32 +220,29 @@ namespace Profiler
         std::filesystem::path codeFontPath = fontFinder.GetFirstSupportedFont( g_scCodeFonts, std::size( g_scCodeFonts ) );
 
         // Include all glyphs in the font to support non-latin letters
-        const ImWchar fontGlyphRange[] = { 0x20, 0xFFFF, 0 };
+        const ImWchar pAllGlyphsRanges[] = { 0x0020, 0xFFFF, 0 };
+        const ImWchar* pDefaultGlyphsRanges = fonts->GetGlyphRangesDefault();
 
         if( !defaultFontPath.empty() )
         {
             m_pDefaultFont = fonts->AddFontFromFileTTF(
-                defaultFontPath.string().c_str(), 16.0f, nullptr, fontGlyphRange );
+                defaultFontPath.string().c_str(), 16.0f, nullptr, pAllGlyphsRanges );
         }
 
         if( !boldFontPath.empty() )
         {
             m_pBoldFont = fonts->AddFontFromFileTTF(
-                boldFontPath.string().c_str(), 16.0f, nullptr, fontGlyphRange );
+                boldFontPath.string().c_str(), 16.0f, nullptr, pAllGlyphsRanges );
         }
 
         if( !codeFontPath.empty() )
         {
             m_pCodeFont = fonts->AddFontFromFileTTF(
-                codeFontPath.string().c_str(), 12.0f, nullptr, fontGlyphRange );
+                codeFontPath.string().c_str(), 12.0f, nullptr, pDefaultGlyphsRanges );
         }
 
         // Build atlas
-        unsigned char* tex_pixels = NULL;
-        int tex_w, tex_h;
-        fonts->GetTexDataAsRGBA32( &tex_pixels, &tex_w, &tex_h );
-
-        return true;
+        return fonts->Build();
     }
 
     /***********************************************************************************\
@@ -267,7 +265,9 @@ namespace Profiler
         m_pBackend->CreateFontsImage();
 
         // Create image objects
-        m_pCopyIconImage = CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
+        m_pIcons[OverlayIcon::Copy] = CreateImage( OverlayAssets::CopyImg );
+        m_pIcons[OverlayIcon::BookmarkEmpty] = CreateImage( OverlayAssets::BookmarkEmptyImg );
+        m_pIcons[OverlayIcon::BookmarkFilled] = CreateImage( OverlayAssets::BookmarkFilledImg );
 
         return true;
     }
@@ -306,10 +306,13 @@ namespace Profiler
             m_pBackend->WaitIdle();
             m_pBackend->DestroyFontsImage();
 
-            if( m_pCopyIconImage )
+            for( void*& pIcon : m_pIcons )
             {
-                m_pBackend->DestroyImage( m_pCopyIconImage );
-                m_pCopyIconImage = nullptr;
+                if( pIcon )
+                {
+                    m_pBackend->DestroyImage( pIcon );
+                    pIcon = nullptr;
+                }
             }
         }
 
@@ -361,15 +364,17 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetCopyIconImage
+        GetIcon
 
     Description:
-        Returns the copy icon image descriptor set.
+        Returns the specified icon's image descriptor set.
 
     \***********************************************************************************/
-    void* OverlayResources::GetCopyIconImage() const
+    void* OverlayResources::GetIcon( OverlayIcon icon ) const
     {
-        return m_pCopyIconImage;
+        assert( icon < OverlayIcon::IconCount );
+        assert( m_pIcons[icon] );
+        return m_pIcons[icon];
     }
 
     /***********************************************************************************\

@@ -29,29 +29,18 @@ project (VulkanProfiler CXX)
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Vulkan platform support.
-include (CMake/platform.cmake NO_POLICY_SCOPE)
-
 # Options
 option (BUILD_TESTS "Build tests." ON)
 option (BUILD_SPIRV_DOCS "Build SPIR-V documentation into the disassembly view." ON)
 set    (SPIRV_DOCS_URL "https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html"
             CACHE STRING "URL of the SPIR-V documentation page.")
+option (SKIP_PLATFORMS_CHECK "Skip checking for Vulkan platform support." OFF)
+
+# Vulkan platform support.
+include (CMake/platform.cmake NO_POLICY_SCOPE)
 
 # Build third-party dependencies.
 add_subdirectory (External EXCLUDE_FROM_ALL)
-
-find_package (Python3 REQUIRED)
-string (CONFIGURE [[
-    execute_process (COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_LIST_DIR}/VkLayer_profiler_layer/scripts/gen_licenses.py"
-        --license "Vulkan(R) Profiling Layer" "${CMAKE_CURRENT_LIST_DIR}/LICENSE.md"
-        --externaldir "${CMAKE_CURRENT_LIST_DIR}/External"
-        --output "${CMAKE_BINARY_DIR}/LICENSES")
-    ]] PROFILER_GENERATE_LICENSES_CODE)
-
-install (CODE ${PROFILER_GENERATE_LICENSES_CODE})
-install (FILES "${CMAKE_BINARY_DIR}/LICENSES" DESTINATION .)
 
 # Include sub-projects
 add_subdirectory (VkLayer_profiler_layer)

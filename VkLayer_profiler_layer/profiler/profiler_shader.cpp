@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -458,16 +458,57 @@ namespace Profiler
             memcpy( m_Bytecode.data(), pBytecode, bytecodeSize );
 
             // Enumerate capabilities of the shader module
-            const uint32_t* pCurrentWord = pBytecode + 5; // skip header bytes
-            const uint32_t* pLastWord = pBytecode + ( bytecodeSize / sizeof( uint32_t ) ) - 1;
+            const uint32_t* pCurrentWord = m_Bytecode.data() + 5; // skip header bytes
+            const uint32_t* pLastWord = m_Bytecode.data() + ( bytecodeSize / sizeof( uint32_t ) ) - 1;
 
-            while( (pCurrentWord < pLastWord) &&
-                   ((*pCurrentWord & 0xffff) == SpvOpCapability) )
+            // Find name of the source file
+            std::unordered_map<uint32_t, const char*> pStringMap;
+            uint32_t sourceStringID = UINT32_MAX;
+
+            while( pCurrentWord < pLastWord )
             {
-                assert( (*pCurrentWord >> 16) == 2 );
+                const SpvOp opcode = static_cast<SpvOp>( *pCurrentWord & 0xffff );
+                const uint32_t opcodeLength = ( *pCurrentWord >> 16 );
 
-                m_Capabilities.insert( static_cast<SpvCapability>( *(pCurrentWord + 1) ) );
-                pCurrentWord += 2; // SpvOpCapability is 2 words long
+                if( opcode == SpvOpCapability )
+                {
+                    m_Capabilities.insert( static_cast<SpvCapability>( *( pCurrentWord + 1 ) ) );
+                }
+                else if( opcode == SpvOpString && opcodeLength > 2 )
+                {
+                    const char* pString = reinterpret_cast<const char*>( pCurrentWord + 2 );
+                    if( strlen( pString ) > 0 )
+                    {
+                        pStringMap.emplace( *( pCurrentWord + 1 ), reinterpret_cast<const char*>( pCurrentWord + 2 ) );
+                    }
+                }
+                else if( opcode == SpvOpSource && opcodeLength > 3 && sourceStringID == UINT32_MAX )
+                {
+                    sourceStringID = *( pCurrentWord + 3 );
+                }
+
+                pCurrentWord += opcodeLength;
+            }
+
+            if( sourceStringID != UINT32_MAX )
+            {
+                auto it = pStringMap.find( sourceStringID );
+                if( it != pStringMap.end() )
+                {
+                    // The filename must be stored as part of the saved bytecode
+                    assert( it->second != nullptr );
+                    assert( it->second >= reinterpret_cast<const char*>( m_Bytecode.data() ) &&
+                            it->second < reinterpret_cast<const char*>( m_Bytecode.data() + m_Bytecode.size() ) );
+
+                    // Use the last path component for the file name
+                    const char* pFileName = strrchr( it->second, '/' );
+                    if( !pFileName )
+                    {
+                        pFileName = strrchr( it->second, '\\' );
+                    }
+
+                    m_pFileName = ( pFileName ? pFileName + 1 : it->second );
+                }
             }
         }
     }

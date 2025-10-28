@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Lukasz Stalmirski
+# Copyright (c) 2023-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -97,11 +97,14 @@ add_library (imgui STATIC
     imgui/imgui_draw.cpp
     imgui/imgui_tables.cpp
     imgui/imgui_widgets.cpp
+    imgui/misc/cpp/imgui_stdlib.h
+    imgui/misc/cpp/imgui_stdlib.cpp
     ${imgui_backends})
 
 target_include_directories (imgui
     PUBLIC imgui
-    PUBLIC imgui/backends)
+    PUBLIC imgui/backends
+    PUBLIC imgui/misc/cpp)
 
 target_compile_definitions (imgui
     PRIVATE VK_NO_PROTOTYPES=1)
@@ -130,6 +133,19 @@ target_include_directories (imgui-file-dialog
     PUBLIC imgui-file-dialog)
 
 target_link_libraries (imgui-file-dialog
+    PUBLIC imgui)
+
+# epezent/implot
+add_library (implot STATIC
+    implot/implot.h
+    implot/implot.cpp
+    implot/implot_internal.h
+    implot/implot_items.cpp)
+
+target_include_directories (implot
+    PUBLIC implot)
+
+target_link_libraries (implot
     PUBLIC imgui)
 
 # nothings/stb

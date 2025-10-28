@@ -28,9 +28,11 @@
 #include "profiler_memory_tracker.h"
 #include "profiler_data.h"
 #include "profiler_sync.h"
+#include "profiler_performance_counters.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_layer_objects/VkQueue_object.h"
+#include "profiler_layer_objects/VkPhysicalDevice_object.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <sstream>
@@ -38,9 +40,6 @@
 #include <functional>
 
 #include "lockable_unordered_map.h"
-
-// Vendor APIs
-#include "intel/profiler_metrics_api.h"
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
@@ -65,25 +64,32 @@ namespace Profiler
     public:
         DeviceProfiler();
 
-        static std::unordered_set<std::string> EnumerateOptionalDeviceExtensions( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT* );
-        static std::unordered_set<std::string> EnumerateOptionalInstanceExtensions();
+        static void SetupDeviceCreateInfo( VkPhysicalDevice_Object&, const ProfilerLayerSettings&, std::unordered_set<std::string>&, PNextChain& );
+        static void SetupInstanceCreateInfo( const VkInstanceCreateInfo&, PFN_vkGetInstanceProcAddr, std::unordered_set<std::string>& );
 
         static void LoadConfiguration( const ProfilerLayerSettings&, const VkProfilerCreateInfoEXT*, DeviceProfilerConfig* );
 
-        VkResult Initialize( VkDevice_Object*, const VkProfilerCreateInfoEXT* );
+        VkResult Initialize( VkDevice_Object*, const VkDeviceCreateInfo* );
 
         void Destroy();
 
         // Public interface
-        VkResult SetMode( VkProfilerModeEXT );
-        VkResult SetSyncMode( VkProfilerSyncModeEXT );
-        std::shared_ptr<DeviceProfilerFrameData> GetData() const;
+        VkResult SetSamplingMode( VkProfilerModeEXT );
+        VkResult SetFrameDelimiter( VkProfilerFrameDelimiterEXT );
+        VkResult SetDataBufferSize( uint32_t );
+        VkResult SetMinDataBufferSize( uint32_t );
+        std::shared_ptr<DeviceProfilerFrameData> GetData();
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
         DeviceProfilerCommandPool& GetCommandPool( VkCommandPool commandPool );
         DeviceProfilerPipeline& GetPipeline( VkPipeline pipeline );
         DeviceProfilerRenderPass& GetRenderPass( VkRenderPass renderPass );
         ProfilerShader& GetShader( VkShaderEXT shader );
+
+        VkObject GetObjectHandle( VkObject ) const;
+
+        template<typename ObjectT>
+        VkObjectHandle<ObjectT> GetObjectHandle( ObjectT ) const;
 
         bool ShouldCapturePipelineExecutableProperties() const;
 
@@ -122,17 +128,26 @@ namespace Profiler
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );
 
+        void CreateAccelerationStructure( VkAccelerationStructureKHR, const VkAccelerationStructureCreateInfoKHR* );
+        void DestroyAccelerationStructure( VkAccelerationStructureKHR );
+
+        void CreateMicromap( VkMicromapEXT, const VkMicromapCreateInfoEXT* );
+        void DestroyMicromap( VkMicromapEXT );
+
         void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
         void DestroyBuffer( VkBuffer );
         void BindBufferMemory( VkBuffer, VkDeviceMemory, VkDeviceSize );
-        void BindBufferMemory( const VkSparseBufferMemoryBindInfo* );
+        void BindBufferMemory( VkBuffer, uint32_t, const VkSparseMemoryBind* );
 
         void CreateImage( VkImage, const VkImageCreateInfo* );
         void DestroyImage( VkImage );
         void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
+        void BindImageMemory( VkImage, uint32_t, const VkSparseMemoryBind* );
+        void BindImageMemory( VkImage, uint32_t, const VkSparseImageMemoryBind* );
 
         std::pair<VkBuffer, DeviceProfilerBufferMemoryData> GetBufferAtAddress( VkDeviceAddress, VkBufferUsageFlags );
 
+        const char* GetObjectName( VkObject ) const;
         void SetObjectName( VkObject, const char* );
         void SetDefaultObjectName( VkObject );
         void SetDefaultObjectName( VkPipeline );
@@ -145,14 +160,15 @@ namespace Profiler
 
         DeviceProfilerConfig    m_Config;
 
-        mutable std::mutex      m_SubmitMutex;
-        mutable std::mutex      m_PresentMutex;
-        std::shared_ptr<DeviceProfilerFrameData> m_pData;
+        mutable std::mutex      m_DataMutex;
+        std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pData;
 
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
         uint32_t                m_NextFrameIndex;
+        uint32_t                m_DataBufferSize;
+        uint32_t                m_MinDataBufferSize;
         uint64_t                m_LastFrameBeginTimestamp;
 
         CpuTimestampCounter     m_CpuTimestampCounter;
@@ -167,15 +183,14 @@ namespace Profiler
         ConcurrentMap<VkPipeline, DeviceProfilerPipeline> m_Pipelines;
         ConcurrentMap<VkShaderEXT, ProfilerShader> m_Shaders;
 
+        ConcurrentMap<VkObject, uint32_t> m_ObjectCreateTimes;
+        ConcurrentMap<VkObject, std::string> m_ObjectNames;
+
         ConcurrentMap<VkDeferredOperationKHR, DeferredOperationCallback> m_DeferredOperationCallbacks;
 
         ConcurrentMap<VkRenderPass, DeviceProfilerRenderPass> m_RenderPasses;
 
-        VkFence                 m_SubmitFence;
-
-        VkPerformanceConfigurationINTEL m_PerformanceConfigurationINTEL;
-
-        ProfilerMetricsApi_INTEL m_MetricsApiINTEL;
+        std::unique_ptr<DeviceProfilerPerformanceCounters> m_pPerformanceCounters;
 
         DeviceProfilerSynchronization m_Synchronization;
 
@@ -183,12 +198,11 @@ namespace Profiler
         // In such case the internal representations of pipelines may be inspected to give more insight on potential performance issues.
         bool                    m_PipelineExecutablePropertiesEnabled;
 
+        // Whether VK_EXT_shader_module_identifier is available for the profiled device.
+        bool                    m_ShaderModuleIdentifierEnabled;
+
         void*                   m_pStablePowerStateHandle;
 
-
-        VkResult InitializeINTEL();
-        void AcquirePerformanceConfigurationINTEL( VkQueue );
-        void ReleasePerformanceConfigurationINTEL();
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 
@@ -202,7 +216,29 @@ namespace Profiler
         void CreateSubmitBatchInfoImpl( VkQueue, uint32_t, const SubmitInfoT*, DeviceProfilerSubmitBatch* );
 
         void BeginNextFrame();
+        void ResolveFrameData( TipRangeId& tip );
+
+        template<typename ObjectT>
+        VkObjectHandle<ObjectT> RegisterObject( ObjectT );
+
+        template<typename ObjectT>
+        void UnregisterObject( ObjectT );
     };
+
+    /***********************************************************************************\
+
+    Function:
+        GetObjectHandle
+
+    Description:
+        Returns the handle of the object, including its creation time.
+
+    \***********************************************************************************/
+    template<typename ObjectT>
+    inline VkObjectHandle<ObjectT> DeviceProfiler::GetObjectHandle( ObjectT object ) const
+    {
+        return GetObjectHandle( VkObject( object ) ).GetHandle<ObjectT>();
+    }
 
     /***********************************************************************************\
 

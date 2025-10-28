@@ -20,6 +20,7 @@
 
 #pragma once
 #include <assert.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -71,6 +72,33 @@
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Class:
+        Iterable
+
+    Description:
+        Iterable class concept.
+
+    \***********************************************************************************/
+    template<typename T>
+    using Iterable =
+        std::void_t<
+            std::enable_if_t<std::is_same_v<
+                decltype( std::begin( std::declval<const T&>() ) ),
+                decltype( std::end( std::declval<const T&>() ) )>>,
+            decltype( *std::begin( std::declval<const T&>() ) )>;
+
+    template<typename T, typename = void>
+    struct IsIterable : std::false_type
+    {
+    };
+
+    template<typename T>
+    struct IsIterable<T, Iterable<T>> : std::true_type
+    {
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -130,6 +158,122 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        GetNthElement
+
+    Description:
+        Returns the N-th element of an iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable>
+    PROFILER_FORCE_INLINE auto GetNthElement( const Iterable& iterable, size_t n )
+    {
+        if( n >= std::size( iterable ) )
+        {
+            throw std::out_of_range( "Index out of range" );
+        }
+        auto it = std::begin( iterable );
+        std::advance( it, n );
+        return *it;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Contains
+
+    Description:
+        Checks whether the iterable collection contains the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE bool Contains( const Iterable& iterable, const ValueType& value )
+    {
+        auto end = std::end( iterable );
+        return std::find( std::begin( iterable ), end, value ) != end;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Erase
+
+    Description:
+        Remove all occurrences of the given value from the iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void Erase( Iterable& iterable, const ValueType& value )
+    {
+        auto end = std::end( iterable );
+        auto firstRemoved = std::remove( std::begin( iterable ), end, value );
+        if( firstRemoved != end )
+        {
+            iterable.erase( firstRemoved, end );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EraseIf
+
+    Description:
+        Remove all elements that satisfy the predicate from the iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename PredicateType>
+    PROFILER_FORCE_INLINE void EraseIf( Iterable& iterable, const PredicateType& predicate )
+    {
+        auto end = std::end( iterable );
+        auto firstRemoved = std::remove_if( std::begin( iterable ), end, predicate );
+        if( firstRemoved != end )
+        {
+            iterable.erase( firstRemoved, end );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ReplaceIfs
+
+    Description:
+        Replace all elements that satisfy the predicate with the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename PredicateType, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void ReplaceIf( Iterable& iterable, const PredicateType& predicate, const ValueType& value )
+    {
+        auto it = std::begin( iterable );
+        auto end = std::end( iterable );
+        while( it != end )
+        {
+            if( predicate( *it ) )
+            {
+                *it = value;
+            }
+            it++;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Fill
+
+    Description:
+        Fill the iterable collection with the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void Fill( Iterable& iterable, const ValueType& value )
+    {
+        std::fill( std::begin( iterable ), std::end( iterable ), value );
+    }
+
+    /***********************************************************************************\
+
     Class:
         __PNextTypeTraits
 
@@ -177,6 +321,177 @@ namespace Profiler
 
         inline IteratorType begin() { return IteratorType( pNext ); }
         inline IteratorType end()   { return IteratorType( nullptr ); }
+    };
+
+    /***********************************************************************************\
+
+    Struct:
+        PNextChain
+
+    Description:
+        Helper structure for dynamic pNext chain creation.
+
+    \***********************************************************************************/
+    struct PNextChain
+    {
+        // Head of the pNext chain.
+        void* m_pHead;
+
+        // Pointer to the tail of the chain provided by the application.
+        // Used to mark end of dynamic allocations made by the layer.
+        const void* m_pTail;
+
+        // Create a new chain initialized with data from the application.
+        explicit PNextChain( const void* pNext = nullptr )
+            : m_pHead( nullptr )
+            , m_pTail( pNext )
+        {
+        }
+
+        const void* GetHead() const
+        {
+            return ( m_pHead != nullptr ) ? m_pHead : m_pTail;
+        }
+
+        bool Contains( VkStructureType sType ) const
+        {
+            return Find( sType ) != nullptr;
+        }
+
+        const void* Find( VkStructureType sType ) const
+        {
+            const VkBaseInStructure* pStructure = reinterpret_cast<const VkBaseInStructure*>( GetHead() );
+            while( pStructure )
+            {
+                if( pStructure->sType == sType )
+                {
+                    return pStructure;
+                }
+                pStructure = pStructure->pNext;
+            }
+            return nullptr;
+        }
+
+        template<typename T>
+        const T* Find( VkStructureType sType ) const
+        {
+            return reinterpret_cast<const T*>( Find( sType ) );
+        }
+
+        template<typename T>
+        void Append( const T& structure )
+        {
+            assert( !Contains( structure.sType ) );
+
+            void* pStructure = malloc( sizeof( T ) );
+            if( pStructure )
+            {
+                memcpy( pStructure, &structure, sizeof( T ) );
+                reinterpret_cast<VkBaseInStructure*>( pStructure )->pNext =
+                    reinterpret_cast<const VkBaseInStructure*>( GetHead() );
+
+                m_pHead = pStructure;
+            }
+        }
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        HashInput
+
+    Description:
+        Helper class that allows to compute hash of given data.
+
+    \***********************************************************************************/
+    class HashInput
+    {
+    public:
+        void Reset()
+        {
+            m_Buffer.clear();
+        }
+
+        void Add( const void* pData, size_t dataSize )
+        {
+            const char* pCharData = reinterpret_cast<const char*>( pData );
+            m_Buffer.insert( m_Buffer.end(), pCharData, pCharData + dataSize );
+        }
+
+        void Add( const char* pStr )
+        {
+            const size_t length = ( pStr ? strlen( pStr ) : 0 );
+            Add( length );
+            if( pStr )
+            {
+                Add( pStr, length );
+            }
+        }
+
+        void Add( const std::string& str )
+        {
+            Add( str.length() );
+            if( !str.empty() )
+            {
+                Add( str.c_str(), str.length() );
+            }
+        }
+
+        template<bool Sort = false, typename T>
+        std::enable_if_t<IsIterable<T>::value> Add( const T& iterable )
+        {
+            Add<Sort>( std::begin( iterable ), std::end( iterable ) );
+        }
+
+        template<typename T>
+        std::enable_if_t<!IsIterable<T>::value> Add( const T& value )
+        {
+            Add( &value, sizeof( T ) );
+        }
+
+        template<bool Sort = false, typename IteratorT>
+        void Add( const IteratorT& begin, const IteratorT& end )
+        {
+            using ValueT = typename std::iterator_traits<IteratorT>::value_type;
+            static_assert( !IsIterable<ValueT>::value, "Nested iterables are not supported." );
+
+            if constexpr( Sort )
+            {
+                // Align the input buffer to allow cast to ValueT*.
+                size_t currentSize = m_Buffer.size();
+                size_t alignedSize = ( currentSize + alignof( ValueT ) - 1 ) & ~( alignof( ValueT ) - 1 );
+                m_Buffer.resize( alignedSize, 0 );
+            }
+
+            const size_t insertOffset = m_Buffer.size();
+            m_Buffer.reserve( m_Buffer.size() + std::distance( begin, end ) * sizeof( ValueT ) );
+
+            for( IteratorT it = begin; it != end; ++it )
+            {
+                Add( *it );
+            }
+
+            if constexpr( Sort )
+            {
+                // Sort the inserted values.
+                ValueT* pValues = reinterpret_cast<ValueT*>( m_Buffer.data() + insertOffset );
+                size_t valueCount = ( m_Buffer.size() - insertOffset ) / sizeof( ValueT );
+                std::sort( pValues, pValues + valueCount );
+            }
+        }
+
+        const char* GetData() const
+        {
+            return m_Buffer.data();
+        }
+
+        size_t GetSize() const
+        {
+            return m_Buffer.size();
+        }
+
+    private:
+        std::vector<char> m_Buffer;
     };
 
     /***********************************************************************************\
@@ -558,5 +873,71 @@ namespace Profiler
             }
         }
         return pDuplicated;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetFormatAllAspectFlags
+
+    Description:
+        Returns all aspect flags for the given format.
+
+    \***********************************************************************************/
+    inline VkImageAspectFlags GetFormatAllAspectFlags( VkFormat format )
+    {
+        switch( format )
+        {
+        // Most of the formats are color formats.
+        default:
+            return VK_IMAGE_ASPECT_COLOR_BIT;
+
+        // Undefined format has no aspects.
+        case VK_FORMAT_UNDEFINED:
+            return VK_IMAGE_ASPECT_NONE;
+
+        // Depth-stencil formats.
+        case VK_FORMAT_D16_UNORM:
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+        case VK_FORMAT_D32_SFLOAT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        case VK_FORMAT_S8_UINT:
+            return VK_IMAGE_ASPECT_STENCIL_BIT;
+
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+        // Planar formats.
+        case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
+        case VK_FORMAT_G8_B8R8_2PLANE_422_UNORM:
+        case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
+        case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16:
+        case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
+        case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16:
+        case VK_FORMAT_G16_B16R16_2PLANE_420_UNORM:
+        case VK_FORMAT_G16_B16R16_2PLANE_422_UNORM:
+        case VK_FORMAT_G8_B8R8_2PLANE_444_UNORM:
+        case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16:
+        case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16:
+        case VK_FORMAT_G16_B16R16_2PLANE_444_UNORM:
+            return VK_IMAGE_ASPECT_PLANE_0_BIT | VK_IMAGE_ASPECT_PLANE_1_BIT;
+
+        case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
+        case VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM:
+        case VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM:
+        case VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16:
+        case VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16:
+        case VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16:
+        case VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16:
+        case VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16:
+        case VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16:
+        case VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM:
+        case VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM:
+        case VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM:
+            return VK_IMAGE_ASPECT_PLANE_0_BIT | VK_IMAGE_ASPECT_PLANE_1_BIT | VK_IMAGE_ASPECT_PLANE_2_BIT;
+        }
     }
 }

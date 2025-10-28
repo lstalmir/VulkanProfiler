@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ namespace Profiler
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
     {
-        m_Data.m_Handle = commandBuffer;
+        m_Data.m_Handle = m_Profiler.GetObjectHandle( commandBuffer );
         m_Data.m_Level = level;
 
         // Profile the command buffer only if it will be submitted to the queue supporting graphics or compute commands
@@ -72,7 +72,10 @@ namespace Profiler
         // Initialize performance query once
         if( m_ProfilingEnabled )
         {
-            m_pQueryPool = new CommandBufferQueryPool( m_Profiler, m_Level );
+            m_pQueryPool = new CommandBufferQueryPool(
+                m_Profiler,
+                m_CommandPool.GetQueueFamilyIndex(),
+                m_Level );
         }
     }
 
@@ -141,7 +144,7 @@ namespace Profiler
         for( VkCommandBuffer commandBuffer : m_SecondaryCommandBuffers )
         {
             // Use direct access - m_CommandBuffers map is already locked
-            m_Profiler.m_pCommandBuffers.at( commandBuffer )->Submit();
+            m_Profiler.m_pCommandBuffers.unsafe_at( commandBuffer )->Submit();
         }
     }
 
@@ -302,7 +305,7 @@ namespace Profiler
             // Setup pointers for the new render pass.
             m_pCurrentRenderPass = &m_Profiler.GetRenderPass( pBeginInfo->renderPass );
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
-            m_pCurrentRenderPassData->m_Handle = pBeginInfo->renderPass;
+            m_pCurrentRenderPassData->m_Handle = m_pCurrentRenderPass->m_Handle;
             m_pCurrentRenderPassData->m_Type = m_pCurrentRenderPass->m_Type;
 
             // Clears issued when render pass begins
@@ -776,6 +779,7 @@ namespace Profiler
 
             // Append drawcall to the current pipeline
             m_pCurrentDrawcallData = &m_pCurrentPipelineData->m_Drawcalls.emplace_back( drawcall );
+            m_pCurrentDrawcallData->ResolveObjectHandles( m_Profiler );
 
             if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
@@ -927,7 +931,7 @@ namespace Profiler
             for( uint32_t i = 0; i < count; ++i )
             {
                 currentSubpass.m_Data.push_back( DeviceProfilerCommandBufferData{
-                    pCommandBuffers[ i ],
+                    m_Profiler.GetObjectHandle( pCommandBuffers[ i ] ),
                     VK_COMMAND_BUFFER_LEVEL_SECONDARY
                     } );
 
@@ -1222,13 +1226,15 @@ namespace Profiler
                 const uint32_t performanceQueryResultSize = reader.GetPerformanceQueryResultSize();
                 const uint8_t* pPerformanceQueryResult = reader.ReadPerformanceQueryResult();
 
-                m_Profiler.m_MetricsApiINTEL.ParseReport(
+                assert( m_Profiler.m_pPerformanceCounters != nullptr );
+                m_Profiler.m_pPerformanceCounters->ParseReport(
                     performanceQueryMetricsSetIndex,
+                    m_CommandPool.GetQueueFamilyIndex(),
                     performanceQueryResultSize,
                     pPerformanceQueryResult,
-                    m_Data.m_PerformanceQueryResults );
+                    m_Data.m_PerformanceCounters.m_Results );
 
-                m_Data.m_PerformanceQueryMetricsSetIndex = performanceQueryMetricsSetIndex;
+                m_Data.m_PerformanceCounters.m_MetricsSetIndex = performanceQueryMetricsSetIndex;
             }
 
             // Copy captured indirect argument buffer data
@@ -1722,7 +1728,10 @@ namespace Profiler
                     VkDeviceAddress shaderBindingTableStartOffset = shaderBindingTable.deviceAddress - baseAddress;
                     VkDeviceAddress shaderBindingTableEndOffset = shaderBindingTableStartOffset + shaderBindingTable.size;
 
-                    if( bufferMemoryData.second.m_MemoryBindingCount == 1 )
+                    const size_t memoryBindingCount = bufferMemoryData.second.GetMemoryBindingCount();
+                    const auto* pMemoryBindings = bufferMemoryData.second.GetMemoryBindings();
+
+                    if( memoryBindingCount == 1 )
                     {
                         IndirectArgumentBufferCopy& copy = buffer.m_PendingCopyList.emplace_back();
                         copy.m_SrcBuffer = bufferMemoryData.first;
@@ -1732,17 +1741,17 @@ namespace Profiler
                         copy.m_Region.size = shaderBindingTable.size;
 
                         // Reduce size of copy if the buffer memory binding is smaller than size of the shader binding table.
-                        if( shaderBindingTable.size > bufferMemoryData.second.m_pMemoryBindings[0].m_Size )
+                        if( shaderBindingTable.size > pMemoryBindings[0].m_Size )
                         {
-                            copy.m_Region.size = bufferMemoryData.second.m_pMemoryBindings[0].m_Size;
+                            copy.m_Region.size = pMemoryBindings[0].m_Size;
                         }
                     }
                     else
                     {
                         // Copy only valid ranges of the shader binding table in case of sparse allocations.
-                        for( uint32_t i = 0; i < bufferMemoryData.second.m_MemoryBindingCount; ++i )
+                        for( size_t i = 0; i < memoryBindingCount; ++i )
                         {
-                            const DeviceProfilerBufferMemoryBindingData& binding = bufferMemoryData.second.m_pMemoryBindings[i];
+                            const DeviceProfilerBufferMemoryBindingData& binding = pMemoryBindings[i];
 
                             if( ( binding.m_BufferOffset > shaderBindingTableEndOffset ) ||
                                 ( binding.m_BufferOffset + binding.m_Size < shaderBindingTableStartOffset ) )
