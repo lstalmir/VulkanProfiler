@@ -65,6 +65,8 @@ namespace Profiler
         void RegisterMicromap( VkObjectHandle<VkMicromapEXT> micromap, VkObjectHandle<VkBuffer> buffer, const VkMicromapCreateInfoEXT* pCreateInfo );
         void UnregisterMicromap( VkObjectHandle<VkMicromapEXT> micromap );
 
+        std::pair<VkBuffer, DeviceProfilerBufferMemoryData> GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage ) const;
+
         DeviceProfilerMemoryData GetMemoryData() const;
 
     private:
@@ -88,6 +90,10 @@ namespace Profiler
 
         std::shared_mutex mutable m_MemoryBindingMutex;
 
+        PFN_vkGetBufferDeviceAddress m_pfnGetBufferDeviceAddress;
+
         void ResetMemoryData();
+
+        VkDeviceAddress GetBufferDeviceAddress( VkBuffer buffer, VkBufferUsageFlags usage ) const;
     };
 }

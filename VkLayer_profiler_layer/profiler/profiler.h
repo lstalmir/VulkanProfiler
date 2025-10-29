@@ -145,6 +145,8 @@ namespace Profiler
         void BindImageMemory( VkImage, uint32_t, const VkSparseMemoryBind* );
         void BindImageMemory( VkImage, uint32_t, const VkSparseImageMemoryBind* );
 
+        std::pair<VkBuffer, DeviceProfilerBufferMemoryData> GetBufferAtAddress( VkDeviceAddress, VkBufferUsageFlags );
+
         const char* GetObjectName( VkObject ) const;
         void SetObjectName( VkObject, const char* );
 
