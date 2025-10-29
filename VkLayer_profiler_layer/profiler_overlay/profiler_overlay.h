@@ -263,6 +263,9 @@ namespace Profiler
         DeviceProfilerMicromapMemoryData m_ResourceInspectorMicromapData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorMicromapBufferData;
 
+        struct ResourceListExporter;
+        std::unique_ptr<ResourceListExporter> m_pResourceListExporter;
+
         // Performance counters.
         struct PerformanceQueryMetricsSet
             : public std::enable_shared_from_this<PerformanceQueryMetricsSet>
@@ -415,6 +418,10 @@ namespace Profiler
         void DrawResourceInspectorBufferInfo( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData& );
         void DrawResourceInspectorImageInfo( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData& );
         void DrawResourceInspectorImageMemoryMap();
+
+        std::string GetDefaultResourceListFileName() const;
+        void UpdateResourceListExporter();
+        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkFlags, VkFlags );
 
         // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
