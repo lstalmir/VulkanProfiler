@@ -336,26 +336,52 @@ namespace Profiler
         Returns name of the pipeline.
 
     \***********************************************************************************/
-    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline ) const
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline, bool showEntryPoints ) const
     {
-        // Construct the pipeline's name dynamically from the shaders.
-        if( pipeline.m_UsesShaderObjects )
+        // Use assigned name if available.
+        if( pipeline.m_Handle != VK_NULL_HANDLE )
         {
-            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
+            auto name = m_Frontend.GetObjectName( pipeline.m_Handle );
+            if( !name.empty() )
             {
-                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_VERTEX_BIT |
-                    VK_SHADER_STAGE_FRAGMENT_BIT );
-            }
-
-            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
-            {
-                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_COMPUTE_BIT );
+                return name;
             }
         }
 
-        return GetName( pipeline.m_Handle );
+        // Construct the pipeline's name dynamically from the shaders.
+        switch( pipeline.m_BindPoint )
+        {
+        case VK_PIPELINE_BIND_POINT_GRAPHICS:
+        {
+            return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_VERTEX_BIT |
+                VK_SHADER_STAGE_TASK_BIT_EXT |
+                VK_SHADER_STAGE_MESH_BIT_EXT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                showEntryPoints,
+                true /*skipEmptyStages*/ );
+        }
+
+        case VK_PIPELINE_BIND_POINT_COMPUTE:
+        {
+            return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                showEntryPoints );
+        }
+
+        case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+        {
+            return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                showEntryPoints );
+        }
+        }
+
+        // Unknown pipeline bind point.
+        return fmt::format( "VkPipeline {:#018x}",
+            VkObject_Traits<VkPipeline>::GetObjectHandleAsUint64( pipeline.m_Handle.m_Handle ) );
     }
 
     /***********************************************************************************\

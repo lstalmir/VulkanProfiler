@@ -528,7 +528,7 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerPipelineData& data )
     {
-        const std::string eventName = m_pStringSerializer->GetName( data );
+        const std::string eventName = m_pStringSerializer->GetName( data, true /*showEntryPoints*/ );
         const nlohmann::json eventArgs = m_pJsonSerializer->GetPipelineArgs( data );
 
         const bool isValidPipeline =

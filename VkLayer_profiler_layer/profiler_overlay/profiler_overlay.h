@@ -165,6 +165,7 @@ namespace Profiler
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
         bool m_ShowActiveFrame;
+        bool m_ShowEntryPoints;
 
         bool GetShowActiveFrame() const;
         const FrameDataList& GetActiveFramesList() const;
