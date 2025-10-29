@@ -93,6 +93,7 @@ namespace Profiler
     DeviceProfilerCsvSerializer::DeviceProfilerCsvSerializer()
         : m_File()
         , m_Properties( 0 )
+        , m_IsFirstHeaderRow( true )
     {
     }
 
@@ -124,6 +125,7 @@ namespace Profiler
         try
         {
             m_File.open( filename, std::ios::out | std::ios::trunc );
+            m_IsFirstHeaderRow = true;
             return m_File.is_open();
         }
         catch( ... )
@@ -223,6 +225,54 @@ namespace Profiler
                 m_File << pValues[i].float64;
                 break;
             }
+        }
+
+        m_File << std::endl;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteHeader
+
+    Description:
+        Write CSV header for non-performance counter data.
+
+    \***********************************************************************************/
+    void DeviceProfilerCsvSerializer::WriteHeader( const std::vector<std::string>& names )
+    {
+        m_Properties.clear();
+
+        if( !m_IsFirstHeaderRow )
+        {
+            m_File << std::endl;
+        }
+        m_IsFirstHeaderRow = false;
+
+        const uint32_t count = static_cast<uint32_t>( names.size() );
+        for( uint32_t i = 0; i < count; ++i )
+        {
+            m_File << sep( i ) << names[i];
+        }
+
+        m_File << std::endl;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteHeader
+
+    Description:
+        Write CSV header for non-performance counter data.
+
+    \***********************************************************************************/
+    void DeviceProfilerCsvSerializer::WriteRow( const std::vector<std::string>& values )
+    {
+        const uint32_t count = static_cast<uint32_t>( values.size() );
+        for( uint32_t i = 0; i < count; ++i )
+        {
+            m_File << sep( i ) << values[i];
         }
 
         m_File << std::endl;

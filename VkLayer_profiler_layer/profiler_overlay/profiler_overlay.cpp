@@ -164,6 +164,18 @@ namespace Profiler
         FrameBrowserTreeNodeIndex nodeIndex;
     };
 
+    struct ProfilerOverlayOutput::ResourceListExporter
+    {
+        IGFD::FileDialog m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
+        std::shared_ptr<DeviceProfilerFrameData> m_pData;
+        std::string m_NameFilter;
+        VkBufferUsageFlags m_BufferUsageFilter;
+        VkImageUsageFlags m_ImageUsageFilter;
+        VkFlags m_AccelerationStructureTypeFilter;
+        VkFlags m_MicromapTypeFilter;
+    };
+
     struct ProfilerOverlayOutput::PerformanceQueryExporter
     {
         enum class Action
@@ -649,6 +661,8 @@ namespace Profiler
         m_ResourceInspectorImageMapBlockSize = 16.f;
         ResetResourceInspector();
 
+        m_pResourceListExporter = nullptr;
+
         m_MemoryConsumptionHistoryVisible = true;
         m_MemoryConsumptionHistoryAutoScroll = true;
         m_MemoryConsumptionHistoryTimeRangeMin = 0.0;
@@ -1101,6 +1115,7 @@ namespace Profiler
         UpdatePerformanceCounterExporter();
         UpdateTopPipelinesExporter();
         UpdateTraceExporter();
+        UpdateResourceListExporter();
         UpdateNotificationWindow();
         UpdateApplicationInfoWindow();
 
@@ -3266,6 +3281,25 @@ namespace Profiler
         ImGui::TextUnformatted( "Resources" );
         ImGui::PopFont();
 
+        // Save resources to file.
+        ImGui::BeginDisabled( !m_pData || m_pResourceListExporter );
+        if( ImGui::Button( "Save##ResourceList" ) )
+        {
+            m_pResourceListExporter = std::make_unique<ResourceListExporter>();
+            m_pResourceListExporter->m_pData = m_pData;
+            m_pResourceListExporter->m_NameFilter = m_ResourceBrowserNameFilter;
+            m_pResourceListExporter->m_BufferUsageFilter = m_ResourceBrowserBufferUsageFilter;
+            m_pResourceListExporter->m_ImageUsageFilter = m_ResourceBrowserImageUsageFilter;
+            m_pResourceListExporter->m_AccelerationStructureTypeFilter = m_ResourceBrowserAccelerationStructureTypeFilter;
+            m_pResourceListExporter->m_MicromapTypeFilter = m_ResourceBrowserMicromapTypeFilter;
+        }
+        ImGui::EndDisabled();
+
+        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+        {
+            ImGui::SetTooltip( "Export the resource list to a CSV file." );
+        }
+
         // Fiters.
         auto ResourceUsageFlagsFilterComboBox =
             [&]( const char* pLabel,
@@ -3301,6 +3335,7 @@ namespace Profiler
             }
         };
 
+        ImGui::SameLine( 0, 10.f * interfaceScale );
         ImGui::SetNextItemWidth( 150.f * interfaceScale );
         ImGui::InputTextWithHint( "##NameFilter", "Name", &m_ResourceBrowserNameFilter );
 
@@ -4374,6 +4409,414 @@ namespace Profiler
             totalBlockCount * m_ResourceInspectorImageData.m_MemoryRequirements.alignment / 1024.f );
 
         ImGui::Dummy( ImVec2( 0, 5.f * interfaceScale ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateResourceListExporter
+
+    Description:
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetDefaultResourceListFileName() const
+    {
+        std::stringstream stringBuilder;
+        stringBuilder << ProfilerPlatformFunctions::GetProcessName() << "_";
+        stringBuilder << ProfilerPlatformFunctions::GetCurrentProcessId() << "_";
+        stringBuilder << "resources.csv";
+        return stringBuilder.str();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdateResourceListExporter
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdateResourceListExporter()
+    {
+        static const std::string scFileDialogId = "#ResourceListSaveFileDialog";
+
+        if( m_pResourceListExporter != nullptr )
+        {
+            // Initialize the file dialog on the first call to this function.
+            if( !m_pResourceListExporter->m_FileDialog.IsOpened() )
+            {
+                m_pResourceListExporter->m_FileDialogConfig.flags = ImGuiFileDialogFlags_Default;
+                m_pResourceListExporter->m_FileDialogConfig.fileName = GetDefaultResourceListFileName();
+            }
+
+            // Draw the file dialog until the user closes it.
+            bool closed = DisplayFileDialog(
+                scFileDialogId,
+                m_pResourceListExporter->m_FileDialog,
+                m_pResourceListExporter->m_FileDialogConfig,
+                "Select resource list file path",
+                ".csv" );
+
+            if( closed )
+            {
+                if( m_pResourceListExporter->m_FileDialog.IsOk() )
+                {
+                    SaveResourceListToFile(
+                        m_pResourceListExporter->m_FileDialog.GetFilePathName(),
+                        m_pResourceListExporter->m_pData,
+                        m_pResourceListExporter->m_NameFilter,
+                        m_pResourceListExporter->m_BufferUsageFilter,
+                        m_pResourceListExporter->m_ImageUsageFilter,
+                        m_pResourceListExporter->m_AccelerationStructureTypeFilter,
+                        m_pResourceListExporter->m_MicromapTypeFilter );
+                }
+
+                // Destroy the exporter.
+                m_pResourceListExporter.reset();
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveResourceListToFile
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SaveResourceListToFile(
+        const std::string& fileName,
+        const std::shared_ptr<DeviceProfilerFrameData>& pData,
+        const std::string& nameFilter,
+        VkBufferUsageFlags bufferUsageFilter,
+        VkImageUsageFlags imageUsageFilter,
+        VkFlags accelerationStructureTypeFilter,
+        VkFlags micromapTypeFilter )
+    {
+        DeviceProfilerCsvSerializer serializer;
+
+        if( serializer.Open( fileName ) )
+        {
+            std::vector<std::string> row;
+            std::vector<std::string> columns;
+            const auto& memoryProperties = m_Frontend.GetPhysicalDeviceMemoryProperties();
+
+            auto FilterResourceByNameAndUsage = [&]( const std::string& resourceName, VkFlags resourceUsage, VkFlags usageFilter ) -> bool
+            {
+                return ( resourceName.find( nameFilter ) != std::string::npos ) &&
+                       ( resourceUsage & usageFilter );
+            };
+
+            // Dump buffers.
+            if( !pData->m_Memory.m_Buffers.empty() )
+            {
+                columns = {
+                    "VkBuffer",
+                    "Name",
+                    "Flags",
+                    "Size",
+                    "Usage",
+
+                    "MemoryRequirements.Size",
+                    "MemoryRequirements.Alignment",
+                    "MemoryRequirements.MemoryTypeBits",
+
+                    "MemoryBinding.VkDeviceMemory",
+                    "MemoryBinding.MemoryOffset",
+                    "MemoryBinding.BufferOffset",
+                    "MemoryBinding.Size",
+
+                    "MemoryBinding.HeapIndex",
+                    "MemoryBinding.TypeIndex",
+                    "MemoryBinding.TypeFlags"
+                };
+                serializer.WriteHeader( columns );
+
+                for( const auto& [bufferHandle, buffer] : pData->m_Memory.m_Buffers )
+                {
+                    const std::string bufferName = m_pStringSerializer->GetName( bufferHandle );
+                    if( !FilterResourceByNameAndUsage( bufferName, buffer.m_BufferUsage, bufferUsageFilter ) )
+                    {
+                        continue;
+                    }
+
+                    row.clear();
+                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( bufferHandle ) ) );
+                    row.push_back( bufferName );
+                    row.push_back( fmt::format( "{:#08x}", buffer.m_BufferFlags ) );
+                    row.push_back( fmt::format( "{}", buffer.m_BufferSize ) );
+                    row.push_back( m_pStringSerializer->GetBufferUsageFlagNames( buffer.m_BufferUsage ) );
+                    row.push_back( fmt::format( "{}", buffer.m_MemoryRequirements.size ) );
+                    row.push_back( fmt::format( "{}", buffer.m_MemoryRequirements.alignment ) );
+                    row.push_back( fmt::format( "{:#08x}", buffer.m_MemoryRequirements.memoryTypeBits ) );
+
+                    const size_t memoryBindingCount = buffer.GetMemoryBindingCount();
+                    const auto* pMemoryBindings = buffer.GetMemoryBindings();
+
+                    if( memoryBindingCount )
+                    {
+                        // Print a row for each memory binding.
+                        const size_t initialRowSize = row.size();
+                        for( size_t i = 0; i < memoryBindingCount; ++i )
+                        {
+                            row.resize( initialRowSize );
+
+                            const auto& binding = pMemoryBindings[i];
+                            row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkDeviceMemory>::GetObjectHandleAsUint64( binding.m_Memory ) ) );
+                            row.push_back( fmt::format( "{}", binding.m_MemoryOffset ) );
+                            row.push_back( fmt::format( "{}", binding.m_BufferOffset ) );
+                            row.push_back( fmt::format( "{}", binding.m_Size ) );
+
+                            auto memoryAllocationIt = pData->m_Memory.m_Allocations.find( binding.m_Memory );
+                            if( memoryAllocationIt != pData->m_Memory.m_Allocations.end() )
+                            {
+                                const auto& memoryData = memoryAllocationIt->second;
+                                row.push_back( fmt::format( "{}", memoryData.m_HeapIndex ) );
+                                row.push_back( fmt::format( "{}", memoryData.m_TypeIndex ) );
+                                row.push_back( m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags ) );
+                            }
+
+                            row.resize( columns.size() );
+                            serializer.WriteRow( row );
+                        }
+                    }
+                    else
+                    {
+                        // No memory bound, write a row with create info and memory requirements only.
+                        row.resize( columns.size() );
+                        serializer.WriteRow( row );
+                    }
+                }
+            }
+
+            // Dump images.
+            if( !pData->m_Memory.m_Images.empty() )
+            {
+                columns = {
+                    "VkImage",
+                    "Name",
+                    "Flags",
+                    "Type",
+                    "Format",
+                    "Width",
+                    "Height",
+                    "Depth",
+                    "MipLevels",
+                    "ArrayLayers",
+                    "Usage",
+                    "Tiling",
+
+                    "MemoryRequirements.Size",
+                    "MemoryRequirements.Alignment",
+                    "MemoryRequirements.MemoryTypeBits",
+
+                    "MemoryBinding.Opaque.MemoryOffset",
+                    "MemoryBinding.Opaque.ImageOffset",
+                    "MemoryBinding.Opaque.Size",
+
+                    "MemoryBinding.Block.MemoryOffset",
+                    "MemoryBinding.Block.ImageOffset.X",
+                    "MemoryBinding.Block.ImageOffset.Y",
+                    "MemoryBinding.Block.ImageOffset.Z",
+                    "MemoryBinding.Block.ImageExtent.Width",
+                    "MemoryBinding.Block.ImageExtent.Height",
+                    "MemoryBinding.Block.ImageExtent.Depth",
+                    "MemoryBinding.Block.ImageSubresource.AspectMask",
+                    "MemoryBinding.Block.ImageSubresource.MipLevel",
+                    "MemoryBinding.Block.ImageSubresource.ArrayLayer",
+
+                    "MemoryBinding.VkDeviceMemory",
+                    "MemoryBinding.HeapIndex",
+                    "MemoryBinding.TypeIndex",
+                    "MemoryBinding.TypeFlags"
+                };
+                serializer.WriteHeader( columns );
+
+                for( const auto& [imageHandle, image] : pData->m_Memory.m_Images )
+                {
+                    const std::string imageName = m_pStringSerializer->GetName( imageHandle );
+                    if( !FilterResourceByNameAndUsage( imageName, image.m_ImageUsage, imageUsageFilter ) )
+                    {
+                        continue;
+                    }
+
+                    row.clear();
+                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkImage>::GetObjectHandleAsUint64( imageHandle ) ) );
+                    row.push_back( imageName );
+                    row.push_back( fmt::format( "{:#08x}", image.m_ImageFlags ) );
+                    row.push_back( m_pStringSerializer->GetImageTypeName( image.m_ImageType, image.m_ImageFlags, image.m_ImageArrayLayers ) );
+                    row.push_back( m_pStringSerializer->GetFormatName( image.m_ImageFormat ) );
+                    row.push_back( fmt::format( "{}", image.m_ImageExtent.width ) );
+                    row.push_back( fmt::format( "{}", image.m_ImageExtent.height ) );
+                    row.push_back( fmt::format( "{}", image.m_ImageExtent.depth ) );
+                    row.push_back( fmt::format( "{}", image.m_ImageMipLevels ) );
+                    row.push_back( fmt::format( "{}", image.m_ImageArrayLayers ) );
+                    row.push_back( m_pStringSerializer->GetImageUsageFlagNames( image.m_ImageUsage ) );
+                    row.push_back( m_pStringSerializer->GetImageTilingName( image.m_ImageTiling ) );
+                    row.push_back( fmt::format( "{}", image.m_MemoryRequirements.size ) );
+                    row.push_back( fmt::format( "{}", image.m_MemoryRequirements.alignment ) );
+                    row.push_back( fmt::format( "{:#08x}", image.m_MemoryRequirements.memoryTypeBits ) );
+
+                    const size_t memoryBindingCount = image.GetMemoryBindingCount();
+                    const auto* pMemoryBindings = image.GetMemoryBindings();
+
+                    if( memoryBindingCount )
+                    {
+                        // Print a row for each memory binding.
+                        const size_t initialRowSize = row.size();
+                        for( size_t i = 0; i < memoryBindingCount; ++i )
+                        {
+                            row.resize( initialRowSize );
+
+                            const auto& binding = pMemoryBindings[i];
+                            VkObjectHandle<VkDeviceMemory> memory = VK_NULL_HANDLE;
+
+                            if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
+                            {
+                                row.push_back( fmt::format( "{}", binding.m_Opaque.m_MemoryOffset ) );
+                                row.push_back( fmt::format( "{}", binding.m_Opaque.m_ImageOffset ) );
+                                row.push_back( fmt::format( "{}", binding.m_Opaque.m_Size ) );
+                                row.resize( columns.size() - 4 );
+                                memory = binding.m_Opaque.m_Memory;
+                            }
+
+                            if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eBlock )
+                            {
+                                row.resize( row.size() + 3 );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_MemoryOffset ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageOffset.x ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageOffset.y ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageOffset.z ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageExtent.width ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageExtent.height ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageExtent.depth ) );
+                                row.push_back( m_pStringSerializer->GetImageAspectFlagNames( binding.m_Block.m_ImageSubresource.aspectMask ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageSubresource.mipLevel ) );
+                                row.push_back( fmt::format( "{}", binding.m_Block.m_ImageSubresource.arrayLayer ) );
+                                memory = binding.m_Block.m_Memory;
+                            }
+
+                            row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkDeviceMemory>::GetObjectHandleAsUint64( memory ) ) );
+
+                            if( memory != VK_NULL_HANDLE )
+                            {
+                                auto memoryAllocationIt = pData->m_Memory.m_Allocations.find( memory );
+                                if( memoryAllocationIt != pData->m_Memory.m_Allocations.end() )
+                                {
+                                    const auto& memoryData = memoryAllocationIt->second;
+                                    row.push_back( fmt::format( "{}", memoryData.m_HeapIndex ) );
+                                    row.push_back( fmt::format( "{}", memoryData.m_TypeIndex ) );
+                                    row.push_back( m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[memoryData.m_TypeIndex].propertyFlags ) );
+                                }
+                            }
+
+                            row.resize( columns.size() );
+                            serializer.WriteRow( row );
+                        }
+                    }
+                    else
+                    {
+                        // No memory bound, write a row with create info and memory requirements only.
+                        row.resize( columns.size() );
+                        serializer.WriteRow( row );
+                    }
+                }
+            }
+
+            // Dump acceleration structures.
+            if( !pData->m_Memory.m_AccelerationStructures.empty() )
+            {
+                columns = {
+                    "VkAccelerationStructureKHR",
+                    "Name",
+                    "Flags",
+                    "Type",
+                    "VkBuffer",
+                    "Offset",
+                    "Size"
+                };
+                serializer.WriteHeader( columns );
+
+                for( const auto& [accelerationStructureHandle, accelerationStructure] : pData->m_Memory.m_AccelerationStructures )
+                {
+                    // Acceleration structure types are a simple enum, convert to bitmask for filtering.
+                    VkFlags accelerationStructureTypeBit = ( 1U << accelerationStructure.m_Type );
+
+                    const std::string accelerationStructureName = m_pStringSerializer->GetName( accelerationStructureHandle );
+                    if( !FilterResourceByNameAndUsage( accelerationStructureName, accelerationStructureTypeBit, accelerationStructureTypeFilter ) )
+                    {
+                        continue;
+                    }
+
+                    row.clear();
+                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructureHandle ) ) );
+                    row.push_back( accelerationStructureName );
+                    row.push_back( fmt::format( "{:#08x}", accelerationStructure.m_Flags ) );
+                    row.push_back( m_pStringSerializer->GetAccelerationStructureTypeName( accelerationStructure.m_Type ) );
+                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( accelerationStructure.m_Buffer ) ) );
+                    row.push_back( fmt::format( "{}", accelerationStructure.m_Offset ) );
+                    row.push_back( fmt::format( "{}", accelerationStructure.m_Size ) );
+
+                    row.resize( columns.size() );
+                    serializer.WriteRow( row );
+                }
+            }
+
+            // Dump micromaps.
+            if( !pData->m_Memory.m_Micromaps.empty() )
+            {
+                columns = {
+                    "VkMicromapEXT",
+                    "Name",
+                    "Flags",
+                    "Type",
+                    "VkBuffer",
+                    "Offset",
+                    "Size"
+                };
+                serializer.WriteHeader( columns );
+
+                for( const auto& [micromapHandle, micromap] : pData->m_Memory.m_Micromaps )
+                {
+                    // Micromap types are a simple enum, convert to bitmask for filtering.
+                    VkFlags micromapTypeBit = ( 1U << micromap.m_Type );
+
+                    const std::string micromapName = m_pStringSerializer->GetName( micromapHandle );
+                    if( !FilterResourceByNameAndUsage( micromapName, micromapTypeBit, micromapTypeFilter ) )
+                    {
+                        continue;
+                    }
+
+                    row.clear();
+                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkMicromapEXT>::GetObjectHandleAsUint64( micromapHandle ) ) );
+                    row.push_back( micromapName );
+                    row.push_back( fmt::format( "{:#08x}", micromap.m_Flags ) );
+                    row.push_back( m_pStringSerializer->GetMicromapTypeName( micromap.m_Type ) );
+                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( micromap.m_Buffer ) ) );
+                    row.push_back( fmt::format( "{}", micromap.m_Offset ) );
+                    row.push_back( fmt::format( "{}", micromap.m_Size ) );
+
+                    row.resize( columns.size() );
+                    serializer.WriteRow( row );
+                }
+            }
+
+            serializer.Close();
+
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Resource list saved successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for writing.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
     }
 
     /***********************************************************************************\
