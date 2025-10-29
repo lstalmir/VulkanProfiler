@@ -882,6 +882,11 @@ namespace Profiler
                 *m_pLastMainWindowPos = Float2();
                 *m_pLastMainWindowSize = Float2();
             }
+            else
+            {
+                // Set initial size of the window if not saved in settings
+                ImGui::SetNextWindowSize( ImVec2( 600, 400 ), ImGuiCond_FirstUseEver );
+            }
         }
 
         // Begin main window
@@ -2297,7 +2302,7 @@ namespace Profiler
         ImGui::SameLine();
         ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
         ImGui::SameLine();
-        ImGui::SetNextItemWidth( std::clamp( 200.f * interfaceScale, 50.f, ImGui::GetContentRegionAvail().x ) );
+        ImGui::SetNextItemWidth( std::max( 200.f * interfaceScale, std::min( 50.f, ImGui::GetContentRegionAvail().x ) ) );
         if( ImGui::InputText( "##PerformanceQueryMetricsFilter", &m_PerformanceQueryMetricsFilter ) )
         {
             UpdateMetricsSetsFilterResults();

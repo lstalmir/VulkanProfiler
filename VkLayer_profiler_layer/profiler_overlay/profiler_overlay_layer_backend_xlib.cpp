@@ -66,39 +66,43 @@ namespace Profiler
         // TODO: error check
         XGetWindowAttributes( m_Display, window, &windowAttributes );
 
+        int screen = XScreenNumberOfScreen( windowAttributes.screen );
+
+        XVisualInfo vinfo;
+        if( !XMatchVisualInfo( m_Display, screen, 32, TrueColor, &vinfo ) )
+            throw;
+
+        Colormap colormap = XCreateColormap( m_Display, windowAttributes.root, vinfo.visual, AllocNone );
+
+        XSetWindowAttributes attr = {};
+        attr.colormap = colormap;
+        attr.override_redirect = true;
+        attr.background_pixel = 0;
+        attr.border_pixel = 0;
+        attr.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+
+        int root_x, root_y;
+        Window child;
+        XTranslateCoordinates( m_Display, m_AppWindow, windowAttributes.root, 0, 0, &root_x, &root_y, &child );
+
         m_InputWindow = XCreateWindow(
             m_Display,
-            m_AppWindow,
-            0, 0,
+            windowAttributes.root,
+            root_x,
+            root_y,
             windowAttributes.width,
             windowAttributes.height,
-            0, CopyFromParent,
-            InputOnly,
-            CopyFromParent,
-            0, nullptr );
+            0, vinfo.depth,
+            InputOutput,
+            vinfo.visual,
+            CWColormap | CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask,
+            &attr );
 
         if( !m_InputWindow )
             throw;
 
         // TODO: error check
         XMapWindow( m_Display, m_InputWindow );
-
-        // Get supported input mask of the created window
-        XGetWindowAttributes( m_Display, m_InputWindow, &windowAttributes );
-
-        const int inputEventMask =
-            KeyPressMask |
-            KeyReleaseMask |
-            ButtonPressMask |
-            ButtonReleaseMask |
-            PointerMotionMask;
-
-        //if( (windowAttributes.all_event_masks & inputEventMask) != inputEventMask )
-        //    return InitError();
-
-        // Start listening
-        if( !XSelectInput( m_Display, m_InputWindow, inputEventMask ) )
-            throw;
 
         // Initialize clipboard
         m_ClipboardSelectionAtom = XInternAtom( m_Display, "CLIPBOARD", False );
@@ -194,10 +198,16 @@ namespace Profiler
         XGetWindowAttributes( m_Display, m_AppWindow, &windowAttributes );
         io.DisplaySize = ImVec2((float)(windowAttributes.width), (float)(windowAttributes.height));
 
+        int root_x, root_y;
+        Window child;
+        XTranslateCoordinates( m_Display, m_AppWindow, windowAttributes.root, 0, 0, &root_x, &root_y, &child );
+
         XWindowChanges inputWindowChanges = {};
+        inputWindowChanges.x = root_x;
+        inputWindowChanges.y = root_y;
         inputWindowChanges.width = windowAttributes.width;
         inputWindowChanges.height = windowAttributes.height;
-        XConfigureWindow( m_Display, m_InputWindow, CWWidth | CWHeight, &inputWindowChanges );
+        XConfigureWindow( m_Display, m_InputWindow, CWX | CWY | CWWidth | CWHeight, &inputWindowChanges );
 
         // Update OS mouse position
         UpdateMousePos();
