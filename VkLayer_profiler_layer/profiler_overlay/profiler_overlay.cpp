@@ -1876,7 +1876,7 @@ namespace Profiler
                 const float pipelineTimeMs = Profiler::GetDuration( pipeline ) * m_TimestampPeriod.count();
 
                 m_ReferenceTopPipelines.try_emplace(
-                    m_pStringSerializer->GetName( pipeline, m_ShowEntryPoints ), pipelineTimeMs );
+                    m_pStringSerializer->GetName( pipeline, true /*showEntryPoints*/ ), pipelineTimeMs );
             }
         }
 
@@ -2038,10 +2038,15 @@ namespace Profiler
                 // Show reference time if available.
                 if( !m_ReferenceTopPipelines.empty() )
                 {
-                    // Reference pipelines always have entry point names.
-                    std::string refPipelineName = m_pStringSerializer->GetName( pipeline, true /*showEntryPoints*/ );
+                    auto ref = m_ReferenceTopPipelines.find( pipelineName );
+                    if( ref == m_ReferenceTopPipelines.end() )
+                    {
+                        // If m_ShowEntryPoints is true, the first search will handle the new captures, that always include the entry points.
+                        // Otherwise it will handle the old captures without entry points and now we're handling the new captures.
+                        ref = m_ReferenceTopPipelines.find(
+                            m_pStringSerializer->GetName( pipeline, !m_ShowEntryPoints ) );
+                    }
 
-                    auto ref = m_ReferenceTopPipelines.find( refPipelineName );
                     if( ref != m_ReferenceTopPipelines.end() )
                     {
                         // Convert saved reference time to the same unit as the pipeline time.
