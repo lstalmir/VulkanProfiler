@@ -88,7 +88,7 @@ namespace Profiler
             m_Connection,
             XCB_COPY_FROM_PARENT,
             m_InputWindow,
-            m_AppWindow,
+            geometry.root,
             rootPosition.x,
             rootPosition.y,
             geometry.width,
