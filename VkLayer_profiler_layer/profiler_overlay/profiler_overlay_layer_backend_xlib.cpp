@@ -66,43 +66,39 @@ namespace Profiler
         // TODO: error check
         XGetWindowAttributes( m_Display, window, &windowAttributes );
 
-        int screen = XScreenNumberOfScreen( windowAttributes.screen );
+        XSetWindowAttributes setWindowAttributes = {};
+        setWindowAttributes.override_redirect = true;
+        setWindowAttributes.event_mask =
+            KeyPressMask |
+            KeyReleaseMask |
+            ButtonPressMask |
+            ButtonReleaseMask |
+            PointerMotionMask;
 
-        XVisualInfo vinfo;
-        if( !XMatchVisualInfo( m_Display, screen, 32, TrueColor, &vinfo ) )
-            throw;
-
-        Colormap colormap = XCreateColormap( m_Display, windowAttributes.root, vinfo.visual, AllocNone );
-
-        XSetWindowAttributes attr = {};
-        attr.colormap = colormap;
-        attr.override_redirect = true;
-        attr.background_pixel = 0;
-        attr.border_pixel = 0;
-        attr.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
-
-        int root_x, root_y;
-        Window child;
-        XTranslateCoordinates( m_Display, m_AppWindow, windowAttributes.root, 0, 0, &root_x, &root_y, &child );
+        Int2 rootPosition( 0, 0 );
+        // TODO: error check
+        GetRootCoordinates( windowAttributes.root, rootPosition );
 
         m_InputWindow = XCreateWindow(
             m_Display,
             windowAttributes.root,
-            root_x,
-            root_y,
+            rootPosition.x,
+            rootPosition.y,
             windowAttributes.width,
             windowAttributes.height,
-            0, vinfo.depth,
-            InputOutput,
-            vinfo.visual,
-            CWColormap | CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask,
-            &attr );
+            0, CopyFromParent,
+            InputOnly,
+            CopyFromParent,
+            CWOverrideRedirect | CWEventMask,
+            &setWindowAttributes );
 
         if( !m_InputWindow )
             throw;
 
         // TODO: error check
+        XShapeCombineMask( m_Display, m_InputWindow, ShapeBounding, 0, 0, None, ShapeSet );
         XMapWindow( m_Display, m_InputWindow );
+        XClearWindow( m_Display, m_InputWindow );
 
         // Initialize clipboard
         m_ClipboardSelectionAtom = XInternAtom( m_Display, "CLIPBOARD", False );
@@ -198,16 +194,21 @@ namespace Profiler
         XGetWindowAttributes( m_Display, m_AppWindow, &windowAttributes );
         io.DisplaySize = ImVec2((float)(windowAttributes.width), (float)(windowAttributes.height));
 
-        int root_x, root_y;
-        Window child;
-        XTranslateCoordinates( m_Display, m_AppWindow, windowAttributes.root, 0, 0, &root_x, &root_y, &child );
-
         XWindowChanges inputWindowChanges = {};
-        inputWindowChanges.x = root_x;
-        inputWindowChanges.y = root_y;
         inputWindowChanges.width = windowAttributes.width;
         inputWindowChanges.height = windowAttributes.height;
-        XConfigureWindow( m_Display, m_InputWindow, CWX | CWY | CWWidth | CWHeight, &inputWindowChanges );
+
+        int inputWindowChangeMask = CWWidth | CWHeight;
+
+        Int2 rootPosition( 0, 0 );
+        if( GetRootCoordinates( windowAttributes.root, rootPosition ) )
+        {
+            inputWindowChanges.x = rootPosition.x;
+            inputWindowChanges.y = rootPosition.y;
+            inputWindowChangeMask |= CWX | CWY;
+        }
+
+        XConfigureWindow( m_Display, m_InputWindow, inputWindowChangeMask, &inputWindowChanges );
 
         // Update OS mouse position
         UpdateMousePos();
@@ -362,6 +363,29 @@ namespace Profiler
         }
 
         XFlush( m_Display );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetRootCoordinates
+
+    Description:
+
+    \***********************************************************************************/
+    bool OverlayLayerXlibPlatformBackend::GetRootCoordinates( Window root, Int2& out ) const
+    {
+        Window child;
+        int result = XTranslateCoordinates(
+            m_Display,
+            m_AppWindow,
+            root,
+            0, 0,
+            &out.x,
+            &out.y,
+            &child );
+
+        return ( result == 0 );
     }
 
     /***********************************************************************************\
