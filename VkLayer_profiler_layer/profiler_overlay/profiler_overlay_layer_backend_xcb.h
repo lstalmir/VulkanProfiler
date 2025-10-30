@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_overlay_types.h"
 #include "profiler_overlay_layer_backend.h"
 #include "profiler_overlay_layer_backend_xkb.h"
 #include <imgui.h>
@@ -61,7 +62,9 @@ namespace Profiler
         xcb_atom_t m_TextAtom;
         xcb_atom_t m_StringAtom;
         xcb_atom_t m_Utf8StringAtom;
-    
+
+        bool GetRootCoordinates( xcb_window_t root, Int2& out ) const;
+
         xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
         xcb_atom_t InternAtom( const char* pName, bool onlyIfExists = false );
 
