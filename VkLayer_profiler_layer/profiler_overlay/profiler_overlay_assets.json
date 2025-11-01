@@ -1,5 +1,8 @@
 [
     { "name": "CopyImg", "path": "assets/copy.png" },
+    { "name": "InfoImg", "path": "assets/info.png" },
+    { "name": "PlusImg", "path": "assets/plus.png" },
+    { "name": "MinusImg", "path": "assets/minus.png" },
     { "name": "BookmarkEmptyImg", "path": "assets/bookmark_empty.png" },
     { "name": "BookmarkFilledImg", "path": "assets/bookmark_filled.png" }
 ]

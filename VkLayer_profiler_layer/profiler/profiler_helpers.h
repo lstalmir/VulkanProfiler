@@ -680,6 +680,51 @@ namespace Profiler
 
         static constexpr char m_scHexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert( sizeof( m_scHexDigits ) == 16 );
+
+        template<typename CharT>
+        static int CompareN( const CharT* pFirst, const CharT* pSecond, size_t maxCount )
+        {
+            for( size_t i = 0; i < maxCount; ++i )
+            {
+                const CharT firstChar = pFirst[i];
+                const CharT secondChar = pSecond[i];
+
+                if( const int diff = firstChar - secondChar )
+                {
+                    return diff;
+                }
+
+                if( firstChar == 0 )
+                {
+                    return 0;
+                }
+            }
+            return 0;
+        }
+
+        template<typename CharT, size_t firstSize, size_t secondSize>
+        static int Compare( const CharT ( &first )[firstSize], const CharT ( &second )[secondSize] )
+        {
+            return CompareN( first, second, std::min( firstSize, secondSize ) );
+        }
+
+        template<typename CharT, size_t firstSize>
+        static int Compare( const CharT ( &first )[firstSize], const CharT* pSecond, size_t secondSize )
+        {
+            return CompareN( first, pSecond, std::min( firstSize, secondSize ) );
+        }
+
+        template<typename CharT, size_t secondSize>
+        static int Compare( const CharT* pFirst, size_t firstSize, const CharT ( &second )[secondSize] )
+        {
+            return CompareN( pFirst, second, std::min( firstSize, secondSize ) );
+        }
+
+        template<typename CharT>
+        static int Compare( const CharT* pFirst, size_t firstSize, const CharT* pSecond, size_t secondSize )
+        {
+            return CompareN( pFirst, pSecond, std::min( firstSize, secondSize ) );
+        }
     };
     
     /***********************************************************************************\
