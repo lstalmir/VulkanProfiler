@@ -235,6 +235,14 @@ namespace Profiler
             }
         }
 
+        xcb_shape_mask(
+            m_Connection,
+            XCB_SHAPE_SO_SET,
+            XCB_SHAPE_SK_BOUNDING,
+            m_InputWindow,
+            0, 0,
+            XCB_NONE );
+
         xcb_shape_rectangles(
             m_Connection,
             XCB_SHAPE_SO_SET,

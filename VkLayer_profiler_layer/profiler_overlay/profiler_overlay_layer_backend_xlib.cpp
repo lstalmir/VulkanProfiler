@@ -229,6 +229,14 @@ namespace Profiler
             }
         }
 
+        XShapeCombineMask(
+            m_Display,
+            m_InputWindow,
+            ShapeBounding,
+            0, 0,
+            None,
+            ShapeSet );
+
         XShapeCombineRectangles(
             m_Display,
             m_InputWindow,
