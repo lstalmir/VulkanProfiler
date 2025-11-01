@@ -265,7 +265,12 @@ namespace Profiler
         m_pBackend->CreateFontsImage();
 
         // Create image objects
+        m_pIcons[OverlayIcon::Open] = CreateImage( OverlayAssets::OpenImg );
+        m_pIcons[OverlayIcon::Save] = CreateImage( OverlayAssets::SaveImg );
         m_pIcons[OverlayIcon::Copy] = CreateImage( OverlayAssets::CopyImg );
+        m_pIcons[OverlayIcon::Info] = CreateImage( OverlayAssets::InfoImg );
+        m_pIcons[OverlayIcon::Plus] = CreateImage( OverlayAssets::PlusImg );
+        m_pIcons[OverlayIcon::Minus] = CreateImage( OverlayAssets::MinusImg );
         m_pIcons[OverlayIcon::BookmarkEmpty] = CreateImage( OverlayAssets::BookmarkEmptyImg );
         m_pIcons[OverlayIcon::BookmarkFilled] = CreateImage( OverlayAssets::BookmarkFilledImg );
 
