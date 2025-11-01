@@ -66,39 +66,38 @@ namespace Profiler
         // TODO: error check
         XGetWindowAttributes( m_Display, window, &windowAttributes );
 
-        m_InputWindow = XCreateWindow(
-            m_Display,
-            m_AppWindow,
-            0, 0,
-            windowAttributes.width,
-            windowAttributes.height,
-            0, CopyFromParent,
-            InputOnly,
-            CopyFromParent,
-            0, nullptr );
-
-        if( !m_InputWindow )
-            throw;
-
-        // TODO: error check
-        XMapWindow( m_Display, m_InputWindow );
-
-        // Get supported input mask of the created window
-        XGetWindowAttributes( m_Display, m_InputWindow, &windowAttributes );
-
-        const int inputEventMask =
+        XSetWindowAttributes setWindowAttributes = {};
+        setWindowAttributes.override_redirect = true;
+        setWindowAttributes.event_mask =
             KeyPressMask |
             KeyReleaseMask |
             ButtonPressMask |
             ButtonReleaseMask |
             PointerMotionMask;
 
-        //if( (windowAttributes.all_event_masks & inputEventMask) != inputEventMask )
-        //    return InitError();
+        Int2 rootPosition( 0, 0 );
+        // TODO: error check
+        GetRootCoordinates( windowAttributes.root, rootPosition );
 
-        // Start listening
-        if( !XSelectInput( m_Display, m_InputWindow, inputEventMask ) )
+        m_InputWindow = XCreateWindow(
+            m_Display,
+            windowAttributes.root,
+            rootPosition.x,
+            rootPosition.y,
+            windowAttributes.width,
+            windowAttributes.height,
+            0, CopyFromParent,
+            InputOnly,
+            CopyFromParent,
+            CWOverrideRedirect | CWEventMask,
+            &setWindowAttributes );
+
+        if( !m_InputWindow )
             throw;
+
+        // TODO: error check
+        XShapeCombineMask( m_Display, m_InputWindow, ShapeBounding, 0, 0, None, ShapeSet );
+        XMapWindow( m_Display, m_InputWindow );
 
         // Initialize clipboard
         m_ClipboardSelectionAtom = XInternAtom( m_Display, "CLIPBOARD", False );
@@ -197,7 +196,18 @@ namespace Profiler
         XWindowChanges inputWindowChanges = {};
         inputWindowChanges.width = windowAttributes.width;
         inputWindowChanges.height = windowAttributes.height;
-        XConfigureWindow( m_Display, m_InputWindow, CWWidth | CWHeight, &inputWindowChanges );
+
+        int inputWindowChangeMask = CWWidth | CWHeight;
+
+        Int2 rootPosition( 0, 0 );
+        if( GetRootCoordinates( windowAttributes.root, rootPosition ) )
+        {
+            inputWindowChanges.x = rootPosition.x;
+            inputWindowChanges.y = rootPosition.y;
+            inputWindowChangeMask |= CWX | CWY;
+        }
+
+        XConfigureWindow( m_Display, m_InputWindow, inputWindowChangeMask, &inputWindowChanges );
 
         // Update OS mouse position
         UpdateMousePos();
@@ -217,6 +227,14 @@ namespace Profiler
                 m_InputRects.push_back( rect );
             }
         }
+
+        XShapeCombineMask(
+            m_Display,
+            m_InputWindow,
+            ShapeBounding,
+            0, 0,
+            None,
+            ShapeSet );
 
         XShapeCombineRectangles(
             m_Display,
@@ -352,6 +370,29 @@ namespace Profiler
         }
 
         XFlush( m_Display );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetRootCoordinates
+
+    Description:
+
+    \***********************************************************************************/
+    bool OverlayLayerXlibPlatformBackend::GetRootCoordinates( Window root, Int2& out ) const
+    {
+        Window child;
+        int result = XTranslateCoordinates(
+            m_Display,
+            m_AppWindow,
+            root,
+            0, 0,
+            &out.x,
+            &out.y,
+            &child );
+
+        return ( result == 0 );
     }
 
     /***********************************************************************************\
