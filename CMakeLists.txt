@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2024 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ option (BUILD_SPIRV_DOCS "Build SPIR-V documentation into the disassembly view."
 set    (SPIRV_DOCS_URL "https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html"
             CACHE STRING "URL of the SPIR-V documentation page.")
 option (SKIP_PLATFORMS_CHECK "Skip checking for Vulkan platform support." OFF)
+option (PROFILER_ENABLE_TIP "Enable time-in-profiler instrumentation." OFF)
 
 # Vulkan platform support.
 include (CMake/platform.cmake NO_POLICY_SCOPE)
