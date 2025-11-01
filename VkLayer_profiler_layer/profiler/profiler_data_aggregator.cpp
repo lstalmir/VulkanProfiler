@@ -215,15 +215,29 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::Destroy()
     {
-        if( m_DataCollectionThreadRunning )
-        {
-            assert( m_DataCollectionThread.joinable() );
-            m_DataCollectionThreadRunning = false;
-            m_DataCollectionThread.join();
-        }
+        StopDataCollectionThread();
 
         m_CopyCommandPools.clear();
         m_pProfiler = nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        StopDataCollectionThread
+
+    Description:
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::StopDataCollectionThread()
+    {
+        m_DataCollectionThreadRunning = false;
+
+        if( m_DataCollectionThread.joinable() )
+        {
+            m_DataCollectionThread.join();
+            m_DataCollectionThread = std::thread();
+        }
     }
 
     /***********************************************************************************\

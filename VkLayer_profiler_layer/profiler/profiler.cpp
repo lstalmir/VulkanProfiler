@@ -524,6 +524,9 @@ namespace Profiler
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
+        // Data aggregator may run in background so it must be stopped first.
+        m_DataAggregator.StopDataCollectionThread();
+
         // Begin a fake frame at the end to allow finalization of the last submitted frame.
         BeginNextFrame();
         ResolveFrameData( tip );

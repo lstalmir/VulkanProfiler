@@ -109,6 +109,7 @@ namespace Profiler
         void SetDataBufferSize( uint32_t maxFrames );
 
         bool IsDataCollectionThreadRunning() const { return m_DataCollectionThreadRunning; }
+        void StopDataCollectionThread();
 
         void AppendFrame( const DeviceProfilerFrame& );
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
