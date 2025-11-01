@@ -37,6 +37,7 @@
 #include <memory>
 #include <mutex>
 #include <functional>
+#include <regex>
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
@@ -280,6 +281,14 @@ namespace Profiler
         std::vector<std::shared_ptr<PerformanceQueryMetricsSet>> m_pPerformanceQueryMetricsSets;
         std::vector<bool> m_ActivePerformanceQueryMetricsFilterResults;
         std::string m_PerformanceQueryMetricsFilter;
+        std::regex m_PerformanceQueryMetricsFilterRegex;
+        bool m_PerformanceQueryMetricsSetPropertiesExpanded;
+
+        bool CompilePerformanceQueryMetricsFilterRegex();
+        void UpdatePerformanceQueryEditorMetricsFilterResults();
+        void UpdatePerformanceQueryActiveMetricsFilterResults();
+        void UpdatePerformanceQueryMetricsSetFilterResults( const std::shared_ptr<PerformanceQueryMetricsSet>& );
+        void UpdatePerformanceQueryMetricsSetsFilterResults();
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
@@ -301,7 +310,7 @@ namespace Profiler
         std::string m_PerformanceQueryEditorSetDescription;
 
         uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
-        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected );
+        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected, bool refresh );
         void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization
