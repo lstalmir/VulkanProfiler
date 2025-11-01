@@ -101,7 +101,6 @@ namespace Profiler
 
         xcb_shape_mask( m_Connection, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_BOUNDING, m_InputWindow, 0, 0, XCB_NONE );
         xcb_map_window( m_Connection, m_InputWindow );
-        xcb_clear_area( m_Connection, 0, m_InputWindow, 0, 0, geometry.width, geometry.height );
         xcb_flush( m_Connection );
 
         // Initialize clipboard

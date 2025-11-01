@@ -98,7 +98,6 @@ namespace Profiler
         // TODO: error check
         XShapeCombineMask( m_Display, m_InputWindow, ShapeBounding, 0, 0, None, ShapeSet );
         XMapWindow( m_Display, m_InputWindow );
-        XClearWindow( m_Display, m_InputWindow );
 
         // Initialize clipboard
         m_ClipboardSelectionAtom = XInternAtom( m_Display, "CLIPBOARD", False );
