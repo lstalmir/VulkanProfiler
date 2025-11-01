@@ -2318,7 +2318,7 @@ namespace Profiler
                     if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
                     {
                         // Notify the profiler.
-                        if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+                        if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
                         {
                             // Refresh the performance metric properties.
                             m_pActivePerformanceQueryMetricsSet = pMetricsSet;
