@@ -184,7 +184,7 @@ namespace Profiler
 
         inline constexpr VkObjectHandle(
                 VkObjectT object,
-                VkObjectType type = VK_OBJECT_TYPE_UNKNOWN,
+                VkObjectType type,
                 uint64_t timestamp = 0 )
             : m_Handle( object )
             , m_CreateTime( static_cast<uint32_t>( timestamp ) )
@@ -284,6 +284,27 @@ namespace Profiler
             return !( *this == rh );
         }
     };
+
+    #define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME ) \
+        struct TYPE##Handle : public VkObjectHandle<TYPE>                                       \
+        {                                                                                       \
+            inline constexpr TYPE##Handle( std::nullptr_t = nullptr )                           \
+                : VkObjectHandle<TYPE>( nullptr )                                               \
+            {                                                                                   \
+            }                                                                                   \
+                                                                                                \
+            inline constexpr TYPE##Handle( TYPE object, uint64_t timestamp = 0 )                \
+                : VkObjectHandle<TYPE>( object, OBJECT_TYPE, timestamp )                        \
+            {                                                                                   \
+            }                                                                                   \
+                                                                                                \
+            inline constexpr TYPE##Handle( const VkObjectHandle<TYPE>& object )                 \
+                : VkObjectHandle<TYPE>( object )                                                \
+            {                                                                                   \
+            }                                                                                   \
+        };
+
+    #include "VkObject_Types.inl"
 }
 
 template<typename VkObjectT>
@@ -308,3 +329,17 @@ struct std::hash<Profiler::VkObject>
             sizeof( obj ) );
     }
 };
+
+#define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME ) \
+    template<>                                                                              \
+    struct std::hash<Profiler::TYPE##Handle>                                                \
+    {                                                                                       \
+        inline size_t operator()( const Profiler::TYPE##Handle& obj ) const                 \
+        {                                                                                   \
+            return Farmhash::Hash(                                                          \
+                reinterpret_cast<const char*>( &obj ),                                      \
+                sizeof( obj ) );                                                            \
+        }                                                                                   \
+    };
+
+#include "VkObject_Types.inl"

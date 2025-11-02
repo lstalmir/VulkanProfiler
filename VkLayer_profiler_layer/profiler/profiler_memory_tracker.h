@@ -45,25 +45,25 @@ namespace Profiler
         VkResult Initialize( VkDevice_Object* pDevice );
         void Destroy();
 
-        void RegisterAllocation( VkObjectHandle<VkDeviceMemory> memory, const VkMemoryAllocateInfo* pAllocateInfo );
-        void UnregisterAllocation( VkObjectHandle<VkDeviceMemory> memory );
+        void RegisterAllocation( VkDeviceMemoryHandle memory, const VkMemoryAllocateInfo* pAllocateInfo );
+        void UnregisterAllocation( VkDeviceMemoryHandle memory );
 
-        void RegisterBuffer( VkObjectHandle<VkBuffer> buffer, const VkBufferCreateInfo* pCreateInfo );
-        void UnregisterBuffer( VkObjectHandle<VkBuffer> buffer );
-        void BindBufferMemory( VkObjectHandle<VkBuffer> buffer, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset );
-        void BindSparseBufferMemory( VkObjectHandle<VkBuffer> buffer, VkDeviceSize bufferOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
+        void RegisterBuffer( VkBufferHandle buffer, const VkBufferCreateInfo* pCreateInfo );
+        void UnregisterBuffer( VkBufferHandle buffer );
+        void BindBufferMemory( VkBufferHandle buffer, VkDeviceMemoryHandle memory, VkDeviceSize offset );
+        void BindSparseBufferMemory( VkBufferHandle buffer, VkDeviceSize bufferOffset, VkDeviceMemoryHandle memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
 
-        void RegisterImage( VkObjectHandle<VkImage> image, const VkImageCreateInfo* pCreateInfo );
-        void UnregisterImage( VkObjectHandle<VkImage> image );
-        void BindImageMemory( VkObjectHandle<VkImage> image, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset );
-        void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkDeviceSize imageOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
-        void BindSparseImageMemory( VkObjectHandle<VkImage> image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags );
+        void RegisterImage( VkImageHandle image, const VkImageCreateInfo* pCreateInfo );
+        void UnregisterImage( VkImageHandle image );
+        void BindImageMemory( VkImageHandle image, VkDeviceMemoryHandle memory, VkDeviceSize offset );
+        void BindSparseImageMemory( VkImageHandle image, VkDeviceSize imageOffset, VkDeviceMemoryHandle memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags );
+        void BindSparseImageMemory( VkImageHandle image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkDeviceMemoryHandle memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags );
 
-        void RegisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure, VkObjectHandle<VkBuffer> buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo );
-        void UnregisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure );
+        void RegisterAccelerationStructure( VkAccelerationStructureKHRHandle accelerationStructure, VkBufferHandle buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo );
+        void UnregisterAccelerationStructure( VkAccelerationStructureKHRHandle accelerationStructure );
 
-        void RegisterMicromap( VkObjectHandle<VkMicromapEXT> micromap, VkObjectHandle<VkBuffer> buffer, const VkMicromapCreateInfoEXT* pCreateInfo );
-        void UnregisterMicromap( VkObjectHandle<VkMicromapEXT> micromap );
+        void RegisterMicromap( VkMicromapEXTHandle micromap, VkBufferHandle buffer, const VkMicromapCreateInfoEXT* pCreateInfo );
+        void UnregisterMicromap( VkMicromapEXTHandle micromap );
 
         DeviceProfilerMemoryData GetMemoryData() const;
 
@@ -80,11 +80,11 @@ namespace Profiler
         std::vector<DeviceProfilerMemoryHeapData> m_Heaps;
         std::vector<DeviceProfilerMemoryTypeData> m_Types;
 
-        ConcurrentMap<VkObjectHandle<VkDeviceMemory>, DeviceProfilerDeviceMemoryData> m_Allocations;
-        ConcurrentMap<VkObjectHandle<VkBuffer>, DeviceProfilerBufferMemoryData> m_Buffers;
-        ConcurrentMap<VkObjectHandle<VkImage>, DeviceProfilerImageMemoryData> m_Images;
-        ConcurrentMap<VkObjectHandle<VkAccelerationStructureKHR>, DeviceProfilerAccelerationStructureMemoryData> m_AccelerationStructures;
-        ConcurrentMap<VkObjectHandle<VkMicromapEXT>, DeviceProfilerMicromapMemoryData> m_Micromaps;
+        ConcurrentMap<VkDeviceMemoryHandle, DeviceProfilerDeviceMemoryData> m_Allocations;
+        ConcurrentMap<VkBufferHandle, DeviceProfilerBufferMemoryData> m_Buffers;
+        ConcurrentMap<VkImageHandle, DeviceProfilerImageMemoryData> m_Images;
+        ConcurrentMap<VkAccelerationStructureKHRHandle, DeviceProfilerAccelerationStructureMemoryData> m_AccelerationStructures;
+        ConcurrentMap<VkMicromapEXTHandle, DeviceProfilerMicromapMemoryData> m_Micromaps;
 
         std::shared_mutex mutable m_MemoryBindingMutex;
 

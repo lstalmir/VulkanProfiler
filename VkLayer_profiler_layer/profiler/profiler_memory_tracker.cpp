@@ -113,7 +113,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterAllocation( VkObjectHandle<VkDeviceMemory> memory, const VkMemoryAllocateInfo* pAllocateInfo )
+    void DeviceProfilerMemoryTracker::RegisterAllocation( VkDeviceMemoryHandle memory, const VkMemoryAllocateInfo* pAllocateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -147,7 +147,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterAllocation( VkObjectHandle<VkDeviceMemory> memory )
+    void DeviceProfilerMemoryTracker::UnregisterAllocation( VkDeviceMemoryHandle memory )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -178,7 +178,7 @@ namespace Profiler
         Register new buffer resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterBuffer( VkObjectHandle<VkBuffer> buffer, const VkBufferCreateInfo* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterBuffer( VkBufferHandle buffer, const VkBufferCreateInfo* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -203,7 +203,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterBuffer( VkObjectHandle<VkBuffer> buffer )
+    void DeviceProfilerMemoryTracker::UnregisterBuffer( VkBufferHandle buffer )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_Buffers.remove( buffer );
@@ -217,7 +217,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindBufferMemory( VkObjectHandle<VkBuffer> buffer, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset )
+    void DeviceProfilerMemoryTracker::BindBufferMemory( VkBufferHandle buffer, VkDeviceMemoryHandle memory, VkDeviceSize offset )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -252,7 +252,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindSparseBufferMemory( VkObjectHandle<VkBuffer> buffer, VkDeviceSize bufferOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
+    void DeviceProfilerMemoryTracker::BindSparseBufferMemory( VkBufferHandle buffer, VkDeviceSize bufferOffset, VkDeviceMemoryHandle memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -347,7 +347,7 @@ namespace Profiler
         Register new buffer resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterImage( VkObjectHandle<VkImage> image, const VkImageCreateInfo* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterImage( VkImageHandle image, const VkImageCreateInfo* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -394,7 +394,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterImage( VkObjectHandle<VkImage> image )
+    void DeviceProfilerMemoryTracker::UnregisterImage( VkImageHandle image )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_Images.remove( image );
@@ -408,7 +408,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindImageMemory( VkObjectHandle<VkImage> image, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize offset )
+    void DeviceProfilerMemoryTracker::BindImageMemory( VkImageHandle image, VkDeviceMemoryHandle memory, VkDeviceSize offset )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -444,7 +444,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkObjectHandle<VkImage> image, VkDeviceSize imageOffset, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
+    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkImageHandle image, VkDeviceSize imageOffset, VkDeviceMemoryHandle memory, VkDeviceSize memoryOffset, VkDeviceSize size, VkSparseMemoryBindFlags flags )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -494,7 +494,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkObjectHandle<VkImage> image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkObjectHandle<VkDeviceMemory> memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags )
+    void DeviceProfilerMemoryTracker::BindSparseImageMemory( VkImageHandle image, VkImageSubresource subresource, VkOffset3D offset, VkExtent3D extent, VkDeviceMemoryHandle memory, VkDeviceSize memoryOffset, VkSparseMemoryBindFlags flags )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -565,7 +565,7 @@ namespace Profiler
         Register new acceleration structure resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure, VkObjectHandle<VkBuffer> buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterAccelerationStructure( VkAccelerationStructureKHRHandle accelerationStructure, VkBufferHandle buffer, const VkAccelerationStructureCreateInfoKHR* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -587,7 +587,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterAccelerationStructure( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure )
+    void DeviceProfilerMemoryTracker::UnregisterAccelerationStructure( VkAccelerationStructureKHRHandle accelerationStructure )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_AccelerationStructures.remove( accelerationStructure );
@@ -602,7 +602,7 @@ namespace Profiler
         Register new opacity micromap resource to track its memory usage.
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::RegisterMicromap( VkObjectHandle<VkMicromapEXT> micromap, VkObjectHandle<VkBuffer> buffer, const VkMicromapCreateInfoEXT* pCreateInfo )
+    void DeviceProfilerMemoryTracker::RegisterMicromap( VkMicromapEXTHandle micromap, VkBufferHandle buffer, const VkMicromapCreateInfoEXT* pCreateInfo )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
 
@@ -624,7 +624,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerMemoryTracker::UnregisterMicromap( VkObjectHandle<VkMicromapEXT> micromap )
+    void DeviceProfilerMemoryTracker::UnregisterMicromap( VkMicromapEXTHandle micromap )
     {
         TipGuard tip( m_pDevice->TIP, __func__ );
         m_Micromaps.remove( micromap );

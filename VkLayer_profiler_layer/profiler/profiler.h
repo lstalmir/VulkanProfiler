@@ -87,9 +87,13 @@ namespace Profiler
         ProfilerShader& GetShader( VkShaderEXT shader );
 
         VkObject GetObjectHandle( VkObject ) const;
+        uint32_t GetObjectCreateTime( VkObject ) const;
 
-        template<typename VkObjectT>
-        VkObjectHandle<VkObjectT> GetObjectHandle( VkObjectT, VkObjectType ) const;
+        template<typename VkObjectHandleT>
+        VkObjectHandleT& ResolveObjectHandle( VkObjectHandleT& ) const;
+
+        template<typename VkObjectHandleT>
+        VkObjectHandleT ResolveObjectHandle( const VkObjectHandleT& ) const;
 
         bool ShouldCapturePipelineExecutableProperties() const;
 
@@ -213,26 +217,44 @@ namespace Profiler
         void BeginNextFrame();
         void ResolveFrameData( TipRangeId& tip );
 
-        template<typename VkObjectT>
-        VkObjectHandle<VkObjectT> RegisterObject( VkObjectT, VkObjectType );
+        template<typename VkObjectHandleT>
+        VkObjectHandleT RegisterObjectHandle( VkObjectHandleT );
 
-        template<typename VkObjectT>
-        void UnregisterObject( VkObjectT, VkObjectType );
+        template<typename VkObjectHandleT>
+        void UnregisterObjectHandle( VkObjectHandleT );
     };
 
     /***********************************************************************************\
 
     Function:
-        GetObjectHandle
+        ResolveObjectHandle
 
     Description:
         Returns the handle of the object, including its creation time.
 
     \***********************************************************************************/
-    template<typename VkObjectT>
-    inline VkObjectHandle<VkObjectT> DeviceProfiler::GetObjectHandle( VkObjectT object, VkObjectType objectType ) const
+    template<typename VkObjectHandleT>
+    inline VkObjectHandleT& DeviceProfiler::ResolveObjectHandle( VkObjectHandleT& object ) const
     {
-        return GetObjectHandle( VkObject( object, objectType ) ).template GetHandle<VkObjectT>();
+        object.m_CreateTime = GetObjectCreateTime( object );
+        return object;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveObjectHandle
+
+    Description:
+        Returns the handle of the object, including its creation time.
+
+    \***********************************************************************************/
+    template<typename VkObjectHandleT>
+    inline VkObjectHandleT DeviceProfiler::ResolveObjectHandle( const VkObjectHandleT& object ) const
+    {
+        VkObjectHandleT resolved( object );
+        resolved.m_CreateTime = GetObjectCreateTime( object );
+        return resolved;
     }
 
     /***********************************************************************************\
