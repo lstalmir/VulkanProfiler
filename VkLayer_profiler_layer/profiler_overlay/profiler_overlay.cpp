@@ -1804,12 +1804,12 @@ namespace Profiler
         case QueueGraphColumn::eSignalSemaphores:
         case QueueGraphColumn::eWaitSemaphores:
         {
-            const std::vector<VkSemaphore>& semaphores =
-                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+            const std::vector<VkSemaphoreHandle>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphoreHandle>*>( column.userData );
 
             // Unselect the semaphores if they are already selected.
             bool unselect = false;
-            for( VkSemaphore semaphore : semaphores )
+            for( VkSemaphoreHandle semaphore : semaphores )
             {
                 if( m_SelectedSemaphores.count( semaphore ) )
                 {
