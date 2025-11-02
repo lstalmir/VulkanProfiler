@@ -752,7 +752,7 @@ namespace Profiler
         template<typename... Args>
         inline static void WriteDebug( const char* fmt, Args... args )
         {
-            static constexpr size_t messageBufferLength = 256;
+            static constexpr size_t messageBufferLength = 4096;
 
             // Include layer prefix to filter debug output
             // Skip ' ' at the end and include string terminator instead

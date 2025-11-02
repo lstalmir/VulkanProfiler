@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2024 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -320,6 +320,14 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.def"
     ${resource})
 
+if (ANDROID)
+    target_link_options (${PROFILER_LAYER_PROJECTNAME}
+        PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer_android.map)
+elseif (UNIX AND NOT APPLE)
+    target_link_options(${PROFILER_LAYER_PROJECTNAME}
+        PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer.map)
+endif ()
+
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC profiler
@@ -357,7 +365,8 @@ install (FILES "${PROFILER_LICENSES_FILE}" DESTINATION .)
 
 # Copy JSON to the path where DLL/SO is installed
 if (WIN32)
-install (FILES ${json} DESTINATION "${PROFILER_INSTALL_BINDIR}")
-else ()
-install (FILES ${json} DESTINATION "${PROFILER_INSTALL_LIBDIR}")
+    install (FILES ${json} DESTINATION "${PROFILER_INSTALL_BINDIR}")
+# Android doesn't use JSON files for layer discovery
+elseif (NOT ANDROID)
+    install (FILES ${json} DESTINATION "${PROFILER_INSTALL_LIBDIR}")
 endif ()

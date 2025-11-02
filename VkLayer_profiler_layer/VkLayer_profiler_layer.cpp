@@ -44,7 +44,7 @@ Description:
     Entrypoint to the VkInstance
 
 \***************************************************************************************/
-VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(
+VK_LAYER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(
     VkInstance instance,
     const char* name )
 {
@@ -60,7 +60,7 @@ Description:
     Entrypoint to the VkDevice
 
 \***************************************************************************************/
-VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
+VK_LAYER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
     VkDevice device,
     const char* name )
 {
@@ -73,11 +73,10 @@ Function:
     vkEnumerateInstanceLayerProperties
 
 Description:
-    Entrypoint to the vkEnumerateInstanceLayerProperties.
-    Loader on Android requires this function to be exported directly from the SO.
+    Entrypoint to the EnumerateInstanceLayerProperties.
 
 \***************************************************************************************/
-VK_LAYER_EXPORT VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(
+VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(
     uint32_t* pPropertyCount,
     VkLayerProperties* pProperties )
 {
@@ -90,16 +89,58 @@ Function:
     vkEnumerateInstanceExtensionProperties
 
 Description:
-    Entrypoint to the vkEnumerateInstanceExtensionProperties.
-    Loader on Android requires this function to be exported directly from the SO.
+    Entrypoint to the EnumerateInstanceExtensionProperties.
 
 \***************************************************************************************/
-VK_LAYER_EXPORT VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(
+VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(
     const char* pLayerName,
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties )
 {
-    return Profiler::VkInstance_Functions::EnumerateInstanceExtensionProperties( pLayerName, pPropertyCount, pProperties );
+    Profiler::ProfilerPlatformFunctions::WriteDebug( "::%s(%s, %p {%u}, %p)\n",
+        __func__,
+        pLayerName ? pLayerName : "null",
+        pPropertyCount,
+        *pPropertyCount,
+        pProperties );
+
+    VkResult result = Profiler::VkInstance_Functions::EnumerateInstanceExtensionProperties(
+        pLayerName,
+        pPropertyCount,
+        pProperties );
+
+    if( result == VK_ERROR_LAYER_NOT_PRESENT )
+    {
+        // The function must never fail.
+        result = VK_SUCCESS;
+    }
+
+    return result;
+}
+
+/***************************************************************************************\
+
+Function:
+    vkNegotiateLoaderLayerInterfaceVersion
+
+Description:
+
+\***************************************************************************************/
+VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(
+    VkNegotiateLayerInterface* pVersionStruct )
+{
+    assert( pVersionStruct != nullptr );
+    assert( pVersionStruct->sType == LAYER_NEGOTIATE_INTERFACE_STRUCT );
+
+    // Fill in the function pointers if our version is at least capable of having the structure contain them.
+    if( pVersionStruct->loaderLayerInterfaceVersion >= 2 )
+    {
+        pVersionStruct->pfnGetInstanceProcAddr = Profiler::VkInstance_Functions::GetInstanceProcAddr;
+        pVersionStruct->pfnGetDeviceProcAddr = Profiler::VkDevice_Functions::GetDeviceProcAddr;
+        pVersionStruct->pfnGetPhysicalDeviceProcAddr = nullptr;
+    }
+
+    return VK_SUCCESS;
 }
 
 /***************************************************************************************\
@@ -113,12 +154,13 @@ Description:
     this function to be present to intercept device commands.
 
 \***************************************************************************************/
-VK_LAYER_EXPORT VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(
+VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(
     VkPhysicalDevice physicalDevice,
     uint32_t* pPropertyCount,
     VkLayerProperties* pProperties )
 {
-    return Profiler::VkInstance_Functions::EnumerateDeviceLayerProperties( physicalDevice, pPropertyCount, pProperties );
+    assert( physicalDevice == VK_NULL_HANDLE );
+    return Profiler::VkInstance_Functions::EnumerateDeviceLayerProperties( VK_NULL_HANDLE, pPropertyCount, pProperties );
 }
 
 /***************************************************************************************\
@@ -131,13 +173,14 @@ Description:
     Loader on Android requires this function to be exported directly from the SO.
 
 \***************************************************************************************/
-VK_LAYER_EXPORT VkResult VKAPI_CALL vkEnumerateDeviceExtensionProperties(
+VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceExtensionProperties(
     VkPhysicalDevice physicalDevice,
     const char* pLayerName,
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties )
 {
-    return Profiler::VkInstance_Functions::EnumerateDeviceExtensionProperties( physicalDevice, pLayerName, pPropertyCount, pProperties );
+    assert( physicalDevice == VK_NULL_HANDLE );
+    return Profiler::VkInstance_Functions::EnumerateDeviceExtensionProperties( VK_NULL_HANDLE, pLayerName, pPropertyCount, pProperties );
 }
 
 #ifdef WIN32
