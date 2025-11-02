@@ -3730,7 +3730,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( accelerationStructure ).c_str(),
-                VkObjectTraits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructure ) );
+                accelerationStructure.GetHandleAsUint64() );
         }
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;

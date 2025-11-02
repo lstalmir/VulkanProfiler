@@ -779,6 +779,7 @@ namespace Profiler
 
             // Append drawcall to the current pipeline
             m_pCurrentDrawcallData = &m_pCurrentPipelineData->m_Drawcalls.emplace_back( drawcall );
+            m_pCurrentDrawcallData->ResolveObjectHandles( m_Profiler );
 
             if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
