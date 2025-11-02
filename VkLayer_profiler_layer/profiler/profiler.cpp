@@ -524,6 +524,9 @@ namespace Profiler
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
+        // Data aggregator may run in background so it must be stopped first.
+        m_DataAggregator.StopDataCollectionThread();
+
         // Begin a fake frame at the end to allow finalization of the last submitted frame.
         BeginNextFrame();
         ResolveFrameData( tip );
@@ -788,8 +791,6 @@ namespace Profiler
             VkCommandBuffer commandBuffer = pCommandBuffers[ i ];
             RegisterObject( commandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER );
 
-            SetDefaultObjectName( VkObjectHandle( commandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER ) );
-
             m_pCommandBuffers.unsafe_insert( commandBuffer,
                 std::make_unique<ProfilerCommandBuffer>( *this, profilerCommandPool, commandBuffer, level ) );
         }
@@ -906,7 +907,6 @@ namespace Profiler
             const VkGraphicsPipelineCreateInfo& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultPipelineName( profilerPipeline );
 
             profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
 
@@ -935,7 +935,6 @@ namespace Profiler
             profilerPipeline.m_Type = DeviceProfilerPipelineType::eCompute;
             
             SetPipelineShaderProperties( profilerPipeline, 1, &pCreateInfos[i].stage );
-            SetDefaultPipelineName( profilerPipeline );
 
             m_Pipelines.insert( pPipelines[ i ], profilerPipeline );
         }
@@ -964,7 +963,6 @@ namespace Profiler
             const VkRayTracingPipelineCreateInfoKHR& createInfo = pCreateInfos[i];
 
             SetPipelineShaderProperties( profilerPipeline, createInfo.stageCount, createInfo.pStages );
-            SetDefaultPipelineName( profilerPipeline, deferred );
 
             profilerPipeline.m_pCreateInfo = DeviceProfilerPipeline::CopyPipelineCreateInfo( &createInfo );
 
@@ -1232,9 +1230,6 @@ namespace Profiler
         // Count clear attachments
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
 
-        // Assign default debug name for the render pass
-        SetDefaultObjectName( VkObjectHandle( renderPass, VK_OBJECT_TYPE_RENDER_PASS ) );
-
         // Store render pass
         m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
     }
@@ -1299,9 +1294,6 @@ namespace Profiler
 
         // Count clear attachments
         CountRenderPassAttachmentClears( deviceProfilerRenderPass, pCreateInfo );
-
-        // Assign default debug name for the render pass
-        SetDefaultObjectName( VkObjectHandle( renderPass, VK_OBJECT_TYPE_RENDER_PASS ) );
 
         // Store render pass
         m_RenderPasses.insert( renderPass, deviceProfilerRenderPass );
@@ -2132,90 +2124,16 @@ namespace Profiler
 
         // Grab the latest handle to the object.
         object = GetObjectHandle( object );
-
-        m_ObjectNames.insert_or_assign( object, pName );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        SetDefaultObjectName
-
-    Description:
-        Set default object name.
-
-    \***********************************************************************************/
-    void DeviceProfiler::SetDefaultObjectName( VkObject object )
-    {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        // There is special function for VkPipeline objects
-        if( object.m_Type == VK_OBJECT_TYPE_PIPELINE )
+        
+        // VK_EXT_debug_utils
+        // Revision 2 (2020-04-03): pObjectName can be nullptr
+        if( (pName) && (std::strlen( pName ) > 0) )
         {
-            SetDefaultPipelineName( GetPipeline( object.GetHandle<VkPipeline>() ) );
-            return;
+            m_ObjectNames.insert_or_assign( object, pName );
         }
-
-        VkObject_Runtime_Traits traits = VkObject_Runtime_Traits::FromObjectType( object.m_Type );
-        assert( traits.ObjectTypeName != nullptr );
-
-        char pObjectDebugName[ 64 ] = {};
-        ProfilerStringFunctions::Format( pObjectDebugName, "%s 0x%016" PRIx64, traits.ObjectTypeName, object.m_Handle );
-
-        m_ObjectNames.insert_or_assign( object, pObjectDebugName );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        SetDefaultPipelineName
-
-    Description:
-        Set default pipeline name consisting of shader tuple hashes.
-
-    \***********************************************************************************/
-    void DeviceProfiler::SetDefaultPipelineName( const DeviceProfilerPipeline& pipeline, bool deferred )
-    {
-        TipGuard tip( m_pDevice->TIP, __func__ );
-
-        std::string pipelineName;
-
-        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
+        else
         {
-            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                VK_SHADER_STAGE_VERTEX_BIT |
-                VK_SHADER_STAGE_TASK_BIT_EXT |
-                VK_SHADER_STAGE_MESH_BIT_EXT |
-                VK_SHADER_STAGE_FRAGMENT_BIT,
-                true /*skipEmptyStages*/ );
-        }
-
-        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
-        {
-            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                VK_SHADER_STAGE_COMPUTE_BIT );
-        }
-
-        if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR )
-        {
-            pipelineName = pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                VK_SHADER_STAGE_RAYGEN_BIT_KHR |
-                VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
-                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR );
-        }
-
-        if( !pipelineName.empty() )
-        {
-            // When deferred operation is joined, the application may have already set a name for the pipeline.
-            // Don't set the default in such case.
-            if( deferred )
-            {
-                m_ObjectNames.insert( pipeline.m_Handle, std::move( pipelineName ) );
-            }
-            else
-            {
-                m_ObjectNames.insert_or_assign( pipeline.m_Handle, std::move( pipelineName ) );
-            }
+            m_ObjectNames.remove( object );
         }
     }
 

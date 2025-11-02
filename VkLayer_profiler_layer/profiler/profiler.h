@@ -147,7 +147,6 @@ namespace Profiler
 
         const char* GetObjectName( VkObject ) const;
         void SetObjectName( VkObject, const char* );
-        void SetDefaultObjectName( VkObject );
 
         template<typename VkObjectTypeEnumT>
         void SetObjectName( uint64_t, VkObjectTypeEnumT, const char* );
@@ -204,7 +203,6 @@ namespace Profiler
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
 
         void SetPipelineShaderProperties( DeviceProfilerPipeline& pipeline, uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages );
-        void SetDefaultPipelineName( const DeviceProfilerPipeline& pipeline, bool deferred = false );
 
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( VkCommandBuffer );
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
@@ -254,20 +252,7 @@ namespace Profiler
         // Don't waste memory for storing unnecessary debug names
         if( objectTypeTraits.ShouldHaveDebugName )
         {
-            VkObject object( objectHandle, objectTypeTraits );
-
-            // VK_EXT_debug_utils
-            // Revision 2 (2020-04-03): pObjectName can be nullptr
-            if( (pObjectName) && (std::strlen( pObjectName ) > 0) )
-            {
-                // Set custom object name
-                SetObjectName( object, pObjectName );
-            }
-            else
-            {
-                // Restore default debug name
-                SetDefaultObjectName( object );
-            }
+            SetObjectName( VkObject( objectHandle, objectTypeTraits ), pObjectName );
         }
     }
 }

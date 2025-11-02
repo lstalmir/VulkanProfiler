@@ -165,6 +165,7 @@ namespace Profiler
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
         bool m_ShowActiveFrame;
+        bool m_ShowEntryPoints;
 
         bool GetShowActiveFrame() const;
         const FrameDataList& GetActiveFramesList() const;
@@ -261,6 +262,9 @@ namespace Profiler
         VkObjectHandle<VkMicromapEXT> m_ResourceInspectorMicromap;
         DeviceProfilerMicromapMemoryData m_ResourceInspectorMicromapData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorMicromapBufferData;
+
+        struct ResourceListExporter;
+        std::unique_ptr<ResourceListExporter> m_pResourceListExporter;
 
         // Performance counters.
         struct PerformanceQueryMetricsSet
@@ -414,6 +418,10 @@ namespace Profiler
         void DrawResourceInspectorBufferInfo( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData& );
         void DrawResourceInspectorImageInfo( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData& );
         void DrawResourceInspectorImageMemoryMap();
+
+        std::string GetDefaultResourceListFileName() const;
+        void UpdateResourceListExporter();
+        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkFlags, VkFlags );
 
         // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );
