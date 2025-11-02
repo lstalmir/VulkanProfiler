@@ -795,18 +795,18 @@ namespace Profiler
         Create an image resource.
 
     \***********************************************************************************/
-    void* OverlayLayerBackend::CreateImage( int width, int height, const void* pData )
+    uint64_t OverlayLayerBackend::CreateImage( int width, int height, const void* pData )
     {
-        ImageResource image;
-        VkResult result = InitializeImage( image, width, height, pData );
+        ImageResource imageResource;
+        VkResult result = InitializeImage( imageResource, width, height, pData );
 
         if( result == VK_SUCCESS )
         {
-            m_ImageResources.push_back( image );
-            return image.ImageDescriptorSet;
+            m_ImageResources.push_back( imageResource );
+            return VkObject_Traits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet );
         }
 
-        return nullptr;
+        return 0;
     }
 
     /***********************************************************************************\
@@ -818,10 +818,13 @@ namespace Profiler
         Destroy an image resource.
 
     \***********************************************************************************/
-    void OverlayLayerBackend::DestroyImage( void* pImage )
+    void OverlayLayerBackend::DestroyImage( uint64_t image )
     {
         auto it = std::find_if( m_ImageResources.begin(), m_ImageResources.end(),
-            [pImage]( const ImageResource& image ) { return image.ImageDescriptorSet == pImage; } );
+            [image]( const ImageResource& imageResource )
+            {
+                return VkObject_Traits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet ) == image;
+            } );
 
         if( it != m_ImageResources.end() )
         {
