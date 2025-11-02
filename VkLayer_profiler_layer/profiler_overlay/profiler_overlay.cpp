@@ -683,7 +683,7 @@ namespace Profiler
         m_ActivePerformanceQueryMetricsFilterResults.clear();
         m_PerformanceQueryMetricsFilter.clear();
 
-        m_PerformanceQueryCommandBufferFilter = VK_NULL_HANDLE;
+        m_PerformanceQueryCommandBufferFilter = VkCommandBufferHandle();
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
         m_ReferencePerformanceQueryData.clear();
         m_pPerformanceQueryExporter = nullptr;
@@ -1656,7 +1656,7 @@ namespace Profiler
                 char queueGraphId[32];
                 snprintf( queueGraphId, sizeof( queueGraphId ), "##QueueGraph%p", queue.Handle );
 
-                const std::string queueName = m_pStringSerializer->GetName( queue.Handle );
+                const std::string queueName = m_pStringSerializer->GetName( VkQueueHandle( queue.Handle ) );
                 ImGui::Text( "%s %s", m_pStringSerializer->GetQueueTypeName( queue.Flags ).c_str(), queueName.c_str() );
 
                 const float queueUtilization = GetQueueUtilization( queueGraphColumns );
@@ -1727,15 +1727,15 @@ namespace Profiler
         }
         case QueueGraphColumn::eSignalSemaphores:
         {
-            const std::vector<VkSemaphore>& semaphores =
-                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+            const std::vector<VkSemaphoreHandle>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphoreHandle>*>( column.userData );
 
             if( ImGui::BeginTooltip() )
             {
                 ImGui::Text( "Signal semaphores:" );
 
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
-                for( VkSemaphore semaphore : semaphores )
+                for( VkSemaphoreHandle semaphore : semaphores )
                 {
                     ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
@@ -1752,15 +1752,15 @@ namespace Profiler
         }
         case QueueGraphColumn::eWaitSemaphores:
         {
-            const std::vector<VkSemaphore>& semaphores =
-                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+            const std::vector<VkSemaphoreHandle>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphoreHandle>*>( column.userData );
 
             if( ImGui::BeginTooltip() )
             {
                 ImGui::Text( "Wait semaphores:" );
 
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
-                for( VkSemaphore semaphore : semaphores )
+                for( VkSemaphoreHandle semaphore : semaphores )
                 {
                     ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
@@ -1804,12 +1804,12 @@ namespace Profiler
         case QueueGraphColumn::eSignalSemaphores:
         case QueueGraphColumn::eWaitSemaphores:
         {
-            const std::vector<VkSemaphore>& semaphores =
-                *reinterpret_cast<const std::vector<VkSemaphore>*>( column.userData );
+            const std::vector<VkSemaphoreHandle>& semaphores =
+                *reinterpret_cast<const std::vector<VkSemaphoreHandle>*>( column.userData );
 
             // Unselect the semaphores if they are already selected.
             bool unselect = false;
-            for( VkSemaphore semaphore : semaphores )
+            for( VkSemaphoreHandle semaphore : semaphores )
             {
                 if( m_SelectedSemaphores.count( semaphore ) )
                 {
@@ -2253,7 +2253,7 @@ namespace Profiler
 
         // Find the first command buffer that matches the filter.
         // TODO: Aggregation.
-        std::unordered_set<VkCommandBuffer> uniqueCommandBuffers;
+        std::unordered_set<VkCommandBufferHandle> uniqueCommandBuffers;
 
         for( const auto& submitBatch : m_pData->m_Submits )
         {
@@ -2340,14 +2340,14 @@ namespace Profiler
         ImGui::PushItemWidth( -1 );
         if( ImGui::BeginCombo( "##PerformanceQueryFilter", m_PerformanceQueryCommandBufferFilterName.c_str() ) )
         {
-            if( ImGuiX::TSelectable( m_pFrameStr, m_PerformanceQueryCommandBufferFilter, VkCommandBuffer() ) )
+            if( ImGuiX::TSelectable( m_pFrameStr, m_PerformanceQueryCommandBufferFilter, VkCommandBufferHandle() ) )
             {
                 // Selection changed.
                 m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
             }
 
             // Enumerate command buffers.
-            for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
+            for( VkCommandBufferHandle commandBuffer : uniqueCommandBuffers )
             {
                 std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
 
@@ -2994,7 +2994,7 @@ namespace Profiler
         // Compare memory usage in the selected frames and get the results.
         const DeviceProfilerMemoryComparisonResults& memoryComparisonResults = m_MemoryComparator.GetResults();
 
-        auto GetBufferMemoryData = [&]( VkObjectHandle<VkBuffer> buffer )
+        auto GetBufferMemoryData = [&]( VkBufferHandle buffer )
         {
             auto currentBufferData = m_pData->m_Memory.m_Buffers.find( buffer );
             if( currentBufferData != m_pData->m_Memory.m_Buffers.end() )
@@ -3470,7 +3470,7 @@ namespace Profiler
 
                 // Buffer resource row.
                 auto DrawResourceBrowserBufferTableRow =
-                    [&]( VkObjectHandle<VkBuffer> buffer,
+                    [&]( VkBufferHandle buffer,
                         const DeviceProfilerBufferMemoryData& bufferData,
                         ResourceCompareResult compareResult )
                 {
@@ -3493,7 +3493,7 @@ namespace Profiler
 
                 // Image resource row.
                 auto DrawResourceBrowserImageTableRow =
-                    [&]( VkObjectHandle<VkImage> image,
+                    [&]( VkImageHandle image,
                         const DeviceProfilerImageMemoryData& imageData,
                         ResourceCompareResult compareResult )
                 {
@@ -3516,7 +3516,7 @@ namespace Profiler
 
                 // Acceleration structure resource row.
                 auto DrawResourceBrowserAccelerationStructureTableRow =
-                    [&]( VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure,
+                    [&]( VkAccelerationStructureKHRHandle accelerationStructure,
                         const DeviceProfilerAccelerationStructureMemoryData& accelerationStructureData,
                         ResourceCompareResult compareResult )
                 {
@@ -3543,7 +3543,7 @@ namespace Profiler
 
                 // Micromap resource row.
                 auto DrawResourceBrowserMicromapTableRow =
-                    [&]( VkObjectHandle<VkMicromapEXT> micromap,
+                    [&]( VkMicromapEXTHandle micromap,
                         const DeviceProfilerMicromapMemoryData& micromapData,
                         ResourceCompareResult compareResult )
                 {
@@ -3720,7 +3720,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawResourceInspectorAccelerationStructureInfo(
-        VkObjectHandle<VkAccelerationStructureKHR> accelerationStructure,
+        VkAccelerationStructureKHRHandle accelerationStructure,
         const DeviceProfilerAccelerationStructureMemoryData& accelerationStructureData,
         const DeviceProfilerBufferMemoryData& bufferData )
     {
@@ -3730,7 +3730,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( accelerationStructure ).c_str(),
-                VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructure ) );
+                accelerationStructure.GetHandleAsUint64() );
         }
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
@@ -3776,7 +3776,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawResourceInspectorMicromapInfo(
-        VkObjectHandle<VkMicromapEXT> micromap,
+        VkMicromapEXTHandle micromap,
         const DeviceProfilerMicromapMemoryData& micromapData,
         const DeviceProfilerBufferMemoryData& bufferData )
     {
@@ -3786,7 +3786,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( micromap ).c_str(),
-                VkObject_Traits<VkMicromapEXT>::GetObjectHandleAsUint64( micromap ) );
+                micromap.GetHandleAsUint64() );
         }
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
@@ -3832,7 +3832,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawResourceInspectorBufferInfo(
-        VkObjectHandle<VkBuffer> buffer,
+        VkBufferHandle buffer,
         const DeviceProfilerBufferMemoryData& bufferData )
     {
         if( !m_pData->m_Memory.m_Buffers.count( buffer ) )
@@ -3841,7 +3841,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( buffer ).c_str(),
-                VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( buffer ) );
+                buffer.GetHandleAsUint64() );
         }
 
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
@@ -3941,7 +3941,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawResourceInspectorImageInfo(
-        VkObjectHandle<VkImage> image,
+        VkImageHandle image,
         const DeviceProfilerImageMemoryData& imageData )
     {
         if( !m_pData->m_Memory.m_Images.count( image ) )
@@ -3950,7 +3950,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( image ).c_str(),
-                VkObject_Traits<VkImage>::GetObjectHandleAsUint64( image ) );
+                image.GetHandleAsUint64() );
         }
 
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
@@ -4043,7 +4043,7 @@ namespace Profiler
             {
                 const DeviceProfilerImageMemoryBindingData& binding = pBindings[i];
 
-                VkObjectHandle<VkDeviceMemory> memory;
+                VkDeviceMemoryHandle memory = VK_NULL_HANDLE;
 
                 ImGui::TableNextRow();
 
@@ -4547,7 +4547,7 @@ namespace Profiler
                     }
 
                     row.clear();
-                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( bufferHandle ) ) );
+                    row.push_back( fmt::format( "{:#016x}", bufferHandle.GetHandleAsUint64() ) );
                     row.push_back( bufferName );
                     row.push_back( fmt::format( "{:#08x}", buffer.m_BufferFlags ) );
                     row.push_back( fmt::format( "{}", buffer.m_BufferSize ) );
@@ -4568,7 +4568,7 @@ namespace Profiler
                             row.resize( initialRowSize );
 
                             const auto& binding = pMemoryBindings[i];
-                            row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkDeviceMemory>::GetObjectHandleAsUint64( binding.m_Memory ) ) );
+                            row.push_back( fmt::format( "{:#016x}", binding.m_Memory.GetHandleAsUint64() ) );
                             row.push_back( fmt::format( "{}", binding.m_MemoryOffset ) );
                             row.push_back( fmt::format( "{}", binding.m_BufferOffset ) );
                             row.push_back( fmt::format( "{}", binding.m_Size ) );
@@ -4647,7 +4647,7 @@ namespace Profiler
                     }
 
                     row.clear();
-                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkImage>::GetObjectHandleAsUint64( imageHandle ) ) );
+                    row.push_back( fmt::format( "{:#016x}", imageHandle.GetHandleAsUint64() ) );
                     row.push_back( imageName );
                     row.push_back( fmt::format( "{:#08x}", image.m_ImageFlags ) );
                     row.push_back( m_pStringSerializer->GetImageTypeName( image.m_ImageType, image.m_ImageFlags, image.m_ImageArrayLayers ) );
@@ -4675,7 +4675,7 @@ namespace Profiler
                             row.resize( initialRowSize );
 
                             const auto& binding = pMemoryBindings[i];
-                            VkObjectHandle<VkDeviceMemory> memory = VK_NULL_HANDLE;
+                            VkDeviceMemoryHandle memory = VK_NULL_HANDLE;
 
                             if( binding.m_Type == DeviceProfilerImageMemoryBindingType::eOpaque )
                             {
@@ -4702,7 +4702,7 @@ namespace Profiler
                                 memory = binding.m_Block.m_Memory;
                             }
 
-                            row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkDeviceMemory>::GetObjectHandleAsUint64( memory ) ) );
+                            row.push_back( fmt::format( "{:#016x}", memory.GetHandleAsUint64() ) );
 
                             if( memory != VK_NULL_HANDLE )
                             {
@@ -4755,11 +4755,11 @@ namespace Profiler
                     }
 
                     row.clear();
-                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructureHandle ) ) );
+                    row.push_back( fmt::format( "{:#016x}", accelerationStructureHandle.GetHandleAsUint64() ) );
                     row.push_back( accelerationStructureName );
                     row.push_back( fmt::format( "{:#08x}", accelerationStructure.m_Flags ) );
                     row.push_back( m_pStringSerializer->GetAccelerationStructureTypeName( accelerationStructure.m_Type ) );
-                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( accelerationStructure.m_Buffer ) ) );
+                    row.push_back( fmt::format( "{:#016x}", accelerationStructure.m_Buffer.GetHandleAsUint64() ) );
                     row.push_back( fmt::format( "{}", accelerationStructure.m_Offset ) );
                     row.push_back( fmt::format( "{}", accelerationStructure.m_Size ) );
 
@@ -4794,11 +4794,11 @@ namespace Profiler
                     }
 
                     row.clear();
-                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkMicromapEXT>::GetObjectHandleAsUint64( micromapHandle ) ) );
+                    row.push_back( fmt::format( "{:#016x}", micromapHandle.GetHandleAsUint64() ) );
                     row.push_back( micromapName );
                     row.push_back( fmt::format( "{:#08x}", micromap.m_Flags ) );
                     row.push_back( m_pStringSerializer->GetMicromapTypeName( micromap.m_Type ) );
-                    row.push_back( fmt::format( "{:#016x}", VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( micromap.m_Buffer ) ) );
+                    row.push_back( fmt::format( "{:#016x}", micromap.m_Buffer.GetHandleAsUint64() ) );
                     row.push_back( fmt::format( "{}", micromap.m_Offset ) );
                     row.push_back( fmt::format( "{}", micromap.m_Size ) );
 
@@ -5900,7 +5900,7 @@ namespace Profiler
         FrameBrowserTreeNodeIndex index;
         index.SetFrameIndex( MakeFrameIndex( framesList.size() - 1, m_SelectedFrameIndex & FrameIndexFlagsMask ) );
 
-        auto AppendSemaphoreEvent = [&]( const std::vector<VkSemaphore>& semaphores, QueueGraphColumn::DataType type ) {
+        auto AppendSemaphoreEvent = [&]( const std::vector<VkSemaphoreHandle>& semaphores, QueueGraphColumn::DataType type ) {
             QueueGraphColumn& column = columns.emplace_back();
             column.flags = ImGuiX::HistogramColumnFlags_Event;
             column.color = IM_COL32( 128, 128, 128, 255 );
@@ -5908,7 +5908,7 @@ namespace Profiler
             column.userData = &semaphores;
 
             // Highlight events with selected semaphores.
-            for( VkSemaphore semaphore : semaphores )
+            for( const VkSemaphoreHandle& semaphore : semaphores )
             {
                 if( m_SelectedSemaphores.count( semaphore ) )
                 {

@@ -224,7 +224,7 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eClearAttachments:
             return fmt::format( "vkCmdClearAttachments ({})",
-                GetName( drawcall.m_Payload.m_ClearAttachments.m_Count ) );
+                drawcall.m_Payload.m_ClearAttachments.m_Count );
 
         case DeviceProfilerDrawcallType::eClearColorImage:
             return fmt::format( "vkCmdClearColorImage ({}, C=[{}, {}, {}, {}])",
@@ -380,8 +380,7 @@ namespace Profiler
         }
 
         // Unknown pipeline bind point.
-        return fmt::format( "VkPipeline {:#018x}",
-            VkObject_Traits<VkPipeline>::GetObjectHandleAsUint64( pipeline.m_Handle.m_Handle ) );
+        return fmt::format( "VkPipeline {:#018x}", pipeline.m_Handle.GetHandleAsUint64() );
     }
 
     /***********************************************************************************\
@@ -497,8 +496,8 @@ namespace Profiler
         }
 
         return fmt::format( "{} {:#018x}",
-            VkObject_Runtime_Traits::FromObjectType( object.m_Type ).ObjectTypeName,
-            object.m_Handle );
+            VkObjectRuntimeTraits::FromObjectType( object.m_Type ).ObjectTypeName,
+            object.GetHandleAsUint64() );
     }
 
     /***********************************************************************************\
@@ -514,7 +513,7 @@ namespace Profiler
     {
         return fmt::format( "{}:{}:{}",
             static_cast<uint32_t>( object.m_Type ),
-            object.m_Handle,
+            object.GetHandleAsUint64(),
             object.m_CreateTime );
     }
 
@@ -533,7 +532,7 @@ namespace Profiler
         {
         default:
         {
-            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            auto traits = VkObjectRuntimeTraits::FromObjectType( objectType );
             if( traits.ObjectType == objectType )
             {
                 std::string typeName = traits.ObjectTypeName + 2; // Skip "Vk" prefix.
@@ -579,7 +578,7 @@ namespace Profiler
         {
         default:
         {
-            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            auto traits = VkObjectRuntimeTraits::FromObjectType( objectType );
             if( traits.ObjectType == objectType )
             {
                 return GetObjectTypeName( objectType );
