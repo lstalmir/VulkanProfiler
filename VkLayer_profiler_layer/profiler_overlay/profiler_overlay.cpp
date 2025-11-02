@@ -1434,7 +1434,7 @@ namespace Profiler
             // Enumerate submits in frame
             for( const auto& submitBatch : m_pData->m_Submits )
             {
-                const std::string queueName = m_pStringSerializer->GetName( submitBatch.m_Handle );
+                const std::string queueName = m_pStringSerializer->GetName( VkObjectHandle( submitBatch.m_Handle, VK_OBJECT_TYPE_QUEUE ) );
 
                 if( ScrollToSelectedFrameBrowserNode( index ) )
                 {
@@ -1656,7 +1656,7 @@ namespace Profiler
                 char queueGraphId[32];
                 snprintf( queueGraphId, sizeof( queueGraphId ), "##QueueGraph%p", queue.Handle );
 
-                const std::string queueName = m_pStringSerializer->GetName( queue.Handle );
+                const std::string queueName = m_pStringSerializer->GetName( VkObjectHandle( queue.Handle, VK_OBJECT_TYPE_QUEUE ) );
                 ImGui::Text( "%s %s", m_pStringSerializer->GetQueueTypeName( queue.Flags ).c_str(), queueName.c_str() );
 
                 const float queueUtilization = GetQueueUtilization( queueGraphColumns );
@@ -1737,7 +1737,7 @@ namespace Profiler
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
                 for( VkSemaphore semaphore : semaphores )
                 {
-                    ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
+                    ImGui::Text( " - %s", m_pStringSerializer->GetName( VkObjectHandle( semaphore, VK_OBJECT_TYPE_SEMAPHORE ) ).c_str() );
                 }
                 ImGui::PopStyleVar();
                 ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
@@ -1762,7 +1762,7 @@ namespace Profiler
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
                 for( VkSemaphore semaphore : semaphores )
                 {
-                    ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
+                    ImGui::Text( " - %s", m_pStringSerializer->GetName( VkObjectHandle( semaphore, VK_OBJECT_TYPE_SEMAPHORE ) ).c_str() );
                 }
                 ImGui::PopStyleVar();
                 ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
@@ -2349,7 +2349,7 @@ namespace Profiler
             // Enumerate command buffers.
             for( VkCommandBuffer commandBuffer : uniqueCommandBuffers )
             {
-                std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
+                std::string commandBufferName = m_pStringSerializer->GetName( VkObjectHandle( commandBuffer, VK_OBJECT_TYPE_COMMAND_BUFFER ) );
 
                 if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
                 {

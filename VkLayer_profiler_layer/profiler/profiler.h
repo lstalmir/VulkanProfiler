@@ -88,8 +88,8 @@ namespace Profiler
 
         VkObject GetObjectHandle( VkObject ) const;
 
-        template<typename ObjectT>
-        VkObjectHandle<ObjectT> GetObjectHandle( ObjectT ) const;
+        template<typename VkObjectT>
+        VkObjectHandle<VkObjectT> GetObjectHandle( VkObjectT, VkObjectType ) const;
 
         bool ShouldCapturePipelineExecutableProperties() const;
 
@@ -213,11 +213,11 @@ namespace Profiler
         void BeginNextFrame();
         void ResolveFrameData( TipRangeId& tip );
 
-        template<typename ObjectT>
-        VkObjectHandle<ObjectT> RegisterObject( ObjectT );
+        template<typename VkObjectT>
+        VkObjectHandle<VkObjectT> RegisterObject( VkObjectT, VkObjectType );
 
-        template<typename ObjectT>
-        void UnregisterObject( ObjectT );
+        template<typename VkObjectT>
+        void UnregisterObject( VkObjectT, VkObjectType );
     };
 
     /***********************************************************************************\
@@ -229,10 +229,10 @@ namespace Profiler
         Returns the handle of the object, including its creation time.
 
     \***********************************************************************************/
-    template<typename ObjectT>
-    inline VkObjectHandle<ObjectT> DeviceProfiler::GetObjectHandle( ObjectT object ) const
+    template<typename VkObjectT>
+    inline VkObjectHandle<VkObjectT> DeviceProfiler::GetObjectHandle( VkObjectT object, VkObjectType objectType ) const
     {
-        return GetObjectHandle( VkObject( object ) ).GetHandle<ObjectT>();
+        return GetObjectHandle( VkObject( object, objectType ) ).template GetHandle<VkObjectT>();
     }
 
     /***********************************************************************************\

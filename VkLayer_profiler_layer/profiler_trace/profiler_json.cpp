@@ -314,8 +314,8 @@ namespace Profiler
                     { "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) },
                     { "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) },
                     { "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) },
-                    { "src", m_pStringSerializer->GetName( info.srcAccelerationStructure ) },
-                    { "dst", m_pStringSerializer->GetName( info.dstAccelerationStructure ) },
+                    { "src", m_pStringSerializer->GetName( VkObjectHandle( info.srcAccelerationStructure, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR ) ) },
+                    { "dst", m_pStringSerializer->GetName( VkObjectHandle( info.dstAccelerationStructure, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR ) ) },
                     { "geometryCount", info.geometryCount },
                     { "geometries", geometries } });
             }
@@ -352,7 +352,7 @@ namespace Profiler
                     { "type", m_pStringSerializer->GetMicromapTypeName( info.type ) },
                     { "flags", m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ) },
                     { "mode", m_pStringSerializer->GetBuildMicromapModeName( info.mode ) },
-                    { "dst", m_pStringSerializer->GetName( info.dstMicromap ) },
+                    { "dst", m_pStringSerializer->GetName( VkObjectHandle( info.dstMicromap, VK_OBJECT_TYPE_MICROMAP_EXT ) ) },
                     { "usageCountsCount", info.usageCountsCount },
                     { "usageCounts", usageCounts },
                     { "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) },
