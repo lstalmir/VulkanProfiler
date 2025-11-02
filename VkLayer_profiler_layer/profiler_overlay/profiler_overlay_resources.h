@@ -77,7 +77,7 @@ namespace Profiler
         ImFont* m_pCodeFont = nullptr;
 
         EnumArray<OverlayIcon, uint64_t, static_cast<size_t>( OverlayIcon::IconCount )>
-            m_pIcons = { 0 };
+            m_Icons = { 0 };
 
         uint64_t CreateImage( const uint8_t* pAsset, int assetSize );
 

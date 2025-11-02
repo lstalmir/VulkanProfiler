@@ -44,17 +44,17 @@ namespace Profiler
 
         std::vector<Difference> m_MemoryHeapDifferences;
 
-        std::unordered_map<VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData*> m_AllocatedBuffers;
-        std::unordered_map<VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData*> m_FreedBuffers;
+        std::unordered_map<VkBufferHandle, const DeviceProfilerBufferMemoryData*> m_AllocatedBuffers;
+        std::unordered_map<VkBufferHandle, const DeviceProfilerBufferMemoryData*> m_FreedBuffers;
 
-        std::unordered_map<VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData*> m_AllocatedImages;
-        std::unordered_map<VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData*> m_FreedImages;
+        std::unordered_map<VkImageHandle, const DeviceProfilerImageMemoryData*> m_AllocatedImages;
+        std::unordered_map<VkImageHandle, const DeviceProfilerImageMemoryData*> m_FreedImages;
 
-        std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData*> m_AllocatedAccelerationStructures;
-        std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData*> m_FreedAccelerationStructures;
+        std::unordered_map<VkAccelerationStructureKHRHandle, const DeviceProfilerAccelerationStructureMemoryData*> m_AllocatedAccelerationStructures;
+        std::unordered_map<VkAccelerationStructureKHRHandle, const DeviceProfilerAccelerationStructureMemoryData*> m_FreedAccelerationStructures;
 
-        std::unordered_map<VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData*> m_AllocatedMicromaps;
-        std::unordered_map<VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData*> m_FreedMicromaps;
+        std::unordered_map<VkMicromapEXTHandle, const DeviceProfilerMicromapMemoryData*> m_AllocatedMicromaps;
+        std::unordered_map<VkMicromapEXTHandle, const DeviceProfilerMicromapMemoryData*> m_FreedMicromaps;
     };
 
     /***********************************************************************************\

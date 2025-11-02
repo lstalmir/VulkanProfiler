@@ -265,9 +265,9 @@ namespace Profiler
         m_pBackend->CreateFontsImage();
 
         // Create image objects
-        m_pIcons[OverlayIcon::Copy] = CreateImage( OverlayAssets::CopyImg );
-        m_pIcons[OverlayIcon::BookmarkEmpty] = CreateImage( OverlayAssets::BookmarkEmptyImg );
-        m_pIcons[OverlayIcon::BookmarkFilled] = CreateImage( OverlayAssets::BookmarkFilledImg );
+        m_Icons[OverlayIcon::Copy] = CreateImage( OverlayAssets::CopyImg );
+        m_Icons[OverlayIcon::BookmarkEmpty] = CreateImage( OverlayAssets::BookmarkEmptyImg );
+        m_Icons[OverlayIcon::BookmarkFilled] = CreateImage( OverlayAssets::BookmarkFilledImg );
 
         return true;
     }
@@ -306,12 +306,12 @@ namespace Profiler
             m_pBackend->WaitIdle();
             m_pBackend->DestroyFontsImage();
 
-            for( uint64_t& pIcon : m_pIcons )
+            for( uint64_t& icon : m_Icons )
             {
-                if( pIcon )
+                if( icon )
                 {
-                    m_pBackend->DestroyImage( pIcon );
-                    pIcon = 0;
+                    m_pBackend->DestroyImage( icon );
+                    icon = 0;
                 }
             }
         }
@@ -373,8 +373,8 @@ namespace Profiler
     uint64_t OverlayResources::GetIcon( OverlayIcon icon ) const
     {
         assert( icon < OverlayIcon::IconCount );
-        assert( m_pIcons[icon] );
-        return m_pIcons[icon];
+        assert( m_Icons[icon] );
+        return m_Icons[icon];
     }
 
     /***********************************************************************************\
