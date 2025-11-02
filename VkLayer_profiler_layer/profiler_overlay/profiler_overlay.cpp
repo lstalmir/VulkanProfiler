@@ -3730,7 +3730,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( accelerationStructure ).c_str(),
-                VkObject_Traits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructure ) );
+                VkObjectTraits<VkAccelerationStructureKHR>::GetObjectHandleAsUint64( accelerationStructure ) );
         }
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
@@ -3786,7 +3786,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( micromap ).c_str(),
-                VkObject_Traits<VkMicromapEXT>::GetObjectHandleAsUint64( micromap ) );
+                micromap.GetHandleAsUint64() );
         }
 
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
@@ -3841,7 +3841,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( buffer ).c_str(),
-                VkObject_Traits<VkBuffer>::GetObjectHandleAsUint64( buffer ) );
+                buffer.GetHandleAsUint64() );
         }
 
         const VkPhysicalDeviceMemoryProperties& memoryProperties =
@@ -3950,7 +3950,7 @@ namespace Profiler
             ImGui::Text( "'%s' at 0x%016" PRIx64 " does not exist in the current frame.\n"
                          "It may have been freed or hasn't been created yet.",
                 m_pStringSerializer->GetName( image ).c_str(),
-                VkObject_Traits<VkImage>::GetObjectHandleAsUint64( image ) );
+                image.GetHandleAsUint64() );
         }
 
         const VkPhysicalDeviceMemoryProperties& memoryProperties =

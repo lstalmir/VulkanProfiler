@@ -25,64 +25,37 @@
 
 namespace Profiler
 {
-    namespace Detail
-    {
-        template<typename VkObjectT>
-        static constexpr VkObjectType GetCompileTimeObjectType()
-        {
-        #define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME ) \
-            if constexpr( std::is_pointer_v<VkObjectT> && std::is_same_v<VkObjectT, TYPE> )         \
-            {                                                                                       \
-                return OBJECT_TYPE;                                                                 \
-            }
-
-        #include "VkObject_Types.inl"
-
-            return VK_OBJECT_TYPE_UNKNOWN;
-        }
-    }
-
     template<typename VkObjectT, bool IsPointer = std::is_pointer_v<VkObjectT>>
-    struct VkObject_Traits;
+    struct VkObjectTraits;
 
     // VkObject traits for pointer-typed handles
     template<typename VkObjectT>
-    struct VkObject_Traits<VkObjectT, true /*IsPointer*/>
+    struct VkObjectTraits<VkObjectT, true /*IsPointer*/>
     {
         inline static constexpr uint64_t GetObjectHandleAsUint64( VkObjectT object )
         {
-            return static_cast<uint64_t>(*reinterpret_cast<uintptr_t*>(&object));
+            return static_cast<uint64_t>( *reinterpret_cast<uintptr_t*>( &object ) );
         }
 
         inline static constexpr VkObjectT GetObjectHandleAsVulkanHandle( uint64_t object )
         {
-            uintptr_t uintptrObj = static_cast<uintptr_t>(object);
-            return *reinterpret_cast<VkObjectT*>(&uintptrObj);
-        }
-
-        inline static constexpr VkObjectType GetCompileTimeObjectType()
-        {
-            return Detail::GetCompileTimeObjectType<VkObjectT>();
+            uintptr_t uintptrObj = static_cast<uintptr_t>( object );
+            return *reinterpret_cast<VkObjectT*>( &uintptrObj );
         }
     };
 
     // VkObject traits for non-pointer-typed handles
     template<typename VkObjectT>
-    struct VkObject_Traits<VkObjectT, false /*IsPointer*/>
+    struct VkObjectTraits<VkObjectT, false /*IsPointer*/>
     {
         inline static constexpr uint64_t GetObjectHandleAsUint64( VkObjectT object )
         {
-            return static_cast<uint64_t>(object);
+            return static_cast<uint64_t>( object );
         }
 
         inline static constexpr VkObjectT GetObjectHandleAsVulkanHandle( uint64_t object )
         {
-            return static_cast<VkObjectT>(object);
-        }
-
-        inline static constexpr VkObjectType GetCompileTimeObjectType()
-        {
-            return Detail::GetCompileTimeObjectType<VkObjectT>();
+            return static_cast<VkObjectT>( object );
         }
     };
 
@@ -95,16 +68,16 @@ namespace Profiler
         Contains Vulkan handle data accessible in runtime.
 
     \***********************************************************************************/
-    struct VkObject_Runtime_Traits
+    struct VkObjectRuntimeTraits
     {
         const VkObjectType ObjectType                                       = VK_OBJECT_TYPE_UNKNOWN;
         const VkDebugReportObjectTypeEXT DebugReportObjectType              = VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT;
         const char* ObjectTypeName                                          = "Unknown object type";
         const bool ShouldHaveDebugName                                      = false;
 
-        inline VkObject_Runtime_Traits() = default;
+        inline VkObjectRuntimeTraits() = default;
 
-        inline constexpr VkObject_Runtime_Traits(
+        inline constexpr VkObjectRuntimeTraits(
             VkObjectType objectType,
             VkDebugReportObjectTypeEXT debugReportObjectType,
             const char* pObjectTypeName,
@@ -116,14 +89,14 @@ namespace Profiler
         {
         }
 
-        inline static constexpr VkObject_Runtime_Traits FromObjectType( VkObjectType objectType )
+        inline static constexpr VkObjectRuntimeTraits FromObjectType( VkObjectType objectType )
         {
             if( objectType != VK_OBJECT_TYPE_UNKNOWN )
             {
             #define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME ) \
                 if( objectType == OBJECT_TYPE )                                                         \
                 {                                                                                       \
-                    return VkObject_Runtime_Traits(                                                     \
+                    return VkObjectRuntimeTraits(                                                       \
                         OBJECT_TYPE,                                                                    \
                         DEBUG_REPORT_OBJECT_TYPE,                                                       \
                         #TYPE,                                                                          \
@@ -134,17 +107,17 @@ namespace Profiler
             #include "VkObject_Types.inl"
             }
 
-            return VkObject_Runtime_Traits();
+            return VkObjectRuntimeTraits();
         }
 
-        inline static constexpr VkObject_Runtime_Traits FromObjectType( VkDebugReportObjectTypeEXT objectType )
+        inline static constexpr VkObjectRuntimeTraits FromObjectType( VkDebugReportObjectTypeEXT objectType )
         {
             if( objectType != VK_DEBUG_REPORT_OBJECT_TYPE_UNKNOWN_EXT )
             {
             #define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME ) \
                 if( objectType == DEBUG_REPORT_OBJECT_TYPE )                                            \
                 {                                                                                       \
-                    return VkObject_Runtime_Traits(                                                     \
+                    return VkObjectRuntimeTraits(                                                       \
                         OBJECT_TYPE,                                                                    \
                         DEBUG_REPORT_OBJECT_TYPE,                                                       \
                         #TYPE,                                                                          \
@@ -155,71 +128,7 @@ namespace Profiler
             #include "VkObject_Types.inl"
             }
 
-            return VkObject_Runtime_Traits();
-        }
-    };
-
-    /***********************************************************************************\
-
-    Class:
-        VkObjectHandle
-
-    Description:
-        Common wrapper for all Vulkan handles with additional metadata.
-
-    \***********************************************************************************/
-    template<typename VkObjectT>
-    struct VkObjectHandle
-    {
-        VkObjectT m_Handle;
-        uint32_t m_CreateTime;
-        VkObjectType m_Type;
-
-        inline constexpr VkObjectHandle( std::nullptr_t = nullptr )
-            : m_Handle( 0 )
-            , m_CreateTime( 0 )
-            , m_Type( VK_OBJECT_TYPE_UNKNOWN )
-        {
-        }
-
-        inline constexpr VkObjectHandle(
-                VkObjectT object,
-                VkObjectType type,
-                uint64_t timestamp = 0 )
-            : m_Handle( object )
-            , m_CreateTime( static_cast<uint32_t>( timestamp ) )
-            , m_Type( type )
-        {
-        }
-
-        inline constexpr bool operator==( const VkObjectT& rh ) const
-        {
-            return ( m_Handle == rh );
-        }
-
-        inline constexpr bool operator!=( const VkObjectT& rh ) const
-        {
-            return !( *this == rh );
-        }
-
-        inline constexpr bool operator==( const VkObjectHandle& rh ) const
-        {
-            return ( m_Handle == rh.m_Handle ) && ( m_CreateTime == rh.m_CreateTime ) && ( m_Type == rh.m_Type );
-        }
-
-        inline constexpr bool operator!=( const VkObjectHandle& rh ) const
-        {
-            return !( *this == rh );
-        }
-
-        inline constexpr operator VkObjectT() const
-        {
-            return m_Handle;
-        }
-
-        inline constexpr uint64_t GetHandleAsUint64() const
-        {
-            return VkObject_Traits<VkObjectT>::GetObjectHandleAsUint64( m_Handle );
+            return VkObjectRuntimeTraits();
         }
     };
 
@@ -238,40 +147,40 @@ namespace Profiler
         uint32_t m_CreateTime;
         VkObjectType m_Type;
 
-        inline constexpr VkObject( std::nullptr_t = nullptr )
+        inline constexpr VkObject( decltype( VK_NULL_HANDLE ) = VK_NULL_HANDLE )
             : m_Handle( 0 )
             , m_CreateTime( 0 )
             , m_Type( VK_OBJECT_TYPE_UNKNOWN )
         {
         }
 
-        template<typename VkObjectT>
-        inline constexpr VkObject( const VkObjectHandle<VkObjectT>& object )
-            : m_Handle( VkObject_Traits<VkObjectT>::GetObjectHandleAsUint64( object.m_Handle ) )
-            , m_CreateTime( object.m_CreateTime )
-            , m_Type( object.m_Type )
-        {
-        }
-
         template<typename VkObjectT, typename VkObjectTypeEnumT>
-        inline constexpr VkObject( VkObjectT object, VkObjectTypeEnumT objectType )
-            : VkObject( object, VkObject_Runtime_Traits::FromObjectType( objectType ) )
+        inline constexpr VkObject( VkObjectT object, VkObjectTypeEnumT objectType, uint32_t createTime = 0 )
+            : VkObject( object, VkObjectRuntimeTraits::FromObjectType( objectType ), createTime )
         {
         }
 
         template<typename VkObjectT>
-        inline constexpr VkObject( VkObjectT object, const VkObject_Runtime_Traits& traits )
-            : m_Handle( VkObject_Traits<VkObjectT>::GetObjectHandleAsUint64( object ) )
-            , m_CreateTime( 0 )
+        inline constexpr VkObject( VkObjectT object, const VkObjectRuntimeTraits& traits, uint32_t createTime = 0 )
+            : m_Handle( VkObjectTraits<VkObjectT>::GetObjectHandleAsUint64( object ) )
+            , m_CreateTime( createTime )
             , m_Type( traits.ObjectType )
         {
         }
 
-        template<typename VkObjectT>
-        inline constexpr VkObjectHandle<VkObjectT> GetHandle() const
+        inline constexpr uint64_t GetHandleAsUint64() const
         {
-            return VkObjectHandle<VkObjectT>(
-                VkObject_Traits<VkObjectT>::GetObjectHandleAsVulkanHandle( m_Handle ), m_Type, m_CreateTime );
+            return m_Handle;
+        }
+
+        inline constexpr bool operator==( decltype( VK_NULL_HANDLE ) ) const
+        {
+            return m_Handle == 0;
+        }
+
+        inline constexpr bool operator!=( decltype( VK_NULL_HANDLE ) ) const
+        {
+            return m_Handle != 0;
         }
 
         inline constexpr bool operator==( const VkObject& rh ) const
@@ -284,40 +193,39 @@ namespace Profiler
             return !( *this == rh );
         }
     };
-
+    
     #define VK_OBJECT_FN( TYPE, OBJECT_TYPE, DEBUG_REPORT_OBJECT_TYPE, SHOULD_HAVE_DEBUG_NAME ) \
-        struct TYPE##Handle : public VkObjectHandle<TYPE>                                       \
+        struct TYPE##Handle : public VkObject                                                   \
         {                                                                                       \
-            inline constexpr TYPE##Handle( std::nullptr_t = nullptr )                           \
-                : VkObjectHandle<TYPE>( nullptr )                                               \
+            inline constexpr TYPE##Handle( decltype( VK_NULL_HANDLE ) = VK_NULL_HANDLE )        \
+                : VkObject( nullptr )                                                           \
             {                                                                                   \
             }                                                                                   \
                                                                                                 \
-            inline constexpr TYPE##Handle( TYPE object, uint64_t timestamp = 0 )                \
-                : VkObjectHandle<TYPE>( object, OBJECT_TYPE, timestamp )                        \
+            inline constexpr TYPE##Handle( TYPE object, uint64_t createTime = 0 )               \
+                : VkObject( object, OBJECT_TYPE, createTime )                                   \
             {                                                                                   \
             }                                                                                   \
                                                                                                 \
-            inline constexpr TYPE##Handle( const VkObjectHandle<TYPE>& object )                 \
-                : VkObjectHandle<TYPE>( object )                                                \
+            inline constexpr TYPE##Handle( const VkObject& object )                             \
+                : VkObject( object )                                                            \
             {                                                                                   \
+                assert( m_Type == OBJECT_TYPE );                                                \
+            }                                                                                   \
+                                                                                                \
+            inline TYPE GetVulkanHandle() const                                                 \
+            {                                                                                   \
+                return VkObjectTraits<TYPE>::GetObjectHandleAsVulkanHandle( m_Handle );         \
+            }                                                                                   \
+                                                                                                \
+            inline operator TYPE() const                                                        \
+            {                                                                                   \
+                return GetVulkanHandle();                                                       \
             }                                                                                   \
         };
 
     #include "VkObject_Types.inl"
 }
-
-template<typename VkObjectT>
-struct std::hash<Profiler::VkObjectHandle<VkObjectT>>
-{
-    inline size_t operator()( const Profiler::VkObjectHandle<VkObjectT>& obj ) const
-    {
-        const Profiler::VkObject object( obj );
-        return Farmhash::Hash(
-            reinterpret_cast<const char*>( &object ),
-            sizeof( object ) );
-    }
-};
 
 template<>
 struct std::hash<Profiler::VkObject>

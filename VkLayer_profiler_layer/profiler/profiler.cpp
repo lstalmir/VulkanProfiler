@@ -2236,7 +2236,7 @@ namespace Profiler
         VkObject objectKey( object.m_Handle, object.m_Type );
         m_ObjectCreateTimes.insert_or_assign( objectKey, creationTime );
 
-        return VkObjectHandleT( object.m_Handle, creationTime );
+        return VkObjectHandleT( object.GetVulkanHandle(), creationTime );
     }
 
     /***********************************************************************************\

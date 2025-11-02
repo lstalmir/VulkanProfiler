@@ -269,7 +269,7 @@ namespace Profiler
     template<typename VkObjectTypeEnumT>
     inline void DeviceProfiler::SetObjectName( uint64_t objectHandle, VkObjectTypeEnumT objectType, const char* pObjectName )
     {
-        const auto objectTypeTraits = VkObject_Runtime_Traits::FromObjectType( objectType );
+        const auto objectTypeTraits = VkObjectRuntimeTraits::FromObjectType( objectType );
 
         // Don't waste memory for storing unnecessary debug names
         if( objectTypeTraits.ShouldHaveDebugName )

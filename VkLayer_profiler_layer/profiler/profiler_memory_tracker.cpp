@@ -277,7 +277,7 @@ namespace Profiler
             std::vector<DeviceProfilerBufferMemoryBindingData>& bindings =
                 std::get<std::vector<DeviceProfilerBufferMemoryBindingData>>( bufferData.m_MemoryBindings );
 
-            if( memory.m_Handle != VK_NULL_HANDLE )
+            if( memory != VK_NULL_HANDLE )
             {
                 // New memory binding of the buffer region.
                 DeviceProfilerBufferMemoryBindingData& binding = bindings.emplace_back();
@@ -469,7 +469,7 @@ namespace Profiler
             std::vector<DeviceProfilerImageMemoryBindingData>& bindings =
                 std::get<std::vector<DeviceProfilerImageMemoryBindingData>>( imageData.m_MemoryBindings );
 
-            if( memory.m_Handle != VK_NULL_HANDLE )
+            if( memory != VK_NULL_HANDLE )
             {
                 // New memory binding of the buffer region.
                 DeviceProfilerImageMemoryBindingData& binding = bindings.emplace_back();
@@ -542,7 +542,7 @@ namespace Profiler
                 }
             }
 
-            if( memory.m_Handle != VK_NULL_HANDLE )
+            if( memory != VK_NULL_HANDLE )
             {
                 // New memory binding of the buffer region.
                 DeviceProfilerImageMemoryBindingData& binding = bindings.emplace_back();

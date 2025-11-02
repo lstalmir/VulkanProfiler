@@ -1385,8 +1385,8 @@ namespace Profiler
 
         ContainerType<struct DeviceProfilerSubpassData>     m_Subpasses = {};
 
-        bool HasBeginCommand() const { return m_Handle.m_Handle != VK_NULL_HANDLE || m_Dynamic; }
-        bool HasEndCommand() const { return m_Handle.m_Handle != VK_NULL_HANDLE || m_Dynamic; }
+        bool HasBeginCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
+        bool HasEndCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
 
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }

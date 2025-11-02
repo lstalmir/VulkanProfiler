@@ -803,7 +803,7 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             m_ImageResources.push_back( imageResource );
-            return VkObject_Traits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet );
+            return VkObjectTraits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet );
         }
 
         return 0;
@@ -823,7 +823,7 @@ namespace Profiler
         auto it = std::find_if( m_ImageResources.begin(), m_ImageResources.end(),
             [image]( const ImageResource& imageResource )
             {
-                return VkObject_Traits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet ) == image;
+                return VkObjectTraits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet ) == image;
             } );
 
         if( it != m_ImageResources.end() )
