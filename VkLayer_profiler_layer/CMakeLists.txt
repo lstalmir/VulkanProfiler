@@ -325,10 +325,7 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.def"
     ${resource})
 
-if (ANDROID)
-    target_link_options (${PROFILER_LAYER_PROJECTNAME}
-        PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer_android.map)
-elseif (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE)
     target_link_options(${PROFILER_LAYER_PROJECTNAME}
         PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer.map)
 endif ()

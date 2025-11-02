@@ -49,7 +49,8 @@ Function:
     vkGetInstanceProcAddr
 
 Description:
-    Entrypoint to the VkInstance
+    Entrypoint to the VkInstance.
+    Required by layer interface version 0 and 1.
 
 \***************************************************************************************/
 VK_LAYER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(
@@ -65,7 +66,8 @@ Function:
     vkGetDeviceProcAddr
 
 Description:
-    Entrypoint to the VkDevice
+    Entrypoint to the VkDevice.
+    Required by layer interface version 0 and 1.
 
 \***************************************************************************************/
 VK_LAYER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(
@@ -82,6 +84,7 @@ Function:
 
 Description:
     Entrypoint to the EnumerateInstanceLayerProperties.
+    Required by layer interface version 0.
 
 \***************************************************************************************/
 VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(
@@ -100,6 +103,7 @@ Function:
 
 Description:
     Entrypoint to the EnumerateInstanceExtensionProperties.
+    Required by layer interface version 0.
 
 \***************************************************************************************/
 VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(
@@ -121,6 +125,7 @@ Function:
 
 Description:
     Entrypoint to the EnumerateDeviceLayerProperties.
+    Required by layer interface version 0.
 
 \***************************************************************************************/
 VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(
@@ -142,6 +147,7 @@ Function:
 
 Description:
     Entrypoint to the EnumerateDeviceExtensionProperties.
+    Required by layer interface version 0.
 
 \***************************************************************************************/
 VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceExtensionProperties(
@@ -157,6 +163,39 @@ VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceExtensionPropert
         pLayerName,
         pPropertyCount,
         pProperties ) );
+}
+
+/***************************************************************************************\
+
+Function:
+    vkNegotiateLoaderLayerInterfaceVersion
+
+Description:
+    Entrypoint to the layer interface version negotiation.
+    Required by layer interface version 2.
+
+\***************************************************************************************/
+VK_LAYER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(
+    VkNegotiateLayerInterface* pVersionStruct )
+{
+    if( pVersionStruct == nullptr ||
+        pVersionStruct->sType != LAYER_NEGOTIATE_INTERFACE_STRUCT )
+    {
+        // Invalid or unsupported structure.
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    // The layer currently supports version 2 of the interface.
+    // According to the spec no loader should report a version lower than 2 (as this is the version that introduced this function).
+    assert( pVersionStruct->loaderLayerInterfaceVersion >= 2 );
+    pVersionStruct->loaderLayerInterfaceVersion = 2;
+
+    // Fill function pointers.
+    pVersionStruct->pfnGetInstanceProcAddr = Profiler::VkInstance_Functions::GetInstanceProcAddr;
+    pVersionStruct->pfnGetDeviceProcAddr = Profiler::VkDevice_Functions::GetDeviceProcAddr;
+    pVersionStruct->pfnGetPhysicalDeviceProcAddr = nullptr;
+
+    return VK_SUCCESS;
 }
 
 #ifdef WIN32
