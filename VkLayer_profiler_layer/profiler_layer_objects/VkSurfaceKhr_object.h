@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,10 @@ namespace Profiler
         eXcb = 3,
         #endif
         #ifdef VK_USE_PLATFORM_XLIB_KHR
-        eXlib = 4
+        eXlib = 4,
+        #endif
+        #ifdef VK_USE_PLATFORM_ANDROID_KHR
+        eAndroid = 5,
         #endif
     };
 
@@ -57,6 +60,10 @@ namespace Profiler
             #ifdef VK_USE_PLATFORM_XLIB_KHR
             Window XlibHandle;
             #endif
+            #ifdef VK_USE_PLATFORM_ANDROID_KHR
+            // TODO
+            ANativeWindow* AndroidHandle;
+            #endif
         };
 
         inline operator bool() const { return Type != OSWindowHandleType::eInvalid; }
@@ -75,6 +82,10 @@ namespace Profiler
         inline OSWindowHandle( Window handle ) : Type( OSWindowHandleType::eXlib ) { XlibHandle = handle; }
         #endif
 
+        #ifdef VK_USE_PLATFORM_ANDROID_KHR
+        inline OSWindowHandle( ANativeWindow* handle ) : Type( OSWindowHandleType::eAndroid ) { AndroidHandle = handle; }
+        #endif
+
         inline bool operator==( const OSWindowHandle& rh ) const
         {
             if( Type != rh.Type ) { return false; }
@@ -91,6 +102,9 @@ namespace Profiler
                 #endif
                 #ifdef VK_USE_PLATFORM_XLIB_KHR
             case OSWindowHandleType::eXlib: return (XlibHandle == rh.XlibHandle);
+                #endif
+                #ifdef VK_USE_PLATFORM_ANDROID_KHR
+            case OSWindowHandleType::eAndroid: return (AndroidHandle == rh.AndroidHandle);
                 #endif
             }
             return false;

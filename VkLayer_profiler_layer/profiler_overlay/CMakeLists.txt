@@ -48,7 +48,11 @@ if (WIN32)
     list (APPEND backends
         "profiler_overlay_layer_backend_win32.h"
         "profiler_overlay_layer_backend_win32.cpp")
-elseif (UNIX AND NOT ANDROID AND NOT APPLE)
+elseif (ANDROID)
+    list (APPEND backends
+        "profiler_overlay_layer_backend_android.h"
+        "profiler_overlay_layer_backend_android.cpp")
+elseif (UNIX AND NOT APPLE)
     if (PROFILER_PLATFORM_XLIB_FOUND)
         list (APPEND backends
             "profiler_overlay_layer_backend_xlib.h"

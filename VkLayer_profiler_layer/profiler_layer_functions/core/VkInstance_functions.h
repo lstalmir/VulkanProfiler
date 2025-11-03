@@ -27,6 +27,7 @@
 #include "VkXcbSurfaceKhr_functions.h"
 #include "VkXlibSurfaceKhr_functions.h"
 #include "VkWaylandSurfaceKhr_functions.h"
+#include "VkAndroidSurfaceKhr_functions.h"
 
 namespace Profiler
 {
@@ -47,6 +48,7 @@ namespace Profiler
         , VkXcbSurfaceKhr_Functions
         , VkXlibSurfaceKhr_Functions
         , VkWaylandSurfaceKhr_Functions
+        , VkAndroidSurfaceKhr_Functions
     {
         // vkGetInstanceProcAddr
         static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetInstanceProcAddr(

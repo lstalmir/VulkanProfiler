@@ -41,6 +41,9 @@
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 #include "profiler_overlay_layer_backend_wayland.h"
 #endif
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+#include "profiler_overlay_layer_backend_android.h"
+#endif
 
 namespace Profiler
 {
@@ -578,7 +581,13 @@ namespace Profiler
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
                 case OSWindowHandleType::eWayland:
                     throw; // TODO: Implement ImGui Wayland context.
-#endif                     // VK_USE_PLATFORM_WAYLAND_KHR
+#endif // VK_USE_PLATFORM_WAYLAND_KHR
+
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+                case OSWindowHandleType::eAndroid:
+                    m_pPlatformBackend = new OverlayLayerAndroidPlatformBackend( windowHandle.AndroidHandle );
+                    break;
+#endif // VK_USE_PLATFORM_ANDROID_KHR
 
                 default:
                     throw; // Not supported.
