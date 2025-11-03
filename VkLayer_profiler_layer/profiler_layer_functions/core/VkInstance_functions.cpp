@@ -74,6 +74,10 @@ namespace Profiler
         // VK_KHR_xlib_surface functions
         GETPROCADDR( CreateXlibSurfaceKHR );
         #endif
+        #ifdef VK_USE_PLATFORM_ANDROID_KHR
+        // VK_KHR_android_surface functions
+        GETPROCADDR( CreateAndroidSurfaceKHR );
+        #endif
 
         // vkGetInstanceProcAddr can be used to query device functions
         PFN_vkVoidFunction deviceFunction = VkDevice_Functions::GetDeviceProcAddr( nullptr, pName );
