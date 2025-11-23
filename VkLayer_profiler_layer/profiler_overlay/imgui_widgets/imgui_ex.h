@@ -167,4 +167,15 @@ namespace ImGuiX
     void BeginPadding( float top, float right, float left );
     void BeginPadding( float all );
     void EndPadding( float bottom );
+
+    /*************************************************************************\
+
+    Function:
+        ToggleButton
+
+    Description:
+        Button that retains its state.
+
+    \*************************************************************************/
+    bool ToggleButton( const char* label, bool& value, ImVec2 size = ImVec2( 0, 0 ) );
 }

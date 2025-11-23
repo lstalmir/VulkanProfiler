@@ -325,6 +325,11 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.def"
     ${resource})
 
+if (UNIX AND NOT APPLE)
+    target_link_options(${PROFILER_LAYER_PROJECTNAME}
+        PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer.map)
+endif ()
+
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC profiler

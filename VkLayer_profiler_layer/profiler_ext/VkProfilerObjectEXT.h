@@ -21,6 +21,10 @@
 #pragma once
 #include <vulkan/vulkan.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef VK_EXT_profiler_object
 #define VK_EXT_profiler_object 1
 #define VK_EXT_PROFILER_OBJECT_SPEC_VERSION 1
@@ -42,3 +46,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetProfilerOverlayEXT(
     VkProfilerOverlayEXT* pOverlay );
 #endif // VK_NO_PROTOTYPES
 #endif // VK_EXT_profiler_object
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
