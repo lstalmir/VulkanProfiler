@@ -2312,8 +2312,12 @@ namespace Profiler
             for( VkCommandBufferHandle commandBuffer : uniqueCommandBuffers )
             {
                 std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
+                std::string commandBufferNameWithHandle = fmt::format(
+                    "{}##{}",
+                    commandBufferName,
+                    commandBuffer.GetHandleAsUint64() );
 
-                if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
+                if( ImGuiX::TSelectable( commandBufferNameWithHandle.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
                 {
                     // Selection changed.
                     m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
