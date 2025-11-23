@@ -2450,13 +2450,31 @@ namespace Profiler
             }
 
             // Save the current metrics set to a file.
-            ImGui::BeginDisabled( !supportsCustomMetricsSets || !m_pActivePerformanceQueryMetricsSet || m_PerformanceQueryEditorSetName.empty() );
+            ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet || m_PerformanceQueryEditorSetName.empty() );
             ImGui::SameLine( 0, buttonSpacing );
             if( ImGui::ImageButton( "Save##MetricsSet", m_Resources.GetIcon( OverlayIcon::Save ), ImVec2( buttonWidth, buttonWidth ) ) )
             {
+                std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = m_pActivePerformanceQueryMetricsSet;
+
+                // Create a temporary metrics set with the current editor properties if the active set is not bookmarked.
+                if( !activeMetricsSetBookmarked )
+                {
+                    pMetricsSet = std::make_shared<PerformanceQueryMetricsSet>( *m_pActivePerformanceQueryMetricsSet );
+
+                    ProfilerStringFunctions::CopyString(
+                        pMetricsSet->m_Properties.name,
+                        m_PerformanceQueryEditorSetName.c_str(),
+                        m_PerformanceQueryEditorSetName.length() + 1 );
+
+                    ProfilerStringFunctions::CopyString(
+                        pMetricsSet->m_Properties.description,
+                        m_PerformanceQueryEditorSetDescription.c_str(),
+                        m_PerformanceQueryEditorSetDescription.length() + 1 );
+                }
+
                 // Display the export dialog.
                 m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
-                m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet = m_pActivePerformanceQueryMetricsSet;
+                m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet = pMetricsSet;
                 m_pPerformanceQueryMetricsSetExporter->m_Action = PerformanceQueryMetricsSetExporter::Action::eExport;
             }
             ImGui::EndDisabled();
@@ -2467,14 +2485,12 @@ namespace Profiler
             }
 
             // Load a metrics set from a file.
-            ImGui::BeginDisabled( !supportsCustomMetricsSets );
             ImGui::SameLine( 0, buttonSpacing );
             if( ImGui::ImageButton( "Load##MetricsSet", m_Resources.GetIcon( OverlayIcon::Open ), ImVec2( buttonWidth, buttonWidth ) ) )
             {
                 m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
                 m_pPerformanceQueryMetricsSetExporter->m_Action = PerformanceQueryMetricsSetExporter::Action::eImport;
             }
-            ImGui::EndDisabled();
 
             if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
             {
