@@ -765,51 +765,6 @@ namespace Profiler
             }
             }
         }
-
-        template<typename CharT>
-        static int CompareN( const CharT* pFirst, const CharT* pSecond, size_t maxCount )
-        {
-            for( size_t i = 0; i < maxCount; ++i )
-            {
-                const CharT firstChar = pFirst[i];
-                const CharT secondChar = pSecond[i];
-
-                if( const int diff = firstChar - secondChar )
-                {
-                    return diff;
-                }
-
-                if( firstChar == 0 )
-                {
-                    return 0;
-                }
-            }
-            return 0;
-        }
-
-        template<typename CharT, size_t firstSize, size_t secondSize>
-        static int Compare( const CharT ( &first )[firstSize], const CharT ( &second )[secondSize] )
-        {
-            return CompareN( first, second, std::min( firstSize, secondSize ) );
-        }
-
-        template<typename CharT, size_t firstSize>
-        static int Compare( const CharT ( &first )[firstSize], const CharT* pSecond, size_t secondSize )
-        {
-            return CompareN( first, pSecond, std::min( firstSize, secondSize ) );
-        }
-
-        template<typename CharT, size_t secondSize>
-        static int Compare( const CharT* pFirst, size_t firstSize, const CharT ( &second )[secondSize] )
-        {
-            return CompareN( pFirst, second, std::min( firstSize, secondSize ) );
-        }
-
-        template<typename CharT>
-        static int Compare( const CharT* pFirst, size_t firstSize, const CharT* pSecond, size_t secondSize )
-        {
-            return CompareN( pFirst, pSecond, std::min( firstSize, secondSize ) );
-        }
     };
     
     /***********************************************************************************\
