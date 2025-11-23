@@ -2709,7 +2709,7 @@ namespace Profiler
         const size_t metricsCount = m_PerformanceQueryEditorCounterProperties.size();
         const auto* pMetrics = m_PerformanceQueryEditorCounterProperties.data();
 
-        if( m_PerformanceQueryMetricsFilterRegexValid )
+        if( m_PerformanceQueryMetricsFilterRegexMode && m_PerformanceQueryMetricsFilterRegexValid )
         {
             // Filter by the current regex.
             m_PerformanceQueryEditorCounterVisibileIndices.clear();
@@ -2773,7 +2773,7 @@ namespace Profiler
             const size_t metricsCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
             const auto* pMetrics = m_pActivePerformanceQueryMetricsSet->m_Metrics.data();
 
-            if( m_PerformanceQueryMetricsFilterRegexValid )
+            if( m_PerformanceQueryMetricsFilterRegexMode && m_PerformanceQueryMetricsFilterRegexValid )
             {
                 // Filter by the current regex.
                 for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
@@ -2815,7 +2815,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceQueryMetricsSetFilterResults( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
     {
-        if( m_PerformanceQueryMetricsFilterRegexValid )
+        if( m_PerformanceQueryMetricsFilterRegexMode && m_PerformanceQueryMetricsFilterRegexValid )
         {
             // Filter by the current regex.
             pMetricsSet->m_FilterResult = false;
