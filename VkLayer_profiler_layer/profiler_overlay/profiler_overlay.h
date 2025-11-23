@@ -78,6 +78,7 @@ namespace Profiler
         void Present() override;
 
         void LoadPerformanceCountersFromFile( const std::string& );
+        void LoadPerformanceQueryMetricsSetFromFile( const std::string& );
         void LoadTopPipelinesFromFile( const std::string& );
 
         void SetMaxFrameCount( uint32_t maxFrameCount );
@@ -286,6 +287,8 @@ namespace Profiler
         bool m_PerformanceQueryMetricsFilterRegexMode;
         bool m_PerformanceQueryMetricsSetPropertiesExpanded;
 
+        void SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& );
+
         bool CompilePerformanceQueryMetricsFilterRegex();
         void UpdatePerformanceQueryEditorMetricsFilterResults();
         void UpdatePerformanceQueryActiveMetricsFilterResults();
@@ -309,6 +312,9 @@ namespace Profiler
         std::string m_PerformanceQueryEditorFilter;
         std::string m_PerformanceQueryEditorSetName;
         std::string m_PerformanceQueryEditorSetDescription;
+
+        struct PerformanceQueryMetricsSetExporter;
+        std::unique_ptr<PerformanceQueryMetricsSetExporter> m_pPerformanceQueryMetricsSetExporter;
 
         uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
         void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected, bool refresh );
@@ -408,6 +414,10 @@ namespace Profiler
         std::string GetDefaultPerformanceCountersFileName( const std::shared_ptr<PerformanceQueryMetricsSet>& ) const;
         void UpdatePerformanceCounterExporter();
         void SavePerformanceCountersToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>&, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
+
+        std::string GetDefaultPerformanceQueryMetricsSetFileName( const std::shared_ptr<PerformanceQueryMetricsSet>& ) const;
+        void UpdatePerformanceQueryMetricsSetExporter();
+        void SavePerformanceQueryMetricsSetToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>& );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();

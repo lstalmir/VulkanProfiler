@@ -24,6 +24,7 @@
 #include "profiler_trace/profiler_trace.h"
 #include "profiler_helpers/profiler_string_serializer.h"
 #include "profiler_helpers/profiler_csv_helpers.h"
+#include "profiler_helpers/profiler_metrics_set_file.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_layer_objects/VkQueue_object.h"
 #include "utils/scoped_value.h"
@@ -188,6 +189,20 @@ namespace Profiler
         IGFD::FileDialogConfig m_FileDialogConfig;
         std::vector<VkProfilerPerformanceCounterResultEXT> m_Data;
         std::vector<bool> m_DataMask;
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pMetricsSet;
+        Action m_Action;
+    };
+
+    struct ProfilerOverlayOutput::PerformanceQueryMetricsSetExporter
+    {
+        enum class Action
+        {
+            eExport,
+            eImport
+        };
+
+        IGFD::FileDialog m_FileDialog;
+        IGFD::FileDialogConfig m_FileDialogConfig;
         std::shared_ptr<PerformanceQueryMetricsSet> m_pMetricsSet;
         Action m_Action;
     };
@@ -1122,6 +1137,7 @@ namespace Profiler
 
         // Draw other windows
         UpdatePerformanceCounterExporter();
+        UpdatePerformanceQueryMetricsSetExporter();
         UpdateTopPipelinesExporter();
         UpdateTraceExporter();
         UpdateResourceListExporter();
@@ -2296,8 +2312,12 @@ namespace Profiler
             for( VkCommandBufferHandle commandBuffer : uniqueCommandBuffers )
             {
                 std::string commandBufferName = m_pStringSerializer->GetName( commandBuffer );
+                std::string commandBufferNameWithHandle = fmt::format(
+                    "{}##{}",
+                    commandBufferName,
+                    commandBuffer.GetHandleAsUint64() );
 
-                if( ImGuiX::TSelectable( commandBufferName.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
+                if( ImGuiX::TSelectable( commandBufferNameWithHandle.c_str(), m_PerformanceQueryCommandBufferFilter, commandBuffer ) )
                 {
                     // Selection changed.
                     m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );
@@ -2337,6 +2357,9 @@ namespace Profiler
         {
             // Reserve space for bookmarking button.
             performanceQueryMetricsSetComboButtonCount += 1;
+
+            // Reserve space for save and load buttons.
+            performanceQueryMetricsSetComboButtonCount += 2;
         }
 
         ImGui::SameLine( 100.f * interfaceScale );
@@ -2366,34 +2389,15 @@ namespace Profiler
                     continue;
                 }
 
-                if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
+                // Create a name that includes the metrics set index to differentiate between sets with the same name.
+                std::string metricsSetNameWithId = fmt::format(
+                    "{}##{}",
+                    pMetricsSet->m_Properties.name,
+                    pMetricsSet->m_MetricsSetIndex );
+
+                if( ImGuiX::Selectable( metricsSetNameWithId.c_str(), ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
                 {
-                    if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
-                    {
-                        // Refresh the performance metric properties.
-                        m_pActivePerformanceQueryMetricsSet = pMetricsSet;
-                        m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
-
-                        m_PerformanceQueryEditorSetName = pMetricsSet->m_Properties.name;
-                        m_PerformanceQueryEditorSetDescription = pMetricsSet->m_Properties.description;
-
-                        // Update editor state.
-                        if( supportsCustomMetricsSets )
-                        {
-                            m_PerformanceQueryEditorCounterIndices.clear();
-
-                            for( const auto& metric : pMetricsSet->m_Metrics )
-                            {
-                                uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metric.uuid );
-                                assert( counterIndex != UINT32_MAX );
-
-                                SetPerformanceQueryEditorCounterSelected( counterIndex, true /*selected*/, false /*refresh*/ );
-                            }
-                        }
-
-                        // Update filter results.
-                        UpdatePerformanceQueryActiveMetricsFilterResults();
-                    }
+                    SelectPerformanceQueryMetricsSet( pMetricsSet );
                 }
 
                 PerformanceMetricsSetTooltip( pMetricsSet );
@@ -2453,6 +2457,48 @@ namespace Profiler
 
                 ImGui::EndDisabled();
                 ImGui::PopStyleColor();
+            }
+
+            // Save the current metrics set to a file.
+            ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet || m_PerformanceQueryEditorSetName.empty() );
+            ImGui::SameLine( 0, buttonSpacing );
+            if( ImGui::ImageButton( "Save##MetricsSet", m_Resources.GetIcon( OverlayIcon::Save ), ImVec2( buttonWidth, buttonWidth ) ) )
+            {
+                // Create a temporary metrics set with the current editor properties if the active set is not bookmarked.
+                if( !activeMetricsSetBookmarked )
+                {
+                    // Recreate the current metrics set with the name and description.
+                    RefreshPerformanceQueryEditorCountersSet( false /*countersOnly*/ );
+                    UpdatePerformanceQueryMetricsSetFilterResults( m_pActivePerformanceQueryMetricsSet );
+
+                    // Save the new metrics set.
+                    m_pPerformanceQueryMetricsSets.push_back( m_pActivePerformanceQueryMetricsSet );
+                    activeMetricsSetBookmarked = true;
+                }
+
+                // Display the export dialog.
+                m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
+                m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet = m_pActivePerformanceQueryMetricsSet;
+                m_pPerformanceQueryMetricsSetExporter->m_Action = PerformanceQueryMetricsSetExporter::Action::eExport;
+            }
+            ImGui::EndDisabled();
+
+            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            {
+                ImGui::SetTooltip( "Save the current performance metrics set to a file." );
+            }
+
+            // Load a metrics set from a file.
+            ImGui::SameLine( 0, buttonSpacing );
+            if( ImGui::ImageButton( "Load##MetricsSet", m_Resources.GetIcon( OverlayIcon::Open ), ImVec2( buttonWidth, buttonWidth ) ) )
+            {
+                m_pPerformanceQueryMetricsSetExporter = std::make_unique<PerformanceQueryMetricsSetExporter>();
+                m_pPerformanceQueryMetricsSetExporter->m_Action = PerformanceQueryMetricsSetExporter::Action::eImport;
+            }
+
+            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+            {
+                ImGui::SetTooltip( "Load a performance metrics set from a file." );
             }
         }
 
@@ -2554,15 +2600,17 @@ namespace Profiler
         // Scroll the counters only.
         if( ImGui::BeginChild( "###PerformanceCountersTables" ) )
         {
+            ImGui::PushStyleColor( ImGuiCol_TableBorderLight, IM_COL32( 64, 64, 64, 128 ) );
+
             if( ImGui::BeginTable( "Performance counters table", 5, tableFlags ) )
             {
                 // Headers
                 ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
-                ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
-                ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
-                ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+                ImGuiX::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
+                ImGuiX::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.15f );
+                ImGuiX::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, ImGuiXTableColumnFlags_AlignHeaderRight, 0.25f );
                 ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-                ImGui::TableHeadersRow();
+                ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
                 if( m_pActivePerformanceQueryMetricsSet &&
                     pVendorMetrics &&
@@ -2794,9 +2842,51 @@ namespace Profiler
                     ImGui::EndTable();
                 }
             }
+
+            ImGui::PopStyleColor();
         }
 
         ImGui::EndChild();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CompilePerformanceQueryMetricsFilterRegex
+
+    Description:
+        Pre-compile user defined filtering expression to apply it to all performance
+        query metrics sets and metrics.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+    {
+        if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
+        {
+            // Refresh the performance metric properties.
+            m_pActivePerformanceQueryMetricsSet = pMetricsSet;
+            m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
+
+            m_PerformanceQueryEditorSetName = pMetricsSet->m_Properties.name;
+            m_PerformanceQueryEditorSetDescription = pMetricsSet->m_Properties.description;
+
+            // Update editor state.
+            if( !m_PerformanceQueryEditorCounterProperties.empty() )
+            {
+                m_PerformanceQueryEditorCounterIndices.clear();
+
+                for( const auto& metric : pMetricsSet->m_Metrics )
+                {
+                    uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metric.uuid );
+                    assert( counterIndex != UINT32_MAX );
+
+                    SetPerformanceQueryEditorCounterSelected( counterIndex, true /*selected*/, false /*refresh*/ );
+                }
+            }
+
+            // Update filter results.
+            UpdatePerformanceQueryActiveMetricsFilterResults();
+        }
     }
 
     /***********************************************************************************\
@@ -7104,6 +7194,137 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetDefaultPerformanceQueryMetricsSetFileName
+
+    Description:
+        Returns the default file name for performance query metrics set.
+
+    \***********************************************************************************/
+    std::string ProfilerOverlayOutput::GetDefaultPerformanceQueryMetricsSetFileName(
+        const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet ) const
+    {
+        std::string sanitizedMetricsSetName = pMetricsSet->m_Properties.name;
+        EraseIf( sanitizedMetricsSetName, []( char ch )
+            { return std::strchr( "<>:\"/\\|?*", ch ); } );
+        ReplaceIf(
+            sanitizedMetricsSetName, []( char ch )
+            { return std::isspace( ch ); },
+            '_' );
+
+        return sanitizedMetricsSetName + ".json";
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceQueryMetricsSetExporter
+
+    Description:
+        Shows a file dialog if performance metrics set save or load was requested and
+        saves/loads them when OK is pressed.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceQueryMetricsSetExporter()
+    {
+        static const std::string scFileDialogId = "#PerformanceQueryMetricsSetSaveFileDialog";
+
+        if( m_pPerformanceQueryMetricsSetExporter != nullptr )
+        {
+            // Initialize the file dialog on the first call to this function.
+            if( !m_pPerformanceQueryMetricsSetExporter->m_FileDialog.IsOpened() )
+            {
+                m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.flags =
+                    ImGuiFileDialogFlags_Default;
+
+                if( m_pPerformanceQueryMetricsSetExporter->m_Action == PerformanceQueryMetricsSetExporter::Action::eImport )
+                {
+                    // Don't ask for overwrite when selecting file to load.
+                    m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.flags ^=
+                        ImGuiFileDialogFlags_ConfirmOverwrite;
+                }
+
+                if( m_pPerformanceQueryMetricsSetExporter->m_Action == PerformanceQueryMetricsSetExporter::Action::eExport )
+                {
+                    m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.fileName =
+                        GetDefaultPerformanceQueryMetricsSetFileName( m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet );
+                }
+            }
+
+            // Draw the file dialog until the user closes it.
+            bool closed = DisplayFileDialog(
+                scFileDialogId,
+                m_pPerformanceQueryMetricsSetExporter->m_FileDialog,
+                m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig,
+                "Select performance metrics set file path",
+                ".json" );
+
+            if( closed )
+            {
+                if( m_pPerformanceQueryMetricsSetExporter->m_FileDialog.IsOk() )
+                {
+                    switch( m_pPerformanceQueryMetricsSetExporter->m_Action )
+                    {
+                    case PerformanceQueryMetricsSetExporter::Action::eExport:
+                        SavePerformanceQueryMetricsSetToFile(
+                            m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetFilePathName(),
+                            m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet );
+                        break;
+
+                    case PerformanceQueryMetricsSetExporter::Action::eImport:
+                        LoadPerformanceQueryMetricsSetFromFile(
+                            m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetFilePathName() );
+                        break;
+                    }
+                }
+
+                // Destroy the exporter.
+                m_pPerformanceQueryMetricsSetExporter.reset();
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SavePerformanceQueryMetricsSetToFile
+
+    Description:
+        Writes performance metrics set to a JSON file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SavePerformanceQueryMetricsSetToFile(
+        const std::string& fileName,
+        const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+    {
+        assert( pMetricsSet != nullptr );
+        assert( pMetricsSet->m_MetricsSetIndex != UINT32_MAX );
+
+        // Write the file
+        DeviceProfilerMetricsSetFile file;
+        file.SetName( pMetricsSet->m_Properties.name );
+        file.SetDescription( pMetricsSet->m_Properties.description );
+        file.SetCounters( static_cast<uint32_t>( pMetricsSet->m_Metrics.size() ), pMetricsSet->m_Metrics.data() );
+
+        if( file.Write( fileName ) )
+        {
+            m_SerializationSucceeded = true;
+            m_SerializationMessage = "Performance counters saved successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for writing.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         LoadPerformanceCountersFromFile
 
     Description:
@@ -7129,6 +7350,79 @@ namespace Profiler
 
             m_SerializationSucceeded = true;
             m_SerializationMessage = "Performance counters loaded successfully.\n" + fileName;
+        }
+        else
+        {
+            m_SerializationSucceeded = false;
+            m_SerializationMessage = "Failed to open file for reading.\n" + fileName;
+        }
+
+        // Display message box
+        m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
+        m_SerializationOutputWindowSize = { 0, 0 };
+        m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        LoadPerformanceQueryMetricsSetFromFile
+
+    Description:
+        Loads performance metrics set from a JSON file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::LoadPerformanceQueryMetricsSetFromFile( const std::string& fileName )
+    {
+        DeviceProfilerMetricsSetFile file;
+
+        if( file.Read( fileName ) )
+        {
+            const std::string& name = file.GetName();
+            const std::string& description = file.GetDescription();
+            const std::vector<uint32_t> counterIndices = file.GetCounters( m_Frontend );
+
+            VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
+            createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
+            createInfo.metricsCount = static_cast<uint32_t>( counterIndices.size() );
+            createInfo.pMetricsIndices = counterIndices.data();
+            createInfo.pName = name.c_str();
+            createInfo.pDescription = description.c_str();
+
+            uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
+            if( metricsSetIndex != UINT32_MAX )
+            {
+                auto pMetricsSet = std::make_shared<PerformanceQueryMetricsSet>();
+                pMetricsSet->m_MetricsSetIndex = metricsSetIndex;
+
+                m_Frontend.GetPerformanceMetricsSetProperties( metricsSetIndex, &pMetricsSet->m_Properties );
+
+                // There will be at most createInfo.metricsCount metrics in the set.
+                pMetricsSet->m_Metrics.resize( createInfo.metricsCount );
+                const uint32_t actualMetricsCount = m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                    metricsSetIndex, createInfo.metricsCount, pMetricsSet->m_Metrics.data() );
+
+                pMetricsSet->m_Metrics.resize( actualMetricsCount );
+
+                // Add the new metrics set to the list and select it.
+                m_pPerformanceQueryMetricsSets.push_back( pMetricsSet );
+
+                // Set loaded performance metrics set as active.
+                SelectPerformanceQueryMetricsSet( pMetricsSet );
+                UpdatePerformanceQueryMetricsSetFilterResults( pMetricsSet );
+
+                m_SerializationSucceeded = true;
+                m_SerializationMessage = fmt::format(
+                    "Performance metrics set loaded successfully ({} / {} counters found).\n{}",
+                    actualMetricsCount,
+                    file.GetCounterCount(),
+                    fileName );
+            }
+            else
+            {
+                m_SerializationSucceeded = false;
+                m_SerializationMessage = "Failed to create performance metrics set.\n" + fileName;
+            }
         }
         else
         {
