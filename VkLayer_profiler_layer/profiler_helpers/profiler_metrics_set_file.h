@@ -21,7 +21,6 @@
 #pragma once
 #include "profiler_ext/VkProfilerEXT.h"
 #include <stdint.h>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -32,10 +31,48 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        DeviceProfilerMetricsSetFileEntry
+
+    Description:
+        Represents a single metrics set entry in the performance metrics set file.
+
+    \***********************************************************************************/
+    struct DeviceProfilerMetricsSetFileEntry
+    {
+    public:
+        DeviceProfilerMetricsSetFileEntry();
+
+        void SetName( const std::string_view& name );
+        void SetDescription( const std::string_view& description );
+        void SetCounters( const std::vector<VkProfilerPerformanceCounterProperties2EXT>& properties );
+        void SetCounters( const std::vector<std::string>& counters );
+        void SetCounters( std::vector<std::string>&& counters );
+
+        const std::string& GetName() const;
+        const std::string& GetDescription() const;
+        const std::vector<uint32_t>& GetCounterIndices() const;
+        const std::vector<std::string>& GetCounterNames() const;
+        uint32_t GetCounterCount() const;
+
+        void ResolveCounterIndices( const std::vector<VkProfilerPerformanceCounterProperties2EXT>& supportedCounters );
+
+    private:
+        std::string m_Name;
+        std::string m_Description;
+        std::vector<std::string> m_Counters;
+        std::vector<uint32_t> m_CounterIndices;
+    };
+
+    /***********************************************************************************\
+
+    Class:
         DeviceProfilerMetricsSetFile
 
     Description:
-        Serializes performance metrics set into JSON file.
+        Represents a performance metrics set file.
+
+        The file may contain one or more metrics set entries, each defining a set of
+        performance counters.
 
     \***********************************************************************************/
     class DeviceProfilerMetricsSetFile
@@ -46,18 +83,16 @@ namespace Profiler
         bool Read( const std::string& filename );
         bool Write( const std::string& filename ) const;
 
-        void SetName( const std::string_view& name );
-        void SetDescription( const std::string_view& description );
-        void SetCounters( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties );
+        void AddEntry( const DeviceProfilerMetricsSetFileEntry& entry );
+        void RemoveEntry( uint32_t index );
+        void RemoveAllEntries();
 
-        const std::string& GetName() const;
-        const std::string& GetDescription() const;
-        std::vector<uint32_t> GetCounters( DeviceProfilerFrontend& frontend ) const;
-        uint32_t GetCounterCount() const;
+        uint32_t GetEntryCount() const;
+        const DeviceProfilerMetricsSetFileEntry& GetEntry( uint32_t index ) const;
+
+        void ResolveCounterIndices( DeviceProfilerFrontend& frontend );
 
     private:
-        std::string m_Name;
-        std::string m_Description;
-        std::vector<std::string> m_Counters;
+        std::vector<DeviceProfilerMetricsSetFileEntry> m_Entries;
     };
 }

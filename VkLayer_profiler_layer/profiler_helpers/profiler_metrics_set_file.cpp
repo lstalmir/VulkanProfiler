@@ -22,10 +22,200 @@
 #include "profiler/profiler_frontend.h"
 
 #include <assert.h>
+#include <fstream>
 #include <nlohmann/json.hpp>
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Function:
+        DeviceProfilerMetricsSetFileEntry
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
+    DeviceProfilerMetricsSetFileEntry::DeviceProfilerMetricsSetFileEntry()
+        : m_Name()
+        , m_Description()
+        , m_Counters()
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetName
+
+    Description:
+        Set metrics set name.
+
+    \***********************************************************************************/
+    void DeviceProfilerMetricsSetFileEntry::SetName( const std::string_view& name )
+    {
+        m_Name = name;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetDescription
+
+    Description:
+        Set metrics set description.
+
+    \***********************************************************************************/
+    void DeviceProfilerMetricsSetFileEntry::SetDescription( const std::string_view& description )
+    {
+        m_Description = description;
+    }
+    
+    /***********************************************************************************\
+
+    Function:
+        SetCounters
+
+    Description:
+        Set metrics set counters.
+
+    \***********************************************************************************/
+    void DeviceProfilerMetricsSetFileEntry::SetCounters( const std::vector<VkProfilerPerformanceCounterProperties2EXT>& properties )
+    {
+        m_Counters.clear();
+        m_Counters.reserve( properties.size() );
+
+        for( const VkProfilerPerformanceCounterProperties2EXT& property : properties )
+        {
+            m_Counters.push_back( property.shortName );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetCounters
+
+    Description:
+        Set metrics set counters.
+
+    \***********************************************************************************/
+    void DeviceProfilerMetricsSetFileEntry::SetCounters( const std::vector<std::string>& counters )
+    {
+        m_Counters = counters;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetCounters
+
+    Description:
+        Set metrics set counters.
+
+    \***********************************************************************************/
+    void DeviceProfilerMetricsSetFileEntry::SetCounters( std::vector<std::string>&& counters )
+    {
+        m_Counters = std::move( counters );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetName
+
+    Description:
+        Get metrics set name.
+
+    \***********************************************************************************/
+    const std::string& DeviceProfilerMetricsSetFileEntry::GetName() const
+    {
+        return m_Name;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDescription
+
+    Description:
+        Get metrics set description.
+
+    \***********************************************************************************/
+    const std::string& DeviceProfilerMetricsSetFileEntry::GetDescription() const
+    {
+        return m_Description;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCounterCount
+
+    Description:
+        Get number of saved counters.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerMetricsSetFileEntry::GetCounterCount() const
+    {
+        return static_cast<uint32_t>( m_Counters.size() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCounterIndices
+
+    Description:
+        Get resolved metrics set counter indices.
+
+    \***********************************************************************************/
+    const std::vector<uint32_t>& DeviceProfilerMetricsSetFileEntry::GetCounterIndices() const
+    {
+        return m_CounterIndices;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetCounterNames
+
+    Description:
+        Get metrics set counter names.
+
+    \***********************************************************************************/
+    const std::vector<std::string>& DeviceProfilerMetricsSetFileEntry::GetCounterNames() const
+    {
+        return m_Counters;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResolveCounterIndices
+
+    Description:
+        Resolve counter indices based on supported counters.
+
+    \***********************************************************************************/
+    void DeviceProfilerMetricsSetFileEntry::ResolveCounterIndices( const std::vector<VkProfilerPerformanceCounterProperties2EXT>& supportedCounters )
+    {
+        m_CounterIndices.clear();
+        m_CounterIndices.reserve( m_Counters.size() );
+
+        for( const auto& counterName : m_Counters )
+        {
+            for( size_t i = 0; i < supportedCounters.size(); i++ )
+            {
+                if( counterName == supportedCounters[i].shortName )
+                {
+                    m_CounterIndices.push_back( static_cast<uint32_t>( i ) );
+                    break;
+                }
+            }
+        }
+    }
+
     /***********************************************************************************\
 
     Function:
@@ -36,9 +226,7 @@ namespace Profiler
 
     \***********************************************************************************/
     DeviceProfilerMetricsSetFile::DeviceProfilerMetricsSetFile()
-        : m_Name()
-        , m_Description()
-        , m_Counters()
+        : m_Entries()
     {
     }
 
@@ -58,17 +246,44 @@ namespace Profiler
             std::ifstream file( filename );
             nlohmann::json json = nlohmann::json::parse( file );
 
-            m_Name = json["name"].get<std::string>();
-            m_Description = json["description"].get<std::string>();
-
-            m_Counters.clear();
-
-            for( const auto& counter : json["counters"] )
+            auto ReadEntry = [this]( const nlohmann::json& json ) -> bool
             {
-                m_Counters.push_back( counter.get<std::string>() );
+                try
+                {
+                    DeviceProfilerMetricsSetFileEntry entry;
+                    entry.SetName( json.at( "name" ).get<std::string>() );
+                    entry.SetDescription( json.at( "description" ).get<std::string>() );
+                    entry.SetCounters( json.at( "counters" ).get<std::vector<std::string>>() );
+                    m_Entries.push_back( std::move( entry ) );
+                    return true;
+                }
+                catch( ... )
+                {
+                    return false;
+                }
+            };
+
+            if( json.is_object() )
+            {
+                // Single-set file.
+                return ReadEntry( json );
             }
 
-            return true;
+            if( json.is_array() )
+            {
+                // Collection of multiple metrics sets.
+                for( const nlohmann::json& entry : json )
+                {
+                    if( !ReadEntry( entry ) )
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
         }
         catch( ... )
         {
@@ -89,10 +304,17 @@ namespace Profiler
     {
         try
         {
-            nlohmann::json json;
-            json["name"] = m_Name;
-            json["description"] = m_Description;
-            json["counters"] = m_Counters;
+            nlohmann::json json = nlohmann::json::array();
+
+            for( const DeviceProfilerMetricsSetFileEntry& entry : m_Entries )
+            {
+                nlohmann::json jsonEntry;
+                jsonEntry["name"] = entry.GetName();
+                jsonEntry["description"] = entry.GetDescription();
+                jsonEntry["counters"] = entry.GetCounterNames();
+
+                json.push_back( jsonEntry );
+            }
 
             std::ofstream file( filename );
             file << std::setw( 4 ) << json;
@@ -108,127 +330,99 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        SetName
+        AddEntry
 
     Description:
-        Set metrics set name.
+        Add a new entry to the metrics set library.
 
     \***********************************************************************************/
-    void DeviceProfilerMetricsSetFile::SetName( const std::string_view& name )
+    void DeviceProfilerMetricsSetFile::AddEntry( const DeviceProfilerMetricsSetFileEntry& entry )
     {
-        m_Name = name;
+        m_Entries.push_back( entry );
     }
 
     /***********************************************************************************\
 
     Function:
-        SetDescription
+        RemoveEntry
 
     Description:
-        Set metrics set description.
+        Remove an entry from the metrics set library.
 
     \***********************************************************************************/
-    void DeviceProfilerMetricsSetFile::SetDescription( const std::string_view& description )
+    void DeviceProfilerMetricsSetFile::RemoveEntry( uint32_t index )
     {
-        m_Description = description;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        SetCounters
-
-    Description:
-        Set metrics set counters.
-
-    \***********************************************************************************/
-    void DeviceProfilerMetricsSetFile::SetCounters( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties )
-    {
-        m_Counters.clear();
-        m_Counters.reserve( count );
-
-        for( uint32_t i = 0; i < count; i++ )
+        assert( index < m_Entries.size() );
+        if( index < m_Entries.size() )
         {
-            m_Counters.push_back( pProperties[i].shortName );
+            m_Entries.erase( m_Entries.begin() + index );
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        GetName
+        RemoveAllEntries
 
     Description:
-        Get metrics set name.
+        Remove all entries from the metrics set library.
 
     \***********************************************************************************/
-    const std::string& DeviceProfilerMetricsSetFile::GetName() const
+    void DeviceProfilerMetricsSetFile::RemoveAllEntries()
     {
-        return m_Name;
+        m_Entries.clear();
     }
 
     /***********************************************************************************\
 
     Function:
-        GetDescription
+        GetEntryCount
 
     Description:
-        Get metrics set description.
+        Get number of metrics sets in the library.
 
     \***********************************************************************************/
-    const std::string& DeviceProfilerMetricsSetFile::GetDescription() const
+    uint32_t DeviceProfilerMetricsSetFile::GetEntryCount() const
     {
-        return m_Description;
+        return static_cast<uint32_t>( m_Entries.size() );
     }
 
     /***********************************************************************************\
 
     Function:
-        GetCounterCount
+        GetEntry
 
     Description:
-        Get number of saved counters.
+        Get metrics set entry by index.
 
     \***********************************************************************************/
-    uint32_t DeviceProfilerMetricsSetFile::GetCounterCount() const
+    const DeviceProfilerMetricsSetFileEntry& DeviceProfilerMetricsSetFile::GetEntry( uint32_t index ) const
     {
-        return static_cast<uint32_t>( m_Counters.size() );
+        assert( index < m_Entries.size() );
+        return m_Entries.at( index );
     }
 
     /***********************************************************************************\
 
     Function:
-        GetCounters
+        ResolveCounterIndices
 
     Description:
-        Get metrics set counters.
+        Resolve counter indices based on supported counters.
 
     \***********************************************************************************/
-    std::vector<uint32_t> DeviceProfilerMetricsSetFile::GetCounters( DeviceProfilerFrontend& frontend ) const
+    void DeviceProfilerMetricsSetFile::ResolveCounterIndices( DeviceProfilerFrontend& frontend )
     {
-        std::vector<uint32_t> result( 0 );
-
         const uint32_t supportedCounterCount = frontend.GetPerformanceCounterProperties( 0, nullptr );
         if( supportedCounterCount )
         {
             std::vector<VkProfilerPerformanceCounterProperties2EXT> supportedCounters( supportedCounterCount );
             frontend.GetPerformanceCounterProperties( supportedCounterCount, supportedCounters.data() );
 
-            result.reserve( m_Counters.size() );
-
-            for( const auto& counterName : m_Counters )
+            for( DeviceProfilerMetricsSetFileEntry& entry : m_Entries )
             {
-                for( uint32_t i = 0; i < supportedCounterCount; i++ )
-                {
-                    if( counterName == supportedCounters[i].shortName )
-                    {
-                        result.push_back( i );
-                        break;
-                    }
-                }
+                entry.ResolveCounterIndices( supportedCounters );
             }
         }
-
-        return result;
     }
 }

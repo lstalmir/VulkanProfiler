@@ -78,7 +78,8 @@ namespace Profiler
         void Present() override;
 
         void LoadPerformanceCountersFromFile( const std::string& );
-        void LoadPerformanceQueryMetricsSetFromFile( const std::string& );
+        void LoadPerformanceQueryMetricsSetsFromFile( const std::string& );
+        void SavePerformanceQueryMetricsSetsToFile( const std::string& );
         void LoadTopPipelinesFromFile( const std::string& );
 
         void SetMaxFrameCount( uint32_t maxFrameCount );
@@ -319,6 +320,7 @@ namespace Profiler
         uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
         void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected, bool refresh );
         void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
+        std::shared_ptr<PerformanceQueryMetricsSet> CreatePerformanceQueryMetricsSet( const char*, const char*, const std::vector<uint32_t>& );
 
         // Performance counter serialization
         struct PerformanceQueryExporter;

@@ -3197,39 +3197,23 @@ namespace Profiler
         m_pActivePerformanceQueryMetricsSet = nullptr;
         m_ActivePerformanceQueryMetricsFilterResults.clear();
 
-        if( m_PerformanceQueryEditorCounterIndices.empty() )
-        {
-            return;
-        }
-
-        VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
-        createInfo.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
-        createInfo.pMetricsIndices = m_PerformanceQueryEditorCounterIndices.data();
+        const char* pName = nullptr;
+        const char* pDescription = nullptr;
 
         if( !countersOnly )
         {
-            createInfo.pName = m_PerformanceQueryEditorSetName.c_str();
-            createInfo.pDescription = m_PerformanceQueryEditorSetDescription.c_str();
+            pName = m_PerformanceQueryEditorSetName.c_str();
+            pDescription = m_PerformanceQueryEditorSetDescription.c_str();
         }
 
-        const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
-        if( metricsSetIndex != UINT32_MAX )
+        auto pMetricsSet = CreatePerformanceQueryMetricsSet(
+            pName,
+            pDescription,
+            m_PerformanceQueryEditorCounterIndices );
+
+        if( pMetricsSet )
         {
-            std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = std::make_shared<PerformanceQueryMetricsSet>();
-            pMetricsSet->m_MetricsSetIndex = metricsSetIndex;
-            pMetricsSet->m_Metrics.resize( createInfo.metricsCount );
-
-            m_Frontend.GetPerformanceMetricsSetProperties(
-                metricsSetIndex,
-                &pMetricsSet->m_Properties );
-
-            m_Frontend.GetPerformanceMetricsSetCounterProperties(
-                metricsSetIndex,
-                createInfo.metricsCount,
-                pMetricsSet->m_Metrics.data() );
-
-            if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+            if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
             {
                 m_pActivePerformanceQueryMetricsSet = pMetricsSet;
                 m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Metrics.size() );
@@ -3238,6 +3222,52 @@ namespace Profiler
                 UpdatePerformanceQueryActiveMetricsFilterResults();
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CreatePerformanceQueryMetricsSet
+
+    Description:
+        Creates a new performance query metrics set.
+
+    \***********************************************************************************/
+    std::shared_ptr<ProfilerOverlayOutput::PerformanceQueryMetricsSet> ProfilerOverlayOutput::CreatePerformanceQueryMetricsSet(
+        const char* pName,
+        const char* pDescription,
+        const std::vector<uint32_t>& counterIndices )
+    {
+        if( !counterIndices.empty() )
+        {
+            VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
+            createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
+            createInfo.metricsCount = static_cast<uint32_t>( counterIndices.size() );
+            createInfo.pMetricsIndices = counterIndices.data();
+            createInfo.pName = pName;
+            createInfo.pDescription = pDescription;
+
+            const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
+            if( metricsSetIndex != UINT32_MAX )
+            {
+                std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = std::make_shared<PerformanceQueryMetricsSet>();
+                pMetricsSet->m_MetricsSetIndex = metricsSetIndex;
+                pMetricsSet->m_Metrics.resize( createInfo.metricsCount );
+
+                m_Frontend.GetPerformanceMetricsSetProperties(
+                    metricsSetIndex,
+                    &pMetricsSet->m_Properties );
+
+                m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                    metricsSetIndex,
+                    createInfo.metricsCount,
+                    pMetricsSet->m_Metrics.data() );
+
+                return pMetricsSet;
+            }
+        }
+
+        return nullptr;
     }
 
     /***********************************************************************************\
@@ -7271,7 +7301,7 @@ namespace Profiler
                         break;
 
                     case PerformanceQueryMetricsSetExporter::Action::eImport:
-                        LoadPerformanceQueryMetricsSetFromFile(
+                        LoadPerformanceQueryMetricsSetsFromFile(
                             m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetFilePathName() );
                         break;
                     }
@@ -7300,10 +7330,13 @@ namespace Profiler
         assert( pMetricsSet->m_MetricsSetIndex != UINT32_MAX );
 
         // Write the file
+        DeviceProfilerMetricsSetFileEntry metricsSetEntry;
+        metricsSetEntry.SetName( pMetricsSet->m_Properties.name );
+        metricsSetEntry.SetDescription( pMetricsSet->m_Properties.description );
+        metricsSetEntry.SetCounters( pMetricsSet->m_Metrics );
+
         DeviceProfilerMetricsSetFile file;
-        file.SetName( pMetricsSet->m_Properties.name );
-        file.SetDescription( pMetricsSet->m_Properties.description );
-        file.SetCounters( static_cast<uint32_t>( pMetricsSet->m_Metrics.size() ), pMetricsSet->m_Metrics.data() );
+        file.AddEntry( metricsSetEntry );
 
         if( file.Write( fileName ) )
         {
@@ -7320,6 +7353,31 @@ namespace Profiler
         m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();
         m_SerializationOutputWindowSize = { 0, 0 };
         m_SerializationWindowVisible = false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SavePerformanceQueryMetricsSetsToFile
+
+    Description:
+        Writes all bookmarked performance metrics sets to a JSON file.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SavePerformanceQueryMetricsSetsToFile( const std::string& fileName )
+    {
+        DeviceProfilerMetricsSetFile file;
+
+        for( std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet : m_pPerformanceQueryMetricsSets )
+        {
+            DeviceProfilerMetricsSetFileEntry metricsSetEntry;
+            metricsSetEntry.SetName( pMetricsSet->m_Properties.name );
+            metricsSetEntry.SetDescription( pMetricsSet->m_Properties.description );
+            metricsSetEntry.SetCounters( pMetricsSet->m_Metrics );
+            file.AddEntry( metricsSetEntry );
+        }
+
+        file.Write( fileName );
     }
 
     /***********************************************************************************\
@@ -7366,63 +7424,66 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        LoadPerformanceQueryMetricsSetFromFile
+        LoadPerformanceQueryMetricsSetsFromFile
 
     Description:
-        Loads performance metrics set from a JSON file.
+        Loads performance metrics sets from a JSON file.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::LoadPerformanceQueryMetricsSetFromFile( const std::string& fileName )
+    void ProfilerOverlayOutput::LoadPerformanceQueryMetricsSetsFromFile( const std::string& fileName )
     {
         DeviceProfilerMetricsSetFile file;
 
         if( file.Read( fileName ) )
         {
-            const std::string& name = file.GetName();
-            const std::string& description = file.GetDescription();
-            const std::vector<uint32_t> counterIndices = file.GetCounters( m_Frontend );
+            std::shared_ptr<PerformanceQueryMetricsSet> pFirstMetricsSet;
+            uint32_t metricsSetsCount = file.GetEntryCount();
+            uint32_t metricsSetsCreated = 0;
+            uint32_t countersCount = 0;
+            uint32_t countersCreated = 0;
 
-            VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
-            createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
-            createInfo.metricsCount = static_cast<uint32_t>( counterIndices.size() );
-            createInfo.pMetricsIndices = counterIndices.data();
-            createInfo.pName = name.c_str();
-            createInfo.pDescription = description.c_str();
+            file.ResolveCounterIndices( m_Frontend );
 
-            uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
-            if( metricsSetIndex != UINT32_MAX )
+            for( uint32_t i = 0; i < metricsSetsCount; ++i )
             {
-                auto pMetricsSet = std::make_shared<PerformanceQueryMetricsSet>();
-                pMetricsSet->m_MetricsSetIndex = metricsSetIndex;
+                const DeviceProfilerMetricsSetFileEntry& metricsSetEntry = file.GetEntry( i );
+                const std::string& name = metricsSetEntry.GetName();
+                const std::string& description = metricsSetEntry.GetDescription();
+                const std::vector<uint32_t>& counterIndices = metricsSetEntry.GetCounterIndices();
+                countersCount += metricsSetEntry.GetCounterCount();
 
-                m_Frontend.GetPerformanceMetricsSetProperties( metricsSetIndex, &pMetricsSet->m_Properties );
+                auto pMetricsSet = CreatePerformanceQueryMetricsSet( name.c_str(), description.c_str(), counterIndices );
+                if( pMetricsSet )
+                {
+                    // Add the new metrics set to the list.
+                    m_pPerformanceQueryMetricsSets.push_back( pMetricsSet );
 
-                // There will be at most createInfo.metricsCount metrics in the set.
-                pMetricsSet->m_Metrics.resize( createInfo.metricsCount );
-                const uint32_t actualMetricsCount = m_Frontend.GetPerformanceMetricsSetCounterProperties(
-                    metricsSetIndex, createInfo.metricsCount, pMetricsSet->m_Metrics.data() );
+                    if( !pFirstMetricsSet )
+                    {
+                        pFirstMetricsSet = pMetricsSet;
+                    }
 
-                pMetricsSet->m_Metrics.resize( actualMetricsCount );
-
-                // Add the new metrics set to the list and select it.
-                m_pPerformanceQueryMetricsSets.push_back( pMetricsSet );
-
-                // Set loaded performance metrics set as active.
-                SelectPerformanceQueryMetricsSet( pMetricsSet );
-                UpdatePerformanceQueryMetricsSetFilterResults( pMetricsSet );
-
-                m_SerializationSucceeded = true;
-                m_SerializationMessage = fmt::format(
-                    "Performance metrics set loaded successfully ({} / {} counters found).\n{}",
-                    actualMetricsCount,
-                    file.GetCounterCount(),
-                    fileName );
+                    metricsSetsCreated++;
+                    countersCreated += static_cast<uint32_t>( pMetricsSet->m_Metrics.size() );
+                }
             }
-            else
+
+            if( pFirstMetricsSet )
             {
-                m_SerializationSucceeded = false;
-                m_SerializationMessage = "Failed to create performance metrics set.\n" + fileName;
+                // Set first loaded performance metrics set as active.
+                SelectPerformanceQueryMetricsSet( pFirstMetricsSet );
             }
+
+            UpdatePerformanceQueryMetricsSetsFilterResults();
+
+            m_SerializationSucceeded = ( metricsSetsCount > 0 ) && ( metricsSetsCreated == metricsSetsCount );
+            m_SerializationMessage = fmt::format(
+                "{} of {} performance metrics sets loaded successfully ({} of {} counters found).\n{}",
+                metricsSetsCreated,
+                metricsSetsCount,
+                countersCreated,
+                countersCount,
+                fileName );
         }
         else
         {
