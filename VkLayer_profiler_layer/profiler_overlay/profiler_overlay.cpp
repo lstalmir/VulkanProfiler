@@ -2387,41 +2387,16 @@ namespace Profiler
 
                 if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
                 {
-                    if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
-                    {
-                        // Refresh the performance metric properties.
-                        m_pActivePerformanceQueryMetricsSet = pMetricsSet;
-                        m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
-
-                        m_PerformanceQueryEditorSetName = pMetricsSet->m_Properties.name;
-                        m_PerformanceQueryEditorSetDescription = pMetricsSet->m_Properties.description;
-
-                        // Update editor state.
-                        if( supportsCustomMetricsSets )
-                        {
-                            m_PerformanceQueryEditorCounterIndices.clear();
-
-                            for( const auto& metric : pMetricsSet->m_Metrics )
-                            {
-                                uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metric.uuid );
-                                assert( counterIndex != UINT32_MAX );
-
-                                SetPerformanceQueryEditorCounterSelected( counterIndex, true /*selected*/, false /*refresh*/ );
-                            }
-                        }
-
-                        // Update filter results.
-                        UpdatePerformanceQueryActiveMetricsFilterResults();
-                    }
+                    SelectPerformanceQueryMetricsSet( pMetricsSet );
                 }
 
-                    PerformanceMetricsSetTooltip( pMetricsSet );
-                }
-
-                ImGui::EndCombo();
+                PerformanceMetricsSetTooltip( pMetricsSet );
             }
 
-            PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
+            ImGui::EndCombo();
+        }
+
+        PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
 
         if( supportsCustomMetricsSets )
         {
@@ -2852,6 +2827,46 @@ namespace Profiler
         }
 
         ImGui::EndChild();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CompilePerformanceQueryMetricsFilterRegex
+
+    Description:
+        Pre-compile user defined filtering expression to apply it to all performance
+        query metrics sets and metrics.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+    {
+        if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
+        {
+            // Refresh the performance metric properties.
+            m_pActivePerformanceQueryMetricsSet = pMetricsSet;
+            m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
+
+            m_PerformanceQueryEditorSetName = pMetricsSet->m_Properties.name;
+            m_PerformanceQueryEditorSetDescription = pMetricsSet->m_Properties.description;
+
+            // Update editor state.
+            if( !m_PerformanceQueryEditorCounterProperties.empty() )
+            {
+                m_PerformanceQueryEditorCounterIndices.clear();
+
+                for( const auto& metric : pMetricsSet->m_Metrics )
+                {
+                    uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metric.uuid );
+                    assert( counterIndex != UINT32_MAX );
+
+                    SetPerformanceQueryEditorCounterSelected( counterIndex, true /*selected*/, false /*refresh*/ );
+                }
+            }
+
+            // Update filter results.
+            UpdatePerformanceQueryActiveMetricsFilterResults();
+        }
     }
 
     /***********************************************************************************\
@@ -7372,12 +7387,8 @@ namespace Profiler
                 // Add the new metrics set to the list and select it.
                 m_pPerformanceQueryMetricsSets.push_back( pMetricsSet );
 
-                if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
-                {
-                    m_pActivePerformanceQueryMetricsSet = pMetricsSet;
-                    m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Metrics.size(), true );
-                }
-
+                // Set loaded performance metrics set as active.
+                SelectPerformanceQueryMetricsSet( pMetricsSet );
                 UpdatePerformanceQueryMetricsSetFilterResults( pMetricsSet );
 
                 m_SerializationSucceeded = true;

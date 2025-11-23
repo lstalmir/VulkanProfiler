@@ -287,6 +287,8 @@ namespace Profiler
         bool m_PerformanceQueryMetricsFilterRegexMode;
         bool m_PerformanceQueryMetricsSetPropertiesExpanded;
 
+        void SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& );
+
         bool CompilePerformanceQueryMetricsFilterRegex();
         void UpdatePerformanceQueryEditorMetricsFilterResults();
         void UpdatePerformanceQueryActiveMetricsFilterResults();
