@@ -7241,6 +7241,8 @@ namespace Profiler
                     // Don't ask for overwrite when selecting file to load.
                     m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.flags ^=
                         ImGuiFileDialogFlags_ConfirmOverwrite;
+
+                    m_pPerformanceQueryMetricsSetExporter->m_FileDialogConfig.countSelectionMax = 0;
                 }
 
                 if( m_pPerformanceQueryMetricsSetExporter->m_Action == PerformanceQueryMetricsSetExporter::Action::eExport )
@@ -7265,15 +7267,24 @@ namespace Profiler
                     switch( m_pPerformanceQueryMetricsSetExporter->m_Action )
                     {
                     case PerformanceQueryMetricsSetExporter::Action::eExport:
+                    {
                         SavePerformanceQueryMetricsSetToFile(
                             m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetFilePathName(),
                             m_pPerformanceQueryMetricsSetExporter->m_pMetricsSet );
                         break;
+                    }
 
                     case PerformanceQueryMetricsSetExporter::Action::eImport:
-                        LoadPerformanceQueryMetricsSetFromFile(
-                            m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetFilePathName() );
+                    {
+                        std::map<std::string, std::string> selectedFiles =
+                            m_pPerformanceQueryMetricsSetExporter->m_FileDialog.GetSelection();
+
+                        for( const auto& [_, filePath] : selectedFiles )
+                        {
+                            LoadPerformanceQueryMetricsSetFromFile( filePath );
+                        }
                         break;
+                    }
                     }
                 }
 
