@@ -477,6 +477,10 @@ namespace Profiler
                 m_PerformanceQueryEditorCounterAvailabilityKnown.resize( m_PerformanceQueryEditorCounterProperties.size() );
                 Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
 
+                m_PerformanceQueryMetricsSetPropertiesExpanded = true;
+                m_PerformanceQueryEditorSetName = "Custom";
+                m_PerformanceQueryEditorSetDescription = "Custom performance metrics set.";
+
                 UpdatePerformanceQueryEditorMetricsFilterResults();
             }
         }
@@ -682,6 +686,7 @@ namespace Profiler
         m_PerformanceQueryMetricsFilterRegex = std::regex();
         m_PerformanceQueryMetricsFilterRegexValid = false;
         m_PerformanceQueryMetricsFilterRegexMode = false;
+        m_PerformanceQueryMetricsSetPropertiesExpanded = false;
 
         m_PerformanceQueryCommandBufferFilter = VkCommandBufferHandle();
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -689,7 +694,6 @@ namespace Profiler
         m_pPerformanceQueryExporter = nullptr;
 
         m_PerformanceQueryEditorCounterProperties.clear();
-        m_pPerformanceQueryEditorSet = nullptr;
         m_PerformanceQueryEditorCounterIndices.clear();
         m_PerformanceQueryEditorCounterVisibileIndices.clear();
         m_PerformanceQueryEditorCounterAvailability.clear();
@@ -2303,16 +2307,40 @@ namespace Profiler
             ImGui::EndCombo();
         }
 
-        // Show a combo box that allows the user to change the active metrics set.
-        ImGui::TextUnformatted( Lang::PerformanceCountersSet );
-        ImGui::SameLine( 100.f * interfaceScale );
-        ImGui::PushItemWidth( -1 );
+        // Resolve active metrics set properties.
+        bool activeMetricsSetBookmarked =
+            Contains( m_pPerformanceQueryMetricsSets, m_pActivePerformanceQueryMetricsSet );
 
-        const char* pActiveMetricsSetName = "None";
+        std::string activeMetricsSetName;
+
         if( m_pActivePerformanceQueryMetricsSet )
         {
-            pActiveMetricsSetName = m_pActivePerformanceQueryMetricsSet->m_Properties.name;
+            activeMetricsSetName = m_pActivePerformanceQueryMetricsSet->m_Properties.name;
+
+            if( activeMetricsSetName.empty() )
+            {
+                // If current metrics set is not named, use the current name from the editor.
+                activeMetricsSetName = m_PerformanceQueryEditorSetName;
+            }
+
+            if( !activeMetricsSetBookmarked )
+            {
+                activeMetricsSetName += " (Unsaved)";
+            }
         }
+
+        // Show a combo box that allows the user to change the active metrics set.
+        ImGui::TextUnformatted( Lang::PerformanceCountersSet );
+
+        int performanceQueryMetricsSetComboButtonCount = 1;
+        if( supportsCustomMetricsSets )
+        {
+            // Reserve space for bookmarking button.
+            performanceQueryMetricsSetComboButtonCount += 1;
+        }
+
+        ImGui::SameLine( 100.f * interfaceScale );
+        ImGui::PushItemWidth( CalcNextItemWidth( performanceQueryMetricsSetComboButtonCount ) );
 
         auto PerformanceMetricsSetTooltip = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
         {
@@ -2328,7 +2356,7 @@ namespace Profiler
             }
         };
 
-        if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", pActiveMetricsSetName ) )
+        if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", activeMetricsSetName.c_str() ) )
         {
             // Enumerate metrics sets.
             for( std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet : m_pPerformanceQueryMetricsSets )
@@ -2340,13 +2368,30 @@ namespace Profiler
 
                 if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
                 {
-                    // Notify the profiler.
                     if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
                     {
                         // Refresh the performance metric properties.
                         m_pActivePerformanceQueryMetricsSet = pMetricsSet;
                         m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
 
+                        m_PerformanceQueryEditorSetName = pMetricsSet->m_Properties.name;
+                        m_PerformanceQueryEditorSetDescription = pMetricsSet->m_Properties.description;
+
+                        // Update editor state.
+                        if( supportsCustomMetricsSets )
+                        {
+                            m_PerformanceQueryEditorCounterIndices.clear();
+
+                            for( const auto& metric : pMetricsSet->m_Metrics )
+                            {
+                                uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metric.uuid );
+                                assert( counterIndex != UINT32_MAX );
+
+                                SetPerformanceQueryEditorCounterSelected( counterIndex, true /*selected*/, false /*refresh*/ );
+                            }
+                        }
+
+                        // Update filter results.
                         UpdatePerformanceQueryActiveMetricsFilterResults();
                     }
                 }
@@ -2358,6 +2403,106 @@ namespace Profiler
         }
 
         PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
+
+        if( supportsCustomMetricsSets )
+        {
+            // Bookmark the current metrics set.
+            ImGui::SameLine( 0, buttonSpacing );
+
+            if( !activeMetricsSetBookmarked )
+            {
+                ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet || m_PerformanceQueryEditorSetName.empty() );
+
+                if( ImGui::ImageButton( "Add##MetricsSet", m_Resources.GetIcon( OverlayIcon::Plus ), ImVec2( buttonWidth, buttonWidth ) ) )
+                {
+                    // Recreate the current metrics set with the name and description.
+                    RefreshPerformanceQueryEditorCountersSet( false /*countersOnly*/ );
+                    UpdatePerformanceQueryMetricsSetFilterResults( m_pActivePerformanceQueryMetricsSet );
+
+                    // Save the new metrics set.
+                    m_pPerformanceQueryMetricsSets.push_back( m_pActivePerformanceQueryMetricsSet );
+                    activeMetricsSetBookmarked = true;
+                }
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Bookmark the current performance metrics set." );
+                }
+
+                ImGui::EndDisabled();
+            }
+            else
+            {
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, { 0.8f, 0.2f, 0.2f, 1.0f } );
+                ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet );
+
+                if( ImGui::ImageButton( "Remove##MetricsSet", m_Resources.GetIcon( OverlayIcon::Minus ), ImVec2( buttonWidth, buttonWidth ) ) )
+                {
+                    // Remove bookmark.
+                    Erase( m_pPerformanceQueryMetricsSets, m_pActivePerformanceQueryMetricsSet );
+                    activeMetricsSetBookmarked = false;
+
+                    // Recreate the current metrics set as an unsaved set.
+                    RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
+                }
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Remove bookmark for the current performance metrics set." );
+                }
+
+                ImGui::EndDisabled();
+                ImGui::PopStyleColor();
+            }
+        }
+
+        // Show metrics set properties.
+        ImGui::SameLine( 0, buttonSpacing );
+        ImGuiX::ImageToggleButton(
+            "Properties##MetricsSet",
+            m_PerformanceQueryMetricsSetPropertiesExpanded,
+            m_Resources.GetIcon( OverlayIcon::Info ),
+            ImVec2( buttonWidth, buttonWidth ) );
+
+        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+        {
+            ImGui::SetTooltip( "View and edit current performance metrics set properties." );
+        }
+
+        if( m_PerformanceQueryMetricsSetPropertiesExpanded )
+        {
+            bool propertiesChanged = false;
+
+            ImGui::BeginDisabled( !supportsCustomMetricsSets );
+
+            ImGui::TextUnformatted( "Name:" );
+            ImGui::SameLine( 100.f * interfaceScale );
+            ImGui::PushItemWidth( -1 );
+
+            if( ImGui::InputText( "##PerformanceQueryMetricsSetName", &m_PerformanceQueryEditorSetName ) )
+            {
+                propertiesChanged = true;
+            }
+
+            ImGui::TextUnformatted( "Description:" );
+            ImGui::SameLine( 100.f * interfaceScale );
+            ImGui::PushItemWidth( -1 );
+
+            if( ImGui::InputTextMultiline( "##PerformanceQueryMetricsSetDescription", &m_PerformanceQueryEditorSetDescription, ImVec2( 0.f, 60.f * interfaceScale ) ) )
+            {
+                propertiesChanged = true;
+            }
+
+            if( propertiesChanged && activeMetricsSetBookmarked )
+            {
+                // Apply all changes to m_pPerformanceQueryEditorSet - bookmarked sets are immutable.
+                RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
+            }
+
+            ImGui::EndDisabled();
+        }
+
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
 
         // Setup performance counters table.
         constexpr ImGuiTableFlags tableFlags =
@@ -2959,11 +3104,11 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::RefreshPerformanceQueryEditorCountersSet( bool countersOnly )
     {
+        m_pActivePerformanceQueryMetricsSet = nullptr;
+        m_ActivePerformanceQueryMetricsFilterResults.clear();
+
         if( m_PerformanceQueryEditorCounterIndices.empty() )
         {
-            m_pPerformanceQueryEditorSet = nullptr;
-            m_pActivePerformanceQueryMetricsSet = nullptr;
-            m_ActivePerformanceQueryMetricsFilterResults.clear();
             return;
         }
 
@@ -2981,25 +3126,26 @@ namespace Profiler
         const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
         if( metricsSetIndex != UINT32_MAX )
         {
-            m_pPerformanceQueryEditorSet = std::make_shared<PerformanceQueryMetricsSet>();
-            m_pPerformanceQueryEditorSet->m_MetricsSetIndex = metricsSetIndex;
-            m_pPerformanceQueryEditorSet->m_Metrics.resize( createInfo.metricsCount );
+            std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = std::make_shared<PerformanceQueryMetricsSet>();
+            pMetricsSet->m_MetricsSetIndex = metricsSetIndex;
+            pMetricsSet->m_Metrics.resize( createInfo.metricsCount );
 
             m_Frontend.GetPerformanceMetricsSetProperties(
                 metricsSetIndex,
-                &m_pPerformanceQueryEditorSet->m_Properties );
+                &pMetricsSet->m_Properties );
 
             m_Frontend.GetPerformanceMetricsSetCounterProperties(
                 metricsSetIndex,
                 createInfo.metricsCount,
-                m_pPerformanceQueryEditorSet->m_Metrics.data() );
+                pMetricsSet->m_Metrics.data() );
 
             if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
             {
-                m_pActivePerformanceQueryMetricsSet = m_pPerformanceQueryEditorSet;
-                m_ActivePerformanceQueryMetricsFilterResults.resize( m_pPerformanceQueryEditorSet->m_Metrics.size() );
+                m_pActivePerformanceQueryMetricsSet = pMetricsSet;
+                m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Metrics.size() );
 
-                Fill( m_ActivePerformanceQueryMetricsFilterResults, true );
+                // Update the visibility of metrics in the active set.
+                UpdatePerformanceQueryActiveMetricsFilterResults();
             }
         }
     }

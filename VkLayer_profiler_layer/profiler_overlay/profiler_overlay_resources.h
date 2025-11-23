@@ -40,6 +40,9 @@ namespace Profiler
     enum class OverlayIcon
     {
         Copy,
+        Info,
+        Plus,
+        Minus,
         BookmarkEmpty,
         BookmarkFilled,
         IconCount

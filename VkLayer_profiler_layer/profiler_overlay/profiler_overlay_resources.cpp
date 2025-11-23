@@ -266,6 +266,9 @@ namespace Profiler
 
         // Create image objects
         m_Icons[OverlayIcon::Copy] = CreateImage( OverlayAssets::CopyImg );
+        m_Icons[OverlayIcon::Info] = CreateImage( OverlayAssets::InfoImg );
+        m_Icons[OverlayIcon::Plus] = CreateImage( OverlayAssets::PlusImg );
+        m_Icons[OverlayIcon::Minus] = CreateImage( OverlayAssets::MinusImg );
         m_Icons[OverlayIcon::BookmarkEmpty] = CreateImage( OverlayAssets::BookmarkEmptyImg );
         m_Icons[OverlayIcon::BookmarkFilled] = CreateImage( OverlayAssets::BookmarkFilledImg );
 
