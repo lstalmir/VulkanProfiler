@@ -411,4 +411,31 @@ namespace ImGuiX
 
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + bottom );
     }
+
+    /*************************************************************************\
+
+    Function:
+        ToggleButton
+
+    Description:
+        Button that retains its state.
+
+    \*************************************************************************/
+    bool ToggleButton( const char* label, bool& value, ImVec2 size )
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        ImGui::PushStyleColor( ImGuiCol_Button,
+            value
+                ? style.Colors[ImGuiCol_ButtonActive]
+                : style.Colors[ImGuiCol_Button] );
+
+        bool changed = ImGui::Button( label, size );
+        if( changed )
+        {
+            value = !value;
+        }
+
+        ImGui::PopStyleColor();
+        return changed;
+    }
 }

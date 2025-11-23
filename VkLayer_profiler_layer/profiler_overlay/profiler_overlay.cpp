@@ -469,18 +469,15 @@ namespace Profiler
                     m_PerformanceQueryEditorCounterProperties.data() );
 
                 m_PerformanceQueryEditorCounterIndices.clear();
-
                 m_PerformanceQueryEditorCounterVisibileIndices.resize( counterCount );
-                for( uint32_t i = 0; i < counterCount; i++ )
-                {
-                    m_PerformanceQueryEditorCounterVisibileIndices[i] = i;
-                }
 
                 m_PerformanceQueryEditorCounterAvailability.resize( m_PerformanceQueryEditorCounterProperties.size() );
                 Fill( m_PerformanceQueryEditorCounterAvailability, false );
 
                 m_PerformanceQueryEditorCounterAvailabilityKnown.resize( m_PerformanceQueryEditorCounterProperties.size() );
                 Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
+
+                UpdatePerformanceQueryEditorMetricsFilterResults();
             }
         }
 
@@ -682,6 +679,9 @@ namespace Profiler
         m_pPerformanceQueryMetricsSets.clear();
         m_ActivePerformanceQueryMetricsFilterResults.clear();
         m_PerformanceQueryMetricsFilter.clear();
+        m_PerformanceQueryMetricsFilterRegex = std::regex();
+        m_PerformanceQueryMetricsFilterRegexValid = false;
+        m_PerformanceQueryMetricsFilterRegexMode = false;
 
         m_PerformanceQueryCommandBufferFilter = VkCommandBufferHandle();
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -2135,119 +2135,6 @@ namespace Profiler
         const bool supportsCustomMetricsSets = m_Frontend.SupportsCustomPerformanceMetricsSets();
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
-        bool performanceQueryResultsFiltered = false;
-        constexpr auto regexFilterFlags =
-            std::regex::ECMAScript | std::regex::icase | std::regex::optimize;
-
-        auto UpdateEditorMetricsFilterResultsWithRegex = [&]( const std::regex& regex )
-        {
-            m_PerformanceQueryEditorCounterVisibileIndices.clear();
-
-            const size_t metricsCount = m_PerformanceQueryEditorCounterProperties.size();
-            const auto* pMetrics = m_PerformanceQueryEditorCounterProperties.data();
-
-            for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
-            {
-                if( std::regex_search( pMetrics[metricIndex].shortName, regex ) )
-                {
-                    m_PerformanceQueryEditorCounterVisibileIndices.push_back( metricIndex );
-                }
-            }
-        };
-
-        auto UpdateActiveMetricsFilterResultsWithRegex = [&]( const std::regex& regex )
-        {
-            if( m_pActivePerformanceQueryMetricsSet )
-            {
-                assert( m_ActivePerformanceQueryMetricsFilterResults.size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() );
-
-                const size_t metricsCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
-                const auto* pMetrics = m_pActivePerformanceQueryMetricsSet->m_Metrics.data();
-
-                for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
-                {
-                    m_ActivePerformanceQueryMetricsFilterResults[metricIndex] =
-                        std::regex_search( pMetrics[metricIndex].shortName, regex );
-                }
-            }
-        };
-
-        auto UpdateActiveMetricsFilterResults = [&]()
-        {
-            try
-            {
-                // Try to compile the regex filter.
-                UpdateActiveMetricsFilterResultsWithRegex(
-                    std::regex( m_PerformanceQueryMetricsFilter, regexFilterFlags ) );
-            }
-            catch( ... )
-            {
-                // Regex compilation failed, don't change the visibility of the metrics.
-            }
-        };
-
-        auto UpdateMetricsSetFilterResultsWithRegex = [&]( const std::regex& regex, const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
-        {
-            pMetricsSet->m_FilterResult = false;
-
-            // Match by metrics set name.
-            if( std::regex_search( pMetricsSet->m_Properties.name, regex ) )
-            {
-                pMetricsSet->m_FilterResult = true;
-                return;
-            }
-
-            // Match by metric name.
-            for( const auto& metric : pMetricsSet->m_Metrics )
-            {
-                if( std::regex_search( metric.shortName, regex ) )
-                {
-                    pMetricsSet->m_FilterResult = true;
-                    return;
-                }
-            }
-        };
-
-        auto UpdateMetricsSetFilterResults = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
-        {
-            try
-            {
-                // Try to compile the regex filter.
-                UpdateMetricsSetFilterResultsWithRegex(
-                    std::regex( m_PerformanceQueryMetricsFilter, regexFilterFlags ),
-                    pMetricsSet );
-            }
-            catch( ... )
-            {
-                // Regex compilation failed, don't change the visibility of the set.
-            }
-        };
-
-        auto UpdateMetricsSetsFilterResults = [&]()
-        {
-            try
-            {
-                // Try to compile the regex filter.
-                const std::regex regexFilter( m_PerformanceQueryMetricsFilter, regexFilterFlags );
-
-                // Enumerate only sets that match the query.
-                for( size_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
-                {
-                    UpdateMetricsSetFilterResultsWithRegex( regexFilter, m_pPerformanceQueryMetricsSets[metricsSetIndex] );
-                }
-
-                // Update visibility of metrics in the active metrics set.
-                UpdateActiveMetricsFilterResultsWithRegex( regexFilter );
-
-                // Update visibility of metrics in the editor.
-                UpdateEditorMetricsFilterResultsWithRegex( regexFilter );
-            }
-            catch( ... )
-            {
-                // Regex compilation failed, don't change the visibility of the sets.
-            }
-        };
-
         // Data source
         const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_PerformanceCounters.m_Results;
 
@@ -2255,6 +2142,7 @@ namespace Profiler
         // TODO: Aggregation.
         std::unordered_set<VkCommandBufferHandle> uniqueCommandBuffers;
 
+        bool performanceQueryResultsFiltered = false;
         for( const auto& submitBatch : m_pData->m_Submits )
         {
             for( const auto& submit : submitBatch.m_Submits )
@@ -2274,6 +2162,17 @@ namespace Profiler
                 }
             }
         }
+
+        // Tool button constants.
+        const float buttonSpacing = 2.f * interfaceScale;
+        const float buttonWidth = 16.f * interfaceScale;
+        const float buttonWidthWithSpacing = buttonWidth + ImGui::GetStyle().FramePadding.x * 2.f;
+
+        // Helper function that computes the width of an item when there are buttons on the same line.
+        auto CalcNextItemWidth = [interfaceScale, buttonWidthWithSpacing, buttonSpacing]( int buttonCount )
+        {
+            return ImGui::GetContentRegionAvail().x - ( buttonWidthWithSpacing + buttonSpacing ) * buttonCount;
+        };
 
         // Toolbar with save and load options.
         ImGui::BeginDisabled( m_pPerformanceQueryExporter != nullptr || !m_pActivePerformanceQueryMetricsSet || pVendorMetrics->empty() );
@@ -2323,13 +2222,56 @@ namespace Profiler
         ImGui::EndDisabled();
 
         // Show a search box for filtering metrics sets to find specific metrics.
-        ImGui::SameLine();
-        ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth( std::max( 200.f * interfaceScale, std::min( 50.f, ImGui::GetContentRegionAvail().x ) ) );
-        if( ImGui::InputText( "##PerformanceQueryMetricsFilter", &m_PerformanceQueryMetricsFilter ) )
         {
-            UpdateMetricsSetsFilterResults();
+            ImGui::SameLine();
+            ImGui::Text( "%s:", Lang::PerformanceCountersFilter );
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth( CalcNextItemWidth( 1 /*buttonCount*/ ) );
+
+            const bool performanceQueryFilterValid =
+                m_PerformanceQueryMetricsFilter.empty() ||
+                m_PerformanceQueryMetricsFilterRegexValid ||
+                !m_PerformanceQueryMetricsFilterRegexMode;
+
+            if( !performanceQueryFilterValid )
+            {
+                // Draw a red border around the filter input box to indicate invalid regex.
+                ImGui::PushStyleColor( ImGuiCol_Border, IM_COL32( 255, 0, 0, 255 ) );
+                ImGui::PushStyleVar( ImGuiStyleVar_FrameBorderSize, 1.0f );
+            }
+
+            bool filterChanged = false;
+            if( ImGui::InputText( "##PerformanceQueryMetricsFilter", &m_PerformanceQueryMetricsFilter ) )
+            {
+                filterChanged = true;
+            }
+
+            if( !performanceQueryFilterValid )
+            {
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::SameLine( 0.f, buttonSpacing );
+
+            if( ImGuiX::ToggleButton( "Re", m_PerformanceQueryMetricsFilterRegexMode, ImVec2( buttonWidthWithSpacing, 0 ) ) )
+            {
+                filterChanged = true;
+            }
+
+            if( filterChanged )
+            {
+                bool updateResults = true;
+                if( m_PerformanceQueryMetricsFilterRegexMode )
+                {
+                    updateResults = CompilePerformanceQueryMetricsFilterRegex();
+                }
+
+                if( updateResults )
+                {
+                    UpdatePerformanceQueryMetricsSetsFilterResults();
+                }
+            }
         }
 
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
@@ -2389,10 +2331,8 @@ namespace Profiler
         if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", pActiveMetricsSetName ) )
         {
             // Enumerate metrics sets.
-            for( uint32_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
+            for( std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet : m_pPerformanceQueryMetricsSets )
             {
-                std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet = m_pPerformanceQueryMetricsSets[metricsSetIndex];
-
                 if( !pMetricsSet->m_FilterResult )
                 {
                     continue;
@@ -2401,12 +2341,13 @@ namespace Profiler
                 if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
                 {
                     // Notify the profiler.
-                    if( m_Frontend.SetPreformanceMetricsSetIndex( metricsSetIndex ) == VK_SUCCESS )
+                    if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
                     {
                         // Refresh the performance metric properties.
                         m_pActivePerformanceQueryMetricsSet = pMetricsSet;
                         m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
-                        UpdateActiveMetricsFilterResults();
+
+                        UpdatePerformanceQueryActiveMetricsFilterResults();
                     }
                 }
 
@@ -2421,7 +2362,7 @@ namespace Profiler
         // Setup performance counters table.
         constexpr ImGuiTableFlags tableFlags =
             ImGuiTableFlags_NoClip |
-            ( ImGuiTableFlags_Borders & ~ImGuiTableFlags_BordersInnerV );
+            ImGuiTableFlags_BordersInnerH;
 
         auto PerformanceMetricTooltip = [&]( const VkProfilerPerformanceCounterProperties2EXT& metricProperties, bool available, bool selected )
         {
@@ -2465,246 +2406,498 @@ namespace Profiler
             }
         };
 
-        if( ImGui::BeginTable( "Performance counters table", 5, tableFlags ) )
+        // Scroll the counters only.
+        if( ImGui::BeginChild( "###PerformanceCountersTables" ) )
         {
-            // Headers
-            ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
-            ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
-            ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
-            ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
-            ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
-            ImGui::TableHeadersRow();
-
-            if( m_pActivePerformanceQueryMetricsSet &&
-                pVendorMetrics &&
-                pVendorMetrics->size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() )
+            if( ImGui::BeginTable( "Performance counters table", 5, tableFlags ) )
             {
-                for( uint32_t i = 0; i < pVendorMetrics->size(); ++i )
+                // Headers
+                ImGui::TableSetupColumn( Lang::Metric, ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoResize, 0.5f );
+                ImGui::TableSetupColumn( Lang::Ref, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+                ImGui::TableSetupColumn( Lang::Delta, ImGuiTableColumnFlags_WidthStretch, 0.15f );
+                ImGui::TableSetupColumn( Lang::Value, ImGuiTableColumnFlags_WidthStretch, 0.25f );
+                ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
+                ImGui::TableHeadersRow();
+
+                if( m_pActivePerformanceQueryMetricsSet &&
+                    pVendorMetrics &&
+                    pVendorMetrics->size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() )
                 {
-                    const VkProfilerPerformanceCounterResultEXT& metric = ( *pVendorMetrics )[i];
-                    const VkProfilerPerformanceCounterProperties2EXT& metricProperties = m_pActivePerformanceQueryMetricsSet->m_Metrics[i];
-
-                    if( !m_ActivePerformanceQueryMetricsFilterResults[i] )
+                    for( uint32_t i = 0; i < pVendorMetrics->size(); ++i )
                     {
-                        continue;
-                    }
+                        const VkProfilerPerformanceCounterResultEXT& metric = ( *pVendorMetrics )[i];
+                        const VkProfilerPerformanceCounterProperties2EXT& metricProperties = m_pActivePerformanceQueryMetricsSet->m_Metrics[i];
 
-                    ImGui::TableNextColumn();
-                    {
-                        if( supportsCustomMetricsSets )
+                        if( !m_ActivePerformanceQueryMetricsFilterResults[i] )
                         {
-                            ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
+                            continue;
+                        }
 
-                            bool selected = true;
-                            if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
+                        ImGui::TableNextColumn();
+                        {
+                            if( supportsCustomMetricsSets )
                             {
-                                const uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metricProperties.uuid );
-                                assert( counterIndex != UINT32_MAX );
+                                ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
 
-                                SetPerformanceQueryEditorCounterSelected( counterIndex, selected );
+                                bool selected = true;
+                                if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
+                                {
+                                    const uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metricProperties.uuid );
+                                    assert( counterIndex != UINT32_MAX );
+
+                                    SetPerformanceQueryEditorCounterSelected( counterIndex, selected, true /*refresh*/ );
+                                }
+
+                                ImGui::PopStyleVar();
+                            }
+                            else
+                            {
+                                ImGui::TextUnformatted( metricProperties.shortName );
                             }
 
-                            ImGui::PopStyleVar();
+                            PerformanceMetricTooltip( metricProperties, true, true );
                         }
-                        else
+
+                        float delta = 0.0f;
+                        bool deltaValid = false;
+
+                        ImGui::TableNextColumn();
                         {
-                            ImGui::TextUnformatted( metricProperties.shortName );
+                            auto it = m_ReferencePerformanceQueryData.find( metricProperties.shortName );
+                            if( it != m_ReferencePerformanceQueryData.end() )
+                            {
+                                const float columnWidth = ImGuiX::TableGetColumnWidth();
+                                switch( metricProperties.storage )
+                                {
+                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                                    ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, it->second.int32 );
+                                    delta = CalcPerformanceCounterDelta( it->second.int32, metric.int32 );
+                                    deltaValid = true;
+                                    break;
+
+                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                                    ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, it->second.int64 );
+                                    delta = CalcPerformanceCounterDelta( it->second.int64, metric.int64 );
+                                    deltaValid = true;
+                                    break;
+
+                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                                    ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, it->second.uint32 );
+                                    delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
+                                    deltaValid = true;
+                                    break;
+
+                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                                    ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, it->second.uint64 );
+                                    delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
+                                    deltaValid = true;
+                                    break;
+
+                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                                    ImGuiX::TextAlignRight( columnWidth, "%.2f", it->second.float32 );
+                                    delta = CalcPerformanceCounterDelta( it->second.float32, metric.float32 );
+                                    deltaValid = true;
+                                    break;
+
+                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                                    ImGuiX::TextAlignRight( columnWidth, "%.2lf", it->second.float64 );
+                                    delta = CalcPerformanceCounterDelta( it->second.float64, metric.float64 );
+                                    deltaValid = true;
+                                    break;
+                                }
+                            }
                         }
 
-                        PerformanceMetricTooltip( metricProperties, true, true );
-                    }
+                        ImGui::TableNextColumn();
+                        if( deltaValid )
+                        {
+                            const float columnWidth = ImGuiX::TableGetColumnWidth();
+                            ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
+                            ImGuiX::TextAlignRight( columnWidth, "%+.1f%%", delta );
+                            ImGui::PopStyleColor();
+                        }
 
-                    float delta = 0.0f;
-                    bool deltaValid = false;
-
-                    ImGui::TableNextColumn();
-                    {
-                        auto it = m_ReferencePerformanceQueryData.find( metricProperties.shortName );
-                        if( it != m_ReferencePerformanceQueryData.end() )
+                        ImGui::TableNextColumn();
                         {
                             const float columnWidth = ImGuiX::TableGetColumnWidth();
                             switch( metricProperties.storage )
                             {
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, it->second.int32 );
-                                delta = CalcPerformanceCounterDelta( it->second.int32, metric.int32 );
-                                deltaValid = true;
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, metric.int32 );
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, it->second.int64 );
-                                delta = CalcPerformanceCounterDelta( it->second.int64, metric.int64 );
-                                deltaValid = true;
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, metric.int64 );
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, it->second.uint32 );
-                                delta = CalcPerformanceCounterDelta( it->second.uint32, metric.uint32 );
-                                deltaValid = true;
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, metric.uint32 );
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, it->second.uint64 );
-                                delta = CalcPerformanceCounterDelta( it->second.uint64, metric.uint64 );
-                                deltaValid = true;
+                                ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, metric.uint64 );
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%.2f", it->second.float32 );
-                                delta = CalcPerformanceCounterDelta( it->second.float32, metric.float32 );
-                                deltaValid = true;
+                                ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
                                 break;
 
                             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                                ImGuiX::TextAlignRight( columnWidth, "%.2lf", it->second.float64 );
-                                delta = CalcPerformanceCounterDelta( it->second.float64, metric.float64 );
-                                deltaValid = true;
+                                ImGuiX::TextAlignRight( columnWidth, "%.2lf", metric.float64 );
                                 break;
                             }
                         }
-                    }
-
-                    ImGui::TableNextColumn();
-                    if( deltaValid )
-                    {
-                        const float columnWidth = ImGuiX::TableGetColumnWidth();
-                        ImGui::PushStyleColor( ImGuiCol_Text, GetPerformanceCounterDeltaColor( delta ) );
-                        ImGuiX::TextAlignRight( columnWidth, "%+.1f%%", delta );
-                        ImGui::PopStyleColor();
-                    }
-
-                    ImGui::TableNextColumn();
-                    {
-                        const float columnWidth = ImGuiX::TableGetColumnWidth();
-                        switch( metricProperties.storage )
-                        {
-                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi32, metric.int32 );
-                            break;
-
-                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIi64, metric.int64 );
-                            break;
-
-                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu32, metric.uint32 );
-                            break;
-
-                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%" PRIu64, metric.uint64 );
-                            break;
-
-                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%.2f", metric.float32 );
-                            break;
-
-                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                            ImGuiX::TextAlignRight( columnWidth, "%.2lf", metric.float64 );
-                            break;
-                        }
-                    }
-
-                    ImGui::TableNextColumn();
-                    {
-                        const char* pUnitString = "???";
-
-                        static const char* const ppUnitString[11] = {
-                            "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
-                            "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
-                            "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
-                            "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
-                            "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
-                            "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
-                            "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
-                            "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
-                            "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
-                            "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
-                            "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
-                        };
-
-                        if( ( metricProperties.unit >= 0 ) && ( metricProperties.unit < 11 ) )
-                        {
-                            pUnitString = ppUnitString[metricProperties.unit];
-                        }
-
-                        ImGui::TextUnformatted( pUnitString );
-                    }
-                }
-            }
-
-            ImGui::EndTable();
-        }
-
-        // Provide controls to manage custom performance counters sets.
-        if( supportsCustomMetricsSets )
-        {
-            if( ImGui::BeginTable( "##Performance counters editor table", 1, tableFlags ) )
-            {
-                ImGuiListClipper clipper;
-                clipper.Begin( static_cast<int>( m_PerformanceQueryEditorCounterVisibileIndices.size() ) );
-
-                std::vector<uint32_t> unknownCountersAvailability;
-
-                while( clipper.Step() )
-                {
-                    for( uint32_t i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i )
-                    {
-                        const uint32_t counterIndex = m_PerformanceQueryEditorCounterVisibileIndices[i];
-                        const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
-
-                        bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
-                        bool selected = Contains( m_PerformanceQueryEditorCounterIndices, counterIndex );
-
-                        if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
-                            ( unknownCountersAvailability.size() < 10 ) )
-                        {
-                            unknownCountersAvailability.push_back( counterIndex );
-                        }
 
                         ImGui::TableNextColumn();
-                        ImGui::BeginDisabled( !available );
-                        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
-
-                        if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
                         {
-                            SetPerformanceQueryEditorCounterSelected( counterIndex, selected );
+                            const char* pUnitString = "???";
+
+                            static const char* const ppUnitString[11] = {
+                                "" /* VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR */,
+                                "%" /* VK_PERFORMANCE_COUNTER_UNIT_PERCENTAGE_KHR */,
+                                "ns" /* VK_PERFORMANCE_COUNTER_UNIT_NANOSECONDS_KHR */,
+                                "B" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_KHR */,
+                                "B/s" /* VK_PERFORMANCE_COUNTER_UNIT_BYTES_PER_SECOND_KHR */,
+                                "K" /* VK_PERFORMANCE_COUNTER_UNIT_KELVIN_KHR */,
+                                "W" /* VK_PERFORMANCE_COUNTER_UNIT_WATTS_KHR */,
+                                "V" /* VK_PERFORMANCE_COUNTER_UNIT_VOLTS_KHR */,
+                                "A" /* VK_PERFORMANCE_COUNTER_UNIT_AMPS_KHR */,
+                                "Hz" /* VK_PERFORMANCE_COUNTER_UNIT_HERTZ_KHR */,
+                                "clk" /* VK_PERFORMANCE_COUNTER_UNIT_CYCLES_KHR */
+                            };
+
+                            if( ( metricProperties.unit >= 0 ) && ( metricProperties.unit < 11 ) )
+                            {
+                                pUnitString = ppUnitString[metricProperties.unit];
+                            }
+
+                            ImGui::TextUnformatted( pUnitString );
                         }
-
-                        ImGui::PopStyleVar();
-                        ImGui::EndDisabled();
-
-                        PerformanceMetricTooltip( metricProperties, available, selected );
-                    }
-                }
-
-                if( !unknownCountersAvailability.empty() )
-                {
-                    for( uint32_t counterIndex : unknownCountersAvailability )
-                    {
-                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = false;
-                        m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
-                    }
-
-                    uint32_t unknownCounterCount = static_cast<uint32_t>( unknownCountersAvailability.size() );
-
-                    m_Frontend.GetAvailablePerformanceCounters(
-                        static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() ),
-                        m_PerformanceQueryEditorCounterIndices.data(),
-                        unknownCounterCount,
-                        unknownCountersAvailability.data() );
-
-                    // The function returns number of available counters.
-                    unknownCountersAvailability.resize( unknownCounterCount );
-
-                    for( uint32_t counterIndex : unknownCountersAvailability )
-                    {
-                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
                     }
                 }
 
                 ImGui::EndTable();
             }
+
+            // Provide controls to manage custom performance counters sets.
+            if( supportsCustomMetricsSets )
+            {
+                if( ImGui::BeginTable( "##Performance counters editor table", 1, tableFlags ) )
+                {
+                    ImGuiListClipper clipper;
+                    clipper.Begin( static_cast<int>( m_PerformanceQueryEditorCounterVisibileIndices.size() ) );
+
+                    std::vector<uint32_t> unknownCountersAvailability;
+
+                    while( clipper.Step() )
+                    {
+                        for( uint32_t i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i )
+                        {
+                            const uint32_t counterIndex = m_PerformanceQueryEditorCounterVisibileIndices[i];
+                            const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
+
+                            bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
+                            bool selected = Contains( m_PerformanceQueryEditorCounterIndices, counterIndex );
+
+                            if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
+                                ( unknownCountersAvailability.size() < 10 ) )
+                            {
+                                unknownCountersAvailability.push_back( counterIndex );
+                            }
+
+                            ImGui::TableNextColumn();
+                            ImGui::BeginDisabled( !available );
+                            ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
+
+                            if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
+                            {
+                                SetPerformanceQueryEditorCounterSelected( counterIndex, selected, true /*refresh*/ );
+                            }
+
+                            ImGui::PopStyleVar();
+                            ImGui::EndDisabled();
+
+                            PerformanceMetricTooltip( metricProperties, available, selected );
+                        }
+                    }
+
+                    if( !unknownCountersAvailability.empty() )
+                    {
+                        for( uint32_t counterIndex : unknownCountersAvailability )
+                        {
+                            m_PerformanceQueryEditorCounterAvailability[counterIndex] = false;
+                            m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
+                        }
+
+                        uint32_t unknownCounterCount = static_cast<uint32_t>( unknownCountersAvailability.size() );
+
+                        m_Frontend.GetAvailablePerformanceCounters(
+                            static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() ),
+                            m_PerformanceQueryEditorCounterIndices.data(),
+                            unknownCounterCount,
+                            unknownCountersAvailability.data() );
+
+                        // The function returns number of available counters.
+                        unknownCountersAvailability.resize( unknownCounterCount );
+
+                        for( uint32_t counterIndex : unknownCountersAvailability )
+                        {
+                            m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
+                        }
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
         }
+
+        ImGui::EndChild();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CompilePerformanceQueryMetricsFilterRegex
+
+    Description:
+        Pre-compile user defined filtering expression to apply it to all performance
+        query metrics sets and metrics.
+
+    \***********************************************************************************/
+    bool ProfilerOverlayOutput::CompilePerformanceQueryMetricsFilterRegex()
+    {
+        m_PerformanceQueryMetricsFilterRegexValid = false;
+
+        if( m_PerformanceQueryMetricsFilterRegexMode )
+        {
+            if( !m_PerformanceQueryMetricsFilter.empty() )
+            {
+                try
+                {
+                    // Try to compile the regex filter.
+                    m_PerformanceQueryMetricsFilterRegex = std::regex(
+                        m_PerformanceQueryMetricsFilter,
+                        std::regex::ECMAScript | std::regex::icase | std::regex::optimize );
+
+                    m_PerformanceQueryMetricsFilterRegexValid = true;
+                }
+                catch( ... )
+                {
+                    // Regex compilation failed, don't change the visibility of the sets.
+                }
+            }
+
+            // Return true if the filter is empty to force filter results update.
+            return m_PerformanceQueryMetricsFilterRegexValid || m_PerformanceQueryMetricsFilter.empty();
+        }
+
+        // Not in regex mode.
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceQueryEditorMetricsFilterResults
+
+    Description:
+        Update the visibility of available metrics in the performance query editor.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceQueryEditorMetricsFilterResults()
+    {
+        const size_t metricsCount = m_PerformanceQueryEditorCounterProperties.size();
+        const auto* pMetrics = m_PerformanceQueryEditorCounterProperties.data();
+
+        if( m_PerformanceQueryMetricsFilterRegexValid )
+        {
+            // Filter by the current regex.
+            m_PerformanceQueryEditorCounterVisibileIndices.clear();
+
+            for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
+            {
+                if( std::regex_search( pMetrics[metricIndex].shortName, m_PerformanceQueryMetricsFilterRegex ) )
+                {
+                    assert( metricIndex < UINT32_MAX );
+                    m_PerformanceQueryEditorCounterVisibileIndices.push_back(
+                        static_cast<uint32_t>( metricIndex ) );
+                }
+            }
+        }
+        else if( !m_PerformanceQueryMetricsFilterRegexMode && !m_PerformanceQueryMetricsFilter.empty() )
+        {
+            // Filter by substring search.
+            m_PerformanceQueryEditorCounterVisibileIndices.clear();
+
+            for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
+            {
+                if( ProfilerStringFunctions::Find(
+                        pMetrics[metricIndex].shortName,
+                        m_PerformanceQueryMetricsFilter.c_str(),
+                        ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX )
+                {
+                    assert( metricIndex < UINT32_MAX );
+                    m_PerformanceQueryEditorCounterVisibileIndices.push_back(
+                        static_cast<uint32_t>( metricIndex ) );
+                }
+            }
+        }
+        else if( m_PerformanceQueryMetricsFilter.empty() )
+        {
+            // No filter, show all metrics.
+            m_PerformanceQueryEditorCounterVisibileIndices.clear();
+
+            for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
+            {
+                assert( metricIndex < UINT32_MAX );
+                m_PerformanceQueryEditorCounterVisibileIndices.push_back(
+                    static_cast<uint32_t>( metricIndex ) );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceQueryActiveMetricsFilterResults
+
+    Description:
+        Update the visibility of metrics in the currently selected active metrics set.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceQueryActiveMetricsFilterResults()
+    {
+        if( m_pActivePerformanceQueryMetricsSet )
+        {
+            assert( m_ActivePerformanceQueryMetricsFilterResults.size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() );
+
+            const size_t metricsCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
+            const auto* pMetrics = m_pActivePerformanceQueryMetricsSet->m_Metrics.data();
+
+            if( m_PerformanceQueryMetricsFilterRegexValid )
+            {
+                // Filter by the current regex.
+                for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
+                {
+                    m_ActivePerformanceQueryMetricsFilterResults[metricIndex] =
+                        std::regex_search( pMetrics[metricIndex].shortName, m_PerformanceQueryMetricsFilterRegex );
+                }
+            }
+            else if( !m_PerformanceQueryMetricsFilterRegexMode && !m_PerformanceQueryMetricsFilter.empty() )
+            {
+                // Filter by substring search.
+                const std::string_view filter( m_PerformanceQueryMetricsFilter );
+
+                for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
+                {
+                    m_ActivePerformanceQueryMetricsFilterResults[metricIndex] =
+                        ProfilerStringFunctions::Find(
+                            pMetrics[metricIndex].shortName,
+                            m_PerformanceQueryMetricsFilter.c_str(),
+                            ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX;
+                }
+            }
+            else if( m_PerformanceQueryEditorFilter.empty() )
+            {
+                // No filter, show all metrics.
+                Fill( m_ActivePerformanceQueryMetricsFilterResults, true );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceQueryMetricsSetFilterResults
+
+    Description:
+        Update the filter result of a specific performance query metrics set.
+        The function checks for matches in the set name and its metrics names.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceQueryMetricsSetFilterResults( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+    {
+        if( m_PerformanceQueryMetricsFilterRegexValid )
+        {
+            // Filter by the current regex.
+            pMetricsSet->m_FilterResult = false;
+
+            // Match by metrics set name.
+            if( std::regex_search( pMetricsSet->m_Properties.name, m_PerformanceQueryMetricsFilterRegex ) )
+            {
+                pMetricsSet->m_FilterResult = true;
+                return;
+            }
+
+            // Match by metric name.
+            for( const auto& metric : pMetricsSet->m_Metrics )
+            {
+                if( std::regex_search( metric.shortName, m_PerformanceQueryMetricsFilterRegex ) )
+                {
+                    pMetricsSet->m_FilterResult = true;
+                    return;
+                }
+            }
+        }
+        else if( !m_PerformanceQueryMetricsFilterRegexMode && !m_PerformanceQueryMetricsFilter.empty() )
+        {
+            // Filter by substring search.
+            pMetricsSet->m_FilterResult = false;
+
+            // Match by metrics set name.
+            if( ProfilerStringFunctions::Find(
+                    pMetricsSet->m_Properties.name,
+                    m_PerformanceQueryMetricsFilter.c_str(),
+                    ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX )
+            {
+                pMetricsSet->m_FilterResult = true;
+                return;
+            }
+
+            // Match by metric name.
+            for( const auto& metric : pMetricsSet->m_Metrics )
+            {
+                if( ProfilerStringFunctions::Find(
+                        metric.shortName,
+                        m_PerformanceQueryMetricsFilter.c_str(),
+                        ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX )
+                {
+                    pMetricsSet->m_FilterResult = true;
+                    return;
+                }
+            }
+        }
+        else if( m_PerformanceQueryMetricsFilter.empty() )
+        {
+            // No filter, show all sets.
+            pMetricsSet->m_FilterResult = true;
+            return;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        UpdatePerformanceQueryMetricsSetsFilterResults
+
+    Description:
+        Update the filter results for all performance query metrics sets and the
+        metrics in the currently selected active set and performance query editor.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::UpdatePerformanceQueryMetricsSetsFilterResults()
+    {
+        // Enumerate only sets that match the query.
+        for( size_t metricsSetIndex = 0; metricsSetIndex < m_pPerformanceQueryMetricsSets.size(); ++metricsSetIndex )
+        {
+            UpdatePerformanceQueryMetricsSetFilterResults( m_pPerformanceQueryMetricsSets[metricsSetIndex] );
+        }
+
+        // Update visibility of metrics in the active metrics set.
+        UpdatePerformanceQueryActiveMetricsFilterResults();
+
+        // Update visibility of metrics in the editor.
+        UpdatePerformanceQueryEditorMetricsFilterResults();
     }
 
     /***********************************************************************************\
@@ -2736,7 +2929,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected )
+    void ProfilerOverlayOutput::SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected, bool refresh )
     {
         if( counterIndex >= m_PerformanceQueryEditorCounterProperties.size() )
         {
@@ -2754,7 +2947,10 @@ namespace Profiler
 
         Fill( m_PerformanceQueryEditorCounterAvailabilityKnown, false );
 
-        RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
+        if( refresh )
+        {
+            RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
+        }
     }
 
     /***********************************************************************************\
@@ -2777,10 +2973,14 @@ namespace Profiler
 
         VkProfilerCustomPerformanceMetricsSetCreateInfoEXT createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT;
-        createInfo.pName = !countersOnly ? m_PerformanceQueryEditorSetName.c_str() : "Dynamic";
-        createInfo.pDescription = !countersOnly ? m_PerformanceQueryEditorSetDescription.c_str() : "Metrics set created from the selected counters.";
         createInfo.metricsCount = static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() );
         createInfo.pMetricsIndices = m_PerformanceQueryEditorCounterIndices.data();
+
+        if( !countersOnly )
+        {
+            createInfo.pName = m_PerformanceQueryEditorSetName.c_str();
+            createInfo.pDescription = m_PerformanceQueryEditorSetDescription.c_str();
+        }
 
         const uint32_t metricsSetIndex = m_Frontend.CreateCustomPerformanceMetricsSet( &createInfo );
         if( metricsSetIndex != UINT32_MAX )

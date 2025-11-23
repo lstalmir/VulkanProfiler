@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -680,6 +680,80 @@ namespace Profiler
 
         static constexpr char m_scHexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert( sizeof( m_scHexDigits ) == 16 );
+
+        enum class CaseSensitivity
+        {
+            CaseSensitive,
+            CaseInsensitive
+        };
+
+        template<CaseSensitivity caseSensitivity, typename CharT>
+        static bool CharEquals( CharT ch1, CharT ch2 )
+        {
+            if constexpr( caseSensitivity == CaseSensitivity::CaseSensitive )
+            {
+                return ch1 == ch2;
+            }
+            else if constexpr( caseSensitivity == CaseSensitivity::CaseInsensitive )
+            {
+                return std::tolower( static_cast<int>( ch1 ) ) == std::tolower( static_cast<int>( ch2 ) );
+            }
+            else
+            {
+                static_assert( false, "Invalid CaseSensitivity value" );
+            }
+        }
+
+        template<typename CharT>
+        static size_t Find( const CharT* pStr, const CharT* pSubstr, CaseSensitivity caseSensitivity = CaseSensitivity::CaseSensitive )
+        {
+            if( *pSubstr == 0 )
+            {
+                // Empty substring matches at the start
+                return 0;
+            }
+
+            const CharT* pStrCur = pStr;
+            while( *pStrCur )
+            {
+                if( CharEquals<CaseSensitivity::CaseInsensitive>( *pStrCur, *pSubstr ) )
+                {
+                    // Potential match
+                    const CharT* pStrMatch = pStrCur;
+                    const CharT* pSubstrMatch = pSubstr;
+
+                    switch( caseSensitivity )
+                    {
+                    default:
+                    case CaseSensitivity::CaseSensitive:
+                        while( *pStrMatch && *pSubstrMatch && CharEquals<CaseSensitivity::CaseSensitive>( *pStrMatch, *pSubstrMatch ) )
+                        {
+                            pStrMatch++;
+                            pSubstrMatch++;
+                        }
+                        break;
+
+                    case CaseSensitivity::CaseInsensitive:
+                        while( *pStrMatch && *pSubstrMatch && CharEquals<CaseSensitivity::CaseInsensitive>( *pStrMatch, *pSubstrMatch ) )
+                        {
+                            pStrMatch++;
+                            pSubstrMatch++;
+                        }
+                        break;
+                    }
+
+                    if( *pSubstrMatch == 0 )
+                    {
+                        // Full match
+                        return static_cast<size_t>( pStrCur - pStr );
+                    }
+                }
+
+                pStrCur++;
+            }
+
+            return SIZE_MAX;
+        }
     };
     
     /***********************************************************************************\
