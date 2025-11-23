@@ -2731,10 +2731,9 @@ namespace Profiler
 
             for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
             {
-                if( ProfilerStringFunctions::Find(
+                if( ProfilerStringFunctions::Find<ProfilerStringFunctions::CaseSensitivity::CaseInsensitive>(
                         pMetrics[metricIndex].shortName,
-                        m_PerformanceQueryMetricsFilter.c_str(),
-                        ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX )
+                        m_PerformanceQueryMetricsFilter.c_str() ) != SIZE_MAX )
                 {
                     assert( metricIndex < UINT32_MAX );
                     m_PerformanceQueryEditorCounterVisibileIndices.push_back(
@@ -2791,10 +2790,9 @@ namespace Profiler
                 for( size_t metricIndex = 0; metricIndex < metricsCount; ++metricIndex )
                 {
                     m_ActivePerformanceQueryMetricsFilterResults[metricIndex] =
-                        ProfilerStringFunctions::Find(
+                        ProfilerStringFunctions::Find<ProfilerStringFunctions::CaseSensitivity::CaseInsensitive>(
                             pMetrics[metricIndex].shortName,
-                            m_PerformanceQueryMetricsFilter.c_str(),
-                            ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX;
+                            m_PerformanceQueryMetricsFilter.c_str() ) != SIZE_MAX;
                 }
             }
             else if( m_PerformanceQueryEditorFilter.empty() )
@@ -2845,10 +2843,9 @@ namespace Profiler
             pMetricsSet->m_FilterResult = false;
 
             // Match by metrics set name.
-            if( ProfilerStringFunctions::Find(
+            if( ProfilerStringFunctions::Find<ProfilerStringFunctions::CaseSensitivity::CaseInsensitive>(
                     pMetricsSet->m_Properties.name,
-                    m_PerformanceQueryMetricsFilter.c_str(),
-                    ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX )
+                    m_PerformanceQueryMetricsFilter.c_str() ) != SIZE_MAX )
             {
                 pMetricsSet->m_FilterResult = true;
                 return;
@@ -2857,10 +2854,9 @@ namespace Profiler
             // Match by metric name.
             for( const auto& metric : pMetricsSet->m_Metrics )
             {
-                if( ProfilerStringFunctions::Find(
+                if( ProfilerStringFunctions::Find<ProfilerStringFunctions::CaseSensitivity::CaseInsensitive>(
                         metric.shortName,
-                        m_PerformanceQueryMetricsFilter.c_str(),
-                        ProfilerStringFunctions::CaseSensitivity::CaseInsensitive ) != SIZE_MAX )
+                        m_PerformanceQueryMetricsFilter.c_str() ) != SIZE_MAX )
                 {
                     pMetricsSet->m_FilterResult = true;
                     return;

@@ -690,6 +690,10 @@ namespace Profiler
         template<CaseSensitivity caseSensitivity, typename CharT>
         static bool CharEquals( CharT ch1, CharT ch2 )
         {
+            static_assert(
+                caseSensitivity == CaseSensitivity::CaseSensitive || caseSensitivity == CaseSensitivity::CaseInsensitive,
+                "Invalid CaseSensitivity value" );
+
             if constexpr( caseSensitivity == CaseSensitivity::CaseSensitive )
             {
                 return ch1 == ch2;
@@ -700,12 +704,12 @@ namespace Profiler
             }
             else
             {
-                static_assert( false, "Invalid CaseSensitivity value" );
+                return false;
             }
         }
 
-        template<typename CharT>
-        static size_t Find( const CharT* pStr, const CharT* pSubstr, CaseSensitivity caseSensitivity = CaseSensitivity::CaseSensitive )
+        template<CaseSensitivity caseSensitivity, typename CharT>
+        static size_t Find( const CharT* pStr, const CharT* pSubstr )
         {
             if( *pSubstr == 0 )
             {
@@ -716,30 +720,17 @@ namespace Profiler
             const CharT* pStrCur = pStr;
             while( *pStrCur )
             {
-                if( CharEquals<CaseSensitivity::CaseInsensitive>( *pStrCur, *pSubstr ) )
+                if( CharEquals<caseSensitivity>( *pStrCur, *pSubstr ) )
                 {
                     // Potential match
                     const CharT* pStrMatch = pStrCur;
                     const CharT* pSubstrMatch = pSubstr;
-
-                    switch( caseSensitivity )
+                    while( *pStrMatch &&
+                           *pSubstrMatch &&
+                           CharEquals<caseSensitivity>( *pStrMatch, *pSubstrMatch ) )
                     {
-                    default:
-                    case CaseSensitivity::CaseSensitive:
-                        while( *pStrMatch && *pSubstrMatch && CharEquals<CaseSensitivity::CaseSensitive>( *pStrMatch, *pSubstrMatch ) )
-                        {
-                            pStrMatch++;
-                            pSubstrMatch++;
-                        }
-                        break;
-
-                    case CaseSensitivity::CaseInsensitive:
-                        while( *pStrMatch && *pSubstrMatch && CharEquals<CaseSensitivity::CaseInsensitive>( *pStrMatch, *pSubstrMatch ) )
-                        {
-                            pStrMatch++;
-                            pSubstrMatch++;
-                        }
-                        break;
+                        pStrMatch++;
+                        pSubstrMatch++;
                     }
 
                     if( *pSubstrMatch == 0 )
@@ -753,6 +744,26 @@ namespace Profiler
             }
 
             return SIZE_MAX;
+        }
+
+        template<typename CharT>
+        static size_t Find( const CharT* pStr, const CharT* pSubstr, CaseSensitivity caseSensitivity )
+        {
+            switch( caseSensitivity )
+            {
+            case CaseSensitivity::CaseSensitive:
+            {
+                return ProfilerStringFunctions::template Find<CaseSensitivity::CaseSensitive>( pStr, pSubstr );
+            }
+            case CaseSensitivity::CaseInsensitive:
+            {
+                return ProfilerStringFunctions::template Find<CaseSensitivity::CaseInsensitive>( pStr, pSubstr );
+            }
+            default:
+            {
+                return SIZE_MAX;
+            }
+            }
         }
     };
     
