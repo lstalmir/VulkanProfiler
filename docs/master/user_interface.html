@@ -167,12 +167,21 @@ Clicking again on a selected mark deselects it.</p>
 <section id="performance-counters">
 <h2>Performance counters<a class="headerlink" href="#performance-counters" title="Link to this heading"></a></h2>
 <p>The layer offers support for 2 performance query extensions: VK_INTEL_performance_query and VK_KHR_performance_query.</p>
-<p>If either extension is enabled in the configuration, the layer collects detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).</p>
+<p>If either extension is enabled in the configuration, the layer collects detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).
+More fine-grained metrics (at VkRenderPass/VkPipeline/drawcall level) are currently not supported.</p>
 <p>With <strong>VK_INTEL_performance_query</strong> enabled, <a class="reference external" href="https://github.com/intel/metrics-discovery">Intel Metrics-Discovery</a> library is used to calculate the metrics from the query results.
 The API groups metrics into sets, allowing only metrics from a single set to be collected at a time.
 The set can be changed to any of the available ones listed in the combo box at the top of the window.</p>
 <p><strong>VK_KHR_performance_query</strong> allows to create more customized metrics sets, but it comes with no predefined sets.
-The layer also has a limitation on the selected counters that all of them must be collectible in a single query pass.</p>
+The layer also has a limitation on the selected counters that all of them must be collectible in a single query pass.
+Custom metrics sets created with this extension can be saved to JSON files.
+Those files can be then loaded in subsequent profiling runs to speed-up performance query setup.</p>
+<p>Regardless of the selected query backend, the layer provides the following methods of filtering performance query results.</p>
+<p><strong>Range</strong> allows to select the range of displayed query results between the entire frame and single command buffers.</p>
+<p><strong>Filter</strong> limits the number of displayed counters and metrics sets only to those passing the expression.
+By default a simple case-insensitive substring matching is used, but regular expression matching can be enabled via a button next to the input field.</p>
+<p>When the filter is not empty (and is a valid regular expression if regex mode is enabled), the list of sets will contain only sets whose name matches the expression, or that contain at least one metric that matches the expression.
+The filtering will also be applied to the list of metrics, both in the selected metrics set, and in the available counters section if KHR extension is used.</p>
 <p>Similarly as in <a class="reference internal" href="#top-pipelines"><span class="std std-ref">Top pipelines</span></a> view, the reference metrics values can be saved and loaded from a file.</p>
 </section>
 <section id="memory">
@@ -184,6 +193,9 @@ The layer also has a limitation on the selected counters that all of them must b
 Below each heap there is a breakdown of allocations per memory type (memory types specify, for example, memory caching properties or host visibility of the allocations).</p>
 <p>The data can be automatically compared between frames or snapshots using the options at the top of the memory tab. When a reference frame is selected, the new and freed resources will be marked with + and - symbols. The differences in heap memory usage will also be marked in the breakdowns.</p>
 <p>The memory tab also lists all resources created by the application, which allows to investigate the allocations at a finer granularity. When a resource is selected, Resource Inspector will list its create information, such as size or usage. Below the overview there is a table listing all memory bindings associated with the resource.</p>
+<p>Detailed resource statistics can be also saved to a CSV (Comma-Separated Values) file for “offline” comparison.
+The file will contain up-to 4 tables, for each supported resource type: VkBuffer, VkImage, VkAccelerationStructureKHR and VkMicromapEXT.
+Depending on the resource type, each row will contain its creation info and resulting memory requirements, as well as the actual memory bindings, including selected memory type, heap, binding offset and size.</p>
 <p class="rubric">Sparse residency map</p>
 <p>Partially resident images can also be viewed in a Sparse Residency Map that presents the current residency of the image in 2D grid. The viewed subresource can be selected with the options at the top of the tool. Each binding can be hovered to display more details, such as offset, extent and device memory being bound.</p>
 <a class="reference internal image-reference" href="_images/sparse-residency-map.png"><img alt="_images/sparse-residency-map.png" class="align-center" src="_images/sparse-residency-map.png" style="width: 50%;" />
@@ -221,6 +233,7 @@ The documentation is downloaded from <a class="reference external" href="https:/
 <li><p><strong>Time unit</strong>: Sets the time unit (milliseconds, microseconds or nanoseconds).</p></li>
 <li><p><strong>Show debug labels</strong>: Shows debug labels inserted by the application in the <a class="reference internal" href="#frame-browser"><span class="std std-ref">Frame browser</span></a>.</p></li>
 <li><p><strong>Show shader capabilities</strong>: Shows shader capabilities in form of badges in the <a class="reference internal" href="#frame-browser"><span class="std std-ref">Frame browser</span></a> and <a class="reference internal" href="#top-pipelines"><span class="std std-ref">Top pipelines</span></a>.</p></li>
+<li><p><strong>Show entry points</strong>: Shows shader entry points in the default pipeline names.</p></li>
 </ol>
 </section>
 </section>
