@@ -35,13 +35,9 @@
 #include "profiler_counters_linux.inl"
 #endif
 
-// Enable time in profiler counters in non-release builds
+// Disable time-in-profiler instrumentation unless requested in the configuration
 #ifndef PROFILER_ENABLE_TIP
-#if defined( PROFILER_CONFIG_DEBUG ) || defined( PROFILER_CONFIG_RELWITHDEBINFO )
-#define PROFILER_ENABLE_TIP 1
-#else
 #define PROFILER_ENABLE_TIP 0
-#endif
 #endif // PROFILER_ENABLE_TIP
 
 namespace Profiler

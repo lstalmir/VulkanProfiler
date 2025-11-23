@@ -16,14 +16,14 @@ This section describes in detail all available configuration options exposed by 
         overlay
             An overlay is displayed in the application's window. It intercepts incoming input events to allow the user to interact with it and browse through the profiling data. The overlay displays live performance data, which can be paused and resumed at any time. It also provides useful widgets showing post-processed data, such as command queue utilization graphs, top pipelines list, drawcall statistics, shader code disassembly, and more.
 
-        trace_file
+        trace
             The profiling data is written directly to a trace file in the JSON format. It is useful when profiling applications that don't present the rendered image in a window, such as command line applications and compute-only workloads. The data is limited to timestamp query results only.
 
 .. confval:: output_trace_file
     :type: path
     :default: empty
 
-    When :confval:`output` is set to **trace_file**, this option allows to override the default file name and location of the output trace file.
+    When :confval:`output` is set to **trace**, this option allows to override the default file name and location of the output trace file.
 
 .. confval:: enable_memory_profiling
     :type: bool
@@ -139,7 +139,7 @@ This section describes in detail all available configuration options exposed by 
     :type: int
     :default: 1
 
-    The number of frames to profile. When :confval:`output` is set to **overlay**, this option controls how many frames of profiling data are displayed in the overlay. When :confval:`output` is set to **trace_file**, this option controls how many frames of profiling data are written to the trace file.
+    The number of frames to profile. When :confval:`output` is set to **overlay**, this option controls how many frames of profiling data are displayed in the overlay. When :confval:`output` is set to **trace**, this option controls how many frames of profiling data are written to the trace file.
 
     When this option is set to 0, the layer will profile all frames until the profiling session is stopped manually.
 

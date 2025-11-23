@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_overlay_types.h"
 #include "profiler_overlay_layer_backend.h"
 #include "profiler_overlay_layer_backend_xkb.h"
 #include <imgui.h>
@@ -61,6 +62,8 @@ namespace Profiler
         Atom m_TextAtom;
         Atom m_StringAtom;
         Atom m_Utf8StringAtom;
+
+        bool GetRootCoordinates( Window root, Int2& out ) const;
 
         void UpdateMousePos();
         void SetClipboardText( const char* pText );

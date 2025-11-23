@@ -90,11 +90,11 @@ configure_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in"
     "${json}_configured"
     @ONLY)
-    
+
 file (GENERATE
     OUTPUT "${json}"
     INPUT "${json}_configured")
-    
+
 add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     COMMAND "${Python3_EXECUTABLE}"
@@ -174,6 +174,11 @@ target_compile_definitions (profiler_common INTERFACE
     $<$<CONFIG:Release>:PROFILER_CONFIG_RELEASE>
     $<$<CONFIG:MinSizeRel>:PROFILER_CONFIG_MINSIZEREL>)
 add_dependencies (profiler_common profiler_codegen)
+
+if (PROFILER_ENABLE_TIP)
+    target_compile_definitions (profiler_common INTERFACE
+        PROFILER_ENABLE_TIP=1)
+endif ()
 
 if (BUILD_SPIRV_DOCS)
     target_compile_definitions (profiler_common INTERFACE
@@ -319,6 +324,11 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.cpp"
     "VkLayer_profiler_layer.def"
     ${resource})
+
+if (UNIX AND NOT APPLE)
+    target_link_options(${PROFILER_LAYER_PROJECTNAME}
+        PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer.map)
+endif ()
 
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib

@@ -167,6 +167,7 @@ namespace Profiler
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
         bool m_ShowActiveFrame;
+        bool m_ShowEntryPoints;
 
         bool GetShowActiveFrame() const;
         const FrameDataList& GetActiveFramesList() const;
@@ -210,7 +211,7 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
 
         // Queue utilization state.
-        std::unordered_set<VkSemaphore> m_SelectedSemaphores;
+        std::unordered_set<VkSemaphoreHandle> m_SelectedSemaphores;
 
         // Cached inspector tab state.
         DeviceProfilerPipeline m_InspectorPipeline;
@@ -248,21 +249,24 @@ namespace Profiler
         VkFlags m_ResourceBrowserMicromapTypeFilter;
         bool m_ResourceBrowserShowDifferences;
 
-        VkObjectHandle<VkBuffer> m_ResourceInspectorBuffer;
+        VkBufferHandle m_ResourceInspectorBuffer;
         DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
 
-        VkObjectHandle<VkImage> m_ResourceInspectorImage;
+        VkImageHandle m_ResourceInspectorImage;
         DeviceProfilerImageMemoryData m_ResourceInspectorImageData;
         VkImageSubresource m_ResourceInspectorImageMapSubresource;
         float m_ResourceInspectorImageMapBlockSize;
 
-        VkObjectHandle<VkAccelerationStructureKHR> m_ResourceInspectorAccelerationStructure;
+        VkAccelerationStructureKHRHandle m_ResourceInspectorAccelerationStructure;
         DeviceProfilerAccelerationStructureMemoryData m_ResourceInspectorAccelerationStructureData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorAccelerationStructureBufferData;
 
-        VkObjectHandle<VkMicromapEXT> m_ResourceInspectorMicromap;
+        VkMicromapEXTHandle m_ResourceInspectorMicromap;
         DeviceProfilerMicromapMemoryData m_ResourceInspectorMicromapData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorMicromapBufferData;
+
+        struct ResourceListExporter;
+        std::unique_ptr<ResourceListExporter> m_pResourceListExporter;
 
         // Performance counters.
         struct PerformanceQueryMetricsSet
@@ -279,6 +283,8 @@ namespace Profiler
         std::vector<bool> m_ActivePerformanceQueryMetricsFilterResults;
         std::string m_PerformanceQueryMetricsFilter;
         std::regex m_PerformanceQueryMetricsFilterRegex;
+        bool m_PerformanceQueryMetricsFilterRegexValid;
+        bool m_PerformanceQueryMetricsFilterRegexMode;
         bool m_PerformanceQueryMetricsSetPropertiesExpanded;
 
         bool CompilePerformanceQueryMetricsFilterRegex();
@@ -290,14 +296,13 @@ namespace Profiler
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
-        VkCommandBuffer m_PerformanceQueryCommandBufferFilter;
+        VkCommandBufferHandle m_PerformanceQueryCommandBufferFilter;
         std::string m_PerformanceQueryCommandBufferFilterName;
 
         std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceQueryData;
 
         // Performance counter sets editor.
         std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceQueryEditorCounterProperties;
-        std::shared_ptr<PerformanceQueryMetricsSet> m_pPerformanceQueryEditorSet;
         std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
         std::vector<uint32_t> m_PerformanceQueryEditorCounterVisibileIndices;
         std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
@@ -426,11 +431,15 @@ namespace Profiler
 
         // Resource inspector helpers
         void ResetResourceInspector();
-        void DrawResourceInspectorAccelerationStructureInfo( VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData&, const DeviceProfilerBufferMemoryData& );
-        void DrawResourceInspectorMicromapInfo( VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData&, const DeviceProfilerBufferMemoryData& );
-        void DrawResourceInspectorBufferInfo( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData& );
-        void DrawResourceInspectorImageInfo( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData& );
+        void DrawResourceInspectorAccelerationStructureInfo( VkAccelerationStructureKHRHandle, const DeviceProfilerAccelerationStructureMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorMicromapInfo( VkMicromapEXTHandle, const DeviceProfilerMicromapMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorBufferInfo( VkBufferHandle, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorImageInfo( VkImageHandle, const DeviceProfilerImageMemoryData& );
         void DrawResourceInspectorImageMemoryMap();
+
+        std::string GetDefaultResourceListFileName() const;
+        void UpdateResourceListExporter();
+        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkFlags, VkFlags );
 
         // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );

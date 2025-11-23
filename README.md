@@ -52,8 +52,8 @@ The layer can be configured to handle more specific use cases. The following tab
 
 | Option | Default | Description |
 | ------ | ------- | ----------- |
-| *ENUM*<br>output | overlay | Select output that will receive the profiling data.<br><ul><li><b>overlay</b> - The data will be displayed in an overlay rendered on top of the application's window. Default and recommended option for applications that present the generated image to the screen.</li><li><b>trace_file</b> - The data will be automatically serialized to a JSON file in Event Trace Format, which can be opened using an external tool, such as Perfetto. Recommended for applications rendering offscreen, or short or compute-only workloads.</li></ul> |
-| *STRING*<br>output_trace_file | empty | Path to the output trace file. Used only if <i>output</i> is set to <b>trace_file</b>. |
+| *ENUM*<br>output | overlay | Select output that will receive the profiling data.<br><ul><li><b>overlay</b> - The data will be displayed in an overlay rendered on top of the application's window. Default and recommended option for applications that present the generated image to the screen.</li><li><b>trace</b> - The data will be automatically serialized to a JSON file in Event Trace Format, which can be opened using an external tool, such as Perfetto. Recommended for applications rendering offscreen, or short or compute-only workloads.</li></ul> |
+| *STRING*<br>output_trace_file | empty | Path to the output trace file. Used only if <i>output</i> is set to <b>trace</b>. |
 | *BOOL*<br>enable_performance_query_ext | true | Available on Intel graphics cards. Enables VK_INTEL_performance_query device extension and collects more detailed metrics. |
 | *BOOL*<br>enable_pipeline_executable_properties_ext | false | Capture VkPipeline's executable properties and internal shader representations for more detailed insights into the shaders executed on the GPU. Enables VK_KHR_pipeline_executable_properties extension. |
 | *BOOL*<br>enable_render_pass_begin_end_profiling | false | Measures time of vkCmdBeginRenderPass and vkCmdEndRenderPass in per render pass sampling mode. |

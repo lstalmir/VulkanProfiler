@@ -411,4 +411,66 @@ namespace ImGuiX
 
         ImGui::SetCursorPosY( ImGui::GetCursorPosY() + bottom );
     }
+
+    /*************************************************************************\
+
+    Function:
+        ToggleButton
+
+    Description:
+        Button that retains its state.
+
+    \*************************************************************************/
+    bool ToggleButton( const char* label, bool& value, ImVec2 size )
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        ImGui::PushStyleColor( ImGuiCol_Button,
+            value
+                ? style.Colors[ImGuiCol_ButtonActive]
+                : style.Colors[ImGuiCol_Button] );
+
+        bool changed = ImGui::Button( label, size );
+        if( changed )
+        {
+            value = !value;
+        }
+
+        ImGui::PopStyleColor();
+        return changed;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ImageToggleButton
+
+    Description:
+        ImageButton that retains its state.
+
+    \*************************************************************************/
+    bool ImageToggleButton(
+        const char* str_id,
+        bool& value,
+        ImTextureID user_texture_id,
+        const ImVec2& image_size,
+        const ImVec2& uv0,
+        const ImVec2& uv1,
+        const ImVec4& bg_col,
+        const ImVec4& tint_col )
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        ImGui::PushStyleColor( ImGuiCol_Button,
+            value
+                ? style.Colors[ImGuiCol_ButtonActive]
+                : style.Colors[ImGuiCol_Button] );
+
+        bool changed = ImGui::ImageButton( str_id, user_texture_id, image_size, uv0, uv1, bg_col, tint_col );
+        if( changed )
+        {
+            value = !value;
+        }
+
+        ImGui::PopStyleColor();
+        return changed;
+    }
 }

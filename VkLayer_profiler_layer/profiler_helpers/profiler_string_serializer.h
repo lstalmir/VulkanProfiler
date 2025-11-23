@@ -43,7 +43,7 @@ namespace Profiler
         DeviceProfilerStringSerializer( DeviceProfilerFrontend& );
 
         std::string GetName( const struct DeviceProfilerDrawcall& ) const;
-        std::string GetName( const struct DeviceProfilerPipelineData& ) const;
+        std::string GetName( const struct DeviceProfilerPipelineData&, bool showEntryPoints ) const;
         std::string GetName( const struct DeviceProfilerSubpassData& ) const;
         std::string GetName( const struct DeviceProfilerRenderPassData& ) const;
         std::string GetName( const struct DeviceProfilerRenderPassBeginData&, bool dynamic ) const;
@@ -87,6 +87,7 @@ namespace Profiler
         std::string GetCompareOpName( VkCompareOp ) const;
         std::string GetLogicOpName( VkLogicOp ) const;
         std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
+        std::string GetDynamicStateName( VkDynamicState ) const;
 
         std::string GetMemoryPropertyFlagNames( VkMemoryPropertyFlags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBufferUsageFlagNames( VkBufferUsageFlags, const char* separator = DefaultFlagsSeparator ) const;

@@ -167,4 +167,34 @@ namespace ImGuiX
     void BeginPadding( float top, float right, float left );
     void BeginPadding( float all );
     void EndPadding( float bottom );
+
+    /*************************************************************************\
+
+    Function:
+        ToggleButton
+
+    Description:
+        Button that retains its state.
+
+    \*************************************************************************/
+    bool ToggleButton( const char* label, bool& value, ImVec2 size = ImVec2( 0, 0 ) );
+
+    /*************************************************************************\
+
+    Function:
+        ImageToggleButton
+
+    Description:
+        ImageButton that retains its state.
+
+    \*************************************************************************/
+    bool ImageToggleButton(
+        const char* str_id,
+        bool& value,
+        ImTextureID user_texture_id,
+        const ImVec2& image_size,
+        const ImVec2& uv0 = ImVec2( 0, 0 ),
+        const ImVec2& uv1 = ImVec2( 1, 1 ),
+        const ImVec4& bg_col = ImVec4( 0, 0, 0, 0 ),
+        const ImVec4& tint_col = ImVec4( 1, 1, 1, 1 ) );
 }

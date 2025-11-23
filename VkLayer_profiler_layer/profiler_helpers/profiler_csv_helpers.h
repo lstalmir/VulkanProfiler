@@ -50,9 +50,13 @@ namespace Profiler
         void WriteHeader( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties );
         void WriteRow( uint32_t count, const VkProfilerPerformanceCounterResultEXT* pValues );
 
+        void WriteHeader( const std::vector<std::string>& names );
+        void WriteRow( const std::vector<std::string>& values );
+
     private:
         std::ofstream m_File;
         std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Properties;
+        bool m_IsFirstHeaderRow;
     };
 
     /***********************************************************************************\
