@@ -2330,79 +2330,88 @@ namespace Profiler
         }
 
         // Show a combo box that allows the user to change the active metrics set.
+        ImGui::TextUnformatted( Lang::PerformanceCountersSet );
+
+        int performanceQueryMetricsSetComboButtonCount = 1;
+        if( supportsCustomMetricsSets )
         {
-            ImGui::TextUnformatted( Lang::PerformanceCountersSet );
-            ImGui::SameLine( 100.f * interfaceScale );
-            ImGui::PushItemWidth( CalcNextItemWidth( 2 /*buttonCount*/ ) );
+            // Reserve space for bookmarking button.
+            performanceQueryMetricsSetComboButtonCount += 1;
+        }
 
-            auto PerformanceMetricsSetTooltip = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+        ImGui::SameLine( 100.f * interfaceScale );
+        ImGui::PushItemWidth( CalcNextItemWidth( performanceQueryMetricsSetComboButtonCount ) );
+
+        auto PerformanceMetricsSetTooltip = [&]( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
+        {
+            if( ( pMetricsSet &&
+                    pMetricsSet->m_Properties.description[0] ) &&
+                ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
             {
-                if( ( pMetricsSet &&
-                        pMetricsSet->m_Properties.description[0] ) &&
-                    ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                ImGui::BeginTooltip();
+                ImGui::PushTextWrapPos( 350.f * interfaceScale );
+                ImGui::TextUnformatted( pMetricsSet->m_Properties.description );
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
+            }
+        };
+
+        if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", activeMetricsSetName.c_str() ) )
+        {
+            // Enumerate metrics sets.
+            for( std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet : m_pPerformanceQueryMetricsSets )
+            {
+                if( !pMetricsSet->m_FilterResult )
                 {
-                    ImGui::BeginTooltip();
-                    ImGui::PushTextWrapPos( 350.f * interfaceScale );
-                    ImGui::TextUnformatted( pMetricsSet->m_Properties.description );
-                    ImGui::PopTextWrapPos();
-                    ImGui::EndTooltip();
+                    continue;
                 }
-            };
 
-            if( ImGui::BeginCombo( "##PerformanceQueryMetricsSet", activeMetricsSetName.c_str() ) )
-            {
-                // Enumerate metrics sets.
-                for( std::shared_ptr<PerformanceQueryMetricsSet> pMetricsSet : m_pPerformanceQueryMetricsSets )
+                if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
                 {
-                    if( !pMetricsSet->m_FilterResult )
+                    if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
                     {
-                        continue;
-                    }
+                        // Refresh the performance metric properties.
+                        m_pActivePerformanceQueryMetricsSet = pMetricsSet;
+                        m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
 
-                    if( ImGuiX::Selectable( pMetricsSet->m_Properties.name, ( m_pActivePerformanceQueryMetricsSet == pMetricsSet ) ) )
-                    {
-                        if( m_Frontend.SetPreformanceMetricsSetIndex( pMetricsSet->m_MetricsSetIndex ) == VK_SUCCESS )
+                        m_PerformanceQueryEditorSetName = pMetricsSet->m_Properties.name;
+                        m_PerformanceQueryEditorSetDescription = pMetricsSet->m_Properties.description;
+
+                        // Update editor state.
+                        if( supportsCustomMetricsSets )
                         {
-                            // Refresh the performance metric properties.
-                            m_pActivePerformanceQueryMetricsSet = pMetricsSet;
-                            m_ActivePerformanceQueryMetricsFilterResults.resize( pMetricsSet->m_Properties.metricsCount, true );
+                            m_PerformanceQueryEditorCounterIndices.clear();
 
-                            m_PerformanceQueryEditorSetName = pMetricsSet->m_Properties.name;
-                            m_PerformanceQueryEditorSetDescription = pMetricsSet->m_Properties.description;
-
-                            // Update editor state.
-                            if( supportsCustomMetricsSets )
+                            for( const auto& metric : pMetricsSet->m_Metrics )
                             {
-                                m_PerformanceQueryEditorCounterIndices.clear();
+                                uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metric.uuid );
+                                assert( counterIndex != UINT32_MAX );
 
-                                for( const auto& metric : pMetricsSet->m_Metrics )
-                                {
-                                    uint32_t counterIndex = FindPerformanceQueryCounterIndexByUUID( metric.uuid );
-                                    assert( counterIndex != UINT32_MAX );
-
-                                    SetPerformanceQueryEditorCounterSelected( counterIndex, true /*selected*/, false /*refresh*/ );
-                                }
+                                SetPerformanceQueryEditorCounterSelected( counterIndex, true /*selected*/, false /*refresh*/ );
                             }
-
-                            // Update filter results.
-                            UpdatePerformanceQueryActiveMetricsFilterResults();
                         }
-                    }
 
-                    PerformanceMetricsSetTooltip( pMetricsSet );
+                        // Update filter results.
+                        UpdatePerformanceQueryActiveMetricsFilterResults();
+                    }
                 }
 
-                ImGui::EndCombo();
+                PerformanceMetricsSetTooltip( pMetricsSet );
             }
 
-            PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
+            ImGui::EndCombo();
+        }
 
+        PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
+
+        if( supportsCustomMetricsSets )
+        {
             // Bookmark the current metrics set.
             ImGui::SameLine( 0, buttonSpacing );
 
             if( !activeMetricsSetBookmarked )
             {
-                ImGui::BeginDisabled( !supportsCustomMetricsSets || !m_pActivePerformanceQueryMetricsSet || m_PerformanceQueryEditorSetName.empty() );
+                ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet || m_PerformanceQueryEditorSetName.empty() );
 
                 if( ImGui::ImageButton( "Add##MetricsSet", m_Resources.GetIcon( OverlayIcon::Plus ), ImVec2( buttonWidth, buttonWidth ) ) )
                 {
@@ -2415,39 +2424,51 @@ namespace Profiler
                     activeMetricsSetBookmarked = true;
                 }
 
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Bookmark the current performance metrics set." );
+                }
+
                 ImGui::EndDisabled();
             }
             else
             {
                 ImGui::PushStyleColor( ImGuiCol_ButtonHovered, { 0.8f, 0.2f, 0.2f, 1.0f } );
-                ImGui::BeginDisabled( !supportsCustomMetricsSets || !m_pActivePerformanceQueryMetricsSet );
+                ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet );
 
                 if( ImGui::ImageButton( "Remove##MetricsSet", m_Resources.GetIcon( OverlayIcon::Minus ), ImVec2( buttonWidth, buttonWidth ) ) )
                 {
                     // Remove bookmark.
                     Erase( m_pPerformanceQueryMetricsSets, m_pActivePerformanceQueryMetricsSet );
                     activeMetricsSetBookmarked = false;
+
+                    // Recreate the current metrics set as an unsaved set.
+                    RefreshPerformanceQueryEditorCountersSet( true /*countersOnly*/ );
+                }
+
+                if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+                {
+                    ImGui::SetTooltip( "Remove bookmark for the current performance metrics set." );
                 }
 
                 ImGui::EndDisabled();
                 ImGui::PopStyleColor();
             }
-
-            // Show metrics set properties.
-            ImGui::SameLine( 0, buttonSpacing );
-            ImGuiX::ImageToggleButton(
-                "Properties##MetricsSet",
-                m_PerformanceQueryMetricsSetPropertiesExpanded,
-                m_Resources.GetIcon( OverlayIcon::Info ),
-                ImVec2( buttonWidth, buttonWidth ) );
-
-            if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
-            {
-                ImGui::SetTooltip( "View and edit current performance metrics set properties." );
-            }
         }
 
-        // Provide controls to manage custom performance counters sets.
+        // Show metrics set properties.
+        ImGui::SameLine( 0, buttonSpacing );
+        ImGuiX::ImageToggleButton(
+            "Properties##MetricsSet",
+            m_PerformanceQueryMetricsSetPropertiesExpanded,
+            m_Resources.GetIcon( OverlayIcon::Info ),
+            ImVec2( buttonWidth, buttonWidth ) );
+
+        if( ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+        {
+            ImGui::SetTooltip( "View and edit current performance metrics set properties." );
+        }
+
         if( m_PerformanceQueryMetricsSetPropertiesExpanded )
         {
             bool propertiesChanged = false;
