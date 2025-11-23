@@ -95,7 +95,7 @@ namespace Profiler
             json["counters"] = m_Counters;
 
             std::ofstream file( filename );
-            file << json;
+            file << std::setw( 4 ) << json;
 
             return true;
         }
