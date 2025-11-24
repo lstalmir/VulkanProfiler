@@ -31,6 +31,8 @@
 
 #ifdef WIN32
 #include <Windows.h>
+#else
+#include <dlfcn.h>
 #endif
 
 #ifdef WIN32
@@ -39,8 +41,8 @@
 #else
 #define PROFILER_METRICS_DLL_INTEL "igdmd32.dll"
 #endif
-#else // LINUX
-#define PROFILER_METRICS_DLL_INTEL "libmd.so"
+#else
+#define PROFILER_METRICS_DLL_INTEL "libigdmd.so"
 #endif
 
 #include <nlohmann/json.hpp>
@@ -323,6 +325,8 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersINTEL::ResetMembers()
     {
+        m_MDLibraryHandle = nullptr;
+
         m_pVulkanDevice = nullptr;
 
         m_pDevice = nullptr;
@@ -337,10 +341,6 @@ namespace Profiler
 
         m_PerformanceApiInitialized = false;
         m_PerformanceApiConfiguration = VK_NULL_HANDLE;
-
-#ifdef WIN32
-        m_hMDDll = nullptr;
-#endif
     }
 
     /***********************************************************************************\
@@ -640,7 +640,6 @@ namespace Profiler
         }
     }
 
-    #ifdef WIN32
     /***********************************************************************************\
 
     Function:
@@ -657,6 +656,7 @@ namespace Profiler
     {
         std::filesystem::path igdmdPath;
 
+    #ifdef WIN32
         // Open registry key with the display adapters.
         HKEY hRegistryKey = NULL;
         if( RegOpenKeyA( HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}", &hRegistryKey ) != ERROR_SUCCESS )
@@ -741,9 +741,13 @@ namespace Profiler
 
         RegCloseKey( hRegistryKey );
 
+    #else
+        // On Linux the library is distributed with the profiler.
+        igdmdPath = ProfilerPlatformFunctions::GetLayerDir() / PROFILER_METRICS_DLL_INTEL;
+    #endif
+
         return igdmdPath;
     }
-    #endif
 
     /***********************************************************************************\
 
@@ -755,20 +759,19 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerPerformanceCountersINTEL::LoadMetricsDiscoveryLibrary()
     {
-        #ifdef WIN32
-        // Find location of igdmdX.dll
+        // Find location of metrics discovery library.
         const std::filesystem::path mdDllPath = FindMetricsDiscoveryLibrary();
 
-        if( !mdDllPath.empty() )
+        if( !mdDllPath.empty() && std::filesystem::exists( mdDllPath ) )
         {
-            // Load metrics discovery library
-            m_hMDDll = LoadLibraryA( mdDllPath.string().c_str() );
-
-            return m_hMDDll != nullptr;
-        }
+        #ifdef WIN32
+            m_MDLibraryHandle = LoadLibraryA( mdDllPath.string().c_str() );
+        #else
+            m_MDLibraryHandle = dlopen( mdDllPath.string().c_str(), RTLD_LOCAL );
         #endif
+        }
 
-        return false;
+        return m_MDLibraryHandle != nullptr;
     }
 
     /***********************************************************************************\
@@ -781,13 +784,15 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersINTEL::UnloadMetricsDiscoveryLibrary()
     {
-        #ifdef WIN32
-        if( m_hMDDll )
+        if( m_MDLibraryHandle != nullptr )
         {
-            FreeLibrary( m_hMDDll );
-            m_hMDDll = nullptr;
-        }
+        #ifdef WIN32
+            FreeLibrary( (HMODULE)m_MDLibraryHandle );
+        #else
+            dlclose( m_MDLibraryHandle );
         #endif
+            m_MDLibraryHandle = nullptr;
+        }
     }
 
     /***********************************************************************************\
@@ -806,7 +811,10 @@ namespace Profiler
 
         #ifdef WIN32
         pfnOpenMetricsDevice = reinterpret_cast<MD::OpenMetricsDevice_fn>(
-            GetProcAddress( m_hMDDll, "OpenMetricsDevice" ));
+            GetProcAddress( (HMODULE)m_MDLibraryHandle, "OpenMetricsDevice" ));
+        #else
+        pfnOpenMetricsDevice = reinterpret_cast<MD::OpenMetricsDevice_fn>(
+            dlsym( m_MDLibraryHandle, "OpenMetricsDevice" ));
         #endif
 
         if( pfnOpenMetricsDevice )
@@ -853,7 +861,7 @@ namespace Profiler
 
             #ifdef WIN32
             pfnCloseMetricsDevice = reinterpret_cast<MD::CloseMetricsDevice_fn>(
-                GetProcAddress( m_hMDDll, "OpenMetricsDevice" ));
+                GetProcAddress( (HMODULE)m_MDLibraryHandle, "OpenMetricsDevice" ));
             #endif
 
             // Close function should be available since we have successfully created device

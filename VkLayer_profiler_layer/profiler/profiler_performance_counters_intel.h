@@ -21,9 +21,7 @@
 #pragma once
 #include "profiler_performance_counters.h"
 #include <metrics_discovery_api.h>
-#ifdef WIN32
 #include <filesystem>
-#endif
 #include <vector>
 #include <string>
 #include <shared_mutex>
@@ -99,11 +97,7 @@ namespace Profiler
             std::vector<Counter> m_Counters;
         };
 
-        #ifdef WIN32
-        HMODULE m_hMDDll;
-        // Since there is no official support for Windows, we have to open the library manually
-        std::filesystem::path FindMetricsDiscoveryLibrary();
-        #endif
+        void*                                 m_MDLibraryHandle;
 
         struct VkDevice_Object*               m_pVulkanDevice;
 
@@ -120,6 +114,8 @@ namespace Profiler
 
         bool                                  m_PerformanceApiInitialized;
         VkPerformanceConfigurationINTEL       m_PerformanceApiConfiguration;
+
+        std::filesystem::path FindMetricsDiscoveryLibrary();
 
         bool LoadMetricsDiscoveryLibrary();
         void UnloadMetricsDiscoveryLibrary();

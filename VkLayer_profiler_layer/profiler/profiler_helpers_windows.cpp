@@ -92,6 +92,24 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetLayerPath
+
+    Description:
+        Returns full path to the profiler layer shared object file.
+
+    \***********************************************************************************/
+    std::filesystem::path ProfilerPlatformFunctions::GetLayerPath()
+    {
+        static std::filesystem::path layerPath;
+
+        // TODO
+
+        return layerPath;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         IsPreemptionEnabled
 
     Description:

@@ -45,3 +45,8 @@ add_subdirectory (External EXCLUDE_FROM_ALL)
 
 # Include sub-projects
 add_subdirectory (VkLayer_profiler_layer)
+
+# Install required third-party targets.
+if (PROFILER_INSTALL_EXTERNAL_TARGETS)
+    install (TARGETS ${PROFILER_INSTALL_EXTERNAL_TARGETS})
+endif ()

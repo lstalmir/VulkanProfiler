@@ -55,9 +55,36 @@ set (INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory (googletest)
 
 # intel/metrics-discovery
-add_library (metrics-discovery INTERFACE)
-target_include_directories (metrics-discovery
-    INTERFACE metrics-discovery/inc/common/instrumentation/api)
+if (WIN32)
+    # On Windows the library is distributed with the driver.
+    # No linking is performed on build and the library is located and loaded in runtime.
+    add_library (metrics-discovery INTERFACE)
+    target_include_directories (metrics-discovery
+        INTERFACE metrics-discovery/inc/common/instrumentation/api)
+else ()
+    function (build_metrics_discovery)
+        # Metrics-discovery supports only release and debug build types.
+        if (CMAKE_BUILD_TYPE)
+            string (TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
+        endif ()
+        if (CMAKE_BUILD_TYPE STREQUAL "relwithdebinfo" OR CMAKE_BUILD_TYPE STREQUAL "minsizerel")
+            set (CMAKE_BUILD_TYPE "release")
+        endif ()
+        add_subdirectory (metrics-discovery)
+    endfunction ()
+
+    # On Linux the library must be built and linked.
+    build_metrics_discovery()
+
+    add_library (metrics-discovery INTERFACE)
+    target_link_libraries (metrics-discovery
+        INTERFACE metrics_discovery)
+    target_include_directories (metrics-discovery
+        INTERFACE metrics-discovery/inc/common/instrumentation/api)
+
+    # Include the library in the installed package.
+    list (APPEND _PROFILER_INSTALL_EXTERNAL_TARGETS metrics_discovery)
+endif ()
 
 # KhronosGroup/Vulkan-Headers
 add_subdirectory (Vulkan-Headers)
@@ -153,3 +180,5 @@ target_link_libraries (implot
 add_library (stb INTERFACE)
 target_include_directories (stb
     INTERFACE stb)
+
+set (PROFILER_INSTALL_EXTERNAL_TARGETS ${_PROFILER_INSTALL_EXTERNAL_TARGETS} PARENT_SCOPE)
