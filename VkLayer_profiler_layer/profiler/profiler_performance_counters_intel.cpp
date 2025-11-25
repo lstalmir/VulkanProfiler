@@ -746,6 +746,9 @@ namespace Profiler
         igdmdPath = ProfilerPlatformFunctions::GetLayerDir() / PROFILER_METRICS_DLL_INTEL;
     #endif
 
+        // Normalize the path.
+        igdmdPath = igdmdPath.lexically_normal();
+
         return igdmdPath;
     }
 
@@ -767,7 +770,7 @@ namespace Profiler
         #ifdef WIN32
             m_MDLibraryHandle = LoadLibraryA( mdDllPath.string().c_str() );
         #else
-            m_MDLibraryHandle = dlopen( mdDllPath.string().c_str(), RTLD_LOCAL );
+            m_MDLibraryHandle = dlopen( mdDllPath.string().c_str(), RTLD_NOW | RTLD_GLOBAL );
         #endif
         }
 
