@@ -99,6 +99,50 @@ namespace Profiler
             }
         }
 
+        // Import extension functions
+        if( result == VK_SUCCESS )
+        {
+            do
+            {
+                #define LoadVulkanExtensionFunction( PROC )                         \
+                    m_pVulkanDevice->Callbacks.PROC =                               \
+                        (PFN_vk##PROC)m_pVulkanDevice->Callbacks.GetDeviceProcAddr( \
+                            m_pVulkanDevice->Handle,                                \
+                            "vk" #PROC );                                           \
+                    if( !m_pVulkanDevice->Callbacks.PROC )                          \
+                    {                                                               \
+                        assert( !"vk" #PROC " not found" );                         \
+                        result = VK_ERROR_INCOMPATIBLE_DRIVER;                      \
+                        break;                                                      \
+                    }
+
+                LoadVulkanExtensionFunction( AcquirePerformanceConfigurationINTEL );
+                LoadVulkanExtensionFunction( CmdSetPerformanceMarkerINTEL );
+                LoadVulkanExtensionFunction( CmdSetPerformanceOverrideINTEL );
+                LoadVulkanExtensionFunction( CmdSetPerformanceStreamMarkerINTEL );
+                LoadVulkanExtensionFunction( GetPerformanceParameterINTEL );
+                LoadVulkanExtensionFunction( InitializePerformanceApiINTEL );
+                LoadVulkanExtensionFunction( QueueSetPerformanceConfigurationINTEL );
+                LoadVulkanExtensionFunction( ReleasePerformanceConfigurationINTEL );
+                LoadVulkanExtensionFunction( UninitializePerformanceApiINTEL );
+
+                #undef LoadVulkanExtensionFunction
+            } while( false );
+        }
+
+        // Initialize performance API
+        if( result == VK_SUCCESS )
+        {
+            VkInitializePerformanceApiInfoINTEL initInfo = {};
+            initInfo.sType = VK_STRUCTURE_TYPE_INITIALIZE_PERFORMANCE_API_INFO_INTEL;
+
+            result = m_pVulkanDevice->Callbacks.InitializePerformanceApiINTEL(
+                m_pVulkanDevice->Handle,
+                &initInfo );
+
+            m_PerformanceApiInitialized = ( result == VK_SUCCESS );
+        }
+
         // Iterate over all concurrent groups to find OA
         if( result == VK_SUCCESS )
         {
@@ -132,6 +176,7 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             const uint32_t oaMetricSetCount = m_pConcurrentGroupParams->MetricSetsCount;
+            assert( oaMetricSetCount > 0 );
 
             uint32_t defaultMetricsSetIndex = UINT32_MAX;
 
@@ -192,87 +237,13 @@ namespace Profiler
                 m_MetricsSets.push_back( std::move( set ) );
             }
 
-            if( defaultMetricsSetIndex != UINT32_MAX )
+            // Use the first available set if RenderBasic was not found.
+            if( defaultMetricsSetIndex == UINT32_MAX )
             {
-                result = SetActiveMetricsSet( defaultMetricsSetIndex );
+                defaultMetricsSetIndex = 0;
             }
-            else
-            {
-                result = VK_ERROR_INCOMPATIBLE_DRIVER;
-            }
-        }
 
-        // Import extension functions
-        if( result == VK_SUCCESS )
-        {
-            do
-            {
-                #define LoadVulkanExtensionFunction( PROC )                         \
-                    m_pVulkanDevice->Callbacks.PROC =                               \
-                        (PFN_vk##PROC)m_pVulkanDevice->Callbacks.GetDeviceProcAddr( \
-                            m_pVulkanDevice->Handle,                                \
-                            "vk" #PROC );                                           \
-                    if( !m_pVulkanDevice->Callbacks.PROC )                          \
-                    {                                                               \
-                        assert( !"vk" #PROC " not found" );                         \
-                        result = VK_ERROR_INCOMPATIBLE_DRIVER;                      \
-                        break;                                                      \
-                    }
-
-                LoadVulkanExtensionFunction( AcquirePerformanceConfigurationINTEL );
-                LoadVulkanExtensionFunction( CmdSetPerformanceMarkerINTEL );
-                LoadVulkanExtensionFunction( CmdSetPerformanceOverrideINTEL );
-                LoadVulkanExtensionFunction( CmdSetPerformanceStreamMarkerINTEL );
-                LoadVulkanExtensionFunction( GetPerformanceParameterINTEL );
-                LoadVulkanExtensionFunction( InitializePerformanceApiINTEL );
-                LoadVulkanExtensionFunction( QueueSetPerformanceConfigurationINTEL );
-                LoadVulkanExtensionFunction( ReleasePerformanceConfigurationINTEL );
-                LoadVulkanExtensionFunction( UninitializePerformanceApiINTEL );
-
-                #undef LoadVulkanExtensionFunction
-            } while( false );
-        }
-
-        // Initialize performance API
-        if( result == VK_SUCCESS )
-        {
-            VkInitializePerformanceApiInfoINTEL initInfo = {};
-            initInfo.sType = VK_STRUCTURE_TYPE_INITIALIZE_PERFORMANCE_API_INFO_INTEL;
-
-            result = m_pVulkanDevice->Callbacks.InitializePerformanceApiINTEL(
-                m_pVulkanDevice->Handle,
-                &initInfo );
-
-            m_PerformanceApiInitialized = ( result == VK_SUCCESS );
-        }
-
-        // Acquire performance configuration
-        if( result == VK_SUCCESS )
-        {
-            VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
-            acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
-            acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
-
-            result = m_pVulkanDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
-                m_pVulkanDevice->Handle,
-                &acquireInfo,
-                &m_PerformanceApiConfiguration );
-        }
-
-        // Configure profiled queues
-        if( result == VK_SUCCESS )
-        {
-            for( auto& [queueHandle, queueObject] : m_pVulkanDevice->Queues )
-            {
-                result = m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
-                    queueHandle,
-                    m_PerformanceApiConfiguration );
-
-                if( result != VK_SUCCESS )
-                {
-                    break;
-                }
-            }
+            result = SetActiveMetricsSet( defaultMetricsSetIndex );
         }
 
         // Cleanup if any error occurred
@@ -346,6 +317,30 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetQueuePerformanceConfiguration
+
+    Description:
+        Configure queue for collection of Intel performance counters.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerPerformanceCountersINTEL::SetQueuePerformanceConfiguration( VkQueue queue )
+    {
+        std::shared_lock lk( m_ActiveMetricSetMutex );
+
+        if( m_ActiveMetricsSetIndex == UINT32_MAX )
+        {
+            // No configuration to set (not an error as the performance counters are optional).
+            return VK_SUCCESS;
+        }
+
+        return m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
+            queue,
+            m_PerformanceApiConfiguration );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetReportSize
 
     Description:
@@ -397,16 +392,10 @@ namespace Profiler
     {
         std::unique_lock lk( m_ActiveMetricSetMutex );
 
-        // Disable the current active metrics set.
-        if( m_ActiveMetricsSetIndex != UINT32_MAX )
+        // Early-out if the set is already set.
+        if( m_ActiveMetricsSetIndex == metricsSetIndex )
         {
-            if( m_MetricsSets[ m_ActiveMetricsSetIndex ].m_pMetricSet->Deactivate() != MD::CC_OK )
-            {
-                assert( false );
-                return VK_ERROR_NOT_PERMITTED_EXT;
-            }
-
-            m_ActiveMetricsSetIndex = UINT32_MAX;
+            return VK_SUCCESS;
         }
 
         // Check if the metric set is available
@@ -414,6 +403,17 @@ namespace Profiler
         {
             assert( false );
             return VK_ERROR_VALIDATION_FAILED_EXT;
+        }
+
+        // Release the current performance configuration.
+        if( m_PerformanceApiConfiguration )
+        {
+            m_pVulkanDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
+                m_pVulkanDevice->Handle,
+                m_PerformanceApiConfiguration );
+
+            m_PerformanceApiConfiguration = VK_NULL_HANDLE;
+            m_ActiveMetricsSetIndex = UINT32_MAX;
         }
 
         // Get the new metrics set object.
@@ -431,6 +431,26 @@ namespace Profiler
         {
             assert( false );
             return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        // Acquire new performance configuration for the activated metrics set.
+        VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
+        acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
+        acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
+
+        VkResult result = m_pVulkanDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
+            m_pVulkanDevice->Handle,
+            &acquireInfo,
+            &m_PerformanceApiConfiguration );
+
+        // Set can be deactivated once the performance configuration is acquired.
+        metricsSet.m_pMetricSet->Deactivate();
+
+        if( result != VK_SUCCESS )
+        {
+            m_PerformanceApiConfiguration = VK_NULL_HANDLE;
+            assert( false );
+            return result;
         }
 
         m_ActiveMetricsSetIndex = metricsSetIndex;

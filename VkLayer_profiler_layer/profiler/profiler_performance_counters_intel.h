@@ -46,6 +46,8 @@ namespace Profiler
         VkResult Initialize( struct VkDevice_Object* pDevice ) final;
         void Destroy() final;
 
+        VkResult SetQueuePerformanceConfiguration( VkQueue queue ) final;
+
         uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const final;
         uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const final;
         uint32_t GetMetricsSetCount() const final;
@@ -107,7 +109,7 @@ namespace Profiler
         MetricsDiscovery::IConcurrentGroup_1_1* m_pConcurrentGroup;
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
-        std::vector<MetricsSet> m_MetricsSets;
+        std::vector<MetricsSet>               m_MetricsSets;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
         uint32_t                              m_ActiveMetricsSetIndex;
