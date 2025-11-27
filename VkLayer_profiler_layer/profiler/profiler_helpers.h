@@ -511,7 +511,12 @@ namespace Profiler
 #if defined( _MSC_VER )
             sprintf_s( dst, fmt, args... );
 #else
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat"
+
             sprintf( dst, fmt, args... );
+
+#pragma clang diagnostic pop
 #endif
         }
         
@@ -521,8 +526,13 @@ namespace Profiler
 #if defined( _MSC_VER )
             sprintf_s( dst, dstSize, fmt, args... );
 #else
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat"
+
             (void) dstSize;
             sprintf( dst, fmt, args... );
+
+#pragma clang diagnostic pop
 #endif
         }
 
@@ -827,7 +837,7 @@ namespace Profiler
         template<typename... Args>
         inline static void WriteDebug( const char* fmt, Args... args )
         {
-            static constexpr size_t messageBufferLength = 256;
+            static constexpr size_t messageBufferLength = 4096;
 
             // Include layer prefix to filter debug output
             // Skip ' ' at the end and include string terminator instead
