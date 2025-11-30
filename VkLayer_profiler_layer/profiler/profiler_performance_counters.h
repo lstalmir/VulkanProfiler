@@ -44,6 +44,8 @@ namespace Profiler
         virtual VkResult Initialize( struct VkDevice_Object* pDevice ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
         virtual void Destroy() {}
 
+        virtual VkResult SetQueuePerformanceConfiguration( VkQueue queue ) { return VK_SUCCESS; }
+
         virtual uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const { return 0; }
         virtual uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const { return 0; }
         virtual uint32_t GetMetricsSetCount() const { return 0; }

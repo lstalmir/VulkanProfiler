@@ -802,18 +802,18 @@ namespace Profiler
 
         inline static std::filesystem::path GetApplicationDir()
         {
-            static std::filesystem::path applicationDir;
-
-            if( applicationDir.empty() )
-            {
-                // Get full application path and remove filename component
-                applicationDir = GetApplicationPath().remove_filename();
-            }
-
+            static std::filesystem::path applicationDir = GetApplicationPath().parent_path();
             return applicationDir;
         }
 
+        static std::filesystem::path GetLayerDir()
+        {
+            static std::filesystem::path layerDir = GetLayerPath().parent_path();
+            return layerDir;
+        }
+
         static std::filesystem::path GetApplicationPath();
+        static std::filesystem::path GetLayerPath();
 
         static bool IsPreemptionEnabled();
 
@@ -827,7 +827,7 @@ namespace Profiler
         template<typename... Args>
         inline static void WriteDebug( const char* fmt, Args... args )
         {
-            static constexpr size_t messageBufferLength = 256;
+            static constexpr size_t messageBufferLength = 4096;
 
             // Include layer prefix to filter debug output
             // Skip ' ' at the end and include string terminator instead

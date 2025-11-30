@@ -1338,6 +1338,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
+        // Configure the queue for performance counters collection, if needed.
+        if( m_pPerformanceCounters )
+        {
+            m_pPerformanceCounters->SetQueuePerformanceConfiguration( submitBatch.m_Handle );
+        }
     }
 
     /***********************************************************************************\
