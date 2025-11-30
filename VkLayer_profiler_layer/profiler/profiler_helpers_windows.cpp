@@ -46,46 +46,51 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetModulePath
+
+    Description:
+        Returns full path to the specified module.
+
+    \***********************************************************************************/
+    static std::filesystem::path GetModulePath( const char* pModuleName )
+    {
+        std::vector<char> buffer( 0 );
+
+        // Grab handle to the application module
+        const HMODULE hModule = GetModuleHandleA( pModuleName );
+
+        DWORD lastError = ERROR_INSUFFICIENT_BUFFER;
+        while( lastError == ERROR_INSUFFICIENT_BUFFER )
+        {
+            // Increase size of the buffer a bit
+            buffer.resize( buffer.size() + MAX_PATH );
+
+            GetModuleFileNameA( hModule, buffer.data(), static_cast<uint32_t>( buffer.size() ) );
+
+            // Update last error value
+            lastError = GetLastError();
+        }
+
+        if( lastError == ERROR_SUCCESS )
+        {
+            return std::filesystem::path( buffer.data() );
+        }
+
+        return std::filesystem::path();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetApplicationPath
 
     Description:
-        Returns directory in which current exe is located.
+        Returns full path to the profiled executable.
 
     \***********************************************************************************/
     std::filesystem::path ProfilerPlatformFunctions::GetApplicationPath()
     {
-        static std::filesystem::path applicationPath;
-
-        if( applicationPath.empty() )
-        {
-            // Grab handle to the application module
-            const HMODULE hCurrentModule = GetModuleHandleA( nullptr );
-
-            std::string buffer;
-
-            DWORD lastError = ERROR_INSUFFICIENT_BUFFER;
-            while( lastError == ERROR_INSUFFICIENT_BUFFER )
-            {
-                // Increase size of the buffer a bit
-                buffer.resize( buffer.size() + MAX_PATH );
-
-                GetModuleFileNameA( hCurrentModule, buffer.data(), static_cast<uint32_t>(buffer.size()) );
-
-                // Update last error value
-                lastError = GetLastError();
-            }
-
-            if( lastError == ERROR_SUCCESS )
-            {
-                applicationPath = buffer;
-            }
-            else
-            {
-                // Failed to get exe path
-                applicationPath = "";
-            }
-        }
-
+        static std::filesystem::path applicationPath = GetModulePath( nullptr );
         return applicationPath;
     }
 
@@ -100,10 +105,7 @@ namespace Profiler
     \***********************************************************************************/
     std::filesystem::path ProfilerPlatformFunctions::GetLayerPath()
     {
-        static std::filesystem::path layerPath;
-
-        // TODO
-
+        static std::filesystem::path layerPath = GetModulePath( VK_LAYER_profiler_file_name );
         return layerPath;
     }
 

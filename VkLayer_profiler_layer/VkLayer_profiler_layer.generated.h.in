@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,3 +24,4 @@
 #define VK_LAYER_profiler_ver       "@PROFILER_LAYER_VER_MAJOR@.@PROFILER_LAYER_VER_MINOR@.@PROFILER_LAYER_VER_BUILD@.@PROFILER_LAYER_VER_PATCH@"
 #define VK_LAYER_profiler_impl_ver   @PROFILER_LAYER_VER_IMPLEMENTATION@
 #define VK_LAYER_profiler_product_name "@PROFILER_LAYER_PRODUCTNAME@"
+#define VK_LAYER_profiler_file_name "$<TARGET_FILE_NAME:@PROFILER_LAYER_PROJECTNAME@>"
