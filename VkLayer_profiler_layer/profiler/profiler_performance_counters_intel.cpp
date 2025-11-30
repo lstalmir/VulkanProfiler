@@ -884,7 +884,10 @@ namespace Profiler
 
             #ifdef WIN32
             pfnCloseMetricsDevice = reinterpret_cast<MD::CloseMetricsDevice_fn>(
-                GetProcAddress( (HMODULE)m_MDLibraryHandle, "OpenMetricsDevice" ));
+                GetProcAddress( (HMODULE)m_MDLibraryHandle, "CloseMetricsDevice" ));
+            #else
+            pfnCloseMetricsDevice = reinterpret_cast<MD::CloseMetricsDevice_fn>(
+                dlsym( m_MDLibraryHandle, "CloseMetricsDevice" ));
             #endif
 
             // Close function should be available since we have successfully created device
