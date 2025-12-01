@@ -261,10 +261,22 @@ namespace Profiler
         }
 
         // Copy data from the performance query pool.
-        if( (m_PerformanceQueryPool != VK_NULL_HANDLE) &&
-            (m_PerformanceQueryMetricsSetIndex != UINT32_MAX) )
+        if( m_PerformanceQueryPool != VK_NULL_HANDLE )
         {
-            writer.WritePerformanceQueryResults( m_PerformanceQueryPool, m_PerformanceQueryMetricsSetIndex, m_QueueFamilyIndex );
+            assert( m_pPerformanceCounters != nullptr );
+            uint32_t performanceQueryMetricsSetIndex = m_PerformanceQueryMetricsSetIndex;
+
+            // If the performance query pools are reusable, the profiler can select a different metrics set
+            // without re-recording the command buffer. Grab the index to the current metrics set in such case.
+            if( m_pPerformanceCounters->SupportsQueryPoolReuse() )
+            {
+                performanceQueryMetricsSetIndex = m_pPerformanceCounters->GetActiveMetricsSetIndex();
+            }
+
+            if( performanceQueryMetricsSetIndex != UINT32_MAX )
+            {
+                writer.WritePerformanceQueryResults( m_PerformanceQueryPool, performanceQueryMetricsSetIndex, m_QueueFamilyIndex );
+            }
         }
     }
 
