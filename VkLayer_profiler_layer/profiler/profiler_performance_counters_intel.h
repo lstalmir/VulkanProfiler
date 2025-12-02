@@ -43,7 +43,7 @@ namespace Profiler
     public:
         DeviceProfilerPerformanceCountersINTEL();
 
-        VkResult Initialize( struct VkDevice_Object* pDevice ) final;
+        VkResult Initialize( VkDevice_Object* pDevice, const DeviceProfilerConfig& config ) final;
         void Destroy() final;
 
         VkResult SetQueuePerformanceConfiguration( VkQueue queue ) final;

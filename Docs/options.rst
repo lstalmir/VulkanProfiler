@@ -53,6 +53,12 @@ This section describes in detail all available configuration options exposed by 
             .. NOTE::
                 The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application's knowledge. Because of that, the layer does not support multi-pass performance queries.
 
+.. confval:: default_metrics_set
+    :type: string
+    :default: RenderBasic
+
+    Name of the default metrics set selected immediatelly after initialization of the performance query extension. Available only if :confval:`enable_performance_query_ext` is set to **intel**.
+
 .. confval:: enable_pipeline_executable_properties_ext
     :type: bool
     :default: false

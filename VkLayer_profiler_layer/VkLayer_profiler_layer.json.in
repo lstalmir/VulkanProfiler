@@ -139,6 +139,22 @@
                             "label": "KHR",
                             "description": "Enable VK_KHR_performance_query extension."
                         }
+                    ],
+                    "settings": [
+                        {
+                            "key": "default_metrics_set",
+                            "label": "Default metrics set",
+                            "description": "Default metrics set to select after initializing performance query extension.",
+                            "env": "VKPROF_default_metrics_set",
+                            "type": "STRING",
+                            "default": "RenderBasic",
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    { "key": "enable_performance_query_ext", "value": "intel" }
+                                ]
+                            }
+                        }
                     ]
                 },
                 {

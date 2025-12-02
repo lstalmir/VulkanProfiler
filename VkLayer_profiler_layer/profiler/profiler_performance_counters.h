@@ -26,6 +26,9 @@
 
 namespace Profiler
 {
+    struct VkDevice_Object;
+    struct DeviceProfilerConfig;
+
     /***********************************************************************************\
 
     Class:
@@ -41,7 +44,7 @@ namespace Profiler
     public:
         virtual ~DeviceProfilerPerformanceCounters() {}
 
-        virtual VkResult Initialize( struct VkDevice_Object* pDevice ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
+        virtual VkResult Initialize( VkDevice_Object* pDevice, const DeviceProfilerConfig& config ) { return VK_ERROR_FEATURE_NOT_PRESENT; }
         virtual void Destroy() {}
 
         virtual VkResult SetQueuePerformanceConfiguration( VkQueue queue ) { return VK_SUCCESS; }
