@@ -86,14 +86,23 @@ else ()
     set (THIS_DIR "./")
 endif ()
 
-configure_file (
-    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in"
-    "${json}_configured"
-    @ONLY)
+function (configure_and_generate_file IN_FILE OUT_FILE)
+    get_filename_component (IN_FILE_NAME "${IN_FILE}" NAME)
+    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${IN_FILE_NAME}.configured")
 
-file (GENERATE
-    OUTPUT "${json}"
-    INPUT "${json}_configured")
+    configure_file (
+        "${IN_FILE}"
+        "${CONFIGURED_FILE}"
+        @ONLY)
+
+    file (GENERATE
+        OUTPUT "${OUT_FILE}"
+        INPUT "${CONFIGURED_FILE}")
+endfunction ()
+
+configure_and_generate_file (
+    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in"
+    "${json}")
 
 add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
@@ -301,15 +310,13 @@ source_group ("Functions/Extensions" FILES ${extension_functions})
 source_group ("Objects" FILES ${objects})
 
 # Configure resources file
-configure_file (
+configure_and_generate_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in"
-    ${resource}
-    @ONLY)
+    ${resource})
 
-configure_file (
+configure_and_generate_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h.in"
-    ${generated}
-    @ONLY)
+    ${generated})
 
 add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
     "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
