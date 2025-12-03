@@ -50,6 +50,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#confval-output_trace_file"><code class="docutils literal notranslate"><span class="pre">output_trace_file</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_memory_profiling"><code class="docutils literal notranslate"><span class="pre">enable_memory_profiling</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_performance_query_ext"><code class="docutils literal notranslate"><span class="pre">enable_performance_query_ext</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-default_metrics_set"><code class="docutils literal notranslate"><span class="pre">default_metrics_set</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_pipeline_executable_properties_ext"><code class="docutils literal notranslate"><span class="pre">enable_pipeline_executable_properties_ext</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_render_pass_begin_end_profiling"><code class="docutils literal notranslate"><span class="pre">enable_render_pass_begin_end_profiling</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-capture_indirect_args"><code class="docutils literal notranslate"><span class="pre">capture_indirect_args</span></code></a></li>
@@ -159,6 +160,18 @@
 </div>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-default_metrics_set">
+<span class="sig-name descname"><span class="pre">default_metrics_set</span></span><a class="headerlink" href="#confval-default_metrics_set" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">string</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">RenderBasic</dd>
+</dl>
+<p>Name of the default metrics set selected immediately after initialization of the performance query extension. Available only if <a class="reference internal" href="#confval-enable_performance_query_ext"><code class="xref std std-confval docutils literal notranslate"><span class="pre">enable_performance_query_ext</span></code></a> is set to <strong>intel</strong>.</p>
 </dd></dl>
 
 <dl class="std confval">
