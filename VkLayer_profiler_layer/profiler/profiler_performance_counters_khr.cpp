@@ -57,7 +57,7 @@ namespace Profiler
         Initializes performance counters using VK_KHR_performance_query extension.
 
     \***********************************************************************************/
-    VkResult DeviceProfilerPerformanceCountersKHR::Initialize( VkDevice_Object* pDevice )
+    VkResult DeviceProfilerPerformanceCountersKHR::Initialize( VkDevice_Object* pDevice, const DeviceProfilerConfig& config )
     {
         assert( pDevice->EnabledExtensions.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) );
 

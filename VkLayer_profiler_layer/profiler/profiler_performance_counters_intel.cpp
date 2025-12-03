@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "profiler_performance_counters_intel.h"
+#include "profiler/profiler_config.h"
 #include "profiler/profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
@@ -75,7 +76,8 @@ namespace Profiler
 
     \***********************************************************************************/
     VkResult DeviceProfilerPerformanceCountersINTEL::Initialize(
-        struct VkDevice_Object* pDevice )
+        VkDevice_Object* pDevice,
+        const DeviceProfilerConfig& config )
     {
         m_pVulkanDevice = pDevice;
 
@@ -179,6 +181,7 @@ namespace Profiler
             assert( oaMetricSetCount > 0 );
 
             uint32_t defaultMetricsSetIndex = UINT32_MAX;
+            const char* pDefaultMetricsSetName = config.m_DefaultMetricsSet.c_str();
 
             for( uint32_t setIndex = 0; setIndex < oaMetricSetCount; ++setIndex )
             {
@@ -229,7 +232,7 @@ namespace Profiler
 
                 // Find default metrics set index.
                 if( (defaultMetricsSetIndex == UINT32_MAX) &&
-                    (strcmp( set.m_pMetricSetParams->SymbolName, "RenderBasic" ) == 0) )
+                    (strcmp( set.m_pMetricSetParams->SymbolName, pDefaultMetricsSetName ) == 0) )
                 {
                     defaultMetricsSetIndex = setIndex;
                 }

@@ -422,7 +422,7 @@ namespace Profiler
         {
             // Initialize performance counters.
             // Clear the pointer if the initialization fails.
-            VkResult result = m_pPerformanceCounters->Initialize( m_pDevice );
+            VkResult result = m_pPerformanceCounters->Initialize( m_pDevice, m_Config );
             if( result != VK_SUCCESS )
             {
                 m_pPerformanceCounters.reset();
