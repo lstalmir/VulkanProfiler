@@ -57,7 +57,7 @@ This section describes in detail all available configuration options exposed by 
     :type: string
     :default: RenderBasic
 
-    Name of the default metrics set selected immediatelly after initialization of the performance query extension. Available only if :confval:`enable_performance_query_ext` is set to **intel**.
+    Name of the default metrics set selected immediately after initialization of the performance query extension. Available only if :confval:`enable_performance_query_ext` is set to **intel**.
 
 .. confval:: enable_pipeline_executable_properties_ext
     :type: bool
