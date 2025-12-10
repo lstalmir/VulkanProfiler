@@ -422,7 +422,7 @@ namespace Profiler
         {
             // Initialize performance counters.
             // Clear the pointer if the initialization fails.
-            VkResult result = m_pPerformanceCounters->Initialize( m_pDevice );
+            VkResult result = m_pPerformanceCounters->Initialize( m_pDevice, m_Config );
             if( result != VK_SUCCESS )
             {
                 m_pPerformanceCounters.reset();
@@ -1338,6 +1338,11 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
     {
+        // Configure the queue for performance counters collection, if needed.
+        if( m_pPerformanceCounters )
+        {
+            m_pPerformanceCounters->SetQueuePerformanceConfiguration( submitBatch.m_Handle );
+        }
     }
 
     /***********************************************************************************\

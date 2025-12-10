@@ -23,6 +23,7 @@
 
 #include <assert.h>
 
+#include <dlfcn.h>
 #include <unistd.h>
 #include <limits.h>
 #include <sys/types.h>
@@ -35,7 +36,7 @@ namespace Profiler
         GetApplicationPath
 
     Description:
-        Returns directory in which current process is located.
+        Returns full path to the current application executable file.
 
     \***********************************************************************************/
     std::filesystem::path ProfilerPlatformFunctions::GetApplicationPath()
@@ -54,6 +55,32 @@ namespace Profiler
         }
 
         return applicationPath;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetLayerPath
+
+    Description:
+        Returns full path to the profiler layer shared object file.
+
+    \***********************************************************************************/
+    std::filesystem::path ProfilerPlatformFunctions::GetLayerPath()
+    {
+        static std::filesystem::path layerPath;
+
+        if( layerPath.empty() )
+        {
+            Dl_info info;
+
+            if( dladdr( (const void*)&ProfilerPlatformFunctions::GetLayerPath, &info ) )
+            {
+                layerPath = info.dli_fname;
+            }
+        }
+
+        return layerPath;
     }
 
     /***********************************************************************************\
