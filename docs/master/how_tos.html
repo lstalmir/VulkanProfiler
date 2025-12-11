@@ -50,6 +50,7 @@
 <li class="toctree-l1"><a class="reference internal" href="user_interface.html">User Interface</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">How-tos</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#profiling-offscreen-applications">Profiling offscreen applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#intel-performance-metrics-on-linux">Intel performance metrics on Linux</a></li>
 </ul>
 </li>
 </ul>
@@ -114,6 +115,25 @@ In offscreen applications this feature is not required and keeping it enabled ma
 <p>The last option disables the frame count limit to record the entire application profile instead of the first frame only.
 It can also be set to a different, greater than zero, value to limit the size of the collected data.</p>
 <p>With all these options set, the layer should attach into the Vulkan application and produce a file that can be then opened either in Chromium-based browsers (chrome://tracing or edge://tracing) or in e.g., <a class="reference external" href="https://ui.perfetto.dev/">ui.perfetto.dev</a>.</p>
+</section>
+<section id="intel-performance-metrics-on-linux">
+<h2>Intel performance metrics on Linux<a class="headerlink" href="#intel-performance-metrics-on-linux" title="Link to this heading"></a></h2>
+<p>Mesa driver supports VK_INTEL_performance_query extension (enabled with <a class="reference internal" href="options.html#confval-enable_performance_query_ext"><code class="xref std std-confval docutils literal notranslate"><span class="pre">VKPROF_enable_performance_query_ext=intel</span></code></a>) that can be used to collect detailed metrics describing hardware utilization during command buffer execution.</p>
+<p>However, because the metrics are collected system-wide, Intel kernel module enables the paranoid performance collection mode on boot.
+To use the extension, this mode must be disabled using elevated privileges. <a class="reference external" href="https://www.intel.com/content/dam/develop/external/us/en/documents/vulkan-metrics-ubuntu-813770.pdf">[1]</a></p>
+<p>First, determine which kernel driver is used for the installed GPU.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>lspci<span class="w"> </span>-nn<span class="w"> </span>-k<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-Ei<span class="w"> </span><span class="s1">&#39;VGA|DISPLAY&#39;</span><span class="w"> </span>-A2
+</pre></div>
+</div>
+<p>Then, depending on the returned module, disable the paranoid mode.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" name="eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" role="tab" tabindex="0">xe (Intel Battlemage series and later)</button><button aria-controls="panel-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" name="aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" role="tab" tabindex="-1">i915 (Intel Alchemist series and prior)</button></div><div aria-labelledby="tab-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" class="sphinx-tabs-panel code-tab group-tab" id="panel-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" name="eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>sysctl<span class="w"> </span>-w<span class="w"> </span>dev.xe.observation_paranoid<span class="o">=</span><span class="m">0</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" name="aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>sysctl<span class="w"> </span>-w<span class="w"> </span>dev.i915.perf_stream_paranoid<span class="o">=</span><span class="m">0</span>
+</pre></div>
+</div>
+</div></div>
 </section>
 </section>
 
