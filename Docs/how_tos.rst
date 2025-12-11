@@ -45,3 +45,31 @@ The last option disables the frame count limit to record the entire application 
 It can also be set to a different, greater than zero, value to limit the size of the collected data.
 
 With all these options set, the layer should attach into the Vulkan application and produce a file that can be then opened either in Chromium-based browsers (chrome://tracing or edge://tracing) or in e.g., `ui.perfetto.dev <https://ui.perfetto.dev/>`_.
+
+Intel performance metrics on Linux
+----------------------------------
+
+Mesa driver supports VK_INTEL_performance_query extension (enabled with :confval:`VKPROF_enable_performance_query_ext=intel <enable_performance_query_ext>`) that can be used to collect detailed metrics describing hardware utilization during command buffer execution.
+
+However, because the metrics are collected system-wide, Intel kernel module enables the paranoid performance collection mode on boot.
+To use the extension, this mode must be disabled using elevated privileges. `[1]`_
+
+First, determine which kernel driver is used for the installed GPU.
+
+.. code:: bash
+
+    lspci -nn -k | grep -Ei 'VGA|DISPLAY' -A2
+
+Then, depending on the returned module, disable the paranoid mode.
+
+.. tabs::
+    .. code-tab:: bash xe (Intel Battlemage series and later)
+
+        sudo sysctl -w dev.xe.observation_paranoid=0
+
+    .. code-tab:: bash i915 (Intel Alchemist series and prior)
+
+        sudo sysctl -w dev.i915.perf_stream_paranoid=0
+
+
+.. _[1]: https://www.intel.com/content/dam/develop/external/us/en/documents/vulkan-metrics-ubuntu-813770.pdf
