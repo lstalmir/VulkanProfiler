@@ -32,6 +32,21 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        DeviceProfilerPerformanceCountersSamplingMode
+
+    Description:
+        Defines the sampling modes available for performance counters.
+
+    \***********************************************************************************/
+    enum class DeviceProfilerPerformanceCountersSamplingMode
+    {
+        eQuery,
+        eStream,
+    };
+
+    /***********************************************************************************\
+
+    Class:
         DeviceProfilerPerformanceCounters
 
     Description:
@@ -48,6 +63,8 @@ namespace Profiler
         virtual void Destroy() {}
 
         virtual VkResult SetQueuePerformanceConfiguration( VkQueue queue ) { return VK_SUCCESS; }
+
+        virtual DeviceProfilerPerformanceCountersSamplingMode GetSamplingMode() const { return DeviceProfilerPerformanceCountersSamplingMode::eQuery; }
 
         virtual uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const { return 0; }
         virtual uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const { return 0; }

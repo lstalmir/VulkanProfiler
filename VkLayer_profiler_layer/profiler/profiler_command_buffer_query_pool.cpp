@@ -366,7 +366,8 @@ namespace Profiler
     void CommandBufferQueryPool::AllocatePerformanceQueryPool()
     {
         if( ( m_CommandBufferLevel == VK_COMMAND_BUFFER_LEVEL_PRIMARY ) &&
-            ( m_pPerformanceCounters != nullptr ) )
+            ( m_pPerformanceCounters != nullptr ) &&
+            ( m_pPerformanceCounters->GetSamplingMode() == DeviceProfilerPerformanceCountersSamplingMode::eQuery ) )
         {
             // Try to reuse the existing query pool if possible.
             bool canReuseCurrentQueryPool = ( m_PerformanceQueryPool != VK_NULL_HANDLE );

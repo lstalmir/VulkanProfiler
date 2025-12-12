@@ -22,9 +22,11 @@
 #include "profiler_performance_counters.h"
 #include <metrics_discovery_api.h>
 #include <filesystem>
+#include <fstream>
 #include <vector>
 #include <string>
 #include <shared_mutex>
+#include <thread>
 
 namespace Profiler
 {
@@ -47,6 +49,8 @@ namespace Profiler
         void Destroy() final;
 
         VkResult SetQueuePerformanceConfiguration( VkQueue queue ) final;
+
+        DeviceProfilerPerformanceCountersSamplingMode GetSamplingMode() const final;
 
         uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const final;
         uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const final;
@@ -91,12 +95,19 @@ namespace Profiler
             uint8_t m_UUID[VK_UUID_SIZE];
         };
 
+        struct Information
+        {
+            MetricsDiscovery::IInformation_1_0* m_pInformation;
+            MetricsDiscovery::TInformationParams_1_0* m_pInformationParams;
+        };
+
         struct MetricsSet
         {
             MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
             MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
 
-            std::vector<Counter> m_Counters;
+            std::vector<Counter>              m_Counters;
+            std::vector<Information>          m_Informations;
         };
 
         void*                                 m_MDLibraryHandle;
@@ -109,6 +120,8 @@ namespace Profiler
         MetricsDiscovery::IConcurrentGroup_1_1* m_pConcurrentGroup;
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
+        DeviceProfilerPerformanceCountersSamplingMode m_SamplingMode;
+
         std::vector<MetricsSet>               m_MetricsSets;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
@@ -117,6 +130,14 @@ namespace Profiler
         bool                                  m_PerformanceApiInitialized;
         VkPerformanceConfigurationINTEL       m_PerformanceApiConfiguration;
 
+        std::thread                           m_MetricsStreamCollectionThread;
+        std::mutex                            m_MetricsStreamCollectionMutex;
+        bool                                  m_MetricsStreamCollectionThreadExit;
+
+        uint32_t                              m_MetricsStreamMaxReportCount;
+        std::vector<char>                     m_MetricsStreamDataBuffer;
+        std::ofstream                         m_MetricsStreamOutputFile;
+
         std::filesystem::path FindMetricsDiscoveryLibrary();
 
         bool LoadMetricsDiscoveryLibrary();
@@ -124,6 +145,16 @@ namespace Profiler
 
         bool OpenMetricsDevice();
         void CloseMetricsDevice();
+
+        void MetricsStreamCollectionThreadProc();
+
+        void ParseReport(
+            uint32_t metricsSetIndex,
+            uint32_t queueFamilyIndex,
+            uint32_t reportSize,
+            const uint8_t* pReport,
+            std::vector<VkProfilerPerformanceCounterResultEXT>& results,
+            std::vector<MetricsDiscovery::TTypedValue_1_0>& informations );
 
         void ResetMembers();
 
