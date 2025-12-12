@@ -224,7 +224,7 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eClearAttachments:
             return fmt::format( "vkCmdClearAttachments ({})",
-                GetName( drawcall.m_Payload.m_ClearAttachments.m_Count ) );
+                drawcall.m_Payload.m_ClearAttachments.m_Count );
 
         case DeviceProfilerDrawcallType::eClearColorImage:
             return fmt::format( "vkCmdClearColorImage ({}, C=[{}, {}, {}, {}])",
@@ -336,26 +336,51 @@ namespace Profiler
         Returns name of the pipeline.
 
     \***********************************************************************************/
-    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline ) const
+    std::string DeviceProfilerStringSerializer::GetName( const DeviceProfilerPipelineData& pipeline, bool showEntryPoints ) const
     {
-        // Construct the pipeline's name dynamically from the shaders.
-        if( pipeline.m_UsesShaderObjects )
+        // Use assigned name if available.
+        if( pipeline.m_Handle != VK_NULL_HANDLE )
         {
-            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS )
+            auto name = m_Frontend.GetObjectName( pipeline.m_Handle );
+            if( !name.empty() )
             {
-                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_VERTEX_BIT |
-                    VK_SHADER_STAGE_FRAGMENT_BIT );
-            }
-
-            if( pipeline.m_BindPoint == VK_PIPELINE_BIND_POINT_COMPUTE )
-            {
-                return pipeline.m_ShaderTuple.GetShaderStageHashesString(
-                    VK_SHADER_STAGE_COMPUTE_BIT );
+                return name;
             }
         }
 
-        return GetName( pipeline.m_Handle );
+        // Construct the pipeline's name dynamically from the shaders.
+        switch( pipeline.m_BindPoint )
+        {
+        case VK_PIPELINE_BIND_POINT_GRAPHICS:
+        {
+            return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_VERTEX_BIT |
+                VK_SHADER_STAGE_TASK_BIT_EXT |
+                VK_SHADER_STAGE_MESH_BIT_EXT |
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                showEntryPoints,
+                true /*skipEmptyStages*/ );
+        }
+
+        case VK_PIPELINE_BIND_POINT_COMPUTE:
+        {
+            return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                showEntryPoints );
+        }
+
+        case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+        {
+            return pipeline.m_ShaderTuple.GetShaderStageHashesString(
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                showEntryPoints );
+        }
+        }
+
+        // Unknown pipeline bind point.
+        return fmt::format( "VkPipeline {:#018x}", pipeline.m_Handle.GetHandleAsUint64() );
     }
 
     /***********************************************************************************\
@@ -471,8 +496,8 @@ namespace Profiler
         }
 
         return fmt::format( "{} {:#018x}",
-            VkObject_Runtime_Traits::FromObjectType( object.m_Type ).ObjectTypeName,
-            object.m_Handle );
+            VkObjectRuntimeTraits::FromObjectType( object.m_Type ).ObjectTypeName,
+            object.GetHandleAsUint64() );
     }
 
     /***********************************************************************************\
@@ -488,7 +513,7 @@ namespace Profiler
     {
         return fmt::format( "{}:{}:{}",
             static_cast<uint32_t>( object.m_Type ),
-            object.m_Handle,
+            object.GetHandleAsUint64(),
             object.m_CreateTime );
     }
 
@@ -507,7 +532,7 @@ namespace Profiler
         {
         default:
         {
-            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            auto traits = VkObjectRuntimeTraits::FromObjectType( objectType );
             if( traits.ObjectType == objectType )
             {
                 std::string typeName = traits.ObjectTypeName + 2; // Skip "Vk" prefix.
@@ -553,7 +578,7 @@ namespace Profiler
         {
         default:
         {
-            auto traits = VkObject_Runtime_Traits::FromObjectType( objectType );
+            auto traits = VkObjectRuntimeTraits::FromObjectType( objectType );
             if( traits.ObjectType == objectType )
             {
                 return GetObjectTypeName( objectType );
@@ -2003,6 +2028,169 @@ namespace Profiler
         if( flags & VK_COLOR_COMPONENT_A_BIT )
             mask[ 3 ] = 'A';
         return mask;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDynamicStateName
+
+    Description:
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetDynamicStateName( VkDynamicState state ) const
+    {
+        switch( state )
+        {
+        case VK_DYNAMIC_STATE_VIEWPORT:
+            return "Viewport";
+        case VK_DYNAMIC_STATE_SCISSOR:
+            return "Scissor";
+        case VK_DYNAMIC_STATE_LINE_WIDTH:
+            return "Line width";
+        case VK_DYNAMIC_STATE_DEPTH_BIAS:
+            return "Depth bias";
+        case VK_DYNAMIC_STATE_BLEND_CONSTANTS:
+            return "Blend constants";
+        case VK_DYNAMIC_STATE_DEPTH_BOUNDS:
+            return "Depth bounds";
+        case VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK:
+            return "Stencil compare mask";
+        case VK_DYNAMIC_STATE_STENCIL_WRITE_MASK:
+            return "Stencil write mask";
+        case VK_DYNAMIC_STATE_STENCIL_REFERENCE:
+            return "Stencil reference";
+        case VK_DYNAMIC_STATE_CULL_MODE:
+            return "Cull mode";
+        case VK_DYNAMIC_STATE_FRONT_FACE:
+            return "Front face";
+        case VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY:
+            return "Primitive topology";
+        case VK_DYNAMIC_STATE_VIEWPORT_WITH_COUNT:
+            return "Viewport with count";
+        case VK_DYNAMIC_STATE_SCISSOR_WITH_COUNT:
+            return "Scissor with count";
+        case VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE:
+            return "Vertex input binding stride";
+        case VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE:
+            return "Depth test enable";
+        case VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE:
+            return "Depth write enable";
+        case VK_DYNAMIC_STATE_DEPTH_COMPARE_OP:
+            return "Depth compare op";
+        case VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE:
+            return "Depth bounds test enable";
+        case VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE:
+            return "Stencil test enable";
+        case VK_DYNAMIC_STATE_STENCIL_OP:
+            return "Stencil op";
+        case VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE:
+            return "Rasterizer discard enable";
+        case VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE:
+            return "Depth bias enable";
+        case VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE:
+            return "Primitive restart enable";
+        case VK_DYNAMIC_STATE_LINE_STIPPLE:
+            return "Line stipple";
+        case VK_DYNAMIC_STATE_VIEWPORT_W_SCALING_NV:
+            return "Viewport W scaling";
+        case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_EXT:
+            return "Discard rectangle";
+        case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_ENABLE_EXT:
+            return "Discard rectangle enable";
+        case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_MODE_EXT:
+            return "Discard rectangle mode";
+        case VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_EXT:
+            return "Sample locations";
+        case VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR:
+            return "Ray tracing pipeline stack size";
+        case VK_DYNAMIC_STATE_VIEWPORT_SHADING_RATE_PALETTE_NV:
+            return "Viewport shading rate palette";
+        case VK_DYNAMIC_STATE_VIEWPORT_COARSE_SAMPLE_ORDER_NV:
+            return "Viewport coarse sample order";
+        case VK_DYNAMIC_STATE_EXCLUSIVE_SCISSOR_ENABLE_NV:
+            return "Exclusive scissor enable";
+        case VK_DYNAMIC_STATE_EXCLUSIVE_SCISSOR_NV:
+            return "Exclusive scissor";
+        case VK_DYNAMIC_STATE_FRAGMENT_SHADING_RATE_KHR:
+            return "Fragment shading rate";
+        case VK_DYNAMIC_STATE_VERTEX_INPUT_EXT:
+            return "Vertex input";
+        case VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT:
+            return "Patch control points";
+        case VK_DYNAMIC_STATE_LOGIC_OP_EXT:
+            return "Logic op";
+        case VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT:
+            return "Color write enable";
+        case VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT:
+            return "Depth clamp enable";
+        case VK_DYNAMIC_STATE_POLYGON_MODE_EXT:
+            return "Polygon mode";
+        case VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT:
+            return "Rasterization samples";
+        case VK_DYNAMIC_STATE_SAMPLE_MASK_EXT:
+            return "Sample mask";
+        case VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT:
+            return "Alpha to coverage enable";
+        case VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT:
+            return "Alpha to one enable";
+        case VK_DYNAMIC_STATE_LOGIC_OP_ENABLE_EXT:
+            return "Logic op enable";
+        case VK_DYNAMIC_STATE_COLOR_BLEND_ENABLE_EXT:
+            return "Color blend enable";
+        case VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT:
+            return "Color blend equation";
+        case VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT:
+            return "Color write mask";
+        case VK_DYNAMIC_STATE_TESSELLATION_DOMAIN_ORIGIN_EXT:
+            return "Tessellation domain origin";
+        case VK_DYNAMIC_STATE_RASTERIZATION_STREAM_EXT:
+            return "Rasterization stream";
+        case VK_DYNAMIC_STATE_CONSERVATIVE_RASTERIZATION_MODE_EXT:
+            return "Conservative rasterization mode";
+        case VK_DYNAMIC_STATE_EXTRA_PRIMITIVE_OVERESTIMATION_SIZE_EXT:
+            return "Extra primitive overestimation size";
+        case VK_DYNAMIC_STATE_DEPTH_CLIP_ENABLE_EXT:
+            return "Depth clip enable";
+        case VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_ENABLE_EXT:
+            return "Sample locations enable";
+        case VK_DYNAMIC_STATE_COLOR_BLEND_ADVANCED_EXT:
+            return "Color blend advanced";
+        case VK_DYNAMIC_STATE_PROVOKING_VERTEX_MODE_EXT:
+            return "Provoking vertex mode";
+        case VK_DYNAMIC_STATE_LINE_RASTERIZATION_MODE_EXT:
+            return "Line rasterization mode";
+        case VK_DYNAMIC_STATE_LINE_STIPPLE_ENABLE_EXT:
+            return "Line stipple enable";
+        case VK_DYNAMIC_STATE_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE_EXT:
+            return "Depth clip negative one to one";
+        case VK_DYNAMIC_STATE_VIEWPORT_W_SCALING_ENABLE_NV:
+            return "Viewport W scaling enable";
+        case VK_DYNAMIC_STATE_VIEWPORT_SWIZZLE_NV:
+            return "Viewport swizzle";
+        case VK_DYNAMIC_STATE_COVERAGE_TO_COLOR_ENABLE_NV:
+            return "Coverage to color enable";
+        case VK_DYNAMIC_STATE_COVERAGE_TO_COLOR_LOCATION_NV:
+            return "Coverage to color location";
+        case VK_DYNAMIC_STATE_COVERAGE_MODULATION_MODE_NV:
+            return "Coverage modulation mode";
+        case VK_DYNAMIC_STATE_COVERAGE_MODULATION_TABLE_ENABLE_NV:
+            return "Coverage modulation table enable";
+        case VK_DYNAMIC_STATE_COVERAGE_MODULATION_TABLE_NV:
+            return "Coverage modulation table";
+        case VK_DYNAMIC_STATE_SHADING_RATE_IMAGE_ENABLE_NV:
+            return "Shading rate image enable";
+        case VK_DYNAMIC_STATE_REPRESENTATIVE_FRAGMENT_TEST_ENABLE_NV:
+            return "Representative fragment test enable";
+        case VK_DYNAMIC_STATE_COVERAGE_REDUCTION_MODE_NV:
+            return "Coverage reduction mode";
+        case VK_DYNAMIC_STATE_ATTACHMENT_FEEDBACK_LOOP_ENABLE_EXT:
+            return "Attachment feedback loop enable";
+        case VK_DYNAMIC_STATE_DEPTH_CLAMP_RANGE_EXT:
+            return "Depth clamp range";
+        default:
+            return fmt::format( "Unknown ({})", static_cast<uint32_t>(state) );
+        }
     }
 
     /***********************************************************************************\

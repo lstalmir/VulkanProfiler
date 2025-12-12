@@ -316,9 +316,13 @@ namespace Profiler
         No data is copied at time of calling this function due to spec limitations.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex )
+    void DeviceProfilerQueryDataBufferWriter::WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex )
     {
-        uint32_t dataSize = m_pProfiler->m_MetricsApiINTEL.GetReportSize( metricsSetIndex );
+        assert( m_pProfiler->m_pPerformanceCounters != nullptr );
+        const uint32_t dataSize = m_pProfiler->m_pPerformanceCounters->GetReportSize(
+            metricsSetIndex,
+            queueFamilyIndex );
+
         m_pContext->m_PerformanceDataSize = dataSize;
         m_pContext->m_PerformanceDataMetricsSetIndex = metricsSetIndex;
         m_pContext->m_PerformanceQueryPool = queryPool;

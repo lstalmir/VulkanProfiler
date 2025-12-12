@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ namespace Profiler
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
     {
-        m_Data.m_Handle = m_Profiler.GetObjectHandle( commandBuffer );
+        m_Data.m_Handle = m_Profiler.ResolveObjectHandle<VkCommandBufferHandle>( commandBuffer );
         m_Data.m_Level = level;
 
         // Profile the command buffer only if it will be submitted to the queue supporting graphics or compute commands
@@ -72,7 +72,10 @@ namespace Profiler
         // Initialize performance query once
         if( m_ProfilingEnabled )
         {
-            m_pQueryPool = new CommandBufferQueryPool( m_Profiler, m_Level );
+            m_pQueryPool = new CommandBufferQueryPool(
+                m_Profiler,
+                m_CommandPool.GetQueueFamilyIndex(),
+                m_Level );
         }
     }
 
@@ -928,7 +931,7 @@ namespace Profiler
             for( uint32_t i = 0; i < count; ++i )
             {
                 currentSubpass.m_Data.push_back( DeviceProfilerCommandBufferData{
-                    m_Profiler.GetObjectHandle( pCommandBuffers[ i ] ),
+                    m_Profiler.ResolveObjectHandle<VkCommandBufferHandle>( pCommandBuffers[i] ),
                     VK_COMMAND_BUFFER_LEVEL_SECONDARY
                     } );
 
@@ -1223,13 +1226,15 @@ namespace Profiler
                 const uint32_t performanceQueryResultSize = reader.GetPerformanceQueryResultSize();
                 const uint8_t* pPerformanceQueryResult = reader.ReadPerformanceQueryResult();
 
-                m_Profiler.m_MetricsApiINTEL.ParseReport(
+                assert( m_Profiler.m_pPerformanceCounters != nullptr );
+                m_Profiler.m_pPerformanceCounters->ParseReport(
                     performanceQueryMetricsSetIndex,
+                    m_CommandPool.GetQueueFamilyIndex(),
                     performanceQueryResultSize,
                     pPerformanceQueryResult,
-                    m_Data.m_PerformanceQueryResults );
+                    m_Data.m_PerformanceCounters.m_Results );
 
-                m_Data.m_PerformanceQueryMetricsSetIndex = performanceQueryMetricsSetIndex;
+                m_Data.m_PerformanceCounters.m_MetricsSetIndex = performanceQueryMetricsSetIndex;
             }
 
             // Copy captured indirect argument buffer data
@@ -1320,9 +1325,6 @@ namespace Profiler
         // Collect secondary command buffer data
         commandBuffer = profilerCommandBuffer.GetData( reader );
         assert( commandBuffer.m_Handle == handle );
-
-        // Include profiling time of the secondary command buffer
-        m_Data.m_ProfilerCpuOverheadNs += commandBuffer.m_ProfilerCpuOverheadNs;
 
         // Propagate timestamps from command buffer to subpass
         if( subpassDataIndex == 0 )

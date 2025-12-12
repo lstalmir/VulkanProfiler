@@ -29,6 +29,7 @@ The layer depends on the following software for building:
     - g++-8.3 or later,
     - cmake-3.8 or later,
     - extra-cmake-modules,
+    - libdrm-dev,
     - libxkbcommon-dev,
     - libx11-dev, libxext-dev (for Xlib support),
     - libxcb1-dev, libxcb-shape0-dev (for XCB support),

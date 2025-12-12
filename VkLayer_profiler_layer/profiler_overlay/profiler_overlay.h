@@ -34,8 +34,10 @@
 #include <list>
 #include <vector>
 #include <stack>
+#include <memory>
 #include <mutex>
 #include <functional>
+#include <regex>
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
@@ -76,6 +78,7 @@ namespace Profiler
         void Present() override;
 
         void LoadPerformanceCountersFromFile( const std::string& );
+        void LoadPerformanceQueryMetricsSetFromFile( const std::string& );
         void LoadTopPipelinesFromFile( const std::string& );
 
         void SetMaxFrameCount( uint32_t maxFrameCount );
@@ -90,20 +93,6 @@ namespace Profiler
         OverlayResources m_Resources;
 
         std::string m_Title;
-
-        uint32_t m_ActiveMetricsSetIndex;
-        std::vector<bool> m_ActiveMetricsVisibility;
-
-        struct VendorMetricsSet
-        {
-            VkProfilerPerformanceMetricsSetPropertiesEXT           m_Properties;
-            std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_Metrics;
-        };
-
-        std::vector<VendorMetricsSet> m_VendorMetricsSets;
-        std::vector<bool>             m_VendorMetricsSetVisibility;
-
-        char m_VendorMetricFilter[ 128 ] = {};
 
         Milliseconds m_TimestampPeriod;
         float m_TimestampDisplayUnit;
@@ -178,6 +167,7 @@ namespace Profiler
         bool m_ShowEmptyStatistics;
         bool m_ShowAllTopPipelines;
         bool m_ShowActiveFrame;
+        bool m_ShowEntryPoints;
 
         bool GetShowActiveFrame() const;
         const FrameDataList& GetActiveFramesList() const;
@@ -221,7 +211,7 @@ namespace Profiler
         std::chrono::high_resolution_clock::time_point m_SerializationFinishTimestamp;
 
         // Queue utilization state.
-        std::unordered_set<VkSemaphore> m_SelectedSemaphores;
+        std::unordered_set<VkSemaphoreHandle> m_SelectedSemaphores;
 
         // Cached inspector tab state.
         DeviceProfilerPipeline m_InspectorPipeline;
@@ -252,40 +242,87 @@ namespace Profiler
         std::vector<float> m_MemoryConsumptionHistory[VK_MAX_MEMORY_HEAPS];
         float m_MemoryConsumptionHistoryMax[VK_MAX_MEMORY_HEAPS];
 
-        char m_ResourceBrowserNameFilter[128];
+        std::string m_ResourceBrowserNameFilter;
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
         VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
         VkFlags m_ResourceBrowserAccelerationStructureTypeFilter;
         VkFlags m_ResourceBrowserMicromapTypeFilter;
         bool m_ResourceBrowserShowDifferences;
 
-        VkObjectHandle<VkBuffer> m_ResourceInspectorBuffer;
+        VkBufferHandle m_ResourceInspectorBuffer;
         DeviceProfilerBufferMemoryData m_ResourceInspectorBufferData;
 
-        VkObjectHandle<VkImage> m_ResourceInspectorImage;
+        VkImageHandle m_ResourceInspectorImage;
         DeviceProfilerImageMemoryData m_ResourceInspectorImageData;
         VkImageSubresource m_ResourceInspectorImageMapSubresource;
         float m_ResourceInspectorImageMapBlockSize;
 
-        VkObjectHandle<VkAccelerationStructureKHR> m_ResourceInspectorAccelerationStructure;
+        VkAccelerationStructureKHRHandle m_ResourceInspectorAccelerationStructure;
         DeviceProfilerAccelerationStructureMemoryData m_ResourceInspectorAccelerationStructureData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorAccelerationStructureBufferData;
 
-        VkObjectHandle<VkMicromapEXT> m_ResourceInspectorMicromap;
+        VkMicromapEXTHandle m_ResourceInspectorMicromap;
         DeviceProfilerMicromapMemoryData m_ResourceInspectorMicromapData;
         DeviceProfilerBufferMemoryData m_ResourceInspectorMicromapBufferData;
+
+        struct ResourceListExporter;
+        std::unique_ptr<ResourceListExporter> m_pResourceListExporter;
+
+        // Performance counters.
+        struct PerformanceQueryMetricsSet
+            : public std::enable_shared_from_this<PerformanceQueryMetricsSet>
+        {
+            uint32_t m_MetricsSetIndex;
+            bool m_FilterResult;
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> m_Metrics;
+            VkProfilerPerformanceMetricsSetProperties2EXT m_Properties;
+        };
+
+        std::shared_ptr<PerformanceQueryMetricsSet> m_pActivePerformanceQueryMetricsSet;
+        std::vector<std::shared_ptr<PerformanceQueryMetricsSet>> m_pPerformanceQueryMetricsSets;
+        std::vector<bool> m_ActivePerformanceQueryMetricsFilterResults;
+        std::string m_PerformanceQueryMetricsFilter;
+        std::regex m_PerformanceQueryMetricsFilterRegex;
+        bool m_PerformanceQueryMetricsFilterRegexValid;
+        bool m_PerformanceQueryMetricsFilterRegexMode;
+        bool m_PerformanceQueryMetricsSetPropertiesExpanded;
+
+        void SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& );
+
+        bool CompilePerformanceQueryMetricsFilterRegex();
+        void UpdatePerformanceQueryEditorMetricsFilterResults();
+        void UpdatePerformanceQueryActiveMetricsFilterResults();
+        void UpdatePerformanceQueryMetricsSetFilterResults( const std::shared_ptr<PerformanceQueryMetricsSet>& );
+        void UpdatePerformanceQueryMetricsSetsFilterResults();
 
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
-        VkCommandBuffer m_PerformanceQueryCommandBufferFilter;
-        std::string     m_PerformanceQueryCommandBufferFilterName;
+        VkCommandBufferHandle m_PerformanceQueryCommandBufferFilter;
+        std::string m_PerformanceQueryCommandBufferFilterName;
 
-        std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceCounters;
+        std::unordered_map<std::string, VkProfilerPerformanceCounterResultEXT> m_ReferencePerformanceQueryData;
+
+        // Performance counter sets editor.
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceQueryEditorCounterProperties;
+        std::vector<uint32_t> m_PerformanceQueryEditorCounterIndices;
+        std::vector<uint32_t> m_PerformanceQueryEditorCounterVisibileIndices;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailability;
+        std::vector<bool> m_PerformanceQueryEditorCounterAvailabilityKnown;
+        std::string m_PerformanceQueryEditorFilter;
+        std::string m_PerformanceQueryEditorSetName;
+        std::string m_PerformanceQueryEditorSetDescription;
+
+        struct PerformanceQueryMetricsSetExporter;
+        std::unique_ptr<PerformanceQueryMetricsSetExporter> m_pPerformanceQueryMetricsSetExporter;
+
+        uint32_t FindPerformanceQueryCounterIndexByUUID( const uint8_t uuid[VK_UUID_SIZE] ) const;
+        void SetPerformanceQueryEditorCounterSelected( uint32_t counterIndex, bool selected, bool refresh );
+        void RefreshPerformanceQueryEditorCountersSet( bool countersOnly = false );
 
         // Performance counter serialization
-        struct PerformanceCounterExporter;
-        std::unique_ptr<PerformanceCounterExporter> m_pPerformanceCounterExporter;
+        struct PerformanceQueryExporter;
+        std::unique_ptr<PerformanceQueryExporter> m_pPerformanceQueryExporter;
 
         // Top pipelines serialization
         struct TopPipelinesExporter;
@@ -374,9 +411,13 @@ namespace Profiler
         void SelectQueueGraphColumn( const ImGuiX::HistogramColumnData& );
 
         // Performance counter helpers
-        std::string GetDefaultPerformanceCountersFileName( uint32_t ) const;
+        std::string GetDefaultPerformanceCountersFileName( const std::shared_ptr<PerformanceQueryMetricsSet>& ) const;
         void UpdatePerformanceCounterExporter();
-        void SavePerformanceCountersToFile( const std::string&, uint32_t, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
+        void SavePerformanceCountersToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>&, const std::vector<VkProfilerPerformanceCounterResultEXT>&, const std::vector<bool>& );
+
+        std::string GetDefaultPerformanceQueryMetricsSetFileName( const std::shared_ptr<PerformanceQueryMetricsSet>& ) const;
+        void UpdatePerformanceQueryMetricsSetExporter();
+        void SavePerformanceQueryMetricsSetToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>& );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();
@@ -392,11 +433,15 @@ namespace Profiler
 
         // Resource inspector helpers
         void ResetResourceInspector();
-        void DrawResourceInspectorAccelerationStructureInfo( VkObjectHandle<VkAccelerationStructureKHR>, const DeviceProfilerAccelerationStructureMemoryData&, const DeviceProfilerBufferMemoryData& );
-        void DrawResourceInspectorMicromapInfo( VkObjectHandle<VkMicromapEXT>, const DeviceProfilerMicromapMemoryData&, const DeviceProfilerBufferMemoryData& );
-        void DrawResourceInspectorBufferInfo( VkObjectHandle<VkBuffer>, const DeviceProfilerBufferMemoryData& );
-        void DrawResourceInspectorImageInfo( VkObjectHandle<VkImage>, const DeviceProfilerImageMemoryData& );
+        void DrawResourceInspectorAccelerationStructureInfo( VkAccelerationStructureKHRHandle, const DeviceProfilerAccelerationStructureMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorMicromapInfo( VkMicromapEXTHandle, const DeviceProfilerMicromapMemoryData&, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorBufferInfo( VkBufferHandle, const DeviceProfilerBufferMemoryData& );
+        void DrawResourceInspectorImageInfo( VkImageHandle, const DeviceProfilerImageMemoryData& );
         void DrawResourceInspectorImageMemoryMap();
+
+        std::string GetDefaultResourceListFileName() const;
+        void UpdateResourceListExporter();
+        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkFlags, VkFlags );
 
         // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );

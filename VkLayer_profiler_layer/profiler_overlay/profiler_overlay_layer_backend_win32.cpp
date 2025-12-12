@@ -143,8 +143,13 @@ namespace Profiler
     // window to its original position.
     static HWND SetCapture( HWND hWnd )
     {
-        g_pWin32CapturedContext = g_pWin32CurrentContext;
-        return ::SetCapture( hWnd );
+        // Avoid acquiring capture if the cursor is outside of ImGui area to prevent interfering with window operations.
+        if( ImGui::GetIO().WantCaptureMouse )
+        {
+            g_pWin32CapturedContext = g_pWin32CurrentContext;
+            return ::SetCapture( hWnd );
+        }
+        return nullptr;
     }
 
     static HWND GetCapture()

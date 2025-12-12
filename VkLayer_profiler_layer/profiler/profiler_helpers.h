@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022 Lukasz Stalmirski
+// Copyright (c) 2019-2025 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 
 #pragma once
 #include <assert.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -71,6 +72,33 @@
 
 namespace Profiler
 {
+    /***********************************************************************************\
+
+    Class:
+        Iterable
+
+    Description:
+        Iterable class concept.
+
+    \***********************************************************************************/
+    template<typename T>
+    using Iterable =
+        std::void_t<
+            std::enable_if_t<std::is_same_v<
+                decltype( std::begin( std::declval<const T&>() ) ),
+                decltype( std::end( std::declval<const T&>() ) )>>,
+            decltype( *std::begin( std::declval<const T&>() ) )>;
+
+    template<typename T, typename = void>
+    struct IsIterable : std::false_type
+    {
+    };
+
+    template<typename T>
+    struct IsIterable<T, Iterable<T>> : std::true_type
+    {
+    };
+
     /***********************************************************************************\
 
     Function:
@@ -147,6 +175,101 @@ namespace Profiler
         auto it = std::begin( iterable );
         std::advance( it, n );
         return *it;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Contains
+
+    Description:
+        Checks whether the iterable collection contains the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE bool Contains( const Iterable& iterable, const ValueType& value )
+    {
+        auto end = std::end( iterable );
+        return std::find( std::begin( iterable ), end, value ) != end;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Erase
+
+    Description:
+        Remove all occurrences of the given value from the iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void Erase( Iterable& iterable, const ValueType& value )
+    {
+        auto end = std::end( iterable );
+        auto firstRemoved = std::remove( std::begin( iterable ), end, value );
+        if( firstRemoved != end )
+        {
+            iterable.erase( firstRemoved, end );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EraseIf
+
+    Description:
+        Remove all elements that satisfy the predicate from the iterable collection.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename PredicateType>
+    PROFILER_FORCE_INLINE void EraseIf( Iterable& iterable, const PredicateType& predicate )
+    {
+        auto end = std::end( iterable );
+        auto firstRemoved = std::remove_if( std::begin( iterable ), end, predicate );
+        if( firstRemoved != end )
+        {
+            iterable.erase( firstRemoved, end );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ReplaceIfs
+
+    Description:
+        Replace all elements that satisfy the predicate with the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename PredicateType, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void ReplaceIf( Iterable& iterable, const PredicateType& predicate, const ValueType& value )
+    {
+        auto it = std::begin( iterable );
+        auto end = std::end( iterable );
+        while( it != end )
+        {
+            if( predicate( *it ) )
+            {
+                *it = value;
+            }
+            it++;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Fill
+
+    Description:
+        Fill the iterable collection with the given value.
+
+    \***********************************************************************************/
+    template<typename Iterable, typename ValueType = typename Iterable::value_type>
+    PROFILER_FORCE_INLINE void Fill( Iterable& iterable, const ValueType& value )
+    {
+        std::fill( std::begin( iterable ), std::end( iterable ), value );
     }
 
     /***********************************************************************************\
@@ -270,6 +393,105 @@ namespace Profiler
                 m_pHead = pStructure;
             }
         }
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        HashInput
+
+    Description:
+        Helper class that allows to compute hash of given data.
+
+    \***********************************************************************************/
+    class HashInput
+    {
+    public:
+        void Reset()
+        {
+            m_Buffer.clear();
+        }
+
+        void Add( const void* pData, size_t dataSize )
+        {
+            const char* pCharData = reinterpret_cast<const char*>( pData );
+            m_Buffer.insert( m_Buffer.end(), pCharData, pCharData + dataSize );
+        }
+
+        void Add( const char* pStr )
+        {
+            const size_t length = ( pStr ? strlen( pStr ) : 0 );
+            Add( length );
+            if( pStr )
+            {
+                Add( pStr, length );
+            }
+        }
+
+        void Add( const std::string& str )
+        {
+            Add( str.length() );
+            if( !str.empty() )
+            {
+                Add( str.c_str(), str.length() );
+            }
+        }
+
+        template<bool Sort = false, typename T>
+        std::enable_if_t<IsIterable<T>::value> Add( const T& iterable )
+        {
+            Add<Sort>( std::begin( iterable ), std::end( iterable ) );
+        }
+
+        template<typename T>
+        std::enable_if_t<!IsIterable<T>::value> Add( const T& value )
+        {
+            Add( &value, sizeof( T ) );
+        }
+
+        template<bool Sort = false, typename IteratorT>
+        void Add( const IteratorT& begin, const IteratorT& end )
+        {
+            using ValueT = typename std::iterator_traits<IteratorT>::value_type;
+            static_assert( !IsIterable<ValueT>::value, "Nested iterables are not supported." );
+
+            if constexpr( Sort )
+            {
+                // Align the input buffer to allow cast to ValueT*.
+                size_t currentSize = m_Buffer.size();
+                size_t alignedSize = ( currentSize + alignof( ValueT ) - 1 ) & ~( alignof( ValueT ) - 1 );
+                m_Buffer.resize( alignedSize, 0 );
+            }
+
+            const size_t insertOffset = m_Buffer.size();
+            m_Buffer.reserve( m_Buffer.size() + std::distance( begin, end ) * sizeof( ValueT ) );
+
+            for( IteratorT it = begin; it != end; ++it )
+            {
+                Add( *it );
+            }
+
+            if constexpr( Sort )
+            {
+                // Sort the inserted values.
+                ValueT* pValues = reinterpret_cast<ValueT*>( m_Buffer.data() + insertOffset );
+                size_t valueCount = ( m_Buffer.size() - insertOffset ) / sizeof( ValueT );
+                std::sort( pValues, pValues + valueCount );
+            }
+        }
+
+        const char* GetData() const
+        {
+            return m_Buffer.data();
+        }
+
+        size_t GetSize() const
+        {
+            return m_Buffer.size();
+        }
+
+    private:
+        std::vector<char> m_Buffer;
     };
 
     /***********************************************************************************\
@@ -458,6 +680,91 @@ namespace Profiler
 
         static constexpr char m_scHexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
         static_assert( sizeof( m_scHexDigits ) == 16 );
+
+        enum class CaseSensitivity
+        {
+            CaseSensitive,
+            CaseInsensitive
+        };
+
+        template<CaseSensitivity caseSensitivity, typename CharT>
+        static bool CharEquals( CharT ch1, CharT ch2 )
+        {
+            static_assert(
+                caseSensitivity == CaseSensitivity::CaseSensitive || caseSensitivity == CaseSensitivity::CaseInsensitive,
+                "Invalid CaseSensitivity value" );
+
+            if constexpr( caseSensitivity == CaseSensitivity::CaseSensitive )
+            {
+                return ch1 == ch2;
+            }
+            else if constexpr( caseSensitivity == CaseSensitivity::CaseInsensitive )
+            {
+                return std::tolower( static_cast<int>( ch1 ) ) == std::tolower( static_cast<int>( ch2 ) );
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        template<CaseSensitivity caseSensitivity, typename CharT>
+        static size_t Find( const CharT* pStr, const CharT* pSubstr )
+        {
+            if( *pSubstr == 0 )
+            {
+                // Empty substring matches at the start
+                return 0;
+            }
+
+            const CharT* pStrCur = pStr;
+            while( *pStrCur )
+            {
+                if( CharEquals<caseSensitivity>( *pStrCur, *pSubstr ) )
+                {
+                    // Potential match
+                    const CharT* pStrMatch = pStrCur;
+                    const CharT* pSubstrMatch = pSubstr;
+                    while( *pStrMatch &&
+                           *pSubstrMatch &&
+                           CharEquals<caseSensitivity>( *pStrMatch, *pSubstrMatch ) )
+                    {
+                        pStrMatch++;
+                        pSubstrMatch++;
+                    }
+
+                    if( *pSubstrMatch == 0 )
+                    {
+                        // Full match
+                        return static_cast<size_t>( pStrCur - pStr );
+                    }
+                }
+
+                pStrCur++;
+            }
+
+            return SIZE_MAX;
+        }
+
+        template<typename CharT>
+        static size_t Find( const CharT* pStr, const CharT* pSubstr, CaseSensitivity caseSensitivity )
+        {
+            switch( caseSensitivity )
+            {
+            case CaseSensitivity::CaseSensitive:
+            {
+                return ProfilerStringFunctions::template Find<CaseSensitivity::CaseSensitive>( pStr, pSubstr );
+            }
+            case CaseSensitivity::CaseInsensitive:
+            {
+                return ProfilerStringFunctions::template Find<CaseSensitivity::CaseInsensitive>( pStr, pSubstr );
+            }
+            default:
+            {
+                return SIZE_MAX;
+            }
+            }
+        }
     };
     
     /***********************************************************************************\
@@ -495,18 +802,18 @@ namespace Profiler
 
         inline static std::filesystem::path GetApplicationDir()
         {
-            static std::filesystem::path applicationDir;
-
-            if( applicationDir.empty() )
-            {
-                // Get full application path and remove filename component
-                applicationDir = GetApplicationPath().remove_filename();
-            }
-
+            static std::filesystem::path applicationDir = GetApplicationPath().parent_path();
             return applicationDir;
         }
 
+        static std::filesystem::path GetLayerDir()
+        {
+            static std::filesystem::path layerDir = GetLayerPath().parent_path();
+            return layerDir;
+        }
+
         static std::filesystem::path GetApplicationPath();
+        static std::filesystem::path GetLayerPath();
 
         static bool IsPreemptionEnabled();
 
@@ -520,7 +827,7 @@ namespace Profiler
         template<typename... Args>
         inline static void WriteDebug( const char* fmt, Args... args )
         {
-            static constexpr size_t messageBufferLength = 256;
+            static constexpr size_t messageBufferLength = 4096;
 
             // Include layer prefix to filter debug output
             // Skip ' ' at the end and include string terminator instead

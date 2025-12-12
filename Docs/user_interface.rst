@@ -94,13 +94,29 @@ The currently presented times can be exported to a CSV (Comma-Separated Values) 
 Performance counters
 --------------------
 
-Performance counters are currently supported only on Intel GPUs.
+The layer offers support for 2 performance query extensions: VK_INTEL_performance_query and VK_KHR_performance_query.
 
-The layer uses VK_INTEL_performance_query extension to collect detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).
+If either extension is enabled in the configuration, the layer collects detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).
+More fine-grained metrics (at VkRenderPass/VkPipeline/drawcall level) are currently not supported.
 
-Then, `Intel Metrics-Discovery <https://github.com/intel/metrics-discovery>`_ library is used to calculate the metrics from the query results.
+With **VK_INTEL_performance_query** enabled, `Intel Metrics-Discovery <https://github.com/intel/metrics-discovery>`_ library is used to calculate the metrics from the query results.
 The API groups metrics into sets, allowing only metrics from a single set to be collected at a time.
 The set can be changed to any of the available ones listed in the combo box at the top of the window.
+
+**VK_KHR_performance_query** allows to create more customized metrics sets, but it comes with no predefined sets.
+The layer also has a limitation on the selected counters that all of them must be collectible in a single query pass.
+Custom metrics sets created with this extension can be saved to JSON files.
+Those files can be then loaded in subsequent profiling runs to speed-up performance query setup.
+
+Regardless of the selected query backend, the layer provides the following methods of filtering performance query results.
+
+**Range** allows to select the range of displayed query results between the entire frame and single command buffers.
+
+**Filter** limits the number of displayed counters and metrics sets only to those passing the expression.
+By default a simple case-insensitive substring matching is used, but regular expression matching can be enabled via a button next to the input field.
+
+When the filter is not empty (and is a valid regular expression if regex mode is enabled), the list of sets will contain only sets whose name matches the expression, or that contain at least one metric that matches the expression.
+The filtering will also be applied to the list of metrics, both in the selected metrics set, and in the available counters section if KHR extension is used.
 
 Similarly as in :ref:`Top pipelines` view, the reference metrics values can be saved and loaded from a file.
 
@@ -119,6 +135,10 @@ Below each heap there is a breakdown of allocations per memory type (memory type
 The data can be automatically compared between frames or snapshots using the options at the top of the memory tab. When a reference frame is selected, the new and freed resources will be marked with + and - symbols. The differences in heap memory usage will also be marked in the breakdowns.
 
 The memory tab also lists all resources created by the application, which allows to investigate the allocations at a finer granularity. When a resource is selected, Resource Inspector will list its create information, such as size or usage. Below the overview there is a table listing all memory bindings associated with the resource.
+
+Detailed resource statistics can be also saved to a CSV (Comma-Separated Values) file for "offline" comparison.
+The file will contain up-to 4 tables, for each supported resource type: VkBuffer, VkImage, VkAccelerationStructureKHR and VkMicromapEXT.
+Depending on the resource type, each row will contain its creation info and resulting memory requirements, as well as the actual memory bindings, including selected memory type, heap, binding offset and size.
 
 .. rubric:: Sparse residency map
 
@@ -176,3 +196,4 @@ Currently, the following options are available:
 #. **Time unit**: Sets the time unit (milliseconds, microseconds or nanoseconds).
 #. **Show debug labels**: Shows debug labels inserted by the application in the :ref:`Frame browser`.
 #. **Show shader capabilities**: Shows shader capabilities in form of badges in the :ref:`Frame browser` and :ref:`Top pipelines`.
+#. **Show entry points**: Shows shader entry points in the default pipeline names.

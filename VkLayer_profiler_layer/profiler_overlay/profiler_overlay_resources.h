@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_helpers.h"
 #include <stdint.h>
 
 struct ImFont;
@@ -26,6 +27,28 @@ struct ImFont;
 namespace Profiler
 {
     class OverlayBackend;
+
+    /***********************************************************************************\
+
+    Class:
+        OverlayIcon
+
+    Description:
+        Available overlay icons.
+
+    \***********************************************************************************/
+    enum class OverlayIcon
+    {
+        Open,
+        Save,
+        Copy,
+        Info,
+        Plus,
+        Minus,
+        BookmarkEmpty,
+        BookmarkFilled,
+        IconCount
+    };
 
     /***********************************************************************************\
 
@@ -49,9 +72,7 @@ namespace Profiler
         ImFont* GetBoldFont() const;
         ImFont* GetCodeFont() const;
 
-        void* GetCopyIconImage() const;
-        void* GetBookmarkEmptyIconImage() const;
-        void* GetBookmarkFilledIconImage() const;
+        uint64_t GetIcon( OverlayIcon icon ) const;
 
     private:
         OverlayBackend* m_pBackend = nullptr;
@@ -60,10 +81,15 @@ namespace Profiler
         ImFont* m_pBoldFont = nullptr;
         ImFont* m_pCodeFont = nullptr;
 
-        void* m_pCopyIconImage = nullptr;
-        void* m_pBookmarkEmptyIconImage = nullptr;
-        void* m_pBookmarkFilledIconImage = nullptr;
+        EnumArray<OverlayIcon, uint64_t, static_cast<size_t>( OverlayIcon::IconCount )>
+            m_Icons = { 0 };
 
-        void* CreateImage( const uint8_t* pAsset, int assetSize );
+        uint64_t CreateImage( const uint8_t* pAsset, int assetSize );
+
+        template<size_t Size>
+        uint64_t CreateImage( const uint8_t ( &asset )[Size] )
+        {
+            return CreateImage( asset, static_cast<int>( Size ) );
+        }
     };
 }

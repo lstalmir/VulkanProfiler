@@ -345,17 +345,23 @@ namespace Profiler
             m_CommandQueue ) );
 
         // Performance counters
-        if( !data.m_PerformanceQueryResults.empty() )
+        const uint32_t performanceCounterCount = static_cast<uint32_t>( data.m_PerformanceCounters.m_Results.size() );
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceCounterProperties(
+            performanceCounterCount );
+
+        if( performanceCounterCount )
         {
-            const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& performanceCounterProperties =
-                m_Frontend.GetPerformanceCounterProperties( data.m_PerformanceQueryMetricsSetIndex );
+            m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                data.m_PerformanceCounters.m_MetricsSetIndex,
+                performanceCounterCount,
+                performanceCounterProperties.data() );
 
             m_Events.push_back( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
                 performanceCounterProperties.size(),
                 performanceCounterProperties.data(),
-                data.m_PerformanceQueryResults.data() ) );
+                data.m_PerformanceCounters.m_Results.data() ) );
         }
 
         for( const auto& renderPassData : data.m_RenderPasses )
@@ -368,11 +374,8 @@ namespace Profiler
         }
 
         // Clear performance counters before the next command buffer
-        if( !data.m_PerformanceQueryResults.empty() )
+        if( performanceCounterCount )
         {
-            const std::vector<VkProfilerPerformanceCounterPropertiesEXT>& performanceCounterProperties =
-                m_Frontend.GetPerformanceCounterProperties( data.m_PerformanceQueryMetricsSetIndex );
-
             m_Events.push_back( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue,
@@ -525,7 +528,8 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerPipelineData& data )
     {
-        const std::string eventName = m_pStringSerializer->GetName( data );
+        const std::string eventName = m_pStringSerializer->GetName( data, true /*showEntryPoints*/ );
+        const nlohmann::json eventArgs = m_pJsonSerializer->GetPipelineArgs( data );
 
         const bool isValidPipeline =
             (data.m_Handle ||
@@ -540,7 +544,9 @@ namespace Profiler
                 eventName,
                 "Pipelines",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueue ) );
+                m_CommandQueue,
+                {} ,
+                eventArgs ) );
         }
 
         for( const auto& drawcall : data.m_Drawcalls )

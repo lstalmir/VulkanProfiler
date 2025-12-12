@@ -39,13 +39,13 @@ namespace Profiler
     struct DeviceProfilerSubmit
     {
         std::vector<ProfilerCommandBuffer*>             m_pCommandBuffers = {};
-        std::vector<VkSemaphore>                        m_SignalSemaphores = {};
-        std::vector<VkSemaphore>                        m_WaitSemaphores = {};
+        std::vector<VkSemaphoreHandle>                  m_SignalSemaphores = {};
+        std::vector<VkSemaphoreHandle>                  m_WaitSemaphores = {};
     };
 
     struct DeviceProfilerSubmitBatch
     {
-        VkQueue                                         m_Handle = {};
+        VkQueueHandle                                   m_Handle = {};
         ContainerType<DeviceProfilerSubmit>             m_Submits = {};
         uint64_t                                        m_Timestamp = {};
         uint32_t                                        m_ThreadId = {};
@@ -109,6 +109,7 @@ namespace Profiler
         void SetDataBufferSize( uint32_t maxFrames );
 
         bool IsDataCollectionThreadRunning() const { return m_DataCollectionThreadRunning; }
+        void StopDataCollectionThread();
 
         void AppendFrame( const DeviceProfilerFrame& );
         void AppendSubmit( const DeviceProfilerSubmitBatch& );
@@ -133,14 +134,14 @@ namespace Profiler
         // Command pools used for copying query data
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
-        // Vendor-specific metric properties
-        std::vector<VkProfilerPerformanceCounterPropertiesEXT> m_VendorMetricProperties;
-        uint32_t                                               m_VendorMetricsSetIndex;
+        // Performance metric properties
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceMetricProperties;
+        uint32_t m_PerformanceMetricsSetIndex;
 
         void DataCollectionThreadProc();
 
-        void LoadVendorMetricsProperties();
-        std::vector<VkProfilerPerformanceCounterResultEXT> AggregateVendorMetrics( const Frame& ) const;
+        void LoadPerformanceMetricsProperties();
+        DeviceProfilerPerformanceCountersData AggregatePerformanceMetrics( const Frame& ) const;
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines( const Frame& ) const;
         void CollectPipelinesFromCommandBuffer( const DeviceProfilerCommandBufferData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;

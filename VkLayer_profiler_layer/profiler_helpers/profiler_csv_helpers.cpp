@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2024 Lukasz Stalmirski
+// Copyright (c) 2024-2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -93,6 +93,7 @@ namespace Profiler
     DeviceProfilerCsvSerializer::DeviceProfilerCsvSerializer()
         : m_File()
         , m_Properties( 0 )
+        , m_IsFirstHeaderRow( true )
     {
     }
 
@@ -124,6 +125,7 @@ namespace Profiler
         try
         {
             m_File.open( filename, std::ios::out | std::ios::trunc );
+            m_IsFirstHeaderRow = true;
             return m_File.is_open();
         }
         catch( ... )
@@ -164,10 +166,10 @@ namespace Profiler
         Write CSV header and save performance counter properties for the following rows.
 
     \***********************************************************************************/
-    void DeviceProfilerCsvSerializer::WriteHeader( uint32_t count, const VkProfilerPerformanceCounterPropertiesEXT* pProperties )
+    void DeviceProfilerCsvSerializer::WriteHeader( uint32_t count, const VkProfilerPerformanceCounterProperties2EXT* pProperties )
     {
         m_Properties.resize( count );
-        memcpy( m_Properties.data(), pProperties, count * sizeof( VkProfilerPerformanceCounterPropertiesEXT ) );
+        memcpy( m_Properties.data(), pProperties, count * sizeof( VkProfilerPerformanceCounterProperties2EXT ) );
 
         for( uint32_t i = 0; i < count; ++i )
         {
@@ -223,6 +225,54 @@ namespace Profiler
                 m_File << pValues[i].float64;
                 break;
             }
+        }
+
+        m_File << std::endl;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteHeader
+
+    Description:
+        Write CSV header for non-performance counter data.
+
+    \***********************************************************************************/
+    void DeviceProfilerCsvSerializer::WriteHeader( const std::vector<std::string>& names )
+    {
+        m_Properties.clear();
+
+        if( !m_IsFirstHeaderRow )
+        {
+            m_File << std::endl;
+        }
+        m_IsFirstHeaderRow = false;
+
+        const uint32_t count = static_cast<uint32_t>( names.size() );
+        for( uint32_t i = 0; i < count; ++i )
+        {
+            m_File << sep( i ) << names[i];
+        }
+
+        m_File << std::endl;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        WriteHeader
+
+    Description:
+        Write CSV header for non-performance counter data.
+
+    \***********************************************************************************/
+    void DeviceProfilerCsvSerializer::WriteRow( const std::vector<std::string>& values )
+    {
+        const uint32_t count = static_cast<uint32_t>( values.size() );
+        for( uint32_t i = 0; i < count; ++i )
+        {
+            m_File << sep( i ) << values[i];
         }
 
         m_File << std::endl;
@@ -311,7 +361,7 @@ namespace Profiler
         Read CSV header and return performance counter properties.
 
     \***********************************************************************************/
-    std::vector<VkProfilerPerformanceCounterPropertiesEXT> DeviceProfilerCsvDeserializer::ReadHeader()
+    std::vector<VkProfilerPerformanceCounterProperties2EXT> DeviceProfilerCsvDeserializer::ReadHeader()
     {
         m_Properties.clear();
 
@@ -345,7 +395,7 @@ namespace Profiler
                 size_t colon = header.find( ":" );
                 if( colon != std::string::npos )
                 {
-                    VkProfilerPerformanceCounterPropertiesEXT property = {};
+                    VkProfilerPerformanceCounterProperties2EXT property = {};
                     property.storage = GetPerformanceCounterStorageType( header.substr( 0, colon ) );
 
                     std::string_view name =

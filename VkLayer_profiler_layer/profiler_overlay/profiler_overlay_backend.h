@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include <stdint.h>
 
 struct ImDrawData;
 struct ImVec2;
@@ -50,8 +51,8 @@ namespace Profiler
         virtual float GetDPIScale() const = 0;
         virtual ImVec2 GetRenderArea() const = 0;
 
-        virtual void* CreateImage( int width, int height, const void* pData ) = 0;
-        virtual void DestroyImage( void* pImage ) = 0;
+        virtual uint64_t CreateImage( int width, int height, const void* pData ) = 0;
+        virtual void DestroyImage( uint64_t image ) = 0;
         virtual void CreateFontsImage() = 0;
         virtual void DestroyFontsImage() = 0;
     };

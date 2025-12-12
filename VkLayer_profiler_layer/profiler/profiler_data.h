@@ -287,7 +287,7 @@ namespace Profiler
     struct DeviceProfilerDrawcallDrawIndirectBasePayload
         : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
-        VkObjectHandle<VkBuffer> m_Buffer;
+        VkBufferHandle m_Buffer;
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
@@ -296,7 +296,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            profiler.ResolveObjectHandle( m_Buffer );
         }
     };
 
@@ -316,9 +316,9 @@ namespace Profiler
     struct DeviceProfilerDrawcallDrawIndirectCountBasePayload
         : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
-        VkObjectHandle<VkBuffer> m_Buffer;
+        VkBufferHandle m_Buffer;
         VkDeviceSize m_Offset;
-        VkObjectHandle<VkBuffer> m_CountBuffer;
+        VkBufferHandle m_CountBuffer;
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
@@ -328,8 +328,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
-            m_CountBuffer = profiler.template GetObjectHandle<VkBuffer>( m_CountBuffer.m_Handle );
+            profiler.ResolveObjectHandle( m_Buffer );
+            profiler.ResolveObjectHandle( m_CountBuffer );
         }
     };
 
@@ -358,7 +358,7 @@ namespace Profiler
     struct DeviceProfilerDrawcallDrawMeshTasksIndirectBasePayload
         : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
-        VkObjectHandle<VkBuffer> m_Buffer;
+        VkBufferHandle m_Buffer;
         VkDeviceSize m_Offset;
         uint32_t m_DrawCount;
         uint32_t m_Stride;
@@ -367,7 +367,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            profiler.ResolveObjectHandle( m_Buffer );
         }
     };
 
@@ -381,9 +381,9 @@ namespace Profiler
     struct DeviceProfilerDrawcallDrawMeshTasksIndirectCountBasePayload
         : DeviceProfilerDrawcallBasePayload<Type, true /*HasIndirectPayload*/>
     {
-        VkObjectHandle<VkBuffer> m_Buffer;
+        VkBufferHandle m_Buffer;
         VkDeviceSize m_Offset;
-        VkObjectHandle<VkBuffer> m_CountBuffer;
+        VkBufferHandle m_CountBuffer;
         VkDeviceSize m_CountOffset;
         uint32_t m_MaxDrawCount;
         uint32_t m_Stride;
@@ -393,8 +393,8 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
-            m_CountBuffer = profiler.template GetObjectHandle<VkBuffer>( m_CountBuffer.m_Handle );
+            profiler.ResolveObjectHandle( m_Buffer );
+            profiler.ResolveObjectHandle( m_CountBuffer );
         }
     };
 
@@ -438,14 +438,14 @@ namespace Profiler
               DeviceProfilerDrawcallType::eDispatchIndirect,
               true /*HasIndirectPayload*/>
     {
-        VkObjectHandle<VkBuffer> m_Buffer;
+        VkBufferHandle m_Buffer;
         VkDeviceSize m_Offset;
         size_t m_IndirectArgsOffset;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            profiler.ResolveObjectHandle( m_Buffer );
         }
     };
 
@@ -453,14 +453,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyBuffer>
     {
-        VkObjectHandle<VkBuffer> m_SrcBuffer;
-        VkObjectHandle<VkBuffer> m_DstBuffer;
+        VkBufferHandle m_SrcBuffer;
+        VkBufferHandle m_DstBuffer;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcBuffer = profiler.template GetObjectHandle<VkBuffer>( m_SrcBuffer.m_Handle );
-            m_DstBuffer = profiler.template GetObjectHandle<VkBuffer>( m_DstBuffer.m_Handle );
+            profiler.ResolveObjectHandle( m_SrcBuffer );
+            profiler.ResolveObjectHandle( m_DstBuffer );
         }
     };
 
@@ -468,14 +468,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyBufferToImage>
     {
-        VkObjectHandle<VkBuffer> m_SrcBuffer;
-        VkObjectHandle<VkImage> m_DstImage;
+        VkBufferHandle m_SrcBuffer;
+        VkImageHandle m_DstImage;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcBuffer = profiler.template GetObjectHandle<VkBuffer>( m_SrcBuffer.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            profiler.ResolveObjectHandle( m_SrcBuffer );
+            profiler.ResolveObjectHandle( m_DstImage );
         }
     };
 
@@ -483,14 +483,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyImage>
     {
-        VkObjectHandle<VkImage> m_SrcImage;
-        VkObjectHandle<VkImage> m_DstImage;
+        VkImageHandle m_SrcImage;
+        VkImageHandle m_DstImage;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            profiler.ResolveObjectHandle( m_SrcImage );
+            profiler.ResolveObjectHandle( m_DstImage );
         }
     };
 
@@ -498,14 +498,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyImageToBuffer>
     {
-        VkObjectHandle<VkImage> m_SrcImage;
-        VkObjectHandle<VkBuffer> m_DstBuffer;
+        VkImageHandle m_SrcImage;
+        VkBufferHandle m_DstBuffer;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstBuffer = profiler.template GetObjectHandle<VkBuffer>( m_DstBuffer.m_Handle );
+            profiler.ResolveObjectHandle( m_SrcImage );
+            profiler.ResolveObjectHandle( m_DstBuffer );
         }
     };
 
@@ -520,13 +520,13 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eClearColorImage>
     {
-        VkObjectHandle<VkImage> m_Image;
+        VkImageHandle m_Image;
         VkClearColorValue m_Value;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Image = profiler.template GetObjectHandle<VkImage>( m_Image.m_Handle );
+            profiler.ResolveObjectHandle( m_Image );
         }
     };
 
@@ -534,13 +534,13 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eClearDepthStencilImage>
     {
-        VkObjectHandle<VkImage> m_Image;
+        VkImageHandle m_Image;
         VkClearDepthStencilValue m_Value;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Image = profiler.template GetObjectHandle<VkImage>( m_Image.m_Handle );
+            profiler.ResolveObjectHandle( m_Image );
         }
     };
 
@@ -548,14 +548,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eResolveImage>
     {
-        VkObjectHandle<VkImage> m_SrcImage;
-        VkObjectHandle<VkImage> m_DstImage;
+        VkImageHandle m_SrcImage;
+        VkImageHandle m_DstImage;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            profiler.ResolveObjectHandle( m_SrcImage );
+            profiler.ResolveObjectHandle( m_DstImage );
         }
     };
 
@@ -563,14 +563,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eBlitImage>
     {
-        VkObjectHandle<VkImage> m_SrcImage;
-        VkObjectHandle<VkImage> m_DstImage;
+        VkImageHandle m_SrcImage;
+        VkImageHandle m_DstImage;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_SrcImage = profiler.template GetObjectHandle<VkImage>( m_SrcImage.m_Handle );
-            m_DstImage = profiler.template GetObjectHandle<VkImage>( m_DstImage.m_Handle );
+            profiler.ResolveObjectHandle( m_SrcImage );
+            profiler.ResolveObjectHandle( m_DstImage );
         }
     };
 
@@ -578,7 +578,7 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
             DeviceProfilerDrawcallType::eFillBuffer>
     {
-        VkObjectHandle<VkBuffer> m_Buffer;
+        VkBufferHandle m_Buffer;
         VkDeviceSize m_Offset;
         VkDeviceSize m_Size;
         uint32_t m_Data;
@@ -586,7 +586,7 @@ namespace Profiler
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            profiler.ResolveObjectHandle( m_Buffer );
         }
     };
 
@@ -594,14 +594,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eUpdateBuffer>
     {
-        VkObjectHandle<VkBuffer> m_Buffer;
+        VkBufferHandle m_Buffer;
         VkDeviceSize m_Offset;
         VkDeviceSize m_Size;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Buffer = profiler.template GetObjectHandle<VkBuffer>( m_Buffer.m_Handle );
+            profiler.ResolveObjectHandle( m_Buffer );
         }
     };
 
@@ -666,15 +666,15 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR>
     {
-        VkObjectHandle<VkAccelerationStructureKHR> m_Src;
-        VkObjectHandle<VkAccelerationStructureKHR> m_Dst;
+        VkAccelerationStructureKHRHandle m_Src;
+        VkAccelerationStructureKHRHandle m_Dst;
         VkCopyAccelerationStructureModeKHR m_Mode;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Src.m_Handle );
-            m_Dst = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Dst.m_Handle );
+            profiler.ResolveObjectHandle( m_Src );
+            profiler.ResolveObjectHandle( m_Dst );
         }
     };
 
@@ -682,14 +682,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR>
     {
-        VkObjectHandle<VkAccelerationStructureKHR> m_Src;
+        VkAccelerationStructureKHRHandle m_Src;
         VkDeviceOrHostAddressKHR m_Dst;
         VkCopyAccelerationStructureModeKHR m_Mode;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Src.m_Handle );
+            profiler.ResolveObjectHandle( m_Src );
         }
     };
 
@@ -698,13 +698,13 @@ namespace Profiler
             DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR>
     {
         VkDeviceOrHostAddressConstKHR m_Src;
-        VkObjectHandle<VkAccelerationStructureKHR> m_Dst;
+        VkAccelerationStructureKHRHandle m_Dst;
         VkCopyAccelerationStructureModeKHR m_Mode;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Dst = profiler.template GetObjectHandle<VkAccelerationStructureKHR>( m_Dst.m_Handle );
+            profiler.ResolveObjectHandle( m_Dst );
         }
     };
 
@@ -724,15 +724,15 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyMicromapEXT>
     {
-        VkObjectHandle<VkMicromapEXT> m_Src;
-        VkObjectHandle<VkMicromapEXT> m_Dst;
+        VkMicromapEXTHandle m_Src;
+        VkMicromapEXTHandle m_Dst;
         VkCopyMicromapModeEXT m_Mode;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkMicromapEXT>( m_Src.m_Handle );
-            m_Dst = profiler.template GetObjectHandle<VkMicromapEXT>( m_Dst.m_Handle );
+            profiler.ResolveObjectHandle( m_Src );
+            profiler.ResolveObjectHandle( m_Dst );
         }
     };
 
@@ -741,13 +741,13 @@ namespace Profiler
               DeviceProfilerDrawcallType::eCopyMemoryToMicromapEXT>
     {
         VkDeviceOrHostAddressConstKHR m_Src;
-        VkObjectHandle<VkMicromapEXT> m_Dst;
+        VkMicromapEXTHandle m_Dst;
         VkCopyMicromapModeEXT m_Mode;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Dst = profiler.template GetObjectHandle<VkMicromapEXT>( m_Dst.m_Handle );
+            profiler.ResolveObjectHandle( m_Dst );
         }
     };
 
@@ -755,14 +755,14 @@ namespace Profiler
         : DeviceProfilerDrawcallBasePayload<
               DeviceProfilerDrawcallType::eCopyMicromapToMemoryEXT>
     {
-        VkObjectHandle<VkMicromapEXT> m_Src;
+        VkMicromapEXTHandle m_Src;
         VkDeviceOrHostAddressKHR m_Dst;
         VkCopyMicromapModeEXT m_Mode;
 
         template<typename ProfilerT>
         inline void ResolveObjectHandles( const ProfilerT& profiler )
         {
-            m_Src = profiler.template GetObjectHandle<VkMicromapEXT>( m_Src.m_Handle );
+            profiler.ResolveObjectHandle( m_Src );
         }
     };
 
@@ -1195,7 +1195,7 @@ namespace Profiler
             VkRayTracingPipelineCreateInfoKHR               m_RayTracingPipelineCreateInfoKHR;
         };
 
-        VkObjectHandle<VkPipeline>                          m_Handle = {};
+        VkPipelineHandle                                    m_Handle = {};
         VkPipelineBindPoint                                 m_BindPoint = {};
         ProfilerShaderTuple                                 m_ShaderTuple = {};
         DeviceProfilerPipelineType                          m_Type = {};
@@ -1310,7 +1310,7 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerRenderPass
     {
-        VkObjectHandle<VkRenderPass>                        m_Handle = {};
+        VkRenderPassHandle                                  m_Handle = {};
         DeviceProfilerRenderPassType                        m_Type = {};
         std::vector<struct DeviceProfilerSubpass>           m_Subpasses = {};
         uint32_t                                            m_ClearColorAttachmentCount = {};
@@ -1370,7 +1370,7 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerRenderPassData
     {
-        VkObjectHandle<VkRenderPass>                        m_Handle = {};
+        VkRenderPassHandle                                  m_Handle = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
@@ -1385,11 +1385,26 @@ namespace Profiler
 
         ContainerType<struct DeviceProfilerSubpassData>     m_Subpasses = {};
 
-        bool HasBeginCommand() const { return m_Handle.m_Handle != VK_NULL_HANDLE || m_Dynamic; }
-        bool HasEndCommand() const { return m_Handle.m_Handle != VK_NULL_HANDLE || m_Dynamic; }
+        bool HasBeginCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
+        bool HasEndCommand() const { return m_Handle != VK_NULL_HANDLE || m_Dynamic; }
 
         inline DeviceProfilerTimestamp GetBeginTimestamp() const { return m_BeginTimestamp; }
         inline DeviceProfilerTimestamp GetEndTimestamp() const { return m_EndTimestamp; }
+    };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerPerformanceCounterData
+
+    Description:
+        Holds performance query results for a single performance query pass.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPerformanceCountersData
+    {
+        uint32_t                                            m_MetricsSetIndex = UINT32_MAX;
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
     };
 
     /***********************************************************************************\
@@ -1403,7 +1418,7 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerCommandBufferData
     {
-        VkObjectHandle<VkCommandBuffer>                     m_Handle = {};
+        VkCommandBufferHandle                               m_Handle = {};
         VkCommandBufferLevel                                m_Level = {};
         DeviceProfilerDrawcallStats                         m_Stats = {};
         DeviceProfilerTimestamp                             m_BeginTimestamp;
@@ -1413,10 +1428,7 @@ namespace Profiler
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};
 
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_PerformanceQueryResults = {};
-        uint32_t                                            m_PerformanceQueryMetricsSetIndex = UINT32_MAX;
-
-        uint64_t                                            m_ProfilerCpuOverheadNs = {};
+        DeviceProfilerPerformanceCountersData               m_PerformanceCounters = {};
 
         std::vector<uint8_t>                                m_IndirectPayload = {};
 
@@ -1436,8 +1448,8 @@ namespace Profiler
     struct DeviceProfilerSubmitData
     {
         ContainerType<struct DeviceProfilerCommandBufferData> m_CommandBuffers = {};
-        std::vector<VkSemaphore>                            m_SignalSemaphores = {};
-        std::vector<VkSemaphore>                            m_WaitSemaphores = {};
+        std::vector<VkSemaphoreHandle>                      m_SignalSemaphores = {};
+        std::vector<VkSemaphoreHandle>                      m_WaitSemaphores = {};
 
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
@@ -1457,7 +1469,7 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerSubmitBatchData
     {
-        VkQueue                                             m_Handle = {};
+        VkQueueHandle                                       m_Handle = {};
         ContainerType<struct DeviceProfilerSubmitData>      m_Submits = {};
         uint64_t                                            m_Timestamp = {};
         uint32_t                                            m_ThreadId = {};
@@ -1517,7 +1529,7 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerBufferMemoryBindingData
     {
-        VkObjectHandle<VkDeviceMemory> m_Memory = {};
+        VkDeviceMemoryHandle m_Memory = {};
         VkDeviceSize m_MemoryOffset = {};
         VkDeviceSize m_BufferOffset = {};
         VkDeviceSize m_Size = {};
@@ -1603,7 +1615,7 @@ namespace Profiler
 
     struct DeviceProfilerImageOpaqueMemoryBindingData
     {
-        VkObjectHandle<VkDeviceMemory> m_Memory;
+        VkDeviceMemoryHandle m_Memory;
         VkDeviceSize m_MemoryOffset;
         VkDeviceSize m_ImageOffset;
         VkDeviceSize m_Size;
@@ -1611,7 +1623,7 @@ namespace Profiler
 
     struct DeviceProfilerImageBlockMemoryBindingData
     {
-        VkObjectHandle<VkDeviceMemory> m_Memory;
+        VkDeviceMemoryHandle m_Memory;
         VkDeviceSize m_MemoryOffset;
         VkImageSubresource m_ImageSubresource;
         VkOffset3D m_ImageOffset;
@@ -1726,7 +1738,7 @@ namespace Profiler
     {
         VkAccelerationStructureTypeKHR m_Type = {};
         VkAccelerationStructureCreateFlagsKHR m_Flags = {};
-        VkObjectHandle<VkBuffer> m_Buffer = {};
+        VkBufferHandle m_Buffer = {};
         VkDeviceSize m_Offset = {};
         VkDeviceSize m_Size = {};
     };
@@ -1743,7 +1755,7 @@ namespace Profiler
     {
         VkMicromapTypeEXT m_Type = {};
         VkMicromapCreateFlagsEXT m_Flags = {};
-        VkObjectHandle<VkBuffer> m_Buffer = {};
+        VkBufferHandle m_Buffer = {};
         VkDeviceSize m_Offset = {};
         VkDeviceSize m_Size = {};
     };
@@ -1764,12 +1776,12 @@ namespace Profiler
         std::vector<struct DeviceProfilerMemoryHeapData> m_Heaps = {};
         std::vector<struct DeviceProfilerMemoryTypeData> m_Types = {};
 
-        std::unordered_map<VkObjectHandle<VkDeviceMemory>, struct DeviceProfilerDeviceMemoryData> m_Allocations = {};
-        std::unordered_map<VkObjectHandle<VkBuffer>, struct DeviceProfilerBufferMemoryData> m_Buffers = {};
-        std::unordered_map<VkObjectHandle<VkImage>, struct DeviceProfilerImageMemoryData> m_Images = {};
-        std::unordered_map<VkObjectHandle<VkAccelerationStructureKHR>, struct DeviceProfilerAccelerationStructureMemoryData>
+        std::unordered_map<VkDeviceMemoryHandle, struct DeviceProfilerDeviceMemoryData> m_Allocations = {};
+        std::unordered_map<VkBufferHandle, struct DeviceProfilerBufferMemoryData> m_Buffers = {};
+        std::unordered_map<VkImageHandle, struct DeviceProfilerImageMemoryData> m_Images = {};
+        std::unordered_map<VkAccelerationStructureKHRHandle, struct DeviceProfilerAccelerationStructureMemoryData>
             m_AccelerationStructures = {};
-        std::unordered_map<VkObjectHandle<VkMicromapEXT>, struct DeviceProfilerMicromapMemoryData> m_Micromaps = {};
+        std::unordered_map<VkMicromapEXTHandle, struct DeviceProfilerMicromapMemoryData> m_Micromaps = {};
     };
 
     /***********************************************************************************\
@@ -1829,7 +1841,7 @@ namespace Profiler
         DeviceProfilerCPUData                               m_CPU = {};
         std::vector<struct TipRange>                        m_TIP = {};
 
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_VendorMetrics = {};
+        DeviceProfilerPerformanceCountersData               m_PerformanceCounters = {};
 
         DeviceProfilerSynchronizationTimestamps             m_SyncTimestamps = {};
     };

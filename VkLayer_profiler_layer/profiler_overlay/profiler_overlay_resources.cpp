@@ -24,6 +24,7 @@
 #include "profiler_overlay/profiler_overlay_assets.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
+#include <assert.h>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -264,9 +265,14 @@ namespace Profiler
         m_pBackend->CreateFontsImage();
 
         // Create image objects
-        m_pCopyIconImage = CreateImage( OverlayAssets::CopyImg, sizeof( OverlayAssets::CopyImg ) );
-        m_pBookmarkEmptyIconImage = CreateImage( OverlayAssets::BookmarkEmptyImg, sizeof( OverlayAssets::BookmarkEmptyImg ) );
-        m_pBookmarkFilledIconImage = CreateImage( OverlayAssets::BookmarkFilledImg, sizeof( OverlayAssets::BookmarkFilledImg ) );
+        m_Icons[OverlayIcon::Open] = CreateImage( OverlayAssets::OpenImg );
+        m_Icons[OverlayIcon::Save] = CreateImage( OverlayAssets::SaveImg );
+        m_Icons[OverlayIcon::Copy] = CreateImage( OverlayAssets::CopyImg );
+        m_Icons[OverlayIcon::Info] = CreateImage( OverlayAssets::InfoImg );
+        m_Icons[OverlayIcon::Plus] = CreateImage( OverlayAssets::PlusImg );
+        m_Icons[OverlayIcon::Minus] = CreateImage( OverlayAssets::MinusImg );
+        m_Icons[OverlayIcon::BookmarkEmpty] = CreateImage( OverlayAssets::BookmarkEmptyImg );
+        m_Icons[OverlayIcon::BookmarkFilled] = CreateImage( OverlayAssets::BookmarkFilledImg );
 
         return true;
     }
@@ -305,22 +311,13 @@ namespace Profiler
             m_pBackend->WaitIdle();
             m_pBackend->DestroyFontsImage();
 
-            if( m_pCopyIconImage )
+            for( uint64_t& icon : m_Icons )
             {
-                m_pBackend->DestroyImage( m_pCopyIconImage );
-                m_pCopyIconImage = nullptr;
-            }
-
-            if( m_pBookmarkEmptyIconImage )
-            {
-                m_pBackend->DestroyImage( m_pBookmarkEmptyIconImage );
-                m_pBookmarkEmptyIconImage = nullptr;
-            }
-
-            if( m_pBookmarkFilledIconImage )
-            {
-                m_pBackend->DestroyImage( m_pBookmarkFilledIconImage );
-                m_pBookmarkFilledIconImage = nullptr;
+                if( icon )
+                {
+                    m_pBackend->DestroyImage( icon );
+                    icon = 0;
+                }
             }
         }
 
@@ -372,43 +369,17 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetCopyIconImage
+        GetIcon
 
     Description:
-        Returns the copy icon image descriptor set.
+        Returns the specified icon's image descriptor set.
 
     \***********************************************************************************/
-    void* OverlayResources::GetCopyIconImage() const
+    uint64_t OverlayResources::GetIcon( OverlayIcon icon ) const
     {
-        return m_pCopyIconImage;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetBookmarkEmptyIconImage
-
-    Description:
-        Returns the empty bookmark icon image descriptor set.
-
-    \***********************************************************************************/
-    void* OverlayResources::GetBookmarkEmptyIconImage() const
-    {
-        return m_pBookmarkEmptyIconImage;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetBookmarkFilledIconImage
-
-    Description:
-        Returns the filled bookmark icon image descriptor set.
-
-    \***********************************************************************************/
-    void* OverlayResources::GetBookmarkFilledIconImage() const
-    {
-        return m_pBookmarkFilledIconImage;
+        assert( icon < OverlayIcon::IconCount );
+        assert( m_Icons[icon] );
+        return m_Icons[icon];
     }
 
     /***********************************************************************************\
@@ -420,7 +391,7 @@ namespace Profiler
         Creates an image object from the asset data.
 
     \***********************************************************************************/
-    void* OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
+    uint64_t OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
     {
         int width, height, channels;
         std::unique_ptr<stbi_uc[]> pixels;
@@ -436,7 +407,7 @@ namespace Profiler
 
         if( !pixels || channels != 4 )
         {
-            return nullptr;
+            return 0;
         }
 
         return m_pBackend->CreateImage( width, height, pixels.get() );

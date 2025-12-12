@@ -59,6 +59,33 @@ add_library (metrics-discovery INTERFACE)
 target_include_directories (metrics-discovery
     INTERFACE metrics-discovery/inc/common/instrumentation/api)
 
+if (UNIX)
+    function (build_metrics_discovery)
+        # libdrm development package is required to build the metrics library.
+        find_library (libdrm drm)
+        if (${libdrm} STREQUAL libdrm-NOTFOUND)
+            message (WARNING "libdrm not found - Intel metrics-discovery library will not be included in the package")
+            return ()
+        endif ()
+        # Metrics-discovery supports only release and debug build types.
+        if (CMAKE_BUILD_TYPE)
+            string (TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
+        endif ()
+        if (CMAKE_BUILD_TYPE STREQUAL "relwithdebinfo" OR CMAKE_BUILD_TYPE STREQUAL "minsizerel")
+            set (CMAKE_BUILD_TYPE "release")
+        endif ()
+        add_subdirectory (metrics-discovery)
+    endfunction ()
+
+    build_metrics_discovery()
+
+    # Include the library in the installed package.
+    if (TARGET metrics_discovery)
+        add_dependencies (metrics-discovery metrics_discovery)
+        list (APPEND _PROFILER_INSTALL_EXTERNAL_TARGETS metrics_discovery)
+    endif ()
+endif ()
+
 # KhronosGroup/Vulkan-Headers
 add_subdirectory (Vulkan-Headers)
 set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers" PARENT_SCOPE)
@@ -97,13 +124,17 @@ add_library (imgui STATIC
     imgui/imgui_draw.cpp
     imgui/imgui_tables.cpp
     imgui/imgui_widgets.cpp
+    imgui/misc/cpp/imgui_stdlib.h
+    imgui/misc/cpp/imgui_stdlib.cpp
     ${imgui_backends})
 
 target_include_directories (imgui
     PUBLIC imgui
-    PUBLIC imgui/backends)
+    PUBLIC imgui/backends
+    PUBLIC imgui/misc/cpp)
 
 target_compile_definitions (imgui
+    PUBLIC IMGUI_USER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/imgui_config.h"
     PRIVATE VK_NO_PROTOTYPES=1)
 
 target_link_libraries (imgui
@@ -169,3 +200,5 @@ if (Wayland_FOUND AND WAYLAND_SCANNER)
 
     target_include_directories (xdg-shell PUBLIC "${XDG_SHELL_DIR}")
 endif ()
+
+set (PROFILER_INSTALL_EXTERNAL_TARGETS ${_PROFILER_INSTALL_EXTERNAL_TARGETS} PARENT_SCOPE)

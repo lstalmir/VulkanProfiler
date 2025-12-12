@@ -86,15 +86,24 @@ else ()
     set (THIS_DIR "./")
 endif ()
 
-configure_file (
+function (configure_and_generate_file IN_FILE OUT_FILE)
+    get_filename_component (IN_FILE_NAME "${IN_FILE}" NAME)
+    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${IN_FILE_NAME}.configured")
+
+    configure_file (
+        "${IN_FILE}"
+        "${CONFIGURED_FILE}"
+        @ONLY)
+
+    file (GENERATE
+        OUTPUT "${OUT_FILE}"
+        INPUT "${CONFIGURED_FILE}")
+endfunction ()
+
+configure_and_generate_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in"
-    "${json}_configured"
-    @ONLY)
-    
-file (GENERATE
-    OUTPUT "${json}"
-    INPUT "${json}_configured")
-    
+    "${json}")
+
 add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     COMMAND "${Python3_EXECUTABLE}"
@@ -174,6 +183,11 @@ target_compile_definitions (profiler_common INTERFACE
     $<$<CONFIG:Release>:PROFILER_CONFIG_RELEASE>
     $<$<CONFIG:MinSizeRel>:PROFILER_CONFIG_MINSIZEREL>)
 add_dependencies (profiler_common profiler_codegen)
+
+if (PROFILER_ENABLE_TIP)
+    target_compile_definitions (profiler_common INTERFACE
+        PROFILER_ENABLE_TIP=1)
+endif ()
 
 if (BUILD_SPIRV_DOCS)
     target_compile_definitions (profiler_common INTERFACE
@@ -296,15 +310,13 @@ source_group ("Functions/Extensions" FILES ${extension_functions})
 source_group ("Objects" FILES ${objects})
 
 # Configure resources file
-configure_file (
+configure_and_generate_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.rc.in"
-    ${resource}
-    @ONLY)
+    ${resource})
 
-configure_file (
+configure_and_generate_file (
     "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.generated.h.in"
-    ${generated}
-    @ONLY)
+    ${generated})
 
 add_library (${PROFILER_LAYER_PROJECTNAME}_lib STATIC
     "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
@@ -319,6 +331,11 @@ add_library (${PROFILER_LAYER_PROJECTNAME} SHARED
     "VkLayer_profiler_layer.cpp"
     "VkLayer_profiler_layer.def"
     ${resource})
+
+if (UNIX AND NOT APPLE)
+    target_link_options(${PROFILER_LAYER_PROJECTNAME}
+        PRIVATE LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/VkLayer_profiler_layer.map)
+endif ()
 
 # Link against implementation
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib

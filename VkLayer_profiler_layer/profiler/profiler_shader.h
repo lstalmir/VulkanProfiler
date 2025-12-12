@@ -144,7 +144,7 @@ namespace Profiler
 
         void UpdateHash();
 
-        std::string GetShaderStageHashesString( VkShaderStageFlags stages, bool skipEmptyStages = false ) const;
+        std::string GetShaderStageHashesString( VkShaderStageFlags stages, bool showEntryPoints = false, bool skipEmptyStages = false ) const;
     };
 }
 

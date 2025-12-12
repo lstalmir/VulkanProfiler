@@ -67,27 +67,39 @@ namespace Profiler
         // Get app window attributes
         auto geometry = GetGeometry( m_AppWindow );
 
-        const int mask = XCB_CW_EVENT_MASK;
-        const int valwin =
+        Int2 rootPosition( 0, 0 );
+        GetRootCoordinates( geometry.root, rootPosition );
+
+        const int overrideRedirect = 1;
+        const int eventMask =
             XCB_EVENT_MASK_POINTER_MOTION |
             XCB_EVENT_MASK_BUTTON_PRESS |
             XCB_EVENT_MASK_BUTTON_RELEASE |
             XCB_EVENT_MASK_KEY_PRESS |
             XCB_EVENT_MASK_KEY_RELEASE;
 
+        const int valueMask = XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK;
+        const int valueList[] = {
+            overrideRedirect,
+            eventMask
+        };
+
         xcb_create_window(
             m_Connection,
             XCB_COPY_FROM_PARENT,
             m_InputWindow,
-            m_AppWindow,
-            0, 0,
+            geometry.root,
+            rootPosition.x,
+            rootPosition.y,
             geometry.width,
             geometry.height,
             0,
             XCB_WINDOW_CLASS_INPUT_ONLY,
             XCB_COPY_FROM_PARENT,
-            mask, &valwin );
+            valueMask,
+            valueList );
 
+        xcb_shape_mask( m_Connection, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_BOUNDING, m_InputWindow, 0, 0, XCB_NONE );
         xcb_map_window( m_Connection, m_InputWindow );
         xcb_flush( m_Connection );
 
@@ -182,17 +194,26 @@ namespace Profiler
         auto geometry = GetGeometry( m_AppWindow );
         io.DisplaySize = ImVec2((float)(geometry.width), (float)(geometry.height));
 
-        const uint32_t inputWindowChanges[2] = {
-            static_cast<uint32_t>( geometry.width ),
-            static_cast<uint32_t>( geometry.height )
-        };
+        int inputWindowChangeMask = 0;
+        std::vector<uint32_t> inputWindowChanges;
+
+        Int2 rootPosition( 0, 0 );
+        if( GetRootCoordinates( geometry.root, rootPosition ) )
+        {
+            inputWindowChanges.push_back( static_cast<uint32_t>( rootPosition.x ) );
+            inputWindowChanges.push_back( static_cast<uint32_t>( rootPosition.y ) );
+            inputWindowChangeMask |= XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y;
+        }
+
+        inputWindowChanges.push_back( static_cast<uint32_t>( geometry.width ) );
+        inputWindowChanges.push_back( static_cast<uint32_t>( geometry.height ) );
+        inputWindowChangeMask |= XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
 
         xcb_configure_window(
             m_Connection,
             m_InputWindow,
-            XCB_CONFIG_WINDOW_WIDTH |
-            XCB_CONFIG_WINDOW_HEIGHT,
-            inputWindowChanges );
+            inputWindowChangeMask,
+            inputWindowChanges.data() );
 
         // Update OS mouse position
         UpdateMousePos();
@@ -212,6 +233,14 @@ namespace Profiler
                 m_InputRects.push_back( rect );
             }
         }
+
+        xcb_shape_mask(
+            m_Connection,
+            XCB_SHAPE_SO_SET,
+            XCB_SHAPE_SK_BOUNDING,
+            m_InputWindow,
+            0, 0,
+            XCB_NONE );
 
         xcb_shape_rectangles(
             m_Connection,
@@ -439,6 +468,42 @@ namespace Profiler
         free( pReply );
 
         return atom;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetRootCoordinates
+
+    Description:
+
+    \***********************************************************************************/
+    bool OverlayLayerXcbPlatformBackend::GetRootCoordinates( xcb_window_t root, Int2& out ) const
+    {
+        // Send request to the server.
+        xcb_translate_coordinates_cookie_t cookie = xcb_translate_coordinates_unchecked(
+            m_Connection,
+            m_AppWindow,
+            root,
+            0, 0 );
+
+        // Wait for the response.
+        xcb_translate_coordinates_reply_t* pReply = xcb_translate_coordinates_reply(
+            m_Connection,
+            cookie,
+            nullptr );
+
+        bool result = false;
+        if( pReply )
+        {
+            out.x = pReply->dst_x;
+            out.y = pReply->dst_y;
+            result = true;
+        }
+
+        free( pReply );
+
+        return result;
     }
 
     /***********************************************************************************\
