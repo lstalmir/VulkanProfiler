@@ -65,6 +65,8 @@ namespace Profiler
         bool SupportsQueryPoolReuse() const final { return true; }
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
+        uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) final;
+
         void ParseReport(
             uint32_t metricsSetIndex,
             uint32_t queueFamilyIndex,
@@ -76,6 +78,12 @@ namespace Profiler
         // Require at least version 1.1.
         static const uint32_t m_RequiredVersionMajor = 1;
         static const uint32_t m_MinRequiredVersionMinor = 1;
+
+        // Mask of report reasons indicating a stream marker report.
+        static constexpr uint32_t m_scMetricsStreamMarkerReportReasonMask =
+            MetricsDiscovery::REPORT_REASON_INTERNAL_TRIGGER1 |
+            MetricsDiscovery::REPORT_REASON_INTERNAL_TRIGGER2 |
+            MetricsDiscovery::REPORT_REASON_INTERNAL_MMIO_TRIGGER;
 
         struct Counter
         {
@@ -95,10 +103,10 @@ namespace Profiler
             uint8_t m_UUID[VK_UUID_SIZE];
         };
 
-        struct Information
+        struct ReportInformations
         {
-            MetricsDiscovery::IInformation_1_0* m_pInformation;
-            MetricsDiscovery::TInformationParams_1_0* m_pInformationParams;
+            uint32_t                          m_Reason;
+            uint32_t                          m_Value;
         };
 
         struct MetricsSet
@@ -106,8 +114,10 @@ namespace Profiler
             MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
             MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
 
+            uint32_t                          m_ReportReasonInformationIndex;
+            uint32_t                          m_ValueInformationIndex;
+
             std::vector<Counter>              m_Counters;
-            std::vector<Information>          m_Informations;
         };
 
         void*                                 m_MDLibraryHandle;
@@ -136,7 +146,8 @@ namespace Profiler
 
         uint32_t                              m_MetricsStreamMaxReportCount;
         std::vector<char>                     m_MetricsStreamDataBuffer;
-        std::ofstream                         m_MetricsStreamOutputFile;
+
+        std::atomic_uint32_t                  m_NextMetricsStreamMarkerValue;
 
         std::filesystem::path FindMetricsDiscoveryLibrary();
 
@@ -154,7 +165,7 @@ namespace Profiler
             uint32_t reportSize,
             const uint8_t* pReport,
             std::vector<VkProfilerPerformanceCounterResultEXT>& results,
-            std::vector<MetricsDiscovery::TTypedValue_1_0>& informations );
+            ReportInformations* pReportInformations );
 
         void ResetMembers();
 

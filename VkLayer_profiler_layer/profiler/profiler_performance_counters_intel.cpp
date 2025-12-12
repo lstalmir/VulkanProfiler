@@ -183,8 +183,6 @@ namespace Profiler
                 m_MetricsStreamCollectionThread = std::thread(
                     &DeviceProfilerPerformanceCountersINTEL::MetricsStreamCollectionThreadProc,
                     this );
-
-                m_MetricsStreamOutputFile.open( "metrics.csv", std::ios::trunc );
             }
         }
 
@@ -248,15 +246,32 @@ namespace Profiler
                     continue;
                 }
 
-                // Include informations in the set.
+                // Read informations in the set.
+                set.m_ReportReasonInformationIndex = UINT32_MAX;
+                set.m_ValueInformationIndex = UINT32_MAX;
+
                 const uint32_t informationCount = set.m_pMetricSetParams->InformationCount;
                 for( uint32_t infoIndex = 0; infoIndex < informationCount; ++infoIndex )
                 {
-                    Information info = {};
-                    info.m_pInformation = set.m_pMetricSet->GetInformation( infoIndex );
-                    info.m_pInformationParams = info.m_pInformation->GetParams();
+                    MD::IInformation_1_0* pInformation = set.m_pMetricSet->GetInformation( infoIndex );
+                    MD::TInformationParams_1_0* pInformationParams = pInformation->GetParams();
 
-                    set.m_Informations.push_back( std::move( info ) );
+                    switch( pInformationParams->InfoType )
+                    {
+                    case MD::INFORMATION_TYPE_REPORT_REASON:
+                        set.m_ReportReasonInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                        break;
+                    case MD::INFORMATION_TYPE_VALUE:
+                        set.m_ValueInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                        break;
+                    }
+                }
+
+                if( (set.m_ReportReasonInformationIndex == UINT32_MAX) ||
+                    (set.m_ValueInformationIndex == UINT32_MAX) )
+                {
+                    // Required informations not found.
+                    continue;
                 }
 
                 // Find default metrics set index.
@@ -301,8 +316,6 @@ namespace Profiler
         {
             m_MetricsStreamCollectionThreadExit = true;
             m_MetricsStreamCollectionThread.join();
-
-            m_MetricsStreamOutputFile.close();
         }
 
         if( m_PerformanceApiConfiguration )
@@ -355,10 +368,13 @@ namespace Profiler
         m_PerformanceApiInitialized = false;
         m_PerformanceApiConfiguration = VK_NULL_HANDLE;
 
-        m_MetricsStreamCollectionThreadExit = false;
         m_MetricsStreamCollectionThread = std::thread();
+        m_MetricsStreamCollectionThreadExit = false;
+
         m_MetricsStreamMaxReportCount = 256;
         m_MetricsStreamDataBuffer.clear();
+
+        m_NextMetricsStreamMarkerValue = 1;
     }
 
     /***********************************************************************************\
@@ -513,8 +529,6 @@ namespace Profiler
                 assert( false );
                 return result;
             }
-
-            m_ActiveMetricsSetIndex = metricsSetIndex;
         }
 
         if( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eStream )
@@ -543,20 +557,9 @@ namespace Profiler
 
             // Prepare buffer for incoming data.
             m_MetricsStreamDataBuffer.resize( bufferSize );
-
-            // Write headers.
-            for( const Counter& counter : metricsSet.m_Counters )
-            {
-                m_MetricsStreamOutputFile << counter.m_pMetricParams->ShortName << ",";
-            }
-            for( const Information& information : metricsSet.m_Informations )
-            {
-                m_MetricsStreamOutputFile << information.m_pInformationParams->ShortName << ",";
-            }
-            m_MetricsStreamOutputFile << std::endl;
-
-            m_ActiveMetricsSetIndex = metricsSetIndex;
         }
+
+        m_ActiveMetricsSetIndex = metricsSetIndex;
 
         return VK_SUCCESS;
     }
@@ -682,6 +685,28 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        InsertCommandBufferStreamMarker
+
+    Description:
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerPerformanceCountersINTEL::InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer )
+    {
+        VkPerformanceStreamMarkerInfoINTEL markerInfo = {};
+        markerInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_STREAM_MARKER_INFO_INTEL;
+        markerInfo.marker = m_NextMetricsStreamMarkerValue.fetch_add( 1 );
+
+        assert( m_pVulkanDevice->Callbacks.CmdSetPerformanceStreamMarkerINTEL );
+        m_pVulkanDevice->Callbacks.CmdSetPerformanceStreamMarkerINTEL(
+            commandBuffer,
+            &markerInfo );
+
+        return markerInfo.marker;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ParseReport
 
     Description:
@@ -695,17 +720,25 @@ namespace Profiler
         const uint8_t* pReport,
         std::vector<VkProfilerPerformanceCounterResultEXT>& results )
     {
-        thread_local std::vector<MD::TTypedValue_1_0> informations;
-        ParseReport( metricsSetIndex, queueFamilyIndex, reportSize, pReport, results, informations );
+        ParseReport( metricsSetIndex, queueFamilyIndex, reportSize, pReport, results, nullptr );
     }
 
+    /***********************************************************************************\
+
+    Function:
+        ParseReport
+
+    Description:
+        Convert query data to human-readable form.
+
+    \***********************************************************************************/
     void DeviceProfilerPerformanceCountersINTEL::ParseReport(
         uint32_t metricsSetIndex,
         uint32_t queueFamilyIndex,
         uint32_t reportSize,
         const uint8_t* pReport,
         std::vector<VkProfilerPerformanceCounterResultEXT>& results,
-        std::vector<MD::TTypedValue_1_0>& informations )
+        ReportInformations* pReportInformations )
     {
         const auto& metricsSet = m_MetricsSets[ metricsSetIndex ];
 
@@ -774,11 +807,12 @@ namespace Profiler
             }
         }
 
-        informations.resize( metricsSet.m_pMetricSetParams->InformationCount );
-        memcpy( 
-            informations.data(),
-            intermediateValues.data() + metricsSet.m_pMetricSetParams->MetricsCount,
-            metricsSet.m_pMetricSetParams->InformationCount * sizeof( MD::TTypedValue_1_0 ) );
+        if( pReportInformations != nullptr )
+        {
+            // Retrieve report informations
+            pReportInformations->m_Reason = intermediateValues[metricsSet.m_ReportReasonInformationIndex].ValueUInt32;
+            pReportInformations->m_Value = intermediateValues[metricsSet.m_ValueInformationIndex].ValueUInt32;
+        }
     }
 
     /***********************************************************************************\
@@ -1034,7 +1068,8 @@ namespace Profiler
     void DeviceProfilerPerformanceCountersINTEL::MetricsStreamCollectionThreadProc()
     {
         std::vector<VkProfilerPerformanceCounterResultEXT> results;
-        std::vector<MD::TTypedValue_1_0> informations;
+
+        uint32_t currentStreamMarkerValue = 0;
 
         while( !m_MetricsStreamCollectionThreadExit )
         {
@@ -1060,57 +1095,20 @@ namespace Profiler
                         // Parse each report
                         for( uint32_t i = 0; i < reportCount; ++i )
                         {
-                            ParseReport( m_ActiveMetricsSetIndex, VK_QUEUE_FAMILY_IGNORED, reportSize, pReport, results, informations );
+                            ReportInformations informations;
+                            ParseReport(
+                                m_ActiveMetricsSetIndex,
+                                VK_QUEUE_FAMILY_IGNORED,
+                                reportSize,
+                                pReport,
+                                results,
+                                &informations );
 
-                            const size_t valueCount = results.size();
-                            for( size_t j = 0; j < valueCount; ++j )
+                            if( informations.m_Reason & m_scMetricsStreamMarkerReportReasonMask )
                             {
-                                switch( metricsSet.m_Counters[j].m_Storage )
-                                {
-                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                                    m_MetricsStreamOutputFile << results[j].float32 << ",";
-                                    break;
-                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                                    m_MetricsStreamOutputFile << results[j].uint32 << ",";
-                                    break;
-                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                                    m_MetricsStreamOutputFile << results[j].uint64 << ",";
-                                    break;
-                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                                    m_MetricsStreamOutputFile << results[j].float64 << ",";
-                                    break;
-                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                                    m_MetricsStreamOutputFile << results[j].int32 << ",";
-                                    break;
-                                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                                    m_MetricsStreamOutputFile << results[j].int64 << ",";
-                                    break;
-                                }
+                                // Associate the following results with the marker value.
+                                currentStreamMarkerValue = informations.m_Value;
                             }
-
-                            const size_t infoCount = informations.size();
-                            for( size_t j = 0; j < infoCount; ++j )
-                            {
-                                switch( informations[j].ValueType )
-                                {
-                                case MD::VALUE_TYPE_FLOAT:
-                                    m_MetricsStreamOutputFile << informations[j].ValueFloat << ",";
-                                    break;
-                                case MD::VALUE_TYPE_UINT32:
-                                    m_MetricsStreamOutputFile << informations[j].ValueUInt32 << ",";
-                                    break;
-                                case MD::VALUE_TYPE_UINT64:
-                                    m_MetricsStreamOutputFile << informations[j].ValueUInt64 << ",";
-                                    break;
-                                case MD::VALUE_TYPE_BOOL:
-                                    m_MetricsStreamOutputFile << informations[j].ValueBool << ",";
-                                    break;
-                                default:
-                                    break;
-                                }
-                            }
-
-                            m_MetricsStreamOutputFile << std::endl;
 
                             pReport += reportSize;
                         }

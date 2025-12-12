@@ -87,6 +87,8 @@ namespace Profiler
         virtual void DestroyCustomMetricsSet( uint32_t ) {}
         virtual void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) {}
 
+        virtual uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) { return 0; }
+
         virtual void ParseReport( uint32_t metricsSetIndex, uint32_t queueFamilyIndex, uint32_t reportSize, const uint8_t* pReport, std::vector<VkProfilerPerformanceCounterResultEXT>& results ) {}
     };
 }
