@@ -38,6 +38,8 @@ namespace Profiler
         OverlayLayerXkbBackend();
         ~OverlayLayerXkbBackend();
 
+        void SetKeymapFromString( const char* string, xkb_keymap_format format, xkb_keymap_compile_flags flags );
+        void SetKeyModifiers( uint32_t depressed, uint32_t latched, uint32_t locked, uint32_t group );
         void AddKeyEvent( int keycode, bool pressed );
 
     private:

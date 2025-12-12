@@ -20,6 +20,7 @@
 
 #include "profiler_overlay_layer_backend_xkb.h"
 #include <imgui.h>
+#include <utility>
 
 namespace Profiler
 {
@@ -202,6 +203,59 @@ namespace Profiler
         xkb_state_unref( m_pState );
         xkb_keymap_unref( m_pKeymap );
         xkb_context_unref( m_pContext );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetKeymapFromString
+
+    Description:
+        Set new keymap from the provided string.
+
+    \***********************************************************************************/
+    void OverlayLayerXkbBackend::SetKeymapFromString( const char* string, xkb_keymap_format format, xkb_keymap_compile_flags flags )
+    {
+        xkb_keymap* pKeymap = nullptr;
+        xkb_state* pState = nullptr;
+
+        // Create the new keymap.
+        pKeymap = xkb_keymap_new_from_string(
+            m_pContext,
+            string,
+            format,
+            flags );
+
+        if( pKeymap != nullptr )
+        {
+            // Create a state for the new keymap.
+            pState = xkb_state_new( pKeymap );
+
+            if( pState != nullptr )
+            {
+                // Replace previous keymap and state with the new ones.
+                std::swap( m_pKeymap, pKeymap );
+                std::swap( m_pState, pState );
+            }
+        }
+
+        // Destroy previous or paritially-initialized objects.
+        xkb_state_unref( pState );
+        xkb_keymap_unref( pKeymap );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetKeyModifiers
+
+    Description:
+        Set key modifiers.
+
+    \***********************************************************************************/
+    void OverlayLayerXkbBackend::SetKeyModifiers( uint32_t depressed, uint32_t latched, uint32_t locked, uint32_t group )
+    {
+        xkb_state_update_mask( m_pState, depressed, latched, locked, 0, 0, group );
     }
 
     /***********************************************************************************\

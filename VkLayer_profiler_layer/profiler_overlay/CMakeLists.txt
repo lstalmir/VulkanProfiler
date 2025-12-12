@@ -119,6 +119,7 @@ if (UNIX)
     target_link_libraries (profiler_overlay PRIVATE xkbcommon)
 
     if (PROFILER_PLATFORM_WAYLAND_FOUND)
+        target_link_libraries (profiler_overlay PRIVATE xdg-shell)
         target_link_libraries (profiler_overlay PRIVATE ${Wayland_LIBRARIES})
         target_include_directories (profiler_overlay PRIVATE ${Wayland_INCLUDE_DIRS})
     endif ()

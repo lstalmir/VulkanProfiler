@@ -181,4 +181,24 @@ add_library (stb INTERFACE)
 target_include_directories (stb
     INTERFACE stb)
 
+# wayland/wayland-protocols
+if (Wayland_FOUND AND WAYLAND_SCANNER)
+    set (XDG_SHELL_XML "${CMAKE_CURRENT_LIST_DIR}/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
+    set (XDG_SHELL_DIR "${CMAKE_CURRENT_BINARY_DIR}/wayland-protocols/xdg-shell")
+
+    add_custom_command (
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${XDG_SHELL_DIR}"
+        COMMAND "${WAYLAND_SCANNER}" client-header "${XDG_SHELL_XML}" "${XDG_SHELL_DIR}/xdg-shell.h"
+        COMMAND "${WAYLAND_SCANNER}" code "${XDG_SHELL_XML}" "${XDG_SHELL_DIR}/xdg-shell.c"
+        DEPENDS "${DXG_SHELL_XML}"
+        OUTPUT "${XDG_SHELL_DIR}/xdg-shell.h"
+        OUTPUT "${XDG_SHELL_DIR}/xdg-shell.c")
+
+    add_library (xdg-shell STATIC
+        "${XDG_SHELL_DIR}/xdg-shell.h"
+        "${XDG_SHELL_DIR}/xdg-shell.c")
+
+    target_include_directories (xdg-shell PUBLIC "${XDG_SHELL_DIR}")
+endif ()
+
 set (PROFILER_INSTALL_EXTERNAL_TARGETS ${_PROFILER_INSTALL_EXTERNAL_TARGETS} PARENT_SCOPE)

@@ -25,7 +25,7 @@ set_property (GLOBAL PROPERTY USE_FOLDERS ON)
 # Compiler options.
 include (CMake/compiler.cmake NO_POLICY_SCOPE)
 
-project (VulkanProfiler CXX)
+project (VulkanProfiler C CXX)
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
