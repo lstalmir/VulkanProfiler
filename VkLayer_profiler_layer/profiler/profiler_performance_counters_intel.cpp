@@ -246,32 +246,35 @@ namespace Profiler
                     continue;
                 }
 
-                // Read informations in the set.
-                set.m_ReportReasonInformationIndex = UINT32_MAX;
-                set.m_ValueInformationIndex = UINT32_MAX;
-
-                const uint32_t informationCount = set.m_pMetricSetParams->InformationCount;
-                for( uint32_t infoIndex = 0; infoIndex < informationCount; ++infoIndex )
+                if( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eStream )
                 {
-                    MD::IInformation_1_0* pInformation = set.m_pMetricSet->GetInformation( infoIndex );
-                    MD::TInformationParams_1_0* pInformationParams = pInformation->GetParams();
+                    // Read informations in the set.
+                    set.m_ReportReasonInformationIndex = UINT32_MAX;
+                    set.m_ValueInformationIndex = UINT32_MAX;
 
-                    switch( pInformationParams->InfoType )
+                    const uint32_t informationCount = set.m_pMetricSetParams->InformationCount;
+                    for( uint32_t infoIndex = 0; infoIndex < informationCount; ++infoIndex )
                     {
-                    case MD::INFORMATION_TYPE_REPORT_REASON:
-                        set.m_ReportReasonInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
-                        break;
-                    case MD::INFORMATION_TYPE_VALUE:
-                        set.m_ValueInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
-                        break;
-                    }
-                }
+                        MD::IInformation_1_0* pInformation = set.m_pMetricSet->GetInformation( infoIndex );
+                        MD::TInformationParams_1_0* pInformationParams = pInformation->GetParams();
 
-                if( (set.m_ReportReasonInformationIndex == UINT32_MAX) ||
-                    (set.m_ValueInformationIndex == UINT32_MAX) )
-                {
-                    // Required informations not found.
-                    continue;
+                        switch( pInformationParams->InfoType )
+                        {
+                        case MD::INFORMATION_TYPE_REPORT_REASON:
+                            set.m_ReportReasonInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                            break;
+                        case MD::INFORMATION_TYPE_VALUE:
+                            set.m_ValueInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                            break;
+                        }
+                    }
+
+                    if( ( set.m_ReportReasonInformationIndex == UINT32_MAX ) ||
+                        ( set.m_ValueInformationIndex == UINT32_MAX ) )
+                    {
+                        // Required informations not found.
+                        continue;
+                    }
                 }
 
                 // Find default metrics set index.
