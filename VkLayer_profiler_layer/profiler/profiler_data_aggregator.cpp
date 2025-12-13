@@ -127,6 +127,7 @@ namespace Profiler
         , m_Mutex()
         , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
+        , m_NanosecondsPerTick( 1.0 )
         , m_CopyCommandPools()
         , m_PerformanceMetricProperties()
         , m_PerformanceMetricsSetIndex( UINT32_MAX )
@@ -148,6 +149,9 @@ namespace Profiler
         m_PerformanceMetricsSetIndex = UINT32_MAX;
 
         VkResult result = VK_SUCCESS;
+
+        // Get timestamp period.
+        m_NanosecondsPerTick = m_pProfiler->m_pDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
 
         // Create command pools to copy query data using GPU.
         for( const auto& [queue, queueObj] : m_pProfiler->m_pDevice->Queues )
@@ -572,6 +576,26 @@ namespace Profiler
         }
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
+
+        // Collect performance counters stream data.
+        if( m_pProfiler->m_pPerformanceCounters )
+        {
+            const uint64_t frameBeginTimestamp = frame.m_SyncTimestamps.m_PerformanceCountersDeviceCalibratedTimestamp +
+                static_cast<uint64_t>( ( frameData.m_BeginTimestamp - frame.m_SyncTimestamps.m_DeviceCalibratedTimestamp ) * m_NanosecondsPerTick );
+            const uint64_t frameEndTimestamp = frame.m_SyncTimestamps.m_PerformanceCountersDeviceCalibratedTimestamp +
+                static_cast<uint64_t>( ( frameData.m_EndTimestamp - frame.m_SyncTimestamps.m_DeviceCalibratedTimestamp ) * m_NanosecondsPerTick );
+
+            m_pProfiler->m_pPerformanceCounters->ReadStreamData(
+                frameBeginTimestamp,
+                frameEndTimestamp,
+                frameData.m_PerformanceCounters.m_StreamSamples );
+
+            // Adjust timestamps to be relative to the frame begin timestamp.
+            for( auto& sample : frameData.m_PerformanceCounters.m_StreamSamples )
+            {
+                sample.m_Timestamp -= frameBeginTimestamp;
+            }
+        }
 
         // Collect memory data.
         frameData.m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();

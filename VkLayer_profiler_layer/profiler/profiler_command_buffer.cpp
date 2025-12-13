@@ -1237,6 +1237,8 @@ namespace Profiler
                 m_Data.m_PerformanceCounters.m_MetricsSetIndex = performanceQueryMetricsSetIndex;
             }
 
+            m_Data.m_PerformanceCounters.m_MetricsStreamMarkerValue = reader.GetPerformanceQueryStreamMarkerValue();
+
             // Copy captured indirect argument buffer data
             m_Data.m_IndirectPayload.clear();
 
