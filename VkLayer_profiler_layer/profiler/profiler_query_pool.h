@@ -134,6 +134,7 @@ namespace Profiler
         uint64_t ReadTimestampQueryResult( uint64_t index ) const;
         uint32_t GetPerformanceQueryMetricsSetIndex() const;
         uint32_t GetPerformanceQueryResultSize() const;
+        uint32_t GetPerformanceQueryStreamMarkerValue() const;
         const uint8_t* ReadPerformanceQueryResult();
         bool HasPerformanceQueryResult() const;
 

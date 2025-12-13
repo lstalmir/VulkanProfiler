@@ -1208,7 +1208,7 @@ namespace Profiler
             }
 
             // Wait for the next report to be available.
-            m_pConcurrentGroup->WaitForReports( 1 );
+            m_pConcurrentGroup->WaitForReports( 10 );
         }
     }
 

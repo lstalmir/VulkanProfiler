@@ -1420,6 +1420,7 @@ namespace Profiler
     struct DeviceProfilerPerformanceCountersData
     {
         uint32_t                                            m_MetricsSetIndex = UINT32_MAX;
+        uint32_t                                            m_MetricsStreamMarkerValue = 0;
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
         std::vector<DeviceProfilerPerformanceCountersStreamResult> m_StreamSamples = {};
     };

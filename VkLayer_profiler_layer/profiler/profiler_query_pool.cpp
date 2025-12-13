@@ -427,6 +427,19 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetPerformanceQueryStreamMarkerValue
+
+    Description:
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerQueryDataBufferReader::GetPerformanceQueryStreamMarkerValue() const
+    {
+        return m_pContext->m_PerformanceQueryStreamMarkerValue;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ReadPerformanceQueryResult
 
     Description:
