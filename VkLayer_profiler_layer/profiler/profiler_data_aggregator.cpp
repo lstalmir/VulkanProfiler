@@ -127,6 +127,7 @@ namespace Profiler
         , m_Mutex()
         , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
+        , m_NanosecondsPerTick( 1.0 )
         , m_CopyCommandPools()
         , m_PerformanceMetricProperties()
         , m_PerformanceMetricsSetIndex( UINT32_MAX )
@@ -148,6 +149,9 @@ namespace Profiler
         m_PerformanceMetricsSetIndex = UINT32_MAX;
 
         VkResult result = VK_SUCCESS;
+
+        // Get timestamp period.
+        m_NanosecondsPerTick = m_pProfiler->m_pDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
 
         // Create command pools to copy query data using GPU.
         for( const auto& [queue, queueObj] : m_pProfiler->m_pDevice->Queues )
@@ -572,6 +576,18 @@ namespace Profiler
         }
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
+
+        // Collect performance counters stream data.
+        if( m_pProfiler->m_pPerformanceCounters )
+        {
+            const uint64_t frameBeginTimestamp = frame.m_SyncTimestamps.m_PerformanceCountersDeviceCalibratedTimestamp;
+            const uint64_t frameDuration = static_cast<uint64_t>( frameData.m_Ticks * m_NanosecondsPerTick );
+
+            m_pProfiler->m_pPerformanceCounters->ReadStreamData(
+                frameBeginTimestamp,
+                frameBeginTimestamp + frameDuration,
+                frameData.m_PerformanceCounters.m_StreamSamples );
+        }
 
         // Collect memory data.
         frameData.m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();

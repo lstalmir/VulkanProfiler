@@ -251,6 +251,7 @@ namespace Profiler
                     // Read informations in the set.
                     set.m_ReportReasonInformationIndex = UINT32_MAX;
                     set.m_ValueInformationIndex = UINT32_MAX;
+                    set.m_TimestampInformationIndex = UINT32_MAX;
 
                     const uint32_t informationCount = set.m_pMetricSetParams->InformationCount;
                     for( uint32_t infoIndex = 0; infoIndex < informationCount; ++infoIndex )
@@ -266,11 +267,15 @@ namespace Profiler
                         case MD::INFORMATION_TYPE_VALUE:
                             set.m_ValueInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
                             break;
+                        case MD::INFORMATION_TYPE_TIMESTAMP:
+                            set.m_TimestampInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                            break;
                         }
                     }
 
                     if( ( set.m_ReportReasonInformationIndex == UINT32_MAX ) ||
-                        ( set.m_ValueInformationIndex == UINT32_MAX ) )
+                        ( set.m_ValueInformationIndex == UINT32_MAX ) ||
+                        ( set.m_TimestampInformationIndex == UINT32_MAX ) )
                     {
                         // Required informations not found.
                         continue;
@@ -710,6 +715,58 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ReadStreamData
+
+    Description:
+        Get the stream data for a specific marker.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersINTEL::ReadStreamData(
+        uint64_t beginTimestamp,
+        uint64_t endTimestamp,
+        std::vector<DeviceProfilerPerformanceCountersStreamResult>& samples )
+    {
+        std::scoped_lock lk( m_MetricsStreamResultsMutex );
+
+        auto it = m_MetricsStreamResults.begin();
+        auto end = m_MetricsStreamResults.end();
+
+        // Find the first sample.
+        while( ( it != end ) && ( it->m_Timestamp < beginTimestamp ) )
+            it++;
+
+        // Find the last sample.
+        while( ( end != it ) && ( end - 1 )->m_Timestamp > endTimestamp )
+            end--;
+
+        // Copy the data to the output buffer.
+        samples.clear();
+        samples.insert( samples.begin(), it, end );
+
+        m_MetricsStreamResults.erase( it, end );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ReadStreamSynchronizationTimestamps
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersINTEL::ReadStreamSynchronizationTimestamps(
+        uint64_t* pGpuTimestamp,
+        uint64_t* pCpuTimestamp )
+    {
+        uint32_t cpuid;
+
+        auto cc = m_pDevice->GetGpuCpuTimestamps( pGpuTimestamp, pCpuTimestamp, &cpuid );
+        assert( cc == MD::CC_OK );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ParseReport
 
     Description:
@@ -815,6 +872,7 @@ namespace Profiler
             // Retrieve report informations
             pReportInformations->m_Reason = intermediateValues[metricsSet.m_ReportReasonInformationIndex].ValueUInt32;
             pReportInformations->m_Value = intermediateValues[metricsSet.m_ValueInformationIndex].ValueUInt32;
+            pReportInformations->m_Timestamp = intermediateValues[metricsSet.m_TimestampInformationIndex].ValueUInt64;
         }
     }
 
@@ -1113,7 +1171,37 @@ namespace Profiler
                                 currentStreamMarkerValue = informations.m_Value;
                             }
 
+                            {
+                                std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+
+                                // Save the parsed results.
+                                m_MetricsStreamResults.push_back( {
+                                    informations.m_Timestamp,
+                                    currentStreamMarkerValue,
+                                    results } );
+                            }
+
                             pReport += reportSize;
+                        }
+
+                        // Limit size of the buffered data
+                        {
+                            std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+
+                            const uint64_t lastTimestamp = m_MetricsStreamResults.back().m_Timestamp;
+                            const uint64_t maxLengthInNs = 1'000'000'000ull;
+
+                            if( !m_MetricsStreamResults.empty() &&
+                                ( lastTimestamp - m_MetricsStreamResults.front().m_Timestamp ) > maxLengthInNs )
+                            {
+                                auto it = m_MetricsStreamResults.begin();
+                                auto end = m_MetricsStreamResults.end();
+
+                                while( ( it != end ) && ( lastTimestamp - it->m_Timestamp ) > maxLengthInNs )
+                                    it++;
+
+                                m_MetricsStreamResults.erase( m_MetricsStreamResults.begin(), it );
+                            }
                         }
                     }
                 }

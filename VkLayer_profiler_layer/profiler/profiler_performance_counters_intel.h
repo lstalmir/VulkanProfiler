@@ -66,6 +66,8 @@ namespace Profiler
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
         uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) final;
+        void ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) final;
+        void ReadStreamSynchronizationTimestamps( uint64_t *pGpuTimestamp, uint64_t* pCpuTimestamp ) final;
 
         void ParseReport(
             uint32_t metricsSetIndex,
@@ -107,6 +109,7 @@ namespace Profiler
         {
             uint32_t                          m_Reason;
             uint32_t                          m_Value;
+            uint64_t                          m_Timestamp;
         };
 
         struct MetricsSet
@@ -116,6 +119,7 @@ namespace Profiler
 
             uint32_t                          m_ReportReasonInformationIndex;
             uint32_t                          m_ValueInformationIndex;
+            uint32_t                          m_TimestampInformationIndex;
 
             std::vector<Counter>              m_Counters;
         };
@@ -148,6 +152,9 @@ namespace Profiler
         std::vector<char>                     m_MetricsStreamDataBuffer;
 
         std::atomic_uint32_t                  m_NextMetricsStreamMarkerValue;
+
+        std::mutex mutable                    m_MetricsStreamResultsMutex;
+        std::vector<DeviceProfilerPerformanceCountersStreamResult> m_MetricsStreamResults;
 
         std::filesystem::path FindMetricsDiscoveryLibrary();
 
