@@ -1225,10 +1225,10 @@ namespace Profiler
             ImGui::DockBuilderSplitNode( dockLeft, ImGuiDir_Up, 0.2f, &dockFrames, &dockLeft );
 
             ImGuiDockNode* pDockLeft = ImGui::DockBuilderGetNode( dockLeft );
-            pDockLeft->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;
+            pDockLeft->LocalFlags |= ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_NoDocking;
 
             ImGuiDockNode* pDockFrames = ImGui::DockBuilderGetNode( dockFrames );
-            pDockFrames->LocalFlags |= ImGuiDockNodeFlags_NoWindowMenuButton;
+            pDockFrames->LocalFlags |= ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoDocking;
 
             ImGui::DockBuilderDockWindow( m_pFramesStr, dockFrames );
             ImGui::DockBuilderDockWindow( Lang::Snapshots, dockFrames );
@@ -3806,7 +3806,9 @@ namespace Profiler
 
         ImGui::Separator();
 
-        MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar );
+        // Disable docking of other windows into resource browser and inspector,
+        // as there is no tab bar to select them or revert the docking.
+        MemoryTabDockSpace( ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_NoDocking );
 
         // Resource browser and inspector are always docked, never draw background for them.
         ImGui::PushStyleColor( ImGuiCol_WindowBg, 0 );
