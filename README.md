@@ -7,7 +7,7 @@ If you have any questions, suggestions or problems, please [create an issue](htt
 Full documentation of the layer is available at [lstalmir.github.io/VulkanProfiler](https://lstalmir.github.io/VulkanProfiler).
 
 ## Compiling & Installation
-> [!INFO]
+> [!TIP]
 > Please refer to the [documentation](https://lstalmir.github.io/VulkanProfiler/docs/master/getting_started/index.html) for more detailed instructions.
 
 The layer is available for Windows and Linux. On both platforms CMake is used as the main build management tool.
