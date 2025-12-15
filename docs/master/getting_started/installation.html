@@ -88,6 +88,10 @@
 <h1>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h1>
 <p>Prebuilt binaries can be downloaded from <a class="reference external" href="https://github.com/lstalmir/VulkanProfiler/releases">GitHub releases page</a>.</p>
 <p>Once downloaded or built, the dynamic-link library with the layer must be installed so that the Vulkan loader knows where to look for it. The process is different for Windows and Linux-based systems, and it’s described in detail in <a class="reference external" href="https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderLayerInterface.md">Vulkan Layer Interface to the Loader documentation</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Installation of the layer can be avoided. To use the layer without installation set <code class="docutils literal notranslate"><span class="pre">VK_LAYER_PATH</span></code> environment variable to the directory containing layer files.</p>
+</div>
 <section id="windows">
 <h2>Windows<a class="headerlink" href="#windows" title="Link to this heading"></a></h2>
 <p>On Windows systems the layers are installed in the registry. The profiling layer can be registered in one of the following locations:</p>
@@ -108,6 +112,7 @@
 <li><p>/usr/share/vulkan/explicit_layer.d</p></li>
 <li><p>/etc/vulkan/explicit_layer.d</p></li>
 </ul>
+<p>Apart from the libVkLayer_profiler_layer.so that is the Vulkan layer library, the layer also requires libigdmd to support Intel performance counters on Linux. This library can be found either in the package, next to libVkLayer_profiler_layer.so, or in “&lt;REPOSITORY_DIR&gt;/External/metrics-discovery/dump/linux64/&lt;CONFIG&gt;/metrics_discovery” directory when building the layer from source.</p>
 </section>
 </section>
 

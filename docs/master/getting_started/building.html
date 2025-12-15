@@ -50,6 +50,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#building-with-cmake">Building with CMake</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#building-with-visual-studio">Building with Visual Studio</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#building-with-make">Building with Make</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#packaging">Packaging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#building-documentation">Building documentation</a></li>
 </ul>
 </li>
@@ -184,6 +185,14 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span> <span class="nb">all</span>
 </pre></div>
 </div>
+</section>
+<section id="packaging">
+<h2>Packaging<a class="headerlink" href="#packaging" title="Link to this heading"></a></h2>
+<p>CMake install step can be used to collect all files into a single directory:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cmake</span> <span class="o">--</span><span class="n">install</span> <span class="o">.</span> <span class="o">--</span><span class="n">config</span> <span class="n">Release</span> <span class="o">--</span><span class="n">prefix</span> <span class="o">&lt;</span><span class="n">install_dir</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>The layer files will be placed in <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/bin</span></code> on Windows, <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib</span></code> on Linux, or in <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib/&lt;arch&gt;</span></code> on multiarch Linux distributions (e.g., <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib/x86_64-linux-gnu</span></code>).</p>
 </section>
 <section id="building-documentation">
 <h2>Building documentation<a class="headerlink" href="#building-documentation" title="Link to this heading"></a></h2>
