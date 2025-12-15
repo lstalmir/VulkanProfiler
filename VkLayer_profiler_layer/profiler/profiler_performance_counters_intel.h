@@ -128,6 +128,9 @@ namespace Profiler
 
         struct VkDevice_Object*               m_pVulkanDevice;
 
+        MetricsDiscovery::IAdapterGroup_1_6*  m_pAdapterGroup;
+        MetricsDiscovery::IAdapter_1_6*       m_pAdapter;
+
         MetricsDiscovery::IMetricsDevice_1_1* m_pDevice;
         MetricsDiscovery::TMetricsDeviceParams_1_0* m_pDeviceParams;
 

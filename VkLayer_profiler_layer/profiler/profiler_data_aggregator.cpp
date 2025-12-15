@@ -580,10 +580,8 @@ namespace Profiler
         // Collect performance counters stream data.
         if( m_pProfiler->m_pPerformanceCounters )
         {
-            const uint64_t frameBeginTimestamp = frame.m_SyncTimestamps.m_PerformanceCountersDeviceCalibratedTimestamp +
-                static_cast<uint64_t>( ( frameData.m_BeginTimestamp - frame.m_SyncTimestamps.m_DeviceCalibratedTimestamp ) * m_NanosecondsPerTick );
-            const uint64_t frameEndTimestamp = frame.m_SyncTimestamps.m_PerformanceCountersDeviceCalibratedTimestamp +
-                static_cast<uint64_t>( ( frameData.m_EndTimestamp - frame.m_SyncTimestamps.m_DeviceCalibratedTimestamp ) * m_NanosecondsPerTick );
+            const uint64_t frameBeginTimestamp = (uint64_t)( (uint32_t)frameData.m_BeginTimestamp * m_NanosecondsPerTick );
+            const uint64_t frameEndTimestamp = (uint64_t)( (uint32_t)frameData.m_EndTimestamp * m_NanosecondsPerTick );
 
             m_pProfiler->m_pPerformanceCounters->ReadStreamData(
                 frameBeginTimestamp,

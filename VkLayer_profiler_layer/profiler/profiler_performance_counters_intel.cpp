@@ -361,6 +361,9 @@ namespace Profiler
 
         m_pVulkanDevice = nullptr;
 
+        m_pAdapterGroup = nullptr;
+        m_pAdapter = nullptr;
+
         m_pDevice = nullptr;
         m_pDeviceParams = nullptr;
 
@@ -1047,14 +1050,50 @@ namespace Profiler
         assert( m_pDevice == nullptr );
 
         MD::OpenMetricsDevice_fn pfnOpenMetricsDevice = nullptr;
+        MD::OpenAdapterGroup_fn pfnOpenAdapterGroup = nullptr;
 
         #ifdef WIN32
         pfnOpenMetricsDevice = reinterpret_cast<MD::OpenMetricsDevice_fn>(
             GetProcAddress( (HMODULE)m_MDLibraryHandle, "OpenMetricsDevice" ));
+        pfnOpenAdapterGroup = reinterpret_cast<MD::OpenAdapterGroup_fn>(
+            GetProcAddress( (HMODULE)m_MDLibraryHandle, "OpenAdapterGroup" ));
         #else
         pfnOpenMetricsDevice = reinterpret_cast<MD::OpenMetricsDevice_fn>(
             dlsym( m_MDLibraryHandle, "OpenMetricsDevice" ));
+        pfnOpenAdapterGroup = reinterpret_cast<MD::OpenAdapterGroup_fn>(
+            dlsym( m_MDLibraryHandle, "OpenAdapterGroup" ));
         #endif
+
+        if( pfnOpenAdapterGroup )
+        {
+            // Create adapter group
+            MD::IAdapterGroupLatest* pAdapterGroup = nullptr;
+            MD::ECompletionCode result = pfnOpenAdapterGroup( &pAdapterGroup );
+
+            if( result == MD::CC_OK )
+            {
+                m_pAdapterGroup = pAdapterGroup;
+                m_pAdapter = pAdapterGroup->GetAdapter( 0 ); // todo
+
+                if( m_pAdapter )
+                {
+                    // Stop any previous sessions
+                    m_pAdapter->Reset();
+
+                    // Create metrics device
+                    MD::IMetricsDevice_1_5* pDevice = nullptr;
+                    result = m_pAdapter->OpenMetricsDevice( &pDevice );
+
+                    if( result == MD::CC_OK )
+                    {
+                        m_pDevice = pDevice;
+                        m_pDeviceParams = m_pDevice->GetParams();
+                    }
+                }
+            }
+
+            return result == MD::CC_OK;
+        }
 
         if( pfnOpenMetricsDevice )
         {
@@ -1094,6 +1133,21 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersINTEL::CloseMetricsDevice()
     {
+        if( m_pAdapterGroup )
+        {
+            if( m_pDevice )
+            {
+                m_pAdapter->CloseMetricsDevice( static_cast<MD::IMetricsDevice_1_5*>( m_pDevice ) );
+
+                m_pAdapter = nullptr;
+                m_pDevice = nullptr;
+                m_pDeviceParams = nullptr;
+            }
+            
+            m_pAdapterGroup->Close();
+            m_pAdapterGroup = nullptr;
+        }
+
         if( m_pDevice )
         {
             MD::CloseMetricsDevice_fn pfnCloseMetricsDevice = nullptr;
@@ -1208,7 +1262,7 @@ namespace Profiler
             }
 
             // Wait for the next report to be available.
-            m_pConcurrentGroup->WaitForReports( 10 );
+            m_pConcurrentGroup->WaitForReports( 1 );
         }
     }
 
