@@ -33,4 +33,4 @@ Vulkan layers on Linux are stored in predefined directories. To install the laye
 - /usr/share/vulkan/explicit_layer.d
 - /etc/vulkan/explicit_layer.d
 
-Apart from the libVkLayer_profiler_layer.so that is the Vulkan layer library, there layer also requires libigdmd to support Intel performance counters on Linux. This library can be found either in the package, next to libVkLayer_profiler_layer.so, or in "<REPOSITORY_DIR>/External/metrics-discovery/dump/linux64/<CONFIG>/metrics_discovery" directory when building the layer from source.
+Apart from the libVkLayer_profiler_layer.so that is the Vulkan layer library, the layer also requires libigdmd to support Intel performance counters on Linux. This library can be found either in the package, next to libVkLayer_profiler_layer.so, or in "<REPOSITORY_DIR>/External/metrics-discovery/dump/linux64/<CONFIG>/metrics_discovery" directory when building the layer from source.
