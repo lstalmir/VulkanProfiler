@@ -101,6 +101,21 @@ namespace Profiler
             }
         }
 
+        // Setup sampling mode
+        if( result == VK_SUCCESS )
+        {
+            switch( config.m_PerformanceQueryMode )
+            {
+            default:
+            case performance_query_mode_t::query:
+                m_SamplingMode = DeviceProfilerPerformanceCountersSamplingMode::eQuery;
+                break;
+            case performance_query_mode_t::streaming:
+                m_SamplingMode = DeviceProfilerPerformanceCountersSamplingMode::eStream;
+                break;
+            }
+        }
+
         // Import extension functions
         if( result == VK_SUCCESS )
         {
