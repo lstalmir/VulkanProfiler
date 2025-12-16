@@ -101,6 +101,23 @@ namespace Profiler
             }
         }
 
+        // Read device properties
+        if( result == VK_SUCCESS )
+        {
+            const MD::TTypedValue_1_0* pGpuTimestampFrequency = m_pDevice->GetGlobalSymbolValueByName( "GpuTimestampFrequency" );
+            const MD::TTypedValue_1_0* pGpuTimestampMax = m_pDevice->GetGlobalSymbolValueByName( "MaxTimestamp" );
+
+            if( pGpuTimestampFrequency && pGpuTimestampMax )
+            {
+                m_GpuTimestampPeriod = 1e9 / pGpuTimestampFrequency->ValueUInt64;
+                m_GpuTimestampIs32Bit = ( pGpuTimestampMax->ValueUInt64 <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
+            }
+            else
+            {
+                result = VK_ERROR_INITIALIZATION_FAILED;
+            }
+        }
+
         // Setup sampling mode
         if( result == VK_SUCCESS )
         {
@@ -387,6 +404,9 @@ namespace Profiler
 
         m_SamplingMode = DeviceProfilerPerformanceCountersSamplingMode::eQuery;
 
+        m_GpuTimestampPeriod = 1.0;
+        m_GpuTimestampIs32Bit = false;
+
         m_MetricsSets.clear();
 
         m_ActiveMetricsSetIndex = UINT32_MAX;
@@ -574,15 +594,13 @@ namespace Profiler
             // Begin the new stream.
             uint32_t timerPeriodNs = 10'000;
             uint32_t bufferSize = metricsSet.m_pMetricSetParams->RawReportSize * m_MetricsStreamMaxReportCount;
+            m_MetricsStreamDataBuffer.resize( bufferSize );
 
             if( m_pConcurrentGroup->OpenIoStream( metricsSet.m_pMetricSet, 0, &timerPeriodNs, &bufferSize ) != MD::CC_OK )
             {
                 assert( false );
                 return VK_ERROR_INITIALIZATION_FAILED;
             }
-
-            // Prepare buffer for incoming data.
-            m_MetricsStreamDataBuffer.resize( bufferSize );
         }
 
         m_ActiveMetricsSetIndex = metricsSetIndex;
@@ -739,29 +757,44 @@ namespace Profiler
         Get the stream data for a specific marker.
 
     \***********************************************************************************/
-    void DeviceProfilerPerformanceCountersINTEL::ReadStreamData(
+    bool DeviceProfilerPerformanceCountersINTEL::ReadStreamData(
         uint64_t beginTimestamp,
         uint64_t endTimestamp,
         std::vector<DeviceProfilerPerformanceCountersStreamResult>& samples )
     {
         std::scoped_lock lk( m_MetricsStreamResultsMutex );
 
-        auto it = m_MetricsStreamResults.begin();
+        auto begin = m_MetricsStreamResults.begin();
         auto end = m_MetricsStreamResults.end();
 
+        const uint64_t beginTimestampNs = ConvertGpuTimestampToNanoseconds( beginTimestamp );
+        const uint64_t endTimestampNs = ConvertGpuTimestampToNanoseconds( endTimestamp );
+
         // Find the first sample.
-        while( ( it != end ) && ( it->m_Timestamp < beginTimestamp ) )
-            it++;
+        while( ( begin != end ) && ( begin->m_Timestamp < beginTimestampNs ) )
+            begin++;
 
         // Find the last sample.
-        while( ( end != it ) && ( end - 1 )->m_Timestamp > endTimestamp )
+        while( ( end != begin ) && ( end - 1 )->m_Timestamp > endTimestampNs )
             end--;
 
-        // Copy the data to the output buffer.
-        samples.clear();
-        samples.insert( samples.begin(), it, end );
+        bool dataComplete = ( end != m_MetricsStreamResults.end() );
 
-        m_MetricsStreamResults.erase( it, end );
+        if( begin != end )
+        {
+            // Adjust timestamps to be relative to the begin timestamp.
+            for( auto it = begin; it != end; ++it )
+            {
+                it->m_Timestamp -= beginTimestampNs;
+            }
+
+            // Copy the data to the output buffer.
+            samples.insert( samples.begin(), begin, end );
+
+            m_MetricsStreamResults.erase( begin, end );
+        }
+
+        return dataComplete;
     }
 
     /***********************************************************************************\
@@ -892,6 +925,38 @@ namespace Profiler
             pReportInformations->m_Value = intermediateValues[metricsSet.m_ValueInformationIndex].ValueUInt32;
             pReportInformations->m_Timestamp = intermediateValues[metricsSet.m_TimestampInformationIndex].ValueUInt64;
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ReadStreamSynchronizationTimestamps
+
+    Description:
+
+    \***********************************************************************************/
+    uint64_t DeviceProfilerPerformanceCountersINTEL::ConvertGpuTimestampToNanoseconds( uint64_t gpuTimestamp )
+    {
+        constexpr uint64_t scGpuTimestampMask32Bits = ( 1ull << 32 ) - 1;
+        constexpr uint64_t scGpuTimestampMask56Bits = ( 1ull << 56 ) - 1;
+
+        if( m_GpuTimestampPeriod == 0 )
+        {
+            return 0;
+        }
+
+        if( m_GpuTimestampIs32Bit )
+        {
+            // Ticks masked to 32bit to get sync with report timestamps.
+            return static_cast<uint64_t>( ( gpuTimestamp & scGpuTimestampMask32Bits ) * m_GpuTimestampPeriod );
+        }
+
+        // Ticks masked to 56bit to get sync with report timestamps.
+        const double gpuTimestampNsHigh = ( ( gpuTimestamp & scGpuTimestampMask56Bits ) >> 32 ) * m_GpuTimestampPeriod;
+        const double gpuTimestampNsHighFractionalPart = ( gpuTimestampNsHigh - static_cast<uint64_t>( gpuTimestampNsHigh ) ) * ( scGpuTimestampMask32Bits + 1 );
+        const double gpuTimestampNsLow = ( gpuTimestamp & scGpuTimestampMask32Bits ) * m_GpuTimestampPeriod;
+
+        return ( static_cast<uint64_t>( gpuTimestampNsHigh ) << 32 ) + static_cast<uint64_t>( gpuTimestampNsLow + gpuTimestampNsHighFractionalPart );
     }
 
     /***********************************************************************************\
@@ -1210,58 +1275,63 @@ namespace Profiler
                 {
                     MetricsSet& metricsSet = m_MetricsSets[m_ActiveMetricsSetIndex];
 
-                    uint32_t reportCount = m_MetricsStreamMaxReportCount;
-                    uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
-
                     // Read available data from the stream.
-                    MD::ECompletionCode cc = m_pConcurrentGroup->ReadIoStream(
-                        &reportCount,
-                        m_MetricsStreamDataBuffer.data(), 0 );
-
-                    if( cc == MD::CC_OK )
+                    auto cc = MD::CC_READ_PENDING;
+                    while( cc == MD::CC_READ_PENDING )
                     {
-                        const uint8_t* pReport = reinterpret_cast<const uint8_t*>( m_MetricsStreamDataBuffer.data() );
+                        uint32_t reportCount = m_MetricsStreamMaxReportCount;
+                        uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
 
-                        // Parse each report
-                        for( uint32_t i = 0; i < reportCount; ++i )
+                        cc = m_pConcurrentGroup->ReadIoStream(
+                            &reportCount,
+                            m_MetricsStreamDataBuffer.data(), 0 );
+
+                        if( cc == MD::CC_OK || cc == MD::CC_READ_PENDING )
                         {
-                            ReportInformations informations;
-                            ParseReport(
-                                m_ActiveMetricsSetIndex,
-                                VK_QUEUE_FAMILY_IGNORED,
-                                reportSize,
-                                pReport,
-                                results,
-                                &informations );
+                            const uint8_t* pReport = reinterpret_cast<const uint8_t*>( m_MetricsStreamDataBuffer.data() );
 
-                            if( informations.m_Reason & m_scMetricsStreamMarkerReportReasonMask )
+                            // Parse each report
+                            for( uint32_t i = 0; i < reportCount; ++i )
                             {
-                                // Associate the following results with the marker value.
-                                currentStreamMarkerValue = informations.m_Value;
+                                ReportInformations informations;
+                                ParseReport(
+                                    m_ActiveMetricsSetIndex,
+                                    VK_QUEUE_FAMILY_IGNORED,
+                                    reportSize,
+                                    pReport,
+                                    results,
+                                    &informations );
+
+                                if( informations.m_Reason & m_scMetricsStreamMarkerReportReasonMask )
+                                {
+                                    // Associate the following results with the marker value.
+                                    currentStreamMarkerValue = informations.m_Value;
+                                }
+
+                                {
+                                    std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+
+                                    // Save the parsed results.
+                                    m_MetricsStreamResults.push_back( { informations.m_Timestamp,
+                                        currentStreamMarkerValue,
+                                        results } );
+                                }
+
+                                pReport += reportSize;
                             }
-
-                            {
-                                std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
-
-                                // Save the parsed results.
-                                m_MetricsStreamResults.push_back( {
-                                    informations.m_Timestamp,
-                                    currentStreamMarkerValue,
-                                    results } );
-                            }
-
-                            pReport += reportSize;
                         }
+                    }
 
-                        // Limit size of the buffered data
+                    // Limit size of the buffered data
+                    {
+                        std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+
+                        if( !m_MetricsStreamResults.empty() )
                         {
-                            std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
-
                             const uint64_t lastTimestamp = m_MetricsStreamResults.back().m_Timestamp;
-                            const uint64_t maxLengthInNs = 1'000'000'000ull;
+                            const uint64_t maxLengthInNs = 10'000'000'000ull;
 
-                            if( !m_MetricsStreamResults.empty() &&
-                                ( lastTimestamp - m_MetricsStreamResults.front().m_Timestamp ) > maxLengthInNs )
+                            if( ( lastTimestamp - m_MetricsStreamResults.front().m_Timestamp ) > maxLengthInNs )
                             {
                                 auto it = m_MetricsStreamResults.begin();
                                 auto end = m_MetricsStreamResults.end();

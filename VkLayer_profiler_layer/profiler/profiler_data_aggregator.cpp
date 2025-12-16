@@ -580,18 +580,14 @@ namespace Profiler
         // Collect performance counters stream data.
         if( m_pProfiler->m_pPerformanceCounters )
         {
-            const uint64_t frameBeginTimestamp = (uint64_t)( (uint32_t)frameData.m_BeginTimestamp * m_NanosecondsPerTick );
-            const uint64_t frameEndTimestamp = (uint64_t)( (uint32_t)frameData.m_EndTimestamp * m_NanosecondsPerTick );
+            frameData.m_PerformanceCounters.m_StreamSamples.clear();
 
-            m_pProfiler->m_pPerformanceCounters->ReadStreamData(
-                frameBeginTimestamp,
-                frameEndTimestamp,
-                frameData.m_PerformanceCounters.m_StreamSamples );
-
-            // Adjust timestamps to be relative to the frame begin timestamp.
-            for( auto& sample : frameData.m_PerformanceCounters.m_StreamSamples )
+            while( !m_pProfiler->m_pPerformanceCounters->ReadStreamData(
+                frameData.m_BeginTimestamp,
+                frameData.m_EndTimestamp,
+                frameData.m_PerformanceCounters.m_StreamSamples ) )
             {
-                sample.m_Timestamp -= frameBeginTimestamp;
+                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
             }
         }
 

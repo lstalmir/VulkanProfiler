@@ -33,21 +33,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
-        DeviceProfilerPerformanceCountersSamplingMode
-
-    Description:
-        Defines the sampling modes available for performance counters.
-
-    \***********************************************************************************/
-    enum class DeviceProfilerPerformanceCountersSamplingMode
-    {
-        eQuery,
-        eStream,
-    };
-
-    /***********************************************************************************\
-
-    Class:
         DeviceProfilerPerformanceCounters
 
     Description:
@@ -89,7 +74,7 @@ namespace Profiler
         virtual void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) {}
 
         virtual uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) { return 0; }
-        virtual void ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) { results.clear(); }
+        virtual bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) { return true; }
         virtual void ReadStreamSynchronizationTimestamps( uint64_t* pGpuTimestamp, uint64_t* pCpuTimestamp ) {}
 
         virtual void ParseReport( uint32_t metricsSetIndex, uint32_t queueFamilyIndex, uint32_t reportSize, const uint8_t* pReport, std::vector<VkProfilerPerformanceCounterResultEXT>& results ) {}

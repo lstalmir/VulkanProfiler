@@ -66,7 +66,7 @@ namespace Profiler
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
         uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) final;
-        void ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) final;
+        bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) final;
         void ReadStreamSynchronizationTimestamps( uint64_t *pGpuTimestamp, uint64_t* pCpuTimestamp ) final;
 
         void ParseReport(
@@ -139,6 +139,9 @@ namespace Profiler
 
         DeviceProfilerPerformanceCountersSamplingMode m_SamplingMode;
 
+        double                                m_GpuTimestampPeriod;
+        bool                                  m_GpuTimestampIs32Bit;
+
         std::vector<MetricsSet>               m_MetricsSets;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
@@ -176,6 +179,8 @@ namespace Profiler
             const uint8_t* pReport,
             std::vector<VkProfilerPerformanceCounterResultEXT>& results,
             ReportInformations* pReportInformations );
+
+        uint64_t ConvertGpuTimestampToNanoseconds( uint64_t gpuTimestamp );
 
         void ResetMembers();
 

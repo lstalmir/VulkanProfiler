@@ -411,6 +411,26 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetPerformanceCountersSamplingMode
+
+    Description:
+        Returns the performance counters sampling mode.
+
+    \***********************************************************************************/
+    DeviceProfilerPerformanceCountersSamplingMode DeviceProfilerLayerFrontend::GetPerformanceCountersSamplingMode()
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetSamplingMode();
+        }
+
+        return DeviceProfilerPerformanceCountersSamplingMode::eQuery;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetHostTimestampFrequency
 
     Description:
