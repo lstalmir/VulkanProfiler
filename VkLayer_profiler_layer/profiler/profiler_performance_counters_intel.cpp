@@ -764,6 +764,12 @@ namespace Profiler
     {
         std::scoped_lock lk( m_MetricsStreamResultsMutex );
 
+        if( m_SamplingMode != DeviceProfilerPerformanceCountersSamplingMode::eStream )
+        {
+            // No stream data available in query mode.
+            return true;
+        }
+
         auto begin = m_MetricsStreamResults.begin();
         auto end = m_MetricsStreamResults.end();
 
