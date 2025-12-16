@@ -1349,6 +1349,86 @@ namespace Profiler
             ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
         }
 
+        // TMP: stream metrics
+        if( !m_pData->m_PerformanceCounters.m_StreamSamples.empty() )
+        {
+            const double streamDuration = static_cast<double>(
+                m_pData->m_PerformanceCounters.m_StreamSamples.back().m_Timestamp );
+
+            static constexpr int index = 10;
+
+            ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, { 0, 0 } );
+
+            if( ImPlot::BeginPlot( "##Stream", ImVec2( -1, 70 ), ImPlotFlags_NoFrame ) )
+            {
+                ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, streamDuration, ImPlotCond_Always );
+                ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoTickLabels );
+                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoTickLabels );
+
+                ImPlot::PlotShadedG(
+                    m_pActivePerformanceQueryMetricsSet->m_Metrics[index].shortName,
+                    []( int idx, void* pData ) -> ImPlotPoint
+                    {
+                        const auto* pThis = static_cast<ProfilerOverlayOutput*>( pData );
+                        const auto* pMetricsSet = pThis->m_pActivePerformanceQueryMetricsSet.get();
+
+                        const auto* pFrameData = pThis->m_pData.get();
+
+                        const auto* pSamples = pFrameData->m_PerformanceCounters.m_StreamSamples.data();
+                        const auto& sample = pSamples[idx];
+
+                        switch( pMetricsSet->m_Metrics[index].storage )
+                        {
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                            return ImPlotPoint(
+                                sample.m_Timestamp,
+                                sample.m_Results[index].float32 );
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                            return ImPlotPoint(
+                                sample.m_Timestamp,
+                                static_cast<float>( sample.m_Results[index].float64 ) );
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                            return ImPlotPoint(
+                                sample.m_Timestamp,
+                                static_cast<float>( sample.m_Results[index].uint32 ) );
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                            return ImPlotPoint(
+                                sample.m_Timestamp,
+                                static_cast<float>( sample.m_Results[index].uint64 ) );
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                            return ImPlotPoint(
+                                sample.m_Timestamp,
+                                static_cast<float>( sample.m_Results[index].int32 ) );
+                        case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                            return ImPlotPoint(
+                                sample.m_Timestamp,
+                                static_cast<float>( sample.m_Results[index].int64 ) );
+                        default:
+                            return ImPlotPoint( sample.m_Timestamp, 0.0 );
+                        }
+                    },
+                    this,
+                    [](int idx, void* pData) -> ImPlotPoint
+                    {
+                        const auto* pThis = static_cast<ProfilerOverlayOutput*>( pData );
+
+                        const auto* pFrameData = pThis->m_pData.get();
+
+                        const auto* pSamples = pFrameData->m_PerformanceCounters.m_StreamSamples.data();
+                        const auto& sample = pSamples[idx];
+
+                        return ImPlotPoint( sample.m_Timestamp, 0 );
+                    },
+                    this,
+                    m_pData->m_PerformanceCounters.m_StreamSamples.size(),
+                    ImPlotShadedFlags_None );
+
+                ImPlot::EndPlot();
+            }
+
+            ImGui::PopStyleVar();
+        }
+
         PerformanceTabDockSpace();
 
         // Frames list
