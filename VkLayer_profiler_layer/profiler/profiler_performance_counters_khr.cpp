@@ -547,6 +547,14 @@ namespace Profiler
             performanceCreateInfo.pCounterIndices = queueFamilyCounters.m_CounterIndices.data();
         }
 
+        if( performanceCreateInfo.counterIndexCount == 0 )
+        {
+            // No counters selected for this queue family, cannot create query pool.
+            *pQueryPool = VK_NULL_HANDLE;
+
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
         createInfo.pNext = &performanceCreateInfo;
 
         return m_pDevice->Callbacks.CreateQueryPool(
