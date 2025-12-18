@@ -1,0 +1,371 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Options &mdash; VulkanProfiler  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/style.css?v=30306ce0" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="User Interface" href="user_interface.html" />
+    <link rel="prev" title="Configuration" href="getting_started/configuration.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VulkanProfiler
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Getting started</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Options</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#confval-output"><code class="docutils literal notranslate"><span class="pre">output</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-output_trace_file"><code class="docutils literal notranslate"><span class="pre">output_trace_file</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-enable_memory_profiling"><code class="docutils literal notranslate"><span class="pre">enable_memory_profiling</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-enable_performance_query_ext"><code class="docutils literal notranslate"><span class="pre">enable_performance_query_ext</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-default_metrics_set"><code class="docutils literal notranslate"><span class="pre">default_metrics_set</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-enable_pipeline_executable_properties_ext"><code class="docutils literal notranslate"><span class="pre">enable_pipeline_executable_properties_ext</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-enable_render_pass_begin_end_profiling"><code class="docutils literal notranslate"><span class="pre">enable_render_pass_begin_end_profiling</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-capture_indirect_args"><code class="docutils literal notranslate"><span class="pre">capture_indirect_args</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-set_stable_power_state"><code class="docutils literal notranslate"><span class="pre">set_stable_power_state</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-enable_threading"><code class="docutils literal notranslate"><span class="pre">enable_threading</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-sampling_mode"><code class="docutils literal notranslate"><span class="pre">sampling_mode</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-frame_delimiter"><code class="docutils literal notranslate"><span class="pre">frame_delimiter</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-frame_count"><code class="docutils literal notranslate"><span class="pre">frame_count</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-ref_pipelines"><code class="docutils literal notranslate"><span class="pre">ref_pipelines</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-ref_metrics"><code class="docutils literal notranslate"><span class="pre">ref_metrics</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="user_interface.html">User Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how_tos.html">How-tos</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VulkanProfiler</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Options</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/options.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="options">
+<h1>Options<a class="headerlink" href="#options" title="Link to this heading"></a></h1>
+<p>This section describes in detail all available configuration options exposed by the profiling layer.</p>
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-output">
+<span class="sig-name descname"><span class="pre">output</span></span><a class="headerlink" href="#confval-output" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">enum</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">overlay</dd>
+</dl>
+<p>Type of the output used for presenting the profiling data. By default the layer creates an overlay in the application’s window and intercepts incoming input events when the mouse cursor is on top of the overlay. This is the most convenient output that also supports all features of the layer.</p>
+<p>The following outputs are available:</p>
+<dl class="simple glossary">
+<dt id="term-overlay">overlay<a class="headerlink" href="#term-overlay" title="Link to this term"></a></dt><dd><p>An overlay is displayed in the application’s window. It intercepts incoming input events to allow the user to interact with it and browse through the profiling data. The overlay displays live performance data, which can be paused and resumed at any time. It also provides useful widgets showing post-processed data, such as command queue utilization graphs, top pipelines list, drawcall statistics, shader code disassembly, and more.</p>
+</dd>
+<dt id="term-trace">trace<a class="headerlink" href="#term-trace" title="Link to this term"></a></dt><dd><p>The profiling data is written directly to a trace file in the JSON format. It is useful when profiling applications that don’t present the rendered image in a window, such as command line applications and compute-only workloads. The data is limited to timestamp query results only.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-output_trace_file">
+<span class="sig-name descname"><span class="pre">output_trace_file</span></span><a class="headerlink" href="#confval-output_trace_file" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">path</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">empty</dd>
+</dl>
+<p>When <a class="reference internal" href="#confval-output"><code class="xref std std-confval docutils literal notranslate"><span class="pre">output</span></code></a> is set to <strong>trace</strong>, this option allows to override the default file name and location of the output trace file.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-enable_memory_profiling">
+<span class="sig-name descname"><span class="pre">enable_memory_profiling</span></span><a class="headerlink" href="#confval-enable_memory_profiling" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">true</dd>
+</dl>
+<p>Enables tracking of allocations and resources created by the application. The data can be used to investigate potential memory-related issues, like resource placement on a heap or frequent reallocations. It can be disabled to reduce CPU overhead.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-enable_performance_query_ext">
+<span class="sig-name descname"><span class="pre">enable_performance_query_ext</span></span><a class="headerlink" href="#confval-enable_performance_query_ext" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">enum</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">intel</dd>
+</dl>
+<p>Enables the selected performance extension and collects detailed performance metrics. The metrics are collected at VkCommandBuffer level and then aggregated into the entire frame. The scope of available metrics depends on the driver and the GPU used for measurements.</p>
+<p>The following options are available:</p>
+<dl class="glossary">
+<dt id="term-none">none<a class="headerlink" href="#term-none" title="Link to this term"></a></dt><dd><p>Disables collection of performance counters.</p>
+</dd>
+<dt id="term-intel">intel<a class="headerlink" href="#term-intel" title="Link to this term"></a></dt><dd><p>Enables VK_INTEL_performance_query extension and uses Metrics-Discovery library to process the results. The extension provides predefined metrics sets exposed by the Intel graphics driver and does not support custom sets.</p>
+</dd>
+<dt id="term-khr">khr<a class="headerlink" href="#term-khr" title="Link to this term"></a></dt><dd><p>Enables VK_KHR_performance_query extension. It does not come with any built-in sets, but it provides a list of available counters that user can select from to build custom sets. The layer has a limitation on the selected counters that all of them must be collected in a single query pass.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application’s knowledge. Because of that, the layer does not support multi-pass performance queries.</p>
+</div>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-default_metrics_set">
+<span class="sig-name descname"><span class="pre">default_metrics_set</span></span><a class="headerlink" href="#confval-default_metrics_set" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">string</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">RenderBasic</dd>
+</dl>
+<p>Name of the default metrics set selected immediately after initialization of the performance query extension. Available only if <a class="reference internal" href="#confval-enable_performance_query_ext"><code class="xref std std-confval docutils literal notranslate"><span class="pre">enable_performance_query_ext</span></code></a> is set to <strong>intel</strong>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-enable_pipeline_executable_properties_ext">
+<span class="sig-name descname"><span class="pre">enable_pipeline_executable_properties_ext</span></span><a class="headerlink" href="#confval-enable_pipeline_executable_properties_ext" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">false</dd>
+</dl>
+<p>Enables VK_KHR_pipeline_executable_properties extension and collects detailed information about the pipeline shader stages, including shader statistics and internal representations, if available.</p>
+<p>Enabling this option may slightly impact shader compilation time and memory usage.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-enable_render_pass_begin_end_profiling">
+<span class="sig-name descname"><span class="pre">enable_render_pass_begin_end_profiling</span></span><a class="headerlink" href="#confval-enable_render_pass_begin_end_profiling" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">false</dd>
+</dl>
+<p>When <a class="reference internal" href="#confval-sampling_mode"><code class="xref std std-confval docutils literal notranslate"><span class="pre">sampling_mode</span></code></a> is set to <strong>render_pass</strong> or higher, setting this option will enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass commands.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-capture_indirect_args">
+<span class="sig-name descname"><span class="pre">capture_indirect_args</span></span><a class="headerlink" href="#confval-capture_indirect_args" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">false</dd>
+</dl>
+<p>When enabled, the layer will capture indirect draw and dispatch arguments from the command buffer. This allows to analyze the actual parameters used for indirect draws and dispatches, which can be useful for debugging and performance analysis.</p>
+<p>The option has significant performance and memory overhead due to additional copying of the indirect argument buffers to the host memory.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-set_stable_power_state">
+<span class="sig-name descname"><span class="pre">set_stable_power_state</span></span><a class="headerlink" href="#confval-set_stable_power_state" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">true</dd>
+</dl>
+<p>Uses DirectX12 API to set the GPU to a stable power state before profiling. This can help to reduce variability in performance measurements caused by power state changes during the profiling session. The option is only applicable for Windows platforms only.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-enable_threading">
+<span class="sig-name descname"><span class="pre">enable_threading</span></span><a class="headerlink" href="#confval-enable_threading" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">true</dd>
+</dl>
+<p>Enables multithreading support in the profiling layer.</p>
+<p>When enabled, the layer will use multiple threads to process profiling data, which can significantly improve performance and reduce overhead. However, it may cause frequent context switches when the application is heavily multithreaded, which can lead to performance degradation in some cases.</p>
+<p>It is recommended to leave this option enabled, but it can be disabled for specific use cases where multithreading is not beneficial.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-sampling_mode">
+<span class="sig-name descname"><span class="pre">sampling_mode</span></span><a class="headerlink" href="#confval-sampling_mode" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">enum</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">drawcall</dd>
+</dl>
+<p>Defines the granularity of the profiling data collected by the layer.</p>
+<p>The following sampling modes are available:</p>
+<dl class="simple glossary">
+<dt id="term-drawcall">drawcall<a class="headerlink" href="#term-drawcall" title="Link to this term"></a></dt><dd><p>The layer will collect profiling data for each draw call and dispatch command. This is the most detailed mode and provides the best insight into the performance of individual rendering commands. However, it may have higher overhead, especially for applications with a large number of draw calls or dispatches.</p>
+</dd>
+<dt id="term-pipeline">pipeline<a class="headerlink" href="#term-pipeline" title="Link to this term"></a></dt><dd><p>The layer will collect profiling data for each pipeline, inserting timestamp queries when a new pipeline state is used. This mode provides a good balance between detail and overhead, allowing to analyze performance of individual pipelines without the overhead of collecting data for each draw call or dispatch command.</p>
+</dd>
+<dt id="term-render_pass">render_pass<a class="headerlink" href="#term-render_pass" title="Link to this term"></a></dt><dd><p>The layer will collect profiling data for each render pass, dynamic rendering pass, compute or transfer commands pass, inserting timestamp queries at boundaries of those passes.</p>
+</dd>
+<dt id="term-command_buffer">command_buffer<a class="headerlink" href="#term-command_buffer" title="Link to this term"></a></dt><dd><p>The layer will collect profiling data for each command buffer, placing timestamp queries at the beginning and end of each command buffer. This is the most coarse-grained mode supported by the layer.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-frame_delimiter">
+<span class="sig-name descname"><span class="pre">frame_delimiter</span></span><a class="headerlink" href="#confval-frame_delimiter" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">enum</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">present</dd>
+</dl>
+<p>Defines the granularity of the frame boundaries used for profiling data.</p>
+<p>The following frame delimiters are available:</p>
+<dl class="simple glossary">
+<dt id="term-present">present<a class="headerlink" href="#term-present" title="Link to this term"></a></dt><dd><p>The layer will delimit frames at swapchain present operations. This is the default mode and is recommended for most applications that use swapchains for rendering.</p>
+</dd>
+<dt id="term-submit">submit<a class="headerlink" href="#term-submit" title="Link to this term"></a></dt><dd><p>The layer will delimit frames at command buffer submission operations. This mode is useful for applications that do not use swapchains or each submission should be considered as a separate frame.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-frame_count">
+<span class="sig-name descname"><span class="pre">frame_count</span></span><a class="headerlink" href="#confval-frame_count" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">int</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">1</dd>
+</dl>
+<p>The number of frames to profile. When <a class="reference internal" href="#confval-output"><code class="xref std std-confval docutils literal notranslate"><span class="pre">output</span></code></a> is set to <strong>overlay</strong>, this option controls how many frames of profiling data are displayed in the overlay. When <a class="reference internal" href="#confval-output"><code class="xref std std-confval docutils literal notranslate"><span class="pre">output</span></code></a> is set to <strong>trace</strong>, this option controls how many frames of profiling data are written to the trace file.</p>
+<p>When this option is set to 0, the layer will profile all frames until the profiling session is stopped manually.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-ref_pipelines">
+<span class="sig-name descname"><span class="pre">ref_pipelines</span></span><a class="headerlink" href="#confval-ref_pipelines" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">path</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">empty</dd>
+</dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-ref_metrics">
+<span class="sig-name descname"><span class="pre">ref_metrics</span></span><a class="headerlink" href="#confval-ref_metrics" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">path</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">empty</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="getting_started/configuration.html" class="btn btn-neutral float-left" title="Configuration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="user_interface.html" class="btn btn-neutral float-right" title="User Interface" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Łukasz Stalmirski.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Version</span>
+    release-2025.12.361
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Releases</dt>
+      <dd><a href="../release-2025.12.358/options.html">release-2025.12.358</a></dd>
+      <dd><a href="options.html">release-2025.12.361</a></dd>
+      <dd><a href="../release-2025.6.296/options.html">release-2025.6.296</a></dd>
+      <dd><a href="../release-2025.8.323/options.html">release-2025.8.323</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../master/options.html">master</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

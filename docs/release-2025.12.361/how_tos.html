@@ -1,0 +1,190 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How-tos &mdash; VulkanProfiler  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/style.css?v=30306ce0" />
+      <link rel="stylesheet" type="text/css" href="_static/tabs.css?v=a5c4661c" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/tabs.js?v=3030b3cb"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="User Interface" href="user_interface.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VulkanProfiler
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options.html">Options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="user_interface.html">User Interface</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">How-tos</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#profiling-offscreen-applications">Profiling offscreen applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#intel-performance-metrics-on-linux">Intel performance metrics on Linux</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VulkanProfiler</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">How-tos</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/how_tos.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="how-tos">
+<h1>How-tos<a class="headerlink" href="#how-tos" title="Link to this heading"></a></h1>
+<p>This section contains useful information and recommendations on using the profiling layer.</p>
+<section id="profiling-offscreen-applications">
+<h2>Profiling offscreen applications<a class="headerlink" href="#profiling-offscreen-applications" title="Link to this heading"></a></h2>
+<p>The layer initially supported only graphics applications, where presentation to the screen was required to browse and read the results.
+However, recent releases also support offscreen and compute-only workloads.
+Such applications may run in console with no GUI implementation, so in order to read the data the profiler has to be configured to write it to a file.</p>
+<p>Recommended configuration for collecting API-command-level data has been attached below.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-V2luZG93cw==" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-V2luZG93cw==" name="V2luZG93cw==" role="tab" tabindex="0">Windows</button><button aria-controls="panel-0-TGludXg=" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-0-TGludXg=" name="TGludXg=" role="tab" tabindex="-1">Linux</button></div><div aria-labelledby="tab-0-V2luZG93cw==" class="sphinx-tabs-panel code-tab group-tab" id="panel-0-V2luZG93cw==" name="V2luZG93cw==" role="tabpanel" tabindex="0"><div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="k">set</span> <span class="nv">VK_LOADER_LAYERS_ENABLE</span><span class="p">=</span>*profiler_unified
+<span class="k">set</span> <span class="nv">VKPROF_output</span><span class="p">=</span>trace
+<span class="k">set</span> <span class="nv">VKPROF_enable_threading</span><span class="p">=</span>false
+<span class="k">set</span> <span class="nv">VKPROF_frame_delimiter</span><span class="p">=</span>submit
+<span class="k">set</span> <span class="nv">VKPROF_frame_count</span><span class="p">=</span>0
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-0-TGludXg=" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-TGludXg=" name="TGludXg=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">VK_LOADER_LAYERS_ENABLE</span><span class="o">=</span><span class="s2">&quot;*profiler_unified&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_output</span><span class="o">=</span><span class="s2">&quot;trace&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_enable_threading</span><span class="o">=</span><span class="s2">&quot;false&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_frame_delimiter</span><span class="o">=</span><span class="s2">&quot;submit&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_frame_count</span><span class="o">=</span><span class="m">0</span>
+</pre></div>
+</div>
+</div></div>
+<p>The first variable enables injection of the profiling layer into the application.
+For more information on configuring the layer see <a class="reference internal" href="getting_started/configuration.html"><span class="doc">configuration</span></a>.</p>
+<p>The two next variables change the data output to an Event Trace file.
+Path to this file can be set with an optional <a class="reference internal" href="options.html#confval-output_trace_file"><code class="xref std std-confval docutils literal notranslate"><span class="pre">VKPROF_output_trace_file</span></code></a> variable.
+By default the file will be named after the profiled application with a timestamp and PID to differentiate it between subsequent runs.</p>
+<p>The configuration also disables background threading, which has the most impact on GUI applications and helps to reduce latency and GPU utilization gaps between frames.
+In offscreen applications this feature is not required and keeping it enabled may lead to missing data if the application quits early.</p>
+<p>The frame delimiter is changed to per-submit in order to keep grouping of operations - with the default per-present mode all commands would be packed into a single Frame #0.</p>
+<p>The last option disables the frame count limit to record the entire application profile instead of the first frame only.
+It can also be set to a different, greater than zero, value to limit the size of the collected data.</p>
+<p>With all these options set, the layer should attach into the Vulkan application and produce a file that can be then opened either in Chromium-based browsers (chrome://tracing or edge://tracing) or in e.g., <a class="reference external" href="https://ui.perfetto.dev/">ui.perfetto.dev</a>.</p>
+</section>
+<section id="intel-performance-metrics-on-linux">
+<h2>Intel performance metrics on Linux<a class="headerlink" href="#intel-performance-metrics-on-linux" title="Link to this heading"></a></h2>
+<p>Mesa driver supports VK_INTEL_performance_query extension (enabled with <a class="reference internal" href="options.html#confval-enable_performance_query_ext"><code class="xref std std-confval docutils literal notranslate"><span class="pre">VKPROF_enable_performance_query_ext=intel</span></code></a>) that can be used to collect detailed metrics describing hardware utilization during command buffer execution.</p>
+<p>However, because the metrics are collected system-wide, Intel kernel module enables the paranoid performance collection mode on boot.
+To use the extension, this mode must be disabled using elevated privileges. <a class="reference external" href="https://www.intel.com/content/dam/develop/external/us/en/documents/vulkan-metrics-ubuntu-813770.pdf">[1]</a></p>
+<p>First, determine which kernel driver is used for the installed GPU.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>lspci<span class="w"> </span>-nn<span class="w"> </span>-k<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-Ei<span class="w"> </span><span class="s1">&#39;VGA|DISPLAY&#39;</span><span class="w"> </span>-A2
+</pre></div>
+</div>
+<p>Then, depending on the returned module, disable the paranoid mode.</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" name="eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" role="tab" tabindex="0">xe (Intel Battlemage series and later)</button><button aria-controls="panel-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" name="aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" role="tab" tabindex="-1">i915 (Intel Alchemist series and prior)</button></div><div aria-labelledby="tab-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" class="sphinx-tabs-panel code-tab group-tab" id="panel-1-eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" name="eGUgKEludGVsIEJhdHRsZW1hZ2Ugc2VyaWVzIGFuZCBsYXRlcik=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>sysctl<span class="w"> </span>-w<span class="w"> </span>dev.xe.observation_paranoid<span class="o">=</span><span class="m">0</span>
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-1-aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" name="aTkxNSAoSW50ZWwgQWxjaGVtaXN0IHNlcmllcyBhbmQgcHJpb3Ip" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>sysctl<span class="w"> </span>-w<span class="w"> </span>dev.i915.perf_stream_paranoid<span class="o">=</span><span class="m">0</span>
+</pre></div>
+</div>
+</div></div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="user_interface.html" class="btn btn-neutral float-left" title="User Interface" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Łukasz Stalmirski.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Version</span>
+    release-2025.12.361
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Releases</dt>
+      <dd><a href="../release-2025.12.358/how_tos.html">release-2025.12.358</a></dd>
+      <dd><a href="how_tos.html">release-2025.12.361</a></dd>
+      <dd><a href="../release-2025.6.296/index.html">release-2025.6.296</a></dd>
+      <dd><a href="../release-2025.8.323/index.html">release-2025.8.323</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../master/how_tos.html">master</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

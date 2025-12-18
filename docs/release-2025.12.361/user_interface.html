@@ -1,0 +1,292 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Interface &mdash; VulkanProfiler  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/style.css?v=30306ce0" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="How-tos" href="how_tos.html" />
+    <link rel="prev" title="Options" href="options.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VulkanProfiler
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licenses</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="options.html">Options</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">User Interface</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#performance-graph">Performance graph</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#frames-list">Frames list</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#frame-browser">Frame browser</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#queue-utilization-graph">Queue utilization graph</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#top-pipelines">Top pipelines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#performance-counters">Performance counters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#memory">Memory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#inspector">Inspector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#statistics">Statistics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#settings">Settings</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="how_tos.html">How-tos</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VulkanProfiler</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">User Interface</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/user_interface.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="user-interface">
+<h1>User Interface<a class="headerlink" href="#user-interface" title="Link to this heading"></a></h1>
+<p>Once the layer has successfully attached, and <a class="reference internal" href="options.html#confval-output"><code class="xref std std-confval docutils literal notranslate"><span class="pre">output</span></code></a> is set to <code class="docutils literal notranslate"><span class="pre">overlay</span></code>, an overlay will be displayed on top of the image rendered by the application.
+This section describes all features it offers.</p>
+<p>Most of the windows and tabs in the overlay can be freely moved and resized to fit the user’s needs.</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="_images/layer-ui.jpg"><img alt="_images/layer-ui.jpg" src="_images/layer-ui.jpg" style="width: 90%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Profiling layer’s overlay window displaying rendering performance overview.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<section id="performance-graph">
+<h2>Performance graph<a class="headerlink" href="#performance-graph" title="Link to this heading"></a></h2>
+<p>The graph presents the data in form of blocks that highlight the highest contributors to the frame’s performance.
+The higher the block, the more contribution it has.
+This behavior can be disabled by selecting <code class="docutils literal notranslate"><span class="pre">Constant</span></code> height in <em>Height</em> combo box.</p>
+<p>Clicking on a column of the performance graph will jump to and highlight the selected region in the <a class="reference internal" href="#frame-browser"><span class="std std-ref">Frame browser</span></a> for a short time.</p>
+<p>By default the graph presents <code class="docutils literal notranslate"><span class="pre">Render</span> <span class="pre">passes</span></code> (e.g., VkRenderPass objects).
+The setting can be changed with <em>Histogram Groups</em> combo box.</p>
+<p>Performance graph doesn’t include any idling between presented regions.
+Such idling is presented in <a class="reference internal" href="#queue-utilization-graph"><span class="std std-ref">Queue utilization graph</span></a>, but it can be enabled in this graph too by checking <em>Show idle</em> checkbox.</p>
+<p>When profiling multiple frames, the graph shows all frames collected by the overlay.
+It can become unreadable if the number of frames is high, even when <code class="docutils literal notranslate"><span class="pre">Frames</span></code> group is selected.
+<em>Show active frame</em> checkbox allows to limit the graph to the selected frame only.</p>
+</section>
+<section id="frames-list">
+<h2>Frames list<a class="headerlink" href="#frames-list" title="Link to this heading"></a></h2>
+<p>When multiple frames are collected, this tab allows to quickly jump to a selected frame.</p>
+<p>If the layer is configured to delimit the data by command buffer submissions, this window will be titled <strong>Submissions</strong>, but its functionality will remain the same.</p>
+</section>
+<section id="frame-browser">
+<h2>Frame browser<a class="headerlink" href="#frame-browser" title="Link to this heading"></a></h2>
+<p>The frame data is displayed in a form of a tree in the following hierarchy:</p>
+<ol class="arabic simple">
+<li><p><strong>vkQueueSubmit</strong>: The API call that submitted the command buffers in batches of VkSubmitInfos.</p></li>
+<li><p><strong>VkSubmitInfo</strong>: A structure that contains a list of the submitted command buffers.</p></li>
+<li><p><strong>Command buffers</strong>: VkCommandBuffer objects that are recorded lists of commands.</p></li>
+<li><p><strong>Render passes</strong>: VkRenderPass objects, dynamic rendering passes, compute or transfer operations passes.</p></li>
+<li><p><strong>Pipelines</strong>: VkPipeline objects defining state used for the subsequent commands.</p></li>
+<li><p><strong>Drawcalls</strong>: Commands that are executed on the GPU, e.g., vkCmdDraw, vkCmdDispatch.</p></li>
+</ol>
+<p>On the right side of each tree node there is a measured time of the entire node.
+The node’s background also indicates its contribution to the total frame time.</p>
+<p>Command buffers and pipelines also offer a context menu with additional options.</p>
+<blockquote>
+<div><p><em>Command buffer context menu</em></p>
+<ul class="simple">
+<li><p><strong>Show performance counters</strong>: Shows the counters collected for the command buffer in the <a class="reference internal" href="#performance-counters"><span class="std std-ref">Performance counters</span></a> tab.</p></li>
+</ul>
+<p><em>Pipeline context menu</em></p>
+<ul class="simple">
+<li><p><strong>Inspect</strong>: Selects the pipeline for inspection in <a class="reference internal" href="#inspector"><span class="std std-ref">Inspector</span></a> window.</p></li>
+<li><p><strong>Copy name</strong>: Copies the name of the pipeline to the system’s clipboard.</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="queue-utilization-graph">
+<h2>Queue utilization graph<a class="headerlink" href="#queue-utilization-graph" title="Link to this heading"></a></h2>
+<p>This window shows an overview of queue utilization and synchronization semaphores.</p>
+<p>It is useful for profiling applications using multiple queues, where proper synchronization between them is crutial in fully leveraging GPU capabilities.</p>
+<p>Semaphores are marked with triangles above the timelines.
+Selecting a semaphore signal or wait event will also highlight other occurrences of the selected semaphores in the graph, helping in analysis of dependencies between the queues.
+Clicking again on a selected mark deselects it.</p>
+</section>
+<section id="top-pipelines">
+<h2>Top pipelines<a class="headerlink" href="#top-pipelines" title="Link to this heading"></a></h2>
+<p>Top piplines table presents aggregated time spent in each pipeline state.</p>
+<p>The table consists of the following columns:</p>
+<ol class="arabic simple">
+<li><p><strong>Pipeline</strong>: Name of the pipeline, either given by the application via VK_EXT_debug_utils or VK_EXT_debug_report extension, or automatically generated by the layer.</p></li>
+<li><p><strong>Stages</strong>: Shader stages used by the pipeline.</p></li>
+<li><p><strong>Contrib</strong>: Contribution of the aggregated pipeline time to the total frame time.</p></li>
+<li><p><strong>Total</strong>: Aggregated pipeline time.</p></li>
+</ol>
+<p>If a reference pipelines are set, the table also contains the reference time of the pipeline and the delta between the current and reference time.</p>
+<p>The currently presented times can be exported to a CSV (Comma-Separated Values) file and loaded later for comparison.</p>
+</section>
+<section id="performance-counters">
+<h2>Performance counters<a class="headerlink" href="#performance-counters" title="Link to this heading"></a></h2>
+<p>The layer offers support for 2 performance query extensions: VK_INTEL_performance_query and VK_KHR_performance_query.</p>
+<p>If either extension is enabled in the configuration, the layer collects detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).
+More fine-grained metrics (at VkRenderPass/VkPipeline/drawcall level) are currently not supported.</p>
+<p>With <strong>VK_INTEL_performance_query</strong> enabled, <a class="reference external" href="https://github.com/intel/metrics-discovery">Intel Metrics-Discovery</a> library is used to calculate the metrics from the query results.
+The API groups metrics into sets, allowing only metrics from a single set to be collected at a time.
+The set can be changed to any of the available ones listed in the combo box at the top of the window.</p>
+<p><strong>VK_KHR_performance_query</strong> allows to create more customized metrics sets, but it comes with no predefined sets.
+The layer also has a limitation on the selected counters that all of them must be collectible in a single query pass.
+Custom metrics sets created with this extension can be saved to JSON files.
+Those files can be then loaded in subsequent profiling runs to speed-up performance query setup.</p>
+<p>Regardless of the selected query backend, the layer provides the following methods of filtering performance query results.</p>
+<p><strong>Range</strong> allows to select the range of displayed query results between the entire frame and single command buffers.</p>
+<p><strong>Filter</strong> limits the number of displayed counters and metrics sets only to those passing the expression.
+By default a simple case-insensitive substring matching is used, but regular expression matching can be enabled via a button next to the input field.</p>
+<p>When the filter is not empty (and is a valid regular expression if regex mode is enabled), the list of sets will contain only sets whose name matches the expression, or that contain at least one metric that matches the expression.
+The filtering will also be applied to the list of metrics, both in the selected metrics set, and in the available counters section if KHR extension is used.</p>
+<p>Similarly as in <a class="reference internal" href="#top-pipelines"><span class="std std-ref">Top pipelines</span></a> view, the reference metrics values can be saved and loaded from a file.</p>
+</section>
+<section id="memory">
+<h2>Memory<a class="headerlink" href="#memory" title="Link to this heading"></a></h2>
+<p>Memory tab gives an overview of memory allocations made by the profiled application.</p>
+<a class="reference internal image-reference" href="_images/memory-tab.png"><img alt="_images/memory-tab.png" class="align-center" src="_images/memory-tab.png" style="width: 90%;" />
+</a>
+<p>The allocations are grouped into memory heaps that are reported by the driver.
+Below each heap there is a breakdown of allocations per memory type (memory types specify, for example, memory caching properties or host visibility of the allocations).</p>
+<p>The data can be automatically compared between frames or snapshots using the options at the top of the memory tab. When a reference frame is selected, the new and freed resources will be marked with + and - symbols. The differences in heap memory usage will also be marked in the breakdowns.</p>
+<p>The memory tab also lists all resources created by the application, which allows to investigate the allocations at a finer granularity. When a resource is selected, Resource Inspector will list its create information, such as size or usage. Below the overview there is a table listing all memory bindings associated with the resource.</p>
+<p>Detailed resource statistics can be also saved to a CSV (Comma-Separated Values) file for “offline” comparison.
+The file will contain up-to 4 tables, for each supported resource type: VkBuffer, VkImage, VkAccelerationStructureKHR and VkMicromapEXT.
+Depending on the resource type, each row will contain its creation info and resulting memory requirements, as well as the actual memory bindings, including selected memory type, heap, binding offset and size.</p>
+<p class="rubric">Sparse residency map</p>
+<p>Partially resident images can also be viewed in a Sparse Residency Map that presents the current residency of the image in 2D grid. The viewed subresource can be selected with the options at the top of the tool. Each binding can be hovered to display more details, such as offset, extent and device memory being bound.</p>
+<a class="reference internal image-reference" href="_images/sparse-residency-map.png"><img alt="_images/sparse-residency-map.png" class="align-center" src="_images/sparse-residency-map.png" style="width: 50%;" />
+</a>
+</section>
+<section id="inspector">
+<h2>Inspector<a class="headerlink" href="#inspector" title="Link to this heading"></a></h2>
+<p>Pipeline inspector allows to check the details of the profiled pipeline state.</p>
+<p>It provides contents of all core graphics pipeline create info structures used to create the pipeline, and the shaders used by the pipeline.</p>
+<p class="rubric">Shader inspector</p>
+<a class="reference internal image-reference" href="_images/shader-inspector.jpg"><img alt="_images/shader-inspector.jpg" class="align-center" src="_images/shader-inspector.jpg" style="width: 90%;" />
+</a>
+<p>The shader inspector is part of pipeline inspector tab.</p>
+<p>When a shader stage is selected in the combo box at the top of the window, the inspector will display the SPIR-V disassembly of the shader, as well as a high-level representation in GLSL or HLSL language obtained with spirv-cross.
+If the shader has the actual source code information embedded, it will be displayed instead of spirv-cross disassembly.</p>
+<p>SPIR-V disassembly viewer has built-in SPIR-V reference with descriptions of most of opcodes.
+The documentation is downloaded from <a class="reference external" href="https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html">https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html</a> (link to the document is also present in the GUI below the description of an opcode).</p>
+<p>If pipeline executable properties extension is enabled, either by the layer or by the profiled application, the shader inspector will also display the pipeline executable statistics and internal representations associated with the selected shader stage.</p>
+<p>All representations of the shader (SPIR-V disassembly, GLSL, HLSL and internal representations) can be saved to a file for further analysis.</p>
+<p>At the top right corner of the inspector there is a shader module identifier which can be used to correlate the shader with other tools that also use those identifiers.</p>
+</section>
+<section id="statistics">
+<h2>Statistics<a class="headerlink" href="#statistics" title="Link to this heading"></a></h2>
+<p>This window presents an overview of drawcall commands (vkCmdDraw, vkCmdDispatch, etc.) used in the frame.</p>
+<p>The table contains average, total, minimum and maximum execution times of each command type.</p>
+<p>By default the table is filtered to show only the commands that were used in the frame, but can be expanded to show all supported commands.</p>
+</section>
+<section id="settings">
+<h2>Settings<a class="headerlink" href="#settings" title="Link to this heading"></a></h2>
+<p>Settings tab allows to configure the overlay’s appearance.</p>
+<p>Currently, the following options are available:</p>
+<ol class="arabic simple">
+<li><p><strong>Interface scale</strong>: Sets the UI scaling factor for high-DPI displays.</p></li>
+<li><p><strong>Collected frame count</strong>: Sets the number of collected and displayed frames.</p></li>
+<li><p><strong>Time unit</strong>: Sets the time unit (milliseconds, microseconds or nanoseconds).</p></li>
+<li><p><strong>Show debug labels</strong>: Shows debug labels inserted by the application in the <a class="reference internal" href="#frame-browser"><span class="std std-ref">Frame browser</span></a>.</p></li>
+<li><p><strong>Show shader capabilities</strong>: Shows shader capabilities in form of badges in the <a class="reference internal" href="#frame-browser"><span class="std std-ref">Frame browser</span></a> and <a class="reference internal" href="#top-pipelines"><span class="std std-ref">Top pipelines</span></a>.</p></li>
+<li><p><strong>Show entry points</strong>: Shows shader entry points in the default pipeline names.</p></li>
+</ol>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="options.html" class="btn btn-neutral float-left" title="Options" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="how_tos.html" class="btn btn-neutral float-right" title="How-tos" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Łukasz Stalmirski.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Version</span>
+    release-2025.12.361
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Releases</dt>
+      <dd><a href="../release-2025.12.358/user_interface.html">release-2025.12.358</a></dd>
+      <dd><a href="user_interface.html">release-2025.12.361</a></dd>
+      <dd><a href="../release-2025.6.296/user_interface.html">release-2025.6.296</a></dd>
+      <dd><a href="../release-2025.8.323/user_interface.html">release-2025.8.323</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../master/user_interface.html">master</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
