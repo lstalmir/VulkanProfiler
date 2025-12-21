@@ -303,6 +303,8 @@ namespace Profiler
 
         m_pVulkanDevice = nullptr;
 
+        m_pAdapterGroup = nullptr;
+        m_pAdapter = nullptr;
         m_pDevice = nullptr;
         m_pDeviceParams = nullptr;
 
@@ -790,11 +792,7 @@ namespace Profiler
 
         if( !mdDllPath.empty() && std::filesystem::exists( mdDllPath ) )
         {
-        #ifdef WIN32
-            m_MDLibraryHandle = LoadLibraryA( mdDllPath.string().c_str() );
-        #else
-            m_MDLibraryHandle = dlopen( mdDllPath.string().c_str(), RTLD_NOW | RTLD_GLOBAL );
-        #endif
+            m_MDLibraryHandle = ProfilerPlatformFunctions::OpenLibrary( mdDllPath.string().c_str() );
         }
 
         return m_MDLibraryHandle != nullptr;
@@ -812,11 +810,7 @@ namespace Profiler
     {
         if( m_MDLibraryHandle != nullptr )
         {
-        #ifdef WIN32
-            FreeLibrary( (HMODULE)m_MDLibraryHandle );
-        #else
-            dlclose( m_MDLibraryHandle );
-        #endif
+            ProfilerPlatformFunctions::CloseLibrary( m_MDLibraryHandle );
             m_MDLibraryHandle = nullptr;
         }
     }
@@ -833,41 +827,100 @@ namespace Profiler
     {
         assert( m_pDevice == nullptr );
 
-        MD::OpenMetricsDevice_fn pfnOpenMetricsDevice = nullptr;
-
-        #ifdef WIN32
-        pfnOpenMetricsDevice = reinterpret_cast<MD::OpenMetricsDevice_fn>(
-            GetProcAddress( (HMODULE)m_MDLibraryHandle, "OpenMetricsDevice" ));
-        #else
-        pfnOpenMetricsDevice = reinterpret_cast<MD::OpenMetricsDevice_fn>(
-            dlsym( m_MDLibraryHandle, "OpenMetricsDevice" ));
-        #endif
-
-        if( pfnOpenMetricsDevice )
+        auto pfnOpenAdapterGroup = ProfilerPlatformFunctions::GetProcAddress<MD::OpenAdapterGroup_fn>( m_MDLibraryHandle, "OpenAdapterGroup" );
+        if( pfnOpenAdapterGroup )
         {
-            // Create metrics device
-            MD::IMetricsDeviceLatest* pDevice = nullptr;
-            MD::ECompletionCode result = pfnOpenMetricsDevice( &pDevice );
+            // Create adapter group.
+            MD::IAdapterGroupLatest* pAdapterGroup = nullptr;
+            MD::ECompletionCode result = pfnOpenAdapterGroup( &pAdapterGroup );
 
-            if( result == MD::CC_OK )
+            if( result != MD::CC_OK )
             {
-                // Get device parameters
-                m_pDevice = pDevice;
-                m_pDeviceParams = m_pDevice->GetParams();
+                return false;
+            }
 
-                // Check if the required version is supported by the current driver.
-                if( ( m_pDeviceParams->Version.MajorNumber != m_RequiredVersionMajor) ||
-                    ( m_pDeviceParams->Version.MinorNumber < m_MinRequiredVersionMinor ) )
+            m_pAdapterGroup = pAdapterGroup;
+
+            // Verify that the adapter group supports at least version 1.6 to use IAdapter_1_6.
+            auto* pAdapterGroupParams = m_pAdapterGroup->GetParams();
+            if( ( pAdapterGroupParams->Version.MajorNumber != m_RequiredVersionMajor ) ||
+                ( pAdapterGroupParams->Version.MinorNumber < m_MinRequiredAdapterGroupVersionMinor ) )
+            {
+                return false;
+            }
+
+            // Find adapter matching the current device.
+            const uint32_t adapterCount = pAdapterGroupParams->AdapterCount;
+            for( uint32_t i = 0; i < adapterCount; ++i )
+            {
+                auto* pAdapter = m_pAdapterGroup->GetAdapter( i );
+                auto* pAdapterParams = pAdapter->GetParams();
+
+                // TODO: Consider using PCI BDF address.
+                if( ( pAdapterParams->VendorId == m_pVulkanDevice->pPhysicalDevice->Properties.vendorID ) &&
+                    ( pAdapterParams->DeviceId == m_pVulkanDevice->pPhysicalDevice->Properties.deviceID ) )
                 {
-                    CloseMetricsDevice();
-
-                    result = MD::CC_ERROR_NOT_SUPPORTED;
+                    m_pAdapter = pAdapter;
+                    break;
                 }
             }
 
-            return result == MD::CC_OK;
+            if( !m_pAdapter )
+            {
+                return false;
+            }
+
+            // Reset the adapter to clear any previous state.
+            m_pAdapter->Reset();
+
+            // Open device for the selected adapter.
+            MD::IMetricsDevice_1_5* pDevice = nullptr;
+            result = m_pAdapter->OpenMetricsDevice( &pDevice );
+
+            if( result != MD::CC_OK )
+            {
+                return false;
+            }
+
+            m_pDevice = pDevice;
+            m_pDeviceParams = m_pDevice->GetParams();
+
+            // Check if the required version is supported by the current driver.
+            if( ( m_pDeviceParams->Version.MajorNumber != m_RequiredVersionMajor ) ||
+                ( m_pDeviceParams->Version.MinorNumber < m_MinRequiredVersionMinor ) )
+            {
+                return false;
+            }
+
+            return true;
         }
 
+        auto pfnOpenMetricsDevice = ProfilerPlatformFunctions::GetProcAddress<MD::OpenMetricsDevice_fn>( m_MDLibraryHandle, "OpenMetricsDevice" );
+        if( pfnOpenMetricsDevice )
+        {
+            // Create metrics device.
+            MD::IMetricsDeviceLatest* pDevice = nullptr;
+            MD::ECompletionCode result = pfnOpenMetricsDevice( &pDevice );
+
+            if( result != MD::CC_OK )
+            {
+                return false;
+            }
+
+            m_pDevice = pDevice;
+            m_pDeviceParams = m_pDevice->GetParams();
+
+            // Check if the required version is supported by the current driver.
+            if( ( m_pDeviceParams->Version.MajorNumber != m_RequiredVersionMajor) ||
+                ( m_pDeviceParams->Version.MinorNumber < m_MinRequiredVersionMinor ) )
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        // Required entry points not found.
         return false;
     }
 
@@ -881,17 +934,28 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersINTEL::CloseMetricsDevice()
     {
+        if( m_pAdapterGroup )
+        {
+            if( m_pDevice )
+            {
+                // Adapter must not be null if device has been successfully opened.
+                assert( m_pAdapter );
+
+                m_pAdapter->CloseMetricsDevice( static_cast<MD::IMetricsDevice_1_5*>( m_pDevice ) );
+
+                m_pDevice = nullptr;
+                m_pDeviceParams = nullptr;
+            }
+
+            m_pAdapter = nullptr;
+
+            m_pAdapterGroup->Close();
+            m_pAdapterGroup = nullptr;
+        }
+
         if( m_pDevice )
         {
-            MD::CloseMetricsDevice_fn pfnCloseMetricsDevice = nullptr;
-
-            #ifdef WIN32
-            pfnCloseMetricsDevice = reinterpret_cast<MD::CloseMetricsDevice_fn>(
-                GetProcAddress( (HMODULE)m_MDLibraryHandle, "CloseMetricsDevice" ));
-            #else
-            pfnCloseMetricsDevice = reinterpret_cast<MD::CloseMetricsDevice_fn>(
-                dlsym( m_MDLibraryHandle, "CloseMetricsDevice" ));
-            #endif
+            auto pfnCloseMetricsDevice = ProfilerPlatformFunctions::GetProcAddress<MD::CloseMetricsDevice_fn>( m_MDLibraryHandle, "CloseMetricsDevice" );
 
             // Close function should be available since we have successfully created device
             // using other function from the same library

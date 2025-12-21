@@ -72,6 +72,7 @@ namespace Profiler
         // Require at least version 1.1.
         static const uint32_t m_RequiredVersionMajor = 1;
         static const uint32_t m_MinRequiredVersionMinor = 1;
+        static const uint32_t m_MinRequiredAdapterGroupVersionMinor = 6;
 
         struct Counter
         {
@@ -103,6 +104,8 @@ namespace Profiler
 
         struct VkDevice_Object*               m_pVulkanDevice;
 
+        MetricsDiscovery::IAdapterGroup_1_6*  m_pAdapterGroup;
+        MetricsDiscovery::IAdapter_1_6*       m_pAdapter;
         MetricsDiscovery::IMetricsDevice_1_1* m_pDevice;
         MetricsDiscovery::TMetricsDeviceParams_1_0* m_pDeviceParams;
 
