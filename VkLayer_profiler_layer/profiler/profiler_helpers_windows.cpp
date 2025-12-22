@@ -415,6 +415,47 @@ namespace Profiler
         return variable;
     }
 
+    /***********************************************************************************\
+
+    Function:
+        OpenLibrary
+
+    Description:
+        Opens a dynamic library.
+
+    \***********************************************************************************/
+    void* ProfilerPlatformFunctions::OpenLibrary( const char* pLibraryName )
+    {
+        return static_cast<void*>( LoadLibraryA( pLibraryName ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CloseLibrary
+
+    Description:
+        Closes the dynamic library.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::CloseLibrary( void* pLibrary )
+    {
+        FreeLibrary( static_cast<HMODULE>( pLibrary ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetProcAddress
+
+    Description:
+        Returns address of the specified function in the dynamic library.
+
+    \***********************************************************************************/
+    VoidFunction ProfilerPlatformFunctions::GetProcAddress( void* pLibrary, const char* pProcName )
+    {
+        return reinterpret_cast<VoidFunction>( ::GetProcAddress( static_cast<HMODULE>( pLibrary ), pProcName ) );
+    }
 }
 
 #endif // WIN32

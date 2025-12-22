@@ -97,6 +97,17 @@ Once generated, the project can be built by running make:
 
     make all
 
+Packaging
+---------
+
+CMake install step can be used to collect all files into a single directory:
+
+.. code::
+
+    cmake --install . --config Release --prefix <install_dir>
+
+The layer files will be placed in ``<install_dir>/bin`` on Windows, ``<install_dir>/lib`` on Linux, or in ``<install_dir>/lib/<arch>`` on multiarch Linux distributions (e.g., ``<install_dir>/lib/x86_64-linux-gnu``).
+
 Building documentation
 ----------------------
 

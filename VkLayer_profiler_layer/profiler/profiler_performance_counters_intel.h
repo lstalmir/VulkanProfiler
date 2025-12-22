@@ -80,6 +80,7 @@ namespace Profiler
         // Require at least version 1.1.
         static const uint32_t m_RequiredVersionMajor = 1;
         static const uint32_t m_MinRequiredVersionMinor = 1;
+        static const uint32_t m_MinRequiredAdapterGroupVersionMinor = 6;
 
         // Mask of report reasons indicating a stream marker report.
         static constexpr uint32_t m_scMetricsStreamMarkerReportReasonMask =
@@ -130,7 +131,6 @@ namespace Profiler
 
         MetricsDiscovery::IAdapterGroup_1_6*  m_pAdapterGroup;
         MetricsDiscovery::IAdapter_1_6*       m_pAdapter;
-
         MetricsDiscovery::IMetricsDevice_1_1* m_pDevice;
         MetricsDiscovery::TMetricsDeviceParams_1_0* m_pDeviceParams;
 

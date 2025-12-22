@@ -235,6 +235,47 @@ namespace Profiler
         return std::string( pVariable );
     }
 
+    /***********************************************************************************\
+
+    Function:
+        OpenLibrary
+
+    Description:
+        Opens a dynamic library.
+
+    \***********************************************************************************/
+    void* ProfilerPlatformFunctions::OpenLibrary( const char* pLibraryName )
+    {
+        return dlopen( pLibraryName, RTLD_NOW | RTLD_GLOBAL );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CloseLibrary
+
+    Description:
+        Closes the dynamic library.
+
+    \***********************************************************************************/
+    void ProfilerPlatformFunctions::CloseLibrary( void* pLibrary )
+    {
+        dlclose( pLibrary );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetProcAddress
+
+    Description:
+        Returns address of the specified function in the dynamic library.
+
+    \***********************************************************************************/
+    VoidFunction ProfilerPlatformFunctions::GetProcAddress( void* pLibrary, const char* pProcName )
+    {
+        return reinterpret_cast<VoidFunction>( dlsym( pLibrary, pProcName ) );
+    }
 }
 
 #endif // __linux__

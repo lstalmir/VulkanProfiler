@@ -72,6 +72,8 @@
 
 namespace Profiler
 {
+    typedef void ( *VoidFunction )();
+
     /***********************************************************************************\
 
     Class:
@@ -886,6 +888,16 @@ namespace Profiler
         static void GetLocalTime( tm*, const time_t& );
 
         static std::optional<std::string> GetEnvironmentVar(const char* pVariableName);
+
+        static void* OpenLibrary( const char* pLibraryName );
+        static void CloseLibrary( void* pLibraryHandle );
+        static VoidFunction GetProcAddress( void* pLibraryHandle, const char* pProcName );
+
+        template<typename FunctionT>
+        static FunctionT GetProcAddress( void* pLibraryHandle, const char* pProcName )
+        {
+            return reinterpret_cast<FunctionT>( GetProcAddress( pLibraryHandle, pProcName ) );
+        }
     };
 
     /***********************************************************************************\
