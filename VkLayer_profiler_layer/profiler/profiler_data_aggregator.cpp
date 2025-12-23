@@ -573,6 +573,20 @@ namespace Profiler
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
 
+        // Collect performance counters stream data.
+        if( m_pProfiler->m_pPerformanceCounters )
+        {
+            frameData.m_PerformanceCounters.m_StreamSamples.clear();
+
+            while( !m_pProfiler->m_pPerformanceCounters->ReadStreamData(
+                frameData.m_BeginTimestamp,
+                frameData.m_EndTimestamp,
+                frameData.m_PerformanceCounters.m_StreamSamples ) )
+            {
+                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+            }
+        }
+
         // Collect memory data.
         frameData.m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();
 
