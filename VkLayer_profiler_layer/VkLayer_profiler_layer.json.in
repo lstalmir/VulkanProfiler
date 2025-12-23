@@ -142,6 +142,27 @@
                     ],
                     "settings": [
                         {
+                            "key": "performance_query_mode",
+                            "label": "Performance query mode",
+                            "description": "Mode of operation for performance query extension.",
+                            "env": "VKPROF_performance_query_mode",
+                            "type": "ENUM",
+                            "default": "query",
+                            "flags": [
+                                {
+                                    "key": "query",
+                                    "label": "Query",
+                                    "description": "Collect performance metrics using performance queries inserted into the command buffers."
+                                }
+                            ],
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    { "key": "enable_performance_query_ext", "value": "intel" }
+                                ]
+                            }
+                        },
+                        {
                             "key": "default_metrics_set",
                             "label": "Default metrics set",
                             "description": "Default metrics set to select after initializing performance query extension.",

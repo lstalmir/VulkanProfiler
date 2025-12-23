@@ -101,6 +101,21 @@ namespace Profiler
             }
         }
 
+        // Setup sampling mode
+        if( result == VK_SUCCESS )
+        {
+            switch( config.m_PerformanceQueryMode )
+            {
+            case performance_query_mode_t::query:
+                m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+                break;
+            default:
+                // Unsupported mode
+                result = VK_ERROR_FEATURE_NOT_PRESENT;
+                break;
+            }
+        }
+
         // Import extension functions
         if( result == VK_SUCCESS )
         {
@@ -311,6 +326,8 @@ namespace Profiler
         m_pConcurrentGroup = nullptr;
         m_pConcurrentGroupParams = nullptr;
 
+        m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+
         m_MetricsSets.clear();
 
         m_ActiveMetricsSetIndex = UINT32_MAX;
@@ -341,6 +358,19 @@ namespace Profiler
         return m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
             queue,
             m_PerformanceApiConfiguration );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSamplingMode
+
+    Description:
+
+    \***********************************************************************************/
+    VkProfilerPerformanceCountersSamplingModeEXT DeviceProfilerPerformanceCountersINTEL::GetSamplingMode() const
+    {
+        return m_SamplingMode;
     }
 
     /***********************************************************************************\

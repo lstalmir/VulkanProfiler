@@ -27,7 +27,7 @@ extern "C" {
 
 #ifndef VK_EXT_profiler
 #define VK_EXT_profiler 1
-#define VK_EXT_PROFILER_SPEC_VERSION 5
+#define VK_EXT_PROFILER_SPEC_VERSION 6
 #define VK_EXT_PROFILER_EXTENSION_NAME "VK_EXT_profiler"
 
 #define VK_STRUCTURE_TYPE_PROFILER_CREATE_INFO_EXT ((VkStructureType)1000999000)
@@ -38,6 +38,7 @@ extern "C" {
 #define VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_METRICS_SET_PROPERTIES_2_EXT ((VkStructureType)1000999005)
 #define VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT ((VkStructureType)1000999006)
 #define VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_UPDATE_INFO_EXT ((VkStructureType)1000999007)
+#define VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTERS_CREATE_INFO_EXT ((VkStructureType)1000999008)
 
 typedef enum VkProfilerCreateFlagBitsEXT
 {
@@ -160,6 +161,20 @@ typedef enum VkProfilerPerformanceCounterStorageEXT
     VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_MAX_ENUM_EXT = 0x7FFFFFFF
 } VkProfilerPerformanceCounterStorageEXT;
 
+typedef enum VkProfilerPerformanceCountersBackendEXT
+{
+    VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_NONE_EXT,
+    VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_INTEL_EXT,
+    VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_KHR_EXT,
+    VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkProfilerPerformanceCountersBackendEXT;
+
+typedef enum VkProfilerPerformanceCountersSamplingModeEXT
+{
+    VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT,
+    VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkProfilerPerformanceCountersSamplingModeEXT;
+
 typedef struct VkProfilerCreateInfoEXT
 {
     VkStructureType sType;
@@ -168,6 +183,14 @@ typedef struct VkProfilerCreateInfoEXT
     VkProfilerModeEXT samplingMode;
     VkProfilerFrameDelimiterEXT frameDelimiter;
 } VkProfilerCreateInfoEXT;
+
+typedef struct VkProfilerPerformanceCountersCreateInfoEXT
+{
+    VkStructureType sType;
+    const void* pNext;
+    VkProfilerPerformanceCountersBackendEXT backend;
+    VkProfilerPerformanceCountersSamplingModeEXT samplingMode;
+} VkProfilerPerformanceCountersCreateInfoEXT;
 
 typedef struct VkProfilerCommandPropertiesEXT
 {

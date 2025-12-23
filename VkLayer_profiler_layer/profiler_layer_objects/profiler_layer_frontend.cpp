@@ -410,11 +410,31 @@ namespace Profiler
 
     /***********************************************************************************\
 
-    Function:
-        GetHostTimestampFrequency
+        Function:
+        GetPerformanceCountersSamplingMode
 
     Description:
-        Returns the timestamp query frequency in the selected time domain.
+        Returns the performance counters sampling mode.
+
+    \***********************************************************************************/
+    VkProfilerPerformanceCountersSamplingModeEXT DeviceProfilerLayerFrontend::GetPerformanceCountersSamplingMode()
+    {
+        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
+        if( pPerformanceCounters )
+        {
+            return pPerformanceCounters->GetSamplingMode();
+        }
+
+        return VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDeviceCreateTimestamp
+
+    Description:
+        Returns the device creation timestamp in the selected time domain.
 
     \***********************************************************************************/
     uint64_t DeviceProfilerLayerFrontend::GetDeviceCreateTimestamp( VkTimeDomainEXT timeDomain )
