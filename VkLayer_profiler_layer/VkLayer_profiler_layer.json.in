@@ -151,12 +151,12 @@
                             "flags": [
                                 {
                                     "key": "query",
-                                    "label": "Query mode",
-                                    "description": "Collect performance metrics using performance queries."
+                                    "label": "Query",
+                                    "description": "Collect performance metrics using performance queries inserted into the command buffers."
                                 },
                                 {
-                                    "key": "streaming",
-                                    "label": "Streaming mode",
+                                    "key": "stream",
+                                    "label": "Stream",
                                     "description": "Continuously collect performance metrics in the background."
                                 }
                             ],

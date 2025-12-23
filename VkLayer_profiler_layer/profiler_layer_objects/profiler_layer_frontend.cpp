@@ -431,10 +431,10 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetHostTimestampFrequency
+        GetDeviceCreateTimestamp
 
     Description:
-        Returns the timestamp query frequency in the selected time domain.
+        Returns the device creation timestamp in the selected time domain.
 
     \***********************************************************************************/
     uint64_t DeviceProfilerLayerFrontend::GetDeviceCreateTimestamp( VkTimeDomainEXT timeDomain )

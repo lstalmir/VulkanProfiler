@@ -121,7 +121,19 @@ namespace Profiler
         // Setup sampling mode
         if( result == VK_SUCCESS )
         {
-            m_SamplingMode = static_cast<VkProfilerPerformanceCountersSamplingModeEXT>( config.m_PerformanceQueryMode.value );
+            switch( config.m_PerformanceQueryMode )
+            {
+            case performance_query_mode_t::query:
+                m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+                break;
+            case performance_query_mode_t::stream:
+                m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
+                break;
+            default:
+                // Unsupported mode
+                result = VK_ERROR_FEATURE_NOT_PRESENT;
+                break;
+            }
         }
 
         // Import extension functions
@@ -441,6 +453,19 @@ namespace Profiler
         }
 
         return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSamplingMode
+
+    Description:
+
+    \***********************************************************************************/
+    VkProfilerPerformanceCountersSamplingModeEXT DeviceProfilerPerformanceCountersINTEL::GetSamplingMode() const
+    {
+        return m_SamplingMode;
     }
 
     /***********************************************************************************\
