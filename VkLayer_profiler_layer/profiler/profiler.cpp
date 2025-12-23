@@ -459,7 +459,7 @@ namespace Profiler
         }
 
         // Initialize synchroniation manager
-        DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice, m_pPerformanceCounters.get() ) );
+        DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
 
         VkTimeDomainEXT hostTimeDomain = m_Synchronization.GetHostTimeDomain();
         m_CpuTimestampCounter.SetTimeDomain( hostTimeDomain );

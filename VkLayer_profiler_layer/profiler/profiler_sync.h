@@ -24,7 +24,6 @@
 namespace Profiler
 {
     class ProfilerCommandBuffer;
-    class DeviceProfilerPerformanceCounters;
     struct DeviceProfilerSynchronizationTimestamps;
 
     /***********************************************************************************\
@@ -41,7 +40,7 @@ namespace Profiler
     public:
         DeviceProfilerSynchronization();
 
-        VkResult Initialize( VkDevice_Object* pDevice, DeviceProfilerPerformanceCounters* pPerformanceCounters );
+        VkResult Initialize( VkDevice_Object* pDevice );
         void Destroy();
 
         void WaitForDevice();
@@ -55,7 +54,6 @@ namespace Profiler
 
     private:
         VkDevice_Object* m_pDevice;
-        DeviceProfilerPerformanceCounters* m_pPerformanceCounters;
 
         PFN_vkGetCalibratedTimestampsEXT m_pfnGetCalibratedTimestampsEXT;
 
@@ -63,7 +61,5 @@ namespace Profiler
 
         uint64_t m_CreateHostTimestamp;
         uint64_t m_CreateDeviceTimestamp;
-        uint64_t m_CreatePerformanceCountersHostTimestamp;
-        uint64_t m_CreatePerformanceCountersDeviceTimestamp;
     };
 }

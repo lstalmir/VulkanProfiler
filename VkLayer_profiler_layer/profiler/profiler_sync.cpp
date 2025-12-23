@@ -20,7 +20,6 @@
 
 #include "profiler_sync.h"
 #include "profiler_counters.h"
-#include "profiler_performance_counters.h"
 #include "profiler_data.h"
 #include <assert.h>
 
@@ -37,13 +36,10 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerSynchronization::DeviceProfilerSynchronization()
         : m_pDevice( nullptr )
-        , m_pPerformanceCounters( nullptr )
         , m_pfnGetCalibratedTimestampsEXT( nullptr )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
         , m_CreateHostTimestamp( 0 )
         , m_CreateDeviceTimestamp( 0 )
-        , m_CreatePerformanceCountersHostTimestamp( 0 )
-        , m_CreatePerformanceCountersDeviceTimestamp( 0 )
     {
     }
 
@@ -56,11 +52,10 @@ namespace Profiler
         Setup resources needed for device synchronization.
 
     \***********************************************************************************/
-    VkResult DeviceProfilerSynchronization::Initialize( VkDevice_Object* pDevice, DeviceProfilerPerformanceCounters* pPerformanceCounters )
+    VkResult DeviceProfilerSynchronization::Initialize( VkDevice_Object* pDevice )
     {
         VkResult result = VK_SUCCESS;
         m_pDevice = pDevice;
-        m_pPerformanceCounters = pPerformanceCounters;
 
         // Use VK_EXT_calibrated_timestamps (or KHR equivalent).
         if( m_pDevice != nullptr )
@@ -127,14 +122,6 @@ namespace Profiler
             }
         }
 
-        if( m_pPerformanceCounters != nullptr )
-        {
-            // Performance counters may use different time domains.
-            m_pPerformanceCounters->ReadStreamSynchronizationTimestamps(
-                &m_CreatePerformanceCountersDeviceTimestamp,
-                &m_CreatePerformanceCountersHostTimestamp );
-        }
-
         // Always return success, the extension is optional.
         return VK_SUCCESS;
     }
@@ -151,13 +138,10 @@ namespace Profiler
     void DeviceProfilerSynchronization::Destroy()
     {
         m_pDevice = nullptr;
-        m_pPerformanceCounters = nullptr;
         m_pfnGetCalibratedTimestampsEXT = nullptr;
         m_HostTimeDomain = OSGetDefaultTimeDomain();
         m_CreateHostTimestamp = 0;
         m_CreateDeviceTimestamp = 0;
-        m_CreatePerformanceCountersHostTimestamp = 0;
-        m_CreatePerformanceCountersDeviceTimestamp = 0;
     }
 
     /***********************************************************************************\
@@ -264,17 +248,9 @@ namespace Profiler
             if( result == VK_SUCCESS )
             {
                 output.m_HostTimeDomain = m_HostTimeDomain;
-                output.m_HostCalibratedTimestamp = timestamps[ eHostTimestamp ];
+                output.m_HostCalibratedTimestamp = timestamps[eHostTimestamp];
                 output.m_DeviceCalibratedTimestamp = timestamps[ eDeviceTimestamp ];
             }
-        }
-
-        if( m_pPerformanceCounters != nullptr )
-        {
-            // Performance counters may use different time domains.
-            m_pPerformanceCounters->ReadStreamSynchronizationTimestamps(
-                &output.m_PerformanceCountersDeviceCalibratedTimestamp,
-                &output.m_PerformanceCountersHostCalibratedTimestamp );
         }
 
         return output;
@@ -295,8 +271,6 @@ namespace Profiler
         output.m_HostTimeDomain = m_HostTimeDomain;
         output.m_HostCalibratedTimestamp = m_CreateHostTimestamp;
         output.m_DeviceCalibratedTimestamp = m_CreateDeviceTimestamp;
-        output.m_PerformanceCountersHostCalibratedTimestamp = m_CreatePerformanceCountersHostTimestamp;
-        output.m_PerformanceCountersDeviceCalibratedTimestamp = m_CreatePerformanceCountersDeviceTimestamp;
         return output;
     }
 

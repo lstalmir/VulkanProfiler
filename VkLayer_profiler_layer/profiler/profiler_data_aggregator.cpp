@@ -127,7 +127,6 @@ namespace Profiler
         , m_Mutex()
         , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
-        , m_NanosecondsPerTick( 1.0 )
         , m_CopyCommandPools()
         , m_PerformanceMetricProperties()
         , m_PerformanceMetricsSetIndex( UINT32_MAX )
@@ -149,9 +148,6 @@ namespace Profiler
         m_PerformanceMetricsSetIndex = UINT32_MAX;
 
         VkResult result = VK_SUCCESS;
-
-        // Get timestamp period.
-        m_NanosecondsPerTick = m_pProfiler->m_pDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
 
         // Create command pools to copy query data using GPU.
         for( const auto& [queue, queueObj] : m_pProfiler->m_pDevice->Queues )

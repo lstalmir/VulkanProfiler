@@ -1832,8 +1832,6 @@ namespace Profiler
         VkTimeDomainEXT                                     m_HostTimeDomain = {};
         uint64_t                                            m_HostCalibratedTimestamp = {};
         uint64_t                                            m_DeviceCalibratedTimestamp = {};
-        uint64_t                                            m_PerformanceCountersHostCalibratedTimestamp = {};
-        uint64_t                                            m_PerformanceCountersDeviceCalibratedTimestamp = {};
     };
 
     /***********************************************************************************\
