@@ -29,12 +29,31 @@ namespace Profiler
 
     void DeviceProfilerConfig::LoadFromCreateInfo( const VkProfilerCreateInfoEXT* pCreateInfo )
     {
+        for( const VkBaseInStructure& s : PNextIterator( pCreateInfo->pNext ) )
+        {
+            switch( s.sType )
+            {
+            case VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTERS_CREATE_INFO_EXT:
+            {
+                const VkProfilerPerformanceCountersCreateInfoEXT& performanceCountersCreateInfo =
+                    *reinterpret_cast<const VkProfilerPerformanceCountersCreateInfoEXT*>( s.pNext );
+                m_EnablePerformanceQueryExt = performanceCountersCreateInfo.backend;
+                m_PerformanceQueryMode = performanceCountersCreateInfo.samplingMode;
+                break;
+            }
+            }
+        }
+
         if( (m_Output == output_t::overlay) && (pCreateInfo->flags & VK_PROFILER_CREATE_NO_OVERLAY_BIT_EXT) )
         {
             m_Output = output_t::none;
         }
 
-        m_EnablePerformanceQueryExt = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT) == 0;
+        if( pCreateInfo->flags & VK_PROFILER_CREATE_NO_PERFORMANCE_QUERY_EXTENSION_BIT_EXT )
+        {
+            m_EnablePerformanceQueryExt = enable_performance_query_ext_t::none;
+        }
+
         m_EnableRenderPassBeginEndProfiling = (pCreateInfo->flags & VK_PROFILER_CREATE_RENDER_PASS_BEGIN_END_PROFILING_ENABLED_BIT_EXT) != 0;
         m_SetStablePowerState = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_STABLE_POWER_STATE_BIT_EXT) == 0;
         m_EnableThreading = (pCreateInfo->flags & VK_PROFILER_CREATE_NO_THREADING_BIT_EXT) == 0;
