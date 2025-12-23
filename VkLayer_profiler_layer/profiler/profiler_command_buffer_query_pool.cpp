@@ -216,10 +216,10 @@ namespace Profiler
     {
         if( m_pPerformanceCounters )
         {
-            const DeviceProfilerPerformanceCountersSamplingMode samplingMode =
+            const VkProfilerPerformanceCountersSamplingModeEXT samplingMode =
                 m_pPerformanceCounters->GetSamplingMode();
 
-            if( samplingMode == DeviceProfilerPerformanceCountersSamplingMode::eQuery )
+            if( samplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT )
             {
                 AllocatePerformanceQueryPool();
 
@@ -237,7 +237,7 @@ namespace Profiler
                 }
             }
 
-            if( samplingMode == DeviceProfilerPerformanceCountersSamplingMode::eStream )
+            if( samplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
             {
                 if( m_CommandBufferLevel == VK_COMMAND_BUFFER_LEVEL_PRIMARY )
                 {
@@ -409,7 +409,7 @@ namespace Profiler
     {
         if( ( m_CommandBufferLevel == VK_COMMAND_BUFFER_LEVEL_PRIMARY ) &&
             ( m_pPerformanceCounters != nullptr ) &&
-            ( m_pPerformanceCounters->GetSamplingMode() == DeviceProfilerPerformanceCountersSamplingMode::eQuery ) )
+            ( m_pPerformanceCounters->GetSamplingMode() == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT ) )
         {
             // Try to reuse the existing query pool if possible.
             bool canReuseCurrentQueryPool = ( m_PerformanceQueryPool != VK_NULL_HANDLE );

@@ -50,7 +50,7 @@ namespace Profiler
 
         VkResult SetQueuePerformanceConfiguration( VkQueue queue ) final;
 
-        DeviceProfilerPerformanceCountersSamplingMode GetSamplingMode() const final;
+        VkProfilerPerformanceCountersSamplingModeEXT GetSamplingMode() const final;
 
         uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const final;
         uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const final;
@@ -137,7 +137,7 @@ namespace Profiler
         MetricsDiscovery::IConcurrentGroup_1_1* m_pConcurrentGroup;
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
-        DeviceProfilerPerformanceCountersSamplingMode m_SamplingMode;
+        VkProfilerPerformanceCountersSamplingModeEXT m_SamplingMode;
 
         double                                m_GpuTimestampPeriod;
         bool                                  m_GpuTimestampIs32Bit;

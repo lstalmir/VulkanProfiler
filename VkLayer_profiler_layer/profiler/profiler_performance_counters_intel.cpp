@@ -121,16 +121,7 @@ namespace Profiler
         // Setup sampling mode
         if( result == VK_SUCCESS )
         {
-            switch( config.m_PerformanceQueryMode )
-            {
-            default:
-            case performance_query_mode_t::query:
-                m_SamplingMode = DeviceProfilerPerformanceCountersSamplingMode::eQuery;
-                break;
-            case performance_query_mode_t::streaming:
-                m_SamplingMode = DeviceProfilerPerformanceCountersSamplingMode::eStream;
-                break;
-            }
+            m_SamplingMode = static_cast<VkProfilerPerformanceCountersSamplingModeEXT>( config.m_PerformanceQueryMode.value );
         }
 
         // Import extension functions
@@ -209,7 +200,7 @@ namespace Profiler
         // Start metrics stream collection thread
         if( result == VK_SUCCESS )
         {
-            if( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eStream )
+            if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
             {
                 m_MetricsStreamCollectionThreadExit = false;
                 m_MetricsStreamCollectionThread = std::thread(
@@ -227,7 +218,7 @@ namespace Profiler
             uint32_t defaultMetricsSetIndex = UINT32_MAX;
             const char* pDefaultMetricsSetName = config.m_DefaultMetricsSet.c_str();
 
-            uint32_t apiMask = ( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eStream ) ?
+            uint32_t apiMask = ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT ) ?
                 MD::API_TYPE_IOSTREAM :
                 MD::API_TYPE_VULKAN;
 
@@ -278,7 +269,7 @@ namespace Profiler
                     continue;
                 }
 
-                if( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eStream )
+                if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
                 {
                     // Read informations in the set.
                     set.m_ReportReasonInformationIndex = UINT32_MAX;
@@ -401,7 +392,7 @@ namespace Profiler
         m_pConcurrentGroup = nullptr;
         m_pConcurrentGroupParams = nullptr;
 
-        m_SamplingMode = DeviceProfilerPerformanceCountersSamplingMode::eQuery;
+        m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
 
         m_GpuTimestampPeriod = 1.0;
         m_GpuTimestampIs32Bit = false;
@@ -438,7 +429,7 @@ namespace Profiler
         VkResult result = VK_SUCCESS;
 
         // Configure the queue only if query mode is used and a metrics set is active.
-        if( ( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eQuery ) &&
+        if( ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT ) &&
             ( m_ActiveMetricsSetIndex != UINT32_MAX ) )
         {
             assert( m_PerformanceApiConfiguration != VK_NULL_HANDLE );
@@ -460,7 +451,7 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    DeviceProfilerPerformanceCountersSamplingMode DeviceProfilerPerformanceCountersINTEL::GetSamplingMode() const
+    VkProfilerPerformanceCountersSamplingModeEXT DeviceProfilerPerformanceCountersINTEL::GetSamplingMode() const
     {
         return m_SamplingMode;
     }
@@ -535,7 +526,7 @@ namespace Profiler
         // Get the new metrics set object.
         auto& metricsSet = m_MetricsSets[metricsSetIndex];
 
-        if( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eQuery )
+        if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT )
         {
             // Release the current performance configuration.
             if( m_PerformanceApiConfiguration )
@@ -576,7 +567,7 @@ namespace Profiler
             }
         }
 
-        if( m_SamplingMode == DeviceProfilerPerformanceCountersSamplingMode::eStream )
+        if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
         {
             // Close the current stream if any.
             if( m_ActiveMetricsSetIndex != UINT32_MAX )
@@ -763,7 +754,7 @@ namespace Profiler
     {
         std::scoped_lock lk( m_MetricsStreamResultsMutex );
 
-        if( m_SamplingMode != DeviceProfilerPerformanceCountersSamplingMode::eStream )
+        if( m_SamplingMode != VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
         {
             // No stream data available in query mode.
             return true;

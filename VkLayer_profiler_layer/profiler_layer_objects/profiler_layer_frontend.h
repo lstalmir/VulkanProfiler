@@ -69,7 +69,7 @@ namespace Profiler
         void GetAvailablePerformanceCounters( uint32_t selectedCounterCount, const uint32_t* pSelectedCounters, uint32_t& availableCounterCount, uint32_t* pAvailableCounters ) final;
         VkResult SetPreformanceMetricsSetIndex( uint32_t setIndex ) final;
         uint32_t GetPerformanceMetricsSetIndex() final;
-        DeviceProfilerPerformanceCountersSamplingMode GetPerformanceCountersSamplingMode() final;
+        VkProfilerPerformanceCountersSamplingModeEXT GetPerformanceCountersSamplingMode() final;
 
         uint64_t GetDeviceCreateTimestamp( VkTimeDomainEXT timeDomain ) final;
         uint64_t GetHostTimestampFrequency( VkTimeDomainEXT timeDomain ) final;

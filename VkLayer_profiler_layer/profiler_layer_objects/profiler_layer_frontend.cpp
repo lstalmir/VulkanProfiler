@@ -417,7 +417,7 @@ namespace Profiler
         Returns the performance counters sampling mode.
 
     \***********************************************************************************/
-    DeviceProfilerPerformanceCountersSamplingMode DeviceProfilerLayerFrontend::GetPerformanceCountersSamplingMode()
+    VkProfilerPerformanceCountersSamplingModeEXT DeviceProfilerLayerFrontend::GetPerformanceCountersSamplingMode()
     {
         auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
         if( pPerformanceCounters )
@@ -425,7 +425,7 @@ namespace Profiler
             return pPerformanceCounters->GetSamplingMode();
         }
 
-        return DeviceProfilerPerformanceCountersSamplingMode::eQuery;
+        return VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
     }
 
     /***********************************************************************************\

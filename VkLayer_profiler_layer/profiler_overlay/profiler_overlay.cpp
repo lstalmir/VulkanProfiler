@@ -2603,7 +2603,7 @@ namespace Profiler
             ImGui::PushStyleColor( ImGuiCol_TableBorderLight, IM_COL32( 64, 64, 64, 128 ) );
 
             // Stream metrics
-            if( m_Frontend.GetPerformanceCountersSamplingMode() == DeviceProfilerPerformanceCountersSamplingMode::eStream )
+            if( m_Frontend.GetPerformanceCountersSamplingMode() == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
             {
                 ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, { 0, 0 } );
 

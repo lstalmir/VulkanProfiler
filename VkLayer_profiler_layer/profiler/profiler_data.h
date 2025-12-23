@@ -173,21 +173,6 @@ namespace Profiler
 
     /***********************************************************************************\
 
-    Class:
-        DeviceProfilerPerformanceCountersSamplingMode
-
-    Description:
-        Defines the sampling modes available for performance counters.
-
-    \***********************************************************************************/
-    enum class DeviceProfilerPerformanceCountersSamplingMode : uint32_t
-    {
-        eQuery,
-        eStream,
-    };
-
-    /***********************************************************************************\
-
     Structure:
         DeviceProfilerTimestamp
 

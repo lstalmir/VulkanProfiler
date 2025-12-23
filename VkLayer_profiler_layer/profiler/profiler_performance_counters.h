@@ -50,7 +50,7 @@ namespace Profiler
 
         virtual VkResult SetQueuePerformanceConfiguration( VkQueue queue ) { return VK_SUCCESS; }
 
-        virtual DeviceProfilerPerformanceCountersSamplingMode GetSamplingMode() const { return DeviceProfilerPerformanceCountersSamplingMode::eQuery; }
+        virtual VkProfilerPerformanceCountersSamplingModeEXT GetSamplingMode() const { return VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT; }
 
         virtual uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const { return 0; }
         virtual uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const { return 0; }
