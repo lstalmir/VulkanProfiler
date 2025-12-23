@@ -471,19 +471,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetSamplingMode
-
-    Description:
-
-    \***********************************************************************************/
-    VkProfilerPerformanceCountersSamplingModeEXT DeviceProfilerPerformanceCountersINTEL::GetSamplingMode() const
-    {
-        return m_SamplingMode;
-    }
-
-    /***********************************************************************************\
-
-    Function:
         GetReportSize
 
     Description:
