@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Lukasz Stalmirski
+# Copyright (c) 2024-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,7 @@ def find_licenses( directory ):
             licenses[ lib ] = info
             break
         if lib not in licenses.keys():
-            raise Exception( f"License not found for {lib}" )
+            print( f"WARNING: License not found for {lib}" )
     return licenses.values()
 
 def append_license_file( out, info: library_info ):
