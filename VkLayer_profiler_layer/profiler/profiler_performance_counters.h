@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_data.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 // Import extension structures
@@ -71,6 +72,10 @@ namespace Profiler
         virtual uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) { return UINT32_MAX; }
         virtual void DestroyCustomMetricsSet( uint32_t ) {}
         virtual void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) {}
+
+        virtual uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) { return 0; }
+        virtual bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) { return true; }
+        virtual void ReadStreamSynchronizationTimestamps( uint64_t* pGpuTimestamp, uint64_t* pCpuTimestamp ) {}
 
         virtual void ParseReport( uint32_t metricsSetIndex, uint32_t queueFamilyIndex, uint32_t reportSize, const uint8_t* pReport, std::vector<VkProfilerPerformanceCounterResultEXT>& results ) {}
     };

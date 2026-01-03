@@ -153,6 +153,11 @@
                                     "key": "query",
                                     "label": "Query",
                                     "description": "Collect performance metrics using performance queries inserted into the command buffers."
+                                },
+                                {
+                                    "key": "stream",
+                                    "label": "Stream",
+                                    "description": "Continuously collect performance metrics in the background."
                                 }
                             ],
                             "dependence": {

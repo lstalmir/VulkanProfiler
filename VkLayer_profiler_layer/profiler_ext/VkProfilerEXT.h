@@ -172,6 +172,7 @@ typedef enum VkProfilerPerformanceCountersBackendEXT
 typedef enum VkProfilerPerformanceCountersSamplingModeEXT
 {
     VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT,
+    VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT,
     VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_MAX_ENUM_EXT = 0x7FFFFFFF
 } VkProfilerPerformanceCountersSamplingModeEXT;
 
