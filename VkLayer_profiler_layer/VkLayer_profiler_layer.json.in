@@ -7,7 +7,7 @@
         "api_version": "@PROFILER_LAYER_API_VERSION@",
         "implementation_version": "@PROFILER_LAYER_VER_BUILD@",
         "description": "@PROFILER_LAYER_FILEDESCRIPTION@",
-        "platforms": [ "WINDOWS", "LINUX" ],
+        "platforms": [ "WINDOWS", "LINUX", "ANDROID" ],
         "instance_extensions": [
             {
                 "name": "VK_EXT_debug_utils",
