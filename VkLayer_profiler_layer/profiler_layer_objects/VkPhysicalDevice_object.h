@@ -46,5 +46,7 @@ namespace Profiler
         VkPhysicalDevice_Vendor_ID VendorID;
 
         std::vector<VkQueueFamilyProperties> QueueFamilyProperties;
+
+        VkPhysicalDeviceRayTracingPipelinePropertiesKHR RayTracingPipelineProperties;
     };
 }

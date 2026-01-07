@@ -517,6 +517,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CalculateHash
+
+    Description:
+        Computes short, constant-length hash of shader group handle from the data.
+
+    \***********************************************************************************/
+    uint64_t ProfilerShaderGroup::CalculateHash( const uint8_t* pHandle, uint32_t handleSize )
+    {
+        return Farmhash::Fingerprint64( reinterpret_cast<const char*>( pHandle ), handleSize );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         UsesRayQuery
 
     Description:
