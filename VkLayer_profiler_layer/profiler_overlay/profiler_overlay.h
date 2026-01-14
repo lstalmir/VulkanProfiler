@@ -419,6 +419,9 @@ namespace Profiler
         void UpdatePerformanceQueryMetricsSetExporter();
         void SavePerformanceQueryMetricsSetToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>& );
 
+        void DrawPerformanceCountersQueryData( const std::vector<VkProfilerPerformanceCounterResultEXT>& );
+        void DrawPerformanceCountersStreamData();
+
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();
         void SaveTopPipelinesToFile( const std::string&, const DeviceProfilerFrameData& );
