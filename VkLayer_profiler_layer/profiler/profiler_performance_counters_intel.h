@@ -155,6 +155,7 @@ namespace Profiler
         bool                                  m_MetricsStreamCollectionThreadExit;
 
         uint32_t                              m_MetricsStreamMaxReportCount;
+        uint64_t                              m_MetricsStreamMaxBufferLengthInNanoseconds;
         std::vector<char>                     m_MetricsStreamDataBuffer;
 
         std::atomic_uint32_t                  m_NextMetricsStreamMarkerValue;
@@ -171,6 +172,8 @@ namespace Profiler
         void CloseMetricsDevice();
 
         void MetricsStreamCollectionThreadProc();
+        void CollectMetricsStreamSamples();
+        void FreeUnusedMetricsStreamSamples();
 
         void ParseReport(
             uint32_t metricsSetIndex,

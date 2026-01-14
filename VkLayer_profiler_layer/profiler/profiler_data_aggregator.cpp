@@ -571,6 +571,13 @@ namespace Profiler
             }
         }
 
+        if( frameData.m_Ticks == 0 )
+        {
+            // No data collected.
+            frameData.m_BeginTimestamp = 0;
+            frameData.m_EndTimestamp = 0;
+        }
+
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
 
         // Collect performance counters stream data.

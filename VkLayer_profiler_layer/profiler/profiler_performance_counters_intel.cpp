@@ -420,6 +420,7 @@ namespace Profiler
         m_MetricsStreamCollectionThreadExit = false;
 
         m_MetricsStreamMaxReportCount = 256;
+        m_MetricsStreamMaxBufferLengthInNanoseconds = 1'000'000'000ull;
         m_MetricsStreamDataBuffer.clear();
 
         m_NextMetricsStreamMarkerValue = 1;
@@ -772,6 +773,12 @@ namespace Profiler
             return true;
         }
 
+        if( beginTimestamp == endTimestamp )
+        {
+            // No data to read.
+            return true;
+        }
+
         auto begin = m_MetricsStreamResults.begin();
         auto end = m_MetricsStreamResults.end();
 
@@ -800,6 +807,14 @@ namespace Profiler
             samples.insert( samples.begin(), begin, end );
 
             m_MetricsStreamResults.erase( begin, end );
+        }
+        else
+        {
+            // No more data will arrive if the thread has exited.
+            if( !m_MetricsStreamCollectionThread.joinable() )
+            {
+                dataComplete = true;
+            }
         }
 
         return dataComplete;
@@ -1281,92 +1296,116 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersINTEL::MetricsStreamCollectionThreadProc()
     {
-        std::vector<VkProfilerPerformanceCounterResultEXT> results;
-
-        uint32_t currentStreamMarkerValue = 0;
-
         while( !m_MetricsStreamCollectionThreadExit )
         {
-            {
-                std::shared_lock lk( m_ActiveMetricSetMutex );
+            // Limit size of the buffered data.
+            FreeUnusedMetricsStreamSamples();
 
-                if( m_ActiveMetricsSetIndex != UINT32_MAX )
-                {
-                    MetricsSet& metricsSet = m_MetricsSets[m_ActiveMetricsSetIndex];
-
-                    // Read available data from the stream.
-                    auto cc = MD::CC_READ_PENDING;
-                    while( cc == MD::CC_READ_PENDING )
-                    {
-                        uint32_t reportCount = m_MetricsStreamMaxReportCount;
-                        uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
-
-                        cc = m_pConcurrentGroup->ReadIoStream(
-                            &reportCount,
-                            m_MetricsStreamDataBuffer.data(), 0 );
-
-                        if( cc == MD::CC_OK || cc == MD::CC_READ_PENDING )
-                        {
-                            const uint8_t* pReport = reinterpret_cast<const uint8_t*>( m_MetricsStreamDataBuffer.data() );
-
-                            // Parse each report
-                            for( uint32_t i = 0; i < reportCount; ++i )
-                            {
-                                ReportInformations informations;
-                                ParseReport(
-                                    m_ActiveMetricsSetIndex,
-                                    VK_QUEUE_FAMILY_IGNORED,
-                                    reportSize,
-                                    pReport,
-                                    results,
-                                    &informations );
-
-                                if( informations.m_Reason & m_scMetricsStreamMarkerReportReasonMask )
-                                {
-                                    // Associate the following results with the marker value.
-                                    currentStreamMarkerValue = informations.m_Value;
-                                }
-
-                                {
-                                    std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
-
-                                    // Save the parsed results.
-                                    m_MetricsStreamResults.push_back( { informations.m_Timestamp,
-                                        currentStreamMarkerValue,
-                                        results } );
-                                }
-
-                                pReport += reportSize;
-                            }
-                        }
-                    }
-
-                    // Limit size of the buffered data
-                    {
-                        std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
-
-                        if( !m_MetricsStreamResults.empty() )
-                        {
-                            const uint64_t lastTimestamp = m_MetricsStreamResults.back().m_Timestamp;
-                            const uint64_t maxLengthInNs = 10'000'000'000ull;
-
-                            if( ( lastTimestamp - m_MetricsStreamResults.front().m_Timestamp ) > maxLengthInNs )
-                            {
-                                auto it = m_MetricsStreamResults.begin();
-                                auto end = m_MetricsStreamResults.end();
-
-                                while( ( it != end ) && ( lastTimestamp - it->m_Timestamp ) > maxLengthInNs )
-                                    it++;
-
-                                m_MetricsStreamResults.erase( m_MetricsStreamResults.begin(), it );
-                            }
-                        }
-                    }
-                }
-            }
+            // Collect pending samples from the stream.
+            CollectMetricsStreamSamples();
 
             // Wait for the next report to be available.
-            m_pConcurrentGroup->WaitForReports( 1 );
+            m_pConcurrentGroup->WaitForReports( 1 /*ms*/ );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CollectMetricsStreamSamples
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersINTEL::CollectMetricsStreamSamples()
+    {
+        thread_local std::vector<VkProfilerPerformanceCounterResultEXT> parsedResults;
+        thread_local uint32_t currentStreamMarkerValue = 0;
+
+        // Don't switch the active metrics set while reading the stream.
+        std::shared_lock lk( m_ActiveMetricSetMutex );
+
+        if( m_ActiveMetricsSetIndex == UINT32_MAX )
+        {
+            return;
+        }
+
+        MetricsSet& metricsSet = m_MetricsSets[m_ActiveMetricsSetIndex];
+
+        // Read available data from the stream.
+        auto cc = MD::CC_READ_PENDING;
+        while( cc == MD::CC_READ_PENDING )
+        {
+            uint32_t reportCount = m_MetricsStreamMaxReportCount;
+            uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
+
+            cc = m_pConcurrentGroup->ReadIoStream(
+                &reportCount,
+                m_MetricsStreamDataBuffer.data(), 0 );
+
+            if( cc == MD::CC_OK || cc == MD::CC_READ_PENDING )
+            {
+                const uint8_t* pReport = reinterpret_cast<const uint8_t*>( m_MetricsStreamDataBuffer.data() );
+
+                // Parse each report
+                for( uint32_t i = 0; i < reportCount; ++i )
+                {
+                    ReportInformations informations;
+                    ParseReport(
+                        m_ActiveMetricsSetIndex,
+                        VK_QUEUE_FAMILY_IGNORED,
+                        reportSize,
+                        pReport,
+                        parsedResults,
+                        &informations );
+
+                    if( informations.m_Reason & m_scMetricsStreamMarkerReportReasonMask )
+                    {
+                        // Associate the following results with the marker value.
+                        currentStreamMarkerValue = informations.m_Value;
+                    }
+
+                    // Save the parsed results.
+                    std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+                    m_MetricsStreamResults.push_back( {
+                        informations.m_Timestamp,
+                        currentStreamMarkerValue,
+                        parsedResults } );
+
+                    pReport += reportSize;
+                }
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeUnusedMetricsStreamSamples
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersINTEL::FreeUnusedMetricsStreamSamples()
+    {
+        std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+
+        if( !m_MetricsStreamResults.empty() )
+        {
+            const uint64_t lastResultTimestamp = m_MetricsStreamResults.back().m_Timestamp;
+
+            const auto begin = m_MetricsStreamResults.begin();
+            const auto end = m_MetricsStreamResults.end();
+
+            // Find the first sample that is within the max buffer length.
+            auto it = begin;
+            while( ( it != end ) && ( lastResultTimestamp - it->m_Timestamp ) > m_MetricsStreamMaxBufferLengthInNanoseconds )
+                it++;
+
+            if( it != begin )
+            {
+                m_MetricsStreamResults.erase( begin, it );
+            }
         }
     }
 
