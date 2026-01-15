@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -418,6 +418,8 @@ namespace Profiler
         std::string GetDefaultPerformanceQueryMetricsSetFileName( const std::shared_ptr<PerformanceQueryMetricsSet>& ) const;
         void UpdatePerformanceQueryMetricsSetExporter();
         void SavePerformanceQueryMetricsSetToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>& );
+
+        void DrawPerformanceCountersQueryData( const std::vector<VkProfilerPerformanceCounterResultEXT>& );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();
