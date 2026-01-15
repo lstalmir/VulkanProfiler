@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lukasz Stalmirski
+// Copyright (c) 2025-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -73,9 +73,7 @@ namespace Profiler
         virtual void DestroyCustomMetricsSet( uint32_t ) {}
         virtual void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) {}
 
-        virtual uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) { return 0; }
         virtual bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) { return true; }
-        virtual void ReadStreamSynchronizationTimestamps( uint64_t* pGpuTimestamp, uint64_t* pCpuTimestamp ) {}
 
         virtual void ParseReport( uint32_t metricsSetIndex, uint32_t queueFamilyIndex, uint32_t reportSize, const uint8_t* pReport, std::vector<VkProfilerPerformanceCounterResultEXT>& results ) {}
     };

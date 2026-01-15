@@ -53,7 +53,6 @@ namespace Profiler
         CommandBufferQueryPool& operator=( CommandBufferQueryPool&& ) = delete;
 
         uint32_t GetPerformanceQueryMetricsSetIndex() const;
-        uint32_t GetPerformanceQueryStreamMarkerValue() const;
         uint64_t GetTimestampQueryCount() const;
         uint64_t GetRequiredBufferSize() const;
 
@@ -85,8 +84,6 @@ namespace Profiler
 
         VkQueryPool                      m_PerformanceQueryPool;
         uint32_t                         m_PerformanceQueryMetricsSetIndex;
-
-        uint32_t                         m_PerformanceQueryStreamMarkerValue;
 
         void AllocateQueryPool( VkCommandBuffer commandBuffer );
         void AllocatePerformanceQueryPool();

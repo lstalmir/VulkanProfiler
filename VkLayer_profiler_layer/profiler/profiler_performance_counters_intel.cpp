@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -422,8 +422,6 @@ namespace Profiler
         m_MetricsStreamMaxReportCount = 256;
         m_MetricsStreamMaxBufferLengthInNanoseconds = 1'000'000'000ull;
         m_MetricsStreamDataBuffer.clear();
-
-        m_NextMetricsStreamMarkerValue = 1;
     }
 
     /***********************************************************************************\
@@ -732,28 +730,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        InsertCommandBufferStreamMarker
-
-    Description:
-
-    \***********************************************************************************/
-    uint32_t DeviceProfilerPerformanceCountersINTEL::InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer )
-    {
-        VkPerformanceStreamMarkerInfoINTEL markerInfo = {};
-        markerInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_STREAM_MARKER_INFO_INTEL;
-        markerInfo.marker = m_NextMetricsStreamMarkerValue.fetch_add( 1 );
-
-        assert( m_pVulkanDevice->Callbacks.CmdSetPerformanceStreamMarkerINTEL );
-        m_pVulkanDevice->Callbacks.CmdSetPerformanceStreamMarkerINTEL(
-            commandBuffer,
-            &markerInfo );
-
-        return markerInfo.marker;
-    }
-
-    /***********************************************************************************\
-
-    Function:
         ReadStreamData
 
     Description:
@@ -818,24 +794,6 @@ namespace Profiler
         }
 
         return dataComplete;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        ReadStreamSynchronizationTimestamps
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfilerPerformanceCountersINTEL::ReadStreamSynchronizationTimestamps(
-        uint64_t* pGpuTimestamp,
-        uint64_t* pCpuTimestamp )
-    {
-        uint32_t cpuid;
-
-        auto cc = m_pDevice->GetGpuCpuTimestamps( pGpuTimestamp, pCpuTimestamp, &cpuid );
-        assert( cc == MD::CC_OK );
     }
 
     /***********************************************************************************\
@@ -1320,7 +1278,6 @@ namespace Profiler
     void DeviceProfilerPerformanceCountersINTEL::CollectMetricsStreamSamples()
     {
         thread_local std::vector<VkProfilerPerformanceCounterResultEXT> parsedResults;
-        thread_local uint32_t currentStreamMarkerValue = 0;
 
         // Don't switch the active metrics set while reading the stream.
         std::shared_lock lk( m_ActiveMetricSetMutex );
@@ -1359,17 +1316,10 @@ namespace Profiler
                         parsedResults,
                         &informations );
 
-                    if( informations.m_Reason & m_scMetricsStreamMarkerReportReasonMask )
-                    {
-                        // Associate the following results with the marker value.
-                        currentStreamMarkerValue = informations.m_Value;
-                    }
-
                     // Save the parsed results.
                     std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
                     m_MetricsStreamResults.push_back( {
                         informations.m_Timestamp,
-                        currentStreamMarkerValue,
                         parsedResults } );
 
                     pReport += reportSize;

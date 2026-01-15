@@ -37,7 +37,6 @@ namespace Profiler
         uint32_t m_PerformanceDataSize = 0;
         uint32_t m_PerformanceDataMetricsSetIndex = 0;
         VkQueryPool m_PerformanceQueryPool = VK_NULL_HANDLE;
-        uint32_t m_PerformanceQueryStreamMarkerValue = 0;
     };
 
     /***********************************************************************************\
@@ -100,7 +99,6 @@ namespace Profiler
         void SetContext( const void* handle );
         void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount );
         void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex );
-        void WritePerformanceQueryStreamMarker( uint32_t streamMarkerValue );
 
     private:
         DeviceProfiler*                 m_pProfiler;
@@ -134,7 +132,6 @@ namespace Profiler
         uint64_t ReadTimestampQueryResult( uint64_t index ) const;
         uint32_t GetPerformanceQueryMetricsSetIndex() const;
         uint32_t GetPerformanceQueryResultSize() const;
-        uint32_t GetPerformanceQueryStreamMarkerValue() const;
         const uint8_t* ReadPerformanceQueryResult();
         bool HasPerformanceQueryResult() const;
 

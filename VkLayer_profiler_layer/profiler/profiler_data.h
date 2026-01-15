@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1403,9 +1403,8 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerPerformanceCountersStreamResult
     {
-        uint64_t                                            m_Timestamp;
-        uint32_t                                            m_Marker;
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results;
+        uint64_t                                            m_Timestamp = 0;
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
     };
 
     /***********************************************************************************\
@@ -1420,7 +1419,6 @@ namespace Profiler
     struct DeviceProfilerPerformanceCountersData
     {
         uint32_t                                            m_MetricsSetIndex = UINT32_MAX;
-        uint32_t                                            m_MetricsStreamMarkerValue = 0;
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
         std::vector<DeviceProfilerPerformanceCountersStreamResult> m_StreamSamples = {};
     };

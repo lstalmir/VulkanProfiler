@@ -49,7 +49,6 @@ namespace Profiler
         , m_AbsQueryIndex( UINT64_MAX )
         , m_PerformanceQueryPool( VK_NULL_HANDLE )
         , m_PerformanceQueryMetricsSetIndex( UINT32_MAX )
-        , m_PerformanceQueryStreamMarkerValue( 0 )
     {
     }
 
@@ -94,21 +93,6 @@ namespace Profiler
     uint32_t CommandBufferQueryPool::GetPerformanceQueryMetricsSetIndex() const
     {
         return m_PerformanceQueryMetricsSetIndex;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetPerformanceQueryStreamMarkerValue
-
-    Description:
-        Returns the stream marker value associated with the last performance query
-        in case of collecting the counters in the stream mode.
-
-    \***********************************************************************************/
-    uint32_t CommandBufferQueryPool::GetPerformanceQueryStreamMarkerValue() const
-    {
-        return m_PerformanceQueryStreamMarkerValue;
     }
 
     /***********************************************************************************\
@@ -198,8 +182,6 @@ namespace Profiler
         m_AbsQueryIndex = UINT64_MAX;
         m_CurrentQueryIndex = UINT32_MAX;
         m_CurrentQueryPoolIndex = 0;
-
-        m_PerformanceQueryStreamMarkerValue = 0;
     }
 
     /***********************************************************************************\
@@ -235,15 +217,6 @@ namespace Profiler
                     m_Device.Callbacks.CmdBeginQuery(
                         commandBuffer,
                         m_PerformanceQueryPool, 0, 0 );
-                }
-            }
-
-            if( samplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
-            {
-                if( m_CommandBufferLevel == VK_COMMAND_BUFFER_LEVEL_PRIMARY )
-                {
-                    // Write marker if the counters are collected in the stream mode.
-                    m_PerformanceQueryStreamMarkerValue = m_pPerformanceCounters->InsertCommandBufferStreamMarker( commandBuffer );
                 }
             }
         }
@@ -314,12 +287,6 @@ namespace Profiler
             {
                 writer.WritePerformanceQueryResults( m_PerformanceQueryPool, performanceQueryMetricsSetIndex, m_QueueFamilyIndex );
             }
-        }
-
-        // Copy data from the performance counters stream.
-        if( m_PerformanceQueryStreamMarkerValue != 0 )
-        {
-            writer.WritePerformanceQueryStreamMarker( m_PerformanceQueryStreamMarkerValue );
         }
     }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,6 @@
 #include "profiler_performance_counters.h"
 #include <metrics_discovery_api.h>
 #include <filesystem>
-#include <fstream>
 #include <vector>
 #include <string>
 #include <shared_mutex>
@@ -65,9 +64,7 @@ namespace Profiler
         bool SupportsQueryPoolReuse() const final { return true; }
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
-        uint32_t InsertCommandBufferStreamMarker( VkCommandBuffer commandBuffer ) final;
         bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) final;
-        void ReadStreamSynchronizationTimestamps( uint64_t *pGpuTimestamp, uint64_t* pCpuTimestamp ) final;
 
         void ParseReport(
             uint32_t metricsSetIndex,
@@ -81,12 +78,6 @@ namespace Profiler
         static const uint32_t m_RequiredVersionMajor = 1;
         static const uint32_t m_MinRequiredVersionMinor = 1;
         static const uint32_t m_MinRequiredAdapterGroupVersionMinor = 6;
-
-        // Mask of report reasons indicating a stream marker report.
-        static constexpr uint32_t m_scMetricsStreamMarkerReportReasonMask =
-            MetricsDiscovery::REPORT_REASON_INTERNAL_TRIGGER1 |
-            MetricsDiscovery::REPORT_REASON_INTERNAL_TRIGGER2 |
-            MetricsDiscovery::REPORT_REASON_INTERNAL_MMIO_TRIGGER;
 
         struct Counter
         {
@@ -157,8 +148,6 @@ namespace Profiler
         uint32_t                              m_MetricsStreamMaxReportCount;
         uint64_t                              m_MetricsStreamMaxBufferLengthInNanoseconds;
         std::vector<char>                     m_MetricsStreamDataBuffer;
-
-        std::atomic_uint32_t                  m_NextMetricsStreamMarkerValue;
 
         std::mutex mutable                    m_MetricsStreamResultsMutex;
         std::vector<DeviceProfilerPerformanceCountersStreamResult> m_MetricsStreamResults;

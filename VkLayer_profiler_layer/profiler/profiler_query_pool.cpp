@@ -331,21 +331,6 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        WritePerformanceQueryStreamMarker
-
-    Description:
-        Associates performance stream marker with the current command buffer context.
-        No data is copied at time of calling this function due to spec limitations.
-
-    \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::WritePerformanceQueryStreamMarker( uint32_t streamMarkerValue )
-    {
-        m_pContext->m_PerformanceQueryStreamMarkerValue = streamMarkerValue;
-    }
-
-    /***********************************************************************************\
-
-    Function:
         DeviceProfilerQueryDataBufferReader
 
     Description:
@@ -422,19 +407,6 @@ namespace Profiler
     uint32_t DeviceProfilerQueryDataBufferReader::GetPerformanceQueryResultSize() const
     {
         return m_pContext->m_PerformanceDataSize;
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        GetPerformanceQueryStreamMarkerValue
-
-    Description:
-
-    \***********************************************************************************/
-    uint32_t DeviceProfilerQueryDataBufferReader::GetPerformanceQueryStreamMarkerValue() const
-    {
-        return m_pContext->m_PerformanceQueryStreamMarkerValue;
     }
 
     /***********************************************************************************\
