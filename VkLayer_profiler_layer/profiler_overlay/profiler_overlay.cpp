@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -2648,7 +2648,7 @@ namespace Profiler
             const size_t resultCount = results.size();
 
             if( m_pActivePerformanceQueryMetricsSet &&
-                (resultCount == m_pActivePerformanceQueryMetricsSet->m_Metrics.size()) )
+                ( resultCount == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() ) )
             {
                 for( uint32_t i = 0; i < resultCount; ++i )
                 {

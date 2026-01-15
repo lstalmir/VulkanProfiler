@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Lukasz Stalmirski
+# Copyright (c) 2024-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ def execute_process( cmd, cwd ):
     result = subprocess.check_output( cmd, cwd=cwd, stderr=subprocess.DEVNULL )
     return result.decode( "utf-8" ).strip()
 
-def find_licenses( directory ):
+def find_licenses( directory, skip_libs ):
     licenses = {}
     for lib in os.listdir( directory ):
         libdir = os.path.join( directory, lib )
@@ -61,8 +61,8 @@ def find_licenses( directory ):
                 info.git_url = execute_process( ["git", "remote", "get-url", remote], cwd=libdir )
             licenses[ lib ] = info
             break
-        if lib not in licenses.keys():
-            raise Exception( f"License not found for {lib}" )
+        if lib not in licenses.keys() and lib not in skip_libs:
+            raise Exception( f"ERROR: License not found for {lib}" )
     return licenses.values()
 
 def append_license_file( out, info: library_info ):
@@ -78,7 +78,8 @@ def append_license_file( out, info: library_info ):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument( "--license", action="append", nargs=2, dest="license_paths", metavar=("NAME", "PATH") )
+    parser.add_argument( "--license", action="append", nargs=2, dest="license_paths", metavar=("NAME", "PATH"), default=[] )
+    parser.add_argument( "--skip", nargs="*", dest="skip_libs", metavar=("NAME"), default=[] )
     parser.add_argument( "--externaldir", action="append", dest="external_dirs" )
     parser.add_argument( "--output", "-o", dest="output", required=True )
     args = parser.parse_args()
@@ -88,7 +89,7 @@ if __name__ == "__main__":
             info = library_info( lib, path )
             append_license_file( out, info )
         for directory in args.external_dirs:
-            licenses = find_licenses( directory )
+            licenses = find_licenses( directory, args.skip_libs )
             for info in licenses:
                 append_license_file( out, info )
 

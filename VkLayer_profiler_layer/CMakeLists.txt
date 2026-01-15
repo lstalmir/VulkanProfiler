@@ -22,6 +22,8 @@ cmake_minimum_required (VERSION 3.8...3.31)
 
 find_package (Python3 REQUIRED)
 
+include ("${CMAKE_SOURCE_DIR}/CMake/check_python_module.cmake")
+
 set (PROFILER_LAYER_VER_MAJOR 1)
 set (PROFILER_LAYER_VER_MINOR 0)
 set (PROFILER_LAYER_VER_BUILD 9999)
@@ -126,6 +128,14 @@ add_custom_command (
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
 if (BUILD_SPIRV_DOCS)
+    # Check if required modules are available
+    check_python_module (BeautifulSoup NAMES BeautifulSoup bs4)
+    if (NOT BeautifulSoup_FOUND)
+        message (WARNING "BeautifulSoup not found. SPIR-V documentation will be disabled in this build.")
+        set (BUILD_SPIRV_DOCS OFF CACHE BOOL "" FORCE)
+    endif ()
+endif ()
+if (BUILD_SPIRV_DOCS)
     # Generate SPIR-V documentation
     add_custom_command (
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h"
@@ -142,6 +152,9 @@ if (BUILD_SPIRV_DOCS)
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
         DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py")
     list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h")
+    list (APPEND PROFILER_CODEGEN_GENERATED_LICENSES "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE")
+else ()
+    list (APPEND PROFILER_CODEGEN_SKIP_LICENSES SPIRV-Specification)
 endif ()
 
 # Generate licenses file
@@ -153,8 +166,9 @@ add_custom_command (
         --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
         --externaldir "${CMAKE_SOURCE_DIR}/External"
         --output "${PROFILER_LICENSES_FILE}"
+        --skip ${PROFILER_CODEGEN_SKIP_LICENSES}
     VERBATIM
-    DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
+    DEPENDS ${PROFILER_CODEGEN_GENERATED_LICENSES}
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
 list (APPEND PROFILER_CODEGEN_FILES ${PROFILER_LICENSES_FILE})
 
