@@ -2960,6 +2960,7 @@ namespace Profiler
         const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
 
         ImPlot::PushStyleVar( ImPlotStyleVar_FillAlpha, 0.5f );
+        ImPlot::PushStyleVar( ImPlotStyleVar_PlotBorderSize, 0.0f );
 
         for( size_t i = 0; i < metricCount; ++i )
         {
@@ -2970,16 +2971,17 @@ namespace Profiler
                 continue;
             }
 
-            if( ImPlot::BeginPlot(
-                    m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName,
-                    ImVec2( -1, 100 ),
-                    ImPlotFlags_NoFrame | ImPlotFlags_NoLegend ) )
-            {
-                const char* pMetricName = m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName;
+            const char* pMetricName = m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName;
 
+            if( ImPlot::BeginPlot(
+                    pMetricName,
+                    ImVec2( -1, 100 ),
+                    ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoBoxSelect ) )
+            {
                 ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoTickLabels );
-                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_AutoFit );
+                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_TickLabelsInside | ImPlotAxisFlags_NoGridLines | ImPlotAxisFlags_AutoFit );
                 ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, plotDataDuration, ImPlotCond_Always );
+                ImPlot::SetupMouseText( ImPlotLocation_NorthEast );
                 ImPlot::SetupFinish();
 
                 ImPlot::PlotShadedG(
@@ -3000,7 +3002,7 @@ namespace Profiler
             }
         }
 
-        ImPlot::PopStyleVar();
+        ImPlot::PopStyleVar( 2 );
     }
 
     /***********************************************************************************\
