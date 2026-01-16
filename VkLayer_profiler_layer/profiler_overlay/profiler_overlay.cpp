@@ -2956,7 +2956,11 @@ namespace Profiler
                 m_pData->m_PerformanceCounters.m_StreamSamples.back().m_Timestamp );
         }
 
+        const size_t samplesCount = m_pData->m_PerformanceCounters.m_StreamSamples.size();
         const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
+
+        ImPlot::PushStyleVar( ImPlotStyleVar_FillAlpha, 0.5f );
+
         for( size_t i = 0; i < metricCount; ++i )
         {
             plotData.m_MetricIndex = static_cast<uint32_t>( i );
@@ -2966,26 +2970,37 @@ namespace Profiler
                 continue;
             }
 
-            if( ImPlot::BeginPlot( "##Stream", ImVec2( -1, 70 ), ImPlotFlags_NoFrame ) )
+            if( ImPlot::BeginPlot(
+                    m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName,
+                    ImVec2( -1, 100 ),
+                    ImPlotFlags_NoFrame | ImPlotFlags_NoLegend ) )
             {
-                ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoTickLabels );
-                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoTickLabels );
+                const char* pMetricName = m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName;
+
+                ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoTickLabels );
+                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_AutoFit );
                 ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, plotDataDuration, ImPlotCond_Always );
-                ImPlot::SetNextAxisToFit( ImAxis_Y1 );
                 ImPlot::SetupFinish();
 
                 ImPlot::PlotShadedG(
-                    m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName,
+                    pMetricName,
                     PlotValueFunction,
                     &plotData,
                     PlotZeroFunction,
                     &plotData,
-                    m_pData->m_PerformanceCounters.m_StreamSamples.size(),
-                    ImPlotShadedFlags_None );
+                    samplesCount );
+
+                ImPlot::PlotLineG(
+                    pMetricName,
+                    PlotValueFunction,
+                    &plotData,
+                    samplesCount );
 
                 ImPlot::EndPlot();
             }
         }
+
+        ImPlot::PopStyleVar();
     }
 
     /***********************************************************************************\
