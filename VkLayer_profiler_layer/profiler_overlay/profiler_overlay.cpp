@@ -2949,23 +2949,30 @@ namespace Profiler
         plotData.m_pFrameData = m_pData.get();
         plotData.m_pMetricsSet = m_pActivePerformanceQueryMetricsSet.get();
 
+        double plotDataDuration = 0.0;
+        if( !m_pData->m_PerformanceCounters.m_StreamSamples.empty() )
+        {
+            plotDataDuration = static_cast<double>(
+                m_pData->m_PerformanceCounters.m_StreamSamples.back().m_Timestamp );
+        }
+
         const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
         for( size_t i = 0; i < metricCount; ++i )
         {
             plotData.m_MetricIndex = static_cast<uint32_t>( i );
 
+            if( !m_ActivePerformanceQueryMetricsFilterResults[i] )
+            {
+                continue;
+            }
+
             if( ImPlot::BeginPlot( "##Stream", ImVec2( -1, 70 ), ImPlotFlags_NoFrame ) )
             {
-                if( !m_pData->m_PerformanceCounters.m_StreamSamples.empty() )
-                {
-                    const double streamDuration = static_cast<double>(
-                        m_pData->m_PerformanceCounters.m_StreamSamples.back().m_Timestamp );
-
-                    ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, streamDuration, ImPlotCond_Always );
-                }
-
                 ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoTickLabels );
                 ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoTickLabels );
+                ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, plotDataDuration, ImPlotCond_Always );
+                ImPlot::SetNextAxisToFit( ImAxis_Y1 );
+                ImPlot::SetupFinish();
 
                 ImPlot::PlotShadedG(
                     m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName,
