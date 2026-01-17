@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler_data.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 // Import extension structures
