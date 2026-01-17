@@ -1395,16 +1395,17 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
-        DeviceProfilerPerformanceCountersStreamResult
+        DeviceProfilerPerformanceCounterStreamData
 
     Description:
-        Holds a single performance counters stream sample.
+        Holds samples for a single performance counter stream.
 
     \***********************************************************************************/
-    struct DeviceProfilerPerformanceCountersStreamResult
+    struct DeviceProfilerPerformanceCounterStreamData
     {
-        uint64_t                                            m_Timestamp = 0;
-        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
+        VkProfilerPerformanceCounterResultEXT               m_MaxValue = {};
+        VkProfilerPerformanceCounterResultEXT               m_MinValue = {};
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Samples = {};
     };
 
     /***********************************************************************************\
@@ -1420,7 +1421,8 @@ namespace Profiler
     {
         uint32_t                                            m_MetricsSetIndex = UINT32_MAX;
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
-        std::vector<DeviceProfilerPerformanceCountersStreamResult> m_StreamSamples = {};
+        std::vector<uint64_t>                               m_StreamTimestamps = {};
+        std::vector<DeviceProfilerPerformanceCounterStreamData> m_StreamResults = {};
     };
 
     /***********************************************************************************\

@@ -2891,124 +2891,155 @@ namespace Profiler
     {
         struct PlotData
         {
-            const DeviceProfilerPerformanceCountersStreamResult* m_pSamples;
-            const PerformanceQueryMetricsSet* m_pMetricsSet;
-            uint32_t m_MetricIndex;
+            const uint64_t* m_pTimestamps;
+            const VkProfilerPerformanceCounterResultEXT* m_pResults;
         };
 
         auto PlotInt32Function = []( int idx, void* pData ) -> ImPlotPoint
         {
             const PlotData* pPlotData = static_cast<PlotData*>( pData );
-            const auto& sample = pPlotData->m_pSamples[idx];
-            return ImPlotPoint( sample.m_Timestamp,
-                static_cast<float>( sample.m_Results[pPlotData->m_MetricIndex].int32 ) );
+            return ImPlotPoint(
+                static_cast<double>( pPlotData->m_pTimestamps[idx] ),
+                static_cast<double>( pPlotData->m_pResults[idx].int32 ) );
         };
 
         auto PlotUInt32Function = []( int idx, void* pData ) -> ImPlotPoint
         {
             const PlotData* pPlotData = static_cast<PlotData*>( pData );
-            const auto& sample = pPlotData->m_pSamples[idx];
-            return ImPlotPoint( sample.m_Timestamp,
-                static_cast<float>( sample.m_Results[pPlotData->m_MetricIndex].uint32 ) );
+            return ImPlotPoint(
+                static_cast<double>( pPlotData->m_pTimestamps[idx] ),
+                static_cast<double>( pPlotData->m_pResults[idx].uint32 ) );
         };
 
         auto PlotInt64Function = []( int idx, void* pData ) -> ImPlotPoint
         {
             const PlotData* pPlotData = static_cast<PlotData*>( pData );
-            const auto& sample = pPlotData->m_pSamples[idx];
-            return ImPlotPoint( sample.m_Timestamp,
-                static_cast<float>( sample.m_Results[pPlotData->m_MetricIndex].int64 ) );
+            return ImPlotPoint(
+                static_cast<double>( pPlotData->m_pTimestamps[idx] ),
+                static_cast<double>( pPlotData->m_pResults[idx].int64 ) );
         };
 
         auto PlotUInt64Function = []( int idx, void* pData ) -> ImPlotPoint
         {
             const PlotData* pPlotData = static_cast<PlotData*>( pData );
-            const auto& sample = pPlotData->m_pSamples[idx];
-            return ImPlotPoint( sample.m_Timestamp,
-                static_cast<float>( sample.m_Results[pPlotData->m_MetricIndex].uint64 ) );
+            return ImPlotPoint(
+                static_cast<double>( pPlotData->m_pTimestamps[idx] ),
+                static_cast<double>( pPlotData->m_pResults[idx].uint64 ) );
         };
 
         auto PlotFloat32Function = []( int idx, void* pData ) -> ImPlotPoint
         {
             const PlotData* pPlotData = static_cast<PlotData*>( pData );
-            const auto& sample = pPlotData->m_pSamples[idx];
-            return ImPlotPoint( sample.m_Timestamp,
-                sample.m_Results[pPlotData->m_MetricIndex].float32 );
+            return ImPlotPoint(
+                static_cast<double>( pPlotData->m_pTimestamps[idx] ),
+                static_cast<double>( pPlotData->m_pResults[idx].float32 ) );
         };
 
         auto PlotFloat64Function = []( int idx, void* pData ) -> ImPlotPoint
         {
             const PlotData* pPlotData = static_cast<PlotData*>( pData );
-            const auto& sample = pPlotData->m_pSamples[idx];
-            return ImPlotPoint( sample.m_Timestamp,
-                static_cast<float>( sample.m_Results[pPlotData->m_MetricIndex].float64 ) );
+            return ImPlotPoint(
+                static_cast<double>( pPlotData->m_pTimestamps[idx] ),
+                pPlotData->m_pResults[idx].float64 );
         };
 
         auto PlotZeroFunction = []( int idx, void* pData ) -> ImPlotPoint
         {
             const PlotData* pPlotData = static_cast<PlotData*>( pData );
-            const auto& sample = pPlotData->m_pSamples[idx];
-            return ImPlotPoint( sample.m_Timestamp, 0 );
+            return ImPlotPoint(
+                static_cast<double>( pPlotData->m_pTimestamps[idx] ),
+                0.0 );
         };
-
-        const ImPlotGetter plotFunctions[] = {
-            PlotInt32Function,
-            PlotUInt32Function,
-            PlotInt64Function,
-            PlotUInt64Function,
-            PlotFloat32Function,
-            PlotFloat64Function
-        };
-
-        PlotData plotData = {};
-        plotData.m_pSamples = m_pData->m_PerformanceCounters.m_StreamSamples.data();
-        plotData.m_pMetricsSet = m_pActivePerformanceQueryMetricsSet.get();
 
         double plotDataDuration = 0.0;
-        if( !m_pData->m_PerformanceCounters.m_StreamSamples.empty() )
+        if( !m_pData->m_PerformanceCounters.m_StreamTimestamps.empty() )
         {
             plotDataDuration = static_cast<double>(
-                m_pData->m_PerformanceCounters.m_StreamSamples.back().m_Timestamp );
+                m_pData->m_PerformanceCounters.m_StreamTimestamps.back() );
         }
 
-        const size_t samplesCount = m_pData->m_PerformanceCounters.m_StreamSamples.size();
+        const size_t samplesCount = m_pData->m_PerformanceCounters.m_StreamTimestamps.size();
         const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
+
+        if( !samplesCount || !metricCount )
+        {
+            return;
+        }
 
         ImPlot::PushStyleVar( ImPlotStyleVar_FillAlpha, 0.5f );
         ImPlot::PushStyleVar( ImPlotStyleVar_PlotBorderSize, 0.0f );
 
+        auto beg = std::chrono::system_clock::now();
+
         for( size_t i = 0; i < metricCount; ++i )
         {
-            plotData.m_MetricIndex = static_cast<uint32_t>( i );
-
             if( !m_ActivePerformanceQueryMetricsFilterResults[i] )
             {
                 continue;
             }
 
-            const char* pMetricName = m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName;
+            const VkProfilerPerformanceCounterProperties2EXT& properties =
+                m_pActivePerformanceQueryMetricsSet->m_Metrics[i];
 
             if( ImPlot::BeginPlot(
-                    pMetricName,
+                    properties.shortName,
                     ImVec2( -1, 100 ),
                     ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoBoxSelect ) )
             {
+                const DeviceProfilerPerformanceCounterStreamData& streamData =
+                    m_pData->m_PerformanceCounters.m_StreamResults[i];
+
+                PlotData plotData = {};
+                plotData.m_pTimestamps = m_pData->m_PerformanceCounters.m_StreamTimestamps.data();
+                plotData.m_pResults = streamData.m_Samples.data();
+
+                ImPlotGetter plotValueFunction = PlotZeroFunction;
+                double minValue = 0.0;
+                double maxValue = 1.0;
+
+                switch( properties.storage )
+                {
+                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                    plotValueFunction = PlotInt32Function;
+                    minValue = std::min( 0.0, static_cast<double>( streamData.m_MinValue.int32 ) );
+                    maxValue = static_cast<double>( streamData.m_MaxValue.int32 );
+                    break;
+                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                    plotValueFunction = PlotInt64Function;
+                    minValue = std::min( 0.0, static_cast<double>( streamData.m_MinValue.int64 ) );
+                    maxValue = static_cast<double>( streamData.m_MaxValue.int64 );
+                    break;
+                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                    plotValueFunction = PlotUInt32Function;
+                    minValue = std::min( 0.0, static_cast<double>( streamData.m_MinValue.uint32 ) );
+                    maxValue = static_cast<double>( streamData.m_MaxValue.uint32 );
+                    break;
+                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                    plotValueFunction = PlotUInt64Function;
+                    minValue = std::min( 0.0, static_cast<double>( streamData.m_MinValue.uint64 ) );
+                    maxValue = static_cast<double>( streamData.m_MaxValue.uint64 );
+                    break;
+                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                    plotValueFunction = PlotFloat32Function;
+                    minValue = std::min( 0.0, static_cast<double>( streamData.m_MinValue.float32 ) );
+                    maxValue = static_cast<double>( streamData.m_MaxValue.float32 );
+                    break;
+                case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                    plotValueFunction = PlotFloat64Function;
+                    minValue = std::min( 0.0, streamData.m_MinValue.float64 );
+                    maxValue = streamData.m_MaxValue.float64;
+                    break;
+                }
+
                 ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoTickLabels );
-                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_TickLabelsInside | ImPlotAxisFlags_NoGridLines | ImPlotAxisFlags_AutoFit );
+                ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_TickLabelsInside | ImPlotAxisFlags_NoGridLines );
                 ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, plotDataDuration, ImPlotCond_Always );
+                ImPlot::SetupAxisLimits( ImAxis_Y1, minValue, maxValue, ImPlotCond_Always );
                 ImPlot::SetupMouseText( ImPlotLocation_NorthEast );
                 ImPlot::SetupFinish();
 
-                ImPlotGetter plotValueFunction = PlotZeroFunction;
-
-                VkProfilerPerformanceCounterStorageEXT storage = m_pActivePerformanceQueryMetricsSet->m_Metrics[i].storage;
-                if( storage < std::size( plotFunctions ) )
-                {
-                    plotValueFunction = plotFunctions[storage];
-                }
-
                 ImPlot::PlotShadedG(
-                    pMetricName,
+                    properties.shortName,
                     plotValueFunction,
                     &plotData,
                     PlotZeroFunction,
@@ -3016,7 +3047,7 @@ namespace Profiler
                     samplesCount );
 
                 ImPlot::PlotLineG(
-                    pMetricName,
+                    properties.shortName,
                     plotValueFunction,
                     &plotData,
                     samplesCount );
@@ -3024,6 +3055,10 @@ namespace Profiler
                 ImPlot::EndPlot();
             }
         }
+
+        auto end = std::chrono::system_clock::now();
+        auto dur = Milliseconds( end - beg ).count();
+        ProfilerPlatformFunctions::WriteDebug( "Plot time = %.2f ms\n", dur );
 
         ImPlot::PopStyleVar( 2 );
     }

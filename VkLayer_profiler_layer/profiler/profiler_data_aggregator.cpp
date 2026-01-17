@@ -30,6 +30,45 @@
 
 namespace Profiler
 {
+    struct PerformanceCounterStorageLimits
+    {
+        VkProfilerPerformanceCounterResultEXT m_Max;
+        VkProfilerPerformanceCounterResultEXT m_Min;
+
+        explicit PerformanceCounterStorageLimits(
+            VkProfilerPerformanceCounterStorageEXT storage )
+        {
+            switch (storage)
+            {
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                Initialize( m_Min.float32, m_Max.float32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                Initialize( m_Min.float64, m_Max.float64 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                Initialize( m_Min.int32, m_Max.int32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                Initialize( m_Min.int64, m_Max.int64 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                Initialize( m_Min.uint32, m_Max.uint32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                Initialize( m_Min.uint64, m_Max.uint64 );
+                break;
+            }
+        }
+
+        template<typename T>
+        inline static void Initialize( T& min, T& max )
+        {
+            min = std::numeric_limits<T>::lowest();
+            max = std::numeric_limits<T>::max();
+        }
+    };
+
     struct SumAggregator
     {
         template<typename T>
@@ -583,15 +622,128 @@ namespace Profiler
         // Collect performance counters stream data.
         if( m_pProfiler->m_pPerformanceCounters )
         {
-            frameData.m_PerformanceCounters.m_StreamSamples.clear();
+            std::vector<DeviceProfilerPerformanceCountersStreamResult> results;
 
+            auto ProcessResults = [&]()
+            {
+                const size_t previousSampleCount = frameData.m_PerformanceCounters.m_StreamTimestamps.size();
+                const size_t newSampleCount = previousSampleCount + results.size();
+
+                // Preallocate space for the new samples.
+                frameData.m_PerformanceCounters.m_StreamTimestamps.reserve( newSampleCount );
+
+                for( DeviceProfilerPerformanceCounterStreamData& streamData : frameData.m_PerformanceCounters.m_StreamResults )
+                {
+                    streamData.m_Samples.reserve( newSampleCount );
+                }
+
+                // Transpose the data for better cache locality.
+                for( const DeviceProfilerPerformanceCountersStreamResult& result : results )
+                {
+                    frameData.m_PerformanceCounters.m_StreamTimestamps.push_back( result.m_Timestamp );
+
+                    const size_t metricCount = result.m_Data.size();
+                    for( size_t i = 0; i < metricCount; ++i )
+                    {
+                        if( frameData.m_PerformanceCounters.m_StreamResults.size() <= i )
+                        {
+                            DeviceProfilerPerformanceCounterStreamData& streamResults = frameData.m_PerformanceCounters.m_StreamResults.emplace_back();
+
+                            PerformanceCounterStorageLimits storageLimits( m_PerformanceMetricProperties[i].storage );
+                            streamResults.m_MinValue = storageLimits.m_Max;
+                            streamResults.m_MaxValue = storageLimits.m_Min;
+
+                            streamResults.m_Samples.reserve( newSampleCount );
+                            streamResults.m_Samples.resize( frameData.m_PerformanceCounters.m_StreamTimestamps.size() );
+                        }
+
+                        frameData.m_PerformanceCounters.m_StreamResults[i].m_Samples.push_back( result.m_Data[i] );
+                    }
+                }
+
+                // Update min/max values.
+                const size_t metricCount = frameData.m_PerformanceCounters.m_StreamResults.size();
+                for( size_t i = 0; i < metricCount; ++i )
+                {
+                    DeviceProfilerPerformanceCounterStreamData& streamResults = frameData.m_PerformanceCounters.m_StreamResults[i];
+                    VkProfilerPerformanceCounterResultEXT* pStreamSamples = streamResults.m_Samples.data();
+
+                    switch( m_PerformanceMetricProperties[i].storage )
+                    {
+                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                        {
+                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                            streamResults.m_MinValue.float32 = std::min( streamResults.m_MinValue.float32, sample.float32 );
+                            streamResults.m_MaxValue.float32 = std::max( streamResults.m_MaxValue.float32, sample.float32 );
+                        }
+                        break;
+                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                        {
+                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                            streamResults.m_MinValue.float64 = std::min( streamResults.m_MinValue.float64, sample.float64 );
+                            streamResults.m_MaxValue.float64 = std::max( streamResults.m_MaxValue.float64, sample.float64 );
+                        }
+                        break;
+                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                        {
+                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                            streamResults.m_MinValue.int32 = std::min( streamResults.m_MinValue.int32, sample.int32 );
+                            streamResults.m_MaxValue.int32 = std::max( streamResults.m_MaxValue.int32, sample.int32 );
+                        }
+                        break;
+                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                        {
+                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                            streamResults.m_MinValue.int64 = std::min( streamResults.m_MinValue.int64, sample.int64 );
+                            streamResults.m_MaxValue.int64 = std::max( streamResults.m_MaxValue.int64, sample.int64 );
+                        }
+                        break;
+                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                        {
+                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                            streamResults.m_MinValue.uint32 = std::min( streamResults.m_MinValue.uint32, sample.uint32 );
+                            streamResults.m_MaxValue.uint32 = std::max( streamResults.m_MaxValue.uint32, sample.uint32 );
+                        }
+                        break;
+                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                        {
+                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                            streamResults.m_MinValue.uint64 = std::min( streamResults.m_MinValue.uint64, sample.uint64 );
+                            streamResults.m_MaxValue.uint64 = std::max( streamResults.m_MaxValue.uint64, sample.uint64 );
+                        }
+                        break;
+                    }
+                }
+
+                results.clear();
+            };
+
+            // Read the stream data from the backend.
             while( !m_pProfiler->m_pPerformanceCounters->ReadStreamData(
                 frameData.m_BeginTimestamp,
                 frameData.m_EndTimestamp,
-                frameData.m_PerformanceCounters.m_StreamSamples ) )
+                results ) )
             {
-                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+                if( !results.empty() )
+                {
+                    // Process collected samples while waiting for more data.
+                    ProcessResults();
+                }
+                else
+                {
+                    // Avoid busy waiting if there is no data to process yet.
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+                }
             }
+
+            // Process the last batch of samples.
+            ProcessResults();
         }
 
         // Collect memory data.

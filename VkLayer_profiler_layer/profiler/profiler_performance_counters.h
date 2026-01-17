@@ -33,6 +33,22 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        DeviceProfilerPerformanceCountersStreamResult
+
+    Description:
+        An intermediate structure holding performance counters stream data with all
+        counters at a specific timestamp.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPerformanceCountersStreamResult
+    {
+        uint64_t                                            m_Timestamp;
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Data;
+    };
+
+    /***********************************************************************************\
+
+    Class:
         DeviceProfilerPerformanceCounters
 
     Description:
