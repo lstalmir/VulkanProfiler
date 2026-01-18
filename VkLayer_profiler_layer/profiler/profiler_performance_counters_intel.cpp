@@ -1281,7 +1281,7 @@ namespace Profiler
 
         // Read available data from the stream.
         auto cc = MD::CC_READ_PENDING;
-        while( cc == MD::CC_READ_PENDING )
+        while( cc == MD::CC_READ_PENDING && !m_MetricsStreamCollectionThreadExit )
         {
             // Don't switch the active metrics set while reading the stream.
             std::shared_lock lk( m_ActiveMetricSetMutex );
@@ -1289,6 +1289,7 @@ namespace Profiler
             const uint32_t activeMetricsSetIndex = m_ActiveMetricsSetIndex;
             if( activeMetricsSetIndex == UINT32_MAX )
             {
+                // No active metrics set, nothing to read.
                 return;
             }
 
