@@ -2969,8 +2969,6 @@ namespace Profiler
         ImPlot::PushStyleVar( ImPlotStyleVar_FillAlpha, 0.5f );
         ImPlot::PushStyleVar( ImPlotStyleVar_PlotBorderSize, 0.0f );
 
-        auto beg = std::chrono::system_clock::now();
-
         for( size_t i = 0; i < metricCount; ++i )
         {
             if( !m_ActivePerformanceQueryMetricsFilterResults[i] )
@@ -3055,10 +3053,6 @@ namespace Profiler
                 ImPlot::EndPlot();
             }
         }
-
-        auto end = std::chrono::system_clock::now();
-        auto dur = Milliseconds( end - beg ).count();
-        ProfilerPlatformFunctions::WriteDebug( "Plot time = %.2f ms\n", dur );
 
         ImPlot::PopStyleVar( 2 );
     }
