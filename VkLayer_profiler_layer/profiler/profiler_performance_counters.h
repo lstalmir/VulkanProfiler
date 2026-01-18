@@ -42,6 +42,7 @@ namespace Profiler
     struct DeviceProfilerPerformanceCountersStreamResult
     {
         uint64_t                                            m_Timestamp;
+        uint32_t                                            m_MetricsSetIndex;
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_Data;
     };
 

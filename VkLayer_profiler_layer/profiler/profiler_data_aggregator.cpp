@@ -611,7 +611,6 @@ namespace Profiler
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
         frameData.m_TopPipelines = CollectTopPipelines( frame );
-        frameData.m_PerformanceCounters = AggregatePerformanceMetrics( frame );
 
         frameData.m_Ticks = 0;
         frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
@@ -643,87 +642,25 @@ namespace Profiler
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
 
-        // Collect performance counters stream data.
+        // Collect performance counters data.
         if( m_pProfiler->m_pPerformanceCounters )
         {
-            std::vector<DeviceProfilerPerformanceCountersStreamResult> results;
-
-            auto ProcessResults = [&]()
+            switch( m_pProfiler->m_pPerformanceCounters->GetSamplingMode() )
             {
-                const size_t previousSampleCount = frameData.m_PerformanceCounters.m_StreamTimestamps.size();
-                const size_t newSampleCount = previousSampleCount + results.size();
+            case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT:
+                // Data already collected.
+                break;
 
-                // Preallocate space for the new samples.
-                frameData.m_PerformanceCounters.m_StreamTimestamps.reserve( newSampleCount );
-
-                for( DeviceProfilerPerformanceCounterStreamData& streamData : frameData.m_PerformanceCounters.m_StreamResults )
-                {
-                    streamData.m_Samples.reserve( newSampleCount );
-                }
-
-                // Transpose the data for better cache locality.
-                for( const DeviceProfilerPerformanceCountersStreamResult& result : results )
-                {
-                    frameData.m_PerformanceCounters.m_StreamTimestamps.push_back( result.m_Timestamp );
-
-                    const size_t metricCount = result.m_Data.size();
-                    for( size_t i = 0; i < metricCount; ++i )
-                    {
-                        if( frameData.m_PerformanceCounters.m_StreamResults.size() <= i )
-                        {
-                            DeviceProfilerPerformanceCounterStreamData& streamResults = frameData.m_PerformanceCounters.m_StreamResults.emplace_back();
-
-                            PerformanceCounterStorageLimits storageLimits( m_PerformanceMetricProperties[i].storage );
-                            streamResults.m_MinValue = storageLimits.m_Max;
-                            streamResults.m_MaxValue = storageLimits.m_Min;
-
-                            streamResults.m_Samples.reserve( newSampleCount );
-                            streamResults.m_Samples.resize( frameData.m_PerformanceCounters.m_StreamTimestamps.size() );
-                        }
-
-                        frameData.m_PerformanceCounters.m_StreamResults[i].m_Samples.push_back( result.m_Data[i] );
-                    }
-                }
-
-                // Update min/max values.
-                const size_t metricCount = frameData.m_PerformanceCounters.m_StreamResults.size();
-                for( size_t i = 0; i < metricCount; ++i )
-                {
-                    DeviceProfilerPerformanceCounterStreamData& streamResults = frameData.m_PerformanceCounters.m_StreamResults[i];
-                    const VkProfilerPerformanceCounterResultEXT* pStreamSamples = streamResults.m_Samples.data();
-                    const VkProfilerPerformanceCounterStorageEXT storage = m_PerformanceMetricProperties[i].storage;
-
-                    for( size_t j = previousSampleCount; j < newSampleCount; ++j )
-                    {
-                        VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
-                        Profiler::Aggregate<MinAggregator>( streamResults.m_MinValue, 1, sample, storage );
-                        Profiler::Aggregate<MaxAggregator>( streamResults.m_MaxValue, 1, sample, storage );
-                    }
-                }
-
-                results.clear();
-            };
-
-            // Read the stream data from the backend.
-            while( !m_pProfiler->m_pPerformanceCounters->ReadStreamData(
-                frameData.m_BeginTimestamp,
-                frameData.m_EndTimestamp,
-                results ) )
-            {
-                if( !results.empty() )
-                {
-                    // Process collected samples while waiting for more data.
-                    ProcessResults();
-                }
-                else
-                {
-                    // Avoid busy waiting if there is no data to process yet.
-                    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-                }
+            case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT:
+                // Collect data from the performance metrics stream.
+                CollectPerformanceMetricsStreamData(
+                    frameData.m_BeginTimestamp,
+                    frameData.m_EndTimestamp,
+                    frameData.m_PerformanceCounters );
+                break;
             }
 
-            // Process the last batch of samples.
-            ProcessResults();
+            AggregatePerformanceMetrics( frame, frameData.m_PerformanceCounters );
         }
 
         // Collect memory data.
@@ -806,14 +743,16 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        AggregatePerformanceMetrics
+        CollectPerformanceMetricsStreamData
 
     Description:
-        Merge performance metrics collected from different command buffers.
+        Read performance metrics stream data for the given time range.
 
     \***********************************************************************************/
-    DeviceProfilerPerformanceCountersData ProfilerDataAggregator::AggregatePerformanceMetrics(
-        const Frame& frame ) const
+    void ProfilerDataAggregator::CollectPerformanceMetricsStreamData(
+        uint64_t beginTimestamp,
+        uint64_t endTimestamp,
+        DeviceProfilerPerformanceCountersData& outData ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
@@ -821,7 +760,114 @@ namespace Profiler
 
         // No vendor metrics available
         if( metricCount == 0 )
-            return {};
+            return;
+
+        // Temporary storage for the raw data received from the counters backend.
+        thread_local std::vector<DeviceProfilerPerformanceCountersStreamResult> intermediateResults;
+
+        auto ProcessStreamData = [&]()
+        {
+            const size_t previousSampleCount = outData.m_StreamTimestamps.size();
+            const size_t newSampleCount = previousSampleCount + intermediateResults.size();
+
+            // Preallocate space for the new samples.
+            outData.m_StreamTimestamps.reserve( newSampleCount );
+
+            for( DeviceProfilerPerformanceCounterStreamData& streamData : outData.m_StreamResults )
+            {
+                streamData.m_Samples.reserve( newSampleCount );
+            }
+
+            // Transpose the data for better cache locality.
+            for( const DeviceProfilerPerformanceCountersStreamResult& result : intermediateResults )
+            {
+                // Filter out results using different metrics sets.
+                if( result.m_MetricsSetIndex == m_PerformanceMetricsSetIndex )
+                {
+                    outData.m_StreamTimestamps.push_back( result.m_Timestamp );
+
+                    for( size_t i = 0; i < metricCount; ++i )
+                    {
+                        outData.m_StreamResults[i].m_Samples.push_back( result.m_Data[i] );
+                    }
+                }
+            }
+
+            // Update min/max values.
+            for( size_t i = 0; i < metricCount; ++i )
+            {
+                DeviceProfilerPerformanceCounterStreamData& streamResults = outData.m_StreamResults[i];
+                const VkProfilerPerformanceCounterResultEXT* pStreamSamples = streamResults.m_Samples.data();
+                const VkProfilerPerformanceCounterStorageEXT storage = m_PerformanceMetricProperties[i].storage;
+
+                for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                {
+                    VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                    Profiler::Aggregate<MinAggregator>( streamResults.m_MinValue, 1, sample, storage );
+                    Profiler::Aggregate<MaxAggregator>( streamResults.m_MaxValue, 1, sample, storage );
+                }
+            }
+
+            intermediateResults.clear();
+        };
+
+        // Prepare the output buffers.
+        outData.m_StreamResults.resize( metricCount );
+
+        for( uint32_t i = 0; i < metricCount; ++i )
+        {
+            DeviceProfilerPerformanceCounterStreamData& streamResults = outData.m_StreamResults[i];
+
+            PerformanceCounterStorageLimits storageLimits( m_PerformanceMetricProperties[i].storage );
+            streamResults.m_MinValue = storageLimits.m_Max;
+            streamResults.m_MaxValue = storageLimits.m_Min;
+        }
+
+        // Read the stream data from the backend.
+        while( !m_pProfiler->m_pPerformanceCounters->ReadStreamData(
+            beginTimestamp,
+            endTimestamp,
+            intermediateResults ) )
+        {
+            if( !intermediateResults.empty() )
+            {
+                // Process collected samples while waiting for more data.
+                ProcessStreamData();
+            }
+            else
+            {
+                // Avoid busy waiting if there is no data to process yet.
+                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+            }
+        }
+
+        if( !intermediateResults.empty() )
+        {
+            // Process the last batch of samples.
+            ProcessStreamData();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AggregatePerformanceMetrics
+
+    Description:
+        Merge performance metrics collected from different command buffers.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::AggregatePerformanceMetrics(
+        const Frame& frame,
+        DeviceProfilerPerformanceCountersData& outData ) const
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        const uint32_t metricCount = static_cast<uint32_t>( m_PerformanceMetricProperties.size() );
+
+        // No vendor metrics available
+        if( metricCount == 0 )
+            return;
 
         // Helper structure containing aggregated metric value and its weight.
         struct __WeightedMetric
@@ -898,21 +944,18 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        DeviceProfilerPerformanceCountersData normalizedAggregatedVendorMetrics;
-        normalizedAggregatedVendorMetrics.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
-        normalizedAggregatedVendorMetrics.m_Results.resize( metricCount );
+        outData.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
+        outData.m_Results.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
         {
             const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
             Profiler::Aggregate<NormAggregator>(
-                normalizedAggregatedVendorMetrics.m_Results[ i ],
+                outData.m_Results[ i ],
                 weightedMetric.weight,
                 weightedMetric.value,
                 m_PerformanceMetricProperties[ i ].storage );
         }
-
-        return normalizedAggregatedVendorMetrics;
     }
 
     /***********************************************************************************\

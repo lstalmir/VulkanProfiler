@@ -1320,6 +1320,7 @@ namespace Profiler
                     std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
                     m_MetricsStreamResults.push_back( {
                         informations.m_Timestamp,
+                        m_ActiveMetricsSetIndex,
                         parsedResults } );
 
                     pReport += reportSize;
