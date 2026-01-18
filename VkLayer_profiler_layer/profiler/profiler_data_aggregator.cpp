@@ -78,6 +78,30 @@ namespace Profiler
         }
     };
 
+    struct MinAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
+        {
+            if( value < acc )
+            {
+                acc = value;
+            }
+        }
+    };
+
+    struct MaxAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
+        {
+            if( value > acc )
+            {
+                acc = value;
+            }
+        }
+    };
+
     struct AvgAggregator
     {
         template<typename T>
@@ -666,58 +690,14 @@ namespace Profiler
                 for( size_t i = 0; i < metricCount; ++i )
                 {
                     DeviceProfilerPerformanceCounterStreamData& streamResults = frameData.m_PerformanceCounters.m_StreamResults[i];
-                    VkProfilerPerformanceCounterResultEXT* pStreamSamples = streamResults.m_Samples.data();
+                    const VkProfilerPerformanceCounterResultEXT* pStreamSamples = streamResults.m_Samples.data();
+                    const VkProfilerPerformanceCounterStorageEXT storage = m_PerformanceMetricProperties[i].storage;
 
-                    switch( m_PerformanceMetricProperties[i].storage )
+                    for( size_t j = previousSampleCount; j < newSampleCount; ++j )
                     {
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
-                        {
-                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
-                            streamResults.m_MinValue.float32 = std::min( streamResults.m_MinValue.float32, sample.float32 );
-                            streamResults.m_MaxValue.float32 = std::max( streamResults.m_MaxValue.float32, sample.float32 );
-                        }
-                        break;
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
-                        {
-                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
-                            streamResults.m_MinValue.float64 = std::min( streamResults.m_MinValue.float64, sample.float64 );
-                            streamResults.m_MaxValue.float64 = std::max( streamResults.m_MaxValue.float64, sample.float64 );
-                        }
-                        break;
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
-                        {
-                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
-                            streamResults.m_MinValue.int32 = std::min( streamResults.m_MinValue.int32, sample.int32 );
-                            streamResults.m_MaxValue.int32 = std::max( streamResults.m_MaxValue.int32, sample.int32 );
-                        }
-                        break;
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
-                        {
-                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
-                            streamResults.m_MinValue.int64 = std::min( streamResults.m_MinValue.int64, sample.int64 );
-                            streamResults.m_MaxValue.int64 = std::max( streamResults.m_MaxValue.int64, sample.int64 );
-                        }
-                        break;
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
-                        {
-                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
-                            streamResults.m_MinValue.uint32 = std::min( streamResults.m_MinValue.uint32, sample.uint32 );
-                            streamResults.m_MaxValue.uint32 = std::max( streamResults.m_MaxValue.uint32, sample.uint32 );
-                        }
-                        break;
-                    case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                        for( size_t j = previousSampleCount; j < newSampleCount; ++j )
-                        {
-                            VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
-                            streamResults.m_MinValue.uint64 = std::min( streamResults.m_MinValue.uint64, sample.uint64 );
-                            streamResults.m_MaxValue.uint64 = std::max( streamResults.m_MaxValue.uint64, sample.uint64 );
-                        }
-                        break;
+                        VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                        Profiler::Aggregate<MinAggregator>( streamResults.m_MinValue, 1, sample, storage );
+                        Profiler::Aggregate<MaxAggregator>( streamResults.m_MaxValue, 1, sample, storage );
                     }
                 }
 
