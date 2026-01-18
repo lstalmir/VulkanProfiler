@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
-// 
+// Copyright (c) 2019-2026 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -55,10 +55,16 @@ namespace Profiler
         inline void operator()( uint64_t&, T& acc, uint64_t valueWeight, const T& value ) const
         {
             if( valueWeight > 0 )
-                acc = static_cast<T>(value / static_cast<double>(valueWeight));
+                acc = static_cast<T>( value / static_cast<double>( valueWeight ) );
             else
                 acc = value;
         }
+    };
+
+    struct WeightedCounterResult
+    {
+        VkProfilerPerformanceCounterResultEXT m_Value = {};
+        uint64_t m_Weight = 0;
     };
 
     template<typename AggregatorType>
@@ -105,8 +111,8 @@ namespace Profiler
         const VkProfilerPerformanceCounterResultEXT& value,
         VkProfilerPerformanceCounterStorageEXT storage )
     {
-        uint64_t dummy = 0;
-        Aggregate<AggregatorType>( dummy, acc, valueWeight, value, storage );
+        uint64_t accWeight = 0;
+        Aggregate<AggregatorType>( accWeight, acc, valueWeight, value, storage );
     }
 
     /***********************************************************************************\
@@ -293,7 +299,7 @@ namespace Profiler
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
         // Prepare submit batch info.
-        SubmitBatch submitBatch( (submit) );
+        SubmitBatch submitBatch( submit );
 
         for( const DeviceProfilerSubmit& _submit : submitBatch.m_Submits )
         {
@@ -377,7 +383,7 @@ namespace Profiler
                 // Wait for the fences.
                 m_pProfiler->m_pDevice->Callbacks.WaitForFences(
                     m_pProfiler->m_pDevice->Handle,
-                    static_cast<uint32_t>(waitFences.size()),
+                    static_cast<uint32_t>( waitFences.size() ),
                     waitFences.data(),
                     VK_TRUE,
                     UINT64_MAX );
@@ -442,7 +448,7 @@ namespace Profiler
         if( !pWaitForCommandBuffer && !m_NextFrames.empty() )
         {
             auto frameIt = m_NextFrames.begin();
-            while( (frameIt != m_NextFrames.end()) && (frameIt->m_FrameIndex < m_FrameIndex) && (frameIt->m_PendingSubmits.empty()) )
+            while( ( frameIt != m_NextFrames.end() ) && ( frameIt->m_FrameIndex < m_FrameIndex ) && ( frameIt->m_PendingSubmits.empty() ) )
             {
                 LoadPerformanceMetricsProperties();
 
@@ -548,7 +554,6 @@ namespace Profiler
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
         frameData.m_TopPipelines = CollectTopPipelines( frame );
-        frameData.m_PerformanceCounters = AggregatePerformanceMetrics( frame );
 
         frameData.m_Ticks = 0;
         frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
@@ -564,11 +569,25 @@ namespace Profiler
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value);
+                    frameData.m_Ticks += ( commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value );
                     frameData.m_BeginTimestamp = std::min( frameData.m_BeginTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
                     frameData.m_EndTimestamp = std::max( frameData.m_EndTimestamp, commandBuffer.m_EndTimestamp.m_Value );
                 }
             }
+        }
+
+        if( frameData.m_Ticks == 0 )
+        {
+            // No data collected.
+            frameData.m_BeginTimestamp = 0;
+            frameData.m_EndTimestamp = 0;
+        }
+
+        // Collect performance counters data.
+        if( m_pProfiler->m_pPerformanceCounters )
+        {
+            // Post-process the data.
+            AggregatePerformanceMetrics( frame, frameData.m_PerformanceCounters );
         }
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
@@ -659,8 +678,9 @@ namespace Profiler
         Merge performance metrics collected from different command buffers.
 
     \***********************************************************************************/
-    DeviceProfilerPerformanceCountersData ProfilerDataAggregator::AggregatePerformanceMetrics(
-        const Frame& frame ) const
+    void ProfilerDataAggregator::AggregatePerformanceMetrics(
+        const Frame& frame,
+        DeviceProfilerPerformanceCountersData& outData ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
@@ -668,16 +688,12 @@ namespace Profiler
 
         // No vendor metrics available
         if( metricCount == 0 )
-            return {};
+        {
+            return;
+        }
 
         // Helper structure containing aggregated metric value and its weight.
-        struct __WeightedMetric
-        {
-            VkProfilerPerformanceCounterResultEXT value;
-            uint64_t weight;
-        };
-
-        std::vector<__WeightedMetric> aggregatedVendorMetrics( metricCount );
+        std::vector<WeightedCounterResult> aggregatedVendorMetrics( metricCount );
 
         for( const auto& submitBatchData : frame.m_CompleteSubmits )
         {
@@ -697,12 +713,16 @@ namespace Profiler
                         continue;
                     }
 
+                    // Use command buffer duration as weight of the metric value in the frame
+                    const uint64_t valueWeight = ( commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value );
+                    const auto* pValues = commandBufferData.m_PerformanceCounters.m_Results.data();
+
                     for( uint32_t i = 0; i < metricCount; ++i )
                     {
                         // Get metric accumulator
-                        __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+                        WeightedCounterResult& weightedMetric = aggregatedVendorMetrics[i];
 
-                        switch( m_PerformanceMetricProperties[ i ].unit )
+                        switch( m_PerformanceMetricProperties[i].unit )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
@@ -711,11 +731,11 @@ namespace Profiler
                         {
                             // Metrics aggregated by sum
                             Profiler::Aggregate<SumAggregator>(
-                                weightedMetric.weight,
-                                weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
-                                m_PerformanceMetricProperties[ i ].storage );
+                                weightedMetric.m_Weight,
+                                weightedMetric.m_Value,
+                                valueWeight,
+                                pValues[i],
+                                m_PerformanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -730,11 +750,11 @@ namespace Profiler
                         {
                             // Metrics aggregated by average
                             Profiler::Aggregate<AvgAggregator>(
-                                weightedMetric.weight,
-                                weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
-                                m_PerformanceMetricProperties[ i ].storage );
+                                weightedMetric.m_Weight,
+                                weightedMetric.m_Value,
+                                valueWeight,
+                                pValues[i],
+                                m_PerformanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -745,21 +765,18 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        DeviceProfilerPerformanceCountersData normalizedAggregatedVendorMetrics;
-        normalizedAggregatedVendorMetrics.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
-        normalizedAggregatedVendorMetrics.m_Results.resize( metricCount );
+        outData.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
+        outData.m_Results.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
         {
-            const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+            WeightedCounterResult weightedMetric = aggregatedVendorMetrics[i];
             Profiler::Aggregate<NormAggregator>(
-                normalizedAggregatedVendorMetrics.m_Results[ i ],
-                weightedMetric.weight,
-                weightedMetric.value,
-                m_PerformanceMetricProperties[ i ].storage );
+                outData.m_Results[i],
+                weightedMetric.m_Weight,
+                weightedMetric.m_Value,
+                m_PerformanceMetricProperties[i].storage );
         }
-
-        return normalizedAggregatedVendorMetrics;
     }
 
     /***********************************************************************************\
@@ -801,7 +818,7 @@ namespace Profiler
         std::sort( pipelines.begin(), pipelines.end(),
             []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) > (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
+                return ( a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value ) > ( b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value );
             } );
 
         return pipelines;
@@ -832,8 +849,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value);
-            endRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value);
+            beginRenderPassPipeline.m_EndTimestamp.m_Value += ( renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value );
+            endRenderPassPipeline.m_EndTimestamp.m_Value += ( renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value );
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -1054,7 +1071,7 @@ namespace Profiler
                 submitBatch.m_DataCopyFence );
         }
 
-        return (result == VK_SUCCESS);
+        return ( result == VK_SUCCESS );
     }
 
     /***********************************************************************************\

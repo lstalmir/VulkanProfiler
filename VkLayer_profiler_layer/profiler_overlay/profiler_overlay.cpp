@@ -2571,7 +2571,7 @@ namespace Profiler
     }
 
     /***********************************************************************************\
-    * 
+
     Function:
         DrawPerformanceCountersQueryData
 

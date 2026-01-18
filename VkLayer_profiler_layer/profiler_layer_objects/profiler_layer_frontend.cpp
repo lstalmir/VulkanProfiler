@@ -410,7 +410,7 @@ namespace Profiler
 
     /***********************************************************************************\
 
-        Function:
+    Function:
         GetPerformanceCountersSamplingMode
 
     Description:
