@@ -124,6 +124,12 @@ namespace Profiler
         }
     };
 
+    struct WeightedCounterResult
+    {
+        VkProfilerPerformanceCounterResultEXT m_Value;
+        uint64_t                              m_Weight;
+    };
+
     template<typename AggregatorType>
     static inline void Aggregate(
         uint64_t& accWeight,
@@ -168,8 +174,8 @@ namespace Profiler
         const VkProfilerPerformanceCounterResultEXT& value,
         VkProfilerPerformanceCounterStorageEXT storage )
     {
-        uint64_t dummy = 0;
-        Aggregate<AggregatorType>( dummy, acc, valueWeight, value, storage );
+        uint64_t accWeight = 0;
+        Aggregate<AggregatorType>( accWeight, acc, valueWeight, value, storage );
     }
 
     /***********************************************************************************\
@@ -640,8 +646,6 @@ namespace Profiler
             frameData.m_EndTimestamp = 0;
         }
 
-        frameData.m_Submits = std::move( frame.m_CompleteSubmits );
-
         // Collect performance counters data.
         if( m_pProfiler->m_pPerformanceCounters )
         {
@@ -662,6 +666,8 @@ namespace Profiler
 
             AggregatePerformanceMetrics( frame, frameData.m_PerformanceCounters );
         }
+
+        frameData.m_Submits = std::move( frame.m_CompleteSubmits );
 
         // Collect memory data.
         frameData.m_Memory = m_pProfiler->m_MemoryTracker.GetMemoryData();
@@ -870,13 +876,7 @@ namespace Profiler
             return;
 
         // Helper structure containing aggregated metric value and its weight.
-        struct __WeightedMetric
-        {
-            VkProfilerPerformanceCounterResultEXT value;
-            uint64_t weight;
-        };
-
-        std::vector<__WeightedMetric> aggregatedVendorMetrics( metricCount );
+        std::vector<WeightedCounterResult> aggregatedVendorMetrics( metricCount );
 
         for( const auto& submitBatchData : frame.m_CompleteSubmits )
         {
@@ -896,12 +896,16 @@ namespace Profiler
                         continue;
                     }
 
+                    // Use command buffer duration as weight of the metric value in the frame
+                    const uint64_t valueWeight = ( commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value );
+                    const auto* pValues = commandBufferData.m_PerformanceCounters.m_Results.data();
+
                     for( uint32_t i = 0; i < metricCount; ++i )
                     {
                         // Get metric accumulator
-                        __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+                        WeightedCounterResult& weightedMetric = aggregatedVendorMetrics[i];
 
-                        switch( m_PerformanceMetricProperties[ i ].unit )
+                        switch( m_PerformanceMetricProperties[i].unit )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
@@ -910,11 +914,11 @@ namespace Profiler
                         {
                             // Metrics aggregated by sum
                             Profiler::Aggregate<SumAggregator>(
-                                weightedMetric.weight,
-                                weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
-                                m_PerformanceMetricProperties[ i ].storage );
+                                weightedMetric.m_Weight,
+                                weightedMetric.m_Value,
+                                valueWeight,
+                                pValues[i],
+                                m_PerformanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -929,11 +933,11 @@ namespace Profiler
                         {
                             // Metrics aggregated by average
                             Profiler::Aggregate<AvgAggregator>(
-                                weightedMetric.weight,
-                                weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
-                                m_PerformanceMetricProperties[ i ].storage );
+                                weightedMetric.m_Weight,
+                                weightedMetric.m_Value,
+                                valueWeight,
+                                pValues[i],
+                                m_PerformanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -949,12 +953,12 @@ namespace Profiler
 
         for( uint32_t i = 0; i < metricCount; ++i )
         {
-            const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+            WeightedCounterResult weightedMetric = aggregatedVendorMetrics[i];
             Profiler::Aggregate<NormAggregator>(
-                outData.m_Results[ i ],
-                weightedMetric.weight,
-                weightedMetric.value,
-                m_PerformanceMetricProperties[ i ].storage );
+                outData.m_Results[i],
+                weightedMetric.m_Weight,
+                weightedMetric.m_Value,
+                m_PerformanceMetricProperties[i].storage );
         }
     }
 
