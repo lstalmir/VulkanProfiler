@@ -593,7 +593,7 @@ namespace Profiler
             }
 
             // Begin the new stream.
-            uint32_t timerPeriodNs = 10'000;
+            uint32_t timerPeriodNs = 25'000;
             uint32_t bufferSize = metricsSet.m_pMetricSetParams->RawReportSize * m_MetricsStreamMaxReportCount;
             m_MetricsStreamDataBuffer.resize( bufferSize );
 
@@ -1279,26 +1279,30 @@ namespace Profiler
     {
         thread_local std::vector<VkProfilerPerformanceCounterResultEXT> parsedResults;
 
-        // Don't switch the active metrics set while reading the stream.
-        std::shared_lock lk( m_ActiveMetricSetMutex );
-
-        if( m_ActiveMetricsSetIndex == UINT32_MAX )
-        {
-            return;
-        }
-
-        MetricsSet& metricsSet = m_MetricsSets[m_ActiveMetricsSetIndex];
-
         // Read available data from the stream.
         auto cc = MD::CC_READ_PENDING;
         while( cc == MD::CC_READ_PENDING )
         {
+            // Don't switch the active metrics set while reading the stream.
+            std::shared_lock lk( m_ActiveMetricSetMutex );
+
+            const uint32_t activeMetricsSetIndex = m_ActiveMetricsSetIndex;
+            if( activeMetricsSetIndex == UINT32_MAX )
+            {
+                return;
+            }
+
+            const MetricsSet& metricsSet = m_MetricsSets[activeMetricsSetIndex];
+            const uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
             uint32_t reportCount = m_MetricsStreamMaxReportCount;
-            uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
 
             cc = m_pConcurrentGroup->ReadIoStream(
                 &reportCount,
                 m_MetricsStreamDataBuffer.data(), 0 );
+
+            // Unlock the active metrics set mutex while parsing the reports.
+            // The function is thread-safe and keeping it would block SetActiveMetricsSet calls.
+            lk.unlock();
 
             if( cc == MD::CC_OK || cc == MD::CC_READ_PENDING )
             {
@@ -1309,7 +1313,7 @@ namespace Profiler
                 {
                     ReportInformations informations;
                     ParseReport(
-                        m_ActiveMetricsSetIndex,
+                        activeMetricsSetIndex,
                         VK_QUEUE_FAMILY_IGNORED,
                         reportSize,
                         pReport,
@@ -1320,7 +1324,7 @@ namespace Profiler
                     std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
                     m_MetricsStreamResults.push_back( {
                         informations.m_Timestamp,
-                        m_ActiveMetricsSetIndex,
+                        activeMetricsSetIndex,
                         parsedResults } );
 
                     pReport += reportSize;
