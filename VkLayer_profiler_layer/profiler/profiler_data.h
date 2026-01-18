@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1394,6 +1394,22 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Class:
+        DeviceProfilerPerformanceCounterStreamData
+
+    Description:
+        Holds samples for a single performance counter stream.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPerformanceCounterStreamData
+    {
+        VkProfilerPerformanceCounterResultEXT               m_MaxValue = {};
+        VkProfilerPerformanceCounterResultEXT               m_MinValue = {};
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Samples = {};
+    };
+
+    /***********************************************************************************\
+
     Structure:
         DeviceProfilerPerformanceCounterData
 
@@ -1405,6 +1421,8 @@ namespace Profiler
     {
         uint32_t                                            m_MetricsSetIndex = UINT32_MAX;
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_Results = {};
+        std::vector<uint64_t>                               m_StreamTimestamps = {};
+        std::vector<DeviceProfilerPerformanceCounterStreamData> m_StreamResults = {};
     };
 
     /***********************************************************************************\

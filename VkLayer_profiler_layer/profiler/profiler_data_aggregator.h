@@ -141,6 +141,7 @@ namespace Profiler
         void DataCollectionThreadProc();
 
         void LoadPerformanceMetricsProperties();
+        void CollectPerformanceMetricsStreamData( uint64_t, uint64_t, DeviceProfilerPerformanceCountersData& ) const;
         void AggregatePerformanceMetrics( const Frame&, DeviceProfilerPerformanceCountersData& ) const;
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines( const Frame& ) const;
