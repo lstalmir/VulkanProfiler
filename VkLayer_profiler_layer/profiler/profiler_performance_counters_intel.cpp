@@ -419,9 +419,12 @@ namespace Profiler
         m_MetricsStreamCollectionThread = std::thread();
         m_MetricsStreamCollectionThreadExit = false;
 
-        m_MetricsStreamMaxReportCount = 256;
+        m_MetricsStreamMaxReportCount = 16'384;
         m_MetricsStreamMaxBufferLengthInNanoseconds = 1'000'000'000ull;
         m_MetricsStreamDataBuffer.clear();
+
+        m_MetricsStreamResults.clear();
+        m_MetricsStreamLastResultTimestamp = 0;
     }
 
     /***********************************************************************************\
@@ -1260,10 +1263,13 @@ namespace Profiler
             FreeUnusedMetricsStreamSamples();
 
             // Collect pending samples from the stream.
-            CollectMetricsStreamSamples();
+            size_t reportCount = CollectMetricsStreamSamples();
 
-            // Wait for the next report to be available.
-            m_pConcurrentGroup->WaitForReports( 1 /*ms*/ );
+            if( reportCount == 0 )
+            {
+                // Wait for the reports to be available.
+                m_pConcurrentGroup->WaitForReports( 1 /*ms*/ );
+            }
         }
     }
 
@@ -1275,63 +1281,65 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfilerPerformanceCountersINTEL::CollectMetricsStreamSamples()
+    size_t DeviceProfilerPerformanceCountersINTEL::CollectMetricsStreamSamples()
     {
         thread_local std::vector<VkProfilerPerformanceCounterResultEXT> parsedResults;
 
-        // Read available data from the stream.
-        auto cc = MD::CC_READ_PENDING;
-        while( cc == MD::CC_READ_PENDING && !m_MetricsStreamCollectionThreadExit )
+        // Don't switch the active metrics set while reading the stream.
+        std::shared_lock lk( m_ActiveMetricSetMutex );
+
+        const uint32_t activeMetricsSetIndex = m_ActiveMetricsSetIndex;
+        if( activeMetricsSetIndex == UINT32_MAX )
         {
-            // Don't switch the active metrics set while reading the stream.
-            std::shared_lock lk( m_ActiveMetricSetMutex );
+            // No active metrics set, nothing to read.
+            return 0;
+        }
 
-            const uint32_t activeMetricsSetIndex = m_ActiveMetricsSetIndex;
-            if( activeMetricsSetIndex == UINT32_MAX )
+        const MetricsSet& metricsSet = m_MetricsSets[activeMetricsSetIndex];
+        const uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
+        uint32_t reportCount = m_MetricsStreamMaxReportCount;
+
+        MD::TCompletionCode cc = m_pConcurrentGroup->ReadIoStream(
+            &reportCount,
+            m_MetricsStreamDataBuffer.data(), 0 );
+
+        // Unlock the active metrics set mutex while parsing the reports.
+        // The function is thread-safe and keeping it would block SetActiveMetricsSet calls.
+        lk.unlock();
+
+        if( cc == MD::CC_OK || cc == MD::CC_READ_PENDING )
+        {
+            const uint8_t* pReport = reinterpret_cast<const uint8_t*>( m_MetricsStreamDataBuffer.data() );
+
+            // Parse each report
+            for( uint32_t i = 0; i < reportCount; ++i )
             {
-                // No active metrics set, nothing to read.
-                return;
-            }
+                ReportInformations informations;
+                ParseReport(
+                    activeMetricsSetIndex,
+                    VK_QUEUE_FAMILY_IGNORED,
+                    reportSize,
+                    pReport,
+                    parsedResults,
+                    &informations );
 
-            const MetricsSet& metricsSet = m_MetricsSets[activeMetricsSetIndex];
-            const uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
-            uint32_t reportCount = m_MetricsStreamMaxReportCount;
-
-            cc = m_pConcurrentGroup->ReadIoStream(
-                &reportCount,
-                m_MetricsStreamDataBuffer.data(), 0 );
-
-            // Unlock the active metrics set mutex while parsing the reports.
-            // The function is thread-safe and keeping it would block SetActiveMetricsSet calls.
-            lk.unlock();
-
-            if( cc == MD::CC_OK || cc == MD::CC_READ_PENDING )
-            {
-                const uint8_t* pReport = reinterpret_cast<const uint8_t*>( m_MetricsStreamDataBuffer.data() );
-
-                // Parse each report
-                for( uint32_t i = 0; i < reportCount; ++i )
+                // Save the parsed results.
+                if( informations.m_Timestamp != m_MetricsStreamLastResultTimestamp )
                 {
-                    ReportInformations informations;
-                    ParseReport(
-                        activeMetricsSetIndex,
-                        VK_QUEUE_FAMILY_IGNORED,
-                        reportSize,
-                        pReport,
-                        parsedResults,
-                        &informations );
-
-                    // Save the parsed results.
                     std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
                     m_MetricsStreamResults.push_back( {
                         informations.m_Timestamp,
                         activeMetricsSetIndex,
                         parsedResults } );
 
-                    pReport += reportSize;
+                    m_MetricsStreamLastResultTimestamp = informations.m_Timestamp;
                 }
+
+                pReport += reportSize;
             }
         }
+
+        return reportCount;
     }
 
     /***********************************************************************************\

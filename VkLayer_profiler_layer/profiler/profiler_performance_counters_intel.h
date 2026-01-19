@@ -151,6 +151,7 @@ namespace Profiler
 
         std::mutex mutable                    m_MetricsStreamResultsMutex;
         std::vector<DeviceProfilerPerformanceCountersStreamResult> m_MetricsStreamResults;
+        uint64_t                              m_MetricsStreamLastResultTimestamp;
 
         std::filesystem::path FindMetricsDiscoveryLibrary();
 
@@ -161,7 +162,7 @@ namespace Profiler
         void CloseMetricsDevice();
 
         void MetricsStreamCollectionThreadProc();
-        void CollectMetricsStreamSamples();
+        size_t CollectMetricsStreamSamples();
         void FreeUnusedMetricsStreamSamples();
 
         void ParseReport(
