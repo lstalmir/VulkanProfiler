@@ -1265,16 +1265,24 @@ namespace Profiler
     {
         while( !m_MetricsStreamCollectionThreadExit )
         {
-            // Limit size of the buffered data.
-            FreeUnusedMetricsStreamSamples();
-
-            // Collect pending samples from the stream.
-            size_t reportCount = CollectMetricsStreamSamples();
-
-            if( reportCount == 0 )
+            try
             {
-                // Wait for the reports to be available.
-                m_pConcurrentGroup->WaitForReports( 1 /*ms*/ );
+                // Limit size of the buffered data.
+                FreeUnusedMetricsStreamSamples();
+
+                // Collect pending samples from the stream.
+                const size_t reportCount = CollectMetricsStreamSamples();
+
+                if( reportCount == 0 )
+                {
+                    // Wait for the reports to be available.
+                    m_pConcurrentGroup->WaitForReports( 1 /*ms*/ );
+                }
+            }
+            catch( ... )
+            {
+                // Prevent the thread from exiting on exceptions.
+                assert( false );
             }
         }
     }
