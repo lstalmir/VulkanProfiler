@@ -599,7 +599,7 @@ namespace Profiler
 
             // Begin the new stream.
             uint32_t timerPeriodNs = 25'000;
-            uint32_t bufferSize = metricsSet.m_pMetricSetParams->RawReportSize * m_MetricsStreamMaxReportCount;
+            uint32_t bufferSize = 0x1000000;
 
             if( m_pConcurrentGroup->OpenIoStream( metricsSet.m_pMetricSet, 0, &timerPeriodNs, &bufferSize ) != MD::CC_OK )
             {
