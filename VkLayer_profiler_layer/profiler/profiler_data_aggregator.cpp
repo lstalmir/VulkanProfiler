@@ -131,7 +131,6 @@ namespace Profiler
         , m_pResolvedFrames()
         , m_pPendingFrames()
         , m_Mutex()
-        , m_FrameResolveMutex()
         , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
         , m_CopyCommandPools()

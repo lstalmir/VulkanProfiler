@@ -24,7 +24,6 @@
 #include "profiler_command_pool.h"
 #include <list>
 #include <vector>
-#include <mutex>
 #include <shared_mutex>
 #include <thread>
 #include <unordered_set>
@@ -128,7 +127,6 @@ namespace Profiler
         std::list<std::shared_ptr<Frame>> m_pPendingFrames;
 
         std::shared_mutex m_Mutex;
-        std::mutex m_FrameResolveMutex;
         uint32_t m_FrameIndex;
 
         uint32_t m_MaxResolvedFrameCount;
