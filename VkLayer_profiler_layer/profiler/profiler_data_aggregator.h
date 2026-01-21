@@ -124,7 +124,7 @@ namespace Profiler
         std::atomic_bool m_DataCollectionThreadRunning;
 
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pResolvedFrames;
-        std::list<Frame> m_NextFrames;
+        std::list<std::shared_ptr<Frame>> m_pPendingFrames;
 
         std::shared_mutex m_Mutex;
         uint32_t m_FrameIndex;
