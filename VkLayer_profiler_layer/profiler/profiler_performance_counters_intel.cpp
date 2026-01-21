@@ -769,11 +769,6 @@ namespace Profiler
         if( endTimestampNs < beginTimestampNs )
         {
             return true;
-
-        // Find the last sample.
-        while( ( end != begin ) && ( end - 1 )->m_Timestamp > endTimestampNs )
-            end--;
-
         }
         else
         {
