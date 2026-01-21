@@ -90,9 +90,11 @@ namespace Profiler
     DeviceProfilerTraceSerializer::DeviceProfilerTraceSerializer( DeviceProfilerFrontend& frontend )
         : m_Frontend( frontend )
         , m_pStringSerializer( new DeviceProfilerStringSerializer( m_Frontend ) )
-        , m_pJsonSerializer( new DeviceProfilerJsonSerializer( m_pStringSerializer ) )
+        , m_pJsonSerializer( new DeviceProfilerJsonSerializer( &m_Frontend, m_pStringSerializer ) )
         , m_pData( nullptr )
         , m_CommandQueue( VK_NULL_HANDLE )
+        , m_pCommandBufferData( nullptr )
+        , m_pPipelineData( nullptr )
         , m_Events()
         , m_DebugLabelStackDepth( 0 )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
@@ -336,6 +338,10 @@ namespace Profiler
     {
         const std::string eventName = m_pStringSerializer->GetName( data );
 
+        // Update pointer to the current command buffer for indirect commands serialization
+        const DeviceProfilerCommandBufferData* pPreviousCommandBufferData =
+            std::exchange( m_pCommandBufferData, &data );
+
         // Begin
         m_Events.push_back( TraceEvent(
             TraceEvent::Phase::eDurationBegin,
@@ -391,6 +397,8 @@ namespace Profiler
             "Command buffers",
             GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
             m_CommandQueue ) );
+
+        m_pCommandBufferData = pPreviousCommandBufferData;
     }
 
     /*************************************************************************\
@@ -531,6 +539,10 @@ namespace Profiler
         const std::string eventName = m_pStringSerializer->GetName( data, true /*showEntryPoints*/ );
         const nlohmann::json eventArgs = m_pJsonSerializer->GetPipelineArgs( data );
 
+        // Save current pipeline
+        const DeviceProfilerPipelineData* pPreviousPipeline =
+            std::exchange( m_pPipelineData, &data );
+
         const bool isValidPipeline =
             (data.m_Handle ||
                 data.m_UsesShaderObjects) &&
@@ -568,6 +580,8 @@ namespace Profiler
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
+
+        m_pPipelineData = pPreviousPipeline;
     }
 
     /*************************************************************************\
@@ -584,7 +598,7 @@ namespace Profiler
         if( data.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
             const std::string eventName = m_pStringSerializer->GetCommandName( data );
-            const nlohmann::json eventArgs = m_pJsonSerializer->GetCommandArgs( data );
+            const nlohmann::json eventArgs = m_pJsonSerializer->GetCommandArgs( data, *m_pPipelineData, *m_pCommandBufferData );
 
             // Cannot use complete events due to loss of precision
             m_Events.push_back( TraceEvent(
