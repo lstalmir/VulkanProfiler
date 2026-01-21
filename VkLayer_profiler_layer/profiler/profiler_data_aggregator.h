@@ -23,7 +23,7 @@
 #include "profiler_command_buffer.h"
 #include "profiler_command_pool.h"
 #include <list>
-#include <map>
+#include <vector>
 #include <shared_mutex>
 #include <thread>
 #include <unordered_set>
@@ -124,7 +124,7 @@ namespace Profiler
         std::atomic_bool m_DataCollectionThreadRunning;
 
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pResolvedFrames;
-        std::list<Frame> m_NextFrames;
+        std::list<std::shared_ptr<Frame>> m_pPendingFrames;
 
         std::shared_mutex m_Mutex;
         uint32_t m_FrameIndex;
@@ -134,13 +134,9 @@ namespace Profiler
         // Command pools used for copying query data
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
-        // Performance metric properties
-        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceMetricProperties;
-        uint32_t m_PerformanceMetricsSetIndex;
-
         void DataCollectionThreadProc();
 
-        void LoadPerformanceMetricsProperties();
+        void LoadPerformanceMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterProperties2EXT>& ) const;
         void CollectPerformanceMetricsStreamData( uint64_t, uint64_t, DeviceProfilerPerformanceCountersData& ) const;
         void AggregatePerformanceMetrics( const Frame&, DeviceProfilerPerformanceCountersData& ) const;
 
