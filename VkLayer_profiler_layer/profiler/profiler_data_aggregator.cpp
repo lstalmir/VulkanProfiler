@@ -129,13 +129,11 @@ namespace Profiler
         , m_DataCollectionThread()
         , m_DataCollectionThreadRunning( false )
         , m_pResolvedFrames()
-        , m_NextFrames()
+        , m_pPendingFrames()
         , m_Mutex()
         , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
         , m_CopyCommandPools()
-        , m_PerformanceMetricProperties()
-        , m_PerformanceMetricsSetIndex( UINT32_MAX )
     {
     }
 
@@ -151,7 +149,6 @@ namespace Profiler
     VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
         m_pProfiler = pProfiler;
-        m_PerformanceMetricsSetIndex = UINT32_MAX;
 
         VkResult result = VK_SUCCESS;
 
@@ -275,14 +272,14 @@ namespace Profiler
 
         std::scoped_lock lk( m_Mutex );
 
-        if( !m_NextFrames.empty() )
+        if( !m_pPendingFrames.empty() )
         {
             // Finalize the previous frame.
-            m_NextFrames.back().m_EndTimestamp = frame.m_Timestamp;
+            m_pPendingFrames.back()->m_EndTimestamp = frame.m_Timestamp;
         }
 
         m_FrameIndex = frame.m_FrameIndex;
-        m_NextFrames.emplace_back( frame );
+        m_pPendingFrames.emplace_back( std::make_shared<Frame>( frame ) );
     }
 
     /***********************************************************************************\
@@ -330,7 +327,7 @@ namespace Profiler
         // Synchronize with data collection thread.
         std::scoped_lock lk( m_Mutex );
 
-        Frame& frame = m_NextFrames.back();
+        Frame& frame = *m_pPendingFrames.back();
         submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>( frame.m_CompleteSubmits.size() );
 
         DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
@@ -366,9 +363,9 @@ namespace Profiler
             std::vector<VkFence> waitFences;
 
             // Wait for all pending submits that reference the command buffer.
-            for( const Frame& frame : m_NextFrames )
+            for( const std::shared_ptr<Frame>& pFrame : m_pPendingFrames )
             {
-                for( const SubmitBatch& submitBatch : frame.m_PendingSubmits )
+                for( const SubmitBatch& submitBatch : pFrame->m_PendingSubmits )
                 {
                     if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                     {
@@ -402,15 +399,15 @@ namespace Profiler
             }
         }
 
-        // Check if any submit has completed
-        for( Frame& frame : m_NextFrames )
+        // Check if any submit has completed.
+        for( const std::shared_ptr<Frame>& pFrame : m_pPendingFrames )
         {
-            auto submitBatchIt = frame.m_PendingSubmits.begin();
-            while( submitBatchIt != frame.m_PendingSubmits.end() )
+            auto submitBatchIt = pFrame->m_PendingSubmits.begin();
+            while( submitBatchIt != pFrame->m_PendingSubmits.end() )
             {
                 VkResult result = VK_NOT_READY;
 
-                // Aggregate only submits that contain the specified command buffer
+                // Aggregate only submits that contain the specified command buffer.
                 if( !pWaitForCommandBuffer || submitBatchIt->m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                 {
                     result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
@@ -430,12 +427,12 @@ namespace Profiler
                     {
                         ResolveSubmitBatchData(
                             *submitBatchIt,
-                            frame.m_CompleteSubmits[submitBatchIt->m_SubmitBatchDataIndex] );
+                            pFrame->m_CompleteSubmits[submitBatchIt->m_SubmitBatchDataIndex] );
                     }
 
                     FreeDynamicAllocations( *submitBatchIt );
 
-                    submitBatchIt = frame.m_PendingSubmits.erase( submitBatchIt );
+                    submitBatchIt = pFrame->m_PendingSubmits.erase( submitBatchIt );
                 }
                 else
                 {
@@ -444,16 +441,37 @@ namespace Profiler
             }
         }
 
-        // Check if any frame has completed
-        if( !pWaitForCommandBuffer && !m_NextFrames.empty() )
+        // Check if any frame has completed.
+        if( !pWaitForCommandBuffer )
         {
-            auto frameIt = m_NextFrames.begin();
-            while( ( frameIt != m_NextFrames.end() ) && ( frameIt->m_FrameIndex < m_FrameIndex ) && ( frameIt->m_PendingSubmits.empty() ) )
+            while( !m_pPendingFrames.empty()  )
             {
-                LoadPerformanceMetricsProperties();
+                std::shared_ptr<Frame> pFrame = m_pPendingFrames.front();
+
+                // A frame is completed when all its submits have been processed and a new frame has begun.
+                const bool frameCompleted =
+                    ( pFrame->m_FrameIndex < m_FrameIndex ) &&
+                    ( pFrame->m_PendingSubmits.empty() );
+
+                if( !frameCompleted )
+                {
+                    // This, and all subsequent frames, are not completed yet.
+                    break;
+                }
+
+                m_pPendingFrames.pop_front();
+
+                // Resolving frame data is time consuming, release the lock while processing to avoid
+                // blocking recording of the next frames.
+                uniqueLock.unlock();
 
                 std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
-                ResolveFrameData( *frameIt, *pFrameData );
+                ResolveFrameData( *pFrame, *pFrameData );
+
+                pFrame.reset();
+
+                // Re-acquire the lock to update the resolved frames list.
+                uniqueLock.lock();
 
                 // Remove unconsumed frames.
                 if( m_MaxResolvedFrameCount != 0 )
@@ -465,13 +483,6 @@ namespace Profiler
                 }
 
                 m_pResolvedFrames.push_back( std::move( pFrameData ) );
-
-                frameIt++;
-            }
-
-            if( frameIt != m_NextFrames.begin() )
-            {
-                m_NextFrames.erase( m_NextFrames.begin(), frameIt );
             }
         }
     }
@@ -641,32 +652,25 @@ namespace Profiler
         Get metrics properties from the metrics API.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::LoadPerformanceMetricsProperties()
+    void ProfilerDataAggregator::LoadPerformanceMetricsProperties(
+        uint32_t metricsSetIndex,
+        std::vector<VkProfilerPerformanceCounterProperties2EXT>& properties ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
-        if( pPerformanceCounters )
+        if( metricsSetIndex == UINT32_MAX )
         {
-            // Check if metrics set has changed.
-            const uint32_t activeMetricsSetIndex = pPerformanceCounters->GetActiveMetricsSetIndex();
-            if( m_PerformanceMetricsSetIndex != activeMetricsSetIndex )
-            {
-                m_PerformanceMetricsSetIndex = activeMetricsSetIndex;
-                m_PerformanceMetricProperties.clear();
-
-                if( m_PerformanceMetricsSetIndex != UINT32_MAX )
-                {
-                    const uint32_t metricCount = pPerformanceCounters->GetMetricsCount( m_PerformanceMetricsSetIndex );
-                    m_PerformanceMetricProperties.resize( metricCount );
-
-                    pPerformanceCounters->GetMetricsSetMetricsProperties(
-                        m_PerformanceMetricsSetIndex,
-                        metricCount,
-                        m_PerformanceMetricProperties.data() );
-                }
-            }
+            properties.clear();
+            return;
         }
+
+        const uint32_t metricCount = m_pProfiler->m_pPerformanceCounters->GetMetricsCount( metricsSetIndex );
+        properties.resize( metricCount );
+
+        m_pProfiler->m_pPerformanceCounters->GetMetricsSetMetricsProperties(
+            metricsSetIndex,
+            metricCount,
+            properties.data() );
     }
 
     /***********************************************************************************\
@@ -684,9 +688,18 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        const uint32_t metricCount = static_cast<uint32_t>( m_PerformanceMetricProperties.size() );
+        // Get active metrics set properties.
+        const uint32_t performanceMetricsSetIndex =
+            m_pProfiler->m_pPerformanceCounters->GetActiveMetricsSetIndex();
 
-        // No vendor metrics available
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceMetricProperties( 0 );
+        LoadPerformanceMetricsProperties(
+            performanceMetricsSetIndex,
+            performanceMetricProperties );
+
+        const uint32_t metricCount = static_cast<uint32_t>( performanceMetricProperties.size() );
+
+        // No vendor metrics available.
         if( metricCount == 0 )
         {
             return;
@@ -701,7 +714,7 @@ namespace Profiler
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    if( commandBufferData.m_PerformanceCounters.m_MetricsSetIndex != m_PerformanceMetricsSetIndex )
+                    if( commandBufferData.m_PerformanceCounters.m_MetricsSetIndex != performanceMetricsSetIndex )
                     {
                         // The command buffer has been recorded with at different set of metrics.
                         continue;
@@ -722,7 +735,7 @@ namespace Profiler
                         // Get metric accumulator
                         WeightedCounterResult& weightedMetric = aggregatedVendorMetrics[i];
 
-                        switch( m_PerformanceMetricProperties[i].unit )
+                        switch( performanceMetricProperties[i].unit )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
@@ -735,7 +748,7 @@ namespace Profiler
                                 weightedMetric.m_Value,
                                 valueWeight,
                                 pValues[i],
-                                m_PerformanceMetricProperties[i].storage );
+                                performanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -754,7 +767,7 @@ namespace Profiler
                                 weightedMetric.m_Value,
                                 valueWeight,
                                 pValues[i],
-                                m_PerformanceMetricProperties[i].storage );
+                                performanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -765,7 +778,7 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        outData.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
+        outData.m_MetricsSetIndex = performanceMetricsSetIndex;
         outData.m_Results.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
@@ -775,7 +788,7 @@ namespace Profiler
                 outData.m_Results[i],
                 weightedMetric.m_Weight,
                 weightedMetric.m_Value,
-                m_PerformanceMetricProperties[i].storage );
+                performanceMetricProperties[i].storage );
         }
     }
 
