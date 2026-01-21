@@ -110,7 +110,8 @@ namespace Profiler
             if( pGpuTimestampFrequency && pGpuTimestampMax )
             {
                 m_GpuTimestampPeriod = 1e9 / pGpuTimestampFrequency->ValueUInt64;
-                m_GpuTimestampIs32Bit = ( pGpuTimestampMax->ValueUInt64 <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
+                m_GpuTimestampMax = pGpuTimestampMax->ValueUInt64;
+                m_GpuTimestampIs32Bit = ( m_GpuTimestampMax <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
             }
             else
             {
@@ -407,6 +408,7 @@ namespace Profiler
         m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
 
         m_GpuTimestampPeriod = 1.0;
+        m_GpuTimestampMax = UINT64_MAX;
         m_GpuTimestampIs32Bit = false;
 
         m_MetricsSets.clear();
@@ -764,13 +766,22 @@ namespace Profiler
         const uint64_t beginTimestampNs = ConvertGpuTimestampToNanoseconds( beginTimestamp );
         const uint64_t endTimestampNs = ConvertGpuTimestampToNanoseconds( endTimestamp );
 
-        // Find the first sample.
-        while( ( begin != end ) && ( begin->m_Timestamp < beginTimestampNs ) )
-            begin++;
+        if( endTimestampNs < beginTimestampNs )
+        {
+            return true;
 
         // Find the last sample.
         while( ( end != begin ) && ( end - 1 )->m_Timestamp > endTimestampNs )
             end--;
+
+        }
+        else
+        {
+            while( ( begin != end ) && ( begin->m_GpuTimestamp < beginTimestampNs ) )
+                begin++;
+            while( ( end != begin ) && ( end - 1 )->m_GpuTimestamp > endTimestampNs )
+                end--;
+        }
 
         bool dataComplete = ( end != m_MetricsStreamResults.end() );
 
@@ -779,7 +790,7 @@ namespace Profiler
             // Adjust timestamps to be relative to the begin timestamp.
             for( auto it = begin; it != end; ++it )
             {
-                it->m_Timestamp -= beginTimestampNs;
+                it->m_GpuTimestamp -= beginTimestampNs;
             }
 
             // Copy the data to the output buffer.
@@ -859,7 +870,7 @@ namespace Profiler
                 &reportCount,
                 false );
 
-            if( cc != MD::CC_OK )
+            if( cc != MD::CC_OK || reportCount == 0 )
             {
                 // Calculation failed
                 results.clear();
@@ -1301,7 +1312,10 @@ namespace Profiler
 
         MD::TCompletionCode cc = m_pConcurrentGroup->ReadIoStream(
             &reportCount,
-            m_MetricsStreamDataBuffer.data(), 0 );
+            m_MetricsStreamDataBuffer.data(),
+            MD::IO_READ_FLAG_DROP_OLD_REPORTS );
+
+        const uint64_t cpuTimestamp = m_CpuTimestampCounter.GetCurrentValue();
 
         // Unlock the active metrics set mutex while parsing the reports.
         // The function is thread-safe and keeping it would block SetActiveMetricsSet calls.
@@ -1324,11 +1338,13 @@ namespace Profiler
                     &informations );
 
                 // Save the parsed results.
-                if( informations.m_Timestamp != m_MetricsStreamLastResultTimestamp )
+                if( !parsedResults.empty() &&
+                    ( informations.m_Timestamp != m_MetricsStreamLastResultTimestamp ) )
                 {
                     std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
                     m_MetricsStreamResults.push_back( {
                         informations.m_Timestamp,
+                        cpuTimestamp,
                         activeMetricsSetIndex,
                         parsedResults } );
 
@@ -1356,14 +1372,14 @@ namespace Profiler
 
         if( !m_MetricsStreamResults.empty() )
         {
-            const uint64_t lastResultTimestamp = m_MetricsStreamResults.back().m_Timestamp;
+            const uint64_t currentTimestamp = m_CpuTimestampCounter.GetCurrentValue();
 
             const auto begin = m_MetricsStreamResults.begin();
             const auto end = m_MetricsStreamResults.end();
 
             // Find the first sample that is within the max buffer length.
             auto it = begin;
-            while( ( it != end ) && ( lastResultTimestamp - it->m_Timestamp ) > m_MetricsStreamMaxBufferLengthInNanoseconds )
+            while( ( it != end ) && ( m_CpuTimestampCounter.Convert( currentTimestamp - it->m_CpuTimestamp ).count() > m_MetricsStreamMaxBufferLengthInNanoseconds ) )
                 it++;
 
             if( it != begin )

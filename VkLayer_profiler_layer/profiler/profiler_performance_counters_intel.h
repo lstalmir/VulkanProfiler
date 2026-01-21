@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler_performance_counters.h"
+#include "profiler_counters.h"
 #include <metrics_discovery_api.h>
 #include <filesystem>
 #include <vector>
@@ -130,7 +131,10 @@ namespace Profiler
 
         VkProfilerPerformanceCountersSamplingModeEXT m_SamplingMode;
 
+        CpuTimestampCounter                   m_CpuTimestampCounter;
+
         double                                m_GpuTimestampPeriod;
+        uint64_t                              m_GpuTimestampMax;
         bool                                  m_GpuTimestampIs32Bit;
 
         std::vector<MetricsSet>               m_MetricsSets;

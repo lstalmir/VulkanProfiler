@@ -41,7 +41,8 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerPerformanceCountersStreamResult
     {
-        uint64_t                                            m_Timestamp;
+        uint64_t                                            m_GpuTimestamp;
+        uint64_t                                            m_CpuTimestamp;
         uint32_t                                            m_MetricsSetIndex;
         std::vector<VkProfilerPerformanceCounterResultEXT>  m_Data;
     };

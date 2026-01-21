@@ -510,13 +510,20 @@ namespace Profiler
         // Check if any frame has completed
         if( !pWaitForCommandBuffer && !m_NextFrames.empty() )
         {
-            auto frameIt = m_NextFrames.begin();
-            while( ( frameIt != m_NextFrames.end() ) && ( frameIt->m_FrameIndex < m_FrameIndex ) && ( frameIt->m_PendingSubmits.empty() ) )
+            while( !m_NextFrames.empty() &&
+                   ( m_NextFrames.front().m_FrameIndex < m_FrameIndex ) &&
+                   ( m_NextFrames.front().m_PendingSubmits.empty() ) )
             {
                 LoadPerformanceMetricsProperties();
 
+                Frame frame( std::move( m_NextFrames.front() ) );
+                m_NextFrames.pop_front();
+                uniqueLock.unlock();
+
                 std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
-                ResolveFrameData( *frameIt, *pFrameData );
+                ResolveFrameData( frame, *pFrameData );
+
+                uniqueLock.lock();
 
                 // Remove unconsumed frames.
                 if( m_MaxResolvedFrameCount != 0 )
@@ -528,13 +535,6 @@ namespace Profiler
                 }
 
                 m_pResolvedFrames.push_back( std::move( pFrameData ) );
-
-                frameIt++;
-            }
-
-            if( frameIt != m_NextFrames.begin() )
-            {
-                m_NextFrames.erase( m_NextFrames.begin(), frameIt );
             }
         }
     }
@@ -791,7 +791,7 @@ namespace Profiler
                 // Filter out results using different metrics sets.
                 if( result.m_MetricsSetIndex == m_PerformanceMetricsSetIndex )
                 {
-                    outData.m_StreamTimestamps.push_back( result.m_Timestamp );
+                    outData.m_StreamTimestamps.push_back( result.m_GpuTimestamp );
 
                     for( size_t i = 0; i < metricCount; ++i )
                     {
