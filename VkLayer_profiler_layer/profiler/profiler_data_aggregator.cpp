@@ -131,11 +131,10 @@ namespace Profiler
         , m_pResolvedFrames()
         , m_pPendingFrames()
         , m_Mutex()
+        , m_FrameResolveMutex()
         , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
         , m_CopyCommandPools()
-        , m_PerformanceMetricProperties()
-        , m_PerformanceMetricsSetIndex( UINT32_MAX )
     {
     }
 
@@ -151,7 +150,6 @@ namespace Profiler
     VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
         m_pProfiler = pProfiler;
-        m_PerformanceMetricsSetIndex = UINT32_MAX;
 
         VkResult result = VK_SUCCESS;
 
@@ -468,9 +466,6 @@ namespace Profiler
                 // blocking recording of the next frames.
                 uniqueLock.unlock();
 
-                // Metrics properties are accessed only from this thread, no need to lock.
-                LoadPerformanceMetricsProperties();
-
                 std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
                 ResolveFrameData( *pFrame, *pFrameData );
 
@@ -658,32 +653,25 @@ namespace Profiler
         Get metrics properties from the metrics API.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::LoadPerformanceMetricsProperties()
+    void ProfilerDataAggregator::LoadPerformanceMetricsProperties(
+        uint32_t metricsSetIndex,
+        std::vector<VkProfilerPerformanceCounterProperties2EXT>& properties ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
-        if( pPerformanceCounters )
+        if( metricsSetIndex == UINT32_MAX )
         {
-            // Check if metrics set has changed.
-            const uint32_t activeMetricsSetIndex = pPerformanceCounters->GetActiveMetricsSetIndex();
-            if( m_PerformanceMetricsSetIndex != activeMetricsSetIndex )
-            {
-                m_PerformanceMetricsSetIndex = activeMetricsSetIndex;
-                m_PerformanceMetricProperties.clear();
-
-                if( m_PerformanceMetricsSetIndex != UINT32_MAX )
-                {
-                    const uint32_t metricCount = pPerformanceCounters->GetMetricsCount( m_PerformanceMetricsSetIndex );
-                    m_PerformanceMetricProperties.resize( metricCount );
-
-                    pPerformanceCounters->GetMetricsSetMetricsProperties(
-                        m_PerformanceMetricsSetIndex,
-                        metricCount,
-                        m_PerformanceMetricProperties.data() );
-                }
-            }
+            properties.clear();
+            return;
         }
+
+        const uint32_t metricCount = m_pProfiler->m_pPerformanceCounters->GetMetricsCount( metricsSetIndex );
+        properties.resize( metricCount );
+
+        m_pProfiler->m_pPerformanceCounters->GetMetricsSetMetricsProperties(
+            metricsSetIndex,
+            metricCount,
+            properties.data() );
     }
 
     /***********************************************************************************\
@@ -701,9 +689,18 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        const uint32_t metricCount = static_cast<uint32_t>( m_PerformanceMetricProperties.size() );
+        // Get active metrics set properties.
+        const uint32_t performanceMetricsSetIndex =
+            m_pProfiler->m_pPerformanceCounters->GetActiveMetricsSetIndex();
 
-        // No vendor metrics available
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceMetricProperties( 0 );
+        LoadPerformanceMetricsProperties(
+            performanceMetricsSetIndex,
+            performanceMetricProperties );
+
+        const uint32_t metricCount = static_cast<uint32_t>( performanceMetricProperties.size() );
+
+        // No vendor metrics available.
         if( metricCount == 0 )
         {
             return;
@@ -718,7 +715,7 @@ namespace Profiler
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    if( commandBufferData.m_PerformanceCounters.m_MetricsSetIndex != m_PerformanceMetricsSetIndex )
+                    if( commandBufferData.m_PerformanceCounters.m_MetricsSetIndex != performanceMetricsSetIndex )
                     {
                         // The command buffer has been recorded with at different set of metrics.
                         continue;
@@ -739,7 +736,7 @@ namespace Profiler
                         // Get metric accumulator
                         WeightedCounterResult& weightedMetric = aggregatedVendorMetrics[i];
 
-                        switch( m_PerformanceMetricProperties[i].unit )
+                        switch( performanceMetricProperties[i].unit )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
@@ -752,7 +749,7 @@ namespace Profiler
                                 weightedMetric.m_Value,
                                 valueWeight,
                                 pValues[i],
-                                m_PerformanceMetricProperties[i].storage );
+                                performanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -771,7 +768,7 @@ namespace Profiler
                                 weightedMetric.m_Value,
                                 valueWeight,
                                 pValues[i],
-                                m_PerformanceMetricProperties[i].storage );
+                                performanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -782,7 +779,7 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        outData.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
+        outData.m_MetricsSetIndex = performanceMetricsSetIndex;
         outData.m_Results.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
@@ -792,7 +789,7 @@ namespace Profiler
                 outData.m_Results[i],
                 weightedMetric.m_Weight,
                 weightedMetric.m_Value,
-                m_PerformanceMetricProperties[i].storage );
+                performanceMetricProperties[i].storage );
         }
     }
 
