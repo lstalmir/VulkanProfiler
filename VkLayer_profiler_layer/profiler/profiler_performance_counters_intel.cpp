@@ -920,7 +920,7 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        ReadStreamSynchronizationTimestamps
+        ConvertGpuTimestampToNanoseconds
 
     Description:
 
