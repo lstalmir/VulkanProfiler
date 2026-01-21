@@ -1273,10 +1273,11 @@ namespace Profiler
                 // Collect pending samples from the stream.
                 const size_t reportCount = CollectMetricsStreamSamples();
 
-                if( reportCount == 0 )
+                // Wait for the next batch of reports to be available.
+                // Avoid sleeping if the reportCount is high to avoid dropping samples.
+                if( reportCount < ( m_MetricsStreamMaxReportCount / 2 ) )
                 {
-                    // Wait for the reports to be available.
-                    m_pConcurrentGroup->WaitForReports( 1 /*ms*/ );
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
                 }
             }
             catch( ... )
