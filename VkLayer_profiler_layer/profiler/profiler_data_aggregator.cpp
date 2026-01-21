@@ -474,6 +474,8 @@ namespace Profiler
                 std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
                 ResolveFrameData( *pFrame, *pFrameData );
 
+                pFrame.reset();
+
                 // Re-acquire the lock to update the resolved frames list.
                 uniqueLock.lock();
 
