@@ -600,7 +600,6 @@ namespace Profiler
             // Begin the new stream.
             uint32_t timerPeriodNs = 25'000;
             uint32_t bufferSize = metricsSet.m_pMetricSetParams->RawReportSize * m_MetricsStreamMaxReportCount;
-            m_MetricsStreamDataBuffer.resize( bufferSize );
 
             if( m_pConcurrentGroup->OpenIoStream( metricsSet.m_pMetricSet, 0, &timerPeriodNs, &bufferSize ) != MD::CC_OK )
             {
@@ -1311,8 +1310,15 @@ namespace Profiler
         }
 
         const MetricsSet& metricsSet = m_MetricsSets[activeMetricsSetIndex];
-        const uint32_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
+        const size_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
         uint32_t reportCount = m_MetricsStreamMaxReportCount;
+
+        // Make sure the buffer is large enough.
+        const size_t requiredBufferSize = reportSize * reportCount;
+        if( m_MetricsStreamDataBuffer.size() < requiredBufferSize )
+        {
+            m_MetricsStreamDataBuffer.resize( requiredBufferSize );
+        }
 
         MD::TCompletionCode cc = m_pConcurrentGroup->ReadIoStream(
             &reportCount,
