@@ -51,6 +51,62 @@
 
 namespace MD = MetricsDiscovery;
 
+namespace
+{
+    template<typename T>
+    PROFILER_FORCE_INLINE T MD_TTypedValue_Cast( const MD::TTypedValue_1_0& value )
+    {
+        switch( value.ValueType )
+        {
+        case MD::VALUE_TYPE_UINT32:
+            return static_cast<T>( value.ValueUInt32 );
+        case MD::VALUE_TYPE_UINT64:
+            return static_cast<T>( value.ValueUInt64 );
+        case MD::VALUE_TYPE_FLOAT:
+            return static_cast<T>( value.ValueFloat );
+        case MD::VALUE_TYPE_BOOL:
+            return static_cast<T>( value.ValueBool );
+        default:
+            assert( !"Unsupported typed value conversion" );
+            return T();
+        }
+    }
+
+    template<>
+    PROFILER_FORCE_INLINE std::string MD_TTypedValue_Cast<std::string>( const MD::TTypedValue_1_0& value )
+    {
+        switch( value.ValueType )
+        {
+        case MD::VALUE_TYPE_UINT32:
+            return std::to_string( value.ValueUInt32 );
+        case MD::VALUE_TYPE_UINT64:
+            return std::to_string( value.ValueUInt64 );
+        case MD::VALUE_TYPE_FLOAT:
+            return std::to_string( value.ValueFloat );
+        case MD::VALUE_TYPE_BOOL:
+            return value.ValueBool ? "true" : "false";
+        case MD::VALUE_TYPE_CSTRING:
+            return std::string( value.ValueCString );
+        default:
+            assert( !"Unsupported typed value conversion" );
+            return std::string();
+        }
+    }
+
+    template<>
+    PROFILER_FORCE_INLINE const char* MD_TTypedValue_Cast<const char*>( const MD::TTypedValue_1_0& value )
+    {
+        switch( value.ValueType )
+        {
+        case MD::VALUE_TYPE_CSTRING:
+            return value.ValueCString;
+        default:
+            assert( !"Unsupported typed value conversion" );
+            return nullptr;
+        }
+    }
+}
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -110,8 +166,8 @@ namespace Profiler
             if( pGpuTimestampFrequency && pGpuTimestampMax )
             {
                 m_GpuTimestampQueryPeriod = m_pVulkanDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
-                m_GpuTimestampPeriod = 1e9 / pGpuTimestampFrequency->ValueUInt64;
-                m_GpuTimestampMax = pGpuTimestampMax->ValueUInt64;
+                m_GpuTimestampPeriod = 1e9 / MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampFrequency );
+                m_GpuTimestampMax = MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampMax );
                 m_GpuTimestampIs32Bit = ( m_GpuTimestampMax <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
             }
             else
@@ -912,9 +968,9 @@ namespace Profiler
         if( pReportInformations != nullptr )
         {
             // Retrieve report informations
-            pReportInformations->m_Reason = intermediateValues[metricsSet.m_ReportReasonInformationIndex].ValueUInt32;
-            pReportInformations->m_Value = intermediateValues[metricsSet.m_ValueInformationIndex].ValueUInt32;
-            pReportInformations->m_Timestamp = intermediateValues[metricsSet.m_TimestampInformationIndex].ValueUInt64;
+            pReportInformations->m_Reason = MD_TTypedValue_Cast<uint32_t>( intermediateValues[metricsSet.m_ReportReasonInformationIndex] );
+            pReportInformations->m_Value = MD_TTypedValue_Cast<uint32_t>( intermediateValues[metricsSet.m_ValueInformationIndex] );
+            pReportInformations->m_Timestamp = MD_TTypedValue_Cast<uint64_t>( intermediateValues[metricsSet.m_TimestampInformationIndex] );
         }
     }
 
