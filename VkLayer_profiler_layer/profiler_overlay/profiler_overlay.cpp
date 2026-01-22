@@ -2951,20 +2951,19 @@ namespace Profiler
                 0.0 );
         };
 
-        double plotDataDuration = 0.0;
-        if( !m_pData->m_PerformanceCounters.m_StreamTimestamps.empty() )
-        {
-            plotDataDuration = static_cast<double>(
-                m_pData->m_PerformanceCounters.m_StreamTimestamps.back() );
-        }
-
-        const size_t samplesCount = m_pData->m_PerformanceCounters.m_StreamTimestamps.size();
-        const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
-
-        if( !samplesCount || !metricCount )
+        // Early-out if no metrics set is currently selected, no data is available, or there is a mismatch
+        // between the active metrics set and the recorded data.
+        if( ( m_pActivePerformanceQueryMetricsSet == nullptr ) ||
+            ( m_pActivePerformanceQueryMetricsSet->m_Metrics.empty() ) ||
+            ( m_pData->m_PerformanceCounters.m_StreamTimestamps.empty() ) ||
+            ( m_pData->m_PerformanceCounters.m_MetricsSetIndex != m_pActivePerformanceQueryMetricsSet->m_MetricsSetIndex ) )
         {
             return;
         }
+
+        const double plotDataDuration = m_pData->m_PerformanceCounters.m_StreamTimestamps.back();
+        const size_t samplesCount = m_pData->m_PerformanceCounters.m_StreamTimestamps.size();
+        const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
 
         ImPlot::PushStyleVar( ImPlotStyleVar_FillAlpha, 0.5f );
         ImPlot::PushStyleVar( ImPlotStyleVar_PlotBorderSize, 0.0f );
