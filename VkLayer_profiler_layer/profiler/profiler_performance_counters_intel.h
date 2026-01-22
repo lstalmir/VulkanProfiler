@@ -133,6 +133,7 @@ namespace Profiler
 
         CpuTimestampCounter                   m_CpuTimestampCounter;
 
+        double                                m_GpuTimestampQueryPeriod;
         double                                m_GpuTimestampPeriod;
         uint64_t                              m_GpuTimestampMax;
         bool                                  m_GpuTimestampIs32Bit;

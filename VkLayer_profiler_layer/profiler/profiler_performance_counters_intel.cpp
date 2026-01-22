@@ -109,6 +109,7 @@ namespace Profiler
 
             if( pGpuTimestampFrequency && pGpuTimestampMax )
             {
+                m_GpuTimestampQueryPeriod = m_pVulkanDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
                 m_GpuTimestampPeriod = 1e9 / pGpuTimestampFrequency->ValueUInt64;
                 m_GpuTimestampMax = pGpuTimestampMax->ValueUInt64;
                 m_GpuTimestampIs32Bit = ( m_GpuTimestampMax <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
@@ -407,6 +408,7 @@ namespace Profiler
 
         m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
 
+        m_GpuTimestampQueryPeriod = 1.0;
         m_GpuTimestampPeriod = 1.0;
         m_GpuTimestampMax = UINT64_MAX;
         m_GpuTimestampIs32Bit = false;
@@ -933,6 +935,10 @@ namespace Profiler
         {
             return 0;
         }
+
+        // As the timestamp query counter may run in a different frequency than the MD counter,
+        // calculate the factor between them and apply it before converting to nanoseconds.
+        gpuTimestamp *= ( m_GpuTimestampQueryPeriod / m_GpuTimestampPeriod );
 
         if( m_GpuTimestampIs32Bit )
         {
