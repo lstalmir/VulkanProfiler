@@ -130,6 +130,7 @@ namespace Profiler
         MetricsDiscovery::TConcurrentGroupParams_1_0* m_pConcurrentGroupParams;
 
         VkProfilerPerformanceCountersSamplingModeEXT m_SamplingMode;
+        uint32_t                              m_SamplingPeriodInNanoseconds;
 
         CpuTimestampCounter                   m_CpuTimestampCounter;
 

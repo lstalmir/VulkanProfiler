@@ -39,6 +39,7 @@ namespace Profiler
                     *reinterpret_cast<const VkProfilerPerformanceCountersCreateInfoEXT*>( s.pNext );
                 m_EnablePerformanceQueryExt = performanceCountersCreateInfo.backend;
                 m_PerformanceQueryMode = performanceCountersCreateInfo.samplingMode;
+                m_PerformanceStreamTimerPeriod = performanceCountersCreateInfo.streamTimerPeriod;
                 break;
             }
             }

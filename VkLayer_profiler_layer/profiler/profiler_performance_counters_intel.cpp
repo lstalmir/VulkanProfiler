@@ -186,6 +186,7 @@ namespace Profiler
                 break;
             case performance_query_mode_t::stream:
                 m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
+                m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
                 break;
             default:
                 // Unsupported mode
@@ -656,7 +657,7 @@ namespace Profiler
             }
 
             // Begin the new stream.
-            uint32_t timerPeriodNs = 25'000;
+            uint32_t timerPeriodNs = m_SamplingPeriodInNanoseconds;
             uint32_t bufferSize = 0x1000000;
 
             if( m_pConcurrentGroup->OpenIoStream( metricsSet.m_pMetricSet, 0, &timerPeriodNs, &bufferSize ) != MD::CC_OK )

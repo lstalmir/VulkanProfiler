@@ -168,6 +168,21 @@
                             }
                         },
                         {
+                            "key": "performance_stream_timer_period",
+                            "label": "Performance stream timer period",
+                            "description": "Timer period in nanoseconds for performance stream collection mode.",
+                            "env": "VKPROF_performance_stream_timer_period",
+                            "type": "INT",
+                            "default": 25000,
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    { "key": "enable_performance_query_ext", "value": "intel" },
+                                    { "key": "performance_query_mode", "value": "stream" }
+                                ]
+                            }
+                        },
+                        {
                             "key": "default_metrics_set",
                             "label": "Default metrics set",
                             "description": "Default metrics set to select after initializing performance query extension.",

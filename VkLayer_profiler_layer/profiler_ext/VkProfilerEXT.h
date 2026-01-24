@@ -191,6 +191,7 @@ typedef struct VkProfilerPerformanceCountersCreateInfoEXT
     const void* pNext;
     VkProfilerPerformanceCountersBackendEXT backend;
     VkProfilerPerformanceCountersSamplingModeEXT samplingMode;
+    uint32_t streamTimerPeriod;
 } VkProfilerPerformanceCountersCreateInfoEXT;
 
 typedef struct VkProfilerCommandPropertiesEXT
