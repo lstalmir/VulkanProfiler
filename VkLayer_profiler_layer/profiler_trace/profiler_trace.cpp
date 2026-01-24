@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -138,12 +138,15 @@ namespace Profiler
 
         SetupTimestampNormalizationConstants();
 
+        const Milliseconds frameGpuBeginTimestamp = GetNormalizedGpuTimestamp( data.m_BeginTimestamp );
+        const Milliseconds frameGpuEndTimestamp = GetNormalizedGpuTimestamp( data.m_EndTimestamp );
+
         std::string frameName = "Frame #" + std::to_string( data.m_CPU.m_FrameIndex );
         m_Events.push_back( TraceEvent(
             TraceEvent::Phase::eDurationBegin,
             frameName,
             "Frames",
-            GetNormalizedGpuTimestamp( data.m_BeginTimestamp ),
+            frameGpuBeginTimestamp,
             VK_NULL_HANDLE ) );
 
         // Serialize the data
@@ -201,11 +204,50 @@ namespace Profiler
                 GetNormalizedCpuTimestamp( data.m_CPU.m_EndTimestamp ) ) );
         }
 
+        // Serialize the performance counters straem
+        if( !data.m_PerformanceCounters.m_StreamTimestamps.empty() )
+        {
+            const size_t streamResultCount = data.m_PerformanceCounters.m_StreamTimestamps.size();
+            const size_t performanceCountersCount = data.m_PerformanceCounters.m_StreamResults.size();
+
+            std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceCounterProperties( performanceCountersCount );
+            m_Frontend.GetPerformanceMetricsSetCounterProperties(
+                data.m_PerformanceCounters.m_MetricsSetIndex,
+                performanceCountersCount,
+                performanceCounterProperties.data() );
+
+            std::vector<VkProfilerPerformanceCounterResultEXT> performanceCounterSamples( performanceCountersCount );
+
+            for( size_t i = 0; i < streamResultCount; ++i )
+            {
+                for( size_t j = 0; j < performanceCountersCount; ++j )
+                {
+                    performanceCounterSamples[j] =
+                        data.m_PerformanceCounters.m_StreamResults[j].m_Samples[i];
+                }
+
+                m_Events.push_back( TraceCounterEvent(
+                    frameGpuBeginTimestamp + Nanoseconds( data.m_PerformanceCounters.m_StreamTimestamps[i] ),
+                    m_CommandQueue,
+                    performanceCountersCount,
+                    performanceCounterProperties.data(),
+                    performanceCounterSamples.data() ) );
+            }
+
+            Fill( performanceCounterSamples, VkProfilerPerformanceCounterResultEXT{} );
+            m_Events.push_back( TraceCounterEvent(
+                frameGpuEndTimestamp,
+                m_CommandQueue,
+                performanceCountersCount,
+                performanceCounterProperties.data(),
+                performanceCounterSamples.data() ) );
+        }
+
         m_Events.push_back( TraceEvent(
             TraceEvent::Phase::eDurationEnd,
             frameName,
             "Frames",
-            GetNormalizedGpuTimestamp( data.m_EndTimestamp ),
+            frameGpuEndTimestamp,
             VK_NULL_HANDLE ) );
 
         // Insert TIP events
