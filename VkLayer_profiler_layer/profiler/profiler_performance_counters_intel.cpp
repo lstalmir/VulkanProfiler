@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -51,6 +51,62 @@
 
 namespace MD = MetricsDiscovery;
 
+namespace
+{
+    template<typename T>
+    PROFILER_FORCE_INLINE T MD_TTypedValue_Cast( const MD::TTypedValue_1_0& value )
+    {
+        switch( value.ValueType )
+        {
+        case MD::VALUE_TYPE_UINT32:
+            return static_cast<T>( value.ValueUInt32 );
+        case MD::VALUE_TYPE_UINT64:
+            return static_cast<T>( value.ValueUInt64 );
+        case MD::VALUE_TYPE_FLOAT:
+            return static_cast<T>( value.ValueFloat );
+        case MD::VALUE_TYPE_BOOL:
+            return static_cast<T>( value.ValueBool );
+        default:
+            assert( !"Unsupported typed value conversion" );
+            return T();
+        }
+    }
+
+    template<>
+    PROFILER_FORCE_INLINE std::string MD_TTypedValue_Cast<std::string>( const MD::TTypedValue_1_0& value )
+    {
+        switch( value.ValueType )
+        {
+        case MD::VALUE_TYPE_UINT32:
+            return std::to_string( value.ValueUInt32 );
+        case MD::VALUE_TYPE_UINT64:
+            return std::to_string( value.ValueUInt64 );
+        case MD::VALUE_TYPE_FLOAT:
+            return std::to_string( value.ValueFloat );
+        case MD::VALUE_TYPE_BOOL:
+            return value.ValueBool ? "true" : "false";
+        case MD::VALUE_TYPE_CSTRING:
+            return std::string( value.ValueCString );
+        default:
+            assert( !"Unsupported typed value conversion" );
+            return std::string();
+        }
+    }
+
+    template<>
+    PROFILER_FORCE_INLINE const char* MD_TTypedValue_Cast<const char*>( const MD::TTypedValue_1_0& value )
+    {
+        switch( value.ValueType )
+        {
+        case MD::VALUE_TYPE_CSTRING:
+            return value.ValueCString;
+        default:
+            assert( !"Unsupported typed value conversion" );
+            return nullptr;
+        }
+    }
+}
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -101,6 +157,25 @@ namespace Profiler
             }
         }
 
+        // Read device properties
+        if( result == VK_SUCCESS )
+        {
+            const MD::TTypedValue_1_0* pGpuTimestampFrequency = m_pDevice->GetGlobalSymbolValueByName( "GpuTimestampFrequency" );
+            const MD::TTypedValue_1_0* pGpuTimestampMax = m_pDevice->GetGlobalSymbolValueByName( "MaxTimestamp" );
+
+            if( pGpuTimestampFrequency && pGpuTimestampMax )
+            {
+                m_GpuTimestampQueryPeriod = m_pVulkanDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
+                m_GpuTimestampPeriod = 1e9 / MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampFrequency );
+                m_GpuTimestampMax = MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampMax );
+                m_GpuTimestampIs32Bit = ( m_GpuTimestampMax <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
+            }
+            else
+            {
+                result = VK_ERROR_INITIALIZATION_FAILED;
+            }
+        }
+
         // Setup sampling mode
         if( result == VK_SUCCESS )
         {
@@ -108,6 +183,9 @@ namespace Profiler
             {
             case performance_query_mode_t::query:
                 m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+                break;
+            case performance_query_mode_t::stream:
+                m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
                 break;
             default:
                 // Unsupported mode
@@ -189,6 +267,18 @@ namespace Profiler
             }
         }
 
+        // Start metrics stream collection thread
+        if( result == VK_SUCCESS )
+        {
+            if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
+            {
+                m_MetricsStreamCollectionThreadExit = false;
+                m_MetricsStreamCollectionThread = std::thread(
+                    &DeviceProfilerPerformanceCountersINTEL::MetricsStreamCollectionThreadProc,
+                    this );
+            }
+        }
+
         // Enumerate available metric sets
         if( result == VK_SUCCESS )
         {
@@ -198,11 +288,15 @@ namespace Profiler
             uint32_t defaultMetricsSetIndex = UINT32_MAX;
             const char* pDefaultMetricsSetName = config.m_DefaultMetricsSet.c_str();
 
+            uint32_t apiMask = ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT ) ?
+                MD::API_TYPE_IOSTREAM :
+                MD::API_TYPE_VULKAN;
+
             for( uint32_t setIndex = 0; setIndex < oaMetricSetCount; ++setIndex )
             {
                 MetricsSet set = {};
                 set.m_pMetricSet = m_pConcurrentGroup->GetMetricSet( setIndex );
-                set.m_pMetricSet->SetApiFiltering( MD::API_TYPE_VULKAN );
+                set.m_pMetricSet->SetApiFiltering( apiMask );
 
                 // Read params - must be done after API filtering.
                 set.m_pMetricSetParams = set.m_pMetricSet->GetParams();
@@ -245,6 +339,42 @@ namespace Profiler
                     continue;
                 }
 
+                if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
+                {
+                    // Read informations in the set.
+                    set.m_ReportReasonInformationIndex = UINT32_MAX;
+                    set.m_ValueInformationIndex = UINT32_MAX;
+                    set.m_TimestampInformationIndex = UINT32_MAX;
+
+                    const uint32_t informationCount = set.m_pMetricSetParams->InformationCount;
+                    for( uint32_t infoIndex = 0; infoIndex < informationCount; ++infoIndex )
+                    {
+                        MD::IInformation_1_0* pInformation = set.m_pMetricSet->GetInformation( infoIndex );
+                        MD::TInformationParams_1_0* pInformationParams = pInformation->GetParams();
+
+                        switch( pInformationParams->InfoType )
+                        {
+                        case MD::INFORMATION_TYPE_REPORT_REASON:
+                            set.m_ReportReasonInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                            break;
+                        case MD::INFORMATION_TYPE_VALUE:
+                            set.m_ValueInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                            break;
+                        case MD::INFORMATION_TYPE_TIMESTAMP:
+                            set.m_TimestampInformationIndex = infoIndex + set.m_pMetricSetParams->MetricsCount;
+                            break;
+                        }
+                    }
+
+                    if( ( set.m_ReportReasonInformationIndex == UINT32_MAX ) ||
+                        ( set.m_ValueInformationIndex == UINT32_MAX ) ||
+                        ( set.m_TimestampInformationIndex == UINT32_MAX ) )
+                    {
+                        // Required informations not found.
+                        continue;
+                    }
+                }
+
                 // Find default metrics set index.
                 if( (defaultMetricsSetIndex == UINT32_MAX) &&
                     (strcmp( set.m_pMetricSetParams->SymbolName, pDefaultMetricsSetName ) == 0) )
@@ -283,6 +413,12 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersINTEL::Destroy()
     {
+        if( m_MetricsStreamCollectionThread.joinable() )
+        {
+            m_MetricsStreamCollectionThreadExit = true;
+            m_MetricsStreamCollectionThread.join();
+        }
+
         if( m_PerformanceApiConfiguration )
         {
             assert( m_pVulkanDevice && m_pVulkanDevice->Callbacks.ReleasePerformanceConfigurationINTEL );
@@ -328,12 +464,27 @@ namespace Profiler
 
         m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
 
+        m_GpuTimestampQueryPeriod = 1.0;
+        m_GpuTimestampPeriod = 1.0;
+        m_GpuTimestampMax = UINT64_MAX;
+        m_GpuTimestampIs32Bit = false;
+
         m_MetricsSets.clear();
 
         m_ActiveMetricsSetIndex = UINT32_MAX;
 
         m_PerformanceApiInitialized = false;
         m_PerformanceApiConfiguration = VK_NULL_HANDLE;
+
+        m_MetricsStreamCollectionThread = std::thread();
+        m_MetricsStreamCollectionThreadExit = false;
+
+        m_MetricsStreamMaxReportCount = 16'384;
+        m_MetricsStreamMaxBufferLengthInNanoseconds = 1'000'000'000ull;
+        m_MetricsStreamDataBuffer.clear();
+
+        m_MetricsStreamResults.clear();
+        m_MetricsStreamLastResultTimestamp = 0;
     }
 
     /***********************************************************************************\
@@ -349,15 +500,21 @@ namespace Profiler
     {
         std::shared_lock lk( m_ActiveMetricSetMutex );
 
-        if( m_ActiveMetricsSetIndex == UINT32_MAX )
+        VkResult result = VK_SUCCESS;
+
+        // Configure the queue only if query mode is used and a metrics set is active.
+        if( ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT ) &&
+            ( m_ActiveMetricsSetIndex != UINT32_MAX ) )
         {
-            // No configuration to set (not an error as the performance counters are optional).
-            return VK_SUCCESS;
+            assert( m_PerformanceApiConfiguration != VK_NULL_HANDLE );
+            assert( m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL );
+
+            result = m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
+                queue,
+                m_PerformanceApiConfiguration );
         }
 
-        return m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
-            queue,
-            m_PerformanceApiConfiguration );
+        return result;
     }
 
     /***********************************************************************************\
@@ -440,52 +597,73 @@ namespace Profiler
             return VK_ERROR_VALIDATION_FAILED_EXT;
         }
 
-        // Release the current performance configuration.
-        if( m_PerformanceApiConfiguration )
-        {
-            m_pVulkanDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
-                m_pVulkanDevice->Handle,
-                m_PerformanceApiConfiguration );
-
-            m_PerformanceApiConfiguration = VK_NULL_HANDLE;
-            m_ActiveMetricsSetIndex = UINT32_MAX;
-        }
-
         // Get the new metrics set object.
-        auto& metricsSet = m_MetricsSets[ metricsSetIndex ];
+        auto& metricsSet = m_MetricsSets[metricsSetIndex];
 
-        // Activate only metrics supported by Vulkan driver.
-        if( metricsSet.m_pMetricSet->SetApiFiltering( MD::API_TYPE_VULKAN ) != MD::CC_OK )
+        if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT )
         {
-            assert( false );
-            return VK_ERROR_INITIALIZATION_FAILED;
+            // Release the current performance configuration.
+            if( m_PerformanceApiConfiguration )
+            {
+                m_pVulkanDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
+                    m_pVulkanDevice->Handle,
+                    m_PerformanceApiConfiguration );
+
+                m_PerformanceApiConfiguration = VK_NULL_HANDLE;
+                m_ActiveMetricsSetIndex = UINT32_MAX;
+            }
+
+            // Activate the metrics set.
+            if( metricsSet.m_pMetricSet->Activate() != MD::CC_OK )
+            {
+                assert( false );
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
+
+            // Acquire new performance configuration for the activated metrics set.
+            VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
+            acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
+            acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
+
+            VkResult result = m_pVulkanDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
+                m_pVulkanDevice->Handle,
+                &acquireInfo,
+                &m_PerformanceApiConfiguration );
+
+            // Set can be deactivated once the performance configuration is acquired.
+            metricsSet.m_pMetricSet->Deactivate();
+
+            if( result != VK_SUCCESS )
+            {
+                m_PerformanceApiConfiguration = VK_NULL_HANDLE;
+                assert( false );
+                return result;
+            }
         }
 
-        // Activate the metrics set.
-        if( metricsSet.m_pMetricSet->Activate() != MD::CC_OK )
+        if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
         {
-            assert( false );
-            return VK_ERROR_INITIALIZATION_FAILED;
-        }
+            // Close the current stream if any.
+            if( m_ActiveMetricsSetIndex != UINT32_MAX )
+            {
+                if( m_pConcurrentGroup->CloseIoStream() != MD::CC_OK )
+                {
+                    assert( false );
+                    return VK_ERROR_INITIALIZATION_FAILED;
+                }
 
-        // Acquire new performance configuration for the activated metrics set.
-        VkPerformanceConfigurationAcquireInfoINTEL acquireInfo = {};
-        acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
-        acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
+                m_ActiveMetricsSetIndex = UINT32_MAX;
+            }
 
-        VkResult result = m_pVulkanDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
-            m_pVulkanDevice->Handle,
-            &acquireInfo,
-            &m_PerformanceApiConfiguration );
+            // Begin the new stream.
+            uint32_t timerPeriodNs = 25'000;
+            uint32_t bufferSize = 0x1000000;
 
-        // Set can be deactivated once the performance configuration is acquired.
-        metricsSet.m_pMetricSet->Deactivate();
-
-        if( result != VK_SUCCESS )
-        {
-            m_PerformanceApiConfiguration = VK_NULL_HANDLE;
-            assert( false );
-            return result;
+            if( m_pConcurrentGroup->OpenIoStream( metricsSet.m_pMetricSet, 0, &timerPeriodNs, &bufferSize ) != MD::CC_OK )
+            {
+                assert( false );
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
         }
 
         m_ActiveMetricsSetIndex = metricsSetIndex;
@@ -614,6 +792,79 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ReadStreamData
+
+    Description:
+        Get the stream data for a specific marker.
+
+    \***********************************************************************************/
+    bool DeviceProfilerPerformanceCountersINTEL::ReadStreamData(
+        uint64_t beginTimestamp,
+        uint64_t endTimestamp,
+        std::vector<DeviceProfilerPerformanceCountersStreamResult>& samples )
+    {
+        std::scoped_lock lk( m_MetricsStreamResultsMutex );
+
+        if( m_SamplingMode != VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
+        {
+            // No stream data available in query mode.
+            return true;
+        }
+
+        if( beginTimestamp == endTimestamp )
+        {
+            // No data to read.
+            return true;
+        }
+
+        auto begin = m_MetricsStreamResults.begin();
+        auto end = m_MetricsStreamResults.end();
+
+        const uint64_t beginTimestampNs = ConvertGpuTimestampToNanoseconds( beginTimestamp );
+        const uint64_t endTimestampNs = ConvertGpuTimestampToNanoseconds( endTimestamp );
+
+        if( endTimestampNs < beginTimestampNs )
+        {
+            return true;
+        }
+        else
+        {
+            while( ( begin != end ) && ( begin->m_GpuTimestamp < beginTimestampNs ) )
+                begin++;
+            while( ( end != begin ) && ( end - 1 )->m_GpuTimestamp > endTimestampNs )
+                end--;
+        }
+
+        bool dataComplete = ( end != m_MetricsStreamResults.end() );
+
+        if( begin != end )
+        {
+            // Adjust timestamps to be relative to the begin timestamp.
+            for( auto it = begin; it != end; ++it )
+            {
+                it->m_GpuTimestamp -= beginTimestampNs;
+            }
+
+            // Copy the data to the output buffer.
+            samples.insert( samples.begin(), begin, end );
+
+            m_MetricsStreamResults.erase( begin, end );
+        }
+        else
+        {
+            // No more data will arrive if the thread has exited.
+            if( !m_MetricsStreamCollectionThread.joinable() )
+            {
+                dataComplete = true;
+            }
+        }
+
+        return dataComplete;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ParseReport
 
     Description:
@@ -626,6 +877,26 @@ namespace Profiler
         uint32_t reportSize,
         const uint8_t* pReport,
         std::vector<VkProfilerPerformanceCounterResultEXT>& results )
+    {
+        ParseReport( metricsSetIndex, queueFamilyIndex, reportSize, pReport, results, nullptr );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ParseReport
+
+    Description:
+        Convert query data to human-readable form.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersINTEL::ParseReport(
+        uint32_t metricsSetIndex,
+        uint32_t queueFamilyIndex,
+        uint32_t reportSize,
+        const uint8_t* pReport,
+        std::vector<VkProfilerPerformanceCounterResultEXT>& results,
+        ReportInformations* pReportInformations )
     {
         const auto& metricsSet = m_MetricsSets[ metricsSetIndex ];
 
@@ -651,7 +922,7 @@ namespace Profiler
                 &reportCount,
                 false );
 
-            if( cc != MD::CC_OK )
+            if( cc != MD::CC_OK || reportCount == 0 )
             {
                 // Calculation failed
                 results.clear();
@@ -693,6 +964,50 @@ namespace Profiler
                 assert( !"PROFILER: Intel MDAPI string metrics not supported!" );
             }
         }
+
+        if( pReportInformations != nullptr )
+        {
+            // Retrieve report informations
+            pReportInformations->m_Reason = MD_TTypedValue_Cast<uint32_t>( intermediateValues[metricsSet.m_ReportReasonInformationIndex] );
+            pReportInformations->m_Value = MD_TTypedValue_Cast<uint32_t>( intermediateValues[metricsSet.m_ValueInformationIndex] );
+            pReportInformations->m_Timestamp = MD_TTypedValue_Cast<uint64_t>( intermediateValues[metricsSet.m_TimestampInformationIndex] );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ConvertGpuTimestampToNanoseconds
+
+    Description:
+
+    \***********************************************************************************/
+    uint64_t DeviceProfilerPerformanceCountersINTEL::ConvertGpuTimestampToNanoseconds( uint64_t gpuTimestamp )
+    {
+        constexpr uint64_t scGpuTimestampMask32Bits = ( 1ull << 32 ) - 1;
+        constexpr uint64_t scGpuTimestampMask56Bits = ( 1ull << 56 ) - 1;
+
+        if( m_GpuTimestampPeriod == 0 )
+        {
+            return 0;
+        }
+
+        // As the timestamp query counter may run in a different frequency than the MD counter,
+        // calculate the factor between them and apply it before converting to nanoseconds.
+        gpuTimestamp *= ( m_GpuTimestampQueryPeriod / m_GpuTimestampPeriod );
+
+        if( m_GpuTimestampIs32Bit )
+        {
+            // Ticks masked to 32bit to get sync with report timestamps.
+            return static_cast<uint64_t>( ( gpuTimestamp & scGpuTimestampMask32Bits ) * m_GpuTimestampPeriod );
+        }
+
+        // Ticks masked to 56bit to get sync with report timestamps.
+        const double gpuTimestampNsHigh = ( ( gpuTimestamp & scGpuTimestampMask56Bits ) >> 32 ) * m_GpuTimestampPeriod;
+        const double gpuTimestampNsHighFractionalPart = ( gpuTimestampNsHigh - static_cast<uint64_t>( gpuTimestampNsHigh ) ) * ( scGpuTimestampMask32Bits + 1 );
+        const double gpuTimestampNsLow = ( gpuTimestamp & scGpuTimestampMask32Bits ) * m_GpuTimestampPeriod;
+
+        return ( static_cast<uint64_t>( gpuTimestampNsHigh ) << 32 ) + static_cast<uint64_t>( gpuTimestampNsLow + gpuTimestampNsHighFractionalPart );
     }
 
     /***********************************************************************************\
@@ -996,6 +1311,153 @@ namespace Profiler
 
             m_pDevice = nullptr;
             m_pDeviceParams = nullptr;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        MetricsStreamCollectionThreadProc
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersINTEL::MetricsStreamCollectionThreadProc()
+    {
+        while( !m_MetricsStreamCollectionThreadExit )
+        {
+            try
+            {
+                // Limit size of the buffered data.
+                FreeUnusedMetricsStreamSamples();
+
+                // Collect pending samples from the stream.
+                const size_t reportCount = CollectMetricsStreamSamples();
+
+                // Wait for the next batch of reports to be available.
+                // Avoid sleeping if the reportCount is high to avoid dropping samples.
+                if( reportCount < ( m_MetricsStreamMaxReportCount / 2 ) )
+                {
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+                }
+            }
+            catch( ... )
+            {
+                // Prevent the thread from exiting on exceptions.
+                assert( false );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CollectMetricsStreamSamples
+
+    Description:
+
+    \***********************************************************************************/
+    size_t DeviceProfilerPerformanceCountersINTEL::CollectMetricsStreamSamples()
+    {
+        thread_local std::vector<VkProfilerPerformanceCounterResultEXT> parsedResults;
+
+        // Don't switch the active metrics set while reading the stream.
+        std::shared_lock lk( m_ActiveMetricSetMutex );
+
+        const uint32_t activeMetricsSetIndex = m_ActiveMetricsSetIndex;
+        if( activeMetricsSetIndex == UINT32_MAX )
+        {
+            // No active metrics set, nothing to read.
+            return 0;
+        }
+
+        const MetricsSet& metricsSet = m_MetricsSets[activeMetricsSetIndex];
+        const size_t reportSize = metricsSet.m_pMetricSetParams->RawReportSize;
+        uint32_t reportCount = m_MetricsStreamMaxReportCount;
+
+        // Make sure the buffer is large enough.
+        const size_t requiredBufferSize = reportSize * reportCount;
+        if( m_MetricsStreamDataBuffer.size() < requiredBufferSize )
+        {
+            m_MetricsStreamDataBuffer.resize( requiredBufferSize );
+        }
+
+        MD::TCompletionCode cc = m_pConcurrentGroup->ReadIoStream(
+            &reportCount,
+            m_MetricsStreamDataBuffer.data(),
+            MD::IO_READ_FLAG_DROP_OLD_REPORTS );
+
+        const uint64_t cpuTimestamp = m_CpuTimestampCounter.GetCurrentValue();
+
+        // Unlock the active metrics set mutex while parsing the reports.
+        // The function is thread-safe and keeping it would block SetActiveMetricsSet calls.
+        lk.unlock();
+
+        if( cc == MD::CC_OK || cc == MD::CC_READ_PENDING )
+        {
+            const uint8_t* pReport = reinterpret_cast<const uint8_t*>( m_MetricsStreamDataBuffer.data() );
+
+            // Parse each report
+            for( uint32_t i = 0; i < reportCount; ++i )
+            {
+                ReportInformations informations;
+                ParseReport(
+                    activeMetricsSetIndex,
+                    VK_QUEUE_FAMILY_IGNORED,
+                    reportSize,
+                    pReport,
+                    parsedResults,
+                    &informations );
+
+                // Save the parsed results.
+                if( !parsedResults.empty() &&
+                    ( informations.m_Timestamp != m_MetricsStreamLastResultTimestamp ) )
+                {
+                    std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+                    m_MetricsStreamResults.push_back( {
+                        informations.m_Timestamp,
+                        cpuTimestamp,
+                        activeMetricsSetIndex,
+                        parsedResults } );
+
+                    m_MetricsStreamLastResultTimestamp = informations.m_Timestamp;
+                }
+
+                pReport += reportSize;
+            }
+        }
+
+        return reportCount;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeUnusedMetricsStreamSamples
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersINTEL::FreeUnusedMetricsStreamSamples()
+    {
+        std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+
+        if( !m_MetricsStreamResults.empty() )
+        {
+            const uint64_t currentTimestamp = m_CpuTimestampCounter.GetCurrentValue();
+
+            const auto begin = m_MetricsStreamResults.begin();
+            const auto end = m_MetricsStreamResults.end();
+
+            // Find the first sample that is within the max buffer length.
+            auto it = begin;
+            while( ( it != end ) && ( m_CpuTimestampCounter.Convert( currentTimestamp - it->m_CpuTimestamp ).count() > m_MetricsStreamMaxBufferLengthInNanoseconds ) )
+                it++;
+
+            if( it != begin )
+            {
+                m_MetricsStreamResults.erase( begin, it );
+            }
         }
     }
 

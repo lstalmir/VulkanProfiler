@@ -30,12 +30,75 @@
 
 namespace Profiler
 {
+    struct PerformanceCounterStorageLimits
+    {
+        VkProfilerPerformanceCounterResultEXT m_Max;
+        VkProfilerPerformanceCounterResultEXT m_Min;
+
+        explicit PerformanceCounterStorageLimits(
+            VkProfilerPerformanceCounterStorageEXT storage )
+        {
+            switch (storage)
+            {
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                Initialize( m_Min.float32, m_Max.float32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                Initialize( m_Min.float64, m_Max.float64 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                Initialize( m_Min.int32, m_Max.int32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                Initialize( m_Min.int64, m_Max.int64 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                Initialize( m_Min.uint32, m_Max.uint32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                Initialize( m_Min.uint64, m_Max.uint64 );
+                break;
+            }
+        }
+
+        template<typename T>
+        inline static void Initialize( T& min, T& max )
+        {
+            min = std::numeric_limits<T>::lowest();
+            max = std::numeric_limits<T>::max();
+        }
+    };
+
     struct SumAggregator
     {
         template<typename T>
         inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
         {
             acc += value;
+        }
+    };
+
+    struct MinAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
+        {
+            if( value < acc )
+            {
+                acc = value;
+            }
+        }
+    };
+
+    struct MaxAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
+        {
+            if( value > acc )
+            {
+                acc = value;
+            }
         }
     };
 
@@ -597,6 +660,21 @@ namespace Profiler
         // Collect performance counters data.
         if( m_pProfiler->m_pPerformanceCounters )
         {
+            switch( m_pProfiler->m_pPerformanceCounters->GetSamplingMode() )
+            {
+            case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT:
+                // Data already collected.
+                break;
+
+            case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT:
+                // Collect data from the performance metrics stream.
+                CollectPerformanceMetricsStreamData(
+                    frameData.m_BeginTimestamp,
+                    frameData.m_EndTimestamp,
+                    frameData.m_PerformanceCounters );
+                break;
+            }
+
             // Post-process the data.
             AggregatePerformanceMetrics( frame, frameData.m_PerformanceCounters );
         }
@@ -671,6 +749,125 @@ namespace Profiler
             metricsSetIndex,
             metricCount,
             properties.data() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CollectPerformanceMetricsStreamData
+
+    Description:
+        Read performance metrics stream data for the given time range.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::CollectPerformanceMetricsStreamData(
+        uint64_t beginTimestamp,
+        uint64_t endTimestamp,
+        DeviceProfilerPerformanceCountersData& outData ) const
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        // Get active metrics set properties.
+        const uint32_t performanceMetricsSetIndex =
+            m_pProfiler->m_pPerformanceCounters->GetActiveMetricsSetIndex();
+
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceMetricProperties( 0 );
+        LoadPerformanceMetricsProperties(
+            performanceMetricsSetIndex,
+            performanceMetricProperties );
+
+        const uint32_t metricCount = static_cast<uint32_t>( performanceMetricProperties.size() );
+
+        // No vendor metrics available
+        if( metricCount == 0 )
+        {
+            return;
+        }
+
+        // Temporary storage for the raw data received from the counters backend.
+        thread_local std::vector<DeviceProfilerPerformanceCountersStreamResult> intermediateResults;
+
+        auto ProcessStreamData = [&]()
+        {
+            const size_t previousSampleCount = outData.m_StreamTimestamps.size();
+            const size_t newSampleCount = previousSampleCount + intermediateResults.size();
+
+            // Preallocate space for the new samples.
+            outData.m_StreamTimestamps.reserve( newSampleCount );
+
+            for( DeviceProfilerPerformanceCounterStreamData& streamData : outData.m_StreamResults )
+            {
+                streamData.m_Samples.reserve( newSampleCount );
+            }
+
+            // Transpose the data for better cache locality.
+            for( const DeviceProfilerPerformanceCountersStreamResult& result : intermediateResults )
+            {
+                // Filter out results using different metrics sets.
+                if( result.m_MetricsSetIndex == performanceMetricsSetIndex )
+                {
+                    outData.m_StreamTimestamps.push_back( result.m_GpuTimestamp );
+
+                    for( size_t i = 0; i < metricCount; ++i )
+                    {
+                        outData.m_StreamResults[i].m_Samples.push_back( result.m_Data[i] );
+                    }
+                }
+            }
+
+            // Update min/max values.
+            for( size_t i = 0; i < metricCount; ++i )
+            {
+                DeviceProfilerPerformanceCounterStreamData& streamResults = outData.m_StreamResults[i];
+                const VkProfilerPerformanceCounterResultEXT* pStreamSamples = streamResults.m_Samples.data();
+                const VkProfilerPerformanceCounterStorageEXT storage = performanceMetricProperties[i].storage;
+
+                for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                {
+                    VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                    Profiler::Aggregate<MinAggregator>( streamResults.m_MinValue, 1, sample, storage );
+                    Profiler::Aggregate<MaxAggregator>( streamResults.m_MaxValue, 1, sample, storage );
+                }
+            }
+
+            intermediateResults.clear();
+        };
+
+        // Prepare the output buffers.
+        outData.m_StreamResults.resize( metricCount );
+
+        for( uint32_t i = 0; i < metricCount; ++i )
+        {
+            DeviceProfilerPerformanceCounterStreamData& streamResults = outData.m_StreamResults[i];
+
+            PerformanceCounterStorageLimits storageLimits( performanceMetricProperties[i].storage );
+            streamResults.m_MinValue = storageLimits.m_Max;
+            streamResults.m_MaxValue = storageLimits.m_Min;
+        }
+
+        // Read the stream data from the backend.
+        while( !m_pProfiler->m_pPerformanceCounters->ReadStreamData(
+            beginTimestamp,
+            endTimestamp,
+            intermediateResults ) )
+        {
+            if( !intermediateResults.empty() )
+            {
+                // Process collected samples while waiting for more data.
+                ProcessStreamData();
+            }
+            else
+            {
+                // Avoid busy waiting if there is no data to process yet.
+                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+            }
+        }
+
+        if( !intermediateResults.empty() )
+        {
+            // Process the last batch of samples.
+            ProcessStreamData();
+        }
     }
 
     /***********************************************************************************\

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,11 +20,13 @@
 
 #pragma once
 #include "profiler_performance_counters.h"
+#include "profiler_counters.h"
 #include <metrics_discovery_api.h>
 #include <filesystem>
 #include <vector>
 #include <string>
 #include <shared_mutex>
+#include <thread>
 
 namespace Profiler
 {
@@ -63,6 +65,8 @@ namespace Profiler
         bool SupportsQueryPoolReuse() const final { return true; }
         VkResult CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool ) final;
 
+        bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) final;
+
         void ParseReport(
             uint32_t metricsSetIndex,
             uint32_t queueFamilyIndex,
@@ -94,12 +98,23 @@ namespace Profiler
             uint8_t m_UUID[VK_UUID_SIZE];
         };
 
+        struct ReportInformations
+        {
+            uint32_t                          m_Reason;
+            uint32_t                          m_Value;
+            uint64_t                          m_Timestamp;
+        };
+
         struct MetricsSet
         {
             MetricsDiscovery::IMetricSet_1_1* m_pMetricSet;
             MetricsDiscovery::TMetricSetParams_1_0* m_pMetricSetParams;
 
-            std::vector<Counter> m_Counters;
+            uint32_t                          m_ReportReasonInformationIndex;
+            uint32_t                          m_ValueInformationIndex;
+            uint32_t                          m_TimestampInformationIndex;
+
+            std::vector<Counter>              m_Counters;
         };
 
         void*                                 m_MDLibraryHandle;
@@ -116,6 +131,13 @@ namespace Profiler
 
         VkProfilerPerformanceCountersSamplingModeEXT m_SamplingMode;
 
+        CpuTimestampCounter                   m_CpuTimestampCounter;
+
+        double                                m_GpuTimestampQueryPeriod;
+        double                                m_GpuTimestampPeriod;
+        uint64_t                              m_GpuTimestampMax;
+        bool                                  m_GpuTimestampIs32Bit;
+
         std::vector<MetricsSet>               m_MetricsSets;
 
         std::shared_mutex mutable             m_ActiveMetricSetMutex;
@@ -124,6 +146,18 @@ namespace Profiler
         bool                                  m_PerformanceApiInitialized;
         VkPerformanceConfigurationINTEL       m_PerformanceApiConfiguration;
 
+        std::thread                           m_MetricsStreamCollectionThread;
+        std::mutex                            m_MetricsStreamCollectionMutex;
+        bool                                  m_MetricsStreamCollectionThreadExit;
+
+        uint32_t                              m_MetricsStreamMaxReportCount;
+        uint64_t                              m_MetricsStreamMaxBufferLengthInNanoseconds;
+        std::vector<char>                     m_MetricsStreamDataBuffer;
+
+        std::mutex mutable                    m_MetricsStreamResultsMutex;
+        std::vector<DeviceProfilerPerformanceCountersStreamResult> m_MetricsStreamResults;
+        uint64_t                              m_MetricsStreamLastResultTimestamp;
+
         std::filesystem::path FindMetricsDiscoveryLibrary();
 
         bool LoadMetricsDiscoveryLibrary();
@@ -131,6 +165,20 @@ namespace Profiler
 
         bool OpenMetricsDevice();
         void CloseMetricsDevice();
+
+        void MetricsStreamCollectionThreadProc();
+        size_t CollectMetricsStreamSamples();
+        void FreeUnusedMetricsStreamSamples();
+
+        void ParseReport(
+            uint32_t metricsSetIndex,
+            uint32_t queueFamilyIndex,
+            uint32_t reportSize,
+            const uint8_t* pReport,
+            std::vector<VkProfilerPerformanceCounterResultEXT>& results,
+            ReportInformations* pReportInformations );
+
+        uint64_t ConvertGpuTimestampToNanoseconds( uint64_t gpuTimestamp );
 
         void ResetMembers();
 

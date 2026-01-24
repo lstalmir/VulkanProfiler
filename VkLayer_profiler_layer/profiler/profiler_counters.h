@@ -110,8 +110,14 @@ namespace Profiler
         template<typename Unit = std::chrono::nanoseconds>
         inline auto GetValue() const
         {
+            return this->template Convert<Unit>( m_EndValue - m_BeginValue );
+        }
+
+        template<typename Unit = std::chrono::nanoseconds>
+        inline auto Convert( uint64_t delta ) const
+        {
             return std::chrono::duration_cast<Unit>(std::chrono::nanoseconds(
-                ((m_EndValue - m_BeginValue) * 1'000'000'000) / OSGetTimestampFrequency( m_TimeDomain ) ));
+                ( delta * 1'000'000'000 ) / OSGetTimestampFrequency( m_TimeDomain ) ) );
         }
 
         inline uint64_t GetBeginValue() const { return m_BeginValue; }
