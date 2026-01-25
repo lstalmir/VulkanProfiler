@@ -33,6 +33,10 @@ on:
   pull_request:
     branches: [ "master" ]
     types: [ opened, synchronize, reopened, ready_for_review ]
+    paths:
+      - 'Docs/**'
+      - '.gitmodules'
+      - '.github/workflows/docs.yml'
 
 jobs:
   build-docs:
