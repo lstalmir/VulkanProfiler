@@ -663,7 +663,10 @@ namespace Profiler
             switch( m_pProfiler->m_pPerformanceCounters->GetSamplingMode() )
             {
             case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT:
-                // Data already collected.
+                // Post-process the data.
+                AggregatePerformanceQueryMetrics(
+                    frame.m_CompleteSubmits,
+                    frameData.m_PerformanceCounters );
                 break;
 
             case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT:
@@ -672,11 +675,13 @@ namespace Profiler
                     frameData.m_BeginTimestamp,
                     frameData.m_EndTimestamp,
                     frameData.m_PerformanceCounters );
+
+                // Post-process the data.
+                AggregatePerformanceStreamMetrics(
+                    frame.m_CompleteSubmits,
+                    frameData.m_PerformanceCounters );
                 break;
             }
-
-            // Post-process the data.
-            AggregatePerformanceMetrics( frame, frameData.m_PerformanceCounters );
         }
 
         frameData.m_Submits = std::move( frame.m_CompleteSubmits );
@@ -834,6 +839,7 @@ namespace Profiler
         };
 
         // Prepare the output buffers.
+        outData.m_MetricsSetIndex = performanceMetricsSetIndex;
         outData.m_StreamResults.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
@@ -873,15 +879,15 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        AggregatePerformanceMetrics
+        AggregatePerformanceQueryMetrics
 
     Description:
         Merge performance metrics collected from different command buffers.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::AggregatePerformanceMetrics(
-        const Frame& frame,
-        DeviceProfilerPerformanceCountersData& outData ) const
+    void ProfilerDataAggregator::AggregatePerformanceQueryMetrics(
+        ContainerType<DeviceProfilerSubmitBatchData>& submits,
+        DeviceProfilerPerformanceCountersData& frameData ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
@@ -905,7 +911,7 @@ namespace Profiler
         // Helper structure containing aggregated metric value and its weight.
         std::vector<WeightedCounterResult> aggregatedVendorMetrics( metricCount );
 
-        for( const auto& submitBatchData : frame.m_CompleteSubmits )
+        for( const auto& submitBatchData : submits )
         {
             for( const auto& submitData : submitBatchData.m_Submits )
             {
@@ -975,17 +981,44 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        outData.m_MetricsSetIndex = performanceMetricsSetIndex;
-        outData.m_Results.resize( metricCount );
+        frameData.m_MetricsSetIndex = performanceMetricsSetIndex;
+        frameData.m_Results.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
         {
             WeightedCounterResult weightedMetric = aggregatedVendorMetrics[i];
             Profiler::Aggregate<NormAggregator>(
-                outData.m_Results[i],
+                frameData.m_Results[i],
                 weightedMetric.m_Weight,
                 weightedMetric.m_Value,
                 performanceMetricProperties[i].storage );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        AggregatePerformanceStreamMetrics
+
+    Description:
+        Patch metrics set index in the command buffer performance data.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::AggregatePerformanceStreamMetrics(
+        ContainerType<DeviceProfilerSubmitBatchData>& submits,
+        DeviceProfilerPerformanceCountersData& frameData ) const
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        for( auto& submitBatchData : submits )
+        {
+            for( auto& submitData : submitBatchData.m_Submits )
+            {
+                for( auto& commandBufferData : submitData.m_CommandBuffers )
+                {
+                    commandBufferData.m_PerformanceCounters.m_MetricsSetIndex = frameData.m_MetricsSetIndex;
+                }
+            }
         }
     }
 

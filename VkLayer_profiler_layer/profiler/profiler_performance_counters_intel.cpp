@@ -843,7 +843,8 @@ namespace Profiler
             // Adjust timestamps to be relative to the begin timestamp.
             for( auto it = begin; it != end; ++it )
             {
-                it->m_GpuTimestamp -= beginTimestampNs;
+                it->m_GpuTimestamp = beginTimestamp +
+                    ConvertNanosecondsToGpuTimestamp( it->m_GpuTimestamp - beginTimestampNs );
             }
 
             // Copy the data to the output buffer.
@@ -1009,6 +1010,19 @@ namespace Profiler
         const double gpuTimestampNsLow = ( gpuTimestamp & scGpuTimestampMask32Bits ) * m_GpuTimestampPeriod;
 
         return ( static_cast<uint64_t>( gpuTimestampNsHigh ) << 32 ) + static_cast<uint64_t>( gpuTimestampNsLow + gpuTimestampNsHighFractionalPart );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ConvertGpuTimestampToNanoseconds
+
+    Description:
+
+    \***********************************************************************************/
+    uint64_t DeviceProfilerPerformanceCountersINTEL::ConvertNanosecondsToGpuTimestamp( uint64_t nanoseconds )
+    {
+        return static_cast<uint64_t>( nanoseconds / m_GpuTimestampQueryPeriod );
     }
 
     /***********************************************************************************\
