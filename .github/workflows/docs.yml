@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Lukasz Stalmirski
+# Copyright (c) 2025-2026 Lukasz Stalmirski
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,9 @@ on:
       - '.github/workflows/docs.yml'
     tags:
       - release-*
+  pull_request:
+    branches: [ "master" ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
 
 jobs:
   build-docs:
@@ -55,6 +58,7 @@ jobs:
 
     # Build the documentation
     - name: Add build worktree
+      if: github.event_name != 'pull_request'
       run: git worktree add -f docs_build docs-build
 
     - name: Build profiler_codegen
@@ -63,6 +67,7 @@ jobs:
           cmake --build ${{github.workspace}}/build --target profiler_codegen
 
     - name: Clean previous versions
+      if: github.event_name != 'pull_request'
       run: rm -r ${{github.workspace}}/docs_build/docs
 
     - name: Build documentation
@@ -70,6 +75,7 @@ jobs:
 
     # Push documentation to docs-build branch
     - name: Publish documentation
+      if: github.event_name != 'pull_request'
       run: |
         cd ${{github.workspace}}/docs_build
         if ! git diff-index --quiet HEAD; then
