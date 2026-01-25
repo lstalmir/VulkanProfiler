@@ -96,9 +96,6 @@ Performance counters
 
 The layer offers support for 2 performance query extensions: VK_INTEL_performance_query and VK_KHR_performance_query.
 
-If either extension is enabled in the configuration, the layer collects detailed metrics for each command buffer (the queries are inserted at the beginning and end of the command buffer).
-More fine-grained metrics (at VkRenderPass/VkPipeline/drawcall level) are currently not supported.
-
 With **VK_INTEL_performance_query** enabled, `Intel Metrics-Discovery <https://github.com/intel/metrics-discovery>`_ library is used to calculate the metrics from the query results.
 The API groups metrics into sets, allowing only metrics from a single set to be collected at a time.
 The set can be changed to any of the available ones listed in the combo box at the top of the window.
@@ -108,7 +105,17 @@ The layer also has a limitation on the selected counters that all of them must b
 Custom metrics sets created with this extension can be saved to JSON files.
 Those files can be then loaded in subsequent profiling runs to speed-up performance query setup.
 
-Regardless of the selected query backend, the layer provides the following methods of filtering performance query results.
+Additionally, Intel backend supports **stream mode**, which allows to inspect the metrics well below a single command level.
+The mode can be selected with :confval:`performance_query_mode` option.
+
+In **query mode**, available for both KHR and Intel extensions, the layer collects detailed metrics for each command buffer using VkQueryPool queries inserted at the beginning and end of each command buffer.
+The layer does not support collecting the queries below the command buffer level (i.e., at VkRenderPass/VkPipeline/drawcall level).
+
+In **stream mode**, the data is collected periodically using Vendor-specific libraries.
+Depending on the selected :confval:`performance_stream_timer_period`, the results may present changes of metrics during execution of single commands.
+In this mode, the overlay presents the data in form of plots instead of tables.
+
+Regardless of the selected query backend or mode, the layer provides the following methods of filtering performance query results.
 
 **Range** allows to select the range of displayed query results between the entire frame and single command buffers.
 

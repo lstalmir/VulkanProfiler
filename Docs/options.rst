@@ -53,6 +53,36 @@ This section describes in detail all available configuration options exposed by 
             .. NOTE::
                 The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application's knowledge. Because of that, the layer does not support multi-pass performance queries.
 
+.. confval:: performance_query_mode
+    :type: enum
+    :default: query
+
+    Controls the type of instrumentation used to collect performance counters.
+
+    Currently the option is available only for Intel performance counters backend, the KHR backend always uses **query** mode.
+
+    The following options are available:
+
+    .. glossary::
+
+        query
+            Uses Vulkan queries to instrument VkCommandBuffers. The resulting data is collected at the command buffer level, and then aggregated to the entire frame range.
+
+        stream
+            Uses Intel Metrics-Discovery API to sample the performance counters in regular intervals, allowing to analyze the GPU metrics at much finer scale. Depending on the selected sampling period, the data may present the value changes even within the execution of a single command.
+
+            This mode requires the profiler to spawn an internal thread, regardless of :confval:`enable_threading` value, to ensure that the data is collected before the metrics buffer overflows.
+
+.. confval:: performance_stream_timer_period
+    :type: int
+    :default: 25000
+
+    When :confval:`performance_query_mode` is set to **stream**, this option controls the period of the timer triggering metrics samples.
+
+    The value is expressed in nanoseconds, and is recommended to be kept in range of 5000ns to 1000000ns (1ms). Smaller values may result in buffer overflows, and consequently the data loss, and higher values may expand over multiple frames, which may result in data presentation issues.
+
+    Decreasing the period causes more samples to be generated and processed, so increase in CPU utilization is expected. If the application is CPU-bound or heavily multithreaded, this may impact its overall performance.
+
 .. confval:: default_metrics_set
     :type: string
     :default: RenderBasic
