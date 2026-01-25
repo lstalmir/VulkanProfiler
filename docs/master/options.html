@@ -50,6 +50,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#confval-output_trace_file"><code class="docutils literal notranslate"><span class="pre">output_trace_file</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_memory_profiling"><code class="docutils literal notranslate"><span class="pre">enable_memory_profiling</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_performance_query_ext"><code class="docutils literal notranslate"><span class="pre">enable_performance_query_ext</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-performance_query_mode"><code class="docutils literal notranslate"><span class="pre">performance_query_mode</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-performance_stream_timer_period"><code class="docutils literal notranslate"><span class="pre">performance_stream_timer_period</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-default_metrics_set"><code class="docutils literal notranslate"><span class="pre">default_metrics_set</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_pipeline_executable_properties_ext"><code class="docutils literal notranslate"><span class="pre">enable_pipeline_executable_properties_ext</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_render_pass_begin_end_profiling"><code class="docutils literal notranslate"><span class="pre">enable_render_pass_begin_end_profiling</span></code></a></li>
@@ -160,6 +162,41 @@
 </div>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-performance_query_mode">
+<span class="sig-name descname"><span class="pre">performance_query_mode</span></span><a class="headerlink" href="#confval-performance_query_mode" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">enum</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">query</dd>
+</dl>
+<p>Controls the type of instrumentation used to collect performance counters.</p>
+<p>Currently the option is available only for Intel performance counters backend, the KHR backend always uses <strong>query</strong> mode.</p>
+<p>The following options are available:</p>
+<dl class="glossary">
+<dt id="term-query">query<a class="headerlink" href="#term-query" title="Link to this term"></a></dt><dd><p>Uses Vulkan queries to instrument VkCommandBuffers. The resulting data is collected at the command buffer level, and then aggregated to the entire frame range.</p>
+</dd>
+<dt id="term-stream">stream<a class="headerlink" href="#term-stream" title="Link to this term"></a></dt><dd><p>Uses Intel Metrics-Discovery API to sample the performance counters in regular intervals, allowing to analyze the GPU metrics at much finer scale. Depending on the selected sampling period, the data may present the value changes even within the execution of a single command.</p>
+<p>This mode requires the profiler to spawn an internal thread, regardless of <a class="reference internal" href="#confval-enable_threading"><code class="xref std std-confval docutils literal notranslate"><span class="pre">enable_threading</span></code></a> value, to ensure that the data is collected before the metrics buffer overflows.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-performance_stream_timer_period">
+<span class="sig-name descname"><span class="pre">performance_stream_timer_period</span></span><a class="headerlink" href="#confval-performance_stream_timer_period" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">int</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">25000</dd>
+</dl>
+<p>When <a class="reference internal" href="#confval-performance_query_mode"><code class="xref std std-confval docutils literal notranslate"><span class="pre">performance_query_mode</span></code></a> is set to <strong>stream</strong>, this option controls the period of the timer triggering metrics samples.</p>
+<p>The value is expressed in nanoseconds, and is recommended to be kept in range of 5000ns to 1000000ns (1ms). Smaller values may result in buffer overflows, and consequently the data loss, and higher values may expand over multiple frames, which may result in data presentation issues.</p>
+<p>Decreasing the period causes more samples to be generated and processed, so increase in CPU utilization is expected. If the application is CPU-bound or heavily multithreaded, this may impact its overall performance.</p>
 </dd></dl>
 
 <dl class="std confval">
