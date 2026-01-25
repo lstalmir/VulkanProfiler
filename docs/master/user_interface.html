@@ -181,6 +181,13 @@ The layer does not support collecting the queries below the command buffer level
 <p>In <strong>stream mode</strong>, the data is collected periodically using Vendor-specific libraries.
 Depending on the selected <a class="reference internal" href="options.html#confval-performance_stream_timer_period"><code class="xref std std-confval docutils literal notranslate"><span class="pre">performance_stream_timer_period</span></code></a>, the results may present changes of metrics during execution of single commands.
 In this mode, the overlay presents the data in form of plots instead of tables.</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="_images/performance-counters.jpg"><img alt="_images/performance-counters.jpg" src="_images/performance-counters.jpg" style="width: 90%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Performance counters data collected in <strong>stream mode</strong> (left) and <strong>query mode</strong> (right).</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
 <p>Regardless of the selected query backend or mode, the layer provides the following methods of filtering performance query results.</p>
 <p><strong>Range</strong> allows to select the range of displayed query results between the entire frame and single command buffers.</p>
 <p><strong>Filter</strong> limits the number of displayed counters and metrics sets only to those passing the expression.

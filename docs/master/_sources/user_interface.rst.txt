@@ -115,6 +115,12 @@ In **stream mode**, the data is collected periodically using Vendor-specific lib
 Depending on the selected :confval:`performance_stream_timer_period`, the results may present changes of metrics during execution of single commands.
 In this mode, the overlay presents the data in form of plots instead of tables.
 
+.. figure:: /static/img/performance-counters.jpg
+    :width: 90%
+    :align: center
+
+    Performance counters data collected in **stream mode** (left) and **query mode** (right).
+
 Regardless of the selected query backend or mode, the layer provides the following methods of filtering performance query results.
 
 **Range** allows to select the range of displayed query results between the entire frame and single command buffers.
