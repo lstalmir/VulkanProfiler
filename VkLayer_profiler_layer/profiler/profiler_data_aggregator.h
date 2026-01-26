@@ -138,7 +138,8 @@ namespace Profiler
 
         void LoadPerformanceMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterProperties2EXT>& ) const;
         void CollectPerformanceMetricsStreamData( uint64_t, uint64_t, DeviceProfilerPerformanceCountersData& ) const;
-        void AggregatePerformanceMetrics( const Frame&, DeviceProfilerPerformanceCountersData& ) const;
+        void AggregatePerformanceQueryMetrics( ContainerType<DeviceProfilerSubmitBatchData>&, DeviceProfilerPerformanceCountersData& ) const;
+        void AggregatePerformanceStreamMetrics( ContainerType<DeviceProfilerSubmitBatchData>&, DeviceProfilerPerformanceCountersData& ) const;
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines( const Frame& ) const;
         void CollectPipelinesFromCommandBuffer( const DeviceProfilerCommandBufferData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;

@@ -2156,7 +2156,10 @@ namespace Profiler
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
         // Data source
-        const std::vector<VkProfilerPerformanceCounterResultEXT>* pVendorMetrics = &m_pData->m_PerformanceCounters.m_Results;
+        PerformanceQueryRangeData rangeData = {};
+        rangeData.m_pPerformanceCountersData = &m_pData->m_PerformanceCounters;
+        rangeData.m_BeginTimestamp = m_pData->m_BeginTimestamp;
+        rangeData.m_EndTimestamp = m_pData->m_EndTimestamp;
 
         // Find the first command buffer that matches the filter.
         // TODO: Aggregation.
@@ -2174,7 +2177,9 @@ namespace Profiler
                         (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
                     {
                         // Use the data from this command buffer.
-                        pVendorMetrics = &commandBuffer.m_PerformanceCounters.m_Results;
+                        rangeData.m_pPerformanceCountersData = &commandBuffer.m_PerformanceCounters;
+                        rangeData.m_BeginTimestamp = commandBuffer.m_BeginTimestamp.m_Value;
+                        rangeData.m_EndTimestamp = commandBuffer.m_EndTimestamp.m_Value;
                         performanceQueryResultsFiltered = true;
                     }
 
@@ -2182,6 +2187,9 @@ namespace Profiler
                 }
             }
         }
+
+        const std::vector<VkProfilerPerformanceCounterResultEXT>& queryResults =
+            rangeData.m_pPerformanceCountersData->m_Results;
 
         // Tool button constants.
         const float buttonSpacing = 2.f * interfaceScale;
@@ -2195,11 +2203,11 @@ namespace Profiler
         };
 
         // Toolbar with save and load options.
-        ImGui::BeginDisabled( m_pPerformanceQueryExporter != nullptr || !m_pActivePerformanceQueryMetricsSet || pVendorMetrics->empty() );
+        ImGui::BeginDisabled( m_pPerformanceQueryExporter != nullptr || !m_pActivePerformanceQueryMetricsSet || queryResults.empty() );
         if( ImGui::Button( Lang::Save ) )
         {
             m_pPerformanceQueryExporter = std::make_unique<PerformanceQueryExporter>();
-            m_pPerformanceQueryExporter->m_Data = *pVendorMetrics;
+            m_pPerformanceQueryExporter->m_Data = queryResults;
             m_pPerformanceQueryExporter->m_DataMask = m_ActivePerformanceQueryMetricsFilterResults;
             m_pPerformanceQueryExporter->m_pMetricsSet = m_pActivePerformanceQueryMetricsSet;
             m_pPerformanceQueryExporter->m_Action = PerformanceQueryExporter::Action::eExport;
@@ -2216,18 +2224,18 @@ namespace Profiler
         ImGui::EndDisabled();
 
         ImGui::SameLine();
-        ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet || pVendorMetrics->empty() );
+        ImGui::BeginDisabled( !m_pActivePerformanceQueryMetricsSet || queryResults.empty() );
         if( ImGui::Button( Lang::SetRef ) )
         {
             m_ReferencePerformanceQueryData.clear();
 
-            if( pVendorMetrics->size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() )
+            if( queryResults.size() == m_pActivePerformanceQueryMetricsSet->m_Metrics.size() )
             {
-                for( size_t i = 0; i < pVendorMetrics->size(); ++i )
+                for( size_t i = 0; i < queryResults.size(); ++i )
                 {
                     m_ReferencePerformanceQueryData.try_emplace(
                         m_pActivePerformanceQueryMetricsSet->m_Metrics[i].shortName,
-                        ( *pVendorMetrics )[i] );
+                        queryResults[i] );
                 }
             }
         }
@@ -2558,10 +2566,10 @@ namespace Profiler
             switch( m_Frontend.GetPerformanceCountersSamplingMode() )
             {
             case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT:
-                DrawPerformanceCountersQueryData( *pVendorMetrics );
+                DrawPerformanceCountersQueryData( rangeData );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT:
-                DrawPerformanceCountersStreamData();
+                DrawPerformanceCountersStreamData( rangeData );
                 break;
             default:
                 break;
@@ -2583,7 +2591,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::DrawPerformanceCountersQueryData(
-        const std::vector<VkProfilerPerformanceCounterResultEXT>& results )
+        const PerformanceQueryRangeData& rangeData )
     {
         const bool supportsCustomMetricsSets = m_Frontend.SupportsCustomPerformanceMetricsSets();
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
@@ -2645,6 +2653,7 @@ namespace Profiler
             ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize );
             ImGuiX::TableHeadersRow( m_Resources.GetBoldFont() );
 
+            const auto& results = rangeData.m_pPerformanceCountersData->m_Results;
             const size_t resultCount = results.size();
 
             if( m_pActivePerformanceQueryMetricsSet &&
@@ -2887,7 +2896,8 @@ namespace Profiler
         Draws the performance counters stream data in form of plots.
 
     \***********************************************************************************/
-    void ProfilerOverlayOutput::DrawPerformanceCountersStreamData()
+    void ProfilerOverlayOutput::DrawPerformanceCountersStreamData(
+        const PerformanceQueryRangeData& rangeData )
     {
         struct PlotData
         {
@@ -2955,13 +2965,12 @@ namespace Profiler
         // between the active metrics set and the recorded data.
         if( ( m_pActivePerformanceQueryMetricsSet == nullptr ) ||
             ( m_pActivePerformanceQueryMetricsSet->m_Metrics.empty() ) ||
-            ( m_pData->m_PerformanceCounters.m_StreamTimestamps.empty() ) ||
-            ( m_pData->m_PerformanceCounters.m_MetricsSetIndex != m_pActivePerformanceQueryMetricsSet->m_MetricsSetIndex ) )
+            ( rangeData.m_pPerformanceCountersData->m_MetricsSetIndex != m_pActivePerformanceQueryMetricsSet->m_MetricsSetIndex ) ||
+            ( rangeData.m_BeginTimestamp == rangeData.m_EndTimestamp ) )
         {
             return;
         }
 
-        const double plotDataDuration = m_pData->m_PerformanceCounters.m_StreamTimestamps.back();
         const size_t samplesCount = m_pData->m_PerformanceCounters.m_StreamTimestamps.size();
         const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
 
@@ -3030,7 +3039,7 @@ namespace Profiler
 
                 ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoTickLabels );
                 ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_TickLabelsInside | ImPlotAxisFlags_NoGridLines );
-                ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, plotDataDuration, ImPlotCond_Always );
+                ImPlot::SetupAxisLimits( ImAxis_X1, rangeData.m_BeginTimestamp, rangeData.m_EndTimestamp, ImPlotCond_Always );
                 ImPlot::SetupAxisLimits( ImAxis_Y1, minValue, maxValue, ImPlotCond_Always );
                 ImPlot::SetupMouseText( ImPlotLocation_NorthEast );
                 ImPlot::SetupFinish();
@@ -3059,11 +3068,10 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        CompilePerformanceQueryMetricsFilterRegex
+        SelectPerformanceQueryMetricsSet
 
     Description:
-        Pre-compile user defined filtering expression to apply it to all performance
-        query metrics sets and metrics.
+        Select the active performance query metrics set.
 
     \***********************************************************************************/
     void ProfilerOverlayOutput::SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& pMetricsSet )
@@ -8089,7 +8097,10 @@ namespace Profiler
 
         if( ImGui::BeginPopupContextItem() )
         {
-            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, !cmdBuffer.m_PerformanceCounters.m_Results.empty() ) )
+            const bool commandBufferHasPerformanceCounters =
+                ( cmdBuffer.m_PerformanceCounters.m_MetricsSetIndex != UINT32_MAX );
+
+            if( ImGui::MenuItem( Lang::ShowPerformanceMetrics, nullptr, nullptr, commandBufferHasPerformanceCounters ) )
             {
                 m_PerformanceQueryCommandBufferFilter = cmdBuffer.m_Handle;
                 m_PerformanceQueryCommandBufferFilterName = std::move( commandBufferName );

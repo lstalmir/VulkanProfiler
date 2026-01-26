@@ -180,6 +180,7 @@ namespace Profiler
             ReportInformations* pReportInformations );
 
         uint64_t ConvertGpuTimestampToNanoseconds( uint64_t gpuTimestamp );
+        uint64_t ConvertNanosecondsToGpuTimestamp( uint64_t nanoseconds );
 
         void ResetMembers();
 

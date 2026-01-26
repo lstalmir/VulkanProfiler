@@ -227,7 +227,7 @@ namespace Profiler
                 }
 
                 m_Events.push_back( TraceCounterEvent(
-                    frameGpuBeginTimestamp + Nanoseconds( data.m_PerformanceCounters.m_StreamTimestamps[i] ),
+                    GetNormalizedGpuTimestamp( data.m_PerformanceCounters.m_StreamTimestamps[i] ),
                     m_CommandQueue,
                     performanceCountersCount,
                     performanceCounterProperties.data(),

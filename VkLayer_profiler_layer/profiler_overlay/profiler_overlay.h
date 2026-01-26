@@ -298,6 +298,13 @@ namespace Profiler
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
+        struct PerformanceQueryRangeData
+        {
+            const DeviceProfilerPerformanceCountersData* m_pPerformanceCountersData;
+            uint64_t m_BeginTimestamp;
+            uint64_t m_EndTimestamp;
+        };
+
         VkCommandBufferHandle m_PerformanceQueryCommandBufferFilter;
         std::string m_PerformanceQueryCommandBufferFilterName;
 
@@ -419,8 +426,8 @@ namespace Profiler
         void UpdatePerformanceQueryMetricsSetExporter();
         void SavePerformanceQueryMetricsSetToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>& );
 
-        void DrawPerformanceCountersQueryData( const std::vector<VkProfilerPerformanceCounterResultEXT>& );
-        void DrawPerformanceCountersStreamData();
+        void DrawPerformanceCountersQueryData( const PerformanceQueryRangeData& );
+        void DrawPerformanceCountersStreamData( const PerformanceQueryRangeData& );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();
