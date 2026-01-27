@@ -23,9 +23,14 @@ import os
 import pathlib
 import argparse
 import subprocess
+import locale
 
 # List of file names (without extension) to scan for licenses.
 LICENSE_FILES = [ "COPYING", "LICENSE" ]
+
+# Get the default encoding to use for reading license files.
+DEFAULT_ENCODING = locale.getpreferredencoding()
+SUPPORTED_ENCODINGS = [ DEFAULT_ENCODING, "utf-8" ]
 
 class library_info:
     def __init__( self, name: str, license_path: str ):
@@ -65,15 +70,23 @@ def find_licenses( directory, skip_libs ):
             raise Exception( f"ERROR: License not found for {lib}" )
     return licenses.values()
 
+def read_license_file( license_path ):
+    for encoding in SUPPORTED_ENCODINGS:
+        try:
+            with open( license_path, encoding=encoding ) as license_file:
+                return license_file.readlines()
+        except UnicodeDecodeError:
+            pass
+    raise Exception( f"Failed to read '{license_path}' using any of the known encodings" )
+
 def append_license_file( out, info: library_info ):
     out.write( f"| **{info.name}**\n" )
     if info.git_url:
         out.write( f"| {info.git_url}\n" )
     out.write( "\n" )
     out.write( ".. code-block:: text\n\n" )
-    with open( info.license_path ) as license_file:
-        for line in license_file:
-            out.write( "  " + line.strip() + "\n" )
+    for line in read_license_file( info.license_path ):
+        out.write( "  " + line.strip() + "\n" )
     out.write( "\n\n" )
 
 if __name__ == "__main__":
