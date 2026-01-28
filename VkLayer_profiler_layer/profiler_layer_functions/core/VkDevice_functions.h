@@ -31,6 +31,8 @@
 #include "VkDrawIndirectCountAmd_functions.h"
 #include "VkDrawIndirectCountKhr_functions.h"
 #include "VkDynamicRenderingKhr_functions.h"
+#include "VkFragmentDensityMapOffsetExt_functions.h"
+#include "VkMaintenanceKhr_functions.h"
 #include "VkMeshShaderExt_functions.h"
 #include "VkMeshShaderNv_functions.h"
 #include "VkOpacityMicromapExt_functions.h"
@@ -65,6 +67,8 @@ namespace Profiler
         , VkDrawIndirectCountAmd_Functions
         , VkDrawIndirectCountKhr_Functions
         , VkDynamicRenderingKhr_Functions
+        , VkFragmentDensityMapOffsetExt_Functions
+        , VkMaintenanceKhr_Functions
         , VkMeshShaderExt_Functions
         , VkMeshShaderNv_Functions
         , VkOpacityMicromapExt_Functions

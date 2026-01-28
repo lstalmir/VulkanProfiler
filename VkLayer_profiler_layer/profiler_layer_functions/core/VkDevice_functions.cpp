@@ -139,6 +139,12 @@ namespace Profiler
         GETPROCADDR( CmdBeginRenderingKHR );
         GETPROCADDR( CmdEndRenderingKHR );
 
+        // VK_EXT_fragment_density_map_offset functions
+        GETPROCADDR( CmdEndRendering2EXT );
+
+        // VK_KHR_maintenance* functions
+        GETPROCADDR( CmdEndRendering2KHR );
+
         // VK_EXT_debug_marker functions
         GETPROCADDR( DebugMarkerSetObjectNameEXT );
         GETPROCADDR( DebugMarkerSetObjectTagEXT );
