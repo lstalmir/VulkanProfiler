@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -65,6 +65,22 @@ namespace Profiler
         for( uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; ++i )
         {
             dd.Device.EnabledExtensions.insert( pCreateInfo->ppEnabledExtensionNames[ i ] );
+        }
+
+        // Save enabled features
+        for( const auto& it : PNextIterator( pCreateInfo->pNext ) )
+        {
+            switch( it.sType )
+            {
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NESTED_COMMAND_BUFFER_FEATURES_EXT:
+            {
+                const VkPhysicalDeviceNestedCommandBufferFeaturesEXT& nestedCommandBufferFeatures =
+                    reinterpret_cast<const VkPhysicalDeviceNestedCommandBufferFeaturesEXT&>( it );
+
+                dd.Device.EnabledFeatures.NestedCommandBuffer = nestedCommandBufferFeatures.nestedCommandBuffer;
+                break;
+            }
+            }
         }
 
         // Create wrapper for each device queue

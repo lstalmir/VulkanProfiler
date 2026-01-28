@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,12 @@ namespace Profiler
 
         // Time in profiler
         TipCounter TIP;
+
+        // Feature flags
+        struct
+        {
+            bool NestedCommandBuffer : 1;
+        } EnabledFeatures;
 
         // Dispatch tables
         VkLayerDeviceDispatchTable Callbacks;
