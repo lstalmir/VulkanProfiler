@@ -237,6 +237,22 @@ namespace Profiler
 
             // Perform deferred indirect argument buffer copies.
             FlushIndirectArgumentCopyLists();
+
+            // Flush all memory writes to make timestamp queries available for reading
+            // in the next command buffer that copies the data to the readback buffer.
+            VkMemoryBarrier memoryBarrier = {};
+            memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            memoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+            memoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+            m_Profiler.m_pDevice->Callbacks.CmdPipelineBarrier(
+                m_CommandBuffer,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                0,
+                1, &memoryBarrier,
+                0, nullptr,
+                0, nullptr );
         }
     }
 
