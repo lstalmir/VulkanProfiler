@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -525,9 +525,24 @@ namespace Profiler
         Marks beginning of next render pass (VK_KHR_dynamic_rendering).
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PostBeginRendering( const VkRenderingInfo* )
+    void ProfilerCommandBuffer::PostBeginRendering( const VkRenderingInfo* pRenderingInfo )
     {
-        PostBeginRenderPass( nullptr, VK_SUBPASS_CONTENTS_INLINE );
+        VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE;
+
+        if( pRenderingInfo->flags & VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT )
+        {
+            // By default, only secondary command buffers are allowed.
+            contents = VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
+
+            // If inline flag is present or nestedCommandBuffer feature is enabled, inline commands are also allowed.
+            if( ( pRenderingInfo->flags & VK_RENDERING_CONTENTS_INLINE_BIT_KHR ) ||
+                ( m_Profiler.m_pDevice->EnabledFeatures.NestedCommandBuffer ) )
+            {
+                contents = VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_KHR;
+            }
+        }
+
+        PostBeginRenderPass( nullptr, contents );
     }
 
     /***********************************************************************************\
