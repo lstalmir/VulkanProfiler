@@ -366,6 +366,17 @@ namespace Profiler
             submitBatch.m_pSubmittedCommandBuffers.insert(
                 _submit.m_pCommandBuffers.begin(),
                 _submit.m_pCommandBuffers.end() );
+
+            // Track secondary command buffers as well.
+            for( const ProfilerCommandBuffer* pCommandBuffer : _submit.m_pCommandBuffers )
+            {
+                const std::unordered_set<ProfilerCommandBuffer*>& pSecondaryCommandBuffers =
+                    pCommandBuffer->GetSecondaryCommandBuffers();
+
+                submitBatch.m_pSubmittedCommandBuffers.insert(
+                    pSecondaryCommandBuffers.begin(),
+                    pSecondaryCommandBuffers.end() );
+            }
         }
 
         // Allocate a buffer for the query data.
