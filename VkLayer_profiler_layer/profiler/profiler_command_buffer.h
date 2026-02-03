@@ -88,6 +88,8 @@ namespace Profiler
         uint64_t GetRequiredQueryDataBufferSize() const;
         void WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
 
+        const std::unordered_set<ProfilerCommandBuffer*>& GetSecondaryCommandBuffers() const;
+
         const DeviceProfilerCommandBufferData& GetData( DeviceProfilerQueryDataBufferReader& );
 
     protected:
@@ -99,7 +101,7 @@ namespace Profiler
 
         bool                                m_ProfilingEnabled;
 
-        std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
+        std::unordered_set<ProfilerCommandBuffer*> m_pSecondaryCommandBuffers;
 
         CommandBufferQueryPool*             m_pQueryPool;
 

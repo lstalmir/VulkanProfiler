@@ -45,7 +45,7 @@ namespace Profiler
         , m_CommandBuffer( commandBuffer )
         , m_Level( level )
         , m_ProfilingEnabled( true )
-        , m_SecondaryCommandBuffers()
+        , m_pSecondaryCommandBuffers()
         , m_pQueryPool( nullptr )
         , m_Stats()
         , m_Data()
@@ -141,10 +141,9 @@ namespace Profiler
         }
 
         // Secondary command buffers will be executed as well
-        for( VkCommandBuffer commandBuffer : m_SecondaryCommandBuffers )
+        for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
         {
-            // Use direct access - m_CommandBuffers map is already locked
-            m_Profiler.m_pCommandBuffers.unsafe_at( commandBuffer )->Submit();
+            pSecondaryCommandBuffer->Submit();
         }
     }
 
@@ -277,7 +276,7 @@ namespace Profiler
             // Reset data
             m_Stats = {};
             m_Data.m_RenderPasses.clear();
-            m_SecondaryCommandBuffers.clear();
+            m_pSecondaryCommandBuffers.clear();
 
             m_CurrentSubpassIndex = DeviceProfilerSubpassData::ImplicitSubpassIndex;
             m_pCurrentRenderPass = nullptr;
@@ -967,7 +966,19 @@ namespace Profiler
                     } );
 
                 // Add command buffer reference
-                m_SecondaryCommandBuffers.insert( pCommandBuffers[ i ] );
+                ProfilerCommandBuffer* pSecondaryCommandBuffer = &m_Profiler.GetCommandBuffer( pCommandBuffers[i] );
+                m_pSecondaryCommandBuffers.insert( pSecondaryCommandBuffer );
+
+                // Keep track of nested secondary command buffers
+                if( m_Profiler.m_pDevice->EnabledFeatures.NestedCommandBuffer )
+                {
+                    const std::unordered_set<ProfilerCommandBuffer*>& pNestedCommandBuffers =
+                        pSecondaryCommandBuffer->GetSecondaryCommandBuffers();
+
+                    m_pSecondaryCommandBuffers.insert(
+                        pNestedCommandBuffers.begin(),
+                        pNestedCommandBuffers.end() );
+                }
             }
         }
     }
@@ -1067,11 +1078,26 @@ namespace Profiler
             writer.SetContext( this );
             m_pQueryPool->WriteQueryData( writer );
 
-            for( VkCommandBuffer secondaryCommandBuffer : m_SecondaryCommandBuffers )
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
             {
-                m_Profiler.GetCommandBuffer( secondaryCommandBuffer ).WriteQueryData( writer );
+                pSecondaryCommandBuffer->WriteQueryData( writer );
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetData
+
+    Description:
+        Reads all queried timestamps.
+        Returns structure containing ordered list of timestamps and statistics.
+
+    \***********************************************************************************/
+    const std::unordered_set<ProfilerCommandBuffer*>& ProfilerCommandBuffer::GetSecondaryCommandBuffers() const
+    {
+        return m_pSecondaryCommandBuffers;
     }
 
     /***********************************************************************************\
