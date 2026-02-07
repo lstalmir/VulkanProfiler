@@ -499,7 +499,7 @@ namespace Profiler
             Prof->FinishFrame();
 
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
-            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
+            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( VkBufferHandle( buffer ) ) );
 
             ASSERT_EQ( 1, bufferData.GetMemoryBindingCount() );
 
@@ -552,7 +552,7 @@ namespace Profiler
             Prof->FinishFrame();
 
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
-            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
+            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( VkBufferHandle( buffer ) ) );
 
             EXPECT_EQ( 0, bufferData.GetMemoryBindingCount() );
         }
@@ -602,7 +602,7 @@ namespace Profiler
             Prof->FinishFrame();
 
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
-            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
+            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( VkBufferHandle( buffer ) ) );
 
             ASSERT_EQ( 1, bufferData.GetMemoryBindingCount() );
 
@@ -658,7 +658,7 @@ namespace Profiler
             Prof->FinishFrame();
 
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
-            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
+            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( VkBufferHandle( buffer ) ) );
 
             ASSERT_EQ( 1, bufferData.GetMemoryBindingCount() );
 
@@ -716,7 +716,7 @@ namespace Profiler
             Prof->FinishFrame();
 
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
-            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
+            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( VkBufferHandle( buffer ) ) );
 
             ASSERT_EQ( 2, bufferData.GetMemoryBindingCount() );
 
@@ -793,7 +793,7 @@ namespace Profiler
             Prof->FinishFrame();
 
             std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
-            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( buffer ) );
+            const DeviceProfilerBufferMemoryData& bufferData = pData->m_Memory.m_Buffers.at( Prof->GetObjectHandle( VkBufferHandle( buffer ) ) );
 
             ASSERT_EQ( count - 2, bufferData.GetMemoryBindingCount() );
 

@@ -203,12 +203,12 @@ namespace Profiler
         objectNameInfo.object = (uint64_t)buffer;
         objectNameInfo.pObjectName = "TestBuffer";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( buffer ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkBufferHandle( buffer ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestBuffer 2";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( buffer ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkBufferHandle( buffer ) ) );
 
         vkDestroyBuffer( Vk->Device, buffer, nullptr );
     }
@@ -229,12 +229,12 @@ namespace Profiler
         objectNameInfo.object = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestPipeline 2";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
     }
 
     TEST_F( ProfilerDebugMarkerExtensionULT, SetRayTracingPipelineName )
@@ -256,12 +256,12 @@ namespace Profiler
         objectNameInfo.object = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestPipeline 2";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
     }
 
     TEST_F( ProfilerDebugMarkerExtensionULT, SetRayTracingDeferredPipelineName )
@@ -283,18 +283,18 @@ namespace Profiler
         objectNameInfo.object = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Join deferred operation
         simpleTriangle.JoinDeferredOperation( deferredOperation );
 
         // Name should not change
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestPipeline 2";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
     }
 
     TEST_F( ProfilerDebugUtilsExtensionULT, GetRequiredFunctions )
@@ -332,12 +332,12 @@ namespace Profiler
         objectNameInfo.objectHandle = (uint64_t)buffer;
         objectNameInfo.pObjectName = "TestBuffer";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( buffer ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkBufferHandle( buffer ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestBuffer 2";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( buffer ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkBufferHandle( buffer ) ) );
     }
 
     TEST_F( ProfilerDebugUtilsExtensionULT, SetPipelineName )
@@ -356,12 +356,12 @@ namespace Profiler
         objectNameInfo.objectHandle = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestPipeline 2";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
     }
 
     TEST_F( ProfilerDebugUtilsExtensionULT, SetRayTracingPipelineName )
@@ -383,12 +383,12 @@ namespace Profiler
         objectNameInfo.objectHandle = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestPipeline 2";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
     }
 
     TEST_F( ProfilerDebugUtilsExtensionULT, SetRayTracingDeferredPipelineName )
@@ -410,18 +410,18 @@ namespace Profiler
         objectNameInfo.objectHandle = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Join deferred operation
         simpleTriangle.JoinDeferredOperation( deferredOperation );
 
         // Name should not change
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again
         objectNameInfo.pObjectName = "TestPipeline 2";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( simpleTriangle.Pipeline ) );
+        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
     }
 
     TEST_F( ProfilerExtensionsULT, vkGetProfilerFrameDataEXT )
