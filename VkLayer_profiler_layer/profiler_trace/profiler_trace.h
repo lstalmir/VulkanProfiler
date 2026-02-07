@@ -146,6 +146,7 @@ namespace Profiler
 
         void SetOutputFileName( const std::string& fileName );
         void SetMaxFrameCount( uint32_t maxFrameCount );
+        void SetSkipFrameCount( uint32_t skipFrameCount );
 
     private:
         DeviceProfilerStringSerializer* m_pStringSerializer;
@@ -154,8 +155,9 @@ namespace Profiler
 
         std::string m_OutputFileName;
 
-        uint32_t m_MaxFrameCount;
-        std::atomic_uint32_t m_SerializedFrameCount;
+        uint64_t m_MaxFrameCount;
+        uint32_t m_SkipFrameCount;
+        std::atomic_uint32_t m_ProcessedFrameCount;
         std::atomic_bool m_Flushed;
 
         void ResetMembers();

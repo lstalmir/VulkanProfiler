@@ -847,6 +847,7 @@ namespace Profiler
         const DeviceProfilerConfig& config = m_Frontend.GetProfilerConfig();
         SetOutputFileName( config.m_OutputTraceFile );
         SetMaxFrameCount( config.m_FrameCount );
+        SetSkipFrameCount( config.m_FrameSkipCount );
 
         return true;
     }
@@ -898,25 +899,31 @@ namespace Profiler
     \*************************************************************************/
     void ProfilerTraceOutput::Update()
     {
+        const uint64_t totalFrameCount = m_SkipFrameCount + m_MaxFrameCount;
+
         auto pData = m_Frontend.GetData();
         while( pData )
         {
             // Rough check to avoid locking mutex if not needed.
-            if( m_SerializedFrameCount <= m_MaxFrameCount )
+            if( m_ProcessedFrameCount <= totalFrameCount )
             {
                 std::scoped_lock lock( m_TraceSerializerMutex );
 
-                if( m_SerializedFrameCount <= m_MaxFrameCount )
+                if( m_ProcessedFrameCount < m_SkipFrameCount )
+                {
+                    m_ProcessedFrameCount++;
+                }
+                else if( m_ProcessedFrameCount <= totalFrameCount )
                 {
                     m_pTraceSerializer->Serialize( *pData );
-                    m_SerializedFrameCount++;
+                    m_ProcessedFrameCount++;
                 }
             }
 
             pData = m_Frontend.GetData();
         }
 
-        if( !m_Flushed && m_SerializedFrameCount > m_MaxFrameCount )
+        if( !m_Flushed && m_ProcessedFrameCount > totalFrameCount )
         {
             Flush();
         }
@@ -960,10 +967,24 @@ namespace Profiler
     \*************************************************************************/
     void ProfilerTraceOutput::SetMaxFrameCount( uint32_t maxFrameCount )
     {
-        m_MaxFrameCount = ( maxFrameCount ? maxFrameCount : UINT32_MAX );
+        m_MaxFrameCount = ( maxFrameCount ? maxFrameCount : UINT64_MAX );
 
         // Update data buffers.
         m_Frontend.SetDataBufferSize( m_MaxFrameCount );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        SetSkipFrameCount
+
+    Description:
+        Sets number of initial frames to skip before serialization.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::SetSkipFrameCount( uint32_t skipFrameCount )
+    {
+        m_SkipFrameCount = skipFrameCount;
     }
 
     /*************************************************************************\
@@ -982,8 +1003,9 @@ namespace Profiler
 
         m_OutputFileName.clear();
 
-        m_MaxFrameCount = UINT32_MAX;
-        m_SerializedFrameCount = 0;
+        m_MaxFrameCount = UINT64_MAX;
+        m_SkipFrameCount = 0;
+        m_ProcessedFrameCount = 0;
         m_Flushed = false;
     }
 
