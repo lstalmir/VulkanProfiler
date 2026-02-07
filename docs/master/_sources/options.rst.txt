@@ -179,6 +179,12 @@ This section describes in detail all available configuration options exposed by 
 
     When this option is set to 0, the layer will profile all frames until the profiling session is stopped manually.
 
+.. confval:: frame_skip_count
+    :type: int
+    :default: 0
+
+    The number of frames to skip before presenting the first frame. The option is currently supported only in **trace** output. Once the requested number of frames is reached, the profiler will write the next :confval:`frame_count` frames to the file.
+
 .. confval:: ref_pipelines
     :type: path
     :default: empty

@@ -61,6 +61,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#confval-sampling_mode"><code class="docutils literal notranslate"><span class="pre">sampling_mode</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-frame_delimiter"><code class="docutils literal notranslate"><span class="pre">frame_delimiter</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-frame_count"><code class="docutils literal notranslate"><span class="pre">frame_count</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-frame_skip_count"><code class="docutils literal notranslate"><span class="pre">frame_skip_count</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-ref_pipelines"><code class="docutils literal notranslate"><span class="pre">ref_pipelines</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-ref_metrics"><code class="docutils literal notranslate"><span class="pre">ref_metrics</span></code></a></li>
 </ul>
@@ -328,6 +329,18 @@
 </dl>
 <p>The number of frames to profile. When <a class="reference internal" href="#confval-output"><code class="xref std std-confval docutils literal notranslate"><span class="pre">output</span></code></a> is set to <strong>overlay</strong>, this option controls how many frames of profiling data are displayed in the overlay. When <a class="reference internal" href="#confval-output"><code class="xref std std-confval docutils literal notranslate"><span class="pre">output</span></code></a> is set to <strong>trace</strong>, this option controls how many frames of profiling data are written to the trace file.</p>
 <p>When this option is set to 0, the layer will profile all frames until the profiling session is stopped manually.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-frame_skip_count">
+<span class="sig-name descname"><span class="pre">frame_skip_count</span></span><a class="headerlink" href="#confval-frame_skip_count" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">int</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">0</dd>
+</dl>
+<p>The number of frames to skip before presenting the first frame. The option is currently supported only in <strong>trace</strong> output. Once the requested number of frames is reached, the profiler will write the next <a class="reference internal" href="#confval-frame_count"><code class="xref std std-confval docutils literal notranslate"><span class="pre">frame_count</span></code></a> frames to the file.</p>
 </dd></dl>
 
 <dl class="std confval">
