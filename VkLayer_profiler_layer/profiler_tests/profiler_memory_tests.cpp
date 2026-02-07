@@ -237,23 +237,30 @@ namespace Profiler
                 EXPECT_EQ( 0, data.m_Memory.m_Types[ i ].m_AllocationCount ) << "Unexpected allocations of type " << i;
             }
         }
+
+        vkFreeMemory( Vk->Device, deviceMemory, nullptr );
     }
 
     TEST_F( DeviceProfilerMemoryULT, TryAllocateOutOfDeviceMemory )
     {
-        static constexpr size_t TEST_ALLOCATION_SIZE = -1;
-
-        VkDeviceMemory deviceMemory = {};
+        VkDeviceMemory deviceMemory[2] = {};
 
         uint32_t deviceLocalMemoryTypeIndex = FindMemoryType( VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
         uint32_t deviceLocalMemoryHeapIndex = GetMemoryTypeHeapIndex( deviceLocalMemoryTypeIndex );
+
+        // First allocate [deviceLocalMemoryHeapSize / 2] memory to fill up the heap.
+        // Then, allocation of [deviceLocalMemoryHeapSize] should fail with VK_ERROR_OUT_OF_DEVICE_MEMORY.
+        const VkDeviceSize deviceLocalMemoryHeapSize = MemoryProperties.memoryHeaps[deviceLocalMemoryHeapIndex].size;
+        const VkDeviceSize expectedAllocationSize = deviceLocalMemoryHeapSize / 2;
 
         { // Allocate memory
             VkMemoryAllocateInfo allocateInfo = {};
             allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             allocateInfo.memoryTypeIndex = deviceLocalMemoryTypeIndex;
-            allocateInfo.allocationSize = TEST_ALLOCATION_SIZE;
-            ASSERT_EQ( VK_ERROR_OUT_OF_DEVICE_MEMORY, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory ) );
+            allocateInfo.allocationSize = expectedAllocationSize;
+            ASSERT_EQ( VK_SUCCESS, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[0] ) );
+            allocateInfo.allocationSize = deviceLocalMemoryHeapSize;
+            EXPECT_EQ( VK_ERROR_OUT_OF_DEVICE_MEMORY, vkAllocateMemory( Vk->Device, &allocateInfo, nullptr, &deviceMemory[1] ) );
         }
 
         { // Collect and post-process data
@@ -264,24 +271,38 @@ namespace Profiler
             ASSERT_EQ( MemoryProperties.memoryHeapCount, data.m_Memory.m_Heaps.size() );
             ASSERT_EQ( MemoryProperties.memoryTypeCount, data.m_Memory.m_Types.size() );
 
-            // Verify that allocation has not been registered by the profiling layer
-            EXPECT_EQ( 0, data.m_Memory.m_TotalAllocationSize );
-            EXPECT_EQ( 0, data.m_Memory.m_TotalAllocationCount );
+            // Verify that the second allocation has not been registered by the profiling layer
+            EXPECT_EQ( expectedAllocationSize, data.m_Memory.m_TotalAllocationSize );
+            EXPECT_EQ( 1, data.m_Memory.m_TotalAllocationCount );
+            // Verify memory heap
+            EXPECT_EQ( expectedAllocationSize, data.m_Memory.m_Heaps[deviceLocalMemoryHeapIndex].m_AllocationSize );
+            EXPECT_EQ( 1, data.m_Memory.m_Heaps[deviceLocalMemoryHeapIndex].m_AllocationCount );
+            // Verify memory type
+            EXPECT_EQ( expectedAllocationSize, data.m_Memory.m_Types[deviceLocalMemoryTypeIndex].m_AllocationSize );
+            EXPECT_EQ( 1, data.m_Memory.m_Types[deviceLocalMemoryTypeIndex].m_AllocationCount );
 
-            // All heaps should be 0
+            // Other heaps should be 0
             for( uint32_t i = 0; i < MemoryProperties.memoryHeapCount; ++i )
             {
-                EXPECT_EQ( 0, data.m_Memory.m_Heaps[ i ].m_AllocationSize ) << "Unexpected allocations on heap " << i;
-                EXPECT_EQ( 0, data.m_Memory.m_Heaps[ i ].m_AllocationCount ) << "Unexpected allocations on heap " << i;
+                if( i == deviceLocalMemoryHeapIndex )
+                    continue;
+
+                EXPECT_EQ( 0, data.m_Memory.m_Heaps[i].m_AllocationSize ) << "Unexpected allocations on heap " << i;
+                EXPECT_EQ( 0, data.m_Memory.m_Heaps[i].m_AllocationCount ) << "Unexpected allocations on heap " << i;
             }
 
-            // All types should be 0
+            // Other types should be 0
             for( uint32_t i = 0; i < MemoryProperties.memoryTypeCount; ++i )
             {
-                EXPECT_EQ( 0, data.m_Memory.m_Types[ i ].m_AllocationSize ) << "Unexpected allocations of type " << i;
-                EXPECT_EQ( 0, data.m_Memory.m_Types[ i ].m_AllocationCount ) << "Unexpected allocations of type " << i;
+                if( i == deviceLocalMemoryTypeIndex )
+                    continue;
+
+                EXPECT_EQ( 0, data.m_Memory.m_Types[i].m_AllocationSize ) << "Unexpected allocations of type " << i;
+                EXPECT_EQ( 0, data.m_Memory.m_Types[i].m_AllocationCount ) << "Unexpected allocations of type " << i;
             }
         }
+
+        vkFreeMemory( Vk->Device, deviceMemory[0], nullptr );
     }
 
     TEST_F( DeviceProfilerMemoryULT, AllocateMultiple )
@@ -340,6 +361,9 @@ namespace Profiler
                 EXPECT_EQ( 0, data.m_Memory.m_Types[ i ].m_AllocationCount ) << "Unexpected allocations of type " << i;
             }
         }
+
+        vkFreeMemory( Vk->Device, deviceMemory[0], nullptr );
+        vkFreeMemory( Vk->Device, deviceMemory[1], nullptr );
     }
 
     TEST_F( DeviceProfilerMemoryULT, FreeMemory )
@@ -403,6 +427,9 @@ namespace Profiler
                 EXPECT_EQ( 0, data.m_Memory.m_Types[ i ].m_AllocationCount ) << "Unexpected allocations of type " << i;
             }
         }
+
+        vkFreeMemory( Vk->Device, deviceMemory[0], nullptr );
+        vkFreeMemory( Vk->Device, deviceMemory[2], nullptr );
     }
 
     TEST_F( DeviceProfilerMemoryULT, MultipleFramePersistence )
@@ -466,6 +493,10 @@ namespace Profiler
                 EXPECT_EQ( 0, data.m_Memory.m_Types[ i ].m_AllocationCount ) << "Unexpected allocations of type " << i;
             }
         }
+
+        vkFreeMemory( Vk->Device, deviceMemory[0], nullptr );
+        vkFreeMemory( Vk->Device, deviceMemory[1], nullptr );
+        vkFreeMemory( Vk->Device, deviceMemory[2], nullptr );
     }
 
     /***********************************************************************************\

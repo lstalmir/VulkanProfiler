@@ -276,6 +276,9 @@ namespace Profiler
         VulkanSimpleTriangleRT simpleTriangle( Vk );
         VkDeferredOperationKHR deferredOperation = simpleTriangle.CreatePipelineDeferred();
 
+        // Join deferred operation
+        simpleTriangle.JoinDeferredOperation( deferredOperation );
+
         // Set pipeline name
         VkDebugMarkerObjectNameInfoEXT objectNameInfo = {};
         objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
@@ -283,12 +286,6 @@ namespace Profiler
         objectNameInfo.object = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkDebugMarkerSetObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
-
-        // Join deferred operation
-        simpleTriangle.JoinDeferredOperation( deferredOperation );
-
-        // Name should not change
         EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again
@@ -338,6 +335,8 @@ namespace Profiler
         objectNameInfo.pObjectName = "TestBuffer 2";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
         EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkBufferHandle( buffer ) ) );
+
+        vkDestroyBuffer( Vk->Device, buffer, nullptr );
     }
 
     TEST_F( ProfilerDebugUtilsExtensionULT, SetPipelineName )
@@ -403,6 +402,9 @@ namespace Profiler
         VulkanSimpleTriangleRT simpleTriangle( Vk );
         VkDeferredOperationKHR deferredOperation = simpleTriangle.CreatePipelineDeferred();
 
+        // Join deferred operation
+        simpleTriangle.JoinDeferredOperation( deferredOperation );
+
         // Set pipeline name
         VkDebugUtilsObjectNameInfoEXT objectNameInfo = {};
         objectNameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
@@ -410,12 +412,6 @@ namespace Profiler
         objectNameInfo.objectHandle = (uint64_t)simpleTriangle.Pipeline;
         objectNameInfo.pObjectName = "TestPipeline";
         EXPECT_EQ( VK_SUCCESS, vkSetDebugUtilsObjectNameEXT( Vk->Device, &objectNameInfo ) );
-        EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
-
-        // Join deferred operation
-        simpleTriangle.JoinDeferredOperation( deferredOperation );
-
-        // Name should not change
         EXPECT_STREQ( objectNameInfo.pObjectName, Prof->GetObjectName( VkPipelineHandle( simpleTriangle.Pipeline ) ) );
 
         // Set name again

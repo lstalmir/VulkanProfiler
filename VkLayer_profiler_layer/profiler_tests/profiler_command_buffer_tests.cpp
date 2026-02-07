@@ -176,6 +176,7 @@ namespace Profiler
         }
         { // Submit primary command buffer
             VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffers[ 0 ];
             ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
@@ -343,6 +344,7 @@ namespace Profiler
         }
         { // Submit primary command buffer
             VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffers[0];
             ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
@@ -516,6 +518,7 @@ namespace Profiler
         }
         { // Submit command buffer 2 times
             VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffer;
             ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
@@ -540,11 +543,13 @@ namespace Profiler
         }
         { // Submit command buffer again
             VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffer;
             ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
         { // Collect data
+            vkDeviceWaitIdle( Vk->Device );
             Prof->FinishFrame();
         }
         { // Validate data

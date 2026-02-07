@@ -29,6 +29,7 @@ namespace Profiler
     class VulkanSimpleTriangle
     {
     public:
+        VulkanState*        Vk;
         VkRenderPass        RenderPass;
         VkFramebuffer       Framebuffer;
         VkImage             FramebufferImage;
@@ -40,7 +41,8 @@ namespace Profiler
 
     public:
         inline VulkanSimpleTriangle( VulkanState* Vk )
-            : RenderPass( VK_NULL_HANDLE )
+            : Vk( Vk )
+            , RenderPass( VK_NULL_HANDLE )
             , Framebuffer( VK_NULL_HANDLE )
             , FramebufferImage( VK_NULL_HANDLE )
             , FramebufferImageView( VK_NULL_HANDLE )
@@ -233,6 +235,7 @@ namespace Profiler
                 colorBlendCreateInfo.pAttachments = &colorBlendAttachment;
 
                 VkGraphicsPipelineCreateInfo createInfo = {};
+                createInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
                 createInfo.layout = PipelineLayout;
                 createInfo.renderPass = RenderPass;
                 createInfo.subpass = 0;
@@ -252,6 +255,17 @@ namespace Profiler
                 vkDestroyShaderModule( Vk->Device, vertexShaderModule, nullptr );
                 vkDestroyShaderModule( Vk->Device, fragmentShaderModule, nullptr );
             }
+        }
+
+        ~VulkanSimpleTriangle()
+        {
+            if( Pipeline ) vkDestroyPipeline( Vk->Device, Pipeline, nullptr );
+            if( PipelineLayout ) vkDestroyPipelineLayout( Vk->Device, PipelineLayout, nullptr );
+            if( Framebuffer ) vkDestroyFramebuffer( Vk->Device, Framebuffer, nullptr );
+            if( FramebufferImageView ) vkDestroyImageView( Vk->Device, FramebufferImageView, nullptr );
+            if( FramebufferImage ) vkDestroyImage( Vk->Device, FramebufferImage, nullptr );
+            if( FramebufferImageMemory ) vkFreeMemory( Vk->Device, FramebufferImageMemory, nullptr );
+            if( RenderPass ) vkDestroyRenderPass( Vk->Device, RenderPass, nullptr );
         }
     };
 }

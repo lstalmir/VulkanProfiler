@@ -35,6 +35,8 @@ namespace Profiler
         VkPipelineLayout PipelineLayout = VK_NULL_HANDLE;
         VkPipeline Pipeline = VK_NULL_HANDLE;
 
+        VkDescriptorSetLayout DescriptorSetLayout = VK_NULL_HANDLE;
+
         VkShaderModule RaygenShaderModule = VK_NULL_HANDLE;
         VkShaderModule MissShaderModule = VK_NULL_HANDLE;
         VkShaderModule HitShaderModule = VK_NULL_HANDLE;
@@ -49,14 +51,54 @@ namespace Profiler
 
         PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR = nullptr;
 
+        struct RayTracingPipelineFeature : VulkanFeature
+        {
+            VkPhysicalDeviceRayTracingPipelineFeaturesKHR createInfo = {
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR
+            };
+
+            RayTracingPipelineFeature()
+                : VulkanFeature( "rayTracingPipeline", VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, true )
+            {
+            }
+
+            void* GetCreateInfo() override
+            {
+                return &createInfo;
+            }
+
+            bool CheckSupport( const VkPhysicalDeviceFeatures2* ) const override
+            {
+                return createInfo.rayTracingPipeline;
+            }
+        };
+
     public:
         static void ConfigureVulkan( VulkanState::CreateInfo& createInfo )
         {
             static VulkanExtension deferredHostOperationsExtension( VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, true );
             createInfo.DeviceExtensions.push_back( &deferredHostOperationsExtension );
 
+            static VulkanExtension descriptorIndexingExtension( VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, true );
+            createInfo.DeviceExtensions.push_back( &descriptorIndexingExtension );
+
+            static VulkanExtension bufferDeviceAddressExtension( VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME, true );
+            createInfo.DeviceExtensions.push_back( &bufferDeviceAddressExtension );
+
+            static VulkanExtension accelerationStructureExtension( VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, true );
+            createInfo.DeviceExtensions.push_back( &accelerationStructureExtension );
+
+            static VulkanExtension shaderFloatControlsExtension( VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME, true );
+            createInfo.DeviceExtensions.push_back( &shaderFloatControlsExtension );
+
+            static VulkanExtension spirv14Extension( VK_KHR_SPIRV_1_4_EXTENSION_NAME, true );
+            createInfo.DeviceExtensions.push_back( &spirv14Extension );
+
             static VulkanExtension rayTracingPipelineExtension( VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, true );
             createInfo.DeviceExtensions.push_back( &rayTracingPipelineExtension );
+
+            static RayTracingPipelineFeature rayTracingPipelineFeature;
+            createInfo.DeviceFeatures.push_back( &rayTracingPipelineFeature );
         }
 
         inline VulkanSimpleTriangleRT( VulkanState* Vk )
@@ -74,6 +116,7 @@ namespace Profiler
         {
             if( Pipeline ) vkDestroyPipeline( Vk->Device, Pipeline, nullptr );
             if( PipelineLayout ) vkDestroyPipelineLayout( Vk->Device, PipelineLayout, nullptr );
+            if( DescriptorSetLayout ) vkDestroyDescriptorSetLayout( Vk->Device, DescriptorSetLayout, nullptr );
             if( RaygenShaderModule ) vkDestroyShaderModule( Vk->Device, RaygenShaderModule, nullptr );
             if( MissShaderModule ) vkDestroyShaderModule( Vk->Device, MissShaderModule, nullptr );
             if( HitShaderModule ) vkDestroyShaderModule( Vk->Device, HitShaderModule, nullptr );
@@ -96,9 +139,29 @@ namespace Profiler
             shaderModuleInfo.pCode = simple_triangle_rt_rchit_glsl;
             VERIFY_RESULT( Vk, vkCreateShaderModule( Vk->Device, &shaderModuleInfo, nullptr, &HitShaderModule ) );
 
+            // Create descriptor set layout
+            VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[2] = {};
+            descriptorSetLayoutBindings[0].binding = 0;
+            descriptorSetLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            descriptorSetLayoutBindings[0].descriptorCount = 1;
+            descriptorSetLayoutBindings[0].stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+            descriptorSetLayoutBindings[1].binding = 1;
+            descriptorSetLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            descriptorSetLayoutBindings[1].descriptorCount = 1;
+            descriptorSetLayoutBindings[1].stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+            VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {};
+            descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            descriptorSetLayoutInfo.bindingCount = 2;
+            descriptorSetLayoutInfo.pBindings = descriptorSetLayoutBindings;
+            VERIFY_RESULT( Vk, vkCreateDescriptorSetLayout( Vk->Device, &descriptorSetLayoutInfo, nullptr, &DescriptorSetLayout ) );
+
             // Create pipeline layout
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
             pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            pipelineLayoutInfo.setLayoutCount = 1;
+            pipelineLayoutInfo.pSetLayouts = &DescriptorSetLayout;
             VERIFY_RESULT( Vk, vkCreatePipelineLayout( Vk->Device, &pipelineLayoutInfo, nullptr, &PipelineLayout ) );
 
             // Create ray tracing pipeline
