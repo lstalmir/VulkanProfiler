@@ -49,3 +49,6 @@
 [submodule "External/tabler-icons"]
 	path = External/tabler-icons
 	url = https://github.com/tabler/tabler-icons
+[submodule "External/Vulkan-Tools"]
+	path = External/Vulkan-Tools
+	url = https://github.com/KhronosGroup/Vulkan-Tools

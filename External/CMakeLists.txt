@@ -87,8 +87,25 @@ if (UNIX)
 endif ()
 
 # KhronosGroup/Vulkan-Headers
-add_subdirectory (Vulkan-Headers)
-set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers" PARENT_SCOPE)
+execute_process (COMMAND "${CMAKE_COMMAND}"
+    -S "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers"
+    -B "${CMAKE_CURRENT_BINARY_DIR}/Vulkan-Headers"
+    OUTPUT_QUIET)
+
+execute_process (COMMAND "${CMAKE_COMMAND}"
+    --install "${CMAKE_CURRENT_BINARY_DIR}/Vulkan-Headers"
+    --prefix "${CMAKE_CURRENT_BINARY_DIR}/install"
+    OUTPUT_QUIET)
+
+set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install")
+set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install" PARENT_SCOPE)
+
+# KhronosGroup/Vulkan-Tools
+set (BUILD_CUBE OFF)
+set (BUILD_VULKANINFO OFF)
+set (BUILD_TESTS OFF)
+
+add_subdirectory (Vulkan-Tools)
 
 # KhronosGroup/Vulkan-Utility-Libraries
 add_subdirectory (Vulkan-Utility-Libraries)
@@ -131,14 +148,12 @@ add_library (imgui STATIC
 target_include_directories (imgui
     PUBLIC imgui
     PUBLIC imgui/backends
-    PUBLIC imgui/misc/cpp)
+    PUBLIC imgui/misc/cpp
+    PRIVATE "${VULKAN_HEADERS_INSTALL_DIR}/include")
 
 target_compile_definitions (imgui
     PUBLIC IMGUI_USER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/imgui_config.h"
     PRIVATE VK_NO_PROTOTYPES=1)
-
-target_link_libraries (imgui
-    PUBLIC Vulkan-Headers)
 
 # lstalmir/imgui-text-editor
 add_library (imgui-text-editor STATIC

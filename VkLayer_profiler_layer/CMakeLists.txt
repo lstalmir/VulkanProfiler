@@ -22,6 +22,7 @@ cmake_minimum_required (VERSION 3.8...3.31)
 
 find_package (Python3 REQUIRED)
 
+include (GNUInstallDirs)
 include ("${CMAKE_SOURCE_DIR}/CMake/check_python_module.cmake")
 
 set (PROFILER_LAYER_VER_MAJOR 1)
@@ -121,9 +122,9 @@ add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
     COMMAND "${Python3_EXECUTABLE}"
         "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
-        "${VULKAN_HEADERS_INSTALL_DIR}"
+        "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
         "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml"
+    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
@@ -177,7 +178,6 @@ add_custom_target (profiler_codegen
 
 add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common
-    INTERFACE Vulkan-Headers
     INTERFACE VulkanUtilityHeaders
     INTERFACE VulkanLayerSettings
     INTERFACE VulkanMemoryAllocator
@@ -190,6 +190,7 @@ target_link_libraries (profiler_common
 target_include_directories (profiler_common
     INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}"
     INTERFACE "${CMAKE_CURRENT_BINARY_DIR}"
+    INTERFACE "${VULKAN_HEADERS_INSTALL_DIR}/include"
     INTERFACE utils)
 target_compile_definitions (profiler_common INTERFACE
     $<$<CONFIG:Debug>:PROFILER_CONFIG_DEBUG>
@@ -365,6 +366,10 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
 
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}
     PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
+
+add_custom_command (TARGET ${PROFILER_LAYER_PROJECTNAME} POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${json}" "$<TARGET_FILE_DIR:${PROFILER_LAYER_PROJECTNAME}>/${PROFILER_LAYER_PROJECTNAME}.json")
 
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
