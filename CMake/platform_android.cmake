@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Lukasz Stalmirski
+# Copyright (c) 2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,18 +20,7 @@
 
 cmake_minimum_required (VERSION 3.8...3.31)
 
-set (PROFILER_PLATFORM_FOUND 0)
-
-if (WIN32)
-    include (CMake/platform_windows.cmake NO_POLICY_SCOPE)
-elseif (ANDROID)
-    include (CMake/platform_android.cmake NO_POLICY_SCOPE)
-elseif (UNIX AND NOT APPLE)
-    include (CMake/platform_linux.cmake NO_POLICY_SCOPE)
-endif ()
-
-if (NOT SKIP_PLATFORMS_CHECK)
-    if (NOT PROFILER_PLATFORM_FOUND)
-        message (FATAL_ERROR "No target platform found")
-    endif ()
-endif ()
+message ("-- Profiler platform enabled: Android")
+set (PROFILER_PLATFORM_ANDROID_FOUND 1)
+set (PROFILER_PLATFORM_FOUND 1)
+add_definitions (-DVK_USE_PLATFORM_ANDROID_KHR)

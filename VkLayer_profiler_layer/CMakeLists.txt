@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2024 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2025 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -256,6 +256,8 @@ set (core_functions
 set (extension_functions
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkAccelerationStructureKhr_functions.h"
+    "profiler_layer_functions/extensions/VkAndroidSurfaceKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkAndroidSurfaceKhr_functions.h"
     "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.cpp"
     "profiler_layer_functions/extensions/VkBindMemory2Khr_functions.h"
     "profiler_layer_functions/extensions/VkCopyCommands2Khr_functions.cpp"
@@ -375,15 +377,25 @@ target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/profiler_layer_functions/extensions")
 
 # Install target
+set (PROFILER_INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}")
+set (PROFILER_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
+
+if (ANDROID)
+    # Put the layer in the appropriate target ABI folder
+    set (PROFILER_INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}/${CMAKE_ANDROID_ARCH_ABI}")
+    set (PROFILER_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}/${CMAKE_ANDROID_ARCH_ABI}")
+endif ()
+
 install (TARGETS ${PROFILER_LAYER_PROJECTNAME}
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+    RUNTIME DESTINATION "${PROFILER_INSTALL_BINDIR}"
+    LIBRARY DESTINATION "${PROFILER_INSTALL_LIBDIR}")
 
 install (FILES "${PROFILER_LICENSES_FILE}" DESTINATION .)
 
 # Copy JSON to the path where DLL/SO is installed
 if (WIN32)
-install (FILES ${json} DESTINATION "${CMAKE_INSTALL_BINDIR}")
-else ()
-install (FILES ${json} DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+    install (FILES ${json} DESTINATION "${PROFILER_INSTALL_BINDIR}")
+# Android doesn't use JSON files for layer discovery
+elseif (NOT ANDROID)
+    install (FILES ${json} DESTINATION "${PROFILER_INSTALL_LIBDIR}")
 endif ()

@@ -48,7 +48,11 @@ if (WIN32)
     list (APPEND backends
         "profiler_overlay_layer_backend_win32.h"
         "profiler_overlay_layer_backend_win32.cpp")
-elseif (UNIX)
+elseif (ANDROID)
+    list (APPEND backends
+        "profiler_overlay_layer_backend_android.h"
+        "profiler_overlay_layer_backend_android.cpp")
+elseif (UNIX AND NOT APPLE)
     if (PROFILER_PLATFORM_XLIB_FOUND)
         list (APPEND backends
             "profiler_overlay_layer_backend_xlib.h"
@@ -114,7 +118,7 @@ target_link_libraries (profiler_overlay
 add_dependencies (profiler_overlay profiler_overlay_assets)
 
 # Set include paths and link window libraries in linux builds
-if (UNIX)
+if (UNIX AND NOT ANDROID AND NOT APPLE)
 
     target_link_libraries (profiler_overlay PRIVATE xkbcommon)
 
