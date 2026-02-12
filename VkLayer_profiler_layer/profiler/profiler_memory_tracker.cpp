@@ -46,6 +46,7 @@ namespace Profiler
         , m_Images()
         , m_AccelerationStructures()
         , m_Micromaps()
+        , m_pfnGetBufferDeviceAddress( nullptr )
     {
     }
 
@@ -83,6 +84,23 @@ namespace Profiler
             m_pDevice->pPhysicalDevice->MemoryProperties;
         m_Heaps.resize( memoryProperties.memoryHeapCount );
         m_Types.resize( memoryProperties.memoryTypeCount );
+
+        // Use core variant of the function if available.
+        m_pfnGetBufferDeviceAddress = m_pDevice->Callbacks.GetBufferDeviceAddress;
+
+        if( !m_pfnGetBufferDeviceAddress &&
+            m_pDevice->EnabledExtensions.count( VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME ) )
+        {
+            // Use KHR variant if core is not available.
+            m_pfnGetBufferDeviceAddress = m_pDevice->Callbacks.GetBufferDeviceAddressKHR;
+        }
+
+        if( !m_pfnGetBufferDeviceAddress &&
+            m_pDevice->EnabledExtensions.count( VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME ) )
+        {
+            // Use EXT variant if KHR is not available.
+            m_pfnGetBufferDeviceAddress = m_pDevice->Callbacks.GetBufferDeviceAddressEXT;
+        }
 
         ResetMemoryData();
         return VK_SUCCESS;
@@ -192,6 +210,12 @@ namespace Profiler
             buffer,
             &data.m_MemoryRequirements );
 
+        if( pCreateInfo->flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT )
+        {
+            // Get virtual address of the buffer if sparse binding is enabled.
+            data.m_BufferAddress = GetBufferDeviceAddress( buffer, pCreateInfo->usage );
+        }
+
         m_Buffers.insert( buffer, data );
     }
 
@@ -238,6 +262,12 @@ namespace Profiler
             binding.m_MemoryOffset = offset;
             binding.m_BufferOffset = 0;
             binding.m_Size = bufferData.m_BufferSize;
+
+            if( !( bufferData.m_BufferFlags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT ) )
+            {
+                // Non-sparse buffers have address assigned upon memory binding.
+                bufferData.m_BufferAddress = GetBufferDeviceAddress( buffer, bufferData.m_BufferUsage );
+            }
 
             // Only one binding at a time is allowed using this API.
             bufferData.m_MemoryBindings = binding;
@@ -633,6 +663,33 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetBufferAtAddress
+
+    Description:
+
+    \***********************************************************************************/
+    std::pair<VkBuffer, DeviceProfilerBufferMemoryData> DeviceProfilerMemoryTracker::GetBufferAtAddress( VkDeviceAddress address, VkBufferUsageFlags requiredUsage ) const
+    {
+        TipGuard tip( m_pDevice->TIP, __func__ );
+        std::shared_lock lk( m_Buffers );
+
+        for( const auto& [buffer, data] : m_Buffers )
+        {
+            if( ( data.m_BufferAddress != 0 ) &&
+                ( ( data.m_BufferUsage & requiredUsage ) == requiredUsage ) &&
+                ( address >= data.m_BufferAddress ) &&
+                ( address < data.m_BufferAddress + data.m_BufferSize ) )
+            {
+                return { buffer, data };
+            }
+        }
+
+        return { VK_NULL_HANDLE, {} };
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetMemoryData
 
     Description:
@@ -712,5 +769,39 @@ namespace Profiler
         m_Images.clear();
         m_AccelerationStructures.clear();
         m_Micromaps.clear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetBufferDeviceAddress
+
+    Description:
+
+    \***********************************************************************************/
+    VkDeviceAddress DeviceProfilerMemoryTracker::GetBufferDeviceAddress( VkBuffer buffer, VkBufferUsageFlags usage ) const
+    {
+        // Check if extension is available.
+        if( !m_pfnGetBufferDeviceAddress )
+        {
+            return 0;
+        }
+
+        // Save addresses of shader binding table buffers to read shader group handles.
+        if( usage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR )
+        {
+            VkBufferDeviceAddressInfo deviceAddressInfo = {};
+            deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+            deviceAddressInfo.buffer = buffer;
+
+            VkDeviceAddress bufferAddress = m_pfnGetBufferDeviceAddress(
+                m_pDevice->Handle,
+                &deviceAddressInfo );
+
+            assert( bufferAddress );
+            return bufferAddress;
+        }
+
+        return 0;
     }
 }

@@ -131,6 +131,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetRayTracingPipelineProperties
+
+    Description:
+        Returns ray tracing pipeline properties of the profiled device.
+
+    \***********************************************************************************/
+    const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& DeviceProfilerLayerFrontend::GetRayTracingPipelineProperties()
+    {
+        return m_pDevice->pPhysicalDevice->RayTracingPipelineProperties;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetEnabledInstanceExtensions
 
     Description:

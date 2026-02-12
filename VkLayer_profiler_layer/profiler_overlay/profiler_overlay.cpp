@@ -8453,7 +8453,7 @@ namespace Profiler
             const bool indirectPayloadPresent =
                 (drawcall.HasIndirectPayload()) &&
                 (context.pCommandBuffer) &&
-                (!context.pCommandBuffer->m_IndirectPayload.empty());
+                (context.pCommandBuffer->m_pIndirectPayload);
 
             const char* indexStr = GetFrameBrowserNodeIndexStr( index );
             const bool drawcallTreeOpen = ImGui::TreeNodeEx(
@@ -8498,7 +8498,7 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndirect:
         {
             const DeviceProfilerDrawcallDrawIndirectPayload& payload = drawcall.m_Payload.m_DrawIndirect;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
 
             for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
             {
@@ -8518,7 +8518,7 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
         {
             const DeviceProfilerDrawcallDrawIndexedIndirectPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirect;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
 
             for( uint32_t drawIndex = 0; drawIndex < payload.m_DrawCount; ++drawIndex )
             {
@@ -8539,8 +8539,8 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
         {
             const DeviceProfilerDrawcallDrawIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndirectCount;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
-            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectCountOffset;
 
             const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
             for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
@@ -8561,8 +8561,8 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
         {
             const DeviceProfilerDrawcallDrawIndexedIndirectCountPayload& payload = drawcall.m_Payload.m_DrawIndexedIndirectCount;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
-            const uint8_t* pIndirectCount = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectCountOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectCount = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectCountOffset;
 
             const uint32_t drawCount = *reinterpret_cast<const uint32_t*>( pIndirectCount );
             for( uint32_t drawIndex = 0; drawIndex < drawCount; ++drawIndex )
@@ -8584,7 +8584,7 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eDispatchIndirect:
         {
             const DeviceProfilerDrawcallDispatchIndirectPayload& payload = drawcall.m_Payload.m_DispatchIndirect;
-            const uint8_t* pIndirectData = context.pCommandBuffer->m_IndirectPayload.data() + payload.m_IndirectArgsOffset;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get() + payload.m_IndirectArgsOffset;
 
             const VkDispatchIndirectCommand& cmd =
                 *reinterpret_cast<const VkDispatchIndirectCommand*>( pIndirectData );
@@ -8593,6 +8593,128 @@ namespace Profiler
                 cmd.x,
                 cmd.y,
                 cmd.z );
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eTraceRaysKHR:
+        {
+            const DeviceProfilerDrawcallTraceRaysPayload& payload = drawcall.m_Payload.m_TraceRays;
+            const uint8_t* pIndirectData = context.pCommandBuffer->m_pIndirectPayload.get();
+
+            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties =
+                m_Frontend.GetRayTracingPipelineProperties();
+
+            auto PrintShaderBindingTable = [&]( const char* pName, const VkStridedDeviceAddressRegionKHR& table, size_t tableOffset ) {
+                ImGui::Text( "%s Shader Binding Table (0x%016llx, %u, %u)",
+                    pName,
+                    table.deviceAddress,
+                    table.stride,
+                    table.size );
+
+                size_t groupIndex = 0;
+                size_t groupOffset = 0;
+
+                ImVec2 lineSize = ImGui::CalcTextSize( "[0]" );
+
+                // Cull invisible shader groups to save rendering time.
+                ImVec2 skipSize = ImVec2( 1, 1 );
+                while( ( groupOffset < table.size ) && !ImGui::IsRectVisible( skipSize ) )
+                {
+                    skipSize.y += lineSize.y;
+                    groupIndex++;
+                    groupOffset += table.stride;
+                }
+
+                ImGui::Dummy( skipSize );
+
+                // Print shader groups.
+                while( ( groupOffset < table.size ) && ImGui::IsRectVisible( lineSize ) )
+                {
+                    const ProfilerShaderGroup* pShaderGroup =
+                        context.pPipeline->m_ShaderTuple.GetShaderGroupAtHandle(
+                            pIndirectData + tableOffset + groupOffset,
+                            rayTracingPipelineProperties.shaderGroupHandleSize );
+
+                    if( pShaderGroup == nullptr )
+                    {
+                        ImGui::Text( "   [%u] %s -> 0x%016llx (Not found)",
+                            groupIndex,
+                            pName,
+                            *reinterpret_cast<const uint64_t*>( pIndirectData + tableOffset + groupOffset ) );
+
+                        groupIndex++;
+                        groupOffset += table.stride;
+                        continue;
+                    }
+
+                    // Print shaders in the group.
+                    switch( pShaderGroup->m_Type )
+                    {
+                    case VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR:
+                    {
+                        const ProfilerShader* pShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_GeneralShader );
+
+                        ImGui::Text( "   [%u] %s -> %08X",
+                            groupIndex,
+                            pName,
+                            pShader ? pShader->m_Hash : 0 );
+
+                        break;
+                    }
+
+                    case VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR:
+                    {
+                        const ProfilerShader* pClosestHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_ClosestHitShader );
+                        const ProfilerShader* pAnyHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_AnyHitShader );
+
+                        ImGui::Text( "   [%u] Triangles %s -> CHIT=%08X, AHIT=%08X",
+                            groupIndex,
+                            pName,
+                            pClosestHitShader ? pClosestHitShader->m_Hash : 0,
+                            pAnyHitShader ? pAnyHitShader->m_Hash : 0 );
+
+                        break;
+                    }
+
+                    case VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR:
+                    {
+                        const ProfilerShader* pClosestHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_ClosestHitShader );
+                        const ProfilerShader* pAnyHitShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_AnyHitShader );
+                        const ProfilerShader* pIntersectionShader =
+                            context.pPipeline->m_ShaderTuple.GetShaderAtIndex( pShaderGroup->m_IntersectionShader );
+
+                        ImGui::Text( "   [%u] Procedural %s -> CHIT=%08X, AHIT=%08X, INT=%08X",
+                            groupIndex,
+                            pName,
+                            pClosestHitShader ? pClosestHitShader->m_Hash : 0,
+                            pAnyHitShader ? pAnyHitShader->m_Hash : 0,
+                            pIntersectionShader ? pIntersectionShader->m_Hash : 0 );
+
+                        break;
+                    }
+                    }
+
+                    groupIndex++;
+                    groupOffset += table.stride;
+                }
+
+                // Cull invisible shader groups to save rendering time.
+                if( groupOffset < table.size )
+                {
+                    ImGui::Dummy( ImVec2( 1, lineSize.y * ( table.size - groupOffset ) / rayTracingPipelineProperties.shaderGroupHandleSize ) );
+                }
+            };
+
+            PrintShaderBindingTable( "Raygen", payload.m_RaygenShaderBindingTable, payload.m_RaygenShaderBindingTableOffset );
+            PrintShaderBindingTable( "Miss Group", payload.m_MissShaderBindingTable, payload.m_MissShaderBindingTableOffset );
+            PrintShaderBindingTable( "Hit Group", payload.m_HitShaderBindingTable, payload.m_HitShaderBindingTableOffset );
+            PrintShaderBindingTable( "Callable", payload.m_CallableShaderBindingTable, payload.m_CallableShaderBindingTableOffset );
+
             break;
         }
         }
