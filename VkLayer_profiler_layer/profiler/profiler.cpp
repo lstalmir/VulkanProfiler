@@ -1675,6 +1675,28 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetupBufferCreateInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetupBufferCreateInfo( VkBufferCreateInfo* pCreateInfo )
+    {
+        if( m_Config.m_CaptureIndirectArguments )
+        {
+            // Make sure all indirect buffers are created with VK_BUFFER_USAGE_TRANSFER_SRC_BIT flag,
+            // so the layer can copy the data from it.
+            if( ( pCreateInfo->usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT ) ||
+                ( pCreateInfo->usage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR ) )
+            {
+                pCreateInfo->usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateBuffer
 
     Description:

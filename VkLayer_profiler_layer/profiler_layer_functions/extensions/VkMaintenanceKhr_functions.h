@@ -25,6 +25,13 @@ namespace Profiler
 {
     struct VkMaintenanceKhr_Functions : VkDevice_Functions_Base
     {
+        // Provided by VK_KHR_maintenance4
+        // vkGetDeviceBufferMemoryRequirementsKHR
+        static VKAPI_ATTR void VKAPI_CALL GetDeviceBufferMemoryRequirementsKHR(
+            VkDevice device,
+            const VkDeviceBufferMemoryRequirementsKHR* pInfo,
+            VkMemoryRequirements2KHR* pMemoryRequirements );
+
         // Provided by VK_KHR_maintenance10
         // vkCmdEndRendering2KHR
         static VKAPI_ATTR void VKAPI_CALL CmdEndRendering2KHR(
