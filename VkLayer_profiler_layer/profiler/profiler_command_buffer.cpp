@@ -1482,16 +1482,14 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        // Render pass must be already tracked
-        assert( !m_Data.m_RenderPasses.empty() );
-
-        if( m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex )
+        if( m_pCurrentSubpassData )
         {
-            assert( m_pCurrentSubpassData );
+            // Render pass must be valid.
+            assert( m_pCurrentRenderPassData );
 
             // Check if any attachments are resolved at the end of current subpass.
             // m_pCurrentRenderPass may be null in case of dynamic rendering.
-            if( m_pCurrentRenderPass )
+            if( m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex )
             {
                 m_Stats.m_ResolveStats.m_Count +=
                     m_pCurrentRenderPass->m_Subpasses[m_CurrentSubpassIndex].m_ResolveCount;
@@ -1518,6 +1516,9 @@ namespace Profiler
             {
                 m_pCurrentPipelineData->m_EndTimestamp = m_pCurrentSubpassData->m_EndTimestamp;
             }
+
+            // Update the end timestamp of the current render-pass.
+            m_pCurrentRenderPassData->m_EndTimestamp = m_pCurrentSubpassData->m_EndTimestamp;
 
             // Clear per-subpass pointers.
             m_pCurrentSubpassData = nullptr;
@@ -1571,12 +1572,11 @@ namespace Profiler
                 (m_pCurrentRenderPassData->m_Dynamic == false) &&
                 (m_pCurrentRenderPassData->m_Type != renderPassType)) )
         {
+            EndSubpass();
+
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
             m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
             m_pCurrentRenderPassData->m_Type = renderPassType;
-
-            // Invalidate subpass pointer after changing the render pass.
-            m_pCurrentSubpassData = nullptr;
         }
 
         // Check if current subpass allows inline commands
@@ -1584,12 +1584,11 @@ namespace Profiler
             ((m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE) &&
                 (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT)) )
         {
+            EndSubpass();
+
             m_pCurrentSubpassData = &m_pCurrentRenderPassData->m_Subpasses.emplace_back();
             m_pCurrentSubpassData->m_Index = m_CurrentSubpassIndex;
             m_pCurrentSubpassData->m_Contents = VK_SUBPASS_CONTENTS_INLINE;
-
-            // Invalidate pipeline pointer after chainging the subpass.
-            m_pCurrentPipelineData = nullptr;
         }
 
         // Check if we're in pipeline
@@ -1623,8 +1622,13 @@ namespace Profiler
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
         // Check if we're in render pass
-        if( !m_pCurrentRenderPassData )
+        if( !m_pCurrentRenderPassData ||
+            ((m_pCurrentRenderPassData->m_Handle == VK_NULL_HANDLE) &&
+                (m_pCurrentRenderPassData->m_Dynamic == false) &&
+                (m_pCurrentRenderPassData->m_Type != DeviceProfilerRenderPassType::eNone)) )
         {
+            EndSubpass();
+
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
             m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
             m_pCurrentRenderPassData->m_Type = DeviceProfilerRenderPassType::eNone;
@@ -1635,6 +1639,8 @@ namespace Profiler
             ((m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS) &&
                 (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT)) )
         {
+            EndSubpass();
+
             m_pCurrentSubpassData = &m_pCurrentRenderPassData->m_Subpasses.emplace_back();
             m_pCurrentSubpassData->m_Index = m_CurrentSubpassIndex;
             m_pCurrentSubpassData->m_Contents = VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
