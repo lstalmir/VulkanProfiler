@@ -20,6 +20,7 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
+#include <vk_mem_alloc.h>
 #include <algorithm>
 #include <vector>
 #include <string>
@@ -103,6 +104,7 @@ namespace Profiler
         std::vector<VkQueue>        Queues;
         VkCommandPool               CommandPool;
         VkDescriptorPool            DescriptorPool;
+        VmaAllocator                Allocator;
 
         struct CreateInfo
         {
@@ -122,6 +124,7 @@ namespace Profiler
             , Queue( VK_NULL_HANDLE )
             , CommandPool( VK_NULL_HANDLE )
             , DescriptorPool( VK_NULL_HANDLE )
+            , Allocator( nullptr )
         {
             // Application info
             {
@@ -330,6 +333,20 @@ namespace Profiler
 
                 VERIFY_RESULT( this, vkCreateCommandPool( Device, &commandPoolCreateInfo, nullptr, &CommandPool ) );
             }
+
+            // Create memory allocator
+            {
+                VmaVulkanFunctions vulkanFunctions = {};
+                vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+                vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+                VmaAllocatorCreateInfo allocatorCreateInfo = {};
+                allocatorCreateInfo.physicalDevice = PhysicalDevice;
+                allocatorCreateInfo.device = Device;
+                allocatorCreateInfo.instance = Instance;
+                allocatorCreateInfo.vulkanApiVersion = ApplicationInfo.apiVersion;
+                allocatorCreateInfo.pVulkanFunctions = &vulkanFunctions;
+                VERIFY_RESULT( this, vmaCreateAllocator( &allocatorCreateInfo, &Allocator ) );
+            }
         }
 
         inline void VerifyResult( VkResult result, const char* message )
@@ -345,6 +362,7 @@ namespace Profiler
             vkDeviceWaitIdle( Device );
 
             // Destroy resources allocated for the test
+            vmaDestroyAllocator( Allocator );
             vkDestroyCommandPool( Device, CommandPool, nullptr );
             vkDestroyDescriptorPool( Device, DescriptorPool, nullptr );
 

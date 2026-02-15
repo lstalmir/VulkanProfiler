@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
-// 
+// Copyright (c) 2019-2026 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -22,12 +22,14 @@
 #include "profiler_vulkan_simple_triangle.h"
 #include "profiler/profiler_stat_comparators.h"
 
-#define VALIDATE_RANGES( parentRange, childRange ) \
-    { const auto parentRange##_Time = GetDuration(parentRange); \
-      const auto childRange##_Time = GetDuration(childRange); \
-      EXPECT_GE( parentRange##_Time, childRange##_Time ); \
-      EXPECT_LE( parentRange.GetBeginTimestamp().m_Value, childRange.GetBeginTimestamp().m_Value ); \
-      EXPECT_GE( parentRange.GetEndTimestamp().m_Value, childRange.GetEndTimestamp().m_Value ); }
+#define VALIDATE_RANGES( parentRange, childRange )                                                    \
+    {                                                                                                 \
+        const auto parentRange##_Time = GetDuration( parentRange );                                   \
+        const auto childRange##_Time = GetDuration( childRange );                                     \
+        EXPECT_GE( parentRange##_Time, childRange##_Time );                                           \
+        EXPECT_LE( parentRange.GetBeginTimestamp().m_Value, childRange.GetBeginTimestamp().m_Value ); \
+        EXPECT_GE( parentRange.GetEndTimestamp().m_Value, childRange.GetEndTimestamp().m_Value );     \
+    }
 
 namespace Profiler
 {
@@ -95,11 +97,11 @@ namespace Profiler
         EXPECT_EQ( Vk->CommandPool, it->second->GetCommandPool().GetHandle() );
     }
 
-    TEST_F( ProfilerCommandBufferULT, ProfileSecondaryCommandBuffer )
+    TEST_F( ProfilerCommandBufferULT, ProfileSecondaryCommandBufferInsideRenderPass )
     {
         // Create simple triangle app
         VulkanSimpleTriangle simpleTriangle( Vk );
-        VkCommandBuffer commandBuffers[ 2 ] = {};
+        VkCommandBuffer commandBuffers[2] = {};
 
         { // Allocate command buffers
             VkCommandBufferAllocateInfo allocateInfo = {};
@@ -107,9 +109,9 @@ namespace Profiler
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocateInfo.commandBufferCount = 1;
             allocateInfo.commandPool = Vk->CommandPool;
-            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[ 0 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[0] ) );
             allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
-            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[ 1 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[1] ) );
         }
         { // Begin secondary command buffer
             VkCommandBufferInheritanceInfo inheritanceInfo = {};
@@ -120,20 +122,20 @@ namespace Profiler
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
             beginInfo.pInheritanceInfo = &inheritanceInfo;
-            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[ 1 ], &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[1], &beginInfo ) );
         }
         { // Record commands
-            vkCmdBindPipeline( commandBuffers[ 1 ], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
-            vkCmdDraw( commandBuffers[ 1 ], 3, 1, 0, 0 );
+            vkCmdBindPipeline( commandBuffers[1], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            vkCmdDraw( commandBuffers[1], 3, 1, 0, 0 );
         }
         { // End secondary command buffer
-            vkEndCommandBuffer( commandBuffers[ 1 ] );
+            vkEndCommandBuffer( commandBuffers[1] );
         }
         { // Begin primary command buffer
             VkCommandBufferBeginInfo beginInfo = {};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[ 0 ], &beginInfo ) );
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[0], &beginInfo ) );
         }
         { // Image layout transitions
             VkImageMemoryBarrier barrier = {};
@@ -149,7 +151,7 @@ namespace Profiler
             barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
             barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 
-            vkCmdPipelineBarrier( commandBuffers[ 0 ],
+            vkCmdPipelineBarrier( commandBuffers[0],
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
@@ -163,22 +165,22 @@ namespace Profiler
             beginInfo.renderPass = simpleTriangle.RenderPass;
             beginInfo.renderArea = simpleTriangle.RenderArea;
             beginInfo.framebuffer = simpleTriangle.Framebuffer;
-            vkCmdBeginRenderPass( commandBuffers[ 0 ], &beginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
+            vkCmdBeginRenderPass( commandBuffers[0], &beginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS );
         }
         { // Submit secondary command buffer
-            vkCmdExecuteCommands( commandBuffers[ 0 ], 1, &commandBuffers[ 1 ] );
+            vkCmdExecuteCommands( commandBuffers[0], 1, &commandBuffers[1] );
         }
         { // End render pass
-            vkCmdEndRenderPass( commandBuffers[ 0 ] );
+            vkCmdEndRenderPass( commandBuffers[0] );
         }
         { // End primary command buffer
-            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffers[ 0 ] ) );
+            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffers[0] ) );
         }
         { // Submit primary command buffer
             VkSubmitInfo submitInfo = {};
             submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &commandBuffers[ 0 ];
+            submitInfo.pCommandBuffers = &commandBuffers[0];
             ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
         }
         { // Collect data
@@ -195,7 +197,7 @@ namespace Profiler
             ASSERT_EQ( 1, submit.m_Submits.front().m_CommandBuffers.size() );
 
             const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
-            EXPECT_EQ( commandBuffers[ 0 ], cmdBufferData.m_Handle );
+            EXPECT_EQ( commandBuffers[0], cmdBufferData.m_Handle );
             EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawStats.m_Count );
             EXPECT_FALSE( cmdBufferData.m_RenderPasses.empty() );
 
@@ -213,7 +215,7 @@ namespace Profiler
             const auto& subpassContentsData = subpassData.m_Data.front();
             EXPECT_EQ( DeviceProfilerSubpassDataType::eCommandBuffer, subpassContentsData.GetType() );
             const auto& secondaryCmdBufferData = std::get<DeviceProfilerCommandBufferData>( subpassContentsData );
-            EXPECT_EQ( commandBuffers[ 1 ], secondaryCmdBufferData.m_Handle );
+            EXPECT_EQ( commandBuffers[1], secondaryCmdBufferData.m_Handle );
             EXPECT_FALSE( secondaryCmdBufferData.m_RenderPasses.empty() );
             EXPECT_EQ( 1, secondaryCmdBufferData.m_Stats.m_DrawStats.m_Count );
             VALIDATE_RANGES( subpassData, secondaryCmdBufferData );
@@ -241,9 +243,501 @@ namespace Profiler
             EXPECT_NE( 0, drawcallData.m_BeginTimestamp.m_Value );
             EXPECT_NE( 0, drawcallData.m_EndTimestamp.m_Value );
             EXPECT_LT( drawcallData.m_BeginTimestamp.m_Value, drawcallData.m_EndTimestamp.m_Value );
-            EXPECT_LT( 0, (drawcallData.m_EndTimestamp.m_Value - drawcallData.m_BeginTimestamp.m_Value) );
+            EXPECT_LT( 0, ( drawcallData.m_EndTimestamp.m_Value - drawcallData.m_BeginTimestamp.m_Value ) );
             VALIDATE_RANGES( pipelineData, drawcallData );
         }
+    }
+
+    TEST_F( ProfilerCommandBufferULT, ProfileSecondaryCommandBufferOutsideRenderPass )
+    {
+        // Create simple triangle app
+        VulkanSimpleTriangle simpleTriangle( Vk );
+        VkCommandBuffer commandBuffers[2] = {};
+        VkImage readbackImage = {};
+        VmaAllocation readbackImageAllocation = {};
+
+        { // Create readback image
+            VmaAllocationCreateInfo allocationCreateInfo = {};
+            allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+            VkImageCreateInfo imageCreateInfo = {};
+            imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+            imageCreateInfo.extent.width = simpleTriangle.RenderArea.extent.width;
+            imageCreateInfo.extent.height = simpleTriangle.RenderArea.extent.height;
+            imageCreateInfo.extent.depth = 1;
+            imageCreateInfo.mipLevels = 1;
+            imageCreateInfo.arrayLayers = 1;
+            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+            imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            ASSERT_EQ( VK_SUCCESS, vmaCreateImage( Vk->Allocator, &imageCreateInfo, &allocationCreateInfo, &readbackImage, &readbackImageAllocation, nullptr ) );
+        }
+        { // Allocate command buffers
+            VkCommandBufferAllocateInfo allocateInfo = {};
+            allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocateInfo.commandBufferCount = 1;
+            allocateInfo.commandPool = Vk->CommandPool;
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[0] ) );
+            allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[1] ) );
+        }
+        { // Begin secondary command buffer
+            VkCommandBufferInheritanceInfo inheritanceInfo = {};
+            inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+            VkCommandBufferBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.pInheritanceInfo = &inheritanceInfo;
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[1], &beginInfo ) );
+        }
+        { // Record commands
+            VkImageCopy copyRegion = {};
+            copyRegion.extent.width = simpleTriangle.RenderArea.extent.width;
+            copyRegion.extent.height = simpleTriangle.RenderArea.extent.height;
+            copyRegion.extent.depth = 1;
+            copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copyRegion.srcSubresource.layerCount = 1;
+            copyRegion.srcSubresource.mipLevel = 0;
+            copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copyRegion.dstSubresource.layerCount = 1;
+            copyRegion.dstSubresource.mipLevel = 0;
+            vkCmdCopyImage( commandBuffers[1],
+                simpleTriangle.FramebufferImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                readbackImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1, &copyRegion );
+        }
+        { // End secondary command buffer
+            vkEndCommandBuffer( commandBuffers[1] );
+        }
+        { // Begin primary command buffer
+            VkCommandBufferBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[0], &beginInfo ) );
+        }
+        { // Image layout transitions
+            VkImageMemoryBarrier barrier = {};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barrier.srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barrier.dstQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barrier.image = simpleTriangle.FramebufferImage;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+
+            vkCmdPipelineBarrier( commandBuffers[0],
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier );
+        }
+        { // Record commands
+            VkRenderPassBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            beginInfo.renderPass = simpleTriangle.RenderPass;
+            beginInfo.renderArea = simpleTriangle.RenderArea;
+            beginInfo.framebuffer = simpleTriangle.Framebuffer;
+            vkCmdBeginRenderPass( commandBuffers[0], &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
+            vkCmdBindPipeline( commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            vkCmdDraw( commandBuffers[0], 3, 1, 0, 0 );
+            vkCmdEndRenderPass( commandBuffers[0] );
+        }
+        { // Image layout transitions
+            VkImageMemoryBarrier barriers[2] = {};
+
+            barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers[0].srcAccessMask = 0;
+            barriers[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barriers[0].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barriers[0].srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[0].dstQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[0].image = simpleTriangle.FramebufferImage;
+            barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers[0].subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            barriers[0].subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+
+            barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers[1].srcAccessMask = 0;
+            barriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barriers[1].srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[1].dstQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[1].image = readbackImage;
+            barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers[1].subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            barriers[1].subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+
+            vkCmdPipelineBarrier( commandBuffers[0],
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr,
+                0, nullptr,
+                2, barriers );
+        }
+        { // Submit secondary command buffer
+            vkCmdExecuteCommands( commandBuffers[0], 1, &commandBuffers[1] );
+        }
+        { // End primary command buffer
+            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffers[0] ) );
+        }
+        { // Submit primary command buffer
+            VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffers[0];
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+        }
+        { // Collect data
+            vkDeviceWaitIdle( Vk->Device );
+            Prof->FinishFrame();
+        }
+        { // Validate data
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
+            ASSERT_EQ( 1, data.m_Submits.size() );
+
+            const auto& submit = data.m_Submits.front();
+            ASSERT_EQ( 1, submit.m_Submits.size() );
+            ASSERT_EQ( 1, submit.m_Submits.front().m_CommandBuffers.size() );
+
+            // Validate the primary command buffer.
+            const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
+            EXPECT_EQ( commandBuffers[0], cmdBufferData.m_Handle );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawStats.m_Count );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_CopyImageStats.m_Count );
+
+            const auto& renderPassData = cmdBufferData.m_RenderPasses[0];
+            EXPECT_EQ( simpleTriangle.RenderPass, renderPassData.m_Handle );
+            VALIDATE_RANGES( cmdBufferData, renderPassData );
+
+            const auto& subpassData = renderPassData.m_Subpasses.front();
+            EXPECT_EQ( 0, subpassData.m_Index );
+            EXPECT_EQ( VK_SUBPASS_CONTENTS_INLINE, subpassData.m_Contents );
+            VALIDATE_RANGES( renderPassData, subpassData );
+
+            const auto& subpassContentsData = subpassData.m_Data.front();
+            const auto& pipelineData = std::get<DeviceProfilerPipelineData>( subpassContentsData );
+            EXPECT_EQ( simpleTriangle.Pipeline, pipelineData.m_Handle );
+            VALIDATE_RANGES( subpassData, pipelineData );
+
+            const auto& drawcallData = pipelineData.m_Drawcalls.front();
+            EXPECT_EQ( DeviceProfilerDrawcallType::eDraw, drawcallData.m_Type );
+            EXPECT_NE( 0, drawcallData.m_BeginTimestamp.m_Value );
+            EXPECT_NE( 0, drawcallData.m_EndTimestamp.m_Value );
+            EXPECT_LT( drawcallData.m_BeginTimestamp.m_Value, drawcallData.m_EndTimestamp.m_Value );
+            EXPECT_LT( 0, ( drawcallData.m_EndTimestamp.m_Value - drawcallData.m_BeginTimestamp.m_Value ) );
+            VALIDATE_RANGES( pipelineData, drawcallData );
+
+            // Validate the secondary command buffer.
+            const auto& copyPassData = cmdBufferData.m_RenderPasses[1];
+            EXPECT_EQ( VK_NULL_HANDLE, copyPassData.m_Handle );
+
+            const auto& copySubpassData = copyPassData.m_Subpasses.front();
+            EXPECT_EQ( VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS, copySubpassData.m_Contents );
+
+            const auto& copySubpassContentsData = copySubpassData.m_Data.front();
+            const auto& secondaryCmdBufferData = std::get<DeviceProfilerCommandBufferData>( copySubpassContentsData );
+            EXPECT_EQ( commandBuffers[1], secondaryCmdBufferData.m_Handle );
+
+            const auto& copyCmdBufferRenderPassData = secondaryCmdBufferData.m_RenderPasses.front();
+            EXPECT_EQ( VK_NULL_HANDLE, copyCmdBufferRenderPassData.m_Handle );
+            VALIDATE_RANGES( secondaryCmdBufferData, copyCmdBufferRenderPassData );
+
+            const auto& copyCmdBufferSubpassData = copyCmdBufferRenderPassData.m_Subpasses.front();
+            EXPECT_EQ( VK_SUBPASS_CONTENTS_INLINE, copyCmdBufferSubpassData.m_Contents );
+            VALIDATE_RANGES( copyCmdBufferRenderPassData, copyCmdBufferSubpassData );
+
+            const auto& copyCmdBufferSubpassContentsData = copyCmdBufferSubpassData.m_Data.front();
+            const auto& copyPipelineData = std::get<DeviceProfilerPipelineData>( copyCmdBufferSubpassContentsData );
+            VALIDATE_RANGES( copyCmdBufferSubpassData, copyPipelineData );
+
+            const auto& copyImageData = copyPipelineData.m_Drawcalls.front();
+            EXPECT_EQ( DeviceProfilerDrawcallType::eCopyImage, copyImageData.m_Type );
+            EXPECT_NE( 0, copyImageData.m_BeginTimestamp.m_Value );
+            EXPECT_NE( 0, copyImageData.m_EndTimestamp.m_Value );
+            EXPECT_LT( copyImageData.m_BeginTimestamp.m_Value, copyImageData.m_EndTimestamp.m_Value );
+            EXPECT_LT( 0, ( copyImageData.m_EndTimestamp.m_Value - copyImageData.m_BeginTimestamp.m_Value ) );
+            VALIDATE_RANGES( copyPipelineData, copyImageData );
+        }
+
+        vmaDestroyImage( Vk->Allocator, readbackImage, readbackImageAllocation );
+    }
+
+    TEST_F( ProfilerCommandBufferULT, ProfileInlineAndSecondaryCommandBufferOutsideRenderPass )
+    {
+        // Create simple triangle app
+        VulkanSimpleTriangle simpleTriangle( Vk );
+        VkCommandBuffer commandBuffers[2] = {};
+        VkImage readbackImage = {};
+        VmaAllocation readbackImageAllocation = {};
+
+        { // Create readback image
+            VmaAllocationCreateInfo allocationCreateInfo = {};
+            allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+            VkImageCreateInfo imageCreateInfo = {};
+            imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+            imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+            imageCreateInfo.extent.width = simpleTriangle.RenderArea.extent.width;
+            imageCreateInfo.extent.height = simpleTriangle.RenderArea.extent.height;
+            imageCreateInfo.extent.depth = 1;
+            imageCreateInfo.mipLevels = 1;
+            imageCreateInfo.arrayLayers = 1;
+            imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            imageCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+            imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            ASSERT_EQ( VK_SUCCESS, vmaCreateImage( Vk->Allocator, &imageCreateInfo, &allocationCreateInfo, &readbackImage, &readbackImageAllocation, nullptr ) );
+        }
+        { // Allocate command buffers
+            VkCommandBufferAllocateInfo allocateInfo = {};
+            allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocateInfo.commandBufferCount = 1;
+            allocateInfo.commandPool = Vk->CommandPool;
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[0] ) );
+            allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+            ASSERT_EQ( VK_SUCCESS, vkAllocateCommandBuffers( Vk->Device, &allocateInfo, &commandBuffers[1] ) );
+        }
+        { // Begin secondary command buffer
+            VkCommandBufferInheritanceInfo inheritanceInfo = {};
+            inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+            VkCommandBufferBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.pInheritanceInfo = &inheritanceInfo;
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[1], &beginInfo ) );
+        }
+        { // Record commands
+            VkImageCopy copyRegion = {};
+            copyRegion.extent.width = simpleTriangle.RenderArea.extent.width;
+            copyRegion.extent.height = simpleTriangle.RenderArea.extent.height;
+            copyRegion.extent.depth = 1;
+            copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copyRegion.srcSubresource.layerCount = 1;
+            copyRegion.srcSubresource.mipLevel = 0;
+            copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copyRegion.dstSubresource.layerCount = 1;
+            copyRegion.dstSubresource.mipLevel = 0;
+            vkCmdCopyImage( commandBuffers[1],
+                simpleTriangle.FramebufferImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                readbackImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1, &copyRegion );
+        }
+        { // End secondary command buffer
+            vkEndCommandBuffer( commandBuffers[1] );
+        }
+        { // Begin primary command buffer
+            VkCommandBufferBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            ASSERT_EQ( VK_SUCCESS, vkBeginCommandBuffer( commandBuffers[0], &beginInfo ) );
+        }
+        { // Image layout transitions
+            VkImageMemoryBarrier barrier = {};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barrier.srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barrier.dstQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barrier.image = simpleTriangle.FramebufferImage;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+
+            vkCmdPipelineBarrier( commandBuffers[0],
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier );
+        }
+        { // Record commands
+            VkRenderPassBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            beginInfo.renderPass = simpleTriangle.RenderPass;
+            beginInfo.renderArea = simpleTriangle.RenderArea;
+            beginInfo.framebuffer = simpleTriangle.Framebuffer;
+            vkCmdBeginRenderPass( commandBuffers[0], &beginInfo, VK_SUBPASS_CONTENTS_INLINE );
+            vkCmdBindPipeline( commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, simpleTriangle.Pipeline );
+            vkCmdDraw( commandBuffers[0], 3, 1, 0, 0 );
+            vkCmdEndRenderPass( commandBuffers[0] );
+        }
+        { // Image layout transitions
+            VkImageMemoryBarrier barriers[2] = {};
+
+            barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers[0].srcAccessMask = 0;
+            barriers[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barriers[0].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barriers[0].srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[0].dstQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[0].image = simpleTriangle.FramebufferImage;
+            barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers[0].subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            barriers[0].subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+
+            barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers[1].srcAccessMask = 0;
+            barriers[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barriers[1].srcQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[1].dstQueueFamilyIndex = Vk->QueueFamilyIndex;
+            barriers[1].image = readbackImage;
+            barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers[1].subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+            barriers[1].subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+
+            vkCmdPipelineBarrier( commandBuffers[0],
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                0, nullptr,
+                0, nullptr,
+                2, barriers );
+        }
+        { // Submit inline command
+            VkImageCopy copyRegion = {};
+            copyRegion.extent.width = simpleTriangle.RenderArea.extent.width;
+            copyRegion.extent.height = simpleTriangle.RenderArea.extent.height;
+            copyRegion.extent.depth = 1;
+            copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copyRegion.srcSubresource.layerCount = 1;
+            copyRegion.srcSubresource.mipLevel = 0;
+            copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copyRegion.dstSubresource.layerCount = 1;
+            copyRegion.dstSubresource.mipLevel = 0;
+            vkCmdCopyImage( commandBuffers[0],
+                simpleTriangle.FramebufferImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                readbackImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1, &copyRegion );
+        }
+        { // Submit secondary command buffer
+            vkCmdExecuteCommands( commandBuffers[0], 1, &commandBuffers[1] );
+        }
+        { // End primary command buffer
+            ASSERT_EQ( VK_SUCCESS, vkEndCommandBuffer( commandBuffers[0] ) );
+        }
+        { // Submit primary command buffer
+            VkSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffers[0];
+            ASSERT_EQ( VK_SUCCESS, vkQueueSubmit( Vk->Queue, 1, &submitInfo, VK_NULL_HANDLE ) );
+        }
+        { // Collect data
+            vkDeviceWaitIdle( Vk->Device );
+            Prof->FinishFrame();
+        }
+        { // Validate data
+            std::shared_ptr<DeviceProfilerFrameData> pData = Prof->GetData();
+            const DeviceProfilerFrameData& data = *pData;
+            ASSERT_EQ( 1, data.m_Submits.size() );
+
+            const auto& submit = data.m_Submits.front();
+            ASSERT_EQ( 1, submit.m_Submits.size() );
+            ASSERT_EQ( 1, submit.m_Submits.front().m_CommandBuffers.size() );
+
+            // Validate the primary command buffer.
+            const auto& cmdBufferData = submit.m_Submits.front().m_CommandBuffers.front();
+            EXPECT_EQ( commandBuffers[0], cmdBufferData.m_Handle );
+            EXPECT_EQ( 1, cmdBufferData.m_Stats.m_DrawStats.m_Count );
+            EXPECT_EQ( 2, cmdBufferData.m_Stats.m_CopyImageStats.m_Count );
+
+            {
+                const auto& renderPassData = cmdBufferData.m_RenderPasses[0];
+                EXPECT_EQ( simpleTriangle.RenderPass, renderPassData.m_Handle );
+                VALIDATE_RANGES( cmdBufferData, renderPassData );
+
+                const auto& subpassData = renderPassData.m_Subpasses.front();
+                EXPECT_EQ( 0, subpassData.m_Index );
+                EXPECT_EQ( VK_SUBPASS_CONTENTS_INLINE, subpassData.m_Contents );
+                VALIDATE_RANGES( renderPassData, subpassData );
+
+                const auto& subpassContentsData = subpassData.m_Data.front();
+                const auto& pipelineData = std::get<DeviceProfilerPipelineData>( subpassContentsData );
+                EXPECT_EQ( simpleTriangle.Pipeline, pipelineData.m_Handle );
+                VALIDATE_RANGES( subpassData, pipelineData );
+
+                const auto& drawcallData = pipelineData.m_Drawcalls.front();
+                EXPECT_EQ( DeviceProfilerDrawcallType::eDraw, drawcallData.m_Type );
+                EXPECT_NE( 0, drawcallData.m_BeginTimestamp.m_Value );
+                EXPECT_NE( 0, drawcallData.m_EndTimestamp.m_Value );
+                EXPECT_LT( drawcallData.m_BeginTimestamp.m_Value, drawcallData.m_EndTimestamp.m_Value );
+                EXPECT_LT( 0, ( drawcallData.m_EndTimestamp.m_Value - drawcallData.m_BeginTimestamp.m_Value ) );
+                VALIDATE_RANGES( pipelineData, drawcallData );
+            }
+
+            {
+                // Validate the inline command.
+                const auto& copyRenderPassData = cmdBufferData.m_RenderPasses[1];
+                EXPECT_EQ( VK_NULL_HANDLE, copyRenderPassData.m_Handle );
+
+                const auto& copySubpassData = copyRenderPassData.m_Subpasses[0];
+                EXPECT_EQ( VK_SUBPASS_CONTENTS_INLINE, copySubpassData.m_Contents );
+                VALIDATE_RANGES( copyRenderPassData, copySubpassData );
+
+                const auto& copySubpassContentsData = copySubpassData.m_Data.front();
+                const auto& copyPipelineData = std::get<DeviceProfilerPipelineData>( copySubpassContentsData );
+                VALIDATE_RANGES( copySubpassData, copyPipelineData );
+
+                const auto& copyImageData = copyPipelineData.m_Drawcalls.front();
+                EXPECT_EQ( DeviceProfilerDrawcallType::eCopyImage, copyImageData.m_Type );
+                EXPECT_NE( 0, copyImageData.m_BeginTimestamp.m_Value );
+                EXPECT_NE( 0, copyImageData.m_EndTimestamp.m_Value );
+                EXPECT_LT( copyImageData.m_BeginTimestamp.m_Value, copyImageData.m_EndTimestamp.m_Value );
+                EXPECT_LT( 0, ( copyImageData.m_EndTimestamp.m_Value - copyImageData.m_BeginTimestamp.m_Value ) );
+                VALIDATE_RANGES( copyPipelineData, copyImageData );
+            }
+            {
+                // Validate the secondary command buffer.
+                const auto& copyRenderPassData = cmdBufferData.m_RenderPasses[2];
+                EXPECT_EQ( VK_NULL_HANDLE, copyRenderPassData.m_Handle );
+
+                const auto& copySubpassData = copyRenderPassData.m_Subpasses[0];
+                EXPECT_EQ( VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS, copySubpassData.m_Contents );
+                VALIDATE_RANGES( copyRenderPassData, copySubpassData );
+
+                const auto& copySubpassContentsData = copySubpassData.m_Data.front();
+                const auto& secondaryCmdBufferData = std::get<DeviceProfilerCommandBufferData>( copySubpassContentsData );
+                EXPECT_EQ( commandBuffers[1], secondaryCmdBufferData.m_Handle );
+
+                const auto& copyCmdBufferRenderPassData = secondaryCmdBufferData.m_RenderPasses.front();
+                EXPECT_EQ( VK_NULL_HANDLE, copyCmdBufferRenderPassData.m_Handle );
+                VALIDATE_RANGES( secondaryCmdBufferData, copyCmdBufferRenderPassData );
+
+                const auto& copyCmdBufferSubpassData = copyCmdBufferRenderPassData.m_Subpasses.front();
+                EXPECT_EQ( VK_SUBPASS_CONTENTS_INLINE, copyCmdBufferSubpassData.m_Contents );
+                VALIDATE_RANGES( copyCmdBufferRenderPassData, copyCmdBufferSubpassData );
+
+                const auto& copyCmdBufferSubpassContentsData = copyCmdBufferSubpassData.m_Data.front();
+                const auto& copyPipelineData = std::get<DeviceProfilerPipelineData>( copyCmdBufferSubpassContentsData );
+                VALIDATE_RANGES( copyCmdBufferSubpassData, copyPipelineData );
+
+                const auto& copyImageData = copyPipelineData.m_Drawcalls.front();
+                EXPECT_EQ( DeviceProfilerDrawcallType::eCopyImage, copyImageData.m_Type );
+                EXPECT_NE( 0, copyImageData.m_BeginTimestamp.m_Value );
+                EXPECT_NE( 0, copyImageData.m_EndTimestamp.m_Value );
+                EXPECT_LT( copyImageData.m_BeginTimestamp.m_Value, copyImageData.m_EndTimestamp.m_Value );
+                EXPECT_LT( 0, ( copyImageData.m_EndTimestamp.m_Value - copyImageData.m_BeginTimestamp.m_Value ) );
+                VALIDATE_RANGES( copyPipelineData, copyImageData );
+            }
+        }
+
+        vmaDestroyImage( Vk->Allocator, readbackImage, readbackImageAllocation );
     }
 
     TEST_F( ProfilerCommandBufferULT, ProfileNestedCommandBuffers )

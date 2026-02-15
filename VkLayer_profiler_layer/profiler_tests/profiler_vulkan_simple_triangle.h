@@ -93,7 +93,7 @@ namespace Profiler
                 createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
                 createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
                 createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-                createInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+                createInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
                 VERIFY_RESULT( Vk, vkCreateImage( Vk->Device, &createInfo, nullptr, &FramebufferImage ) );
             }
