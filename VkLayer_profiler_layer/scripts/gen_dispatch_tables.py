@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@ import io
 import xml.etree.ElementTree as etree
 
 # Read configuration variables
-VULKAN_HEADERS_DIR = os.path.abspath( sys.argv[ 1 ] )
+VULKAN_REGISTRY_XML_PATH = os.path.abspath( sys.argv[ 1 ] )
 CMAKE_CURRENT_BINARY_DIR = os.path.abspath( sys.argv[ 2 ] )
 
 class VulkanSpec:
@@ -155,8 +155,7 @@ class DispatchTableGenerator:
 # Generate dispatch tables
 def gen_dispatch_tables():
     out_path = os.path.join( CMAKE_CURRENT_BINARY_DIR, "vk_dispatch_tables.h" )
-    vk_xml_path = os.path.join( VULKAN_HEADERS_DIR, "registry", "vk.xml" )
-    vk_xml = etree.parse( vk_xml_path )
+    vk_xml = etree.parse( VULKAN_REGISTRY_XML_PATH )
     generator = DispatchTableGenerator( vk_xml )
     with open( out_path, mode="w" ) as out:
         generator.write_commands( out )
