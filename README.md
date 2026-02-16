@@ -12,12 +12,14 @@ Full documentation of the layer is available at [lstalmir.github.io/VulkanProfil
 
 The layer is available for Windows and Linux. On both platforms CMake is used as the main build management tool.
 
+Clone this repository using `git clone --recursive https://github.com/lstalmir/VulkanProfiler`.
+
 ### Windows
-The solution compiles on Visual Studio 2017 or later. Using C++ CMake tools for Windows component is recommended, but generating VS project files using `cmake -G` works fine as well.
+The solution compiles on Visual Studio 2017 or later, and CLion. Using C++ CMake tools for Windows component is recommended, but generating VS project files using `cmake -G` works fine as well.
 
 The project also requires Python3 with packages listed in VkLayer_profiler_layer/scripts/requirements.txt.
 
-`VkLayer_profiler_layer.dll` and `VkLayer_profiler_layer.json` files are the products of the compilation. Both must be placed in the same directory. To use the layer register it in the Windows registry:
+`VkLayer_profiler_layer.dll` and `VkLayer_profiler_layer.json` files are the products of compiling the `VkLayer_profiler_layer` run configuration. Both must be copied from the `VulkanProfiler/<build_path>/VkLayer_profiler_layer` directory to the `C:\VulkanSDK\<version>\Bin` directory. To use the layer register it in the Windows registry:
 ```
 REG ADD HKCU\Software\Khronos\Vulkan\ExplicitLayers /F /T REG_DWORD /D 0 /V <path-to-json>
 ```
