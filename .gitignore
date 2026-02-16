@@ -34,3 +34,15 @@ docs_build/
 
 # User-defined files
 _*
+
+# Jetbrains
+.idea
+cmake-build-debug/
+cmake-build-release/
+cmake-build-relwithdebinfo/
+*.DotSettings.user
+
+# Extra ignores
+bin
+obj
+.DS_Store
