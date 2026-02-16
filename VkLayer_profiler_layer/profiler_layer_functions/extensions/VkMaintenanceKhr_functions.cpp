@@ -25,6 +25,35 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetDeviceBufferMemoryRequirementsKHR
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkMaintenanceKhr_Functions::GetDeviceBufferMemoryRequirementsKHR(
+        VkDevice device,
+        const VkDeviceBufferMemoryRequirementsKHR* pInfo,
+        VkMemoryRequirements2KHR* pMemoryRequirements )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Apply the same adjustments to the buffer create info as in CreateBuffer,
+        // so the memory requirements are consistent with the created buffer.
+        VkBufferCreateInfo createInfo = *pInfo->pCreateInfo;
+        dd.Profiler.SetupBufferCreateInfo( &createInfo );
+
+        VkDeviceBufferMemoryRequirementsKHR info = *pInfo;
+        info.pCreateInfo = &createInfo;
+
+        // Get the memory requirements.
+        dd.Device.Callbacks.GetDeviceBufferMemoryRequirementsKHR(
+            device, &info, pMemoryRequirements );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CmdEndRendering2KHR
 
     Description:

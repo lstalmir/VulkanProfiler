@@ -198,6 +198,12 @@ namespace Profiler
             VkBuffer buffer,
             const VkAllocationCallbacks* pAllocator );
 
+        // vkGetDeviceBufferMemoryRequirements
+        static VKAPI_ATTR void VKAPI_CALL GetDeviceBufferMemoryRequirements(
+            VkDevice device,
+            const VkDeviceBufferMemoryRequirements* pInfo,
+            VkMemoryRequirements2* pMemoryRequirements );
+
         // vkBindBufferMemory
         static VKAPI_ATTR VkResult VKAPI_CALL BindBufferMemory(
             VkDevice device,

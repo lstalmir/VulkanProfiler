@@ -138,6 +138,7 @@ namespace Profiler
         void CreateMicromap( VkMicromapEXT, const VkMicromapCreateInfoEXT* );
         void DestroyMicromap( VkMicromapEXT );
 
+        void SetupBufferCreateInfo( VkBufferCreateInfo* );
         void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
         void DestroyBuffer( VkBuffer );
         void BindBufferMemory( VkBuffer, VkDeviceMemory, VkDeviceSize );
