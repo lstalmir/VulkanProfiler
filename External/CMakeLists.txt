@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Lukasz Stalmirski
+# Copyright (c) 2023-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -87,8 +87,22 @@ if (UNIX)
 endif ()
 
 # KhronosGroup/Vulkan-Headers
-add_subdirectory (Vulkan-Headers)
-set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers" PARENT_SCOPE)
+execute_process (COMMAND "${CMAKE_COMMAND}"
+    -S "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers"
+    -B "${CMAKE_CURRENT_BINARY_DIR}/Vulkan-Headers"
+    OUTPUT_QUIET)
+
+execute_process (COMMAND "${CMAKE_COMMAND}"
+    --install "${CMAKE_CURRENT_BINARY_DIR}/Vulkan-Headers"
+    --prefix "${CMAKE_CURRENT_BINARY_DIR}/install"
+    OUTPUT_QUIET)
+
+set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install")
+set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install" PARENT_SCOPE)
+
+add_library (Vulkan-Headers INTERFACE)
+target_include_directories (Vulkan-Headers
+    INTERFACE "${VULKAN_HEADERS_INSTALL_DIR}/include")
 
 # KhronosGroup/Vulkan-Utility-Libraries
 add_subdirectory (Vulkan-Utility-Libraries)
