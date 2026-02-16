@@ -52,6 +52,7 @@ if (BUILD_TESTS)
 
     add_dependencies (profiler_tests profiler_tests_shaders)
     add_dependencies (profiler_tests VkLayer_profiler_layer)
+    add_dependencies (profiler_tests VkICD_mock_icd)
 
     target_link_libraries (profiler_tests
         PRIVATE ${Vulkan_LIBRARIES}
