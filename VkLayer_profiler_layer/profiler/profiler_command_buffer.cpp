@@ -1489,7 +1489,8 @@ namespace Profiler
 
             // Check if any attachments are resolved at the end of current subpass.
             // m_pCurrentRenderPass may be null in case of dynamic rendering.
-            if( m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex )
+            if( (m_pCurrentRenderPass != nullptr) &&
+                (m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex) )
             {
                 m_Stats.m_ResolveStats.m_Count +=
                     m_pCurrentRenderPass->m_Subpasses[m_CurrentSubpassIndex].m_ResolveCount;
