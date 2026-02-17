@@ -899,7 +899,13 @@ namespace Profiler
     \*************************************************************************/
     void ProfilerTraceOutput::Update()
     {
-        const uint64_t totalFrameCount = m_SkipFrameCount + m_MaxFrameCount;
+        uint64_t totalFrameCount = UINT64_MAX;
+        if( m_MaxFrameCount != UINT32_MAX )
+        {
+            totalFrameCount =
+                static_cast<uint64_t>( m_MaxFrameCount ) +
+                static_cast<uint64_t>( m_SkipFrameCount );
+        }
 
         auto pData = m_Frontend.GetData();
         while( pData )
@@ -967,7 +973,7 @@ namespace Profiler
     \*************************************************************************/
     void ProfilerTraceOutput::SetMaxFrameCount( uint32_t maxFrameCount )
     {
-        m_MaxFrameCount = ( maxFrameCount ? maxFrameCount : UINT64_MAX );
+        m_MaxFrameCount = ( maxFrameCount ? maxFrameCount : UINT32_MAX );
 
         // Update data buffers.
         m_Frontend.SetDataBufferSize( m_MaxFrameCount );
@@ -1003,7 +1009,7 @@ namespace Profiler
 
         m_OutputFileName.clear();
 
-        m_MaxFrameCount = UINT64_MAX;
+        m_MaxFrameCount = UINT32_MAX;
         m_SkipFrameCount = 0;
         m_ProcessedFrameCount = 0;
         m_Flushed = false;

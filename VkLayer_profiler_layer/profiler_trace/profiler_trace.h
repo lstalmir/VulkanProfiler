@@ -155,7 +155,7 @@ namespace Profiler
 
         std::string m_OutputFileName;
 
-        uint64_t m_MaxFrameCount;
+        uint32_t m_MaxFrameCount;
         uint32_t m_SkipFrameCount;
         std::atomic_uint32_t m_ProcessedFrameCount;
         std::atomic_bool m_Flushed;
