@@ -145,11 +145,11 @@ This section describes in detail all available configuration options exposed by 
 
             The layer will collect profiling data for each pipeline, inserting timestamp queries when a new pipeline state is used. This mode provides a good balance between detail and overhead, allowing to analyze performance of individual pipelines without the overhead of collecting data for each draw call or dispatch command.
 
-        render_pass
+        renderpass
 
             The layer will collect profiling data for each render pass, dynamic rendering pass, compute or transfer commands pass, inserting timestamp queries at boundaries of those passes.
 
-        command_buffer
+        commandbuffer
 
             The layer will collect profiling data for each command buffer, placing timestamp queries at the beginning and end of each command buffer. This is the most coarse-grained mode supported by the layer.
 
