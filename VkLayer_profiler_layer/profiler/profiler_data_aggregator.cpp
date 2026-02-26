@@ -1093,6 +1093,8 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
+        std::unordered_map<uint32_t, std::pair<uint64_t, uint64_t>> topLevelPipelineRanges;
+
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
             (VkPipeline)DeviceProfilerPipelineType::eBeginRenderPass );
@@ -1113,7 +1115,7 @@ namespace Profiler
                 {
                     for( const auto& data : subpass.m_Data )
                     {
-                        CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines );
+                        CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines, topLevelPipelineRanges );
                     }
                 }
 
@@ -1134,7 +1136,7 @@ namespace Profiler
                         switch( data.GetType() )
                         {
                         case DeviceProfilerSubpassDataType::ePipeline:
-                            CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines );
+                            CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines, topLevelPipelineRanges );
                             break;
                         case DeviceProfilerSubpassDataType::eCommandBuffer:
                             CollectPipelinesFromCommandBuffer( std::get<DeviceProfilerCommandBufferData>( data ), aggregatedPipelines );
@@ -1146,8 +1148,8 @@ namespace Profiler
         }
 
         // Insert aggregated begin/end render pass pipelines
-        CollectPipeline( beginRenderPassPipeline, aggregatedPipelines );
-        CollectPipeline( endRenderPassPipeline, aggregatedPipelines );
+        CollectPipeline( beginRenderPassPipeline, aggregatedPipelines, topLevelPipelineRanges );
+        CollectPipeline( endRenderPassPipeline, aggregatedPipelines, topLevelPipelineRanges );
     }
 
     /***********************************************************************************\
@@ -1161,7 +1163,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipeline(
         const DeviceProfilerPipelineData& pipeline,
-        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines,
+        std::unordered_map<uint32_t, std::pair<uint64_t, uint64_t>>& topLevelPipelineRanges ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
@@ -1178,8 +1181,43 @@ namespace Profiler
             aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
         }
 
+        uint64_t pipelineSelfTime = pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value;
+
+        // Check if the current pipeline is a top-level pipeline (i.e. not executed within another pipeline)
+        // by looking for the existing pipeline range that contains its execution time range.
+        auto &topLevelRange = topLevelPipelineRanges[pipeline.m_ShaderTuple.m_Hash];
+
+        if( ( pipeline.m_BeginTimestamp.m_Value < topLevelRange.second ) &&
+            ( pipeline.m_EndTimestamp.m_Value > topLevelRange.second ) )
+        {
+            // Pipeline partially overlaps with the end of the existing top-level pipeline,
+            // adjust the existing range to include the new pipeline.
+            pipelineSelfTime -= ( topLevelRange.second - pipeline.m_BeginTimestamp.m_Value );
+            topLevelRange.second = pipeline.m_EndTimestamp.m_Value;
+        }
+        else if( ( pipeline.m_BeginTimestamp.m_Value < topLevelRange.first ) &&
+                 ( pipeline.m_EndTimestamp.m_Value > topLevelRange.first ) )
+        {
+            // Pipeline partially overlaps with the beginning of the existing top-level pipeline,
+            // adjust the existing range to include the new pipeline.
+            pipelineSelfTime -= ( pipeline.m_EndTimestamp.m_Value - topLevelRange.first );
+            topLevelRange.first = pipeline.m_BeginTimestamp.m_Value;
+        }
+        else if( ( pipeline.m_BeginTimestamp.m_Value >= topLevelRange.first ) &&
+                 ( pipeline.m_EndTimestamp.m_Value <= topLevelRange.second ) )
+        {
+            // Pipeline is fully contained within the existing top-level pipeline.
+            pipelineSelfTime = 0;
+        }
+        else
+        {
+            // New top-level pipeline started, update the range to the new pipeline execution time.
+            topLevelRange.first = pipeline.m_BeginTimestamp.m_Value;
+            topLevelRange.second = pipeline.m_EndTimestamp.m_Value;
+        }
+
         // Increase total pipeline time
-        aggregatedPipelineData.m_EndTimestamp.m_Value += ( pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value );
+        aggregatedPipelineData.m_EndTimestamp.m_Value += pipelineSelfTime;
     }
 
     /***********************************************************************************\
