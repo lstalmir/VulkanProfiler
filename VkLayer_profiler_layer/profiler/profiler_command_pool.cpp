@@ -46,9 +46,7 @@ namespace Profiler
         const bool canResetQueryPool =
             (queueFamilyProperties.queueFlags & (
                 VK_QUEUE_GRAPHICS_BIT |
-                VK_QUEUE_COMPUTE_BIT |
-                VK_QUEUE_VIDEO_DECODE_BIT_KHR |
-                VK_QUEUE_VIDEO_ENCODE_BIT_KHR ));
+                VK_QUEUE_COMPUTE_BIT ));
 
         // Profile only queues that support timestamp queries (VUID-vkCmdWriteTimestamp-timestampValidBits-00829)
         if( canResetQueryPool && queueFamilyProperties.timestampValidBits != 0 )
