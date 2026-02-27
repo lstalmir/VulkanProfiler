@@ -120,9 +120,9 @@ if __name__ == "__main__":
 
         out.write( "struct bool_t {\n" )
         out.write( "  static bool TryParse(const char* pName, bool& out) {\n" )
-        out.write( "    if(!strcmp(pName, \"1\") || !strcmp(pName, \"yes\") || !strcmp(pName, \"true\"))\n" )
+        out.write( "    if(!stricmp(pName, \"1\") || !stricmp(pName, \"yes\") || !stricmp(pName, \"true\"))\n" )
         out.write( "      return (out = true), true;\n" )
-        out.write( "    if(!strcmp(pName, \"0\") || !strcmp(pName, \"no\") || !strcmp(pName, \"false\"))\n" )
+        out.write( "    if(!stricmp(pName, \"0\") || !stricmp(pName, \"no\") || !stricmp(pName, \"false\"))\n" )
         out.write( "      return (out = false), true;\n" )
         out.write( "    return false;\n" )
         out.write( "  }\n" )
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 out.write( "  operator value_t() const { return value; }\n\n" )
                 out.write( f"  static bool TryParse(const char* pName, {typename}& out) {{\n" )
                 for idx, flag in enumerate(setting.flags):
-                    out.write( f"    if(!strcmp(\"{idx}\", pName) || !strcmp(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
+                    out.write( f"    if(!stricmp(\"{idx}\", pName) || !stricmp(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
                 out.write( "    return false;\n" )
                 out.write( "  }\n" )
                 out.write( "};\n\n" )
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         out.write( "      in >> name >> value;\n" )
         out.write( "      if(!name.empty()) {\n" )
         for setting in layer.settings:
-            out.write( f"        if(!strcmp(name.c_str(), \"{setting.key}\")) {{\n" )
+            out.write( f"        if(!stricmp(name.c_str(), \"{setting.key}\")) {{\n" )
             out.write( f"          {setting.c_assign_from_string('value')};\n" )
             out.write(  "          continue;\n" )
             out.write(  "        }\n" )
