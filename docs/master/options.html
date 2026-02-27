@@ -55,7 +55,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#confval-default_metrics_set"><code class="docutils literal notranslate"><span class="pre">default_metrics_set</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_pipeline_executable_properties_ext"><code class="docutils literal notranslate"><span class="pre">enable_pipeline_executable_properties_ext</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_render_pass_begin_end_profiling"><code class="docutils literal notranslate"><span class="pre">enable_render_pass_begin_end_profiling</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#confval-capture_indirect_args"><code class="docutils literal notranslate"><span class="pre">capture_indirect_args</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-capture_indirect_arguments"><code class="docutils literal notranslate"><span class="pre">capture_indirect_arguments</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-set_stable_power_state"><code class="docutils literal notranslate"><span class="pre">set_stable_power_state</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-enable_threading"><code class="docutils literal notranslate"><span class="pre">enable_threading</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-sampling_mode"><code class="docutils literal notranslate"><span class="pre">sampling_mode</span></code></a></li>
@@ -109,6 +109,8 @@
 <p>Type of the output used for presenting the profiling data. By default the layer creates an overlay in the application’s window and intercepts incoming input events when the mouse cursor is on top of the overlay. This is the most convenient output that also supports all features of the layer.</p>
 <p>The following outputs are available:</p>
 <dl class="simple glossary">
+<dt id="term-none">none<a class="headerlink" href="#term-none" title="Link to this term"></a></dt><dd><p>The data is not written anywhere. Applications can choose to disable the built-in output and read the data using the profiler’s extension API, defined in VkProfilerEXT.h.</p>
+</dd>
 <dt id="term-overlay">overlay<a class="headerlink" href="#term-overlay" title="Link to this term"></a></dt><dd><p>An overlay is displayed in the application’s window. It intercepts incoming input events to allow the user to interact with it and browse through the profiling data. The overlay displays live performance data, which can be paused and resumed at any time. It also provides useful widgets showing post-processed data, such as command queue utilization graphs, top pipelines list, drawcall statistics, shader code disassembly, and more.</p>
 </dd>
 <dt id="term-trace">trace<a class="headerlink" href="#term-trace" title="Link to this term"></a></dt><dd><p>The profiling data is written directly to a trace file in the JSON format. It is useful when profiling applications that don’t present the rendered image in a window, such as command line applications and compute-only workloads. The data is limited to timestamp query results only.</p>
@@ -152,7 +154,7 @@
 <p>Enables the selected performance extension and collects detailed performance metrics. The metrics are collected at VkCommandBuffer level and then aggregated into the entire frame. The scope of available metrics depends on the driver and the GPU used for measurements.</p>
 <p>The following options are available:</p>
 <dl class="glossary">
-<dt id="term-none">none<a class="headerlink" href="#term-none" title="Link to this term"></a></dt><dd><p>Disables collection of performance counters.</p>
+<dt id="term-0">none<a class="headerlink" href="#term-0" title="Link to this term"></a></dt><dd><p>Disables collection of performance counters.</p>
 </dd>
 <dt id="term-intel">intel<a class="headerlink" href="#term-intel" title="Link to this term"></a></dt><dd><p>Enables VK_INTEL_performance_query extension and uses Metrics-Discovery library to process the results. The extension provides predefined metrics sets exposed by the Intel graphics driver and does not support custom sets.</p>
 </dd>
@@ -234,12 +236,12 @@
 <dt class="field-even">Default<span class="colon">:</span></dt>
 <dd class="field-even">false</dd>
 </dl>
-<p>When <a class="reference internal" href="#confval-sampling_mode"><code class="xref std std-confval docutils literal notranslate"><span class="pre">sampling_mode</span></code></a> is set to <strong>render_pass</strong> or higher, setting this option will enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass commands.</p>
+<p>When <a class="reference internal" href="#confval-sampling_mode"><code class="xref std std-confval docutils literal notranslate"><span class="pre">sampling_mode</span></code></a> is set to <strong>renderpass</strong> or higher, setting this option will enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass commands.</p>
 </dd></dl>
 
 <dl class="std confval">
-<dt class="sig sig-object std" id="confval-capture_indirect_args">
-<span class="sig-name descname"><span class="pre">capture_indirect_args</span></span><a class="headerlink" href="#confval-capture_indirect_args" title="Link to this definition"></a></dt>
+<dt class="sig sig-object std" id="confval-capture_indirect_arguments">
+<span class="sig-name descname"><span class="pre">capture_indirect_arguments</span></span><a class="headerlink" href="#confval-capture_indirect_arguments" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
 <dd class="field-odd">bool</dd>

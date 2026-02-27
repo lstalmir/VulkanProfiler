@@ -13,6 +13,9 @@ This section describes in detail all available configuration options exposed by 
 
     .. glossary::
 
+        none
+            The data is not written anywhere. Applications can choose to disable the built-in output and read the data using the profiler's extension API, defined in VkProfilerEXT.h.
+
         overlay
             An overlay is displayed in the application's window. It intercepts incoming input events to allow the user to interact with it and browse through the profiling data. The overlay displays live performance data, which can be paused and resumed at any time. It also provides useful widgets showing post-processed data, such as command queue utilization graphs, top pipelines list, drawcall statistics, shader code disassembly, and more.
 
@@ -101,9 +104,9 @@ This section describes in detail all available configuration options exposed by 
     :type: bool
     :default: false
 
-    When :confval:`sampling_mode` is set to **render_pass** or higher, setting this option will enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass commands.
+    When :confval:`sampling_mode` is set to **renderpass** or higher, setting this option will enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass commands.
 
-.. confval:: capture_indirect_args
+.. confval:: capture_indirect_arguments
     :type: bool
     :default: false
 
