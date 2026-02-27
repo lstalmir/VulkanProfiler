@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -69,6 +69,10 @@
 #else
 #define PROFILER_FORCE_INLINE inline
 #endif
+
+// Shorthands for string comparison functions
+#define PROFILER_STREQ( STR1, STR2 ) ( Profiler::ProfilerStringFunctions::Equals<Profiler::ProfilerStringFunctions::CaseSensitivity::CaseSensitive>( ( STR1 ), ( STR2 ) ) )
+#define PROFILER_STREQI( STR1, STR2 ) ( Profiler::ProfilerStringFunctions::Equals<Profiler::ProfilerStringFunctions::CaseSensitivity::CaseInsensitive>( ( STR1 ), ( STR2 ) ) )
 
 namespace Profiler
 {
@@ -708,6 +712,23 @@ namespace Profiler
             {
                 return false;
             }
+        }
+
+        template<CaseSensitivity caseSensitivity, typename CharT>
+        static bool Equals( const CharT* pStr1, const CharT* pStr2 )
+        {
+            while( *pStr1 && *pStr2 )
+            {
+                if( !CharEquals<caseSensitivity>( *pStr1, *pStr2 ) )
+                {
+                    return false;
+                }
+
+                pStr1++;
+                pStr2++;
+            }
+
+            return ( *pStr1 == 0 ) && ( *pStr2 == 0 );
         }
 
         template<CaseSensitivity caseSensitivity, typename CharT>
