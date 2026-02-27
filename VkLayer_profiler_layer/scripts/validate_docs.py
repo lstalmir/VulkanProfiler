@@ -24,9 +24,9 @@ import re
 import json
 import argparse
 
-RE_CONFVAL_DEFINITION = re.compile('\.\.\s+confval::\s+(?P<name>\w+)$')
-RE_CONFVAL_REFERENCE = re.compile(':confval:`(?P<name>\w+)`( is set to (?:\*\*)?(?P<value>\w+)(?:\*\*)?)?')
-RE_CONFVAL_GLOSSARY = re.compile('\.\.\s+glossary::$')
+RE_CONFVAL_DEFINITION = re.compile(r'\.\.\s+confval::\s+(?P<name>\w+)$')
+RE_CONFVAL_REFERENCE = re.compile(r':confval:`(?P<name>\w+)`( is set to (?:\*\*)?(?P<value>\w+)(?:\*\*)?)?')
+RE_CONFVAL_GLOSSARY = re.compile(r'\.\.\s+glossary::$')
 
 def validate_confvals(manifest, docs_root_dir):
     class cval_def_t:

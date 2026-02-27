@@ -37,6 +37,7 @@ on:
       - 'Docs/**'
       - '.gitmodules'
       - '.github/workflows/docs.yml'
+      - 'VkLayer_profiler_layer/VkLayer_profiler_layer.json.in'
 
 jobs:
   build-docs:
