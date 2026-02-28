@@ -123,14 +123,8 @@ jobs:
         name: ubuntu-24.04-Release-${{runner.arch}}
         path: ${{github.workspace}}/install
 
-    - name: Install dependencies
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: mesa
-        version: 1.0
-
     - name: Test
       env:
         VK_LAYER_PATH: ${{github.workspace}}/install/lib/x86_64-linux-gnu/
       run: |
-        ${{github.workspace}}/bin/x86_64-linux-gnu/profiler_tests
+        ${{github.workspace}}/bin/profiler_tests
