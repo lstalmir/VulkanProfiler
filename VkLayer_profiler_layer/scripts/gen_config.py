@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Lukasz Stalmirski
+# Copyright (c) 2024-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -120,9 +120,9 @@ if __name__ == "__main__":
 
         out.write( "struct bool_t {\n" )
         out.write( "  static bool TryParse(const char* pName, bool& out) {\n" )
-        out.write( "    if(!strcmp(pName, \"1\") || !strcmp(pName, \"yes\") || !strcmp(pName, \"true\"))\n" )
+        out.write( "    if(PROFILER_STREQI(pName, \"1\") || PROFILER_STREQI(pName, \"yes\") || PROFILER_STREQI(pName, \"true\"))\n" )
         out.write( "      return (out = true), true;\n" )
-        out.write( "    if(!strcmp(pName, \"0\") || !strcmp(pName, \"no\") || !strcmp(pName, \"false\"))\n" )
+        out.write( "    if(PROFILER_STREQI(pName, \"0\") || PROFILER_STREQI(pName, \"no\") || PROFILER_STREQI(pName, \"false\"))\n" )
         out.write( "      return (out = false), true;\n" )
         out.write( "    return false;\n" )
         out.write( "  }\n" )
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 out.write( "  operator value_t() const { return value; }\n\n" )
                 out.write( f"  static bool TryParse(const char* pName, {typename}& out) {{\n" )
                 for idx, flag in enumerate(setting.flags):
-                    out.write( f"    if(!strcmp(\"{idx}\", pName) || !strcmp(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
+                    out.write( f"    if(PROFILER_STREQI(\"{idx}\", pName) || PROFILER_STREQI(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
                 out.write( "    return false;\n" )
                 out.write( "  }\n" )
                 out.write( "};\n\n" )
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         out.write( "      in >> name >> value;\n" )
         out.write( "      if(!name.empty()) {\n" )
         for setting in layer.settings:
-            out.write( f"        if(!strcmp(name.c_str(), \"{setting.key}\")) {{\n" )
+            out.write( f"        if(PROFILER_STREQI(name.c_str(), \"{setting.key}\")) {{\n" )
             out.write( f"          {setting.c_assign_from_string('value')};\n" )
             out.write(  "          continue;\n" )
             out.write(  "        }\n" )
