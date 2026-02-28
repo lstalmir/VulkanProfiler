@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -60,7 +60,7 @@ jobs:
       uses: awalsh128/cache-apt-pkgs-action@latest
       if: runner.os == 'Linux'
       with:
-        packages: extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libdrm-dev
+        packages: extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libdrm-dev glslang-tools
         version: 1.0
 
     - uses: actions/setup-python@v5
@@ -77,11 +77,15 @@ jobs:
     - name: Build
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j 4
-      
+
     - name: Install
       if: matrix.build_type == 'Release'
       # Install build artifacts to a common directory
       run: cmake --install ${{github.workspace}}/build --prefix ${{github.workspace}}/install
+
+    - name: Install tests
+      if: ${{ matrix.build_type == 'Release' && matrix.os == 'ubuntu-24.04' }}
+      run: cmake --install ${{github.workspace}}/build --prefix ${{github.workspace}}/install_test --component Test
 
     - name: Publish artifacts
       if: matrix.build_type == 'Release'
@@ -89,4 +93,44 @@ jobs:
       with:
         name: ${{matrix.os}}-${{matrix.build_type}}-${{runner.arch}}
         path: ${{github.workspace}}/install
+        retention-days: 7
+
+    - name: Publish tests artifacts
+      if: ${{ matrix.build_type == 'Release' && matrix.os == 'ubuntu-24.04' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{matrix.os}}-Tests-${{runner.arch}}
+        path: ${{github.workspace}}/install_test
         retention-days: 1
+
+  test:
+    if: github.event.pull_request.draft == false
+
+    name: Test
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Download Test package
+      uses: actions/download-artifact@latest
+      with:
+        name: ubuntu-24.04-Tests-${{runner.arch}}
+        path: ${{github.workspace}}
+
+    - name: Download layer package
+      uses: actions/download-artifact@latest
+      with:
+        name: ubuntu-24.04-Release-${{runner.arch}}
+        path: ${{github.workspace}}/install
+
+    - name: Install dependencies
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: mesa
+        version: 1.0
+
+    - name: Test
+      env:
+        VK_LAYER_PATH: ${{github.workspace}}/install/lib/x86_64-linux-gnu/
+      run: |
+        ${{github.workspace}}/bin/x86_64-linux-gnu/profiler_tests
