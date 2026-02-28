@@ -38,6 +38,7 @@ if (BUILD_TESTS)
 
     set (tests
         "profiler_command_buffer_tests.cpp"
+        "profiler_config_tests.cpp"
         "profiler_extensions_tests.cpp"
         "profiler_memory_tests.cpp"
         "profiler_testing_common.h"
