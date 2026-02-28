@@ -69,6 +69,15 @@ jobs:
         cache: 'pip'
     - run: python3 -m pip install -r ${{github.workspace}}/VkLayer_profiler_layer/scripts/requirements.txt
 
+    - run: mkdir -p cmake_build/External
+    - uses: actions/cache@v4
+      with:
+        path: cmake_build/External
+        key: external-${{runner.os}}-${{matrix.build_type}}-${{hashFiles('.gitmodules')}}
+        restore-keys: |
+          external-${{runner.os}}-${{matrix.build_type}}-${{hashFiles('.gitmodules'}}
+          external-${{runner.os}}-${{matrix.build_type}}-
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
