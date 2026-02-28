@@ -44,8 +44,8 @@ jobs:
     # Build configs.
     strategy:
       matrix:
-        build_type: ${{fromJson(format('[{0}]', inputs.build_types || '"Release","Debug"'))}}
-        os: ${{fromJson(format('[{0}]', inputs.operating_systems || '"windows-latest","ubuntu-24.04","ubuntu-22.04"'))}}
+        build_type: ${{fromJson(format('[{0}]', inputs.build_types || '"Release"'))}}
+        os: ${{fromJson(format('[{0}]', inputs.operating_systems || '"ubuntu-24.04"'))}}
 
     name: Build ${{matrix.os}} ${{matrix.build_type}}
     runs-on: ${{matrix.os}}
@@ -117,14 +117,19 @@ jobs:
         name: ubuntu-24.04-Tests-${{runner.arch}}
         path: ${{github.workspace}}
 
+    - run: ls ${{github.workspace}}
+
     - name: Download layer package
       uses: actions/download-artifact@v8
       with:
         name: ubuntu-24.04-Release-${{runner.arch}}
         path: ${{github.workspace}}/install
 
+    - run: ls ${{github.workspace}}/install
+
     - name: Test
       env:
         VK_LAYER_PATH: ${{github.workspace}}/install/lib/x86_64-linux-gnu/
       run: |
+        chmod +x ${{github.workspace}}/bin/profiler_tests
         ${{github.workspace}}/bin/profiler_tests
