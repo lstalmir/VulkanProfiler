@@ -73,9 +73,9 @@ jobs:
     - uses: actions/cache@v4
       with:
         path: cmake_build/External
-        key: external-${{runner.os}}-${{matrix.build_type}}-${{hashFiles('.gitmodules')}}
+        key: external-${{runner.os}}-${{matrix.build_type}}-${{hashFiles(format('{0}/.gitmodules', github.workspace))}}
         restore-keys: |
-          external-${{runner.os}}-${{matrix.build_type}}-${{hashFiles('.gitmodules'}}
+          external-${{runner.os}}-${{matrix.build_type}}-${{hashFiles(format('{0}/.gitmodules', github.workspace))}}
           external-${{runner.os}}-${{matrix.build_type}}-
 
     - name: Configure CMake
