@@ -112,13 +112,13 @@ jobs:
 
     steps:
     - name: Download Test package
-      uses: actions/download-artifact@latest
+      uses: actions/download-artifact@v8
       with:
         name: ubuntu-24.04-Tests-${{runner.arch}}
         path: ${{github.workspace}}
 
     - name: Download layer package
-      uses: actions/download-artifact@latest
+      uses: actions/download-artifact@v8
       with:
         name: ubuntu-24.04-Release-${{runner.arch}}
         path: ${{github.workspace}}/install
