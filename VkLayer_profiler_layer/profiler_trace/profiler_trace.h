@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -84,7 +84,9 @@ namespace Profiler
         const struct DeviceProfilerFrameData* m_pData;
 
         // Target command queue for the current batch
-        VkQueue      m_CommandQueue;
+        VkQueueHandle  m_CommandQueue;
+        std::string    m_CommandQueueName;
+        std::vector<uint64_t> m_CommandQueueEventTracks;
 
         // Serialized events
         nlohmann::json m_Events;
@@ -108,6 +110,15 @@ namespace Profiler
         inline Milliseconds GetDuration( const DataStructType& data ) const
         {
             return (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_GpuTimestampPeriod;
+        }
+
+        // Track management
+        std::string AssignTrackForEvent( uint64_t beginTimestamp, uint64_t endTimestamp );
+
+        template<typename DataStructType>
+        inline std::string AssignTrackForEvent( const DataStructType& data )
+        {
+            return AssignTrackForEvent( data.GetBeginTimestamp().m_Value, data.GetEndTimestamp().m_Value );
         }
 
         // Serialization

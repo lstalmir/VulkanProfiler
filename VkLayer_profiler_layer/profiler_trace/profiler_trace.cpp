@@ -93,6 +93,8 @@ namespace Profiler
         , m_pJsonSerializer( new DeviceProfilerJsonSerializer( m_pStringSerializer ) )
         , m_pData( nullptr )
         , m_CommandQueue( VK_NULL_HANDLE )
+        , m_CommandQueueName()
+        , m_CommandQueueEventTracks()
         , m_Events()
         , m_DebugLabelStackDepth( 0 )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
@@ -147,12 +149,14 @@ namespace Profiler
             frameName,
             "Frames",
             frameGpuBeginTimestamp,
-            VK_NULL_HANDLE ) );
+            "Frames" ) );
 
         // Serialize the data
         for( const auto& submitBatchData : data.m_Submits )
         {
             m_CommandQueue = submitBatchData.m_Handle;
+            m_CommandQueueName = m_pStringSerializer->GetName( m_CommandQueue );
+            m_CommandQueueEventTracks.clear();
 
             // Insert queue submission event
             m_Events.push_back( ApiTraceEvent(
@@ -228,7 +232,7 @@ namespace Profiler
 
                 m_Events.push_back( TraceCounterEvent(
                     GetNormalizedGpuTimestamp( data.m_PerformanceCounters.m_StreamTimestamps[i] ),
-                    m_CommandQueue,
+                    m_CommandQueueName,
                     performanceCountersCount,
                     performanceCounterProperties.data(),
                     performanceCounterSamples.data() ) );
@@ -237,7 +241,7 @@ namespace Profiler
             Fill( performanceCounterSamples, VkProfilerPerformanceCounterResultEXT{} );
             m_Events.push_back( TraceCounterEvent(
                 frameGpuEndTimestamp,
-                m_CommandQueue,
+                m_CommandQueueName,
                 performanceCountersCount,
                 performanceCounterProperties.data(),
                 performanceCounterSamples.data() ) );
@@ -248,7 +252,7 @@ namespace Profiler
             frameName,
             "Frames",
             frameGpuEndTimestamp,
-            VK_NULL_HANDLE ) );
+            "Frames" ) );
 
         // Insert TIP events
         Serialize( data.m_TIP );
@@ -384,7 +388,7 @@ namespace Profiler
             eventName,
             "Command buffers",
             GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-            m_CommandQueue ) );
+            m_CommandQueueName ) );
 
         // Performance counters
         const uint32_t performanceCounterCount = static_cast<uint32_t>( data.m_PerformanceCounters.m_Results.size() );
@@ -400,7 +404,7 @@ namespace Profiler
 
             m_Events.push_back( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueue,
+                m_CommandQueueName,
                 performanceCounterProperties.size(),
                 performanceCounterProperties.data(),
                 data.m_PerformanceCounters.m_Results.data() ) );
@@ -420,7 +424,7 @@ namespace Profiler
         {
             m_Events.push_back( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-                m_CommandQueue,
+                m_CommandQueueName,
                 performanceCounterProperties.size(),
                 performanceCounterProperties.data(),
                 nullptr ) );
@@ -432,7 +436,7 @@ namespace Profiler
             eventName,
             "Command buffers",
             GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-            m_CommandQueue ) );
+            m_CommandQueueName ) );
     }
 
     /*************************************************************************\
@@ -457,7 +461,7 @@ namespace Profiler
                 eventName,
                 "Render passes",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueue ) );
+                m_CommandQueueName ) );
 
             if( (data.HasBeginCommand()) &&
                 (data.m_Begin.m_BeginTimestamp.m_Value != UINT64_MAX) )
@@ -465,12 +469,19 @@ namespace Profiler
                 const std::string beginEventName = m_pStringSerializer->GetName( data.m_Begin, data.m_Dynamic );
 
                 // vkCmdBeginRenderPass
-                m_Events.push_back( TraceCompleteEvent(
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationBegin,
                     beginEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp.m_Value ),
-                    GetDuration( data.m_Begin ),
-                    m_CommandQueue ) );
+                    m_CommandQueueName ) );
+
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationEnd,
+                    beginEventName,
+                    "Drawcalls",
+                    GetNormalizedGpuTimestamp( data.m_Begin.m_EndTimestamp.m_Value ),
+                    m_CommandQueueName ) );
             }
         }
 
@@ -488,12 +499,19 @@ namespace Profiler
                 const std::string endEventName = m_pStringSerializer->GetName( data.m_End, data.m_Dynamic );
 
                 // vkCmdEndRenderPass
-                m_Events.push_back( TraceCompleteEvent(
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationBegin,
                     endEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp.m_Value ),
-                    GetDuration( data.m_End ),
-                    m_CommandQueue ) );
+                    m_CommandQueueName ) );
+
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationEnd,
+                    endEventName,
+                    "Drawcalls",
+                    GetNormalizedGpuTimestamp( data.m_End.m_EndTimestamp.m_Value ),
+                    m_CommandQueueName ) );
             }
 
             // End
@@ -502,7 +520,7 @@ namespace Profiler
                 eventName,
                 "Render passes",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-                m_CommandQueue ) );
+                m_CommandQueueName ) );
         }
     }
 
@@ -526,7 +544,7 @@ namespace Profiler
                 TraceEvent::Phase::eDurationBegin,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueue ) );
+                m_CommandQueueName ) );
         }
 
         for( const auto& data : data.m_Data )
@@ -555,7 +573,7 @@ namespace Profiler
                 TraceEvent::Phase::eDurationEnd,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-                m_CommandQueue ) );
+                m_CommandQueueName ) );
         }
     }
 
@@ -572,6 +590,7 @@ namespace Profiler
     {
         const std::string eventName = m_pStringSerializer->GetName( data, true /*showEntryPoints*/ );
         const nlohmann::json eventArgs = m_pJsonSerializer->GetPipelineArgs( data );
+        std::string trackName;
 
         const bool isValidPipeline =
             (data.m_Handle ||
@@ -580,14 +599,16 @@ namespace Profiler
 
         if( isValidPipeline )
         {
+            trackName = AssignTrackForEvent( data );
+
             // Begin
             m_Events.push_back( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Pipelines",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueue,
-                {} ,
+                trackName,
+                {},
                 eventArgs ) );
         }
 
@@ -608,7 +629,7 @@ namespace Profiler
                 eventName,
                 "Pipelines",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-                m_CommandQueue ) );
+                trackName ) );
         }
     }
 
@@ -627,6 +648,7 @@ namespace Profiler
         {
             const std::string eventName = m_pStringSerializer->GetCommandName( data );
             const nlohmann::json eventArgs = m_pJsonSerializer->GetCommandArgs( data );
+            const std::string trackName = AssignTrackForEvent( data );
 
             // Cannot use complete events due to loss of precision
             m_Events.push_back( TraceEvent(
@@ -634,7 +656,7 @@ namespace Profiler
                 eventName,
                 "Drawcalls",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueue,
+                trackName,
                 {},
                 eventArgs ) );
 
@@ -643,7 +665,7 @@ namespace Profiler
                 eventName,
                 "Drawcalls",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-                m_CommandQueue ) );
+                trackName ) );
         }
 
         else
@@ -707,6 +729,36 @@ namespace Profiler
                 range.m_ThreadId,
                 GetNormalizedCpuTimestamp( range.m_EndTimestamp ) ) );
         }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        AssignTrackForEvent
+
+    \*************************************************************************/
+    std::string DeviceProfilerTraceSerializer::AssignTrackForEvent( uint64_t beginTimestamp, uint64_t endTimestamp )
+    {
+        // Try to find an existing track which is not occupied during the event time
+        for( size_t i = 0; i < m_CommandQueueEventTracks.size(); ++i )
+        {
+            if( beginTimestamp >= m_CommandQueueEventTracks[i] )
+            {
+                m_CommandQueueEventTracks[i] = endTimestamp;
+                return m_CommandQueueName + " [" + std::to_string( i ) + "]";
+            }
+        }
+
+        // Remove finished tracks from the beginning of the list to free up space
+        while( !m_CommandQueueEventTracks.empty() &&
+               ( m_CommandQueueEventTracks.front() <= beginTimestamp ) )
+        {
+            m_CommandQueueEventTracks.erase( m_CommandQueueEventTracks.begin() );
+        }
+
+        // Create a new track
+        m_CommandQueueEventTracks.push_back( endTimestamp );
+        return m_CommandQueueName + " [" + std::to_string( m_CommandQueueEventTracks.size() - 1 ) + "]";
     }
 
     /*************************************************************************\
