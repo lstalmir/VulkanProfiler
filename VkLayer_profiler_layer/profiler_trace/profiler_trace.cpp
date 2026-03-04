@@ -381,6 +381,7 @@ namespace Profiler
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerCommandBufferData& data )
     {
         const std::string eventName = m_pStringSerializer->GetName( data );
+        const std::string trackName = AssignTrackForEvent( data );
 
         // Begin
         m_Events.push_back( TraceEvent(
@@ -388,7 +389,7 @@ namespace Profiler
             eventName,
             "Command buffers",
             GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-            m_CommandQueueName ) );
+            trackName ) );
 
         // Performance counters
         const uint32_t performanceCounterCount = static_cast<uint32_t>( data.m_PerformanceCounters.m_Results.size() );
@@ -436,7 +437,7 @@ namespace Profiler
             eventName,
             "Command buffers",
             GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-            m_CommandQueueName ) );
+            trackName ) );
     }
 
     /*************************************************************************\
@@ -452,21 +453,25 @@ namespace Profiler
     {
         const bool isValidRenderPass = (data.m_Type != DeviceProfilerRenderPassType::eNone);
         const std::string eventName = m_pStringSerializer->GetName(data);
+        std::string trackName;
 
         if( isValidRenderPass )
         {
+            trackName = AssignTrackForEvent( data );
+
             // Begin
             m_Events.push_back( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Render passes",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueueName ) );
+                trackName ) );
 
             if( (data.HasBeginCommand()) &&
                 (data.m_Begin.m_BeginTimestamp.m_Value != UINT64_MAX) )
             {
                 const std::string beginEventName = m_pStringSerializer->GetName( data.m_Begin, data.m_Dynamic );
+                const std::string beginEventTrackName = AssignTrackForEvent( data.m_Begin );
 
                 // vkCmdBeginRenderPass
                 m_Events.push_back( TraceEvent(
@@ -474,14 +479,14 @@ namespace Profiler
                     beginEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp.m_Value ),
-                    m_CommandQueueName ) );
+                    beginEventTrackName ) );
 
                 m_Events.push_back( TraceEvent(
                     TraceEvent::Phase::eDurationEnd,
                     beginEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_Begin.m_EndTimestamp.m_Value ),
-                    m_CommandQueueName ) );
+                    beginEventTrackName ) );
             }
         }
 
@@ -497,6 +502,7 @@ namespace Profiler
                 (data.m_End.m_BeginTimestamp.m_Value != UINT64_MAX) )
             {
                 const std::string endEventName = m_pStringSerializer->GetName( data.m_End, data.m_Dynamic );
+                const std::string endEventTrackName = AssignTrackForEvent( data.m_End );
 
                 // vkCmdEndRenderPass
                 m_Events.push_back( TraceEvent(
@@ -504,14 +510,14 @@ namespace Profiler
                     endEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp.m_Value ),
-                    m_CommandQueueName ) );
+                    endEventTrackName ) );
 
                 m_Events.push_back( TraceEvent(
                     TraceEvent::Phase::eDurationEnd,
                     endEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_End.m_EndTimestamp.m_Value ),
-                    m_CommandQueueName ) );
+                    endEventTrackName ) );
             }
 
             // End
@@ -520,7 +526,7 @@ namespace Profiler
                 eventName,
                 "Render passes",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-                m_CommandQueueName ) );
+                trackName ) );
         }
     }
 
@@ -536,15 +542,18 @@ namespace Profiler
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerSubpassData& data, bool isOnlySubpassInRenderPass )
     {
         const std::string eventName = m_pStringSerializer->GetName( data );
+        std::string trackName;
 
         if( !isOnlySubpassInRenderPass )
         {
+            trackName = AssignTrackForEvent( data );
+
             // Begin
             m_Events.push_back( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
-                m_CommandQueueName ) );
+                trackName ) );
         }
 
         for( const auto& data : data.m_Data )
@@ -573,7 +582,7 @@ namespace Profiler
                 TraceEvent::Phase::eDurationEnd,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
-                m_CommandQueueName ) );
+                trackName ) );
         }
     }
 
@@ -739,6 +748,11 @@ namespace Profiler
     \*************************************************************************/
     std::string DeviceProfilerTraceSerializer::AssignTrackForEvent( uint64_t beginTimestamp, uint64_t endTimestamp )
     {
+        if( beginTimestamp == UINT64_MAX || endTimestamp == UINT64_MAX )
+        {
+            return std::string();
+        }
+
         // Try to find an existing track which is not occupied during the event time
         for( size_t i = 0; i < m_CommandQueueEventTracks.size(); ++i )
         {
@@ -747,13 +761,6 @@ namespace Profiler
                 m_CommandQueueEventTracks[i] = endTimestamp;
                 return m_CommandQueueName + " [" + std::to_string( i ) + "]";
             }
-        }
-
-        // Remove finished tracks from the beginning of the list to free up space
-        while( !m_CommandQueueEventTracks.empty() &&
-               ( m_CommandQueueEventTracks.front() <= beginTimestamp ) )
-        {
-            m_CommandQueueEventTracks.erase( m_CommandQueueEventTracks.begin() );
         }
 
         // Create a new track
