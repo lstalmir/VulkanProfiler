@@ -3,7 +3,7 @@
     "layer": {
         "name": "@PROFILER_LAYER_NAME@",
         "type": "GLOBAL",
-        "library_path": "@THIS_DIR@$<TARGET_FILE_NAME:@PROFILER_LAYER_PROJECTNAME@>",
+        "library_path": "@PROFILER_LAYER_JSON_DLL_PREFIX@$<TARGET_FILE_NAME:@PROFILER_LAYER_PROJECTNAME@>",
         "api_version": "@PROFILER_LAYER_API_VERSION@",
         "implementation_version": "@PROFILER_LAYER_VER_BUILD@",
         "description": "@PROFILER_LAYER_FILEDESCRIPTION@",
