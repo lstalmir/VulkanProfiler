@@ -79,15 +79,43 @@ def read_license_file( license_path ):
             pass
     raise Exception( f"Failed to read '{license_path}' using any of the known encodings" )
 
-def append_license_file( out, info: library_info ):
-    out.write( f"| **{info.name}**\n" )
-    if info.git_url:
-        out.write( f"| {info.git_url}\n" )
-    out.write( "\n" )
-    out.write( ".. code-block:: text\n\n" )
-    for line in read_license_file( info.license_path ):
-        out.write( "  " + line.strip() + "\n" )
-    out.write( "\n\n" )
+class RSTWriter:
+    def begin( self, out ):
+        pass
+
+    def end( self, out ):
+        pass
+
+    def append_license_file( self, out, info: library_info ):
+        out.write( f"| **{info.name}**\n" )
+        if info.git_url:
+            out.write( f"| {info.git_url}\n" )
+        out.write( "\n" )
+        out.write( ".. code-block:: text\n\n" )
+        for line in read_license_file( info.license_path ):
+            out.write( "  " + line.strip() + "\n" )
+        out.write( "\n\n" )
+
+class RTFWriter:
+    def begin( self, out ):
+        out.write( "{\\rtf1\n" )
+
+    def end( self, out ):
+        out.write( "}" )
+
+    def append_license_file( self, out, info: library_info ):
+        out.write( f"{{\\b1 {info.name}}}\\par\n" )
+        if info.git_url:
+            out.write( f"{info.git_url}\\par\n" )
+        out.write( "\\par\n" )
+        for line in read_license_file( info.license_path ):
+            out.write( line.strip() + "\\par\n" )
+        out.write( "\\par\n\\par\n" )
+
+SUPPORTED_FORMATS = {
+    "rst": RSTWriter(),
+    "rtf": RTFWriter()
+}
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -95,15 +123,19 @@ if __name__ == "__main__":
     parser.add_argument( "--skip", nargs="*", dest="skip_libs", metavar=("NAME"), default=[] )
     parser.add_argument( "--externaldir", action="append", dest="external_dirs" )
     parser.add_argument( "--output", "-o", dest="output", required=True )
+    parser.add_argument( "--format", "-f", dest="format", default="rst" )
     args = parser.parse_args()
 
     with open( args.output, mode="w" ) as out:
+        writer = SUPPORTED_FORMATS[ args.format ]
+        writer.begin( out )
         for lib, path in args.license_paths:
             info = library_info( lib, path )
-            append_license_file( out, info )
+            writer.append_license_file( out, info )
         for directory in args.external_dirs:
             licenses = find_licenses( directory, args.skip_libs )
             for info in licenses:
-                append_license_file( out, info )
+                writer.append_license_file( out, info )
+        writer.end( out )
 
     print( f"-- Licenses written to {args.output}" )

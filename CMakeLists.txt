@@ -50,3 +50,5 @@ add_subdirectory (VkLayer_profiler_layer)
 if (PROFILER_INSTALL_EXTERNAL_TARGETS)
     install (TARGETS ${PROFILER_INSTALL_EXTERNAL_TARGETS})
 endif ()
+
+include (CPack)
