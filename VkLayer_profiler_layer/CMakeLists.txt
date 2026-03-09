@@ -121,26 +121,33 @@ if (NOT WIN32)
         "${PROFILER_LAYER_JSON_INSTALL_FILE}")
 endif ()
 
-add_custom_command (
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROFILER_SCRIPTS_DIR}/gen_config.py"
+function (generate_file_with_python)
+    set (NO_VALUE_OPTS )
+    set (ONE_VALUE_OPTS )
+    set (MULTI_VALUE_OPTS SCRIPT DEPENDS)
+    cmake_parse_arguments (PARSE_ARGV 0 ARG "${NO_VALUE_OPTS}" "${ONE_VALUE_OPTS}" "${MULTI_VALUE_OPTS}")
+
+    execute_process (
+        COMMAND "${Python3_EXECUTABLE}"
+            ${ARG_SCRIPT})
+
+    list (APPEND CMAKE_CONFIGURE_DEPENDS ${ARG_DEPENDS})
+endfunction ()
+
+generate_file_with_python (
+    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_config.py"
         "${PROFILER_LAYER_JSON_FILE}"
         --output "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     DEPENDS "${PROFILER_LAYER_JSON_FILE}"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_config.py")
-list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h")
 
 # Generate dispatch tables
-add_custom_command (
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
+generate_file_with_python (
+    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
         "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
         "${CMAKE_CURRENT_BINARY_DIR}"
     DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py")
-list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
 if (BUILD_SPIRV_DOCS)
     # Check if required modules are available
@@ -152,11 +159,8 @@ if (BUILD_SPIRV_DOCS)
 endif ()
 if (BUILD_SPIRV_DOCS)
     # Generate SPIR-V documentation
-    add_custom_command (
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h"
-            "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
-        COMMAND "${Python3_EXECUTABLE}"
-            "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py"
+    generate_file_with_python (
+        SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py"
             --json "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json"
             --grammar "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
             --spec "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
@@ -166,44 +170,31 @@ if (BUILD_SPIRV_DOCS)
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
         DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py")
-    list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h")
-    list (APPEND PROFILER_CODEGEN_GENERATED_LICENSES "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE")
 else ()
     list (APPEND PROFILER_CODEGEN_SKIP_LICENSES SPIRV-Specification)
 endif ()
 
 # Generate licenses file
 set (PROFILER_LICENSES_FILE "${CMAKE_BINARY_DIR}/LICENSES.rst")
-add_custom_command (
-    OUTPUT "${PROFILER_LICENSES_FILE}"
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
+generate_file_with_python (
+    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
         --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
         --externaldir "${CMAKE_SOURCE_DIR}/External"
         --output "${PROFILER_LICENSES_FILE}"
         --skip ${PROFILER_CODEGEN_SKIP_LICENSES}
-    VERBATIM
     DEPENDS ${PROFILER_CODEGEN_GENERATED_LICENSES}
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
-list (APPEND PROFILER_CODEGEN_FILES ${PROFILER_LICENSES_FILE})
 
 set (PROFILER_LICENSES_INSTALL_FILE "${CMAKE_BINARY_DIR}/LICENSES.rtf")
-add_custom_command (
-    OUTPUT "${PROFILER_LICENSES_INSTALL_FILE}"
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
+generate_file_with_python (
+    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
         --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
         --externaldir "${CMAKE_SOURCE_DIR}/External"
         --output "${PROFILER_LICENSES_INSTALL_FILE}"
         --skip ${PROFILER_CODEGEN_SKIP_LICENSES}
         --format rtf
-    VERBATIM
     DEPENDS ${PROFILER_CODEGEN_GENERATED_LICENSES}
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
-list (APPEND PROFILER_CODEGEN_FILES ${PROFILER_LICENSES_INSTALL_FILE})
-
-add_custom_target (profiler_codegen
-    DEPENDS ${PROFILER_CODEGEN_FILES})
 
 add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common
@@ -226,7 +217,6 @@ target_compile_definitions (profiler_common INTERFACE
     $<$<CONFIG:RelWithDebInfo>:PROFILER_CONFIG_RELWITHDEBINFO>
     $<$<CONFIG:Release>:PROFILER_CONFIG_RELEASE>
     $<$<CONFIG:MinSizeRel>:PROFILER_CONFIG_MINSIZEREL>)
-add_dependencies (profiler_common profiler_codegen)
 
 if (PROFILER_ENABLE_TIP)
     target_compile_definitions (profiler_common INTERFACE
