@@ -33,11 +33,10 @@ set (PROFILER_LAYER_VER_IMPLEMENTATION 1)
 set (PROFILER_LAYER_NAME VK_LAYER_PROFILER_unified)
 set (PROFILER_LAYER_API_VERSION "1.1.106")
 set (PROFILER_LAYER_PROJECTNAME VkLayer_profiler_layer)
-set (PROFILER_LAYER_COMPANYNAME "Lukasz Stalmirski")
+set (PROFILER_LAYER_COMPANYNAME )
 set (PROFILER_LAYER_FILEDESCRIPTION "Simple Vulkan(R) Profiling Layer")
-set (PROFILER_LAYER_LEGALCOPYRIGHT "MIT License")
+set (PROFILER_LAYER_LEGALCOPYRIGHT )
 set (PROFILER_LAYER_PRODUCTNAME "Vulkan(R) Profiling Layer")
-set (PROFILER_LAYER_GIT_URL )
 
 # Common directories
 set (PROFILER_SCRIPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
@@ -50,9 +49,6 @@ execute_process (
 if (PROFILER_GEN_VERSION_INFO_RESULT STREQUAL "0")
     include ("${CMAKE_BINARY_DIR}/profiler_version.cmake")
 endif ()
-
-set (PROFILER_LAYER_VER_FULL "${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}")
-set (PROFILER_LAYER_VER_FULL_PATCHED "${PROFILER_LAYER_VER_FULL}.${PROFILER_LAYER_VER_PATCH}")
 
 # Get Vulkan headers version
 function (get_vulkan_api_version)
@@ -76,7 +72,8 @@ function (get_vulkan_api_version)
 endfunction ()
 get_vulkan_api_version ()
 
-message ("-- Profiler version: ${PROFILER_LAYER_VER_FULL_PATCHED}")
+project (${PROFILER_LAYER_PROJECTNAME})
+message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}.${PROFILER_LAYER_VER_PATCH}")
 message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
 
 function (configure_and_generate_file IN_FILE OUT_FILE)
@@ -121,33 +118,26 @@ if (NOT WIN32)
         "${PROFILER_LAYER_JSON_INSTALL_FILE}")
 endif ()
 
-function (generate_file_with_python)
-    set (NO_VALUE_OPTS )
-    set (ONE_VALUE_OPTS )
-    set (MULTI_VALUE_OPTS SCRIPT DEPENDS)
-    cmake_parse_arguments (PARSE_ARGV 0 ARG "${NO_VALUE_OPTS}" "${ONE_VALUE_OPTS}" "${MULTI_VALUE_OPTS}")
-
-    execute_process (
-        COMMAND "${Python3_EXECUTABLE}"
-            ${ARG_SCRIPT})
-
-    list (APPEND CMAKE_CONFIGURE_DEPENDS ${ARG_DEPENDS})
-endfunction ()
-
-generate_file_with_python (
-    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_config.py"
+add_custom_command (
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_config.py"
         "${PROFILER_LAYER_JSON_FILE}"
         --output "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     DEPENDS "${PROFILER_LAYER_JSON_FILE}"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_config.py")
+list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h")
 
 # Generate dispatch tables
-generate_file_with_python (
-    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
+add_custom_command (
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
         "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
         "${CMAKE_CURRENT_BINARY_DIR}"
     DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py")
+list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
 if (BUILD_SPIRV_DOCS)
     # Check if required modules are available
@@ -159,8 +149,11 @@ if (BUILD_SPIRV_DOCS)
 endif ()
 if (BUILD_SPIRV_DOCS)
     # Generate SPIR-V documentation
-    generate_file_with_python (
-        SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py"
+    add_custom_command (
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h"
+            "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
+        COMMAND "${Python3_EXECUTABLE}"
+            "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py"
             --json "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.json"
             --grammar "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
             --spec "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
@@ -170,31 +163,29 @@ if (BUILD_SPIRV_DOCS)
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json"
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
         DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py")
+    list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h")
+    list (APPEND PROFILER_CODEGEN_GENERATED_LICENSES "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE")
 else ()
     list (APPEND PROFILER_CODEGEN_SKIP_LICENSES SPIRV-Specification)
 endif ()
 
 # Generate licenses file
 set (PROFILER_LICENSES_FILE "${CMAKE_BINARY_DIR}/LICENSES.rst")
-generate_file_with_python (
-    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
+add_custom_command (
+    OUTPUT "${PROFILER_LICENSES_FILE}"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
         --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
         --externaldir "${CMAKE_SOURCE_DIR}/External"
         --output "${PROFILER_LICENSES_FILE}"
         --skip ${PROFILER_CODEGEN_SKIP_LICENSES}
+    VERBATIM
     DEPENDS ${PROFILER_CODEGEN_GENERATED_LICENSES}
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
+list (APPEND PROFILER_CODEGEN_FILES ${PROFILER_LICENSES_FILE})
 
-set (PROFILER_LICENSES_INSTALL_FILE "${CMAKE_BINARY_DIR}/LICENSES.rtf")
-generate_file_with_python (
-    SCRIPT "${PROFILER_SCRIPTS_DIR}/gen_licenses.py"
-        --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
-        --externaldir "${CMAKE_SOURCE_DIR}/External"
-        --output "${PROFILER_LICENSES_INSTALL_FILE}"
-        --skip ${PROFILER_CODEGEN_SKIP_LICENSES}
-        --format rtf
-    DEPENDS ${PROFILER_CODEGEN_GENERATED_LICENSES}
-    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
+add_custom_target (profiler_codegen
+    DEPENDS ${PROFILER_CODEGEN_FILES})
 
 add_library (profiler_common INTERFACE)
 target_link_libraries (profiler_common
@@ -217,6 +208,7 @@ target_compile_definitions (profiler_common INTERFACE
     $<$<CONFIG:RelWithDebInfo>:PROFILER_CONFIG_RELWITHDEBINFO>
     $<$<CONFIG:Release>:PROFILER_CONFIG_RELEASE>
     $<$<CONFIG:MinSizeRel>:PROFILER_CONFIG_MINSIZEREL>)
+add_dependencies (profiler_common profiler_codegen)
 
 if (PROFILER_ENABLE_TIP)
     target_compile_definitions (profiler_common INTERFACE
@@ -411,19 +403,9 @@ if (WIN32)
         RENAME "${PROFILER_LAYER_JSON_FILENAME}")
 
     # Include a file with all third-party software licenses.
-    install (FILES "${PROFILER_LICENSES_INSTALL_FILE}" DESTINATION .)
-
-    # Add registry entry for the Vulkan loader.
-    set (INSTALL_KEY_PATH "HKCU\\SOFTWARE\\Khronos\\Vulkan\\ExplicitLayers")
-    set (INSTALL_JSON_PATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${PROFILER_LAYER_JSON_FILENAME}")
-
-    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set (INSTALL_REG 64)
-    else ()
-        set (INSTALL_REG 32)
-    endif ()
-
-    #install (CODE "execute_process (\"reg add ${INSTALL_KEY_PATH} /v ${INSTALL_JSON_PATH} /t REG_DWORD /d 0 /f /reg:${INSTALL_REG}\")")
+    install (FILES "${PROFILER_LICENSES_FILE}"
+        DESTINATION .
+        RENAME "${PROFILER_LAYER_PROJECTNAME}_licenses.rst")
 else ()
     # Copy JSON to shared directory.
     install (FILES "${PROFILER_LAYER_JSON_INSTALL_FILE}"
@@ -434,31 +416,4 @@ else ()
     install (FILES "${PROFILER_LICENSES_FILE}"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layers.d"
         RENAME "${PROFILER_LAYER_PROJECTNAME}_licenses.rst")
-endif ()
-
-# Configure CPack
-set (CPACK_PACKAGE_NAME ${PROJECT_NAME} PARENT_SCOPE)
-set (CPACK_PACKAGE_VENDOR ${PROFILER_LAYER_COMPANYNAME} PARENT_SCOPE)
-set (CPACK_PACKAGE_HOMEPAGE_URL ${PROFILER_LAYER_GIT_URL} PARENT_SCOPE)
-
-set (CPACK_PACKAGE_VERSION_MAJOR ${PROFILER_LAYER_VER_MAJOR} PARENT_SCOPE)
-set (CPACK_PACKAGE_VERSION_MINOR ${PROFILER_LAYER_VER_MINOR} PARENT_SCOPE)
-set (CPACK_PACKAGE_VERSION_PATCH ${PROFILER_LAYER_VER_BUILD} PARENT_SCOPE)
-
-set (CPACK_RESOURCE_FILE_LICENSE "${PROFILER_LICENSES_INSTALL_FILE}" PARENT_SCOPE)
-
-if (WIN32)
-    set (CPACK_NSIS_PACKAGE_NAME "${PROJECT_NAME} ${PROFILER_LAYER_VER_FULL}" PARENT_SCOPE)
-    set (CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON PARENT_SCOPE)
-    set (CPACK_PACKAGE_INSTALL_DIRECTORY "${PROJECT_NAME}\\\\${PROFILER_LAYER_VER_FULL}" PARENT_SCOPE)
-
-    # Add path to the JSON file to the registry.
-    set (CPACK_NSIS_EXTRA_INSTALL_COMMANDS
-        "WriteRegDWORD HKCU \\\"Software\\\\Khronos\\\\Vulkan\\\\ExplicitLayers\\\" \\\"$INSTDIR\\\\${CMAKE_INSTALL_BINDIR}\\\\${PROFILER_LAYER_JSON_FILENAME}\\\" 0x0"
-        PARENT_SCOPE)
-
-    # Remove the path from the registry on uninstall.
-    set (CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
-        "DeleteRegValue HKCU \\\"Software\\\\Khronos\\\\Vulkan\\\\ExplicitLayers\\\" \\\"$INSTDIR\\\\${CMAKE_INSTALL_BINDIR}\\\\${PROFILER_LAYER_JSON_FILENAME}\\\""
-        PARENT_SCOPE)
 endif ()

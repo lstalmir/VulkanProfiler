@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2026 Lukasz Stalmirski
+# Copyright (c) 2023 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -26,18 +26,8 @@ def git(*args):
   proc = subprocess.run(["git", *args], stdout=subprocess.PIPE)
   return proc.stdout.decode().strip()
 
-try:
-  remote = git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-  remote_sep = remote.index('/')
-  remote = remote[:remote_sep]
-except Exception as e:
-  remote = "origin"
-
-# Get git repository url
-git_url = git("remote", "get-url", remote)
-
 # Get the commit this branch was based on
-rev_base = git("merge-base", f"{remote}/master", "HEAD")
+rev_base = git("merge-base", "origin/master", "HEAD")
 
 # Get number of commits in the base branch
 rev_base_count = int(git("rev-list", "--count", rev_base))
@@ -49,10 +39,16 @@ rev_count = int(git("rev-list", "--count", "HEAD"))
 result = git("show", "-s", "--format=%cI", rev_base)
 rev_base_date = datetime.datetime.fromisoformat(result)
 
+ver_major = rev_base_date.year
+ver_minor = rev_base_date.month
+ver_build = rev_base_count
+ver_patch = rev_count - rev_base_count
+
 # Write cmake file with the version info
 with open(sys.argv[1], "w") as output:
-  output.write(f"set (PROFILER_LAYER_VER_MAJOR {rev_base_date.year})\n")
-  output.write(f"set (PROFILER_LAYER_VER_MINOR {rev_base_date.month})\n")
-  output.write(f"set (PROFILER_LAYER_VER_BUILD {rev_base_count})\n")
-  output.write(f"set (PROFILER_LAYER_VER_PATCH {rev_count - rev_base_count})\n")
-  output.write(f"set (PROFILER_LAYER_GIT_URL {git_url})\n")
+  profiler_version_cmake = \
+    "set (PROFILER_LAYER_VER_MAJOR {})\n".format(ver_major) + \
+    "set (PROFILER_LAYER_VER_MINOR {})\n".format(ver_minor) + \
+    "set (PROFILER_LAYER_VER_BUILD {})\n".format(ver_build) + \
+    "set (PROFILER_LAYER_VER_PATCH {})\n".format(ver_patch)
+  output.write(profiler_version_cmake)

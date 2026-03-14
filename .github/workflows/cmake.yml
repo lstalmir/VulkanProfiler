@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2026 Lukasz Stalmirski
+# Copyright (c) 2019-2025 Lukasz Stalmirski
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -83,27 +83,10 @@ jobs:
       # Install build artifacts to a common directory
       run: cmake --install ${{github.workspace}}/build --prefix ${{github.workspace}}/install
 
-    - name: Pack
-      if: matrix.build_type == 'Release'
-      id: pack
-      # Create installer package and save the path to the generated file in installer_file_path
-      run: |
-        cpack --config ${{github.workspace}}/build/CPackConfig.cmake -B ${{github.workspace}}/installer
-        output=(ls ${{github.workspace}}/installer)
-        echo "installer_file_path=$output" >> $GITHUB_OUTPUT
-
-    - name: Publish zip
+    - name: Publish artifacts
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
         name: ${{matrix.os}}-${{matrix.build_type}}-${{runner.arch}}
         path: ${{github.workspace}}/install
-        retention-days: 1
-
-    - name: Publish installer
-      if: matrix.build_type == 'Release'
-      uses: actions/upload-artifact@v4
-      with:
-        name: vulkan-profiler-${{matrix.os}}
-        path: ${{steps.pack.outputs.installer_file_path}}
         retention-days: 1

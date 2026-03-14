@@ -64,6 +64,5 @@ if (BUILD_TESTS)
         PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
         )
 
-    install (TARGETS profiler_tests EXCLUDE_FROM_ALL
-        COMPONENT Tests)
+    install (TARGETS profiler_tests)
 endif (BUILD_TESTS)
