@@ -20,16 +20,22 @@
 
 cmake_minimum_required (VERSION 3.8...3.31)
 
-string (TOLOWER BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+string (TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 
-# Generate Position Independent Code (PIC) since we're targeting a shared library.
-add_compile_options (-fPIC)
-
-# Include debug information.
+# Include debug information in debug builds.
 if ("${BUILD_TYPE}" STREQUAL "debug" OR
     "${BUILD_TYPE}" STREQUAL "relwithdebinfo")
     add_compile_options (-g)
 endif ()
+
+# Enable link-time optimizations in release builds.
+if ("${BUILD_TYPE}" STREQUAL "release" OR
+    "${BUILD_TYPE}" STREQUAL "minsizerel")
+    add_compile_options (-flto)
+endif ()
+
+# Generate Position Independent Code (PIC) since we're targeting a shared library.
+add_compile_options (-fPIC)
 
 # Export symbols explicitly.
 set (CMAKE_CXX_VISIBILITY_PRESET hidden)
