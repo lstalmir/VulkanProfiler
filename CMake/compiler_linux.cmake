@@ -28,12 +28,6 @@ if ("${BUILD_TYPE}" STREQUAL "debug" OR
     add_compile_options (-g)
 endif ()
 
-# Enable link-time optimizations in release builds.
-if ("${BUILD_TYPE}" STREQUAL "release" OR
-    "${BUILD_TYPE}" STREQUAL "minsizerel")
-    add_compile_options (-flto)
-endif ()
-
 # Generate Position Independent Code (PIC) since we're targeting a shared library.
 add_compile_options (-fPIC)
 
