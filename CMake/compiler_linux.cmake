@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Lukasz Stalmirski
+# Copyright (c) 2024-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -20,9 +20,18 @@
 
 cmake_minimum_required (VERSION 3.8...3.31)
 
+string (TOLOWER BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+
 # Generate Position Independent Code (PIC) since we're targeting a shared library.
 add_compile_options (-fPIC)
+
+# Include debug information.
+if ("${BUILD_TYPE}" STREQUAL "debug" OR
+    "${BUILD_TYPE}" STREQUAL "relwithdebinfo")
+    add_compile_options (-g)
+endif ()
 
 # Export symbols explicitly.
 set (CMAKE_CXX_VISIBILITY_PRESET hidden)
 set (CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+

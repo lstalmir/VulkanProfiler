@@ -409,11 +409,11 @@ if (WIN32)
 else ()
     # Copy JSON to shared directory.
     install (FILES "${PROFILER_LAYER_JSON_INSTALL_FILE}"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layers.d"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layer.d"
         RENAME "${PROFILER_LAYER_JSON_FILENAME}")
 
     # Include a file with all third-party software licenses.
     install (FILES "${PROFILER_LICENSES_FILE}"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layers.d"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layer.d"
         RENAME "${PROFILER_LAYER_PROJECTNAME}_licenses.rst")
 endif ()
