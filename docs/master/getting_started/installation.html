@@ -90,7 +90,11 @@
 <p>Once downloaded or built, the dynamic-link library with the layer must be installed so that the Vulkan loader knows where to look for it. The process is different for Windows and Linux-based systems, and it’s described in detail in <a class="reference external" href="https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderLayerInterface.md">Vulkan Layer Interface to the Loader documentation</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Installation of the layer can be avoided. To use the layer without installation set <code class="docutils literal notranslate"><span class="pre">VK_LAYER_PATH</span></code> environment variable to the directory containing layer files.</p>
+<p>Installation of the layer can be avoided. To use the layer without installation set <code class="docutils literal notranslate"><span class="pre">VK_LAYER_PATH</span></code> environment variable to the directory containing the JSON file.</p>
+<p>Additionally, when using this approach on Linux systems, <code class="docutils literal notranslate"><span class="pre">LD_LIBRARY_PATH</span></code> has to contain path to the .so files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/home/user/vulkan-profiler/lib/x86_64-linux-gnu:<span class="nv">$LD_LIBRARY_PATH</span>
+</pre></div>
+</div>
 </div>
 <section id="windows">
 <h2>Windows<a class="headerlink" href="#windows" title="Link to this heading"></a></h2>
@@ -105,12 +109,18 @@
 <section id="linux">
 <h2>Linux<a class="headerlink" href="#linux" title="Link to this heading"></a></h2>
 <p>The following instructions have been prepared for Debian-based distributions. Locations of Vulkan layers may be different on other distros.</p>
-<p>Vulkan layers on Linux are stored in predefined directories. To install the layer, simply copy the .so and .json files from the package to one of those directories.</p>
+<p>Vulkan layers on Linux are stored in predefined directories. To install the layer, copy the JSON manifest file to one of the directories listed below:</p>
 <ul class="simple">
 <li><p>$HOME/.local/share/vulkan/explicit_layer.d</p></li>
 <li><p>/usr/local/share/vulkan/explicit_layer.d</p></li>
 <li><p>/usr/share/vulkan/explicit_layer.d</p></li>
 <li><p>/etc/vulkan/explicit_layer.d</p></li>
+</ul>
+<p>Then, copy all .so files from the package (from “lib” directory) to one of the system library locations:</p>
+<ul class="simple">
+<li><p>/usr/local/lib</p></li>
+<li><p>/usr/lib</p></li>
+<li><p>/lib</p></li>
 </ul>
 <p>Apart from the libVkLayer_profiler_layer.so that is the Vulkan layer library, the layer also requires libigdmd to support Intel performance counters on Linux. This library can be found either in the package, next to libVkLayer_profiler_layer.so, or in “&lt;REPOSITORY_DIR&gt;/External/metrics-discovery/dump/linux64/&lt;CONFIG&gt;/metrics_discovery” directory when building the layer from source.</p>
 </section>

@@ -146,25 +146,25 @@
 <p>The layer uses CMake build management tool, so building it is straightforward.</p>
 <ol class="arabic">
 <li><p>Clone the repository.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="o">--</span><span class="n">recursive</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">lstalmir</span><span class="o">/</span><span class="n">VulkanProfiler</span>
-<span class="n">cd</span> <span class="n">VulkanProfiler</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/lstalmir/VulkanProfiler
+<span class="nb">cd</span><span class="w"> </span>VulkanProfiler
 </pre></div>
 </div>
 </li>
 <li><p>Install Python packages.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python3</span> <span class="o">-</span><span class="n">m</span> <span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">r</span> <span class="n">VkLayer_profiler_layer</span><span class="o">/</span><span class="n">scripts</span><span class="o">/</span><span class="n">requirements</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>VkLayer_profiler_layer/scripts/requirements.txt
 </pre></div>
 </div>
 </li>
 <li><p>Generate the project files / makefiles in the build directory.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mkdir</span> <span class="n">cmake_build</span>
-<span class="n">cd</span> <span class="n">cmake_build</span>
-<span class="n">cmake</span> <span class="o">..</span> <span class="o">-</span><span class="n">DCMAKE_BUILD_TYPE</span><span class="o">=</span><span class="n">Release</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>cmake_build
+<span class="nb">cd</span><span class="w"> </span>cmake_build
+cmake<span class="w"> </span>..<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release
 </pre></div>
 </div>
 </li>
 <li><p>Build the layer.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cmake</span> <span class="o">--</span><span class="n">build</span> <span class="o">.</span> <span class="o">--</span><span class="n">config</span> <span class="n">Release</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--config<span class="w"> </span>Release<span class="w"> </span>-j
 </pre></div>
 </div>
 </li>
@@ -182,17 +182,19 @@
 <h2>Building with Make<a class="headerlink" href="#building-with-make" title="Link to this heading"></a></h2>
 <p>Unix makefiles is the default CMake generator on Linux systems. Build directory will contain makefiles after running steps 1-3 from <a class="reference internal" href="#building-with-cmake"><span class="std std-ref">Building with CMake</span></a>.</p>
 <p>Once generated, the project can be built by running make:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span> <span class="nb">all</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>make<span class="w"> </span>all
 </pre></div>
 </div>
 </section>
 <section id="packaging">
 <h2>Packaging<a class="headerlink" href="#packaging" title="Link to this heading"></a></h2>
 <p>CMake install step can be used to collect all files into a single directory:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cmake</span> <span class="o">--</span><span class="n">install</span> <span class="o">.</span> <span class="o">--</span><span class="n">config</span> <span class="n">Release</span> <span class="o">--</span><span class="n">prefix</span> <span class="o">&lt;</span><span class="n">install_dir</span><span class="o">&gt;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--install<span class="w"> </span>.<span class="w"> </span>--config<span class="w"> </span>Release<span class="w"> </span>--prefix<span class="w"> </span>&lt;install_dir&gt;
 </pre></div>
 </div>
-<p>The layer files will be placed in <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/bin</span></code> on Windows, <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib</span></code> on Linux, or in <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib/&lt;arch&gt;</span></code> on multiarch Linux distributions (e.g., <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib/x86_64-linux-gnu</span></code>).</p>
+<p>The layer libraries will be placed in <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/bin</span></code> on Windows, <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib</span></code> on Linux, or in <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib/&lt;arch&gt;</span></code> on multiarch Linux distributions (e.g., <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/lib/x86_64-linux-gnu</span></code>).</p>
+<p>On Windows, the JSON manifest file is located next to the DLL. On Linux, it is placed in <code class="docutils literal notranslate"><span class="pre">&lt;install_dir&gt;/share/vulkan/explicit_layer.d</span></code> directory.</p>
+<p>On Linux, the layer can be also installed directly to the current system by providing <code class="docutils literal notranslate"><span class="pre">/usr/local</span></code> or <code class="docutils literal notranslate"><span class="pre">/usr</span></code> prefix.</p>
 </section>
 <section id="building-documentation">
 <h2>Building documentation<a class="headerlink" href="#building-documentation" title="Link to this heading"></a></h2>
@@ -208,7 +210,7 @@
 </div>
 </div>
 <p>With the packages installed, sphinx-build tool can be used:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sphinx</span><span class="o">-</span><span class="n">build</span> <span class="o">-</span><span class="n">M</span> <span class="n">html</span> <span class="o">./</span><span class="n">Docs</span> <span class="o">./</span><span class="n">docs_build</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sphinx-build<span class="w"> </span>-M<span class="w"> </span>html<span class="w"> </span>./Docs<span class="w"> </span>./docs_build
 </pre></div>
 </div>
 </section>
