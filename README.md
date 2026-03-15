@@ -39,21 +39,21 @@ Following packages are required for building on Debian-based systems:
 
 To build the layer create "cmake_build" folder in the project root directory and run following command from it:
 ```
-cmake .. && make all
+cmake .. -DCMAKE_BUILD_TYPE=Release && make all -j
 ```
 
-Then, to put all required files in a single directory, run install step:
+Then, install the layer:
 
 ```
-cmake --install . --prefix <INSTALL_DIR>
+sudo cmake --install . --prefix /usr/local/
 ```
 
-To install the layer copy `libVkLayer_profiler_layer.so` and `VkLayer_profiler_layer.json` files to `~/.local/share/vulkan/explicit_layer.d` directory.
+This command will copy all required libraries to `/usr/local/lib` directory and the JSON manifest file to `/usr/local/share/vulkan/explicit_layer.d` directory.
 
-To support Intel performance counters on Linux the layer requires `libigdmd` to be present in the same directory. The library is built as part of the project and its binaries are located in `<REPOSITORY_ROOT_DIR>/External/metrics-discovery/dump/linux64/<CONFIG>/metrics_discovery`. These files are also copied during install step into `<INSTALL_DIR>/lib/` directory.
+To support Intel performance counters on Linux the layer requires `libigdmd`. The library is built as part of the project and its binaries are located in `<REPOSITORY_ROOT_DIR>/External/metrics-discovery/dump/linux64/<CONFIG>/metrics_discovery`. These files are also copied during install step into `<INSTALL_DIR>/lib/` directory.
 
 > [!NOTE]
-> On multiarch Linux distributions all the libraries and JSON files will be placed in `<INSTALL_DIR>/lib/<ARCH>/`, e.g. `install/lib/x86_64-linux-gnu/`.
+> On multiarch Linux distributions all the libraries will be placed in `<INSTALL_DIR>/lib/<ARCH>/`, e.g. `/usr/local/lib/x86_64-linux-gnu/`.
 
 ### Notes
 Installation of the layer can be avoided. To use the layer without installation set VK_LAYER_PATH environment variable to the directory containing layer files.
