@@ -1114,7 +1114,7 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( m_ProfilingEnabled && !m_Data.m_DataValid )
+        if( m_ProfilingEnabled )
         {
             reader.SetContext( this );
 
@@ -1302,7 +1302,6 @@ namespace Profiler
                 ReadIndirectArgumentBuffers( m_Data.m_IndirectPayload );
             }
 
-            // Subsequent calls to GetData will return the same results
             m_Data.m_DataValid = true;
         }
 
