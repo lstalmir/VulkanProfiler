@@ -36,12 +36,17 @@ namespace Profiler
     class DeviceProfilerJsonSerializer
     {
     public:
-        DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
+        DeviceProfilerJsonSerializer( class DeviceProfilerFrontend*, const class DeviceProfilerStringSerializer* );
 
-        nlohmann::json GetCommandArgs( const struct DeviceProfilerDrawcall& ) const;
+        nlohmann::json GetCommandArgs(
+            const struct DeviceProfilerDrawcall&,
+            const struct DeviceProfilerPipeline&,
+            const struct DeviceProfilerCommandBufferData& ) const;
+
         nlohmann::json GetPipelineArgs( const struct DeviceProfilerPipeline& ) const;
 
     private:
+        class DeviceProfilerFrontend* m_pFrontend;
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
 
         nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;

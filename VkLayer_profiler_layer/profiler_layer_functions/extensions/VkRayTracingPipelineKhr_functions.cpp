@@ -124,6 +124,23 @@ namespace Profiler
         drawcall.m_Payload.m_TraceRays.m_Height = height;
         drawcall.m_Payload.m_TraceRays.m_Depth = depth;
 
+        if( pRaygenShaderBindingTable )
+        {
+            drawcall.m_Payload.m_TraceRays.m_RaygenShaderBindingTable = *pRaygenShaderBindingTable;
+        }
+        if( pMissShaderBindingTable )
+        {
+            drawcall.m_Payload.m_TraceRays.m_MissShaderBindingTable = *pMissShaderBindingTable;
+        }
+        if( pHitShaderBindingTable )
+        {
+            drawcall.m_Payload.m_TraceRays.m_HitShaderBindingTable = *pHitShaderBindingTable;
+        }
+        if( pCallableShaderBindingTable )
+        {
+            drawcall.m_Payload.m_TraceRays.m_CallableShaderBindingTable = *pCallableShaderBindingTable;
+        }
+
         profiledCommandBuffer.PreCommand( drawcall );
 
         // Invoke next layer's implementation

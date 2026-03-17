@@ -51,6 +51,7 @@ namespace Profiler
         virtual const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() = 0;
         virtual const VkPhysicalDeviceMemoryProperties& GetPhysicalDeviceMemoryProperties() = 0;
         virtual const std::vector<VkQueueFamilyProperties>& GetQueueFamilyProperties() = 0;
+        virtual const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& GetRayTracingPipelineProperties() = 0;
 
         virtual const std::unordered_set<std::string>& GetEnabledInstanceExtensions() = 0;
         virtual const std::unordered_set<std::string>& GetEnabledDeviceExtensions() = 0;

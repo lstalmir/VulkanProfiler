@@ -86,6 +86,10 @@ namespace Profiler
         // Target command queue for the current batch
         VkQueue      m_CommandQueue;
 
+        // Command buffer being currently serialized
+        const struct DeviceProfilerCommandBufferData* m_pCommandBufferData;
+        const struct DeviceProfilerPipelineData* m_pPipelineData;
+
         // Serialized events
         nlohmann::json m_Events;
 
