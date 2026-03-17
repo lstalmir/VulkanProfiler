@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -51,19 +51,18 @@ jobs:
     runs-on: ${{matrix.os}}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
         fetch-depth: 0
 
     - name: Install Dependencies
-      uses: awalsh128/cache-apt-pkgs-action@latest
       if: runner.os == 'Linux'
-      with:
-        packages: extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libdrm-dev
-        version: 1.0
+      run: |
+        sudo apt update
+        sudo apt install extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libdrm-dev
 
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       with:
         python-version: '3.12'
         cache: 'pip'
@@ -85,7 +84,7 @@ jobs:
 
     - name: Publish artifacts
       if: matrix.build_type == 'Release'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{matrix.os}}-${{matrix.build_type}}-${{runner.arch}}
         path: ${{github.workspace}}/install
