@@ -27,6 +27,9 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <thread>
+#include <condition_variable>
+#include <queue>
 
 namespace Profiler
 {
@@ -67,10 +70,11 @@ namespace Profiler
         DeviceProfilerTraceSerializer( DeviceProfilerFrontend& frontend );
         ~DeviceProfilerTraceSerializer();
 
+        bool OpenOutputFile( const std::string& fileName );
+        void CloseOutputFile();
+
         DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
         DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
-
-        DeviceProfilerTraceSerializationResult SaveEventsToFile( const std::string& fileName );
 
         static std::string GetDefaultTraceFileName( int samplingMode );
 
@@ -79,6 +83,10 @@ namespace Profiler
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
         class DeviceProfilerJsonSerializer* m_pJsonSerializer;
+
+        // Output file
+        std::ofstream m_OutputFile;
+        bool m_OutputFileEmpty;
 
         // Currently serialized frame data
         const struct DeviceProfilerFrameData* m_pData;
@@ -118,6 +126,8 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
+        void AppendEventsToOutputFile();
+
         void Cleanup();
     };
 
@@ -144,7 +154,6 @@ namespace Profiler
         void Update() override;
         void Present() override;
 
-        void SetOutputFileName( const std::string& fileName );
         void SetMaxFrameCount( uint32_t maxFrameCount );
         void SetSkipFrameCount( uint32_t skipFrameCount );
 
@@ -153,15 +162,21 @@ namespace Profiler
         DeviceProfilerTraceSerializer* m_pTraceSerializer;
         std::mutex m_TraceSerializerMutex;
 
-        std::string m_OutputFileName;
-
         uint32_t m_MaxFrameCount;
         uint32_t m_SkipFrameCount;
         std::atomic_uint32_t m_ProcessedFrameCount;
-        std::atomic_bool m_Flushed;
+
+        std::thread m_TraceSerializationThread;
+        std::condition_variable m_TraceSerializationThreadInputAvailable;
+        bool m_TraceSerializationThreadRunning;
+        bool m_TraceSerializationThreadQuitSignal;
+
+        std::mutex m_FrameDataQueueMutex;
+        std::queue<std::shared_ptr<struct DeviceProfilerFrameData>> m_FrameDataQueue;
 
         void ResetMembers();
 
-        void Flush();
+        void TraceSerializationThreadProc();
+        void StopTraceSerializationThread();
     };
 }
