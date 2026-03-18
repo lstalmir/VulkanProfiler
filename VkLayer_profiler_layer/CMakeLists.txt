@@ -77,8 +77,8 @@ message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_
 message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
 
 function (configure_and_generate_file IN_FILE OUT_FILE)
-    get_filename_component (IN_FILE_NAME "${IN_FILE}" NAME)
-    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${IN_FILE_NAME}.configured")
+    get_filename_component (OUT_FILE_NAME "${OUT_FILE}" NAME)
+    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${OUT_FILE_NAME}.configured.in")
 
     configure_file (
         "${IN_FILE}"
