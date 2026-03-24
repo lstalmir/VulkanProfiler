@@ -238,18 +238,19 @@ namespace Profiler
         Serialize
 
     Description:
-        Serialize collected results to the trace events without writing to
-        the file.
+        Serialize collected results to the trace events file.
 
     \*************************************************************************/
     DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
     {
+        // Skip frames that didn't execute any profiled command buffers
+        if( data.m_BeginTimestamp == 0 && data.m_EndTimestamp == 0 )
+        {
+            return { false, "Frame contains no profiled command buffer executions.\n" };
+        }
+
         // Setup state for serialization
         m_pData = &data;
-
-        DeviceProfilerTraceSerializationResult result = {};
-        result.m_Succeeded = true;
-        result.m_Message = "Saved trace to\n";
 
         SetupTimestampNormalizationConstants();
 
@@ -373,7 +374,7 @@ namespace Profiler
 
         m_pData = nullptr;
 
-        return result;
+        return { true, "Saved trace to file.\n" };
     }
 
     /*************************************************************************\
@@ -1128,7 +1129,6 @@ namespace Profiler
                 m_FrameDataQueue.pop();
                 lock.unlock();
 
-                if( pData && !pData->m_Submits.empty() )
                 {
                     std::scoped_lock serializerLock( m_TraceSerializerMutex );
                     m_pTraceSerializer->Serialize( *pData );
