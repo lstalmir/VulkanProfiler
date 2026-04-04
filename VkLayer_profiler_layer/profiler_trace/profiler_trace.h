@@ -24,6 +24,7 @@
 #include <nlohmann/json.hpp>
 #include <vulkan/vulkan.h>
 #include <atomic>
+#include <list>
 #include <vector>
 #include <string>
 #include <mutex>
@@ -71,10 +72,13 @@ namespace Profiler
         ~DeviceProfilerTraceSerializer();
 
         bool OpenOutputFile( const std::string& fileName );
-        void CloseOutputFile();
+        bool CloseOutputFile();
 
-        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
-        DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+        bool Serialize( const struct DeviceProfilerFrameData& data );
+        bool Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+
+        void ClearErrorMessages();
+        const std::list<std::string>& GetErrorMessages() const;
 
         static std::string GetDefaultTraceFileName( int samplingMode );
 
@@ -83,6 +87,8 @@ namespace Profiler
 
         class DeviceProfilerStringSerializer* m_pStringSerializer;
         class DeviceProfilerJsonSerializer* m_pJsonSerializer;
+
+        std::list<std::string> m_ErrorMessages;
 
         // Output file
         std::ofstream m_OutputFile;
@@ -178,5 +184,7 @@ namespace Profiler
 
         void TraceSerializationThreadProc();
         void StopTraceSerializationThread();
+
+        void HandleErrorMessages();
     };
 }

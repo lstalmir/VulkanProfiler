@@ -48,6 +48,8 @@ namespace ImGuiX
         static std::mt19937 random;
         random.seed( 0 );
 
+        if( !label ) label = "";
+
         // Implementation is based on ImGui::PlotEx function (which is called by PlotHistogram).
 
         ImGuiContext& g = *GImGui;
@@ -56,7 +58,7 @@ namespace ImGuiX
             return;
 
         const ImGuiStyle& style = g.Style;
-        const ImGuiID id = window->GetID( label ? label : "" );
+        const ImGuiID id = window->GetID( label );
 
         PushItemWidth( -1 );
 

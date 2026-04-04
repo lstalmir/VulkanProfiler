@@ -105,6 +105,17 @@ namespace
             return nullptr;
         }
     }
+
+    template<typename T>
+    PROFILER_FORCE_INLINE T MD_TTypedValue_Cast( const MD::TTypedValue_1_0* pValue )
+    {
+        if( pValue != nullptr )
+        {
+            return MD_TTypedValue_Cast<T>( *pValue );
+        }
+
+        return T();
+    }
 }
 
 namespace Profiler
@@ -160,14 +171,14 @@ namespace Profiler
         // Read device properties
         if( result == VK_SUCCESS )
         {
-            const MD::TTypedValue_1_0* pGpuTimestampFrequency = m_pDevice->GetGlobalSymbolValueByName( "GpuTimestampFrequency" );
-            const MD::TTypedValue_1_0* pGpuTimestampMax = m_pDevice->GetGlobalSymbolValueByName( "MaxTimestamp" );
+            const uint64_t gpuTimestampFrequency = MD_TTypedValue_Cast<uint64_t>( m_pDevice->GetGlobalSymbolValueByName( "GpuTimestampFrequency" ) );
+            const uint64_t gpuTimestampMax = MD_TTypedValue_Cast<uint64_t>( m_pDevice->GetGlobalSymbolValueByName( "MaxTimestamp" ) );
 
-            if( pGpuTimestampFrequency && pGpuTimestampMax )
+            if( gpuTimestampFrequency && gpuTimestampMax )
             {
                 m_GpuTimestampQueryPeriod = m_pVulkanDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
-                m_GpuTimestampPeriod = 1e9 / MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampFrequency );
-                m_GpuTimestampMax = MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampMax );
+                m_GpuTimestampPeriod = 1e9 / gpuTimestampFrequency;
+                m_GpuTimestampMax = gpuTimestampMax;
                 m_GpuTimestampIs32Bit = ( m_GpuTimestampMax <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
             }
             else
@@ -464,6 +475,7 @@ namespace Profiler
         m_pConcurrentGroupParams = nullptr;
 
         m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+        m_SamplingPeriodInNanoseconds = 25'000;
 
         m_GpuTimestampQueryPeriod = 1.0;
         m_GpuTimestampPeriod = 1.0;
