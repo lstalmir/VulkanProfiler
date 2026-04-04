@@ -156,7 +156,7 @@ namespace Profiler
     bool DeviceProfilerTraceSerializer::OpenOutputFile( const std::string& fileName )
     {
         // Clear exceptions mask to prevent throwing any exceptions from the stream functions.
-        m_OutputFile.exceptions( 0 );
+        m_OutputFile.exceptions( std::ios::iostate( 0 ) );
 
         // Open the file for writing.
         m_OutputFile.open( fileName, std::ios::out | std::ios::trunc | std::ios::binary );
