@@ -160,6 +160,8 @@ namespace Profiler
         bool m_HasNewSnapshots;
 
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
+
+        float m_Opacity;
         bool m_Pause;
         bool m_Fullscreen;
         bool m_ShowDebugLabels;

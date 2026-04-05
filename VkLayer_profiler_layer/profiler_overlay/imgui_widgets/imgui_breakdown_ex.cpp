@@ -130,6 +130,10 @@ namespace ImGuiX
                 else
                     color = col_base + random();
 
+                ImU32 alpha = ( color & IM_COL32_A_MASK ) >> IM_COL32_A_SHIFT;
+                alpha *= style.Alpha;
+                color = ( color & ~IM_COL32_A_MASK ) | ( alpha << IM_COL32_A_SHIFT );
+
                 window->DrawList->AddRectFilled( rect.Min, rect.Max, color );
 
                 t0 = t1;

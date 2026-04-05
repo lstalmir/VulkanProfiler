@@ -634,6 +634,8 @@ namespace Profiler
         m_HasNewSnapshots = false;
 
         m_pData = nullptr;
+
+        m_Opacity = 0.9f;
         m_Pause = false;
         m_Fullscreen = false;
         m_ShowDebugLabels = true;
@@ -925,6 +927,7 @@ namespace Profiler
 
         // Begin main window
         ImGui::PushFont( m_Resources.GetDefaultFont() );
+        ImGui::PushStyleVar( ImGuiStyleVar_Alpha, m_Opacity );
         ImGui::Begin( m_Title.c_str(), nullptr, mainWindowFlags );
 
         if( !m_Fullscreen )
@@ -1163,6 +1166,7 @@ namespace Profiler
             pForegroundDrawList->AddCircleFilled( ImGui::GetIO().MousePos, 2.f, 0xffffffff, 4 );
         }
 
+        ImGui::PopStyleVar();
         ImGui::PopFont();
         ImGui::Render();
 
@@ -1184,6 +1188,12 @@ namespace Profiler
         ImGuiStyle& style = ImGui::GetStyle();
         // Round window corners
         style.WindowRounding = 7.f;
+
+        // Disable default window transparency
+        for( ImGuiCol col : { ImGuiCol_WindowBg, ImGuiCol_TitleBg, ImGuiCol_TitleBgActive } )
+        {
+            style.Colors[col].w = 1.0f;
+        }
 
         // Performance graph colors
         m_RenderPassColumnColor = ImGui::GetColorU32( { 0.9f, 0.7f, 0.0f, 1.0f } ); // #e6b200
@@ -6453,6 +6463,13 @@ namespace Profiler
         if( ImGui::InputFloat( Lang::InterfaceScale, &interfaceScale ) )
         {
             ImGui::GetIO().FontGlobalScale = std::clamp( interfaceScale, 0.25f, 4.0f );
+        }
+
+        // Set interface opacity.
+        float interfaceOpacity = m_Opacity;
+        if( ImGui::InputFloat( Lang::InterfaceOpacity, &interfaceOpacity, 0.1f, 0, "%.1f", ImGuiInputTextFlags_CharsDecimal ) )
+        {
+            m_Opacity = std::clamp( interfaceOpacity, 0.1f, 1.0f );
         }
 
         // Set number of collected frames
