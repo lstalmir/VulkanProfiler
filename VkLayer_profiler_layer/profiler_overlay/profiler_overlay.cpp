@@ -4921,6 +4921,11 @@ namespace Profiler
         ImGui::PushStyleColor( ImGuiCol_ChildBg, ImGui::GetStyleColorVec4( ImGuiCol_ScrollbarBg ) );
         ImGui::PushStyleColor( ImGuiCol_ScrollbarBg, 0 );
 
+        const ImU32 gridColor = ImGuiX::ColorAlpha( IM_COL32( 128, 128, 128, 64 ), m_Opacity, ImGuiX::ColorAlphaOp_Multiply );
+        const ImU32 blockColor = ImGuiX::ColorAlpha( m_GraphicsPipelineColumnColor, m_Opacity, ImGuiX::ColorAlphaOp_Multiply );
+        const ImU32 hoveredBlockColor = ImGuiX::ColorAlpha( ImGuiX::Darker( m_GraphicsPipelineColumnColor, 1.5f ), m_Opacity, ImGuiX::ColorAlphaOp_Multiply );
+        const ImU32 blockBorderColor = ImGuiX::ColorAlpha( ImGuiX::Darker( m_GraphicsPipelineColumnColor ), m_Opacity, ImGuiX::ColorAlphaOp_Multiply );
+
         if( ImGui::BeginChild( "##ImageMemoryMap",
                 ImVec2( 0, blockMapSize.y + 25.f * interfaceScale ),
                 ImGuiChildFlags_Border,
@@ -4937,7 +4942,7 @@ namespace Profiler
                     lt.x += x * blockSize;
                     lt.y += y * blockSize;
                     ImVec2 rb = ImVec2( lt.x + blockSize, lt.y + blockSize );
-                    dl->AddRect( lt, rb, IM_COL32( 128, 128, 128, 64 ) );
+                    dl->AddRect( lt, rb, gridColor );
                 }
             }
 
@@ -4963,12 +4968,12 @@ namespace Profiler
                             rb.x += ( (float)binding.m_Block.m_ImageExtent.width / formatProperties.imageGranularity.width ) * blockSize;
                             rb.y += ( (float)binding.m_Block.m_ImageExtent.height / formatProperties.imageGranularity.height ) * blockSize;
                             ImRect bb( lt, rb );
-                            dl->AddRect( lt, rb, ImGuiX::Darker( m_GraphicsPipelineColumnColor ) );
+                            dl->AddRect( lt, rb, blockBorderColor );
 
-                            ImU32 color = m_GraphicsPipelineColumnColor;
+                            ImU32 color = blockColor;
                             bool hovered = bb.Contains( mousePos );
                             if( hovered )
-                                color = ImGuiX::Darker( color, 1.5f );
+                                color = hoveredBlockColor;
 
                             bb.Expand( ImVec2( -1, -1 ) );
                             dl->AddRectFilled( bb.Min, bb.Max, color );
@@ -5023,7 +5028,7 @@ namespace Profiler
                             rb.y += formatProperties.imageGranularity.height * blockSize - 2;
 
                             ImRect bb( lt, rb );
-                            dl->AddRectFilled( bb.Min, bb.Max, m_GraphicsPipelineColumnColor );
+                            dl->AddRectFilled( bb.Min, bb.Max, blockColor );
 
                             ImVec2 cp = ImGui::GetMousePos();
                             if( bb.Contains( cp ) )

@@ -22,6 +22,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 
 #include "imgui_histogram_ex.h"
+#include "imgui_ex.h"
 #include <imgui_internal.h>
 #include <algorithm>
 
@@ -238,16 +239,11 @@ namespace ImGuiX
                 const float x_pos = inner_bb.Min.x + prev_pos;
                 const float y_pos = inner_bb.Min.y + inner_bb.GetHeight() * ( scale_min / ( scale_max - scale_min ) ) - 5.0f;
 
-                ImU32 color = data.color;
-                ImU32 alpha = ( color & IM_COL32_A_MASK ) >> IM_COL32_A_SHIFT;
-                alpha *= style.Alpha;
-                color = ( color & ~IM_COL32_A_MASK ) | ( alpha << IM_COL32_A_SHIFT );
-
                 window->DrawList->AddTriangleFilled(
                     { x_pos - 5.0f * g.IO.FontGlobalScale, y_pos },
                     { x_pos + 5.0f * g.IO.FontGlobalScale, y_pos },
                     { x_pos, y_pos + 5.0f * g.IO.FontGlobalScale },
-                    color );
+                    ColorAlpha( data.color, style.Alpha, ColorAlphaOp_Multiply ) );
 
                 // Check if mouse is over the event
                 const ImRect event_bb(
@@ -297,15 +293,14 @@ namespace ImGuiX
                     ( data.flags & HistogramColumnFlags_NoHover ) == 0 &&
                     column_bb.ContainsWithPad( g.IO.MousePos, style.TouchExtraPadding );
 
-                ImU32 color = data.color;
-                ImU32 alpha = ( color & IM_COL32_A_MASK ) >> IM_COL32_A_SHIFT;
-                alpha *= style.Alpha;
-                color = ( color & ~IM_COL32_A_MASK ) | ( alpha << IM_COL32_A_SHIFT );
+                ImU32 color = ColorAlpha( data.color, style.Alpha, ColorAlphaOp_Multiply );
+                if( hovered_column )
+                    color = ColorSaturation( color, 1.5f );
 
                 window->DrawList->AddRectFilled(
                     column_bb.Min,
                     column_bb.Max,
-                    hovered_column ? ColorSaturation( color, 1.5f ) : color );
+                    color );
 
                 if( hovered_column )
                 {

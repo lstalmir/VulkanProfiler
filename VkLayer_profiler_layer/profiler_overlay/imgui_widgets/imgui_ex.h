@@ -23,6 +23,13 @@
 
 namespace ImGuiX
 {
+    enum ColorAlphaOp
+    {
+        ColorAlphaOp_Set,
+        ColorAlphaOp_Add,
+        ColorAlphaOp_Multiply
+    };
+
     /*************************************************************************\
 
     Function:
@@ -87,7 +94,7 @@ namespace ImGuiX
         Set color alpha.
 
     \*************************************************************************/
-    ImU32 ColorAlpha( ImU32, float );
+    ImU32 ColorAlpha( ImU32, float, ColorAlphaOp = ColorAlphaOp_Set );
 
     /*************************************************************************\
 
