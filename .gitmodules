@@ -45,7 +45,7 @@
 	url = https://github.com/nothings/stb
 [submodule "External/implot"]
 	path = External/implot
-	url = https://github.com/epezent/implot
+	url = https://github.com/lstalmir/implot
 [submodule "External/tabler-icons"]
 	path = External/tabler-icons
 	url = https://github.com/tabler/tabler-icons
