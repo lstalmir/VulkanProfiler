@@ -7935,10 +7935,18 @@ namespace Profiler
     void ProfilerOverlayOutput::SaveTraceToFile( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
         DeviceProfilerTraceSerializer serializer( m_Frontend );
-        DeviceProfilerTraceSerializationResult result = serializer.Serialize( fileName, data );
 
-        m_SerializationSucceeded = result.m_Succeeded;
-        m_SerializationMessage = result.m_Message;
+        m_SerializationSucceeded = serializer.Serialize( fileName, data );
+
+        for( const std::string& error : serializer.GetErrorMessages() )
+        {
+            m_SerializationMessage += error + "\n";
+        }
+
+        if( m_SerializationSucceeded )
+        {
+            m_SerializationMessage += "Saved trace to\n" + fileName;
+        }
 
         // Display message box
         m_SerializationFinishTimestamp = std::chrono::high_resolution_clock::now();

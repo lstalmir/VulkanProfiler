@@ -34,6 +34,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <iostream>
 
 #include <nlohmann/json.hpp>
 
@@ -154,10 +155,15 @@ namespace Profiler
     \*************************************************************************/
     bool DeviceProfilerTraceSerializer::OpenOutputFile( const std::string& fileName )
     {
+        // Clear exceptions mask to prevent throwing any exceptions from the stream functions.
+        m_OutputFile.exceptions( std::ios::iostate( 0 ) );
+
+        // Open the file for writing.
         m_OutputFile.open( fileName, std::ios::out | std::ios::trunc | std::ios::binary );
 
-        if( !m_OutputFile.is_open() )
+        if( m_OutputFile.fail() )
         {
+            m_ErrorMessages.push_back( "Could not open file '" + fileName + "' for writing." );
             return false;
         }
 
@@ -181,12 +187,20 @@ namespace Profiler
         Close the output file.
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::CloseOutputFile()
+    bool DeviceProfilerTraceSerializer::CloseOutputFile()
     {
         if( m_OutputFile.is_open() )
         {
             m_OutputFile.close();
+
+            if( m_OutputFile.fail() )
+            {
+                m_ErrorMessages.push_back( "Error while closing the output file." );
+                return false;
+            }
         }
+
+        return true;
     }
 
     /*************************************************************************\
@@ -241,12 +255,13 @@ namespace Profiler
         Serialize collected results to the trace events file.
 
     \*************************************************************************/
-    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
+    bool DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerFrameData& data )
     {
         // Skip frames that didn't execute any profiled command buffers
         if( data.m_BeginTimestamp == 0 && data.m_EndTimestamp == 0 )
         {
-            return { false, "Frame contains no profiled command buffer executions.\n" };
+            m_ErrorMessages.push_back( "Frame contains no profiled command buffer executions." );
+            return false;
         }
 
         // Setup state for serialization
@@ -374,7 +389,13 @@ namespace Profiler
 
         m_pData = nullptr;
 
-        return { true, "Saved trace to file.\n" };
+        if( m_OutputFile.fail() )
+        {
+            m_ErrorMessages.push_back( "Error while writing events to the output file." );
+            return false;
+        }
+
+        return true;
     }
 
     /*************************************************************************\
@@ -386,19 +407,43 @@ namespace Profiler
         Write collected results to the trace file.
 
     \*************************************************************************/
-    DeviceProfilerTraceSerializationResult DeviceProfilerTraceSerializer::Serialize( const std::string& fileName, const DeviceProfilerFrameData& data )
+    bool DeviceProfilerTraceSerializer::Serialize( const std::string& fileName, const DeviceProfilerFrameData& data )
     {
-        if( !OpenOutputFile( fileName ) )
+        bool result = OpenOutputFile( fileName );
+        if( result )
         {
-            return { false, "Could not open output file.\n" };
+            result &= Serialize( data );
+            result &= CloseOutputFile();
         }
-
-        // Write data to the JSON file.
-        DeviceProfilerTraceSerializationResult result = Serialize( data );
-
-        CloseOutputFile();
-
         return result;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetErrorMessages
+
+    Description:
+        Returns the list of error messages generated during serialization.
+
+    \*************************************************************************/
+    const std::list<std::string>& DeviceProfilerTraceSerializer::GetErrorMessages() const
+    {
+        return m_ErrorMessages;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ClearErrorMessages
+
+    Description:
+        Clears the list of error messages.
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::ClearErrorMessages()
+    {
+        m_ErrorMessages.clear();
     }
 
     /*************************************************************************\
@@ -1024,6 +1069,7 @@ namespace Profiler
                     else
                     {
                         m_pTraceSerializer->Serialize( *pData );
+                        HandleErrorMessages();
                     }
 
                     m_ProcessedFrameCount++;
@@ -1132,6 +1178,7 @@ namespace Profiler
                 {
                     std::scoped_lock serializerLock( m_TraceSerializerMutex );
                     m_pTraceSerializer->Serialize( *pData );
+                    HandleErrorMessages();
                 }
 
                 lock.lock();
@@ -1158,5 +1205,27 @@ namespace Profiler
         {
             m_TraceSerializationThread.join();
         }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        HandleErrorMessages
+
+    Description:
+        Read any error messages reported by the serializer and write them
+        to the standard output.
+
+        m_TraceSerializerMutex must be locked before calling this function.
+
+    \*************************************************************************/
+    void ProfilerTraceOutput::HandleErrorMessages()
+    {
+        for( const std::string& message : m_pTraceSerializer->GetErrorMessages() )
+        {
+            std::cerr << VK_LAYER_profiler_name ": " << message << std::endl;
+        }
+
+        m_pTraceSerializer->ClearErrorMessages();
     }
 }
