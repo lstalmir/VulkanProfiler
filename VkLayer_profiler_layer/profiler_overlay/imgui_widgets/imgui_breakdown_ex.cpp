@@ -22,6 +22,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 
 #include "imgui_breakdown_ex.h"
+#include "imgui_ex.h"
 #include <imgui_internal.h>
 
 #include <random>
@@ -129,6 +130,8 @@ namespace ImGuiX
                     color = colors[v1_idx];
                 else
                     color = col_base + random();
+
+                color = ColorAlpha( color, style.Alpha, ColorAlphaOp_Multiply );
 
                 window->DrawList->AddRectFilled( rect.Min, rect.Max, color );
 
