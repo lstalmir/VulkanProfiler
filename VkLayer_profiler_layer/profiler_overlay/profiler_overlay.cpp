@@ -2974,7 +2974,9 @@ namespace Profiler
         const size_t samplesCount = m_pData->m_PerformanceCounters.m_StreamTimestamps.size();
         const size_t metricCount = m_pActivePerformanceQueryMetricsSet->m_Metrics.size();
 
-        ImPlot::PushStyleVar( ImPlotStyleVar_FillAlpha, 0.5f );
+        ImPlotSpec plotSpec;
+        plotSpec.FillAlpha = 0.5f;
+
         ImPlot::PushStyleVar( ImPlotStyleVar_PlotBorderSize, 0.0f );
 
         for( size_t i = 0; i < metricCount; ++i )
@@ -2990,7 +2992,7 @@ namespace Profiler
             if( ImPlot::BeginPlot(
                     properties.shortName,
                     ImVec2( -1, 100 ),
-                    ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoBoxSelect ) )
+                    ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMenus ) )
             {
                 const DeviceProfilerPerformanceCounterStreamData& streamData =
                     m_pData->m_PerformanceCounters.m_StreamResults[i];
@@ -3050,19 +3052,21 @@ namespace Profiler
                     &plotData,
                     PlotZeroFunction,
                     &plotData,
-                    samplesCount );
+                    samplesCount,
+                    plotSpec );
 
                 ImPlot::PlotLineG(
                     properties.shortName,
                     plotValueFunction,
                     &plotData,
-                    samplesCount );
+                    samplesCount,
+                    plotSpec );
 
                 ImPlot::EndPlot();
             }
         }
 
-        ImPlot::PopStyleVar( 2 );
+        ImPlot::PopStyleVar();
     }
 
     /***********************************************************************************\
@@ -3886,6 +3890,11 @@ namespace Profiler
 
                         if( !m_MemoryConsumptionHistoryTimePoints.empty() )
                         {
+                            ImPlotSpec plotSpec;
+                            plotSpec.FillAlpha = 0.5f;
+                            plotSpec.FillColor = color;
+                            plotSpec.LineColor = color;
+
                             ImPlot::SetupAxis( ImAxis_X1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
                             ImPlot::SetupAxis( ImAxis_Y1, nullptr, ImPlotAxisFlags_NoHighlight | ImPlotAxisFlags_NoSideSwitch );
                             ImPlot::SetupAxisLimitsConstraints( ImAxis_X1, 0.0, m_MemoryConsumptionHistoryTimePoints.back() + 30.0 );
@@ -3903,17 +3912,18 @@ namespace Profiler
 
                             ImPlot::SetupFinish();
 
-                            ImPlot::SetNextFillStyle( color, 0.5f );
                             ImPlot::PlotShaded( "Allocated",
                                 m_MemoryConsumptionHistoryTimePoints.data(),
                                 m_MemoryConsumptionHistory[i].data(),
-                                m_MemoryConsumptionHistory[i].size() );
+                                m_MemoryConsumptionHistory[i].size(),
+                                0.0,
+                                plotSpec );
 
-                            ImPlot::SetNextLineStyle( color );
                             ImPlot::PlotLine( "Allocated",
                                 m_MemoryConsumptionHistoryTimePoints.data(),
                                 m_MemoryConsumptionHistory[i].data(),
-                                m_MemoryConsumptionHistory[i].size() );
+                                m_MemoryConsumptionHistory[i].size(),
+                                plotSpec );
                         }
 
                         ImPlot::EndPlot();
