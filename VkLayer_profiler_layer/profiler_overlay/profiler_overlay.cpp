@@ -2992,7 +2992,7 @@ namespace Profiler
             if( ImPlot::BeginPlot(
                     properties.shortName,
                     ImVec2( -1, 100 ),
-                    ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoBoxSelect ) )
+                    ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMenus ) )
             {
                 const DeviceProfilerPerformanceCounterStreamData& streamData =
                     m_pData->m_PerformanceCounters.m_StreamResults[i];
