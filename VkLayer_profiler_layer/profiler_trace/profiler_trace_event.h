@@ -71,7 +71,7 @@ namespace Profiler
         std::string    m_Name;
         std::string    m_Category;
         Microseconds   m_Timestamp;
-        VkQueue        m_Queue;
+        std::string    m_Track;
         nlohmann::json m_Color;
         nlohmann::json m_Args;
 
@@ -83,14 +83,14 @@ namespace Profiler
             std::string_view name,
             std::string_view category,
             TimestampType timestamp,
-            VkQueue queue,
+            std::string_view track,
             const nlohmann::json& color = {},
             const nlohmann::json& args = {} )
             : m_Phase( phase )
             , m_Name( name )
             , m_Category( category )
             , m_Timestamp( std::chrono::duration_cast<decltype(m_Timestamp)>(timestamp) )
-            , m_Queue( queue )
+            , m_Track( track )
             , m_Color( color )
             , m_Args( args )
         {
@@ -130,10 +130,10 @@ namespace Profiler
             std::string_view name,
             std::string_view category,
             TimestampType timestamp,
-            VkQueue queue,
+            std::string_view track,
             const nlohmann::json& color = {},
             const nlohmann::json& args = {} )
-            : TraceEvent( Phase::eInstant, name, category, timestamp, queue, color, args )
+            : TraceEvent( Phase::eInstant, name, category, timestamp, track, color, args )
             , m_Scope( scope )
         {
         }
@@ -166,10 +166,10 @@ namespace Profiler
             std::string_view name,
             std::string_view category,
             TimestampType timestamp,
-            VkQueue queue,
+            std::string_view track,
             const nlohmann::json& color = {},
             const nlohmann::json& args = {} )
-            : TraceEvent( phase, name, category, timestamp, queue, color, args )
+            : TraceEvent( phase, name, category, timestamp, track, color, args )
             , m_Id( id )
         {
             assert( (m_Phase == Phase::eAsyncStart)
@@ -204,10 +204,10 @@ namespace Profiler
             std::string_view category,
             TimestampType timestamp,
             DurationType duration,
-            VkQueue queue,
+            std::string_view track,
             const nlohmann::json& color = {},
             const nlohmann::json& args = {} )
-            : TraceEvent( Phase::eComplete, name, category, timestamp, queue, color, args )
+            : TraceEvent( Phase::eComplete, name, category, timestamp, track, color, args )
             , m_Duration( std::chrono::duration_cast<decltype(m_Duration)>(duration) )
         {
         }
@@ -238,12 +238,12 @@ namespace Profiler
         template<typename TimestampType>
         inline TraceCounterEvent(
             TimestampType timestamp,
-            VkQueue queue,
+            std::string_view track,
             size_t counterCount,
             const VkProfilerPerformanceCounterProperties2EXT* pCounterProperties,
             const VkProfilerPerformanceCounterResultEXT* pCounterResults,
             const nlohmann::json& color = {} )
-            : TraceEvent( Phase::eCounter, "", "", timestamp, queue, color )
+            : TraceEvent( Phase::eCounter, "", "", timestamp, track, color )
             , m_CounterCount( counterCount )
             , m_pCounterProperties( pCounterProperties )
             , m_pCounterResults( pCounterResults )
@@ -274,7 +274,7 @@ namespace Profiler
             TimestampType timestamp,
             const nlohmann::json& color = {},
             const nlohmann::json& args = {} )
-            : TraceEvent( phase, name, "Debug", timestamp, VK_NULL_HANDLE, color, args )
+            : TraceEvent( phase, name, "Debug", timestamp, std::string_view(), color, args )
         {
         }
 
@@ -305,7 +305,7 @@ namespace Profiler
             TimestampType timestamp,
             const nlohmann::json& color = {},
             const nlohmann::json& args = {} )
-            : TraceEvent( phase, name, "API", timestamp, VK_NULL_HANDLE, color, args )
+            : TraceEvent( phase, name, "API", timestamp, std::string_view(), color, args )
             , m_ThreadId( threadId )
         {
         }

@@ -34,18 +34,13 @@ namespace Profiler
     \*************************************************************************/
     void TraceEvent::Serialize( nlohmann::json& jsonObject ) const
     {
-        using namespace std::literals;
-
-        char queueHexHandle[ 32 ] = {};
-        ProfilerStringFunctions::Hex( queueHexHandle, reinterpret_cast<uint64_t>(m_Queue) );
-
         jsonObject = {
             { "name", m_Name },
             { "cat", m_Category },
             { "ph", std::string( 1, static_cast<char>(m_Phase) ) },
             { "ts", m_Timestamp.count() },
             { "pid", 0 },
-            { "tid", "VkQueue 0x"s + queueHexHandle } };
+            { "tid", m_Track } };
 
         if( !m_Color.empty() )
         {
