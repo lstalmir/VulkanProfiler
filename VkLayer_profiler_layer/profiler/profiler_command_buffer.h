@@ -141,9 +141,11 @@ namespace Profiler
         void PreBeginRenderPassCommonProlog();
         void PreBeginRenderPassCommonEpilog();
 
+        void EndPipeline();
         void EndSubpass();
+        void EndRenderPass();
 
-        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline&, DeviceProfilerPipelineData** );
+        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
         void SetupCommandBufferForSecondaryBuffers();
 
         DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;
