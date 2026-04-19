@@ -631,11 +631,18 @@ namespace Profiler
                 const std::string beginEventName = m_pStringSerializer->GetName( data.m_Begin, data.m_Dynamic );
 
                 // vkCmdBeginRenderPass
-                m_Events.push_back( TraceCompleteEvent(
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationBegin,
                     beginEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp.m_Value ),
-                    GetDuration( data.m_Begin ),
+                    m_CommandQueue ) );
+
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationEnd,
+                    beginEventName,
+                    "Drawcalls",
+                    GetNormalizedGpuTimestamp( data.m_Begin.m_EndTimestamp.m_Value ),
                     m_CommandQueue ) );
             }
         }
@@ -654,11 +661,18 @@ namespace Profiler
                 const std::string endEventName = m_pStringSerializer->GetName( data.m_End, data.m_Dynamic );
 
                 // vkCmdEndRenderPass
-                m_Events.push_back( TraceCompleteEvent(
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationBegin,
                     endEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp.m_Value ),
-                    GetDuration( data.m_End ),
+                    m_CommandQueue ) );
+
+                m_Events.push_back( TraceEvent(
+                    TraceEvent::Phase::eDurationEnd,
+                    endEventName,
+                    "Drawcalls",
+                    GetNormalizedGpuTimestamp( data.m_End.m_EndTimestamp.m_Value ),
                     m_CommandQueue ) );
             }
 
