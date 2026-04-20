@@ -132,9 +132,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
-        void AppendEventsToOutputFile();
-
-        void Cleanup();
+        bool AppendEventsToOutputFile();
     };
 
     /*************************************************************************\

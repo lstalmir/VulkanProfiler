@@ -3954,7 +3954,7 @@ namespace Profiler
         ImGui::PopFont();
 
         // Save resources to file.
-        ImGui::BeginDisabled( !m_pData || m_pResourceListExporter );
+        ImGui::BeginDisabled( m_pResourceListExporter != nullptr );
         if( ImGui::Button( "Save##ResourceList" ) )
         {
             m_pResourceListExporter = std::make_unique<ResourceListExporter>();
