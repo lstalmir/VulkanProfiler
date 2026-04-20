@@ -49,8 +49,6 @@ namespace ImGuiX
         static std::mt19937 random;
         random.seed( 0 );
 
-        if( !label ) label = "";
-
         // Implementation is based on ImGui::PlotEx function (which is called by PlotHistogram).
 
         ImGuiContext& g = *GImGui;
@@ -142,7 +140,7 @@ namespace ImGuiX
             }
         }
 
-        if( label )
+        if( label != label_end )
         {
             ImRect label_bb( frame_bb );
             label_bb.Expand( -g.Style.FramePadding );

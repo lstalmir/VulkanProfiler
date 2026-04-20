@@ -158,8 +158,15 @@ namespace Profiler
         // Clear exceptions mask to prevent throwing any exceptions from the stream functions.
         m_OutputFile.exceptions( std::ios::iostate( 0 ) );
 
-        // Open the file for writing.
-        m_OutputFile.open( fileName, std::ios::out | std::ios::trunc | std::ios::binary );
+        try
+        {
+            // Open the file for writing.
+            m_OutputFile.open( fileName, std::ios::out | std::ios::trunc | std::ios::binary );
+        }
+        catch( const std::ios_base::failure& )
+        {
+            // Handled below.
+        }
 
         if( m_OutputFile.fail() )
         {
@@ -167,15 +174,28 @@ namespace Profiler
             return false;
         }
 
-        // Write file header.
-        m_OutputFile << '{';
-        m_OutputFile << "\"displayTimeUnit\":\"ns\"," << lf;
-        m_OutputFile << " \"otherData\":" << json::object() << "," << lf;
-        m_OutputFile << " \"traceEvents\":[" << eof;
+        try
+        {
+            // Write file header.
+            m_OutputFile << '{';
+            m_OutputFile << "\"displayTimeUnit\":\"ns\"," << lf;
+            m_OutputFile << " \"otherData\":" << json::object() << "," << lf;
+            m_OutputFile << " \"traceEvents\":[" << eof;
 
-        m_OutputFileEmpty = true;
+            m_OutputFileEmpty = true;
+        }
+        catch( const std::ios_base::failure& )
+        {
+            // Handled below.
+        }
 
-        return !m_OutputFile.fail();
+        if( m_OutputFile.fail() )
+        {
+            m_ErrorMessages.push_back( "Error while writing header data to the output file." );
+            return false;
+        }
+
+        return true;
     }
 
     /*************************************************************************\
@@ -191,7 +211,14 @@ namespace Profiler
     {
         if( m_OutputFile.is_open() )
         {
-            m_OutputFile.close();
+            try
+            {
+                m_OutputFile.close();
+            }
+            catch( const std::ios_base::failure& )
+            {
+                // Handled below.
+            }
 
             if( m_OutputFile.fail() )
             {
@@ -211,39 +238,52 @@ namespace Profiler
     Description:
 
     \*************************************************************************/
-    void DeviceProfilerTraceSerializer::AppendEventsToOutputFile()
+    bool DeviceProfilerTraceSerializer::AppendEventsToOutputFile()
     {
-        if( m_Events.empty() )
+        if( m_Events.empty() || m_OutputFile.fail() )
         {
-            return;
+            // Silently ignore the attempt if an error occurred previously or there are no events to write.
+            return false;
         }
 
-        // Remove last 3 characters ("]}" + lf)
-        m_OutputFile.seekp( -eof_len, std::ios::end );
-
-        // Continue the array
-        if( !m_OutputFileEmpty )
+        try
         {
-            m_OutputFile << eol;
+            // Remove last 3 characters ("]}" + lf)
+            m_OutputFile.seekp( -eof_len, std::ios::end );
+
+            // Continue the array
+            if( !m_OutputFileEmpty )
+            {
+                m_OutputFile << eol;
+            }
+            else
+            {
+                m_OutputFile << lf;
+            }
+
+            for( const json& event : m_Events )
+            {
+                m_OutputFile << event << eol;
+            }
+
+            // Remove the last comma and insert end of array and end of object
+            m_OutputFile.seekp( -eol_len, std::ios::end );
+            m_OutputFile << eof;
+
+            m_OutputFileEmpty = false;
         }
-        else
+        catch( const std::ios_base::failure& )
         {
-            m_OutputFile << lf;
+            // Handled below.
         }
 
-        for( const json& event : m_Events )
+        if( m_OutputFile.fail() )
         {
-            m_OutputFile << event << eol;
+            m_ErrorMessages.push_back( "Error while writing events to the output file." );
+            return false;
         }
 
-        // Remove the last comma and insert end of array and end of object
-        m_OutputFile.seekp( -eol_len, std::ios::end );
-        m_OutputFile << eof;
-
-        m_OutputFileEmpty = false;
-
-        // Cleanup serializer state
-        Cleanup();
+        return true;
     }
 
     /*************************************************************************\
@@ -385,17 +425,12 @@ namespace Profiler
         Serialize( data.m_TIP );
 
         // Write the serialized events to the output file
-        AppendEventsToOutputFile();
+        bool result = AppendEventsToOutputFile();
 
+        m_Events.clear();
         m_pData = nullptr;
 
-        if( m_OutputFile.fail() )
-        {
-            m_ErrorMessages.push_back( "Error while writing events to the output file." );
-            return false;
-        }
-
-        return true;
+        return result;
     }
 
     /*************************************************************************\
@@ -918,17 +953,6 @@ namespace Profiler
         stringBuilder << ".json";
 
         return stringBuilder.str();
-    }
-
-    /*************************************************************************\
-
-    Function:
-        Cleanup
-
-    \*************************************************************************/
-    void DeviceProfilerTraceSerializer::Cleanup()
-    {
-        m_Events.clear();
     }
 
     /*************************************************************************\
