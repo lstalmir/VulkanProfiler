@@ -68,6 +68,8 @@ namespace Profiler
         eDrawMeshTasksNV = 0x00010009,
         eDrawMeshTasksIndirectNV = 0x0001000A,
         eDrawMeshTasksIndirectCountNV = 0x0001000B,
+        eDrawMulti = 0x0001000C,
+        eDrawMultiIndexed = 0x0001000D,
         eDispatch = 0x00020000,
         eDispatchIndirect = 0x00020001,
         eCopyBuffer = 0x00030000,
@@ -422,6 +424,37 @@ namespace Profiler
         : DeviceProfilerDrawcallDrawMeshTasksIndirectCountBasePayload<
               DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV>
     {
+    };
+
+    struct DeviceProfilerDrawcallDrawMultiPayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDrawMulti>
+    {
+        uint32_t m_DrawCount;
+        uint32_t m_InstanceCount;
+        uint32_t m_FirstInstance;
+        uint32_t m_Stride;
+        const VkMultiDrawInfoEXT* m_pVertexInfo;
+        bool m_OwnsDynamicAllocations;
+
+        void CopyDynamicAllocations( const DeviceProfilerDrawcallDrawMultiPayload& other );
+        void FreeDynamicAllocations();
+    };
+
+    struct DeviceProfilerDrawcallDrawMultiIndexedPayload
+        : DeviceProfilerDrawcallBasePayload<
+              DeviceProfilerDrawcallType::eDrawMultiIndexed>
+    {
+        uint32_t m_DrawCount;
+        uint32_t m_InstanceCount;
+        uint32_t m_FirstInstance;
+        uint32_t m_Stride;
+        const VkMultiDrawIndexedInfoEXT* m_pIndexInfo;
+        const int32_t* m_pVertexOffset;
+        bool m_OwnsDynamicAllocations;
+
+        void CopyDynamicAllocations( const DeviceProfilerDrawcallDrawMultiIndexedPayload& other );
+        void FreeDynamicAllocations();
     };
 
     struct DeviceProfilerDrawcallDispatchPayload
@@ -783,6 +816,8 @@ namespace Profiler
     f( DeviceProfilerDrawcallDrawMeshTasksNvPayload, m_DrawMeshTasksNV, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallDrawMeshTasksIndirectNvPayload, m_DrawMeshTasksIndirectNV, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallDrawMeshTasksIndirectCountNvPayload, m_DrawMeshTasksIndirectCountNV, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMultiPayload, m_DrawMulti, __VA_ARGS__ ) \
+    f( DeviceProfilerDrawcallDrawMultiIndexedPayload, m_DrawMultiIndexed, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallDispatchPayload, m_Dispatch, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallDispatchIndirectPayload, m_DispatchIndirect, __VA_ARGS__ ) \
     f( DeviceProfilerDrawcallCopyBufferPayload, m_CopyBuffer, __VA_ARGS__ ) \

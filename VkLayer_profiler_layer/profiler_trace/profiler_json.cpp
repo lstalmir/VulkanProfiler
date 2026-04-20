@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -156,6 +156,51 @@ namespace Profiler
                 { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount },
                 { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride }
             };
+
+        case DeviceProfilerDrawcallType::eDrawMulti:
+        {
+            std::vector<nlohmann::json> vertexInfos;
+
+            for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMulti.m_DrawCount; i++ )
+            {
+                const VkMultiDrawInfoEXT& vertexInfo = drawcall.m_Payload.m_DrawMulti.m_pVertexInfo[i];
+                vertexInfos.push_back( {
+                    { "firstVertex", vertexInfo.firstVertex },
+                    { "vertexCount", vertexInfo.vertexCount }
+                } );
+            }
+
+            return {
+                { "drawCount", drawcall.m_Payload.m_DrawMulti.m_DrawCount },
+                { "instanceCount", drawcall.m_Payload.m_DrawMulti.m_InstanceCount },
+                { "firstInstance", drawcall.m_Payload.m_DrawMulti.m_FirstInstance },
+                { "stride", drawcall.m_Payload.m_DrawMulti.m_Stride },
+                { "vertexInfos", vertexInfos }
+            };
+        }
+        
+        case DeviceProfilerDrawcallType::eDrawMultiIndexed:
+        {
+            std::vector<nlohmann::json> indexInfos;
+
+            for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMulti.m_DrawCount; i++ )
+            {
+                const VkMultiDrawIndexedInfoEXT& indexInfo = drawcall.m_Payload.m_DrawMultiIndexed.m_pIndexInfo[i];
+                indexInfos.push_back( {
+                    { "firstIndex", indexInfo.firstIndex },
+                    { "indexCount", indexInfo.indexCount },
+                    { "vertexOffset", indexInfo.vertexOffset }
+                } );
+            }
+
+            return {
+                { "drawCount", drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount },
+                { "instanceCount", drawcall.m_Payload.m_DrawMultiIndexed.m_InstanceCount },
+                { "firstInstance", drawcall.m_Payload.m_DrawMultiIndexed.m_FirstInstance },
+                { "stride", drawcall.m_Payload.m_DrawMultiIndexed.m_Stride },
+                { "indexInfos", indexInfos }
+            };
+        }
 
         case DeviceProfilerDrawcallType::eDispatch:
             return {
