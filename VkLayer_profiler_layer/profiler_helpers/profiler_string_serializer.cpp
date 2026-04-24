@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -190,6 +190,20 @@ namespace Profiler
                 drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset,
                 drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount,
                 drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride );
+
+        case DeviceProfilerDrawcallType::eDrawMulti:
+            return fmt::format( "vkCmdDrawMultiEXT ({}, {}, {}, {})",
+                drawcall.m_Payload.m_DrawMulti.m_DrawCount,
+                drawcall.m_Payload.m_DrawMulti.m_InstanceCount,
+                drawcall.m_Payload.m_DrawMulti.m_FirstInstance,
+                drawcall.m_Payload.m_DrawMulti.m_Stride );
+
+        case DeviceProfilerDrawcallType::eDrawMultiIndexed:
+            return fmt::format( "vkCmdDrawMultiIndexedEXT ({}, {}, {}, {})",
+                drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount,
+                drawcall.m_Payload.m_DrawMultiIndexed.m_InstanceCount,
+                drawcall.m_Payload.m_DrawMultiIndexed.m_FirstInstance,
+                drawcall.m_Payload.m_DrawMultiIndexed.m_Stride );
 
         case DeviceProfilerDrawcallType::eDispatch:
             return fmt::format( "vkCmdDispatch ({}, {}, {})",
@@ -652,6 +666,12 @@ namespace Profiler
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
             return "vkCmdDrawMeshTasksIndirectCountNV";
+
+        case DeviceProfilerDrawcallType::eDrawMulti:
+            return "vkCmdDrawMultiEXT";
+
+        case DeviceProfilerDrawcallType::eDrawMultiIndexed:
+            return "vkCmdDrawMultiIndexedEXT";
 
         case DeviceProfilerDrawcallType::eDispatch:
             return "vkCmdDispatch";

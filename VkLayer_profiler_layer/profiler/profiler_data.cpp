@@ -560,6 +560,47 @@ namespace Profiler
         return CopyPipelineCreateInfoImpl( pCreateInfo );
     }
 
+    void DeviceProfilerDrawcallDrawMultiPayload::CopyDynamicAllocations( const DeviceProfilerDrawcallDrawMultiPayload& other )
+    {
+        m_pVertexInfo = CopyElements( other.m_DrawCount, other.m_pVertexInfo );
+
+        m_OwnsDynamicAllocations = true;
+    }
+
+    void DeviceProfilerDrawcallDrawMultiPayload::FreeDynamicAllocations()
+    {
+        if( m_OwnsDynamicAllocations )
+        {
+            this->FreeConst( m_pVertexInfo );
+        }
+    }
+
+    void DeviceProfilerDrawcallDrawMultiIndexedPayload::CopyDynamicAllocations( const DeviceProfilerDrawcallDrawMultiIndexedPayload& other )
+    {
+        VkMultiDrawIndexedInfoEXT* pIndexInfo = CopyElements( other.m_DrawCount, other.m_pIndexInfo );
+
+        if( other.m_pVertexOffset != nullptr )
+        {
+            for( uint32_t i = 0; i < other.m_DrawCount; ++i )
+            {
+                pIndexInfo[i].vertexOffset = other.m_pVertexOffset[i];
+            }
+        }
+
+        m_pIndexInfo = pIndexInfo;
+        m_pVertexOffset = nullptr;
+
+        m_OwnsDynamicAllocations = true;
+    }
+
+    void DeviceProfilerDrawcallDrawMultiIndexedPayload::FreeDynamicAllocations()
+    {
+        if( m_OwnsDynamicAllocations )
+        {
+            this->FreeConst( m_pIndexInfo );
+        }
+    }
+
     template<DeviceProfilerDrawcallType Type>
     void DeviceProfilerDrawcallBuildAccelerationStructuresBasePayload<Type>::CopyDynamicAllocations( const DeviceProfilerDrawcallBuildAccelerationStructuresBasePayload& other )
     {

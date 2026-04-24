@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@
 #include "VkMaintenanceKhr_functions.h"
 #include "VkMeshShaderExt_functions.h"
 #include "VkMeshShaderNv_functions.h"
+#include "VkMultiDrawExt_functions.h"
 #include "VkOpacityMicromapExt_functions.h"
 #include "VkPipelineExecutablePropertiesKhr_functions.h"
 #include "VkRayTracingMaintenance1Khr_functions.h"
@@ -71,6 +72,7 @@ namespace Profiler
         , VkMaintenanceKhr_Functions
         , VkMeshShaderExt_Functions
         , VkMeshShaderNv_Functions
+        , VkMultiDrawExt_Functions
         , VkOpacityMicromapExt_Functions
         , VkPipelineExecutablePropertiesKhr_Functions
         , VkRayTracingMaintenance1Khr_Functions
