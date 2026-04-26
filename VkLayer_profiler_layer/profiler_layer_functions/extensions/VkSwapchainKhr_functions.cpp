@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "VkSwapchainKhr_functions.h"
+#include "VkFrameBoundaryExt_functions.h"
 #include "profiler_layer_functions/Helpers.h"
 
 namespace Profiler
@@ -181,8 +182,9 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        // End profiling of the previous frame
-        dd.Profiler.FinishFrame();
+        // End profiling of the previous frame.
+        dd.Profiler.FinishFrame(
+            VkFrameBoundaryExt_Functions::GetFrameBoundary( dd, pPresentInfo ) );
 
         // Overlay rendering may be executed on a different queue than the one used for presenting.
         // Synchronization of rendering is required, so override the pointer to the present info.

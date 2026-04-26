@@ -1353,17 +1353,25 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
+    void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch, const VkFrameBoundaryEXT* pFrameBoundary )
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
         // Append the submit batch for aggregation
         m_DataAggregator.AppendSubmit( submitBatch );
 
-        if( m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
         {
             // Begin the next frame
             BeginNextFrame();
+        }
+
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+        {
+            if( pFrameBoundary != nullptr )
+            {
+                BeginNextFrame();
+            }
         }
 
         // Get data captured during the last frame
@@ -1468,17 +1476,25 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::FinishFrame()
+    void DeviceProfiler::FinishFrame( const VkFrameBoundaryEXT* pFrameBoundary )
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
         // Update FPS counter
         m_CpuFpsCounter.Update();
 
-        if( m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::present )
         {
             // Begin the next frame
             BeginNextFrame();
+        }
+
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+        {
+            if( pFrameBoundary != nullptr )
+            {
+                BeginNextFrame();
+            }
         }
 
         // Get data captured during the last frame

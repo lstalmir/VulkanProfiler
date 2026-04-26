@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "VkSynchronization2Khr_functions.h"
+#include "VkFrameBoundaryExt_functions.h"
 
 namespace Profiler
 {
@@ -46,10 +47,20 @@ namespace Profiler
         dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
         dd.Profiler.PreSubmitCommandBuffers( submitBatch );
 
+        const VkFrameBoundaryEXT* pFrameBoundary = nullptr;
+        for( uint32_t i = 0; i < submitCount; ++i )
+        {
+            pFrameBoundary = VkFrameBoundaryExt_Functions::GetFrameBoundary( dd, &pSubmits[i] );
+            if( pFrameBoundary != nullptr )
+            {
+                break;
+            }
+        }
+
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, submitCount, pSubmits, fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+        dd.Profiler.PostSubmitCommandBuffers( submitBatch, pFrameBoundary );
 
         // Consume the collected data
         if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )

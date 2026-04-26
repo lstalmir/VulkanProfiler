@@ -125,9 +125,9 @@ namespace Profiler
         void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo*, DeviceProfilerSubmitBatch* );
         void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo2*, DeviceProfilerSubmitBatch* );
         void PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
-        void PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
+        void PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch&, const VkFrameBoundaryEXT* );
 
-        void FinishFrame();
+        void FinishFrame( const VkFrameBoundaryEXT* );
 
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );

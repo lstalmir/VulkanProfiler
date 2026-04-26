@@ -272,6 +272,11 @@
                             "key": "submit",
                             "label": "Submit",
                             "description": "Delimit frames on each submission. Recommended for applications rendering offscreen or compute-only workloads."
+                        },
+                        {
+                            "key": "frame_boundary_ext",
+                            "label": "Frame Boundary EXT",
+                            "description": "Delimit frames using VK_EXT_frame_boundary extension. The profiled application must use the extension to provide frame boundary information."
                         }
                     ]
                 },
