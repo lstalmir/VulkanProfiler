@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -132,7 +132,7 @@ namespace Profiler
         , m_pData()
         , m_MemoryManager()
         , m_DataAggregator()
-        , m_NextFrameIndex( 0 )
+        , m_FrameIndex( 0 )
         , m_DataBufferSize( 1 )
         , m_MinDataBufferSize( 1 )
         , m_LastFrameBeginTimestamp( 0 )
@@ -381,7 +381,7 @@ namespace Profiler
         m_pDevice = pDevice;
 
         // Frame #0 is allocated by the aggregator.
-        m_NextFrameIndex = 1;
+        m_FrameIndex = 1;
 
         // Check if profiler create info was provided.
         const PNextChain pNextChain( pCreateInfo->pNext );
@@ -461,6 +461,8 @@ namespace Profiler
         // Initialize synchroniation manager
         DESTROYANDRETURNONFAIL( m_Synchronization.Initialize( m_pDevice ) );
 
+        m_SynchronizationTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+
         VkTimeDomainEXT hostTimeDomain = m_Synchronization.GetHostTimeDomain();
         m_CpuTimestampCounter.SetTimeDomain( hostTimeDomain );
         m_CpuFpsCounter.SetTimeDomain( hostTimeDomain );
@@ -505,9 +507,6 @@ namespace Profiler
             ProfilerPlatformFunctions::SetStablePowerState( m_pDevice, &m_pStablePowerStateHandle );
         }
 
-        // Begin profiling of the first frame.
-        BeginNextFrame();
-
         return VK_SUCCESS;
     }
 
@@ -527,8 +526,8 @@ namespace Profiler
         // Data aggregator may run in background so it must be stopped first.
         m_DataAggregator.StopDataCollectionThread();
 
-        // Begin a fake frame at the end to allow finalization of the last submitted frame.
-        BeginNextFrame();
+        // End the last frame.
+        m_DataAggregator.EndPendingFrames();
         ResolveFrameData( tip );
 
         // Reset members and destroy resources.
@@ -555,7 +554,7 @@ namespace Profiler
             ProfilerPlatformFunctions::ResetStablePowerState( m_pStablePowerStateHandle );
         }
 
-        m_NextFrameIndex = 0;
+        m_FrameIndex = 0;
         m_pDevice = nullptr;
     }
 
@@ -1336,12 +1335,12 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch )
+    void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue )
     {
         // Configure the queue for performance counters collection, if needed.
         if( m_pPerformanceCounters )
         {
-            m_pPerformanceCounters->SetQueuePerformanceConfiguration( submitBatch.m_Handle );
+            m_pPerformanceCounters->SetQueuePerformanceConfiguration( queue );
         }
     }
 
@@ -1353,61 +1352,89 @@ namespace Profiler
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& submitBatch, const VkFrameBoundaryEXT* pFrameBoundary )
+    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo )
     {
-        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
-
-        // Append the submit batch for aggregation
-        m_DataAggregator.AppendSubmit( submitBatch );
-
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
-        {
-            // Begin the next frame
-            BeginNextFrame();
-        }
-
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
-        {
-            if( pFrameBoundary != nullptr )
-            {
-                BeginNextFrame();
-            }
-        }
-
-        // Get data captured during the last frame
-        ResolveFrameData( tip );
+        PostSubmitCommandBuffersImpl<VkSubmitInfo>( queue, count, pSubmitInfo );
     }
 
     /***********************************************************************************\
 
     Function:
-        CreateSubmitBatchInfoImpl
+        PostSubmitCommandBuffers
 
     Description:
-        Structure-independent implementation of CreateSubmitBatchInfo.
+
+    \***********************************************************************************/
+    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo2* pSubmitInfo )
+    {
+        PostSubmitCommandBuffersImpl<VkSubmitInfo2>( queue, count, pSubmitInfo );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        PostSubmitCommandBuffers
+
+    Description:
 
     \***********************************************************************************/
     template<typename SubmitInfoT>
-    void DeviceProfiler::CreateSubmitBatchInfoImpl( VkQueue queue, uint32_t count, const SubmitInfoT* pSubmitInfo, DeviceProfilerSubmitBatch* pSubmitBatch )
+    void DeviceProfiler::PostSubmitCommandBuffersImpl( VkQueue queue, uint32_t submitCount, const SubmitInfoT* pSubmits )
     {
         using T = SubmitInfoTraits<SubmitInfoT>;
 
-        TipGuard tip( m_pDevice->TIP, __func__ );
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        // Applications can issue submissions belonging to different frames in a single call.
+        // Split those submissions into separate batches.
+        std::unordered_map<uint32_t, DeviceProfilerSubmitBatch> submitBatches;
+        // List of frames that ended during this submission.
+        std::vector<uint32_t> frameBoundaryExtEndedFrames;
+
+        const uint64_t timestamp = m_CpuTimestampCounter.GetCurrentValue();
+        const uint32_t threadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
         // Synchronize read access to m_pCommandBuffers
         std::shared_lock lk( m_pCommandBuffers );
 
-        // Store submitted command buffers and get results
-        pSubmitBatch->m_Handle = queue;
-        pSubmitBatch->m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
-        pSubmitBatch->m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
-
-        for( uint32_t submitIdx = 0; submitIdx < count; ++submitIdx )
+        for( uint32_t submitIdx = 0; submitIdx < submitCount; ++submitIdx )
         {
-            const SubmitInfoT& submitInfo = pSubmitInfo[ submitIdx ];
+            const SubmitInfoT& submitInfo = pSubmits[submitIdx];
+
+            // Resolve index of the frame this submission belongs to.
+            uint32_t submitFrameIndex = m_FrameIndex;
+
+            if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+            {
+                const PNextChain pNextChain( submitInfo.pNext );
+                const VkFrameBoundaryEXT* pFrameBoundary =
+                    pNextChain.Find<VkFrameBoundaryEXT>( VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT );
+
+                if( pFrameBoundary != nullptr )
+                {
+                    submitFrameIndex = static_cast<uint32_t>( pFrameBoundary->frameID );
+
+                    if( pFrameBoundary->flags & VK_FRAME_BOUNDARY_FRAME_END_BIT_EXT )
+                    {
+                        frameBoundaryExtEndedFrames.push_back( submitFrameIndex );
+                    }
+                }
+            }
+
+            // Get submit batch associated with the frame index of the submission.
+            auto it = submitBatches.find( submitFrameIndex );
+            if( it == submitBatches.end() )
+            {
+                it = submitBatches.emplace( submitFrameIndex, DeviceProfilerSubmitBatch{} ).first;
+                it->second.m_Handle = ResolveObjectHandle<VkQueueHandle>( queue );
+                it->second.m_Timestamp = timestamp;
+                it->second.m_ThreadId = threadId;
+            }
+
+            DeviceProfilerSubmitBatch& submitBatch = it->second;
 
             // Wrap submit info into our structure
-            DeviceProfilerSubmit submit;
+            DeviceProfilerSubmit& submit = submitBatch.m_Submits.emplace_back();
             submit.m_pCommandBuffers.reserve( T::CommandBufferCount( submitInfo ) );
             submit.m_SignalSemaphores.reserve( T::SignalSemaphoreCount( submitInfo ) );
             submit.m_WaitSemaphores.reserve( T::WaitSemaphoreCount( submitInfo ) );
@@ -1436,64 +1463,26 @@ namespace Profiler
                 submit.m_WaitSemaphores.push_back(
                     ResolveObjectHandle<VkSemaphoreHandle>( T::WaitSemaphore( submitInfo, semaphoreIdx ) ) );
             }
-
-            // Store the submit wrapper
-            pSubmitBatch->m_Submits.push_back( std::move( submit ) );
         }
-    }
 
-    /***********************************************************************************\
-
-    Function:
-        CreateSubmitBatchInfo
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::CreateSubmitBatchInfo( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo, DeviceProfilerSubmitBatch* pSubmitBatch )
-    {
-        CreateSubmitBatchInfoImpl<VkSubmitInfo>( queue, count, pSubmitInfo, pSubmitBatch );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        CreateSubmitBatchInfo
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::CreateSubmitBatchInfo( VkQueue queue, uint32_t count, const VkSubmitInfo2* pSubmitInfo, DeviceProfilerSubmitBatch* pSubmitBatch )
-    {
-        CreateSubmitBatchInfoImpl<VkSubmitInfo2>( queue, count, pSubmitInfo, pSubmitBatch );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        FinishFrame
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::FinishFrame( const VkFrameBoundaryEXT* pFrameBoundary )
-    {
-        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
-
-        // Update FPS counter
-        m_CpuFpsCounter.Update();
-
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::present )
+        // Append the submit batches for aggregation.
+        for( const auto& [frameIndex, submitBatch] : submitBatches )
         {
-            // Begin the next frame
-            BeginNextFrame();
+            m_DataAggregator.AppendSubmit( frameIndex, submitBatch );
+        }
+
+        // Delimit frames if needed.
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
+        {
+            m_DataAggregator.EndFrame( m_FrameIndex );
+            m_FrameIndex++;
         }
 
         if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
         {
-            if( pFrameBoundary != nullptr )
+            for( uint32_t frameIndex : frameBoundaryExtEndedFrames )
             {
-                BeginNextFrame();
+                m_DataAggregator.EndFrame( frameIndex );
             }
         }
 
@@ -1504,23 +1493,40 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        BeginNextFrame
+        FinishFrame
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::BeginNextFrame()
+    void DeviceProfiler::FinishFrame( const VkPresentInfoKHR* pPresentInfo )
     {
-        // Prepare aggregator for the next frame.
-        DeviceProfilerFrame frame = {};
-        frame.m_FrameIndex = m_NextFrameIndex++;
-        frame.m_ThreadId = ProfilerPlatformFunctions::GetCurrentThreadId();
-        frame.m_Timestamp = m_CpuTimestampCounter.GetCurrentValue();
-        frame.m_FramesPerSec = m_CpuFpsCounter.GetValue();
-        frame.m_FrameDelimiter = static_cast<VkProfilerFrameDelimiterEXT>( m_Config.m_FrameDelimiter.value );
-        frame.m_SyncTimestamps = m_Synchronization.GetSynchronizationTimestamps();
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
-        m_DataAggregator.AppendFrame( frame );
+        // Update FPS counter
+        m_CpuFpsCounter.Update();
+
+        // Delimit frames if needed.
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::present )
+        {
+            m_DataAggregator.EndFrame( m_FrameIndex );
+            m_FrameIndex++;
+        }
+
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+        {
+            const PNextChain pNextChain( pPresentInfo->pNext );
+            const VkFrameBoundaryEXT* pFrameBoundary =
+                pNextChain.Find<VkFrameBoundaryEXT>( VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT );
+
+            if( ( pFrameBoundary != nullptr ) &&
+                ( pFrameBoundary->flags & VK_FRAME_BOUNDARY_FRAME_END_BIT_EXT ) )
+            {
+                m_DataAggregator.EndFrame( static_cast<uint32_t>( pFrameBoundary->frameID ) );
+            }
+        }
+
+        // Get data captured during the last frame
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\
@@ -1686,6 +1692,71 @@ namespace Profiler
             ResolveObjectHandle<VkMicromapEXTHandle>( micromap ) );
 
         UnregisterObjectHandle<VkMicromapEXTHandle>( micromap );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BindSparseMemory
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::BindSparseMemory( VkQueue queue, uint32_t bindInfoCount, const VkBindSparseInfo* pBindInfos )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        for( uint32_t i = 0; i < bindInfoCount; ++i )
+        {
+            const VkBindSparseInfo& bindInfo = pBindInfos[i];
+
+            // Register buffer memory bindings
+            for( uint32_t j = 0; j < bindInfo.bufferBindCount; ++j )
+            {
+                const VkSparseBufferMemoryBindInfo& bufferBind = bindInfo.pBufferBinds[j];
+                BindBufferMemory(
+                    bufferBind.buffer,
+                    bufferBind.bindCount,
+                    bufferBind.pBinds );
+            }
+
+            // Register image opaque memory bindings
+            for( uint32_t j = 0; j < bindInfo.imageOpaqueBindCount; ++j )
+            {
+                const VkSparseImageOpaqueMemoryBindInfo& imageBind = bindInfo.pImageOpaqueBinds[j];
+                BindImageMemory(
+                    imageBind.image,
+                    imageBind.bindCount,
+                    imageBind.pBinds );
+            }
+
+            // Register image block memory bindings
+            for( uint32_t j = 0; j < bindInfo.imageBindCount; ++j )
+            {
+                const VkSparseImageMemoryBindInfo& imageBind = bindInfo.pImageBinds[j];
+                BindImageMemory(
+                    imageBind.image,
+                    imageBind.bindCount,
+                    imageBind.pBinds );
+            }
+
+            // Handle end of frame if frame boundary extension is used for delimiting.
+            if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+            {
+                const PNextChain pNextChain( bindInfo.pNext );
+                const VkFrameBoundaryEXT* pFrameBoundary =
+                    pNextChain.Find<VkFrameBoundaryEXT>( VK_STRUCTURE_TYPE_FRAME_BOUNDARY_EXT );
+
+                if( ( pFrameBoundary != nullptr ) &&
+                    ( pFrameBoundary->flags & VK_FRAME_BOUNDARY_FRAME_END_BIT_EXT ) )
+                {
+                    m_DataAggregator.EndFrame( static_cast<uint32_t>( pFrameBoundary->frameID ) );
+                }
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -1920,6 +1991,23 @@ namespace Profiler
                 pBinds[i].memoryOffset,
                 pBinds[i].flags );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSynchronizationTimestamps
+
+    Description:
+        Return last collected synchronization timestamps and get new timestamps for
+        the next frame.
+
+    \***********************************************************************************/
+    DeviceProfilerSynchronizationTimestamps DeviceProfiler::GetSynchronizationTimestamps()
+    {
+        return std::exchange(
+            m_SynchronizationTimestamps,
+            m_Synchronization.GetSynchronizationTimestamps() );
     }
 
     /***********************************************************************************\
