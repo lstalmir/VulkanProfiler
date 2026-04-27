@@ -237,7 +237,8 @@ namespace Profiler
 
         // Report implemented instance extensions
         static VkExtensionProperties layerExtensions[] = {
-            { VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_UTILS_SPEC_VERSION } };
+            { VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_EXT_DEBUG_UTILS_SPEC_VERSION },
+            { VK_EXT_LAYER_SETTINGS_EXTENSION_NAME, VK_EXT_LAYER_SETTINGS_SPEC_VERSION } };
 
         if( pExtensionProperties )
         {

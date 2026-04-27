@@ -31,7 +31,7 @@
         "device_extensions": [
             {
                 "name": "VK_EXT_profiler",
-                "spec_version": "4",
+                "spec_version": "6",
                 "entrypoints": [
                     "vkSetProfilerSamplingModeEXT",
                     "vkGetProfilerSamplingModeEXT",
@@ -63,6 +63,10 @@
                 "entrypoints": [
                     "vkGetPhysicalDeviceToolPropertiesEXT"
                 ]
+            },
+            {
+                "name": "VK_EXT_frame_boundary",
+                "spec_version": "1"
             }
         ],
         "features": {
