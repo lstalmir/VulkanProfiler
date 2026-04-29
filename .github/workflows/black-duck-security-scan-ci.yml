@@ -22,8 +22,8 @@ name: Coverity Scan
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '00 09 * * 6'
+#  schedule:
+#    - cron: '00 09 * * 6'
 
 jobs:
   build:
