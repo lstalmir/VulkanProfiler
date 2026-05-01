@@ -449,7 +449,7 @@ Description:
 VKAPI_ATTR VkResult VKAPI_CALL vkFlushProfilerEXT(
     VkDevice device )
 {
-    VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.FinishFrame( nullptr );
+    VkDevice_Functions::DeviceDispatch.Get( device ).Profiler.FinishFrame();
     return VK_SUCCESS;
 }
 

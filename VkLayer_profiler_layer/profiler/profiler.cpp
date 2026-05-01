@@ -1496,6 +1496,30 @@ namespace Profiler
         FinishFrame
 
     Description:
+        Used by VK_EXT_profiler extension to manually delimit frames.
+
+    \***********************************************************************************/
+    void DeviceProfiler::FinishFrame()
+    {
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        // Update FPS counter
+        m_CpuFpsCounter.Update();
+
+        // Start new frame
+        m_DataAggregator.EndFrame( m_FrameIndex );
+        m_FrameIndex++;
+
+        // Get data captured during the last frame
+        ResolveFrameData( tip );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FinishFrame
+
+    Description:
 
     \***********************************************************************************/
     void DeviceProfiler::FinishFrame( const VkPresentInfoKHR* pPresentInfo )
