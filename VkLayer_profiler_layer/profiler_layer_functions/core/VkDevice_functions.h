@@ -232,6 +232,12 @@ namespace Profiler
             VkImage image,
             const VkAllocationCallbacks* pAllocator );
 
+        // vkGetDeviceImageMemoryRequirements
+        static VKAPI_ATTR void VKAPI_CALL GetDeviceImageMemoryRequirements(
+            VkDevice device,
+            const VkDeviceImageMemoryRequirements* pInfo,
+            VkMemoryRequirements2* pMemoryRequirements );
+
         // vkBindImageMemory
         static VKAPI_ATTR VkResult VKAPI_CALL BindImageMemory(
             VkDevice device,

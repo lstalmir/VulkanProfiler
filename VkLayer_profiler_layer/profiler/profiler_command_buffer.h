@@ -89,6 +89,7 @@ namespace Profiler
         void WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
 
         const std::unordered_set<ProfilerCommandBuffer*>& GetSecondaryCommandBuffers() const;
+        const std::unordered_map<DeviceProfilerImageSubresourceKey, VkImageLayout>& GetImageLayoutTransitions() const;
 
         const DeviceProfilerCommandBufferData& GetData( DeviceProfilerQueryDataBufferReader& );
 
@@ -138,6 +139,8 @@ namespace Profiler
 
         std::list<IndirectArgumentBuffer>   m_IndirectArgumentBufferList;
 
+        std::unordered_map<DeviceProfilerImageSubresourceKey, VkImageLayout> m_ImageLayoutTransitions;
+
         void PreBeginRenderPassCommonProlog();
         void PreBeginRenderPassCommonEpilog();
 
@@ -158,5 +161,7 @@ namespace Profiler
         void ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst );
 
         IndirectArgumentBuffer& AcquireIndirectArgumentBuffer( size_t size );
+
+        void SaveImageLayoutTransition( VkImage, VkImageLayout, const VkImageSubresourceRange& );
     };
 }

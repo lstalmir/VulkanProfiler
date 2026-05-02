@@ -139,6 +139,9 @@ namespace Profiler
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
         , m_MemoryTracker()
+        , m_CapturedImage( VK_NULL_HANDLE )
+        , m_CapturedImageAllocation( VMA_NULL )
+        , m_CapturedImageView( VK_NULL_HANDLE )
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_pPerformanceCounters( nullptr )
@@ -529,6 +532,25 @@ namespace Profiler
         // End the last frame.
         m_DataAggregator.EndPendingFrames();
         ResolveFrameData( tip );
+
+        // Destroy image capture resources.
+        if( m_CapturedImageView )
+        {
+            m_pDevice->Callbacks.DestroyImageView(
+                m_pDevice->Handle,
+                m_CapturedImageView,
+                nullptr );
+
+            m_CapturedImageView = VK_NULL_HANDLE;
+        }
+
+        if( m_CapturedImage )
+        {
+            m_MemoryManager.FreeImage( m_CapturedImage, m_CapturedImageAllocation );
+
+            m_CapturedImage = VK_NULL_HANDLE;
+            m_CapturedImageAllocation = VMA_NULL;
+        }
 
         // Reset members and destroy resources.
         m_DeferredOperationCallbacks.clear();
@@ -1899,6 +1921,24 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        SetupImageCreateInfo
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::SetupImageCreateInfo( VkImageCreateInfo* pCreateInfo )
+    {
+        if( m_Config.m_Output == output_t::overlay )
+        {
+            // Make sure all images are created with VK_IMAGE_USAGE_TRANSFER_SRC_BIT flag,
+            // so the profiler can display them in the overlay.
+            pCreateInfo->usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateImage
 
     Description:
@@ -2015,6 +2055,97 @@ namespace Profiler
                 pBinds[i].memoryOffset,
                 pBinds[i].flags );
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CaptureImage
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfiler::CaptureImage( VkImage image, const VkImageSubresource& subresource )
+    {
+        if( !m_Config.m_EnableMemoryProfiling )
+        {
+            return;
+        }
+
+        if( m_CapturedImageView )
+        {
+            m_pDevice->Callbacks.DestroyImageView(
+                m_pDevice->Handle,
+                m_CapturedImageView,
+                nullptr );
+
+            m_CapturedImageView = VK_NULL_HANDLE;
+        }
+
+        if( m_CapturedImage )
+        {
+            m_MemoryManager.FreeImage( m_CapturedImage, m_CapturedImageAllocation );
+
+            m_CapturedImage = VK_NULL_HANDLE;
+            m_CapturedImageAllocation = VMA_NULL;
+        }
+
+        VkImageHandle imageHandle = ResolveObjectHandle<VkImageHandle>( image );
+        DeviceProfilerImageMemoryData imageMemoryData = m_MemoryTracker.GetImageMemoryData( imageHandle );
+
+        VkImageCreateInfo imageCreateInfo = {};
+        imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageCreateInfo.format = imageMemoryData.m_ImageFormat;
+        imageCreateInfo.extent.width = std::max( 1U, imageMemoryData.m_ImageExtent.width >> subresource.mipLevel );
+        imageCreateInfo.extent.height = std::max( 1U, imageMemoryData.m_ImageExtent.height >> subresource.mipLevel );
+        imageCreateInfo.extent.depth = 1;
+        imageCreateInfo.arrayLayers = 1;
+        imageCreateInfo.mipLevels = 1;
+        imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+        VmaAllocationCreateInfo allocationCreateInfo = {};
+        allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+        VkResult result = m_MemoryManager.AllocateImage(
+            imageCreateInfo,
+            allocationCreateInfo,
+            &m_CapturedImage,
+            &m_CapturedImageAllocation,
+            nullptr );
+
+        if( result != VK_SUCCESS )
+        {
+            return;
+        }
+
+        VkImageViewCreateInfo imageViewCreateInfo = {};
+        imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        imageViewCreateInfo.image = m_CapturedImage;
+        imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        imageViewCreateInfo.format = imageMemoryData.m_ImageFormat;
+        imageViewCreateInfo.subresourceRange.aspectMask = subresource.aspectMask;
+        imageViewCreateInfo.subresourceRange.layerCount = 1;
+        imageViewCreateInfo.subresourceRange.levelCount = 1;
+
+        result = m_pDevice->Callbacks.CreateImageView(
+            m_pDevice->Handle,
+            &imageViewCreateInfo,
+            nullptr,
+            &m_CapturedImageView );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CaptureImage
+
+    Description:
+
+    \***********************************************************************************/
+    VkImageView DeviceProfiler::GetCapturedImageView()
+    {
+        return m_CapturedImageView;
     }
 
     /***********************************************************************************\

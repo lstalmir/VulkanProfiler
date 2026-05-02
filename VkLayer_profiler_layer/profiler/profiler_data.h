@@ -1945,6 +1945,40 @@ namespace Profiler
             }
         }
     };
+
+    /***********************************************************************************\
+
+    Structure:
+        DeviceProfilerImageSubresourceKey
+
+    Description:
+
+    \***********************************************************************************/
+    struct DeviceProfilerImageSubresourceKey
+    {
+        VkImageHandle m_Image;
+        VkImageSubresource m_Subresource;
+
+        DeviceProfilerImageSubresourceKey()
+            : m_Image( VK_NULL_HANDLE )
+            , m_Subresource( {} )
+        {
+        }
+
+        DeviceProfilerImageSubresourceKey( VkImageHandle image, const VkImageSubresource& subresource )
+            : m_Image( image )
+            , m_Subresource( subresource )
+        {
+        }
+
+        inline bool operator==( const DeviceProfilerImageSubresourceKey& rh ) const
+        {
+            return ( m_Image == rh.m_Image ) &&
+                   ( m_Subresource.aspectMask == rh.m_Subresource.aspectMask ) &&
+                   ( m_Subresource.mipLevel == rh.m_Subresource.mipLevel ) &&
+                   ( m_Subresource.arrayLayer == rh.m_Subresource.arrayLayer );
+        }
+    };
 }
 
 namespace std
@@ -1964,6 +1998,17 @@ namespace std
         inline size_t operator()( const Profiler::DeviceProfilerPipelineData& pipeline ) const
         {
             return pipeline.m_ShaderTuple.m_Hash;
+        }
+    };
+
+    template<>
+    struct hash<Profiler::DeviceProfilerImageSubresourceKey>
+    {
+        inline size_t operator()( const Profiler::DeviceProfilerImageSubresourceKey& key ) const
+        {
+            return static_cast<size_t>( Farmhash::Hash64(
+                reinterpret_cast<const char*>( &key ),
+                sizeof( key ) ) );
         }
     };
 }

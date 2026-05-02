@@ -58,6 +58,7 @@ namespace Profiler
         , m_GraphicsPipeline()
         , m_ComputePipeline()
         , m_IndirectArgumentBufferList()
+        , m_ImageLayoutTransitions()
     {
         m_Data.m_Handle = m_Profiler.ResolveObjectHandle<VkCommandBufferHandle>( commandBuffer );
         m_Data.m_Level = level;
@@ -296,6 +297,8 @@ namespace Profiler
                     buffer.m_PendingCopyList.clear();
                 }
             }
+
+            m_ImageLayoutTransitions.clear();
         }
     }
 
@@ -978,6 +981,16 @@ namespace Profiler
                 bufferMemoryBarrierCount +
                 imageMemoryBarrierCount;
 
+            // Track image layout transitions
+            for( uint32_t i = 0; i < imageMemoryBarrierCount; ++i )
+            {
+                const VkImageMemoryBarrier& imageMemoryBarrier = pImageMemoryBarriers[i];
+                SaveImageLayoutTransition(
+                    imageMemoryBarrier.image,
+                    imageMemoryBarrier.newLayout,
+                    imageMemoryBarrier.subresourceRange );
+            }
+
             if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
                 // Flush any pending indirect argument buffer copies.
@@ -1006,6 +1019,16 @@ namespace Profiler
                 pDependencyInfo->memoryBarrierCount +
                 pDependencyInfo->bufferMemoryBarrierCount +
                 pDependencyInfo->imageMemoryBarrierCount;
+
+            // Track image layout transitions
+            for( uint32_t i = 0; i < pDependencyInfo->imageMemoryBarrierCount; ++i )
+            {
+                const VkImageMemoryBarrier2& imageMemoryBarrier = pDependencyInfo->pImageMemoryBarriers[i];
+                SaveImageLayoutTransition(
+                    imageMemoryBarrier.image,
+                    imageMemoryBarrier.newLayout,
+                    imageMemoryBarrier.subresourceRange );
+            }
 
             if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
@@ -1068,6 +1091,20 @@ namespace Profiler
     const std::unordered_set<ProfilerCommandBuffer*>& ProfilerCommandBuffer::GetSecondaryCommandBuffers() const
     {
         return m_pSecondaryCommandBuffers;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageLayoutTransitions
+
+    Description:
+        Returns final layouts of images transitioned in this command buffer.
+
+    \***********************************************************************************/
+    const std::unordered_map<DeviceProfilerImageSubresourceKey, VkImageLayout>& ProfilerCommandBuffer::GetImageLayoutTransitions() const
+    {
+        return m_ImageLayoutTransitions;
     }
 
     /***********************************************************************************\
@@ -1937,5 +1974,70 @@ namespace Profiler
         buffer.m_Offset = 0;
 
         return buffer;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SaveImageLayoutTransition
+
+    Description:
+        Save image layout transition for the given image and subresource range.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::SaveImageLayoutTransition( VkImage image, VkImageLayout imageLayout, const VkImageSubresourceRange& subresourceRange )
+    {
+        VkImageHandle imageHandle = m_Profiler.ResolveObjectHandle<VkImageHandle>( image );
+
+        // Track all image aspects, mip levels and array layers separately.
+        for( uint32_t aspectIndex = 0; aspectIndex < 32; ++aspectIndex )
+        {
+            const VkImageAspectFlags aspect = ( 1u << aspectIndex );
+
+            if( ( subresourceRange.aspectMask & aspect ) == 0 )
+            {
+                // Aspect is not included in the layout transition.
+                continue;
+            }
+
+            uint32_t levelCount = subresourceRange.levelCount;
+            uint32_t layerCount = subresourceRange.layerCount;
+
+            if( ( levelCount == VK_REMAINING_MIP_LEVELS ) || ( layerCount == VK_REMAINING_ARRAY_LAYERS ) )
+            {
+                const DeviceProfilerImageMemoryData& imageMemoryData =
+                    m_Profiler.m_MemoryTracker.GetImageMemoryData( imageHandle );
+
+                if( levelCount == VK_REMAINING_MIP_LEVELS )
+                {
+                    // The transition includes all mip levels from baseMipLevel.
+                    levelCount = imageMemoryData.m_ImageMipLevels - subresourceRange.baseMipLevel;
+                }
+
+                if( layerCount == VK_REMAINING_ARRAY_LAYERS )
+                {
+                    // The transition includes all array layers from baseArrayLayer.
+                    layerCount = imageMemoryData.m_ImageArrayLayers - subresourceRange.baseArrayLayer;
+                }
+            }
+
+            for( uint32_t mipLevel = subresourceRange.baseMipLevel;
+                 mipLevel < subresourceRange.baseMipLevel + subresourceRange.levelCount;
+                 mipLevel++ )
+            {
+                for( uint32_t arrayLayer = subresourceRange.baseArrayLayer;
+                     arrayLayer < subresourceRange.baseArrayLayer + subresourceRange.layerCount;
+                     arrayLayer++ )
+                {
+                    VkImageSubresource subresource = {};
+                    subresource.aspectMask = aspect;
+                    subresource.arrayLayer = arrayLayer;
+                    subresource.mipLevel = mipLevel;
+
+                    DeviceProfilerImageSubresourceKey key( image, subresource );
+                    m_ImageLayoutTransitions[key] = imageLayout;
+                }
+            }
+        }
     }
 }

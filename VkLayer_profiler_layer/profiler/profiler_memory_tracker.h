@@ -66,6 +66,10 @@ namespace Profiler
         void UnregisterMicromap( VkMicromapEXTHandle micromap );
 
         DeviceProfilerMemoryData GetMemoryData() const;
+        DeviceProfilerImageMemoryData GetImageMemoryData( VkImageHandle image ) const;
+
+        void UpdateImageLayouts( const std::unordered_map<DeviceProfilerImageSubresourceKey, VkImageLayout>& newLayouts, uint64_t timestamp );
+        VkImageLayout GetImageLayout( VkImageHandle image, const VkImageSubresource& subresource ) const;
 
     private:
         VkDevice_Object* m_pDevice;
@@ -87,6 +91,14 @@ namespace Profiler
         ConcurrentMap<VkMicromapEXTHandle, DeviceProfilerMicromapMemoryData> m_Micromaps;
 
         std::shared_mutex mutable m_MemoryBindingMutex;
+
+        struct ImageLayout
+        {
+            VkImageLayout m_Layout;
+            uint64_t m_Timestamp;
+        };
+
+        std::unordered_map<DeviceProfilerImageSubresourceKey, ImageLayout> m_ImageLayouts;
 
         void ResetMemoryData();
     };

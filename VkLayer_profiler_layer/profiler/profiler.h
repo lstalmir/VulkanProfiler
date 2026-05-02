@@ -146,11 +146,14 @@ namespace Profiler
         void BindBufferMemory( VkBuffer, VkDeviceMemory, VkDeviceSize );
         void BindBufferMemory( VkBuffer, uint32_t, const VkSparseMemoryBind* );
 
+        void SetupImageCreateInfo( VkImageCreateInfo* );
         void CreateImage( VkImage, const VkImageCreateInfo* );
         void DestroyImage( VkImage );
         void BindImageMemory( VkImage, VkDeviceMemory, VkDeviceSize );
         void BindImageMemory( VkImage, uint32_t, const VkSparseMemoryBind* );
         void BindImageMemory( VkImage, uint32_t, const VkSparseImageMemoryBind* );
+        void CaptureImage( VkImage, const VkImageSubresource& );
+        VkImageView GetCapturedImageView();
 
         const char* GetObjectName( VkObject ) const;
         void SetObjectName( VkObject, const char* );
@@ -180,6 +183,10 @@ namespace Profiler
         CpuEventFrequencyCounter m_CpuFpsCounter;
 
         DeviceProfilerMemoryTracker m_MemoryTracker;
+
+        VkImage m_CapturedImage;
+        VmaAllocation m_CapturedImageAllocation;
+        VkImageView m_CapturedImageView;
 
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;

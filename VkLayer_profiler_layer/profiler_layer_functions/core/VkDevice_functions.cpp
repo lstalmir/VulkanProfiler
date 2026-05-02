@@ -67,6 +67,7 @@ namespace Profiler
         GETPROCADDR( BindBufferMemory2 );
         GETPROCADDR( CreateImage );
         GETPROCADDR( DestroyImage );
+        GETPROCADDR( GetDeviceImageMemoryRequirements );
         GETPROCADDR( BindImageMemory );
         GETPROCADDR( BindImageMemory2 );
 
@@ -855,6 +856,10 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
+        // Adjust the image create info based on profiler configuration.
+        VkImageCreateInfo createInfo = *pCreateInfo;
+        dd.Profiler.SetupImageCreateInfo( &createInfo );
+
         // Create the image
         VkResult result = dd.Device.Callbacks.CreateImage(
             device, pCreateInfo, pAllocator, pImage );
@@ -889,6 +894,36 @@ namespace Profiler
 
         // Destroy the image
         dd.Device.Callbacks.DestroyImage( device, image, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDeviceImageMemoryRequirements
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::GetDeviceImageMemoryRequirements(
+        VkDevice device,
+        const VkDeviceImageMemoryRequirements* pInfo,
+        VkMemoryRequirements2* pMemoryRequirements )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Apply the same adjustments to the image create info as in CreateImage,
+        // so the memory requirements are consistent with the created image.
+        VkImageCreateInfo createInfo = *pInfo->pCreateInfo;
+        dd.Profiler.SetupImageCreateInfo( &createInfo );
+
+        VkDeviceImageMemoryRequirements info = *pInfo;
+        info.pCreateInfo = &createInfo;
+
+        // Get the memory requirements.
+        dd.Device.Callbacks.GetDeviceImageMemoryRequirements(
+            device, &info, pMemoryRequirements );
     }
 
     /***********************************************************************************\
