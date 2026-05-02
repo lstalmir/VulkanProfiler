@@ -174,6 +174,10 @@ This section describes in detail all available configuration options exposed by 
 
             The layer will delimit frames at command buffer submission operations. This mode is useful for applications that do not use swapchains or each submission should be considered as a separate frame.
 
+        frame_boundary_ext
+
+            The layer will use information provided by the application using VK_EXT_frame_boundary extension. The profiled application is required to supply VkFrameBoundaryEXT in the pNext chain on each vkQueueSubmit, vkQueueSubmit2 or vkQueuePresentKHR. See `VK_EXT_frame_boundary proposal <https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/features/latest/features/proposals/VK_EXT_frame_boundary.html>`_ for more information.
+
 .. confval:: frame_count
     :type: int
     :default: 1

@@ -194,7 +194,6 @@ namespace Profiler
         , m_pResolvedFrames()
         , m_pPendingFrames()
         , m_Mutex()
-        , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
         , m_CopyCommandPools()
     {
@@ -323,38 +322,13 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        BeginNextFrame
-
-    Description:
-        Add new frame to the aggregator.
-
-    \***********************************************************************************/
-    void ProfilerDataAggregator::AppendFrame( const DeviceProfilerFrame& frame )
-    {
-        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
-
-        std::scoped_lock lk( m_Mutex );
-
-        if( !m_pPendingFrames.empty() )
-        {
-            // Finalize the previous frame.
-            m_pPendingFrames.back()->m_EndTimestamp = frame.m_Timestamp;
-        }
-
-        m_FrameIndex = frame.m_FrameIndex;
-        m_pPendingFrames.emplace_back( std::make_shared<Frame>( frame ) );
-    }
-
-    /***********************************************************************************\
-
-    Function:
         AppendSubmit
 
     Description:
         Add submit data to the aggregator.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::AppendSubmit( const DeviceProfilerSubmitBatch& submit )
+    void ProfilerDataAggregator::AppendSubmit( uint32_t frameIndex, const DeviceProfilerSubmitBatch& submit )
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
@@ -400,8 +374,22 @@ namespace Profiler
 
         // Synchronize with data collection thread.
         std::scoped_lock lk( m_Mutex );
+        std::shared_ptr<Frame> pFrame = GetPendingFrame( frameIndex );
 
-        Frame& frame = *m_pPendingFrames.back();
+        if( pFrame == nullptr )
+        {
+            pFrame = std::make_shared<Frame>();
+            pFrame->m_FrameIndex = frameIndex;
+            pFrame->m_ThreadId = submit.m_ThreadId;
+            pFrame->m_Timestamp = submit.m_Timestamp;
+            pFrame->m_FramesPerSec = m_pProfiler->m_CpuFpsCounter.GetValue();
+            pFrame->m_FrameDelimiter = static_cast<VkProfilerFrameDelimiterEXT>( m_pProfiler->m_Config.m_FrameDelimiter.value );
+            pFrame->m_SyncTimestamps = m_pProfiler->GetSynchronizationTimestamps();
+
+            m_pPendingFrames.push_back( pFrame );
+        }
+
+        Frame& frame = *pFrame;
         submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>( frame.m_CompleteSubmits.size() );
 
         DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
@@ -411,6 +399,59 @@ namespace Profiler
 
         // Append the submit to the last frame in the queue.
         frame.m_PendingSubmits.push_back( std::move( submitBatch ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EndFrame
+
+    Description:
+        Mark the frame as ended.
+        It is possible that some submits that belong to this frame will be submitted,
+        but as the last pending submission ends, the frame will be considered completed.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::EndFrame( uint32_t frameIndex )
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        const uint64_t timestamp = m_pProfiler->m_CpuTimestampCounter.GetCurrentValue();
+
+        // Synchronize with data collection thread.
+        std::scoped_lock lk( m_Mutex );
+        std::shared_ptr<Frame> pFrame = GetPendingFrame( frameIndex );
+
+        if( pFrame )
+        {
+            pFrame->m_EndTimestamp = timestamp;
+            pFrame->m_Ended = true;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EndPendingFrames
+
+    Description:
+        Mark all pending frames as ended.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::EndPendingFrames()
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        const uint64_t timestamp = m_pProfiler->m_CpuTimestampCounter.GetCurrentValue();
+
+        // Synchronize with data collection thread.
+        std::scoped_lock lk( m_Mutex );
+
+        for( std::shared_ptr<Frame>& pFrame : m_pPendingFrames )
+        {
+            pFrame->m_EndTimestamp = timestamp;
+            pFrame->m_Ended = true;
+        }
     }
 
     /***********************************************************************************\
@@ -522,9 +563,9 @@ namespace Profiler
             {
                 std::shared_ptr<Frame> pFrame = m_pPendingFrames.front();
 
-                // A frame is completed when all its submits have been processed and a new frame has begun.
+                // A frame is completed when all its submits have been processed and no more are expected.
                 const bool frameCompleted =
-                    ( pFrame->m_FrameIndex < m_FrameIndex ) &&
+                    ( pFrame->m_Ended ) &&
                     ( pFrame->m_PendingSubmits.empty() );
 
                 if( !frameCompleted )
@@ -575,6 +616,29 @@ namespace Profiler
         std::list<std::shared_ptr<DeviceProfilerFrameData>> pResolvedFrames;
         std::swap( pResolvedFrames, m_pResolvedFrames );
         return pResolvedFrames;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetPendingFrame
+
+    Description:
+        Get the frame with the given index from the pending frames list.
+        m_Mutex must be locked by the caller.
+
+    \***********************************************************************************/
+    std::shared_ptr<ProfilerDataAggregator::Frame> ProfilerDataAggregator::GetPendingFrame( uint32_t frameIndex ) const
+    {
+        for( std::shared_ptr<Frame> pFrame : m_pPendingFrames )
+        {
+            if( pFrame->m_FrameIndex == frameIndex )
+            {
+                return pFrame;
+            }
+        }
+
+        return nullptr;
     }
 
     /***********************************************************************************\
