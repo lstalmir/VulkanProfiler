@@ -68,7 +68,7 @@ jobs:
 
     - name: Build profiler_codegen
       run: |
-          cmake -B ${{github.workspace}}/build -DSKIP_PLATFORMS_CHECK=ON
+          cmake -B ${{github.workspace}}/build -DSKIP_PLATFORMS_CHECK=ON -DSDL_UNIX_CONSOLE_BUILD=ON
           cmake --build ${{github.workspace}}/build --target profiler_codegen
 
     - name: Clean previous versions
