@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -176,6 +176,7 @@ namespace Profiler
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
         inline static constexpr char ShowShaderCapabilities[] = "Show shader capabilities";
         inline static constexpr char ShowEntryPoints[] = "Show entry points";
+        inline static constexpr char SynchronizeQueues[] = "Synchronize queues";
         inline static constexpr char TimeUnit[] = "Time unit";
 
         inline static constexpr char Milliseconds[] = "ms";

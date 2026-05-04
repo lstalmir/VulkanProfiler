@@ -199,3 +199,9 @@ This section describes in detail all available configuration options exposed by 
 .. confval:: ref_metrics
     :type: path
     :default: empty
+
+.. confval:: synchronize_queues
+    :type: bool
+    :default: false
+
+    When enabled, the layer will insert synchronization primitives to ensure that any work is executed without overlap with the other queues. This can help to reduce variability in performance measurements caused by asynchronous GPU execution. However, it will also significantly impact the overall performance of the application, so it is recommended to use this option only for specific use cases where accurate timing of individual queues is required.

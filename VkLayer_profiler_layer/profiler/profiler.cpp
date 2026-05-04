@@ -647,6 +647,24 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Function:
+        SetSynchronizeQueues
+
+    Description:
+        Enable or disable synchronization of queue submissions.
+
+    \***********************************************************************************/
+    VkResult DeviceProfiler::SetSynchronizeQueues( bool synchronize )
+    {
+        std::scoped_lock lk( m_SubmitMutex );
+
+        m_Config.m_SynchronizeQueues = synchronize;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
     \***********************************************************************************/
     std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData()
     {
@@ -1337,6 +1355,12 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue )
     {
+        // Synchronize access to the queue if requested.
+        if( m_Config.m_SynchronizeQueues )
+        {
+            m_SubmitMutex.lock();
+        }
+
         // Configure the queue for performance counters collection, if needed.
         if( m_pPerformanceCounters )
         {
@@ -1486,8 +1510,20 @@ namespace Profiler
             }
         }
 
+        // If synchronization between queues is enabled, wait with the mutex locked to ensure it is completed before the next submission.
+        if( m_Config.m_SynchronizeQueues )
+        {
+            m_pDevice->Callbacks.QueueWaitIdle( queue );
+        }
+
         // Get data captured during the last frame
         ResolveFrameData( tip );
+
+        // Release the lock acquired in PreSubmitCommandBuffers.
+        if( m_Config.m_SynchronizeQueues )
+        {
+            m_SubmitMutex.unlock();
+        }
     }
 
     /***********************************************************************************\

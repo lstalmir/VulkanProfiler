@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lukasz Stalmirski
+// Copyright (c) 2025-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -524,6 +524,20 @@ namespace Profiler
     VkResult DeviceProfilerLayerFrontend::SetProfilerSamplingMode( VkProfilerModeEXT mode )
     {
         return m_pProfiler->SetSamplingMode( mode );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetSynchronizeQueues
+
+    Description:
+        Enable or disable synchronization of command buffer submissions.
+
+    \***********************************************************************************/
+    VkResult DeviceProfilerLayerFrontend::SetSynchronizeQueues( bool synchronize )
+    {
+        return m_pProfiler->SetSynchronizeQueues( synchronize );
     }
 
     /***********************************************************************************\

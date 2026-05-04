@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -78,6 +78,7 @@ namespace Profiler
         VkResult SetFrameDelimiter( VkProfilerFrameDelimiterEXT );
         VkResult SetDataBufferSize( uint32_t );
         VkResult SetMinDataBufferSize( uint32_t );
+        VkResult SetSynchronizeQueues( bool );
         std::shared_ptr<DeviceProfilerFrameData> GetData();
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );
@@ -199,6 +200,8 @@ namespace Profiler
 
         DeviceProfilerSynchronization m_Synchronization;
         DeviceProfilerSynchronizationTimestamps m_SynchronizationTimestamps;
+
+        std::mutex              m_SubmitMutex;
 
         // Whether VK_KHR_pipeline_executable_properties is available for the profiled device.
         // In such case the internal representations of pipelines may be inspected to give more insight on potential performance issues.
