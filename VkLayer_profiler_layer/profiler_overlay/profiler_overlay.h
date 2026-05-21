@@ -170,7 +170,6 @@ namespace Profiler
         bool m_ShowAllTopPipelines;
         bool m_ShowActiveFrame;
         bool m_ShowEntryPoints;
-        bool m_SynchronizeQueues;
 
         bool GetShowActiveFrame() const;
         const FrameDataList& GetActiveFramesList() const;

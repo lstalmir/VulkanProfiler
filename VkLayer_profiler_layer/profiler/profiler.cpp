@@ -647,24 +647,6 @@ namespace Profiler
 
     /***********************************************************************************\
 
-    Function:
-        SetSynchronizeQueues
-
-    Description:
-        Enable or disable synchronization of queue submissions.
-
-    \***********************************************************************************/
-    VkResult DeviceProfiler::SetSynchronizeQueues( bool synchronize )
-    {
-        std::scoped_lock lk( m_SubmitMutex );
-
-        m_Config.m_SynchronizeQueues = synchronize;
-
-        return VK_SUCCESS;
-    }
-
-    /***********************************************************************************\
-
     \***********************************************************************************/
     std::shared_ptr<DeviceProfilerFrameData> DeviceProfiler::GetData()
     {

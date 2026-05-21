@@ -78,7 +78,6 @@ namespace Profiler
         VkResult SetFrameDelimiter( VkProfilerFrameDelimiterEXT );
         VkResult SetDataBufferSize( uint32_t );
         VkResult SetMinDataBufferSize( uint32_t );
-        VkResult SetSynchronizeQueues( bool );
         std::shared_ptr<DeviceProfilerFrameData> GetData();
 
         ProfilerCommandBuffer& GetCommandBuffer( VkCommandBuffer commandBuffer );

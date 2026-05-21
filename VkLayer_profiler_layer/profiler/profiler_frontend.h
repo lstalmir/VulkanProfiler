@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Lukasz Stalmirski
+// Copyright (c) 2025 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -81,8 +81,6 @@ namespace Profiler
 
         virtual VkProfilerModeEXT GetProfilerSamplingMode() = 0;
         virtual VkResult SetProfilerSamplingMode( VkProfilerModeEXT mode ) = 0;
-
-        virtual VkResult SetSynchronizeQueues( bool synchronize ) = 0;
 
         virtual std::string GetObjectName( const struct VkObject& object ) = 0;
         virtual void SetObjectName( const struct VkObject& object, const std::string& name ) = 0;

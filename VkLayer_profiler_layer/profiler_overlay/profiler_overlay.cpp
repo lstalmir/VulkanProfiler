@@ -554,8 +554,6 @@ namespace Profiler
             }
 
             SetMaxFrameCount( std::max( config.m_FrameCount, 0 ) );
-
-            m_SynchronizeQueues = config.m_SynchronizeQueues;
         }
 
         // Don't leave object in partly-initialized state if something went wrong
@@ -646,7 +644,6 @@ namespace Profiler
         m_ShowAllTopPipelines = false;
         m_ShowActiveFrame = false;
         m_ShowEntryPoints = false;
-        m_SynchronizeQueues = false;
 
         m_SetLastMainWindowPos = false;
 
@@ -6495,12 +6492,6 @@ namespace Profiler
         if( ImGui::InputInt( Lang::CollectedFrameCount, &maxFrameCount ) )
         {
             SetMaxFrameCount( std::max<uint32_t>( 0, maxFrameCount ) );
-        }
-
-        // Control queue synchronization
-        if( ImGui::Checkbox( Lang::SynchronizeQueues, &m_SynchronizeQueues ) )
-        {
-            m_Frontend.SetSynchronizeQueues( m_SynchronizeQueues );
         }
 
         // Select sampling mode (constant in runtime for now)
