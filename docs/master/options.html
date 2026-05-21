@@ -64,6 +64,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#confval-frame_skip_count"><code class="docutils literal notranslate"><span class="pre">frame_skip_count</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-ref_pipelines"><code class="docutils literal notranslate"><span class="pre">ref_pipelines</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-ref_metrics"><code class="docutils literal notranslate"><span class="pre">ref_metrics</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-synchronize_queues"><code class="docutils literal notranslate"><span class="pre">synchronize_queues</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="user_interface.html">User Interface</a></li>
@@ -367,6 +368,18 @@
 <dt class="field-even">Default<span class="colon">:</span></dt>
 <dd class="field-even">empty</dd>
 </dl>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-synchronize_queues">
+<span class="sig-name descname"><span class="pre">synchronize_queues</span></span><a class="headerlink" href="#confval-synchronize_queues" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">bool</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">false</dd>
+</dl>
+<p>When enabled, the layer will insert synchronization primitives to ensure that any work is executed without overlap with the other queues. This can help to reduce variability in performance measurements caused by asynchronous GPU execution. However, it will also significantly impact the overall performance of the application, so it is recommended to use this option only for specific use cases where accurate timing of individual queues is required.</p>
 </dd></dl>
 
 </section>
