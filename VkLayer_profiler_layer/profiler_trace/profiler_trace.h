@@ -124,6 +124,9 @@ namespace Profiler
             return (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_GpuTimestampPeriod;
         }
 
+        // Metadata
+        nlohmann::json GetMetadataObject() const;
+
         // Serialization
         void Serialize( const struct DeviceProfilerCommandBufferData& );
         void Serialize( const struct DeviceProfilerRenderPassData& );

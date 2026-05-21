@@ -60,6 +60,7 @@ namespace Profiler
         std::string GetPointer( const void* ) const;
         std::string GetBool( VkBool32 ) const;
         std::string GetVec4( const float* ) const;
+        std::string GetVersion( uint32_t version ) const;
 
         std::string GetColorHex( const float* ) const;
 

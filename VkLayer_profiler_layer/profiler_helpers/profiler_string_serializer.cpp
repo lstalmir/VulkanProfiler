@@ -816,6 +816,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetVersion
+
+    Description:
+        Returns string representation of a version encoded using Vulkan macros.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetVersion( uint32_t version ) const
+    {
+        return fmt::format( "{}.{}.{}",
+            VK_API_VERSION_MAJOR( version ),
+            VK_API_VERSION_MINOR( version ),
+            VK_API_VERSION_PATCH( version ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetColorHex
 
     Description:
