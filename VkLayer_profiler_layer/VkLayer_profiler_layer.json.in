@@ -106,7 +106,10 @@
                             "dependence": {
                                 "mode": "ALL",
                                 "settings": [
-                                    { "key": "output", "value": "trace" }
+                                    {
+                                        "key": "output",
+                                        "value": "trace"
+                                    }
                                 ]
                             }
                         }
@@ -167,7 +170,10 @@
                             "dependence": {
                                 "mode": "ALL",
                                 "settings": [
-                                    { "key": "enable_performance_query_ext", "value": "intel" }
+                                    {
+                                        "key": "enable_performance_query_ext",
+                                        "value": "intel"
+                                    }
                                 ]
                             }
                         },
@@ -181,8 +187,14 @@
                             "dependence": {
                                 "mode": "ALL",
                                 "settings": [
-                                    { "key": "enable_performance_query_ext", "value": "intel" },
-                                    { "key": "performance_query_mode", "value": "stream" }
+                                    {
+                                        "key": "enable_performance_query_ext",
+                                        "value": "intel"
+                                    },
+                                    {
+                                        "key": "performance_query_mode",
+                                        "value": "stream"
+                                    }
                                 ]
                             }
                         },
@@ -196,7 +208,10 @@
                             "dependence": {
                                 "mode": "ALL",
                                 "settings": [
-                                    { "key": "enable_performance_query_ext", "value": "intel" }
+                                    {
+                                        "key": "enable_performance_query_ext",
+                                        "value": "intel"
+                                    }
                                 ]
                             }
                         }
@@ -329,6 +344,14 @@
                     "env": "VKPROF_ref_metrics",
                     "type": "LOAD_FILE",
                     "default": ""
+                },
+                {
+                    "key": "synchronize_queues",
+                    "label": "Synchronize queues",
+                    "description": "Synchronize all command buffer submissions to prevent concurrent execution on multiple queues during measurements.",
+                    "env": "VKPROF_synchronize_queues",
+                    "type": "BOOL",
+                    "default": false
                 }
             ]
         }
